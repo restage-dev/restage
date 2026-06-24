@@ -1,0 +1,27 @@
+name: rfw_catalog_schema
+description: >-
+  Public schema, annotations, wire identity, and JSON codecs for a Remote
+  Flutter Widget catalog. Pure-Dart, consumed by editors, backends, SDK
+  runtimes, codegen builders, and CLI tooling that produce, transmit, or
+  decode RFW-targeted widget catalogs.
+version: 1.0.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+topics:
+  - server-driven-ui
+  - remote-ui
+  - flutter
+# Public-bound from day one. publish_to is omitted (defaults to pub.dev);
+# actual publication is deferred until the internal architecture stabilizes.
+
+environment:
+  sdk: ^3.6.0
+
+resolution: workspace
+
+dependencies:
+  meta: ^1.16.0
+
+dev_dependencies:
+  test: ^1.25.0

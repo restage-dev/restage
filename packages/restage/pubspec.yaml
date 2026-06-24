@@ -1,0 +1,63 @@
+name: restage
+description: >-
+  Restage Flutter SDK — render server-driven UI as real Flutter widgets
+  via Remote Flutter Widgets (RFW). App Store 4.7 compliant by virtue of being
+  declarative-only.
+version: 1.0.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+topics:
+  - server-driven-ui
+  - remote-ui
+  - flutter
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+  # >=3.41: the SDK is built and verified against current stable Flutter.
+  # The theme channel relies on recent dart:ui APIs (Color.toARGB32, the
+  # modern FontWeight value/constructor) absent from older stable lines.
+  flutter: ">=3.41.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Flutter-team-maintained Material motion library; supplies the canonical
+  # M3 shared-axis transition used as the non-Apple default flow transition.
+  animations: ^2.2.0
+  http: ^1.2.0
+  in_app_purchase: ^3.2.0
+  # The Android platform implementation of in_app_purchase. Imported directly to
+  # construct the Play purchase param that carries a subscription offer token and
+  # to read the eligible offers off the product; the meta-package alone does not
+  # expose it.
+  in_app_purchase_android: ^0.4.0
+  # The Apple platform implementation of in_app_purchase. Imported directly to
+  # construct the StoreKit-2 purchase param that carries a promotional-offer
+  # signature; the meta-package alone does not expose it.
+  in_app_purchase_storekit: ^0.4.8
+  restage_core:
+    path: ../restage_core
+  restage_cupertino:
+    path: ../restage_cupertino
+  restage_material:
+    path: ../restage_material
+  restage_shared:
+    path: ../restage_shared
+  meta: ^1.15.0
+  # Capped below 1.2.0 deliberately. The build-time toolchain encodes blobs with
+  # a vendored, frozen copy of the rfw formats codec, while this runtime decodes
+  # with the published rfw. A breaking binary-format change in a future minor
+  # would let the runtime decode server blobs differently than they were written.
+  # The cross-codec parity test (restage_core) verifies the two codecs agree;
+  # raise this ceiling only after re-vendoring and re-running that parity gate.
+  rfw: ">=1.1.3 <1.2.0"
+  shared_preferences: ^2.5.0
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

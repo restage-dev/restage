@@ -1,0 +1,19 @@
+# Public-bound BSD-3-Clause package — uses flutter_lints (matches pub.dev community
+# norms) instead of the workspace's stricter baseline.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  # Generated catalog fixtures are emitter output, not hand-written source —
+  # the emitter unconditionally emits its full helper set, so a fixture that
+  # uses only some helpers leaves the rest unused. The instantiation test still
+  # compiles them against the real genui SDK (the compile floor), so excluding
+  # them from lint loses no coverage.
+  exclude:
+    - test/generated/**
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore

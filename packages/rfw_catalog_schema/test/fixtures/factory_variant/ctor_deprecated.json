@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-05-27T00:00:00Z",
+  "libraries": {
+    "restage.core": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Probe",
+      "library": "restage.core",
+      "description": "Probe structured type.",
+      "sourceType": "package:flutter/painting.dart#Probe",
+      "fields": [],
+      "variants": [
+        {
+          "wireId": "v0001",
+          "sourceKind": "constructor",
+          "description": "A deprecated constructor.",
+          "deprecated": {
+            "source": {
+              "message": "Use the replacement constructor.",
+              "since": "3.0.0"
+            },
+            "catalog": {
+              "reason": "Superseded by a clearer factory.",
+              "at": "2026-05-27T00:00:00Z"
+            }
+          }
+        }
+      ],
+      "stability": "volatile"
+    }
+  ]
+}

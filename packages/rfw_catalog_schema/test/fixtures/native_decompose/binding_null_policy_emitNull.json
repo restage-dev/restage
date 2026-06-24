@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-05-27T00:00:00Z",
+  "libraries": {
+    "restage.core": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "Probe",
+      "library": "restage.core",
+      "category": "layout",
+      "description": "Probe widget.",
+      "flutterType": "package:flutter/widgets.dart#Probe",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "prop",
+          "type": "structured",
+          "description": "Probe property.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string"
+          }
+        }
+      ],
+      "decomposes": [
+        {
+          "structuredRef": {
+            "library": "restage.core",
+            "wireId": "s0001"
+          },
+          "flatProperties": {
+            "p0501": "p0001"
+          },
+          "targetArg": "arg",
+          "construction": {
+            "variantRef": {
+              "library": "restage.core",
+              "wireId": "v0001"
+            },
+            "receiver": {
+              "kind": "resultStructuredType"
+            }
+          },
+          "fieldMappings": [
+            {
+              "fieldRef": "p0501",
+              "propertyRef": "p0001",
+              "transform": {
+                "kind": "constructVariant",
+                "resultStructuredRef": {
+                  "library": "restage.core",
+                  "wireId": "s0001"
+                },
+                "invocation": {
+                  "variantRef": {
+                    "library": "restage.core",
+                    "wireId": "v0001"
+                  },
+                  "receiver": {
+                    "kind": "resultStructuredType"
+                  }
+                },
+                "argumentBindings": [
+                  {
+                    "parameterRef": "a0001",
+                    "source": "propertyValue",
+                    "nullPolicy": "emitNull",
+                    "missingPolicy": "nullResult"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

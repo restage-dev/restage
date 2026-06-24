@@ -1,0 +1,7 @@
+# Registry-driven library — opt out of the @RestageWidget aggregator.
+# Widget metadata lives in lib/registry.dart, not annotation walks.
+targets:
+  $default:
+    builders:
+      restage_codegen:user_catalog:
+        enabled: false

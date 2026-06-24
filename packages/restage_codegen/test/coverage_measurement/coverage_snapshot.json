@@ -1,0 +1,48 @@
+{
+  "inlinable/composition-only": [
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomColorConst",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomComposition",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomHelperCall",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomIconRef",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomParamHelper",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomTextStyleArg",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomWidgetLocal",
+    "package:apps_examples/coverage_fixtures/minimal.dart#MinCardComposition",
+    "package:apps_examples/coverage_fixtures/paywall.dart#PaywallHero",
+    "package:apps_examples/coverage_fixtures/paywall.dart#PaywallRestoreLink"
+  ],
+  "inlinable/+const-fold": [
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomConstFold",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomConstLocal",
+    "package:apps_examples/coverage_fixtures/minimal.dart#MinCardConstFold",
+    "package:apps_examples/coverage_fixtures/paywall.dart#PaywallFeatureRow"
+  ],
+  "inlinable/+theme-as-data": [
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomThemeRead",
+    "package:apps_examples/coverage_fixtures/theme_as_data.dart#ThemePill"
+  ],
+  "inlinable/+declarative-state": [
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomBoolState",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomConditional",
+    "package:apps_examples/coverage_fixtures/minimal.dart#MinToggle",
+    "package:apps_examples/coverage_fixtures/paywall.dart#PaywallAnnualToggle"
+  ],
+  "classifier-only/emit-failed": [],
+  "deferred": [
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomAdjacentStrings",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomInlineClosure",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomNonFiniteWidth",
+    "package:apps_examples/coverage_fixtures/minimal.dart#MinInlineHandler",
+    "package:apps_examples/coverage_fixtures/paywall.dart#PaywallPrimaryCta"
+  ],
+  "structural": [
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomController",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomCustomPaint",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomFutureBuilder",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomHelperArityMismatch",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomLayoutBuilder",
+    "package:apps_examples/coverage_fixtures/idioms.dart#IdiomRuntimeCompute",
+    "package:apps_examples/coverage_fixtures/minimal.dart#MinChart",
+    "package:apps_examples/coverage_fixtures/paywall.dart#PaywallTrendGraph"
+  ]
+}

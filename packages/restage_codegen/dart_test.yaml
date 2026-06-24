@@ -1,0 +1,13 @@
+# build_test fixtures spin up build_runner steps that are slow under
+# constrained concurrency. The default 30s per-test timeout occasionally trips
+# at `--concurrency=2` (intermittent flake — the work itself is well under 30s).
+# Bump to give those fixtures headroom. This is a mitigation, not a guaranteed
+# elimination of the flake.
+timeout: 90s
+
+tags:
+  # Live pub.dev fetch + `flutter pub get`. Declared so `@Tags(['network'])`
+  # is recognised. The tagged test additionally self-skips unless
+  # RESTAGE_PUBDEV_SCAN=1 is set, so the default offline gate stays green
+  # without a per-tag exclusion.
+  network:

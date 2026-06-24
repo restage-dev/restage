@@ -1,0 +1,68 @@
+name: Gate toolchain PRs
+
+# The FSL-licensed build toolchain (restage_codegen, rfw_catalog_compiler) is not
+# open for pull requests until the CLA signing flow + bot are live — its license
+# requires a CLA we can't yet collect. PRs that touch ONLY the other (BSD-3)
+# packages are left alone for normal review; a PR that changes either toolchain
+# package is politely closed. This workflow only reads the PR's file list and (if
+# needed) comments + closes — it never checks out or runs the PR's code, so
+# pull_request_target is safe here. Remove it when the CLA bot is live.
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  gate-toolchain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const gated = [
+              "packages/restage_codegen/",
+              "packages/rfw_catalog_compiler/",
+            ];
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            const touchesToolchain = files.some(
+              (f) => gated.some((p) => f.filename.startsWith(p)),
+            );
+            if (!touchesToolchain) {
+              core.info("PR does not touch the gated toolchain packages; leaving it open for review.");
+              return;
+            }
+            const body = [
+              "Thanks for the contribution — and sorry for the friction.",
+              "",
+              "This pull request changes the **FSL-licensed build toolchain**",
+              "(`restage_codegen` / `rfw_catalog_compiler`), which isn't open for pull",
+              "requests yet: contributions to it require a Contributor License",
+              "Agreement, and we're still putting the CLA signing flow in place. So this",
+              "PR is being closed automatically — not because it isn't welcome.",
+              "",
+              "The rest of the SDK **is** open for PRs. If your change is mostly outside",
+              "the toolchain, please resubmit without the toolchain edits. For toolchain",
+              "ideas, open an issue: https://github.com/restage-dev/restage/issues",
+              "",
+              "Watch or star the repo to hear when toolchain contributions open. Thank you!",
+            ].join("\n");
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              state: "closed",
+            });

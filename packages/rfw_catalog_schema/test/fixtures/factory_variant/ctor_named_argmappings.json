@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-05-27T00:00:00Z",
+  "libraries": {
+    "restage.core": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Probe",
+      "library": "restage.core",
+      "description": "Probe structured type.",
+      "sourceType": "package:flutter/painting.dart#Probe",
+      "fields": [],
+      "variants": [
+        {
+          "wireId": "v0001",
+          "sourceKind": "constructor",
+          "namedConstructor": "only",
+          "argMappings": {
+            "left": [
+              "p0501"
+            ],
+            "top": [
+              "p0502"
+            ]
+          },
+          "description": "Constructs from individual edges."
+        }
+      ],
+      "stability": "volatile"
+    }
+  ]
+}

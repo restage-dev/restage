@@ -1,0 +1,75 @@
+builders:
+  paywall_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageCodegenBuilder']
+    build_extensions:
+      "lib/paywalls/{{name}}.dart":
+        - "assets/paywalls/{{name}}.rfwtxt"
+        - "assets/paywalls/{{name}}.rfw"
+        - "assets/paywalls/{{name}}.capability.json"
+        - "assets/paywalls/{{name}}.navplan.json"
+        - "assets/onboarding/screens/paywall_{{name}}.rfw"
+      "lib/paywalls/{{name}}.rfwtxt":
+        - "assets/paywalls/{{name}}.rfw"
+        - "assets/paywalls/{{name}}.capability.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: ['restage_codegen:paywall_flow_codegen']
+  paywall_flow_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['paywallFlowBuilder']
+    build_extensions:
+      "lib/paywalls/{{name}}.dart":
+        - "assets/paywalls/{{name}}.flow.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []
+  onboarding_screen_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['onboardingScreenBuilder']
+    build_extensions:
+      "lib/onboarding/screens/{{name}}.dart":
+        - "lib/onboarding/screens/{{name}}.rsscreen.g.dart"
+        - "assets/onboarding/screens/{{name}}.rfwtxt"
+        - "assets/onboarding/screens/{{name}}.rfw"
+        - "assets/onboarding/screens/{{name}}.capability.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: ['restage_codegen:onboarding_flow_codegen']
+  onboarding_flow_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['onboardingFlowBuilder']
+    build_extensions:
+      "lib/onboarding/flows/{{name}}.dart":
+        - "lib/onboarding/flows/{{name}}.rsflow.g.dart"
+        - "assets/onboarding/flows/{{name}}.flow.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []
+  user_catalog:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['userCatalogBuilder']
+    build_extensions:
+      $lib$:
+        - "user_catalog.g.dart"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []
+  factory_functions:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['factoryFunctionBuilder']
+    build_extensions:
+      "lib/src/widget_catalog/catalog.json":
+        - "lib/src/registration.g.dart"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []
+  user_factories:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['userFactoryBuilder']
+    build_extensions:
+      $lib$:
+        - "user_factories.g.dart"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []

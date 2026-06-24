@@ -1,0 +1,5 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget OnboardingScreen = Scaffold(backgroundColor: 0xFF141414, body: SafeArea(child: Padding(padding: [24.0, 24.0, 24.0, 24.0], child: Column(crossAxisAlignment: "stretch", children: [Expanded(child: Column(mainAxisAlignment: "center", children: [Container(width: 120.0, height: 120.0, color: 0xFF1F1F1F, shape: "circle", child: Icon(iconCodepoint: 63030, size: 64.0, color: 0xFF8B5CF6)), SizedBox(height: 30.0), Text(text: "Your discount is applied", textAlign: "center", color: 0xFFFFFFFF, fontSize: 28.0, fontWeight: "w800", letterSpacing: -0.4), SizedBox(height: 14.0), Text(text: "You’re saving 50% for the next 3 months. Enjoy the show.", textAlign: "center", color: 0xFF9A9A9A, fontSize: 16.0, height: 1.5)])), FilledButton(backgroundColor: 0xFF8B5CF6, foregroundColor: 0xFFFFFFFF, padding: [0.0, 18.0, 0.0, 18.0], shape: {type: "rounded", borderRadius: 8.0}, onPressed: event "finish" {}, child: Text(text: "Continue watching", fontSize: 17.0, fontWeight: "w700"))]))));

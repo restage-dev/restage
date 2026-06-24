@@ -1,0 +1,13 @@
+# Public-bound BSD-3-Clause package, pure Dart — uses the Dart team's recommended
+# baseline (matches `dart create` defaults) instead of the workspace's
+# stricter `very_good_analysis`.
+
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Analyze + format + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Activate Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: melos bootstrap
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Format check
+        # Exclude emitter-generated fixtures (test/generated/*.g.dart) whose
+        # codegen output style diverges from `dart format` by design.
+        run: |
+          find packages apps -name '*.dart' \
+            -not -path '*/test/generated/*' \
+            -not -path '*/.dart_tool/*' -print0 \
+            | xargs -0 dart format --output=none --set-exit-if-changed
+
+      - name: Test (suites that fit the runner)
+        # The analyzer-heavy build suites (restage_codegen, rfw_catalog_compiler)
+        # peak past a hosted runner's memory; they're validated by the maintainers
+        # locally. CI runs the suites that fit — every Flutter widget suite
+        # (including the rfw wire-format goldens in restage_core) and the
+        # lightweight Dart packages.
+        run: |
+          melos run test:dart --scope="rfw_catalog_schema,restage_shared,restage_mcp,restage_cli"
+          melos run test:flutter

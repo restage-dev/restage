@@ -1,0 +1,40 @@
+name: restage_cli
+description: >-
+  The Restage command-line interface. Sign in, publish paywalls and engagement surfaces, and
+  bootstrap projects against a Restage backend.
+version: 0.1.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+topics:
+  - server-driven-ui
+  - remote-ui
+  - flutter
+# Public-bound from day one. publish_to is `none` for now because this
+# package depends on the workspace `restage_shared` (itself not yet
+# published) — matching every other public-bound member in the workspace.
+# Actual publication follows the coordinated launch, once the shared
+# package is published and the command surface stabilizes.
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+executables:
+  restage: restage
+
+dependencies:
+  args: ^2.5.0
+  http: ^1.2.0
+  meta: ^1.15.0
+  path: ^1.9.0
+  restage_shared:
+    path: ../restage_shared
+  yaml: ^3.1.0
+  yaml_edit: ^2.2.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-05-27T00:00:00Z",
+  "libraries": {
+    "restage.core": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Probe",
+      "library": "restage.core",
+      "description": "Probe structured type.",
+      "sourceType": "package:flutter/painting.dart#Probe",
+      "fields": [],
+      "variants": [
+        {
+          "wireId": "v0001",
+          "sourceKind": "staticMethod",
+          "staticAccessor": "styleFrom",
+          "argMappings": {
+            "backgroundColor": [
+              "p0501"
+            ]
+          },
+          "parameters": [
+            {
+              "wireId": "a0001",
+              "name": "backgroundColor",
+              "kind": "named",
+              "required": false,
+              "nullable": true,
+              "defaultPolicy": "omitWhenNull",
+              "valueShape": {
+                "kind": "scalar",
+                "propertyType": "color"
+              }
+            }
+          ],
+          "description": "Builds a style from individual properties."
+        }
+      ],
+      "stability": "volatile"
+    }
+  ]
+}

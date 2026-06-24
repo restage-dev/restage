@@ -1,0 +1,57 @@
+name: restage_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+# Dart 3 pub workspace. Every package below declares `resolution: workspace`
+# and resolves against this single root. Keep this list in sync with the
+# package directories.
+workspace:
+  - packages/rfw_catalog_schema
+  - packages/rfw_catalog_compiler
+  - packages/restage_shared
+  - packages/restage
+  - packages/restage_codegen
+  - packages/restage_cli
+  - packages/restage_mcp
+  - packages/restage_core
+  - packages/restage_material
+  - packages/restage_cupertino
+  - packages/restage_a2ui
+  - apps/examples
+
+dev_dependencies:
+  melos: ^7.4.0
+  very_good_analysis: ^10.2.0
+
+melos:
+  scripts:
+    analyze:
+      description: Run dart analyze across all packages
+      exec: dart analyze
+    format:
+      description: >-
+        Format check across all packages, excluding emitter-generated
+        fixtures (test/generated/*.g.dart) whose codegen style diverges
+        from `dart format` by design.
+      run: |
+        find packages apps -name '*.dart' \
+          -not -path '*/test/generated/*' \
+          -not -path '*/.dart_tool/*' -print0 \
+          | xargs -0 dart format --output=none --set-exit-if-changed
+    test:
+      description: Run tests across all test/-bearing packages (delegates).
+      run: melos run test:dart && melos run test:flutter
+    test:dart:
+      description: Run dart test in pure-Dart packages with a test/ directory
+      exec: dart test
+      packageFilters:
+        dirExists: test
+        flutter: false
+    test:flutter:
+      description: Run flutter test in Flutter packages with a test/ directory
+      exec: flutter test
+      packageFilters:
+        dirExists: test
+        flutter: true

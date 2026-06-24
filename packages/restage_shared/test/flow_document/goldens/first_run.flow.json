@@ -1,0 +1,134 @@
+{
+  "actions": {
+    "requestNotifications": {
+      "actionName": "requestNotifications",
+      "argsSchema": {
+        "fields": {},
+        "kind": "object"
+      },
+      "argsSchemaHash": "sha256:590f015bf5e877b53e3501b7e12ad48a11158d4c5b696f9a82593c4f3272411a",
+      "contractVersion": 1,
+      "idempotent": false,
+      "minClient": 3,
+      "resultSchema": {
+        "fields": {
+          "granted": {
+            "required": true,
+            "schema": {
+              "kind": "bool"
+            }
+          }
+        },
+        "kind": "object"
+      },
+      "resultSchemaHash": "sha256:ef1c091bc0c82e02a9c18695d6ececbd01dee150396df8bea8ea2b8428ece4ec"
+    }
+  },
+  "flow": "first_run",
+  "flowState": {
+    "completed": {
+      "classification": "exportable",
+      "type": "bool"
+    },
+    "secret": {
+      "classification": "internal",
+      "type": "string"
+    }
+  },
+  "initial": "welcome",
+  "minClient": 3,
+  "outbound": {
+    "customEvents": {
+      "analyticsTap": {
+        "fields": {
+          "ctaId": {
+            "ref": {
+              "event": "ctaId"
+            },
+            "type": "string"
+          }
+        }
+      }
+    },
+    "terminalResult": {
+      "fields": {
+        "completed": {
+          "ref": {
+            "state": "completed"
+          },
+          "type": "bool"
+        }
+      }
+    }
+  },
+  "schemaVersion": 1,
+  "screenArtifacts": {
+    "permissions": {
+      "contentHash": "sha256:2fdf394099fc1b2726364d3c711bc67e4c6e3a6815e954f8ba40e5f6abff5f20",
+      "minClient": 1,
+      "path": "permissions.rfw",
+      "schemaVersion": 1,
+      "version": 1
+    },
+    "ready": {
+      "contentHash": "sha256:3ddf726bd14672398d634f5f551d6774438f2a6b6f64c2337170405daebd1bd5",
+      "minClient": 1,
+      "path": "ready.rfw",
+      "schemaVersion": 1,
+      "version": 1
+    },
+    "welcome": {
+      "contentHash": "sha256:173eb2f2fc701497bf99849f061570b609fc54ad654a77349083396be458d53b",
+      "minClient": 1,
+      "path": "welcome.rfw",
+      "schemaVersion": 1,
+      "version": 1
+    }
+  },
+  "states": {
+    "done": {
+      "kind": "end",
+      "result": {
+        "completed": true,
+        "secret": "internal"
+      }
+    },
+    "permissions": {
+      "kind": "screen",
+      "on": {
+        "next": {
+          "action": "requestNotifications",
+          "resultPredicate": {
+            "field": "granted",
+            "kind": "objectBoolFieldEquals",
+            "value": true
+          },
+          "target": "ready",
+          "type": "action"
+        }
+      },
+      "screen": "permissions"
+    },
+    "ready": {
+      "kind": "screen",
+      "on": {
+        "start": {
+          "target": "done",
+          "type": "goto"
+        }
+      },
+      "screen": "ready"
+    },
+    "welcome": {
+      "kind": "screen",
+      "on": {
+        "next": {
+          "target": "permissions",
+          "type": "goto"
+        }
+      },
+      "screen": "welcome"
+    }
+  },
+  "version": 1
+}

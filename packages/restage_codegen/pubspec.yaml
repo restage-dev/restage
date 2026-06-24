@@ -1,0 +1,50 @@
+name: restage_codegen
+description: >-
+  A build_runner code generator that compiles Flutter-authored UI into Remote
+  Flutter Widget (RFW) blobs and catalogs consumed by the Restage SDK runtime.
+version: 1.0.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+topics:
+  - server-driven-ui
+  - remote-ui
+  - flutter
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+resolution: workspace
+
+dependencies:
+  # Lower bound is 7.4.0, not 6.0.0: the codegen uses the analyzer 7.x element
+  # model (Fragment / firstFragment / declaredFragment), which is absent from
+  # 6.x. A resolution that floated to 6.x would not compile.
+  analyzer: ">=7.4.0 <11.0.0"
+  build: ">=2.4.0 <5.0.0"
+  collection: ^1.18.0
+  dart_style: ">=2.3.0 <4.0.0"
+  glob: ^2.1.2
+  restage_shared:
+    path: ../restage_shared
+  meta: ^1.16.0
+  package_config: ^2.0.0
+  path: ^1.9.0
+  rfw_catalog_compiler:
+    path: ../rfw_catalog_compiler
+  rfw_catalog_schema:
+    path: ../rfw_catalog_schema
+
+dev_dependencies:
+  build_runner: ">=2.4.0 <3.0.0"
+  build_test: ">=2.2.0 <4.0.0"
+  # Resolves `package:intl/` in the recognizer tests so NumberFormat
+  # constructions parse as resolved InstanceCreationExpressions (the
+  # element-gated recognition path); not a runtime dependency of the toolchain.
+  intl: ^0.20.2
+  logging: ^1.2.0
+  test: ^1.25.0
+  # Parses build.yaml in the build.yaml ↔ Builder.buildExtensions consistency
+  # test (the production build_runner reads build.yaml; tests read the getter).
+  yaml: ^3.1.2

@@ -1,0 +1,18 @@
+# Public-bound BSD-3-Clause package, pure Dart — uses the Dart team's recommended
+# baseline (matches `dart create` defaults) instead of the workspace's
+# stricter `very_good_analysis`.
+
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore
+    # This package is a deliberate first-party consumer of the reuse API in
+    # `restage_cli` (RestageApi/AuthApi/SurfaceApi/PaywallApi + models). That
+    # surface is marked @experimental so external packages don't pin to it;
+    # as the in-house consumer we opt out of the resulting use warning.
+    experimental_member_use: ignore

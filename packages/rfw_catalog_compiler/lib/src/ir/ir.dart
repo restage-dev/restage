@@ -1,0 +1,13 @@
+export 'catalog_ir.dart';
+export 'decomposition_ir.dart';
+export 'design_token_ir.dart';
+export 'diagnostic.dart';
+export 'factory_variant_ir.dart';
+export 'ir_lower.dart';
+export 'policy_decision.dart';
+export 'property_ir.dart';
+export 'provenance.dart';
+export 'structured_ir.dart';
+export 'type_ir.dart';
+export 'union_ir.dart';
+export 'widget_ir.dart';

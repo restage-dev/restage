@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-05-27T00:00:00Z",
+  "libraries": {
+    "restage.core": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Probe",
+      "library": "restage.core",
+      "description": "Probe structured type.",
+      "sourceType": "package:flutter/painting.dart#Probe",
+      "fields": [],
+      "variants": [
+        {
+          "wireId": "v0001",
+          "sourceKind": "constructor",
+          "parameters": [
+            {
+              "wireId": "a0001",
+              "name": "p",
+              "kind": "named",
+              "required": false,
+              "nullable": false,
+              "defaultPolicy": "useFlutterDefault",
+              "defaultValue": {
+                "kind": "staticMember",
+                "staticType": {
+                  "libraryUri": "package:flutter/painting.dart",
+                  "symbolName": "BorderSide"
+                },
+                "memberName": "none"
+              },
+              "valueShape": {
+                "kind": "scalar",
+                "propertyType": "string"
+              }
+            }
+          ]
+        }
+      ],
+      "stability": "volatile"
+    }
+  ]
+}

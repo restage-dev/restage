@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "2026-05-27T00:00:00Z",
+  "libraries": {
+    "restage.core": {
+      "version": "0.1.0"
+    }
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "Probe",
+      "library": "restage.core",
+      "category": "layout",
+      "description": "Probe widget.",
+      "flutterType": "package:flutter/widgets.dart#Probe",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "prop",
+          "type": "border",
+          "description": "Probe property.",
+          "valueShape": {
+            "kind": "union",
+            "propertyType": "border",
+            "unionRef": {
+              "library": "restage.core",
+              "wireId": "u0001"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

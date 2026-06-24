@@ -1,0 +1,43 @@
+name: restage_mcp
+description: >-
+  The Restage MCP server. Exposes the Restage backend to AI agents and IDEs
+  over the Model Context Protocol, reusing the CLI's authenticated session.
+version: 0.1.0
+# Deferred-publish guard. This package talks to the Restage backend; until that
+# backend is live it is held out of the pub.dev publish (it otherwise defaults
+# to publishable). Remove this `publish_to` line — and set a production default
+# endpoint — when publishing it.
+publish_to: none
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+# Public-bound from day one.
+topics:
+  - mcp
+  - model-context-protocol
+  - paywall
+  - monetization
+
+environment:
+  sdk: ^3.8.0
+
+resolution: workspace
+
+executables:
+  restage_mcp: restage_mcp
+
+dependencies:
+  dart_mcp: ^0.5.1
+  http: ^1.2.0
+  meta: ^1.15.0
+  # Resolved from the workspace (the local restage_cli member). Kept as a
+  # version constraint rather than a path so this package stays publishable.
+  restage_cli: ^0.1.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  # Test-only: builds a canonical BlobSurfacePayload frame to exercise the
+  # paywall get/unwrap path against the surface store. Workspace-resolved.
+  restage_shared: ^1.0.0
+  stream_channel: ^2.1.4
+  test: ^1.25.0

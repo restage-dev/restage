@@ -1,0 +1,5 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget OnboardingScreen = Scaffold(backgroundColor: 0xFFFFFFFF, body: SafeArea(child: Padding(padding: [28.0, 24.0, 28.0, 24.0], child: Column(children: [Expanded(child: Column(mainAxisAlignment: "center", children: [Container(width: 132.0, height: 132.0, color: 0xFFE7F6EC, shape: "circle", child: Icon(iconCodepoint: 63029, size: 72.0, color: 0xFF1FA463)), SizedBox(height: 34.0), Text(text: "You’re all set", textAlign: "center", color: 0xFF1F1B16, fontSize: 28.0, fontWeight: "w800", letterSpacing: -0.4), SizedBox(height: 14.0), Text(text: "Finding the tastiest spots and fastest delivery right around you.", textAlign: "center", color: 0xFF8A8580, fontSize: 16.0, height: 1.5)])), Row(children: [Expanded(child: FilledButton(backgroundColor: 0xFFFF5630, foregroundColor: 0xFFFFFFFF, padding: [0.0, 18.0, 0.0, 18.0], shape: {type: "rounded", borderRadius: 14.0}, onPressed: event "start" {}, child: Text(text: "Start browsing", fontSize: 17.0, fontWeight: "w700")))])]))));

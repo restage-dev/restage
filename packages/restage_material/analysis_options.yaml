@@ -1,0 +1,10 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    # Generated registration — emitted by the catalog generator, not hand-edited.
+    # It constructs IconData from runtime codepoints (the RFW pattern that
+    # requires --no-tree-shake-icons), which newer analyzers flag as
+    # non_const_argument_for_const_parameter. Its correctness is covered by the
+    # wire-format golden tests, so it is excluded from lint.
+    - lib/src/registration.g.dart

@@ -1,0 +1,30 @@
+{
+  "classifierRecognised": {
+    "inlinable/composition-only": [
+      "package:restage_example/widgets/acme_stack.dart#AcmeStack"
+    ],
+    "inlinable/+const-fold": [],
+    "inlinable/+theme-as-data": [
+      "package:restage_example/widgets/acme_border.dart#AcmeBorder",
+      "package:restage_example/widgets/promo_badge.dart#PromoBadge"
+    ],
+    "inlinable/+declarative-state": [],
+    "classifier-only/emit-failed": [],
+    "deferred": [],
+    "structural": []
+  },
+  "emitConfirmed": {
+    "inlinable/composition-only": [
+      "package:restage_example/widgets/acme_stack.dart#AcmeStack"
+    ],
+    "inlinable/+const-fold": [],
+    "inlinable/+theme-as-data": [
+      "package:restage_example/widgets/acme_border.dart#AcmeBorder",
+      "package:restage_example/widgets/promo_badge.dart#PromoBadge"
+    ],
+    "inlinable/+declarative-state": [],
+    "classifier-only/emit-failed": [],
+    "deferred": [],
+    "structural": []
+  }
+}

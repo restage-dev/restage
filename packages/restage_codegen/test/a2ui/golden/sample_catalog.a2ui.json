@@ -1,0 +1,88 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 2,
+    "availableLibraries": [
+      {
+        "namespace": "acme.widgets",
+        "version": 3
+      }
+    ],
+    "perItemSinceVersion": {
+      "AcmeBanner": 5,
+      "Column": 1,
+      "FilledButton": 2,
+      "Text": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/2+acme.widgets@3",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/2+acme.widgets@3",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "AcmeBanner": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "AcmeBanner"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      },
+      "Column": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "Column"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      },
+      "FilledButton": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "FilledButton"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      },
+      "Text": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "Text"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "functions": {}
+  }
+}

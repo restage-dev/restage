@@ -1,0 +1,38 @@
+// Hello-paywall proof-of-life. Authored as RFW source; precompiled to
+// hello.rfw via tool/build_paywall.dart. The app loads the .rfw asset
+// at runtime via the SDK's AssetVariantResolver — the production codepath.
+
+import restage.core;
+import restage.material;
+
+widget Paywall = Scaffold(
+  body: Center(
+    child: Column(
+      mainAxisAlignment: "center",
+      children: [
+        Text(
+          text: "Restage Pro",
+          fontSize: 32.0,
+          fontWeight: "w700",
+          textAlign: "center",
+        ),
+        SizedBox(height: 16.0),
+        Text(
+          text: "Render paywalls as real Flutter widgets, not webviews.",
+          fontSize: 16.0,
+          textAlign: "center",
+        ),
+        SizedBox(height: 40.0),
+        ElevatedButton(
+          onPressed: event "restage.purchase" { slot: "primary" },
+          child: Text(text: "Continue"),
+        ),
+        SizedBox(height: 12.0),
+        TextButton(
+          onPressed: event "restage.restore" { },
+          child: Text(text: "Restore purchases"),
+        ),
+      ],
+    ),
+  ),
+);
