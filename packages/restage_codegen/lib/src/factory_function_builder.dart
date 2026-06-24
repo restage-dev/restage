@@ -116,6 +116,15 @@ String _emitRegistrationFile({
     emittedEntries.add(entry);
   }
 
+  // An icon factory constructs `IconData` from a runtime codepoint (the
+  // `--no-tree-shake-icons` RFW pattern). Newer analyzers flag the non-const
+  // codePoint argument, and pub's analyzer scoring does not honour an
+  // `analysis_options` exclude — only an in-file ignore. Emit it for the whole
+  // generated file, but only when an icon factory actually lands here (so
+  // icon-free libraries don't carry a would-be-unnecessary directive).
+  final needsIconDataIgnore =
+      factoryDefinitions.any((body) => body.contains('IconData('));
+
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
   buf
@@ -125,8 +134,16 @@ String _emitRegistrationFile({
     )
     ..writeln('// To change this map: edit lib/registry_curation.dart, then')
     ..writeln('// re-run build_runner (it regenerates the registry, the')
-    ..writeln('// catalog, and this file).')
-    ..writeln();
+    ..writeln('// catalog, and this file).');
+  if (needsIconDataIgnore) {
+    buf
+      ..writeln('//')
+      ..writeln('// ignore_for_file: non_const_argument_for_const_parameter')
+      ..writeln('// (icon factories build IconData from a runtime codepoint,')
+      ..writeln('// which newer analyzers flag because the codePoint is not')
+      ..writeln('// const).');
+  }
+  buf.writeln();
   // Flutter import is only needed when at least one factory function
   // body lands in the file; an empty map references no Flutter types
   // and the unused import would trigger an analyzer warning.

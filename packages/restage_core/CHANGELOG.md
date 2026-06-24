@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Add a usage example and shorten the package description.
+
 ## 1.0.0
 
 - Initial release of the `restage.core` RFW catalog: 54 cross-platform widget

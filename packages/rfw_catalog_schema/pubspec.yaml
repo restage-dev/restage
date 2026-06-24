@@ -1,10 +1,9 @@
 name: rfw_catalog_schema
 description: >-
   Public schema, annotations, wire identity, and JSON codecs for a Remote
-  Flutter Widget catalog. Pure-Dart, consumed by editors, backends, SDK
-  runtimes, codegen builders, and CLI tooling that produce, transmit, or
-  decode RFW-targeted widget catalogs.
-version: 1.0.0
+  Flutter Widgets (RFW) widget catalog. Pure-Dart — used to produce, transmit,
+  or decode catalogs.
+version: 1.0.1
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

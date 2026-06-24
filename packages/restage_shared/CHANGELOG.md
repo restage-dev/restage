@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Add a usage example.
+
 ## 1.0.0
 
 - Initial public release: the Restage paywall/surface format, schemas, validation,

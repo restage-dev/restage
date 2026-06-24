@@ -5,6 +5,11 @@
 // To change this map: edit lib/registry_curation.dart, then
 // re-run build_runner (it regenerates the registry, the
 // catalog, and this file).
+//
+// ignore_for_file: non_const_argument_for_const_parameter
+// (icon factories build IconData from a runtime codepoint,
+// which newer analyzers flag because the codePoint is not
+// const).
 
 import 'package:flutter/material.dart';
 import 'package:restage_material/src/widgets/express_checkout_button.dart';
