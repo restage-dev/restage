@@ -3,7 +3,7 @@ description: >-
   Restage Flutter SDK — render server-driven UI as real Flutter widgets
   via Remote Flutter Widgets (RFW). App Store 4.7 compliant by virtue of being
   declarative-only.
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
@@ -11,6 +11,13 @@ topics:
   - server-driven-ui
   - remote-ui
   - flutter
+# The native billing path dispatches per-platform via defaultTargetPlatform, so
+# the package depends on both the Android and Apple in_app_purchase
+# implementations. Declare the real supported platforms explicitly rather than
+# letting them be inferred from the empty intersection of those plugins.
+platforms:
+  android:
+  ios:
 publish_to: none
 
 environment:
@@ -29,16 +36,16 @@ dependencies:
   # M3 shared-axis transition used as the non-Apple default flow transition.
   animations: ^2.2.0
   http: ^1.2.0
-  in_app_purchase: ^3.2.0
+  in_app_purchase: ^3.3.0
   # The Android platform implementation of in_app_purchase. Imported directly to
   # construct the Play purchase param that carries a subscription offer token and
   # to read the eligible offers off the product; the meta-package alone does not
   # expose it.
-  in_app_purchase_android: ^0.4.0
+  in_app_purchase_android: ^0.5.0
   # The Apple platform implementation of in_app_purchase. Imported directly to
   # construct the StoreKit-2 purchase param that carries a promotional-offer
   # signature; the meta-package alone does not expose it.
-  in_app_purchase_storekit: ^0.4.8
+  in_app_purchase_storekit: ^0.4.10
   restage_core:
     path: ../restage_core
   restage_cupertino:
