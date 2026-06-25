@@ -18,11 +18,14 @@ environment:
 resolution: workspace
 
 dependencies:
-  # analyzer floor 10.0.0 is a verified-compiling lower bound — earlier majors
-  # lack element-model APIs this package relies on (e.g. FormalParameterElement),
-  # so a downgrade below it fails to compile. The <15.0.0 ceiling admits the
-  # latest stable analyzer (currently 14.x).
-  analyzer: ">=10.0.0 <15.0.0"
+  # The ceiling is <14.0.0: analyzer 14 removed `NamedExpression` and reshaped
+  # argument lists (`NodeList<Argument>`), which this package's lowering relies
+  # on across many sites, so it does not yet compile against analyzer 14.
+  # (`build` 4.0.x also caps analyzer <14, so the build_runner toolchain cannot
+  # use analyzer 14 yet either — declaring <14.0.0 is ecosystem-accurate.) The
+  # floor 10.0.0 is the verified-compiling lower bound; earlier majors lack
+  # element-model APIs this package uses (e.g. FormalParameterElement).
+  analyzer: ">=10.0.0 <14.0.0"
   build: ">=2.4.0 <5.0.0"
   collection: ^1.18.0
   dart_style: ">=2.3.0 <4.0.0"

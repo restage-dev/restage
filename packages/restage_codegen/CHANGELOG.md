@@ -2,8 +2,12 @@
 
 ## 1.0.1
 
-- Widen the `analyzer` dependency constraint to admit the latest stable
-  analyzer and raise the floor to a supported version.
+- Widen the `analyzer` dependency constraint to `>=10.0.0 <14.0.0`: raise the
+  floor to a verified-compiling version and admit analyzer 13.x. The ceiling
+  stays below 14.0.0 because analyzer 14 removed `NamedExpression` and reshaped
+  argument lists, which this package's lowering relies on; the `build_runner`
+  toolchain (`build`) likewise does not yet support analyzer 14.
+- Add an example.
 
 ## 1.0.0
 
