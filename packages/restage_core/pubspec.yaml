@@ -1,10 +1,9 @@
 name: restage_core
 description: >-
   Cross-platform widget primitives (Container, Column, Row, Text, Image, and
-  more): a curated Remote Flutter Widget (RFW) catalog for server-driven Flutter
-  UI. Widget metadata lives in lib/registry.dart and is consumed by the editor,
-  the code generator, and the SDK runtime.
-version: 1.0.0
+  more) — a curated Remote Flutter Widgets (RFW) catalog for server-driven
+  Flutter UI.
+version: 1.0.1
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

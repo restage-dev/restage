@@ -459,6 +459,9 @@ class _FakeAlias implements InstantiatedTypeAliasElement {
 
   @override
   List<DartType> get typeArguments => const [];
+
+  @override
+  NullabilitySuffix get nullabilitySuffix => NullabilitySuffix.none;
 }
 
 class _FakeTypeAliasElement implements TypeAliasElement {

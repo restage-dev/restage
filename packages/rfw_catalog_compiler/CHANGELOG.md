@@ -1,3 +1,11 @@
+# 1.0.1
+
+- Widen the `analyzer` dependency constraint to `>=10.0.0 <15.0.0`: raise the
+  floor to a verified-compiling version and admit the latest stable analyzer
+  (14.x). Update a test fake to implement the `nullabilitySuffix` member that
+  analyzer 14 added to the element interface.
+- Add an example.
+
 # 1.0.0
 
 - Initial release of the analyzer-backed catalog compiler pipeline: the source
