@@ -2,7 +2,7 @@ name: rfw_catalog_compiler
 description: >-
   Analyzer-backed compiler pipeline for producing Remote Flutter Widget catalog
   IR, allocating stable wire IDs, and lowering to the public catalog schema.
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
@@ -19,10 +19,11 @@ environment:
 resolution: workspace
 
 dependencies:
-  # Lower bound is 7.4.0, not 6.0.0: the compiler uses the analyzer 7.x element
-  # model (Fragment / firstFragment / declaredFragment), which is absent from
-  # 6.x. A resolution that floated to 6.x would not compile.
-  analyzer: ">=7.4.0 <11.0.0"
+  # analyzer floor 10.0.0 is a verified-compiling lower bound — earlier majors
+  # lack element-model APIs this package relies on (e.g. FormalParameterElement),
+  # so a downgrade below it fails to compile. The <15.0.0 ceiling admits the
+  # latest stable analyzer (currently 14.x).
+  analyzer: ">=10.0.0 <15.0.0"
   build: ">=2.4.0 <5.0.0"
   meta: ^1.16.0
   rfw_catalog_schema: ^1.0.0

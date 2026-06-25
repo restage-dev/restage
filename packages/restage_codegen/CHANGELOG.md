@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Widen the `analyzer` dependency constraint to admit the latest stable
+  analyzer and raise the floor to a supported version.
+
 ## 1.0.0
 
 - Initial release of the Restage build-time code generator: the `build_runner`
