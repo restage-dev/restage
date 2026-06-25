@@ -1,0 +1,7 @@
+# Dev-only sample sources read by the coverage-measurement harness. They
+# import package:flutter as fixture input, but this package is pure-Dart
+# (no flutter dependency by design), so including them in the published
+# archive trips a "package does not depend on flutter" publish warning.
+# They are not part of the package's API or runtime; exclude them from the
+# published archive only (they remain in the repository for local tests).
+test/coverage_measurement/coverage_fixtures/
