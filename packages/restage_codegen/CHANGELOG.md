@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2
+
+- Lower the `analyzer` ceiling to `>=10.0.0 <13.0.0`. `NamedExpression` was
+  removed and `ArgumentList.arguments` changed to `NodeList<Argument>` in
+  analyzer 13.0.0 (not 14.0.0 as the 1.0.1 note stated), so the previous
+  `<14.0.0` constraint admitted analyzer 13.x, which this package's
+  argument-list lowering does not compile against. The `build_runner`
+  toolchain resolves analyzer 12.x anyway, so this matches what consumers
+  actually use.
+
 ## 1.0.1
 
 - Widen the `analyzer` dependency constraint to `>=10.0.0 <14.0.0`: raise the

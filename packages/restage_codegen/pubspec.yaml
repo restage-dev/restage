@@ -2,7 +2,7 @@ name: restage_codegen
 description: >-
   A build_runner code generator that compiles Flutter-authored UI into Remote
   Flutter Widget (RFW) blobs and catalogs consumed by the Restage SDK runtime.
-version: 1.0.1
+version: 1.0.2
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
@@ -18,14 +18,14 @@ environment:
 resolution: workspace
 
 dependencies:
-  # The ceiling is <14.0.0: analyzer 14 removed `NamedExpression` and reshaped
-  # argument lists (`NodeList<Argument>`), which this package's lowering relies
-  # on across many sites, so it does not yet compile against analyzer 14.
-  # (`build` 4.0.x also caps analyzer <14, so the build_runner toolchain cannot
-  # use analyzer 14 yet either — declaring <14.0.0 is ecosystem-accurate.) The
-  # floor 10.0.0 is the verified-compiling lower bound; earlier majors lack
+  # Ceiling <13.0.0: analyzer 13.0.0 removed `NamedExpression` and changed
+  # `ArgumentList.arguments` to `NodeList<Argument>`, which this package's
+  # argument-list lowering relies on across many sites, so the code compiles
+  # only against analyzer < 13. The build_runner toolchain resolves analyzer
+  # 12.x anyway, so this ceiling matches what consumers actually use. Floor
+  # 10.0.0 is the verified-compiling lower bound; earlier majors lack
   # element-model APIs this package uses (e.g. FormalParameterElement).
-  analyzer: ">=10.0.0 <14.0.0"
+  analyzer: ">=10.0.0 <13.0.0"
   build: ">=2.4.0 <5.0.0"
   collection: ^1.18.0
   dart_style: ">=2.3.0 <4.0.0"
