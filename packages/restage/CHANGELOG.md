@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1
+
+- Republish without stray build artifacts that were accidentally included in
+  the 1.1.0 archive. No code change from 1.1.0.
+
 ## 1.1.0
 
 - Add flow branching: decision states and predicate evaluation
