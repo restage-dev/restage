@@ -1,0 +1,148 @@
+name: Publish to pub.dev
+
+# Publishes a package to pub.dev when a per-package tag is pushed, of the form
+# `<package>-v<version>` (e.g. `restage_shared-v1.0.2`). Authentication uses
+# pub.dev trusted publishing (OIDC) — there are no stored credentials. Each
+# package must first be configured on pub.dev to trust this repository on its
+# own tag pattern (`<package>-v{{version}}`).
+#
+# Every package pubspec in this repository is a workspace member
+# (`publish_to: none`, `resolution: workspace`, local `path:` dependencies), so
+# it is rewritten into a publishable form by `tool/publish_prepare.dart` before
+# publishing. Pushing all of a release's tags at once is fine: each run waits in
+# a bounded retry loop until the dependencies it needs are live on pub.dev, so
+# the acyclic dependency graph orders itself with no manual sequencing.
+
+on:
+  push:
+    tags:
+      - '*-v[0-9]*'
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Optional manual-approval gate. Set the repository Actions variable
+    # PUBLISH_APPROVAL_ENVIRONMENT to "pub.dev" to require a reviewer's click in
+    # the "pub.dev" environment before each publish; leave it unset (empty) for
+    # fully-automatic publishing. An empty environment value means no gate.
+    environment: ${{ vars.PUBLISH_APPROVAL_ENVIRONMENT }}
+    permissions:
+      id-token: write # mints the OIDC token pub.dev verifies
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse and validate tag
+        id: parse
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" =~ ^(.+)-v([0-9].*)$ ]]; then
+            pkg="${BASH_REMATCH[1]}"
+            ver="${BASH_REMATCH[2]}"
+          else
+            echo "::error::tag '$tag' is not of the form <package>-v<version>"
+            exit 1
+          fi
+
+          # Only packages with a configured pub.dev trusted publisher may
+          # auto-publish. Add a package here once its publisher is configured.
+          allow=" restage restage_core restage_material restage_cupertino"
+          allow="$allow rfw_catalog_schema restage_shared restage_codegen"
+          allow="$allow rfw_catalog_compiler restage_a2ui "
+          if [[ "$allow" != *" $pkg "* ]]; then
+            echo "::error::'$pkg' is not in the auto-publish allowlist; add it in publish.yml once its pub.dev trusted publisher is configured"
+            exit 1
+          fi
+
+          pubspec="packages/$pkg/pubspec.yaml"
+          [[ -f "$pubspec" ]] || { echo "::error::missing $pubspec"; exit 1; }
+          pubver="$(grep -E '^version:' "$pubspec" | head -1 \
+            | sed -E 's/^version:[[:space:]]*//' | tr -d '[:space:]')"
+          if [[ "$pubver" != "$ver" ]]; then
+            echo "::error::tag version $ver != $pubspec version $pubver"
+            exit 1
+          fi
+
+          if grep -qE '^[[:space:]]+sdk:[[:space:]]*flutter[[:space:]]*$' "$pubspec"; then
+            is_flutter=true
+          else
+            is_flutter=false
+          fi
+
+          {
+            echo "pkg=$pkg"
+            echo "ver=$ver"
+            echo "is_flutter=$is_flutter"
+          } >> "$GITHUB_OUTPUT"
+          echo "Publishing $pkg $ver (flutter=$is_flutter)"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare package for publishing
+        run: dart run tool/publish_prepare.dart "${{ steps.parse.outputs.pkg }}"
+
+      - name: Dry-run (await dependencies) and publish
+        env:
+          PKG: ${{ steps.parse.outputs.pkg }}
+          IS_FLUTTER: ${{ steps.parse.outputs.is_flutter }}
+        run: |
+          set -uo pipefail
+
+          # Stage to a non-git directory. `pub publish` warns about uncommitted
+          # git changes, and the prepare step rewrites the (tracked) pubspec in
+          # place, so publishing from the checkout would always trip that warning.
+          stage="$RUNNER_TEMP/pub/$PKG"
+          log="$RUNNER_TEMP/dryrun-$PKG.log" # outside the package, never shipped
+          rm -rf "$stage"; mkdir -p "$(dirname "$stage")"
+          cp -R "packages/$PKG" "$stage"
+          cd "$stage"
+
+          if [[ "$IS_FLUTTER" == "true" ]]; then pub_bin="flutter"; else pub_bin="dart"; fi
+
+          # Dry-run, retrying while a needed dependency is not yet published or
+          # has not yet propagated to pub.dev's solver (~20-60s after publish).
+          deadline=$(( $(date +%s) + 900 )) # up to 15 minutes
+          while true; do
+            "$pub_bin" pub publish --dry-run > "$log" 2>&1 || true
+            if grep -q 'Package has 0 warnings' "$log"; then
+              break
+            fi
+            if grep -qiE 'version solving failed|match any version|find package|no versions that match' "$log" \
+               && [[ $(date +%s) -lt $deadline ]]; then
+              echo "Dependencies not yet resolvable on pub.dev; retrying in 30s..."
+              sleep 30
+              continue
+            fi
+            echo "::error::dry-run did not reach a clean (0 warnings) state"
+            cat "$log"
+            exit 1
+          done
+
+          # Archive-size sanity. A clean CI checkout makes build/ bloat unlikely,
+          # but assert anyway (a bloated archive shipped a real release once).
+          bytes="$(awk '/Total compressed archive size:/ {
+            mult = 1
+            if ($6 ~ /KB/) mult = 1024
+            else if ($6 ~ /MB/) mult = 1048576
+            else if ($6 ~ /GB/) mult = 1073741824
+            printf "%d", $5 * mult
+          }' "$log" | tail -1)"
+          if [[ -n "${bytes:-}" && "$bytes" -gt 10485760 ]]; then
+            echo "::error::archive size ${bytes} bytes exceeds 10 MB — refusing to publish"
+            exit 1
+          fi
+
+          echo "Dry-run clean. Publishing $PKG..."
+          "$pub_bin" pub publish --force
