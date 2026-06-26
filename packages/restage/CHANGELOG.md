@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+- Add flow branching: decision states and predicate evaluation
+  (`flow_predicates`) plus host-supplied initial flow state (`flow_seed`),
+  enabling answer-driven onboarding and survey flows.
+
 ## 1.0.1
 
 - Declare supported platforms (Android, iOS) explicitly.

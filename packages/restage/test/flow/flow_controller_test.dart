@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage/restage.dart';
+// `package:matcher` (via `flutter_test`) also exports `allOf`, used below as a
+// matcher; hide the flow-authoring `allOf` here since this file only needs the
+// `state(...)` predicate sugar.
+import 'package:restage/restage.dart' hide allOf;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 
@@ -1570,6 +1573,218 @@ void main() {
       expect(controller.currentScreenId, 'profile');
     });
 
+    test(
+        'a forking screen lands a captured event field + a literal write and '
+        'dispatches by event name', () async {
+      const flowState = {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+        'wantsPro': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.internal,
+        ),
+      };
+      const states = {
+        'welcome': ScreenFlowState(
+          screen: 'welcome',
+          on: {
+            // The capturing transition: write the event's scalar value (carried
+            // under the reserved value key) into flow-state 'goal' and a literal
+            // 'wantsPro', then route via the decision.
+            'choose': GotoFlowTransition(
+              'branch',
+              stateWrites: {
+                'goal': FlowStateWrite(
+                  type: FlowDataType.string,
+                  value: EventFlowValueSource(key: kCapturedEventValueKey),
+                ),
+                'wantsPro': FlowStateWrite(
+                  type: FlowDataType.bool,
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.bool,
+                    value: true,
+                  ),
+                ),
+              },
+            ),
+            // A second transition on the same screen (a multi-key `on` map).
+            'cancel': FlowTransition.goto('done'),
+          },
+        ),
+        // The decision requires BOTH writes to have landed, so a passing route
+        // to 'profile' proves the capture AND the literal both applied.
+        'branch': DecisionFlowState(
+          branches: [
+            FlowBranch(
+              when: FlowBranchPredicate(
+                fields: {
+                  'goal': EqualsFlowPredicateCondition(
+                    value: LiteralFlowValueSource(
+                      type: FlowDataType.string,
+                      value: 'sleep',
+                    ),
+                  ),
+                  'wantsPro': EqualsFlowPredicateCondition(
+                    value: LiteralFlowValueSource(
+                      type: FlowDataType.bool,
+                      value: true,
+                    ),
+                  ),
+                },
+              ),
+              target: 'profile',
+            ),
+          ],
+          defaultBranch: FlowBranchTarget(target: 'done'),
+        ),
+        'profile': ScreenFlowState(
+          screen: 'profile',
+          on: {'finish': FlowTransition.goto('done')},
+        ),
+        'done': EndFlowState(result: {'completed': true}),
+      };
+      // Allowlist the terminal 'completed' field so it survives outbound
+      // filtering and the generated result decoder accepts it.
+      const outbound = FlowOutboundDeclarations(
+        terminalResult: FlowOutboundPayloadDeclaration(
+          fields: {
+            'completed': FlowOutboundField(
+              type: FlowDataType.bool,
+              ref: EventFlowOutboundRef(key: 'completed'),
+            ),
+          },
+        ),
+      );
+
+      RestageFlowController<_FirstRunResult> controllerFor() {
+        return RestageFlowController<_FirstRunResult>(
+          flow: _flowRef,
+          resolver: _StaticFlowResolver(
+            _resolvedFlow(
+              document: _document(
+                flowState: flowState,
+                states: states,
+                outbound: outbound,
+              ),
+            ),
+          ),
+          actions: null,
+          onEvent: (_) {},
+          onComplete: (_) {},
+          onUnavailable: (_) {},
+        );
+      }
+
+      // 'choose' captures the event value ('sleep') into 'goal' and writes
+      // wantsPro=true; both must land for the decision to route to 'profile'.
+      final captured = controllerFor();
+      await captured.load();
+      captured.handleEvent('choose', const {kCapturedEventValueKey: 'sleep'});
+      await _drainFlowTasks();
+      expect(captured.currentScreenId, 'profile');
+      expect(captured.isComplete, isFalse);
+
+      // The screen's second transition dispatches to its own target. Dispose
+      // the first controller so a single flow is live (matching the
+      // single-controller tests in this group).
+      captured.dispose();
+      final cancelled = controllerFor();
+      await cancelled.load();
+      cancelled.handleEvent('cancel', const <String, Object?>{});
+      await _drainFlowTasks();
+      expect(cancelled.isComplete, isTrue);
+    });
+
+    test('a captured answer routes a decision via state().equals() sugar',
+        () async {
+      const flowState = {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      };
+      // The decision branch predicate is built by the authoring SUGAR
+      // (state('goal').equals('sleep')), proving the sugar's output is a real,
+      // engine-routable predicate fed by a captured scalar answer.
+      final states = <String, FlowState>{
+        'welcome': const ScreenFlowState(
+          screen: 'welcome',
+          on: {
+            'choose': GotoFlowTransition(
+              'route',
+              stateWrites: {
+                'goal': FlowStateWrite(
+                  type: FlowDataType.string,
+                  value: EventFlowValueSource(key: kCapturedEventValueKey),
+                ),
+              },
+            ),
+          },
+        ),
+        'route': DecisionFlowState(
+          branches: [
+            FlowBranch(
+              when: state('goal').equals('sleep'),
+              target: 'profile',
+            ),
+          ],
+          defaultBranch: const FlowBranchTarget(target: 'done'),
+        ),
+        'profile': const ScreenFlowState(
+          screen: 'profile',
+          on: {'finish': FlowTransition.goto('done')},
+        ),
+        'done': const EndFlowState(result: {'completed': true}),
+      };
+      const outbound = FlowOutboundDeclarations(
+        terminalResult: FlowOutboundPayloadDeclaration(
+          fields: {
+            'completed': FlowOutboundField(
+              type: FlowDataType.bool,
+              ref: EventFlowOutboundRef(key: 'completed'),
+            ),
+          },
+        ),
+      );
+
+      RestageFlowController<_FirstRunResult> controllerFor() {
+        return RestageFlowController<_FirstRunResult>(
+          flow: _flowRef,
+          resolver: _StaticFlowResolver(
+            _resolvedFlow(
+              document: _document(
+                flowState: flowState,
+                states: states,
+                outbound: outbound,
+              ),
+            ),
+          ),
+          actions: null,
+          onEvent: (_) {},
+          onComplete: (_) {},
+          onUnavailable: (_) {},
+        );
+      }
+
+      // Captured 'sleep' -> the sugar branch matches -> routes to 'profile'.
+      final matched = controllerFor();
+      await matched.load();
+      matched.handleEvent('choose', const {kCapturedEventValueKey: 'sleep'});
+      await _drainFlowTasks();
+      expect(matched.currentScreenId, 'profile');
+      expect(matched.isComplete, isFalse);
+      matched.dispose();
+
+      // Captured 'focus' -> no branch matches -> default routes to 'done'.
+      final defaulted = controllerFor();
+      await defaulted.load();
+      defaulted.handleEvent('choose', const {kCapturedEventValueKey: 'focus'});
+      await _drainFlowTasks();
+      expect(defaulted.isComplete, isTrue);
+    });
+
     test('decision default branch is used when no branch matches', () async {
       final resolver = _StaticFlowResolver(
         _resolvedFlow(
@@ -1637,6 +1852,223 @@ void main() {
       await _drainFlowTasks();
 
       expect(controller.currentScreenId, 'profile');
+    });
+
+    test('host seed overlays seedable state before initial decision', () async {
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _hostSeedDecisionDocument()),
+        ),
+        initialState: const _MapSeed({'isReturningUser': true}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+
+      await controller.load();
+
+      expect(controller.currentScreenId, 'profile');
+    });
+
+    test('host seed overrides a declared default value', () async {
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            document: _hostSeedDecisionDocument(defaultValue: false),
+          ),
+        ),
+        initialState: const _MapSeed({'isReturningUser': true}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+
+      await controller.load();
+
+      expect(controller.currentScreenId, 'profile');
+    });
+
+    test('unknown host seed key fails closed before initial screen', () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(_resolvedFlow()),
+        initialState: const _MapSeed({'nope': true}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+
+      expect(controller.currentLibrary, isNull);
+      expect(unavailable?.reason, 'seed_unknown_key');
+      expect(unavailable?.message, contains('nope'));
+    });
+
+    test('non-seedable host seed key fails closed before initial screen',
+        () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            document: _hostSeedDecisionDocument(hostSeedable: false),
+          ),
+        ),
+        initialState: const _MapSeed({'isReturningUser': true}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+
+      expect(controller.currentLibrary, isNull);
+      expect(unavailable?.reason, 'seed_not_seedable');
+      expect(unavailable?.message, contains('isReturningUser'));
+    });
+
+    test('host seed type mismatch fails closed before initial screen',
+        () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            document: _document(
+              flowState: const {
+                'launchCount': FlowStateDeclaration(
+                  type: FlowDataType.int,
+                  classification: FlowStateClassification.internal,
+                  hostSeedable: true,
+                ),
+              },
+            ),
+          ),
+        ),
+        initialState: const _MapSeed({'launchCount': 'one'}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+
+      expect(controller.currentLibrary, isNull);
+      expect(unavailable?.reason, 'seed_type_mismatch');
+      expect(unavailable?.message, contains('launchCount'));
+      expect(unavailable?.message, contains('int'));
+      expect(unavailable?.message, contains('String'));
+    });
+
+    test('host seed lands after the resolved flow document is frozen',
+        () async {
+      final resolved = _resolvedFlow(document: _hostSeedDecisionDocument());
+      expect(
+        resolved.document.flowState['isReturningUser']!.hostSeedable,
+        isTrue,
+      );
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(resolved),
+        initialState: const _MapSeed({'isReturningUser': true}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+
+      await controller.load();
+
+      expect(controller.currentScreenId, 'profile');
+    });
+
+    test('null host seed value fails closed before initial screen', () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _hostSeedDecisionDocument()),
+        ),
+        initialState: const _MapSeed({'isReturningUser': null}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+
+      expect(controller.currentLibrary, isNull);
+      expect(unavailable?.reason, 'seed_type_mismatch');
+      expect(unavailable?.message, contains('isReturningUser'));
+      expect(unavailable?.message, contains('bool'));
+      expect(unavailable?.message, contains('null'));
+    });
+
+    test('empty host seed leaves declared defaults intact', () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            document: _hostSeedDecisionDocument(defaultValue: false),
+          ),
+        ),
+        // An empty (but non-null) seed is a clean no-op: the flow loads and the
+        // declaration default drives the decision.
+        initialState: const _MapSeed({}),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+
+      expect(unavailable, isNull);
+      expect(controller.currentScreenId, 'welcome');
+    });
+
+    test('host seed routes a decision via the typed-builder map shape',
+        () async {
+      // End-to-end: a builder-shaped seed (the omit-null `toFlowState()` shape
+      // codegen emits) flows through the controller's validate + overlay and
+      // drives a decision(). Ties the producer (the codegen golden asserts the
+      // builder emits exactly this body) to the consumer (the runtime here).
+      Future<String?> routeFor(_BuilderShapedSeed seed) async {
+        final controller = RestageFlowController<_FirstRunResult>(
+          flow: _flowRef,
+          resolver: _StaticFlowResolver(
+            _resolvedFlow(document: _hostSeedDecisionDocument()),
+          ),
+          initialState: seed,
+          actions: null,
+          onEvent: (_) {},
+          onComplete: (_) {},
+          onUnavailable: (_) {},
+        );
+        await controller.load();
+        return controller.currentScreenId;
+      }
+
+      // Field set -> builder emits {'isReturningUser': true} -> routes to the
+      // seeded branch.
+      expect(
+        await routeFor(const _BuilderShapedSeed(isReturningUser: true)),
+        'profile',
+      );
+      // Field omitted -> builder emits {} -> the decision sees no value ->
+      // default branch.
+      expect(await routeFor(const _BuilderShapedSeed()), 'welcome');
     });
 
     test('missing event state write source fails closed', () async {
@@ -3402,6 +3834,30 @@ final class _StaticFlowResolver implements FlowResolver {
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async => this.flow;
 }
 
+final class _MapSeed implements FlowSeed {
+  const _MapSeed(this._values);
+
+  final Map<String, Object?> _values;
+
+  @override
+  Map<String, Object?> toFlowState() => _values;
+}
+
+/// Mirrors the shape codegen emits for a generated `…Seed` builder: only
+/// seedable keys as optional, nullable, typed parameters, and a `toFlowState`
+/// that omits unset keys. Lets the controller e2e exercise the exact map shape
+/// the codegen golden asserts the builder emits.
+final class _BuilderShapedSeed implements FlowSeed {
+  const _BuilderShapedSeed({this.isReturningUser});
+
+  final bool? isReturningUser;
+
+  @override
+  Map<String, Object?> toFlowState() => {
+        if (isReturningUser != null) 'isReturningUser': isReturningUser,
+      };
+}
+
 final class _MapFlowResolver implements FlowResolver {
   const _MapFlowResolver(this.flows);
 
@@ -3635,6 +4091,52 @@ ResolvedFlow _pingPongFlow() {
           'go': FlowTransition.goto('welcome'),
           'finish': FlowTransition.goto('done'),
         },
+      ),
+      'done': EndFlowState(result: {'completed': true}),
+    },
+  );
+}
+
+FlowDocument _hostSeedDecisionDocument({
+  bool? defaultValue,
+  bool hostSeedable = true,
+}) {
+  return _document(
+    initial: 'branch',
+    flowState: {
+      'isReturningUser': FlowStateDeclaration(
+        type: FlowDataType.bool,
+        classification: FlowStateClassification.internal,
+        defaultValue: defaultValue,
+        hostSeedable: hostSeedable,
+      ),
+    },
+    states: const {
+      'branch': DecisionFlowState(
+        branches: [
+          FlowBranch(
+            when: FlowBranchPredicate(
+              fields: {
+                'isReturningUser': EqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.bool,
+                    value: true,
+                  ),
+                ),
+              },
+            ),
+            target: 'profile',
+          ),
+        ],
+        defaultBranch: FlowBranchTarget(target: 'welcome'),
+      ),
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {'next': FlowTransition.goto('done')},
+      ),
+      'profile': ScreenFlowState(
+        screen: 'profile',
+        on: {'finish': FlowTransition.goto('done')},
       ),
       'done': EndFlowState(result: {'completed': true}),
     },

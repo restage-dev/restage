@@ -280,7 +280,7 @@ void main() {
     () async {
       final bytes = Uint8List.fromList(<int>[1, 2, 3, 250]);
       // The surface store holds the canonical BlobSurfacePayload frame; the
-      // backend returns it in the Serverpod ByteData wire form, and get_paywall
+      // backend returns it in the ByteData wire form, and get_paywall
       // unwraps it back to the inner blob.
       final frame = BlobSurfacePayload(
         minClient: 3,

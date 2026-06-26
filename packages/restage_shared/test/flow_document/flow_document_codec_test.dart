@@ -317,6 +317,125 @@ void main() {
       expect(encoded['outbound'], _outboundJson());
     });
 
+    test('round-trips hostSeedable flow state declarations', () {
+      final document = _firstRunDocument(
+        flowState: const {
+          'inviteCode': FlowStateDeclaration(
+            type: FlowDataType.string,
+            classification: FlowStateClassification.persistedDevice,
+            hostSeedable: true,
+          ),
+        },
+      );
+
+      final encoded = jsonDecode(
+        utf8.decode(FlowDocumentCodec.encodeCanonicalJson(document)),
+      ) as Map<String, Object?>;
+      final encodedDeclaration = _object(
+        _object(encoded['flowState'])['inviteCode'],
+      );
+
+      expect(encodedDeclaration['hostSeedable'], isTrue);
+      // Byte-stability for the `true` case rests on the canonical encoder's
+      // key sort: `hostSeedable` must sort between `classification` and `type`
+      // so its presence never reorders the other keys.
+      expect(
+        encodedDeclaration.keys.toList(),
+        ['classification', 'hostSeedable', 'type'],
+      );
+
+      final decoded = FlowDocumentCodec.decodeJson(jsonEncode(encoded));
+
+      expect(decoded.flowState['inviteCode']!.hostSeedable, isTrue);
+    });
+
+    test('omits default hostSeedable flow state declarations', () {
+      final document = _firstRunDocument(
+        flowState: const {
+          'inviteCode': FlowStateDeclaration(
+            type: FlowDataType.string,
+            classification: FlowStateClassification.persistedDevice,
+            // The explicit default value is the behavior under test.
+            // ignore: avoid_redundant_argument_values
+            hostSeedable: false,
+          ),
+        },
+      );
+
+      final encoded = jsonDecode(
+        utf8.decode(FlowDocumentCodec.encodeCanonicalJson(document)),
+      ) as Map<String, Object?>;
+      final encodedDeclaration = _object(
+        _object(encoded['flowState'])['inviteCode'],
+      );
+
+      expect(encodedDeclaration.containsKey('hostSeedable'), isFalse);
+    });
+
+    test('hostSeedable flow state declarations fail closed at decode time', () {
+      // A non-bool must be rejected for every JSON scalar shape — Dart does not
+      // coerce a string/int/double to bool, so none may slip through.
+      for (final nonBoolValue in <Object>['yes', 1, 1.5]) {
+        final nonBool = _firstRunJson()
+          ..['flowState'] = {
+            'inviteCode': {
+              'type': 'string',
+              'classification': 'persistedDevice',
+              'hostSeedable': nonBoolValue,
+            },
+          };
+        expect(
+          () => FlowDocumentCodec.decodeJson(jsonEncode(nonBool)),
+          throwsA(
+            isA<FormatException>().having(
+              (error) => error.message,
+              'message',
+              allOf(
+                contains(r'$.flowState.inviteCode.hostSeedable'),
+                contains('must be a bool'),
+              ),
+            ),
+          ),
+          reason: 'hostSeedable=$nonBoolValue must fail closed',
+        );
+      }
+      final explicitTrue = _firstRunJson()
+        ..['flowState'] = {
+          'inviteCode': {
+            'type': 'string',
+            'classification': 'persistedDevice',
+            'hostSeedable': true,
+          },
+        };
+      final omitted = _firstRunJson()
+        ..['flowState'] = {
+          'inviteCode': {
+            'type': 'string',
+            'classification': 'persistedDevice',
+          },
+        };
+      final unknown = _firstRunJson()
+        ..['flowState'] = {
+          'inviteCode': {
+            'type': 'string',
+            'classification': 'persistedDevice',
+            'hostSeedable': true,
+            'seedPolicy': 'device',
+          },
+        };
+
+      final decodedTrue =
+          FlowDocumentCodec.decodeJson(jsonEncode(explicitTrue));
+      final decodedOmitted = FlowDocumentCodec.decodeJson(jsonEncode(omitted));
+
+      expect(decodedTrue.flowState['inviteCode']!.hostSeedable, isTrue);
+      expect(decodedOmitted.flowState['inviteCode']!.hostSeedable, isFalse);
+      _expectUnsupportedFieldDecodeFailure(
+        unknown,
+        r'$.flowState.inviteCode.seedPolicy',
+      );
+    });
+
     test('state declarations alone keep outbound payloads denied by default',
         () {
       final document = _firstRunDocument(flowState: _flowStateDeclarations());

@@ -2,7 +2,7 @@ name: restage_a2ui
 description: >-
   Fail-closed pre-render capability checks and the Restage capability sidecar
   for apps rendering cached A2UI (Google genui) surfaces.
-version: 0.1.1
+version: 0.1.2
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
@@ -30,3 +30,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
+  # Test-only: the interactive-proof fixture carries the real
+  # `@RestageProperty(writeBackValue:)` annotation so the proof can read the
+  # pairing from the annotation metadata (the production-read leg).
+  rfw_catalog_schema:
+    path: ../rfw_catalog_schema

@@ -1,3 +1,8 @@
+# 1.0.2
+
+- Export the element-FQN helpers (`elementFqn`, `interfaceFqn`, `typeFqn`,
+  `classElementFor`, `interfaceFqnOrNull`) from the public API.
+
 # 1.0.1
 
 - Widen the `analyzer` dependency constraint to `>=10.0.0 <15.0.0`: raise the

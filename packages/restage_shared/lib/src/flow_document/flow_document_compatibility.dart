@@ -231,6 +231,21 @@ void _diffFlowState(
         'Flow-state key "$key" changed type or classification.',
       );
     }
+    if (before.hostSeedable != after.hostSeedable) {
+      // Asymmetric: gaining host-seedability is a compatible addition (an old
+      // host that never seeds is unaffected); losing it rejects an existing
+      // host seed and is breaking.
+      add(
+        'flowStateSeedabilityChanged',
+        '\$.flowState.$key',
+        after.hostSeedable
+            ? FlowCompatibilityClassification.additive
+            : FlowCompatibilityClassification.breaking,
+        after.hostSeedable
+            ? 'Flow-state key "$key" became host-seedable.'
+            : 'Flow-state key "$key" is no longer host-seedable.',
+      );
+    }
   }
   for (final key in to.flowState.keys) {
     if (from.flowState.containsKey(key)) continue;

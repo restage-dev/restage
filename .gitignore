@@ -1,0 +1,19 @@
+# Dart & Flutter build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+.packages
+pubspec.lock
+
+# Melos workspace
+pubspec_overrides.yaml
+
+# IDE
+.idea/
+*.iml
+*.iws
+.vscode/
+
+# OS
+.DS_Store

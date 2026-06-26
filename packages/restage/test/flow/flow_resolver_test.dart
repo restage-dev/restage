@@ -180,6 +180,26 @@ void main() {
     );
   });
 
+  test('ResolvedFlow freezes hostSeedable flow state declarations', () {
+    final screenBytes = Uint8List.fromList([1, 2, 3, 255]);
+    final resolved = ResolvedFlow(
+      document: _validDocument(
+        screenBytes: screenBytes,
+        flowState: const {
+          'inviteCode': FlowStateDeclaration(
+            type: FlowDataType.string,
+            classification: FlowStateClassification.persistedDevice,
+            hostSeedable: true,
+          ),
+        },
+      ),
+      screenBlobs: {'welcome': screenBytes},
+      cacheHit: false,
+    );
+
+    expect(resolved.document.flowState['inviteCode']!.hostSeedable, isTrue);
+  });
+
   test('cache hits only when document bytes and artifact hashes are unchanged',
       () async {
     final firstBytes = Uint8List.fromList([1, 2, 3]);
@@ -453,6 +473,7 @@ FlowDocument _validDocument({
   int artifactSchemaVersion = 1,
   int artifactMinClient = 3,
   Map<String, FlowActionContract> actions = const {},
+  Map<String, FlowStateDeclaration> flowState = const {},
   Map<String, FlowState>? states,
 }) {
   return FlowDocument(
@@ -462,6 +483,7 @@ FlowDocument _validDocument({
     minClient: minClient,
     initial: 'welcome',
     actions: actions,
+    flowState: flowState,
     screenArtifacts: {
       'welcome': ScreenArtifact(
         path: 'welcome.rfw',

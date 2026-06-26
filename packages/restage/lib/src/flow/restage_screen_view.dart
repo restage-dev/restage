@@ -183,7 +183,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
         onEvent: (name, args) {
           // Inert unless this is the owning controller's current screen.
           if (entryId != controller.currentScreenEntryId) return;
-          controller.handleEvent(name, normalizeRfwEventArgs(args));
+          controller.handleEvent(name, normalizeEventArgs(args));
         },
       ),
     );

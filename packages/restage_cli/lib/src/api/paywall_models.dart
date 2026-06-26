@@ -106,11 +106,11 @@ class EnvironmentNotFound extends PaywallException {
 
 /// Attempt to decode [body] as one of the typed paywall exceptions.
 ///
-/// Returns null when [body] is not a Serverpod typed-exception payload
+/// Returns null when [body] is not a backend typed-exception payload
 /// (caller should fall through to the generic
 /// [RestageApiException]-handling path).
 ///
-/// Serverpod 3 returns a `SerializableException` as:
+/// The backend returns a `SerializableException` as:
 ///
 /// ```json
 /// {"className": "<Name>", "data": {"__className__": "<Name>", ...fields}}

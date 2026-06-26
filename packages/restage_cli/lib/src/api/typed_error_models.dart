@@ -62,11 +62,11 @@ class UnauthorizedAccess extends GenericTypedException {
 
 /// Attempt to decode [body] as one of the shared typed exceptions.
 ///
-/// Returns null when [body] is not a shared Serverpod typed-exception
+/// Returns null when [body] is not a shared backend typed-exception
 /// payload. Callers can then try command-specific decoders or fall
 /// through to generic HTTP handling.
 ///
-/// Serverpod 3 returns a `SerializableException` as:
+/// The backend returns a `SerializableException` as:
 ///
 /// ```json
 /// {"className": "<Name>", "data": {"__className__": "<Name>", ...fields}}

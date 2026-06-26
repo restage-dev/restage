@@ -333,9 +333,10 @@ void main() {
     });
   });
 
-  group('valueExpression — records (inline, always constructible)', () {
-    test('a named record inlines with map-safe access + per-field fallbacks',
-        () {
+  group('valueExpression — records (null-capable, inline when present)', () {
+    test(
+        'a record reconstructs to null when raw is not a map; inline with '
+        'per-field fallbacks when present', () {
       final record = ObjectNode(
         fields: {
           'title': const ScalarNode(A2uiScalarType.string),
@@ -349,11 +350,19 @@ void main() {
       );
       final builder = A2uiDataBuilder([record]);
       final expr = builder.valueExpression(record, "data['header']");
-      // An inline record literal: every field reads through a map-safe access
-      // (a non-Map raw degrades each field to its fallback, never throws) and
-      // every field has a fallback (a record is always constructible).
-      expect(expr, startsWith('(title: '));
-      expect(expr, endsWith(')'));
+      // The WHOLE record reconstructs to null when its raw is not a map (so a
+      // required record fails the enclosing object safe, never fabricated).
+      // When present, an inline record literal: every field reads through a
+      // map-safe access and degrades to its per-field fallback (record internal
+      // fields cannot be null).
+      expect(
+        expr,
+        contains(
+          "_restageA2uiAs<Map<String, Object?>>(data['header']) == null",
+        ),
+      );
+      expect(expr, contains('? null :'));
+      expect(expr, contains('(title: '));
       expect(
         expr,
         contains(
@@ -464,8 +473,9 @@ void main() {
       return A2uiDataBuilder([node]).supportDefinitions().join('\n');
     }
 
-    test('a REQUIRED record field gets NO null-guard (a record is non-null)',
-        () {
+    test(
+        'a REQUIRED record field gets a null-guard (a missing required record '
+        'fails the object safe, never fabricated)', () {
       final defs = helperFor(
         fields: {
           'header': ObjectNode(
@@ -479,7 +489,10 @@ void main() {
           A2uiConstructorParameter(name: 'header', named: false),
         ],
       );
-      expect(defs, isNot(contains('if (header == null) return null;')));
+      // A required non-null record reconstructs to null when its raw is not a
+      // map, so the whole object fails safe — it is NEVER fabricated from
+      // per-field fallbacks (the never-fabricate-a-required-value contract).
+      expect(defs, contains('if (header == null) return null;'));
       expect(defs, contains('return H(header);'));
     });
 
@@ -520,7 +533,8 @@ void main() {
     });
   });
 
-  group('valueExpression — nullable records reconstruct to null', () {
+  group('valueExpression — records reconstruct to null when raw is not a map',
+      () {
     test('a nullable record → null when raw is not a map (never fabricated)',
         () {
       final record = ObjectNode(
@@ -543,7 +557,7 @@ void main() {
       expect(expr, contains("?['title']) ?? ''"));
     });
 
-    test('a non-null record stays the bare inline literal (no null branch)',
+    test('a non-null record also reconstructs to null when raw is not a map',
         () {
       final record = ObjectNode(
         fields: const {'title': ScalarNode(A2uiScalarType.string)},
@@ -552,8 +566,17 @@ void main() {
       );
       final builder = A2uiDataBuilder([record]);
       final expr = builder.valueExpression(record, "data['header']");
-      expect(expr, startsWith('(title: '));
-      expect(expr, isNot(contains('? null :')));
+      // Like a nullable record: a non-null record fails safe to null on a
+      // non-map raw (so a required record fails the enclosing object safe),
+      // rather than fabricating a record from per-field fallbacks.
+      expect(
+        expr,
+        contains(
+          "_restageA2uiAs<Map<String, Object?>>(data['header']) == null",
+        ),
+      );
+      expect(expr, contains('? null :'));
+      expect(expr, contains('(title: '));
     });
   });
 
@@ -580,7 +603,9 @@ void main() {
       expect(expr, isNot(contains("?? ''")));
     });
 
-    test('a NON-NULL record field is defaulted (always constructible)', () {
+    test(
+        'a NON-NULL record field is defaulted (per-field fallback when the '
+        'record is present)', () {
       final node = record(
         const {'title': ScalarNode(A2uiScalarType.string)},
         const {'title'},

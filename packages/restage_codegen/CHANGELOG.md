@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.3
+
+- Emit a rich A2UI catalog for a customer `@RestageWidget` whose property is typed as a data class: nested
+  data classes, lists of objects, String-keyed maps, and named records each generate a `genui` schema that
+  reconstructs and renders the value, with a fail-safe on a missing required value.
+- Infer a structured property's required-ness from the widget's default constructor, so a value the
+  constructor requires is marked required even when the annotation omits it.
+- Exclude a customer widget carrying a structured property from the RFW catalog/factory build (a non-fatal,
+  logged exclusion) — it renders via the A2UI emit target; native (RFW) rendering of custom structured data
+  is a tracked future capability.
+
 ## 1.0.2
 
 - Lower the `analyzer` ceiling to `>=10.0.0 <13.0.0`. `NamedExpression` was

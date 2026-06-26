@@ -11,6 +11,7 @@ import 'onboarding/chrome_ladder_demo.dart';
 import 'onboarding/crave_permission_demo.dart';
 import 'onboarding/lumen_onboarding_demo.dart';
 import 'onboarding/reel_cancel_demo.dart';
+import 'onboarding/tally_onboarding_demo.dart';
 import 'paywalls/ascend_premium.dart';
 import 'paywalls/fluent_pro.dart';
 import 'paywalls/lumen_premium.dart';
@@ -329,6 +330,22 @@ class _GalleryHome extends StatelessWidget {
                 showEscapeButton: false,
                 // The survey paints on a fixed near-black streaming canvas.
                 surfaceBrightness: Brightness.dark,
+              ),
+              // A goal-fork onboarding: the only surface here whose ANSWER forks
+              // the path. "What are you working toward?" routes each money goal
+              // to a genuinely different tailored screen, and a decision tailors
+              // the ending on the captured goal (answer-driven branching, not a
+              // recolored single path).
+              _ExampleTile(
+                title: 'Goal-fork onboarding',
+                subtitle: 'A finance onboarding that branches on your answer: '
+                    'pick a money goal → a tailored setup screen per goal → a '
+                    'decision routes the ending. Personalization that forks.',
+                leading: const Icon(Icons.savings_outlined),
+                destination: const TallyOnboardingDemo(),
+                showEscapeButton: false,
+                // The flow paints on a fixed light cream canvas.
+                surfaceBrightness: Brightness.light,
               ),
               const Divider(height: 32),
               const _SectionHeader('Capabilities (SDK mechanics)'),

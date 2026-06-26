@@ -272,6 +272,8 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
     (acc, r) => WidgetVisitorResult(
       widgets: [...acc.widgets, ...r.widgets],
       issues: [...acc.issues, ...r.issues],
+      structuredTypes: [...acc.structuredTypes, ...r.structuredTypes],
+      unions: [...acc.unions, ...r.unions],
     ),
   );
 }

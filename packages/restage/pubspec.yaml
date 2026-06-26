@@ -3,7 +3,7 @@ description: >-
   Restage Flutter SDK — render server-driven UI as real Flutter widgets
   via Remote Flutter Widgets (RFW). App Store 4.7 compliant by virtue of being
   declarative-only.
-version: 1.0.1
+version: 1.1.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

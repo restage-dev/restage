@@ -367,5 +367,58 @@ void main() {
       expect(result.issues, isEmpty);
       expect(result.widgets.single.library.namespace, 'restage.core');
     });
+
+    test(
+        'a positional constructor parameter marks the property positional '
+        '(so the emitted constructor call is positional, not named)', () async {
+      final result = await runWidgetVisitorOn({
+        'lib/badge_card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageWidget(
+            name: 'BadgeCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration,
+            description: 'A badge card.',
+          )
+          class BadgeCard {
+            const BadgeCard(this.label);
+            @RestageProperty(description: 'The label.')
+            final String label;
+          }
+        ''',
+      });
+      expect(result.issues, isEmpty);
+      expect(
+        result.widgets.single.properties.single.positional,
+        isTrue,
+        reason: 'a positional ctor param must mark the property positional so '
+            'the generated constructor call is BadgeCard(label), not '
+            'BadgeCard(label: ...) — the latter does not compile',
+      );
+    });
+
+    test('a named constructor parameter leaves the property non-positional',
+        () async {
+      final result = await runWidgetVisitorOn({
+        'lib/badge_card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageWidget(
+            name: 'BadgeCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration,
+            description: 'A badge card.',
+          )
+          class BadgeCard {
+            const BadgeCard({required this.label});
+            @RestageProperty(description: 'The label.')
+            final String label;
+          }
+        ''',
+      });
+      expect(result.issues, isEmpty);
+      expect(result.widgets.single.properties.single.positional, isFalse);
+    });
   });
 }

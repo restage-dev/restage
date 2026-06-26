@@ -2,7 +2,7 @@ name: restage_codegen
 description: >-
   A build_runner code generator that compiles Flutter-authored UI into Remote
   Flutter Widget (RFW) blobs and catalogs consumed by the Restage SDK runtime.
-version: 1.0.2
+version: 1.0.3
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

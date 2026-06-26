@@ -1,6 +1,7 @@
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
-    show classifyA2uiCatalogDart;
+    show A2uiRichShapes, classifyA2uiCatalogDart;
+import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -22,7 +23,11 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// and the Dart `CatalogItem` set are emitted over the SAME A2UI-emittable
 /// widget set (via [classifyA2uiCatalogDart]): a widget scoped out of the Dart
 /// emitter (e.g. a required-structured field) is also absent here — never a
-/// component in one artifact but not the other.
+/// component in one artifact but not the other. For that parity to hold over
+/// INTERACTIVE widgets, this path must be given the SAME `eventSeam` +
+/// `richShapes` the Dart emitter receives (a required interactive callback
+/// lowered on the Dart path must not be dropped here via the catalog-fed
+/// required-event path).
 ///
 /// This is the single module that maps the catalog to the A2UI catalog shape —
 /// the **shape-isolation surface**. It emits the catalog **as plain maps**: it
@@ -56,14 +61,23 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 RestageStampedA2uiCatalog emitA2uiCatalog(
   Catalog catalog, {
   NativeCatalogIndex? nativeIndex,
+  A2uiEventSeam? eventSeam,
+  A2uiRichShapes? richShapes,
+  A2uiPairingSeam? pairingSeam,
 }) {
   // Emit over the A2UI-emittable widget set ONLY (the same set the Dart
   // CatalogItem emitter produces), so the manifest component list and the Dart
   // CatalogItem set agree by construction — a scoped-out widget is in neither.
-  final emittable = classifyA2uiCatalogDart(catalog, nativeIndex: nativeIndex)
-      .widgets
-      .map((plan) => plan.entry)
-      .toList(growable: false);
+  // The interactivity seam + rich shapes + the pairing seam are threaded
+  // through so an interactive widget the Dart emitter keeps (a lowered
+  // callback) is kept here too.
+  final emittable = classifyA2uiCatalogDart(
+    catalog,
+    nativeIndex: nativeIndex,
+    eventSeam: eventSeam,
+    richShapes: richShapes,
+    pairingSeam: pairingSeam,
+  ).widgets.map((plan) => plan.entry).toList(growable: false);
 
   // De-duplicate by name; ANY duplicate name fails loud (the catalog map is
   // flat). Cross-library is called out as the special case in the message.

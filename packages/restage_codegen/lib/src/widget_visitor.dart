@@ -5,6 +5,7 @@ import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/const_folding.dart';
+import 'package:restage_codegen/src/customer_structured_discovery.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -16,18 +17,30 @@ const String _unknownEnumHint =
 /// Result of walking a library for `@RestageWidget` classes.
 @immutable
 final class WidgetVisitorResult {
-  /// Wraps the discovered [widgets] and [issues], storing both unmodifiable.
+  /// Wraps the discovered [widgets] and [issues], storing each unmodifiable.
   WidgetVisitorResult({
     required List<WidgetEntry> widgets,
     required List<Issue> issues,
+    List<StructuredEntry> structuredTypes = const [],
+    List<UnionEntry> unions = const [],
   })  : widgets = List.unmodifiable(widgets),
-        issues = List.unmodifiable(issues);
+        issues = List.unmodifiable(issues),
+        structuredTypes = List.unmodifiable(structuredTypes),
+        unions = List.unmodifiable(unions);
 
   /// Successfully extracted widget entries.
   final List<WidgetEntry> widgets;
 
   /// Diagnostics collected during the walk.
   final List<Issue> issues;
+
+  /// Customer structured value types referenced by the widgets' properties
+  /// (unallocated wire IDs; a later pass mints them).
+  final List<StructuredEntry> structuredTypes;
+
+  /// Customer unions referenced by the widgets' properties (unallocated wire
+  /// IDs; a later pass mints them).
+  final List<UnionEntry> unions;
 }
 
 /// Walks [library] for classes annotated with `@RestageWidget`. For each:
@@ -46,10 +59,24 @@ WidgetVisitorResult visitRestageWidgets(
 ) {
   final widgets = <WidgetEntry>[];
   final issues = <Issue>[];
-  for (final cls in library.classes) {
-    final annotation = firstAnnotation(cls, 'RestageWidget');
-    if (annotation == null) continue;
-    final entry = _readWidgetAnnotation(cls, annotation, assetId, issues);
+
+  // Identify the `@RestageWidget` classes once so a structured pre-pass can
+  // discover the customer value types their properties reference before the
+  // per-widget property build reads them.
+  final widgetClasses = [
+    for (final cls in library.classes)
+      if (firstAnnotation(cls, 'RestageWidget') != null) cls,
+  ];
+  final structured = discoverCustomerStructured(
+    widgetClasses: widgetClasses,
+    assetId: assetId,
+    issues: issues,
+  );
+
+  for (final cls in widgetClasses) {
+    final annotation = firstAnnotation(cls, 'RestageWidget')!;
+    final entry =
+        _readWidgetAnnotation(cls, annotation, assetId, issues, structured);
     if (entry != null) widgets.add(entry);
   }
 
@@ -78,7 +105,12 @@ WidgetVisitorResult visitRestageWidgets(
     );
   }
 
-  return WidgetVisitorResult(widgets: widgets, issues: issues);
+  return WidgetVisitorResult(
+    widgets: widgets,
+    issues: issues,
+    structuredTypes: structured.structuredTypes,
+    unions: structured.unions,
+  );
 }
 
 WidgetEntry? _readWidgetAnnotation(
@@ -86,6 +118,7 @@ WidgetEntry? _readWidgetAnnotation(
   ElementAnnotation annotation,
   AssetId assetId,
   List<Issue> issues,
+  CustomerStructuredDiscovery structured,
 ) {
   final value = annotation.computeConstantValue();
   final className = cls.name ?? '<unnamed>';
@@ -160,7 +193,13 @@ WidgetEntry? _readWidgetAnnotation(
   for (final field in cls.fields) {
     final propAnnotation = firstAnnotation(field, 'RestageProperty');
     if (propAnnotation == null) continue;
-    final p = _readPropertyAnnotation(field, propAnnotation, assetId, issues);
+    final p = _readPropertyAnnotation(
+      field,
+      propAnnotation,
+      assetId,
+      issues,
+      structured,
+    );
     // A bad property emits its own issue; keep collecting so a typo on one
     // field doesn't silently drop the entire widget from the catalog.
     if (p != null) properties.add(p);
@@ -180,6 +219,27 @@ WidgetEntry? _readWidgetAnnotation(
   );
 }
 
+/// [field]'s parameter on its owning class's default (unnamed) generative
+/// constructor — the constructor the generated reconstruction / factory
+/// targets — or `null` when there is no such constructor or no parameter
+/// binds the field. The constructor is the source of truth for a property's
+/// required-ness (a structured argument the constructor requires) and its
+/// positional-ness (a positional argument must emit positionally, not as a
+/// named argument).
+FormalParameterElement? _defaultConstructorFormalFor(FieldElement field) {
+  final owner = field.enclosingElement;
+  if (owner is! ClassElement) return null;
+  final fieldName = field.name;
+  if (fieldName == null) return null;
+  final ctor = owner.constructors
+      .where(
+        (c) => !c.isFactory && const {null, '', 'new'}.contains(c.name),
+      )
+      .firstOrNull;
+  if (ctor == null) return null;
+  return ctor.formalParameters.where((p) => p.name == fieldName).firstOrNull;
+}
+
 /// Synthesizes a `flutterType` string for an `@RestageWidget`-annotated
 /// class. The format is `'<library URI>#<class name>'`, which lets codegen
 /// pattern-match generated factories against the annotated class.
@@ -194,6 +254,7 @@ PropertyEntry? _readPropertyAnnotation(
   ElementAnnotation annotation,
   AssetId assetId,
   List<Issue> issues,
+  CustomerStructuredDiscovery structured,
 ) {
   final value = annotation.computeConstantValue();
   final fieldName = field.name ?? '<unnamed>';
@@ -211,7 +272,7 @@ PropertyEntry? _readPropertyAnnotation(
     return null;
   }
   final description = value.getField('description')?.toStringValue();
-  final required = value.getField('required')?.toBoolValue() ?? false;
+  final annotationRequired = value.getField('required')?.toBoolValue() ?? false;
   final defaultBrandToken =
       value.getField('defaultBrandToken')?.toStringValue();
   final defaultValue = _decodeDefaultValue(
@@ -254,8 +315,36 @@ PropertyEntry? _readPropertyAnnotation(
     return null;
   }
 
-  final type = _inferPropertyType(field.type, field, assetId, issues);
+  // A customer structured value (a nested data class, or a list/map/record of
+  // one, or a sealed union) is resolved by the structured pre-pass; a scalar /
+  // enum / widget / event falls through to the legacy type inference.
+  final structuredShape = structured.shapeFor(field.type);
+  final type = structuredShape?.type ??
+      _inferPropertyType(field.type, field, assetId, issues);
   if (type == null) return null;
+
+  // The default generative constructor binds this field — the source of truth
+  // for its required-ness and positional-ness.
+  final ctorFormal = _defaultConstructorFormalFor(field);
+
+  // The constructor is the source of truth for whether a STRUCTURED property is
+  // required: a structured argument the constructor requires must be marked
+  // required, or the rich-field emit omits a non-nullable optional field and
+  // the generated reconstruction cannot supply the required constructor
+  // argument. A genuinely-optional structured property stays optional (the
+  // constructor default applies — the documented fail-safe). Scoped to
+  // structured so it never forces a required event (which would drop the
+  // widget) or perturb a scalar/built-in catalog.
+  final required = structuredShape != null
+      ? (annotationRequired || (ctorFormal?.isRequired ?? false))
+      : annotationRequired;
+
+  // A POSITIONAL constructor argument must emit positionally — `Widget(arg)`,
+  // not `Widget(name: arg)` — or the generated factory / A2UI reconstruction
+  // does not compile. Derived from the constructor formal for EVERY property
+  // type (positional-ness is not structured-specific); defaults to named when
+  // no default-constructor parameter binds the field.
+  final positional = ctorFormal?.isPositional ?? false;
 
   // Mutual exclusion (checked above) guarantees at most one defaulting
   // strategy is set, so an explicit literal `defaultValue` folds into a
@@ -269,8 +358,11 @@ PropertyEntry? _readPropertyAnnotation(
     type: type,
     description: description,
     required: required,
+    positional: positional,
     defaultBrandToken: defaultBrandToken,
     defaultSource: resolvedSource,
+    structuredRef: structuredShape?.structuredRef,
+    valueShape: structuredShape?.valueShape,
   );
 }
 

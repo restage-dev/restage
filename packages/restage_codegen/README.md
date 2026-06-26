@@ -16,6 +16,13 @@ blob half of that pipeline for surfaces authored as Dart. The same machinery
 serves every surface type — paywalls, onboarding, in-app messages, surveys, or
 any other surface — not one in particular.
 
+> **Emitting a genui A2UI catalog from your widgets?**
+> The same generator projects a [genui](https://pub.dev/packages/genui) **A2UI**
+> catalog from your `@RestageWidget` source. Follow the **[step-by-step A2UI
+> walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step)**
+> — it covers the dependencies, the `build.yaml` setting, and the build command,
+> with a worked example.
+
 ## How it's wired
 
 You do not import this package's library API in app code. It is a set of
@@ -66,7 +73,8 @@ widgets a surface actually references.
 It also has an **A2UI emit target**: from the same Flutter source it lowers to
 RFW, it can project a versioned A2UI (genui) catalog carrying the same
 capability contract. RFW remains the delivery wire; the A2UI projection is an
-additional, optional emit target.
+additional, optional emit target. For the full opt-in setup, see the
+[step-by-step A2UI walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step).
 
 ## License
 

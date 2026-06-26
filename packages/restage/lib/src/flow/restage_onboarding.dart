@@ -9,6 +9,8 @@ import 'flow_chrome.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
+import 'flow_runtime_support.dart' show normalizeEventArgs;
+import 'flow_seed.dart';
 import 'flow_transitions.dart';
 import 'restage_flow_view.dart';
 import 'system_back_policy.dart';
@@ -61,6 +63,7 @@ final class RestageOnboarding<R> extends StatefulWidget {
   const RestageOnboarding({
     super.key,
     required this.flow,
+    this.initialState,
     required this.unavailable,
     this.actions,
     this.resolver,
@@ -81,6 +84,13 @@ final class RestageOnboarding<R> extends StatefulWidget {
 
   /// Generated flow descriptor to load.
   final OnboardingFlowRef<R> flow;
+
+  /// Optional host-supplied initial flow-state values.
+  ///
+  /// Read once when the flow starts — the seed is *initial* state. Changing
+  /// only [initialState] on a rebuild does not restart a running flow; remount
+  /// the widget (for example via a new [key]) to apply a different seed.
+  final FlowSeed? initialState;
 
   /// Required policy for unavailable flows.
   final FlowUnavailablePolicy unavailable;
@@ -176,6 +186,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
     controller = RestageFlowController<R>(
       flow: widget.flow,
       resolver: widget.resolver ?? Restage.defaultFlowResolver,
+      initialState: widget.initialState,
       actions: widget.actions,
       onEvent: (event) {
         if (!mounted || !identical(_controller, controller)) return;
@@ -205,7 +216,10 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   }
 
   void _handleAuthoredEvent(String eventId, Object? value) {
-    _controller?.handleEvent(eventId, value);
+    // Normalize through the same point the RFW render paths use so a scalar
+    // authored-event value reaches the controller in the canonical shape and a
+    // flow `.capture()` resolves identically on the local-Dart path.
+    _controller?.handleEvent(eventId, normalizeEventArgs(value));
   }
 
   @override

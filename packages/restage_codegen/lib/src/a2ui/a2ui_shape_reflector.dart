@@ -3,6 +3,7 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 
+import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 
 /// Why the reflector could not carry a Dart type as an A2UI data shape.
@@ -34,21 +35,21 @@ enum A2uiShapeScopeOutReason {
   nonStringKeyMap,
 
   /// DEFERRED: a sealed/abstract base — a discriminated-union shape whose
-  /// recognition is not yet implemented (a should-be-IN capability, tracked in
-  /// `docs/follow-ups.md`). Distinct from the structural reasons.
+  /// recognition is not yet implemented (a should-be-IN capability, tracked as
+  /// a follow-up). Distinct from the structural reasons.
   sealedUnionDeferred,
 
   /// DEFERRED: a record field that is not a scalar or enum. A record is
   /// reconstructed inline with per-field fallbacks (no helper, no return-null),
   /// so only scalar/enum fields are reconstructable today; records-of-objects /
-  /// records-of-lists are the rare richer case, tracked in `docs/follow-ups.md`.
+  /// records-of-lists are the rare richer case, tracked as a follow-up.
   recordNonScalarFieldDeferred,
 
   /// DEFERRED: an OPTIONAL, NON-nullable constructor parameter whose type is a
   /// nested object / record / recursive value. The value-builder degrades a
   /// missing optional field to a default, but an arbitrary class/record has no
   /// statically-synthesizable default — extracting the real constructor default
-  /// is tracked in `docs/follow-ups.md`. (A REQUIRED such param is fine — a
+  /// is tracked as a follow-up. (A REQUIRED such param is fine — a
   /// missing required value fails the whole object null; a NULLABLE optional
   /// such param is fine — null is the fallback.)
   optionalObjectParamDeferred,
@@ -115,20 +116,27 @@ final class A2uiShapeScopedOut extends A2uiShapeResult {
 ///
 /// The deliberate reclassification — a callback is **not** data and is **not**
 /// a data scope-out; it is excluded from the data schema and routed to the
-/// interactivity layer, so it carries no diagnostic.
+/// interactivity layer, so it carries no diagnostic. It carries the
+/// [signature], the classified callback disposition the Phase-2 lowering reads
+/// (a customer `@RestageWidget` callback's signature is otherwise discarded —
+/// the catalog collapses every callback to a bare event property).
 @immutable
 final class A2uiShapeEventSurface extends A2uiShapeResult {
-  /// Creates the event-surface marker.
-  const A2uiShapeEventSurface();
+  /// Creates the event-surface marker carrying its callback [signature].
+  const A2uiShapeEventSurface(this.signature);
+
+  /// The classified callback disposition (dispatch / write-back / unsupported).
+  final A2uiCallbackSignature signature;
 
   @override
-  bool operator ==(Object other) => other is A2uiShapeEventSurface;
+  bool operator ==(Object other) =>
+      other is A2uiShapeEventSurface && other.signature == signature;
 
   @override
-  int get hashCode => (A2uiShapeEventSurface).hashCode;
+  int get hashCode => signature.hashCode;
 
   @override
-  String toString() => 'A2uiShapeEventSurface()';
+  String toString() => 'A2uiShapeEventSurface($signature)';
 }
 
 /// The reflection depth ceiling — a defense against a pathologically deep
@@ -157,8 +165,11 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
   }
   final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
 
-  // A function/closure with a signature is the Phase-2 event surface.
-  if (type is FunctionType) return const A2uiShapeEventSurface();
+  // A function/closure with a signature is the Phase-2 event surface; it
+  // carries the classified callback disposition the lowering reads.
+  if (type is FunctionType) {
+    return A2uiShapeEventSurface(_classifyCallback(type));
+  }
 
   // STRUCTURAL OUT: no concrete type to read.
   if (type is DynamicType || type is InvalidType || type.isDartCoreObject) {
@@ -258,8 +269,13 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
       );
     }
 
-    // A bare `Function` (no signature) is still a callback → event surface.
-    if (type.isDartCoreFunction) return const A2uiShapeEventSurface();
+    // A bare `Function` (no signature) is still a callback → event surface,
+    // but with no signature it cannot be lowered to a declarative action.
+    if (type.isDartCoreFunction) {
+      return const A2uiShapeEventSurface(
+        A2uiCallbackUnsupported('a bare Function has no callback signature'),
+      );
+    }
 
     final element = type.element;
     // Any other `dart:` type (Set/Future/FutureOr/Stream/Iterable/Null/…) is
@@ -554,6 +570,52 @@ A2uiShapeScopedOut? _buildabilityScopeOut(
     );
   }
   return null;
+}
+
+/// Classifies a callback [type] into the disposition the lowering reads.
+///
+/// A 0-argument callback dispatches an event; a single-positional value
+/// callback (`ValueChanged<T>` = `void Function(T)`) whose value `T` is a
+/// scalar or a `List<scalar>` writes the value back; any other shape —
+/// multiple arguments, a named/optional argument, or a non-scalar value — is
+/// unsupported and fails loud before lowering (never treated as a dispatch).
+A2uiCallbackSignature _classifyCallback(FunctionType type) {
+  // A `VoidCallback` / `ValueChanged<T>` returns void (a setter, not a
+  // transformer). A value-returning callback is not one of those shapes and
+  // would emit an unassignable void-returning lambda → unsupported.
+  if (type.returnType is! VoidType) {
+    return A2uiCallbackUnsupported(
+      '${type.getDisplayString()} does not return void',
+    );
+  }
+  final parameters = type.formalParameters;
+  if (parameters.isEmpty) return const A2uiCallbackDispatch();
+  // A `ValueChanged<T>` takes exactly one REQUIRED POSITIONAL value argument;
+  // a named or optional argument is not that shape.
+  if (parameters.length != 1 || !parameters.single.isRequiredPositional) {
+    return A2uiCallbackUnsupported(
+      '${type.getDisplayString()} is neither a 0-argument dispatch callback '
+      'nor a single-value ValueChanged',
+    );
+  }
+  final value = parameters.single.type;
+  final nullable = value.nullabilitySuffix == NullabilitySuffix.question;
+  final scalar = _scalarTypeOf(value);
+  if (scalar != null) {
+    return A2uiCallbackWriteBack(scalar, nullable: nullable, isList: false);
+  }
+  if (value is InterfaceType &&
+      value.isDartCoreList &&
+      value.typeArguments.length == 1) {
+    final element = _scalarTypeOf(value.typeArguments.single);
+    if (element != null) {
+      return A2uiCallbackWriteBack(element, nullable: nullable, isList: true);
+    }
+  }
+  return A2uiCallbackUnsupported(
+    'callback value type ${value.getDisplayString()} is not a scalar or a '
+    'List<scalar>',
+  );
 }
 
 /// The JSON scalar category for a core scalar [type], or null.

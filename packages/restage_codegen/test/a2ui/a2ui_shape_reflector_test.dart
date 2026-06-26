@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_shape_reflector.dart';
 import 'package:test/test.dart';
@@ -1104,6 +1105,226 @@ void main() {
           await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
       expect(node.fields['count'], const ScalarNode(A2uiScalarType.integer));
       expect(node.required, isNot(contains('count')));
+    });
+  });
+
+  group('reflectType — callback signatures (Phase-2 interactivity)', () {
+    // The event surface now carries the callback signature the Phase-2 lowering
+    // reads: a 0-arg callback dispatches an event; a single-value
+    // `ValueChanged<T>` writes the value back; any other shape is unsupported
+    // (fail-loud before lowering, never mis-lowered to dispatch). ValueChanged
+    // is spelled as `void Function(T)` so the fixtures need no Flutter import.
+    Future<A2uiCallbackSignature> signatureOf(
+      String source,
+      String field,
+    ) async {
+      final type =
+          await resolveFieldType(source, className: 'Data', fieldName: field);
+      final result = reflectType(type);
+      expect(
+        result,
+        isA<A2uiShapeEventSurface>(),
+        reason: 'expected $field to be the event surface, got $result',
+      );
+      return (result as A2uiShapeEventSurface).signature;
+    }
+
+    test('ValueChanged<bool> (void Function(bool)) → write-back(boolean)',
+        () async {
+      const source = '''
+        class Data {
+          final void Function(bool) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.boolean,
+          nullable: false,
+          isList: false,
+        ),
+      );
+    });
+
+    test('ValueChanged<bool?> → write-back(boolean, nullable)', () async {
+      const source = '''
+        class Data {
+          final void Function(bool?) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.boolean,
+          nullable: true,
+          isList: false,
+        ),
+      );
+    });
+
+    test('ValueChanged<String> → write-back(string)', () async {
+      const source = '''
+        class Data {
+          final void Function(String) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.string,
+          nullable: false,
+          isList: false,
+        ),
+      );
+    });
+
+    test('VoidCallback (void Function()) → dispatch', () async {
+      const source = '''
+        class Data {
+          final void Function() onTap;
+          Data(this.onTap);
+        }
+      ''';
+      expect(await signatureOf(source, 'onTap'), const A2uiCallbackDispatch());
+    });
+
+    test('ValueChanged<List<String>> → write-back(string, isList)', () async {
+      const source = '''
+        class Data {
+          final void Function(List<String>) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.string,
+          nullable: false,
+          isList: true,
+        ),
+      );
+    });
+
+    test('a multi-arg callback → unsupported (never mis-lowered to dispatch)',
+        () async {
+      const source = '''
+        class Data {
+          final void Function(int, int) onResize;
+          Data(this.onResize);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onResize'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('ValueChanged<List<non-scalar>> → unsupported (#L by construction)',
+        () async {
+      // The leaf-list element MUST be a scalar: a non-scalar element fails
+      // closed at the reflector, never a write-back. So a list write-back value
+      // is always a `List<scalar>` — never a list of maps — and the
+      // `{path}`/`{call}` map-pattern hazard cannot arise on a list value.
+      const source = '''
+        class Data {
+          final void Function(List<Object>) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('a non-scalar value callback → unsupported', () async {
+      const source = '''
+        class Data {
+          final void Function(Object) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('a single NAMED-arg callback is not a ValueChanged → unsupported',
+        () async {
+      const source = '''
+        class Data {
+          final void Function({bool value}) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('a bare Function carries an unsupported signature', () async {
+      const source = '''
+        class Data {
+          final Function callback;
+          Data(this.callback);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'callback'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('a non-void single-arg callback → unsupported (not ValueChanged)',
+        () async {
+      // `int Function(bool)` returns a value — not a `void` setter — so it must
+      // NOT lower to a write-back (whose lambda returns void and would be
+      // unassignable).
+      const source = '''
+        class Data {
+          final int Function(bool) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('a non-void 0-arg callback → unsupported (not VoidCallback)',
+        () async {
+      const source = '''
+        class Data {
+          final bool Function() onTap;
+          Data(this.onTap);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onTap'),
+        isA<A2uiCallbackUnsupported>(),
+      );
+    });
+
+    test('an optional-positional value callback → unsupported (not required)',
+        () async {
+      // `void Function([bool])` has no required value argument — not the
+      // ValueChanged shape.
+      const source = '''
+        class Data {
+          final void Function([bool]) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        isA<A2uiCallbackUnsupported>(),
+      );
     });
   });
 }

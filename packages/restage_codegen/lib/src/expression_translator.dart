@@ -33,6 +33,7 @@ import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         ThemeContractValueKind,
+        kCapturedEventValueKey,
         kMaxInlineSpanDepth,
         kRestageFormattedTextProps,
         kSupportedCurveNames,
@@ -3010,7 +3011,16 @@ final class ExpressionTranslator {
         positional.add(_stringLiteral(descriptorId));
         continue;
       }
-      positional.add(_translateHelperArgument(arg, issues));
+      // A scalar event value is wrapped under the reserved `value` key so the
+      // event always carries a string-keyed args map: a bare scalar would be
+      // coerced to an empty map at the runtime boundary (and a flow
+      // `.capture()` reads the reserved `value` key). A map literal already
+      // carries named fields, so it is emitted as-is.
+      final translated = _translateHelperArgument(arg, issues);
+      final isMapLiteral = arg is SetOrMapLiteral && arg.isMap;
+      positional.add(
+        isMapLiteral ? translated : '{ $kCapturedEventValueKey: $translated }',
+      );
     }
     return HelperCallArgs(positional: positional, named: named);
   }

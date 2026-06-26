@@ -2,6 +2,7 @@ import 'dart:collection';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_data_builder.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
@@ -33,6 +34,43 @@ enum A2uiDartCoverageReason {
 
   /// An enum field is missing the Dart enum type needed for fail-closed lookup.
   missingEnumType,
+
+  /// A write-back callback could not be paired unambiguously: more than one
+  /// write-back callback on the widget, or more than one matching-type value
+  /// property (the auto single-pair fails closed on ambiguity).
+  ambiguousWritePairing,
+
+  /// An interactive callback has no matching-type value property to control —
+  /// an uncontrolled widget whose state would live in ephemeral Flutter state,
+  /// not the data model (not a controlled component).
+  uncontrolledInteractiveWidget,
+
+  /// The single matching-type value property is not a bindable data leaf (a
+  /// theme-sourced / synthetic / reserved-identifier field), so its read cannot
+  /// be rewritten to the write-back path.
+  writeBackValueNotBound,
+
+  /// An interactive callback whose signature the reflector could not lower —
+  /// a multi-argument / named-argument / non-void callback (#sig), or a
+  /// `ValueChanged<List<E>>` whose element `E` is not a scalar (#L). It fails
+  /// closed loud rather than being mis-lowered or silently dropped.
+  unsupportedInteractiveCallback,
+
+  /// An explicit `@RestageProperty(writeBackValue:)` pairing that does not
+  /// validate — the named value property does not exist, is not a matching-type
+  /// bindable leaf, or two callbacks name the same value property (a
+  /// collision). Fails closed loud rather than mis-wire the explicit pairing.
+  invalidExplicitWritePairing,
+
+  /// A built-in widget whose Flutter constructor requires an argument the
+  /// built-in catalog cannot supply to the A2UI emit (a required callback
+  /// marked optional by the catalog's event convention, or a required
+  /// style/decoration represented only by a decompose / not as a property), so
+  /// emitting it would produce an uncompilable constructor call. Scoped out by
+  /// a contained interim guard so the merged built-in catalog compiles; the
+  /// proper fix (the built-in emits the argument correctly) is tracked
+  /// separately.
+  unconstructableBuiltIn,
 }
 
 /// One omitted field in the A2UI Dart coverage record.
@@ -114,6 +152,8 @@ final class A2uiDartWidgetPlan {
   const A2uiDartWidgetPlan._({
     required this.entry,
     required this.fields,
+    this.writeBacks = const [],
+    this.dispatches = const [],
   });
 
   /// Source catalog entry.
@@ -121,6 +161,43 @@ final class A2uiDartWidgetPlan {
 
   /// Fields included in schema and construction.
   final List<A2uiDartFieldPlan> fields;
+
+  /// Write-back callbacks lowered to declarative data-model updates. These are
+  /// emitted as constructor arguments (and drive the prelude path derivation)
+  /// but are NOT data fields, so they never enter the data schema.
+  final List<A2uiWriteBack> writeBacks;
+
+  /// Dispatch callbacks (`VoidCallback`) lowered to an outward `dispatchEvent`
+  /// with a compile-fixed event name. Emitted as constructor arguments; never
+  /// data fields, so they never enter the data schema.
+  final List<PropertyEntry> dispatches;
+}
+
+/// One lowered write-back pair: an interactive callback that writes its value
+/// back into the data model at the path bound by its paired value property.
+@immutable
+final class A2uiWriteBack {
+  /// Creates a write-back over [callbackProperty], targeting the data path of
+  /// the paired [valuePropertyName].
+  const A2uiWriteBack({
+    required this.callbackProperty,
+    required this.valuePropertyName,
+  });
+
+  /// The interactive callback property being lowered.
+  final PropertyEntry callbackProperty;
+
+  /// The paired value property whose data path the callback writes.
+  final String valuePropertyName;
+
+  @override
+  bool operator ==(Object other) =>
+      other is A2uiWriteBack &&
+      other.callbackProperty == callbackProperty &&
+      other.valuePropertyName == valuePropertyName;
+
+  @override
+  int get hashCode => Object.hash(callbackProperty, valuePropertyName);
 }
 
 /// Classified field emission plan.
@@ -156,7 +233,12 @@ final class A2uiDataField extends A2uiFieldEmission {
   /// through the value-builder, bound via `BoundObject`); false for the
   /// catalog-fed leaf binding. Catalog classification always yields false, so
   /// the built-in catalogs are byte-neutral.
-  const A2uiDataField(this.node, {this.rich = false});
+  ///
+  /// [writeBack] is true for the value property of a write-back pair: its leaf
+  /// `Bound*` read is rewritten to the resolved data path `{'path': P}` (rather
+  /// than the raw value) so it is subscribed to the exact path the paired
+  /// callback writes. Catalog classification always yields false.
+  const A2uiDataField(this.node, {this.rich = false, this.writeBack = false});
 
   /// The data-shape node projected to a schema and a typed value binding.
   final A2uiSchemaNode node;
@@ -165,12 +247,19 @@ final class A2uiDataField extends A2uiFieldEmission {
   /// customer data shape) rather than the catalog-fed leaf binding.
   final bool rich;
 
-  @override
-  bool operator ==(Object other) =>
-      other is A2uiDataField && other.node == node && other.rich == rich;
+  /// Whether this field is the value property of a write-back pair (its read is
+  /// rewritten to the write-back data path).
+  final bool writeBack;
 
   @override
-  int get hashCode => Object.hash(node, rich);
+  bool operator ==(Object other) =>
+      other is A2uiDataField &&
+      other.node == node &&
+      other.rich == rich &&
+      other.writeBack == writeBack;
+
+  @override
+  int get hashCode => Object.hash(node, rich, writeBack);
 }
 
 /// A host-built child slot, described by its [slot] kind.
@@ -198,10 +287,18 @@ final class A2uiChildField extends A2uiFieldEmission {
 typedef A2uiRichShapes = Map<(String, String), A2uiSchemaNode>;
 
 /// Classifies [catalog] for A2UI Dart emission.
+///
+/// [eventSeam] carries the classified callback signature for each customer
+/// `@RestageWidget` interactive property (the catalog discards it). A property
+/// present there is lowered to a declarative action (write-back / dispatch);
+/// every property absent from the seam takes the unchanged catalog-fed path, so
+/// the built-in catalogs are byte-neutral.
 A2uiDartCatalogPlan classifyA2uiCatalogDart(
   Catalog catalog, {
   NativeCatalogIndex? nativeIndex,
   A2uiRichShapes? richShapes,
+  A2uiEventSeam? eventSeam,
+  A2uiPairingSeam? pairingSeam,
 }) {
   final widgets = <A2uiDartWidgetPlan>[];
   final omitted = <A2uiDartFieldOmission>[];
@@ -219,8 +316,16 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
       continue;
     }
 
+    // Resolve the interaction lowering (write-back pairs + dispatch callbacks)
+    // for this widget. A built-in catalog carries no seam → no interactions →
+    // the loop is byte-neutral.
+    final interactions =
+        _resolveInteractions(entry, eventSeam, pairingSeam, richShapes);
+
     final consumed = _decomposeConsumedNames(entry);
     final fields = <A2uiDartFieldPlan>[];
+    final writeBacks = <A2uiWriteBack>[];
+    final dispatches = <PropertyEntry>[];
     A2uiDartWidgetDrop? lateDrop;
     for (final property in entry.properties) {
       if (consumed.contains(property.name)) {
@@ -234,6 +339,41 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
         continue;
       }
 
+      // A write-back callback is lowered to a declarative data-model update (or
+      // fails closed loud), outside the catalog-fed field classification.
+      final wired = interactions?.writeBacks
+          .firstWhereOrNull((w) => w.callbackProperty.name == property.name);
+      if (wired != null) {
+        writeBacks.add(wired);
+        continue;
+      }
+      // A dispatch callback is lowered to an outward `dispatchEvent`, likewise
+      // outside the catalog-fed field classification.
+      if (interactions?.dispatches.any((d) => d.name == property.name) ??
+          false) {
+        dispatches.add(property);
+        continue;
+      }
+      final scopedReason = interactions?.scopedByCallbackName[property.name];
+      if (scopedReason != null) {
+        if (property.required) {
+          lateDrop = A2uiDartWidgetDrop(
+            widgetName: entry.name,
+            fieldName: property.name,
+            reason: scopedReason,
+          );
+          break;
+        }
+        omitted.add(
+          A2uiDartFieldOmission(
+            widgetName: entry.name,
+            fieldName: property.name,
+            reason: scopedReason,
+          ),
+        );
+        continue;
+      }
+
       final field = _classifyField(
         entry,
         property,
@@ -242,7 +382,26 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
       );
       switch (field) {
         case _EmitField(:final plan):
-          fields.add(plan);
+          // Mark the value property of a write-back pair so its leaf read is
+          // rewritten to the write-back data path.
+          final emission = plan.emission;
+          final isBoundValue = interactions != null &&
+              interactions.writeBacks
+                  .any((w) => w.valuePropertyName == property.name);
+          if (isBoundValue && emission is A2uiDataField) {
+            fields.add(
+              A2uiDartFieldPlan._(
+                property: plan.property,
+                emission: A2uiDataField(
+                  emission.node,
+                  rich: emission.rich,
+                  writeBack: true,
+                ),
+              ),
+            );
+          } else {
+            fields.add(plan);
+          }
         case _OmitField(:final omission):
           omitted.add(omission);
         case _DropWidget(:final drop):
@@ -257,7 +416,14 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
       dropped.add(lateDrop);
       continue;
     }
-    widgets.add(A2uiDartWidgetPlan._(entry: entry, fields: fields));
+    widgets.add(
+      A2uiDartWidgetPlan._(
+        entry: entry,
+        fields: fields,
+        writeBacks: writeBacks,
+        dispatches: dispatches,
+      ),
+    );
   }
 
   return A2uiDartCatalogPlan._(
@@ -275,11 +441,15 @@ String emitA2uiCatalogDart(
   Catalog catalog, {
   NativeCatalogIndex? nativeIndex,
   A2uiRichShapes? richShapes,
+  A2uiEventSeam? eventSeam,
+  A2uiPairingSeam? pairingSeam,
 }) {
   final plan = classifyA2uiCatalogDart(
     catalog,
     nativeIndex: nativeIndex,
     richShapes: richShapes,
+    eventSeam: eventSeam,
+    pairingSeam: pairingSeam,
   );
   final importUris = _importUris(plan);
   // Every customer library is imported under a distinct prefix (`p0`, `p1`, …),
@@ -463,7 +633,12 @@ void _writeCatalogItem(
   // `{path}`/`{call}` binding-sentinel patterns would misread a literal value
   // whose own field/key is named `path`/`call`). Top-level scalars/enums/
   // leaf-lists keep their reactive `Bound*` wrappers around the constructor.
-  final prelude = _richPreludeStatements(widget, dataBuilder);
+  final prelude = [
+    // The write-back path derivation comes first (it only reads `data`); both
+    // the value field's `Bound*` and the callback's update reference its local.
+    ..._writeBackPreludeStatements(widget),
+    ..._richPreludeStatements(widget, dataBuilder),
+  ];
   final returnExpression = _widgetReturnExpression(widget, prefixes);
   buf
     ..writeln('    CatalogItem(')
@@ -583,7 +758,15 @@ String _widgetObjectSchema(List<A2uiWidgetField> fields, {_DefsContext? ctx}) {
 /// [ctx] when present) or a host-built child slot (a fixed leaf schema).
 String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
   switch (emission) {
-    case A2uiDataField(:final node):
+    case A2uiDataField(:final node, :final writeBack):
+      // A write-back value property is a data binding (the producer supplies a
+      // `{path}` / literal / `{call}` value source) — emit genui's value-
+      // reference shape so the generated catalog matches genui-native
+      // semantics. Always a scalar OR a `List<scalar>` leaf (no recursion /
+      // `$defs`).
+      if (writeBack && (node is ScalarNode || node is ListNode)) {
+        return _writeBackReferenceSchema(node);
+      }
       return ctx == null
           ? _schemaForNode(node)
           : _projectNode(node, ctx, atDefRoot: false);
@@ -595,6 +778,32 @@ String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
           return 'S.list(items: S.string())';
       }
   }
+}
+
+/// The genui value-reference schema for a write-back value property — a literal
+/// OR a `{path}` data binding OR a `{call}` function-call value source. For a
+/// scalar [node] this replicates `A2uiSchemas.{boolean,number,string}Reference`
+/// (a2ui_schemas.dart:299-343); for a `List<scalar>` [node] it replicates
+/// `A2uiSchemas.listOrReference(items:)` / `stringArrayReference()`
+/// (a2ui_schemas.dart:418-428, 522-531) — the same `oneOf` with
+/// `S.list(items:)` as the literal option. The literal is the only difference
+/// between the two; the `{path}` binding + `{call}` function-call options are
+/// identical. The shape is
+/// replicated raw from `json_schema_builder` primitives rather than by calling
+/// genui's `A2uiSchemas` helper: genui is 0.x/experimental, so depending on its
+/// helper API would risk inheriting its churn (a helper rename/signature change
+/// would break the customer's generated build); raw + per-version grounding is
+/// the churn-robust track-genui posture, and the producer-facing shape is
+/// identical. (The toolchain emits source text and never imports genui either
+/// way.) Re-ground the shape + those file:lines on a genui version bump.
+String _writeBackReferenceSchema(A2uiSchemaNode node) {
+  final literal = _schemaForNodeBase(node);
+  const binding = "S.object(properties: {'path': S.string()}, "
+      "required: <String>['path'])";
+  const functionCall = "S.object(properties: {'call': S.string(), "
+      "'args': S.object(additionalProperties: true)}, "
+      "required: <String>['call'])";
+  return 'S.combined(oneOf: [$literal, $binding, $functionCall])';
 }
 
 /// Projects [node] to its bare (non-`$defs`) schema, applying nullability at
@@ -955,6 +1164,52 @@ List<String> _richPreludeStatements(
   return statements;
 }
 
+/// The statements that derive each write-back data path at the top of the
+/// widget builder. The path is the producer's `{path}` binding when supplied,
+/// else the Restage self-scoped allocation rule `${itemContext.id}.<value>` —
+/// the genui controlled-component pattern. Both the value field's `Bound*` read
+/// and the callback's `dataContext.update` reference the resulting local.
+///
+/// DELIBERATE genui-parity behaviour: the value schema advertises genui's
+/// value-reference shape (literal OR `{path}` OR `{call}`), but — exactly as
+/// genui's own `check_box` does for a write-back value — ONLY a `{path}`
+/// round-trips. A literal or a `{call}` value has no `path` key, so it
+/// self-scopes to an initially-unset path and the field renders its default
+/// until the user interacts. This is check_box-faithful by design (the
+/// generated schema mirrors genui's exact shape AND its behaviour). Seeding the
+/// self-scoped path from a literal / honouring a `{call}` value source on the
+/// read are deferred enhancements (departures from genui). This is NOT a
+/// schema/behaviour mismatch to "fix" — it is the deliberate genui-mirroring
+/// posture.
+List<String> _writeBackPreludeStatements(A2uiDartWidgetPlan widget) {
+  final statements = <String>[];
+  final seenPaths = <String>{};
+  for (final writeBack in widget.writeBacks) {
+    final pathVar = _writeBackPathVar(writeBack.valuePropertyName);
+    if (!seenPaths.add(pathVar)) {
+      // Two write-backs resolving to the same data path would silently
+      // cross-wire two controls — fail loud rather than emit a shared path.
+      throw StateError(
+        'A2UI write-back: duplicate data path "$pathVar" on widget '
+        '"${widget.entry.name}".',
+      );
+    }
+    final refVar = _writeBackRefVar(writeBack.valuePropertyName);
+    final access = 'data[${_dartStringLiteral(writeBack.valuePropertyName)}]';
+    final pathKey = _dartStringLiteral('path');
+    // The emitted self-scoped path interpolates `itemContext.id` at render
+    // time, so the `$` is escaped here to land in the generated source as-is.
+    final selfScoped = "'\${itemContext.id}.${writeBack.valuePropertyName}'";
+    statements
+      ..add('final $refVar = $access;')
+      ..add(
+        'final $pathVar = ($refVar is Map && $refVar.containsKey($pathKey)) '
+        '? $refVar[$pathKey] as String : $selfScoped;',
+      );
+  }
+  return statements;
+}
+
 /// The widget builder's return expression: the constructor wrapped in the
 /// reactive `Bound*` layers for the LEAF (catalog-fed scalar/enum/leaf-list)
 /// fields. Rich fields are not wrapped here — they are reconstructed in the
@@ -1000,10 +1255,17 @@ String _boundWrapperExpression(A2uiDartFieldPlan field, String child) {
       throw StateError(_richNodeUnsupportedMessage(emission.node)),
   };
   final variable = _identifierFor(property.name);
+  // A write-back value field reads from its resolved data path (a literal
+  // `{'path': P}` reference) — NOT the raw value — so the binding is subscribed
+  // to the exact path the paired callback writes. A scalar value is never a
+  // map, so the `{path}` map-pattern cannot hijack a scalar literal.
+  final value = emission.writeBack
+      ? "{'path': ${_writeBackPathVar(property.name)}}"
+      : 'data[${_dartStringLiteral(property.name)}]';
   return '''
 $bound(
   dataContext: itemContext.dataContext,
-  value: data[${_dartStringLiteral(property.name)}],
+  value: $value,
   builder: (context, $variable) => $child,
 )''';
 }
@@ -1025,6 +1287,30 @@ String _constructorExpression(
     } else {
       named.add('${property.name}: $arg');
     }
+  }
+
+  // A write-back callback writes the new value back to its data path (inert: a
+  // path + the runtime value). Only NAMED callbacks are wired (see
+  // [_resolveInteractions]), so they append to the named arguments without
+  // disturbing positional order.
+  for (final writeBack in widget.writeBacks) {
+    final pathVar = _writeBackPathVar(writeBack.valuePropertyName);
+    named.add(
+      '${writeBack.callbackProperty.name}: (_restageA2uiNext) => '
+      'itemContext.dataContext.update(DataPath($pathVar), _restageA2uiNext)',
+    );
+  }
+
+  // A dispatch callback fires an outward `UserActionEvent` whose name is
+  // compile-fixed from the callback property name (the producer cannot repoint
+  // it — load-bearing for inertness). Named-only, like write-backs.
+  for (final dispatch in widget.dispatches) {
+    final eventName = _dartStringLiteral(dispatch.name);
+    named.add(
+      '${dispatch.name}: () => '
+      'itemContext.dispatchEvent(UserActionEvent(name: $eventName, '
+      'sourceComponentId: itemContext.id))',
+    );
   }
 
   final args = [...positional, ...named];
@@ -1271,6 +1557,323 @@ String? _literalDefaultExpression(
   return null;
 }
 
+/// The per-widget interaction lowering plan: wired write-back pairs, wired
+/// dispatch callbacks, and any callbacks scoped out loud (with the reason).
+@immutable
+class _InteractionPlan {
+  const _InteractionPlan({
+    this.writeBacks = const [],
+    this.dispatches = const [],
+    this.scopedByCallbackName = const {},
+  });
+
+  /// Wired write-back pairs (the auto single-pair rule resolves at most one).
+  final List<A2uiWriteBack> writeBacks;
+
+  /// Wired dispatch callbacks (named `VoidCallback`s).
+  final List<PropertyEntry> dispatches;
+
+  /// Callbacks scoped out loud, keyed by callback property name.
+  final Map<String, A2uiDartCoverageReason> scopedByCallbackName;
+}
+
+/// Resolves the interaction lowering for [entry] from [eventSeam]: write-back
+/// pairs (the auto single-pair rule) plus dispatch callbacks. A built-in
+/// catalog carries no seam → no interactions → returns null (byte-neutral).
+///
+/// Only NAMED callbacks are wired (a positional callback's constructor slot
+/// cannot be allocated without risking a positional shift, so it falls through
+/// to the unchanged catalog-fed event path). An unsupported-signature callback
+/// likewise falls through to the catalog-fed event path.
+_InteractionPlan? _resolveInteractions(
+  WidgetEntry entry,
+  A2uiEventSeam? eventSeam,
+  A2uiPairingSeam? pairingSeam,
+  A2uiRichShapes? richShapes,
+) {
+  if (eventSeam == null) return null;
+  final writeBackCallbacks =
+      <({PropertyEntry property, A2uiCallbackWriteBack signature})>[];
+  final dispatches = <PropertyEntry>[];
+  final unsupported = <String>[];
+  final invalidPairings = <String>[];
+  for (final property in entry.properties) {
+    // A positional callback is skipped REGARDLESS of its signature: its ctor
+    // slot cannot be allocated without risking a positional shift, so it falls
+    // through to the catalog-fed event path (`eventProperty`) — the position is
+    // the blocker. The distinct `#sig`/`#L` census below is for a NAMED
+    // callback whose SIGNATURE is the blocker (it could lower if supported).
+    if (property.type != PropertyType.event || property.positional) continue;
+    final signature = eventSeam[(entry.name, property.name)];
+    if (signature is A2uiCallbackWriteBack) {
+      writeBackCallbacks.add((property: property, signature: signature));
+    } else if (pairingSeam?[(entry.name, property.name)] != null) {
+      // A `writeBackValue` pairing on a NON-write-back callback (dispatch /
+      // unsupported / unclassified) is incoherent — there is no value to write
+      // back — so fail closed loud rather than silently honour the callback's
+      // normal disposition and ignore the bad pairing.
+      invalidPairings.add(property.name);
+    } else if (signature is A2uiCallbackDispatch) {
+      dispatches.add(property);
+    } else if (signature is A2uiCallbackUnsupported) {
+      // The reflector could not lower this callback's signature (#sig / #L) —
+      // scope it out loud rather than mis-lower or silently drop it.
+      unsupported.add(property.name);
+    }
+  }
+
+  final (:writeBacks, :scoped) = _resolveWriteBackPairs(
+    entry,
+    writeBackCallbacks,
+    pairingSeam,
+    richShapes,
+  );
+
+  final scopedByCallbackName = {
+    ...scoped,
+    for (final name in unsupported)
+      name: A2uiDartCoverageReason.unsupportedInteractiveCallback,
+    for (final name in invalidPairings)
+      name: A2uiDartCoverageReason.invalidExplicitWritePairing,
+  };
+
+  if (writeBacks.isEmpty &&
+      dispatches.isEmpty &&
+      scopedByCallbackName.isEmpty) {
+    return null;
+  }
+  return _InteractionPlan(
+    writeBacks: writeBacks,
+    dispatches: dispatches,
+    scopedByCallbackName: scopedByCallbackName,
+  );
+}
+
+/// Resolves the write-back pairs for [entry]'s write-back [callbacks].
+///
+/// A callback with an explicit `@RestageProperty(writeBackValue:)` pairing (in
+/// [pairingSeam]) OVERRIDES the auto rule: it resolves the named pair directly,
+/// validated the same way (the named value prop exists + is a matching-type
+/// bindable leaf), enabling MULTIPLE write-backs on a multi-control widget. Two
+/// callbacks naming the SAME value property collide → both fail closed loud. A
+/// callback WITHOUT a pairing takes the auto single-pair rule ONLY when it is
+/// the sole write-back callback and no explicit pairing is present (the
+/// zero-annotation default); otherwise it is ambiguous (`#pair` — annotate
+/// every control). Every ambiguity / bad pairing fails closed loud with a
+/// named reason.
+({
+  List<A2uiWriteBack> writeBacks,
+  Map<String, A2uiDartCoverageReason> scoped,
+}) _resolveWriteBackPairs(
+  WidgetEntry entry,
+  List<({PropertyEntry property, A2uiCallbackWriteBack signature})> callbacks,
+  A2uiPairingSeam? pairingSeam,
+  A2uiRichShapes? richShapes,
+) {
+  if (callbacks.isEmpty) {
+    return (writeBacks: const [], scoped: const {});
+  }
+
+  String? targetOf(PropertyEntry callback) =>
+      pairingSeam?[(entry.name, callback.name)];
+
+  final annotated =
+      callbacks.where((c) => targetOf(c.property) != null).toList();
+  final unAnnotated =
+      callbacks.where((c) => targetOf(c.property) == null).toList();
+
+  final writeBacks = <A2uiWriteBack>[];
+  final scoped = <String, A2uiDartCoverageReason>{};
+
+  // Explicit pairings. Two annotated callbacks naming the SAME value property
+  // collide (ambiguous which one controls it) → both fail closed loud.
+  final targetCounts = <String, int>{};
+  for (final c in annotated) {
+    final target = targetOf(c.property)!;
+    targetCounts[target] = (targetCounts[target] ?? 0) + 1;
+  }
+  for (final c in annotated) {
+    final target = targetOf(c.property)!;
+    final reason = (targetCounts[target] ?? 0) > 1
+        ? A2uiDartCoverageReason.invalidExplicitWritePairing
+        : _validateExplicitPairing(entry, c.signature, target, richShapes);
+    if (reason != null) {
+      scoped[c.property.name] = reason;
+    } else {
+      writeBacks.add(
+        A2uiWriteBack(
+          callbackProperty: c.property,
+          valuePropertyName: target,
+        ),
+      );
+    }
+  }
+
+  // Un-annotated callbacks: the auto single-pair rule applies ONLY when there
+  // are no explicit pairings AND exactly one un-annotated callback (the
+  // zero-annotation default). Otherwise each is ambiguous (annotate every
+  // control).
+  if (unAnnotated.isNotEmpty) {
+    if (annotated.isEmpty && unAnnotated.length == 1) {
+      final (writeBacks: autoWriteBacks, scoped: autoScoped) =
+          _autoSinglePair(entry, unAnnotated.single, richShapes);
+      writeBacks.addAll(autoWriteBacks);
+      scoped.addAll(autoScoped);
+    } else {
+      for (final c in unAnnotated) {
+        scoped[c.property.name] = A2uiDartCoverageReason.ambiguousWritePairing;
+      }
+    }
+  }
+
+  return (writeBacks: writeBacks, scoped: scoped);
+}
+
+/// Validates an explicit pairing of a write-back [signature] to the value
+/// property named [valuePropertyName]. Returns a fail-closed reason when the
+/// named property does not exist, does not match the callback's value type, or
+/// is not a bindable leaf; null when the pairing is valid.
+A2uiDartCoverageReason? _validateExplicitPairing(
+  WidgetEntry entry,
+  A2uiCallbackWriteBack signature,
+  String valuePropertyName,
+  A2uiRichShapes? richShapes,
+) {
+  final valueProp =
+      entry.properties.firstWhereOrNull((p) => p.name == valuePropertyName);
+  if (valueProp == null ||
+      !_valuePropMatchesSignature(signature, valueProp) ||
+      !_isBindableLeaf(entry.name, valueProp, richShapes)) {
+    return A2uiDartCoverageReason.invalidExplicitWritePairing;
+  }
+  return null;
+}
+
+/// The auto single-pair rule for one un-annotated write-back [callback]: it
+/// pairs with the widget's single matching-type value property. 0 matches →
+/// uncontrolled; >1 → ambiguous; a non-bindable match → `#lit`. Fails closed
+/// loud on each.
+({
+  List<A2uiWriteBack> writeBacks,
+  Map<String, A2uiDartCoverageReason> scoped,
+}) _autoSinglePair(
+  WidgetEntry entry,
+  ({PropertyEntry property, A2uiCallbackWriteBack signature}) callback,
+  A2uiRichShapes? richShapes,
+) {
+  final matching = [
+    for (final property in entry.properties)
+      if (property.type != PropertyType.event)
+        if (_valuePropMatchesSignature(callback.signature, property)) property,
+  ];
+  final reason = switch (matching.length) {
+    // No value property to control → an uncontrolled widget whose state would
+    // be ephemeral Flutter state, not the data model.
+    0 => A2uiDartCoverageReason.uncontrolledInteractiveWidget,
+    1 => null,
+    // More than one matching value property → which to write is ambiguous.
+    _ => A2uiDartCoverageReason.ambiguousWritePairing,
+  };
+  if (reason != null) {
+    return (writeBacks: const [], scoped: {callback.property.name: reason});
+  }
+
+  final valueProperty = matching.single;
+  if (!_isBindableLeaf(entry.name, valueProperty, richShapes)) {
+    // The value property is not a bindable data leaf, so its read cannot be
+    // rewritten to the write-back path and the write-back could not round-trip.
+    return (
+      writeBacks: const [],
+      scoped: {
+        callback.property.name: A2uiDartCoverageReason.writeBackValueNotBound,
+      },
+    );
+  }
+  return (
+    writeBacks: [
+      A2uiWriteBack(
+        callbackProperty: callback.property,
+        valuePropertyName: valueProperty.name,
+      ),
+    ],
+    scoped: const {},
+  );
+}
+
+/// Whether [type] is one of the numeric scalar kinds (the catalog collapses
+/// `int` / `double` to [A2uiScalarType.number], so they are one family).
+bool _isNumericScalar(A2uiScalarType type) =>
+    type == A2uiScalarType.number || type == A2uiScalarType.integer;
+
+/// Whether a write-back value [callbackType] and a value-property [valueType]
+/// are the same scalar family — the numeric kinds match each other; otherwise
+/// equal.
+bool _scalarFamilyMatches(
+  A2uiScalarType callbackType,
+  A2uiScalarType valueType,
+) =>
+    (_isNumericScalar(callbackType) && _isNumericScalar(valueType)) ||
+    callbackType == valueType;
+
+/// Whether [property] is the controlled value for write-back [signature]. A
+/// scalar callback pairs a `ScalarNode` value prop of the same scalar family; a
+/// `List<scalar>` callback pairs a `ListNode(ScalarNode)` value prop whose
+/// element is the same scalar family. (The catalog only mints a `ListNode` for
+/// `stringList`, so a list pairing is `List<String>`; a list callback over any
+/// other element type finds no matching value prop and fails closed.)
+bool _valuePropMatchesSignature(
+  A2uiCallbackWriteBack signature,
+  PropertyEntry property,
+) {
+  final node = _dataNode(property);
+  if (signature.isList) {
+    return node is ListNode &&
+        node.element is ScalarNode &&
+        _scalarFamilyMatches(
+          signature.valueType,
+          (node.element as ScalarNode).type,
+        );
+  }
+  return node is ScalarNode &&
+      _scalarFamilyMatches(signature.valueType, node.type);
+}
+
+/// Whether [property] (on widget [widgetName]) classifies to a bindable
+/// catalog-fed leaf — a scalar or a `List<scalar>` — using the same conditions
+/// [_classifyField] applies before emitting a leaf data field, so a value
+/// property that passes here is wrapped in a `Bound*` whose read can be
+/// rewritten to the write-back path.
+///
+/// A property present in [richShapes] is NOT a bindable leaf: an analyzer-fed
+/// rich field is reconstructed raw in the prelude (not `Bound*`-wrapped), so
+/// its read cannot be rewritten to the write-back path — a write-back over it
+/// could not round-trip. Excluding it makes the two states (rich-reconstruct vs
+/// `{path:P}`-bind) mutually exclusive by construction for a write-back value.
+bool _isBindableLeaf(
+  String widgetName,
+  PropertyEntry property,
+  A2uiRichShapes? richShapes,
+) {
+  if (_childSlot(property) != null) return false;
+  if (property.type == PropertyType.event) return false;
+  if (property.defaultSource is ThemeBindingDefault) return false;
+  if (property.synthetic != null) return false;
+  if (_isReservedBuilderIdentifier(property.name)) return false;
+  if (richShapes?[(widgetName, property.name)] != null) return false;
+  final node = _dataNode(property);
+  return node is ScalarNode || (node is ListNode && node.element is ScalarNode);
+}
+
+/// The prelude local naming the resolved write-back data path for a value
+/// property [valuePropertyName].
+String _writeBackPathVar(String valuePropertyName) =>
+    '_restageA2uiPath_${_identifierFor(valuePropertyName)}';
+
+/// The prelude local holding the raw value reference (a `{path}` binding or a
+/// literal) the data path is derived from.
+String _writeBackRefVar(String valuePropertyName) =>
+    '_restageA2uiRef_${_identifierFor(valuePropertyName)}';
+
 _FieldClassification _classifyField(
   WidgetEntry entry,
   PropertyEntry property,
@@ -1376,7 +1979,7 @@ _FieldClassification _classifyField(
   // loud rather than emit a shadowed local (built-ins never hit this — the only
   // such built-in property, `Text.data`, is curated to `text`). The rich path
   // is immune (its locals are reserved-prefixed).
-  if (_reservedBuilderIdentifiers.contains(_identifierFor(property.name))) {
+  if (_isReservedBuilderIdentifier(property.name)) {
     return _fieldUnsupported(
       entry,
       property,
@@ -1527,7 +2130,50 @@ A2uiSchemaNode? _dataNode(PropertyEntry property) {
   }
 }
 
+/// Built-in widgets that cannot currently be emitted to a compilable A2UI
+/// catalog: their Flutter constructor requires an argument the built-in catalog
+/// does not expose to the emit — a required callback the catalog marks optional
+/// (the event convention), or a required `style` / `decoration` represented
+/// only through a decompose recipe rather than a property. Emitting them
+/// produces a constructor call missing a required argument. A contained interim
+/// guard scopes them out so the merged built-in catalog compiles; the proper
+/// fix (the built-in supplies the argument) is tracked in the toolchain
+/// follow-ups. Gated on a built-in library so a same-named customer widget is
+/// unaffected.
+///
+/// INVARIANT: the merged built-in A2UI catalog MUST compile. This list is the
+/// interim guard that keeps it compiling. Adding a built-in widget requires
+/// verifying it is A2UI-constructable — if its Flutter constructor needs a
+/// required argument the emit cannot supply (a required callback, or a required
+/// structured value the catalog does not expose as a property), it would break
+/// the merged catalog's compilation and must be added here. The structural fix
+/// (the built-in catalog carries the required-ness so the emit scopes out any
+/// such widget by construction, plus a permanent merged-catalog-compiles test)
+/// retires this list entirely — see the catalog-capability follow-up.
+const Set<String> _unconstructableBuiltIns = {
+  // Required callback marked optional by the catalog's event convention.
+  'FilterChip',
+  'FloatingActionButton',
+  'Slider',
+  'CupertinoButton',
+  'CupertinoButtonFilled',
+  'CupertinoCheckbox',
+  'CupertinoSlider',
+  'CupertinoSwitch',
+  // Required style/decoration not exposed as a constructable property.
+  'AnimatedDefaultTextStyle',
+  'DefaultTextStyle',
+  'DecoratedBox',
+};
+
 A2uiDartWidgetDrop? _dropReasonForWidget(WidgetEntry entry) {
+  if (WidgetLibrary.builtInByNamespace(entry.library.namespace) != null &&
+      _unconstructableBuiltIns.contains(entry.name)) {
+    return A2uiDartWidgetDrop(
+      widgetName: entry.name,
+      reason: A2uiDartCoverageReason.unconstructableBuiltIn,
+    );
+  }
   switch (entry.childrenSlot) {
     case ChildrenSlot.none:
       return null;
@@ -1654,9 +2300,21 @@ String _identifierFor(String name) {
   return 'value_$identifier';
 }
 
-/// The generated identifiers (the data map, the widget-builder parameter, the
-/// `Bound*` builder parameter) a customer property's leaf binding could shadow.
+/// The fixed generated identifiers (the data map, the widget-builder parameter,
+/// the `Bound*` builder parameter) a customer property's leaf binding could
+/// shadow.
 const _reservedBuilderIdentifiers = {'data', 'context', 'itemContext'};
+
+/// Whether [propertyName]'s generated identifier collides with the reserved
+/// scaffolding namespace — the fixed [_reservedBuilderIdentifiers] OR any local
+/// in the generated `_restageA2ui` namespace (the rich reconstruction locals,
+/// the write-back path/ref locals). A customer leaf bound to such an identifier
+/// would shadow them, so it fails closed by construction.
+bool _isReservedBuilderIdentifier(String propertyName) {
+  final identifier = _identifierFor(propertyName);
+  return _reservedBuilderIdentifiers.contains(identifier) ||
+      identifier.startsWith('_restageA2ui');
+}
 
 /// The reserved-prefixed local a rich field's reconstructed value is bound to,
 /// so a customer property named `data`/`context`/`itemContext` can never
