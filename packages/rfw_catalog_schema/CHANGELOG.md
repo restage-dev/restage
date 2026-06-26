@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- Add the optional `writeBackValue` parameter to `@RestageProperty`, pairing a
+  callback property with the field whose value it writes back.
+
 ## 1.0.1
 
 - Add a usage example and shorten the package description.

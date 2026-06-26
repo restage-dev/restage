@@ -1,4 +1,5 @@
 import 'package:build/build.dart';
+import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
 import 'package:restage_codegen/src/factory_function_builder.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
@@ -53,3 +54,14 @@ Builder factoryFunctionBuilder(BuilderOptions options) =>
 /// startup.
 Builder userFactoryBuilder(BuilderOptions options) =>
     UserFactoryBuilder(options);
+
+/// build_runner factory entry point for the package-wide A2UI catalog emitter.
+/// Walks every `lib/**.dart` for `@RestageWidget`-annotated classes, assembles
+/// the analyzer-fed A2UI seams off the resolved elements, and emits a single
+/// `lib/restage_a2ui_catalog.g.dart` declaring `buildRestageCatalogItems()` (the
+/// genui `Catalog` source) plus the companion `restage_a2ui_catalog.a2ui.json`
+/// capability stamp. Opt-in (not applied to dependents) — the emitted code
+/// imports the genui runtime, so a consumer enables it only when they want an
+/// A2UI catalog.
+Builder userA2uiCatalogBuilder(BuilderOptions options) =>
+    UserA2uiCatalogBuilder(options);

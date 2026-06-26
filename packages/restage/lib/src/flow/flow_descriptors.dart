@@ -357,8 +357,17 @@ final class ScreenNodeDef extends FlowNodeDef {
   final List<FlowTransitionDef<dynamic>> transitions;
 
   /// Starts a transition from this screen for [event].
+  ///
+  /// Chaining `.on()` after `.goTo()` keeps accumulating transitions, so
+  /// `screen(r).on(a)…goTo(x).on(b)…goTo(y)` builds one screen node with two
+  /// transitions. The first `.on()` on a fresh `screen(...)` carries no prior
+  /// transitions, so single-transition authoring is unchanged.
   ScreenEventTransitionBuilder<T> on<T>(OnboardingEvent<T> event) {
-    return ScreenEventTransitionBuilder<T>._(ref: ref, event: event);
+    return ScreenEventTransitionBuilder<T>._(
+      ref: ref,
+      event: event,
+      priorTransitions: transitions,
+    );
   }
 }
 
@@ -534,6 +543,7 @@ final class FlowTransitionDef<T> {
     required this.event,
     required this.target,
     this.action,
+    this.stateWrites = const <String, FlowStateWrite>{},
   });
 
   /// Event that triggers this transition.
@@ -544,6 +554,10 @@ final class FlowTransitionDef<T> {
 
   /// Optional action descriptor for action-backed transitions.
   final FlowActionDef<dynamic, dynamic>? action;
+
+  /// State writes applied — with the triggering event's payload as the value
+  /// source — before entering [target]. Populated by `.capture()`/`.write()`.
+  final Map<String, FlowStateWrite> stateWrites;
 }
 
 /// Descriptor for an action-backed transition.
@@ -561,12 +575,21 @@ final class FlowActionDef<I, O> {
   final bool Function(O result) resultPredicate;
 }
 
-/// Builder returned by `screen(ref).on(event)`.
-final class ScreenEventTransitionBuilder<T> {
-  const ScreenEventTransitionBuilder._({
+/// Builder that accumulates `.capture()`/`.write()` state writes for a
+/// transition and completes it with `.goTo(...)`.
+///
+/// Returned by `.on(event)` once a write has been added, and by the post-action
+/// `.result(...)`. There is deliberately no `.run()` here: a host-action gate
+/// is started directly after `.on()` (before any write), so a
+/// write-before-`.run()` chain is unconstructable — writes are always authored
+/// after `.on()` or after `.result()`.
+base class ScreenEventWriteBuilder<T> {
+  const ScreenEventWriteBuilder._({
     required this.ref,
     required this.event,
     this.action,
+    this.priorTransitions = const <FlowTransitionDef<dynamic>>[],
+    this.writes = const <String, FlowStateWrite>{},
   });
 
   /// Screen this transition starts from.
@@ -579,28 +602,135 @@ final class ScreenEventTransitionBuilder<T> {
   /// configured via `run(...).result(...)`.
   final FlowActionDef<dynamic, dynamic>? action;
 
+  /// Transitions already accumulated from earlier `.on(...).goTo(...)` chains on
+  /// the same screen, prepended when this transition completes via [goTo].
+  final List<FlowTransitionDef<dynamic>> priorTransitions;
+
+  /// State writes accumulated by [capture]/[write] for this transition.
+  final Map<String, FlowStateWrite> writes;
+
+  /// Captures the triggering event's scalar value into flow-state [key].
+  ///
+  /// Use this for a single event carrying a runtime/dynamic scalar — a rating,
+  /// a slider value, an entered number. The event must be a scalar
+  /// `OnboardingEvent<T>` (`T` is `String`, `bool`, or `int`) fired with a
+  /// value (`onboardingEvent(event, value)`); the SDK carries that value under
+  /// a reserved field, so capture reads it without the screen and flow having
+  /// to agree on a payload key — [key] names only the flow-state slot written.
+  /// If the event fires without a value the flow fails closed (it does not
+  /// silently fall back to the declared default). For a value known at
+  /// authoring time, use [write] instead.
+  ScreenEventWriteBuilder<T> capture(String key) {
+    return _withWrite(
+      key,
+      FlowStateWrite(
+        type: _scalarFlowDataType<T>(),
+        value: const EventFlowValueSource(key: kCapturedEventValueKey),
+      ),
+    );
+  }
+
+  /// Writes a statically-known literal [value] into flow-state [key].
+  ///
+  /// Use this for a value the flow knows at authoring time — typically a
+  /// per-branch constant in a fork (`.on(enable).write('wantsReminders', true)`
+  /// vs `.on(skip).write('wantsReminders', false)`). The flow-state type is
+  /// inferred from [value], which must be a `String`, `bool`, or `int`. For a
+  /// value the event itself carries at runtime, use [capture] instead.
+  ScreenEventWriteBuilder<T> write(String key, Object value) {
+    final type = _literalFlowDataType(value);
+    return _withWrite(
+      key,
+      FlowStateWrite(
+        type: type,
+        value: LiteralFlowValueSource(type: type, value: value),
+      ),
+    );
+  }
+
+  ScreenEventWriteBuilder<T> _withWrite(String key, FlowStateWrite write) {
+    if (writes.containsKey(key)) {
+      throw ArgumentError.value(
+        key,
+        'key',
+        'Duplicate state write for a flow-state key on a single transition',
+      );
+    }
+    return ScreenEventWriteBuilder<T>._(
+      ref: ref,
+      event: event,
+      action: action,
+      priorTransitions: priorTransitions,
+      writes: <String, FlowStateWrite>{...writes, key: write},
+    );
+  }
+
   /// Completes this transition with a screen or terminal-state target.
   ScreenNodeDef goTo(FlowTargetRef target) {
     return ScreenNodeDef(
       ref: ref,
       transitions: <FlowTransitionDef<dynamic>>[
+        ...priorTransitions,
         FlowTransitionDef<T>(
           event: event,
           target: target,
           action: action,
+          stateWrites: writes,
         ),
       ],
     );
   }
+}
 
-  /// Adds an action descriptor to this transition.
+/// Builder returned by `screen(ref).on(event)`.
+///
+/// Adds `.run(...)` to start a host-action gate; the write/complete methods are
+/// inherited from [ScreenEventWriteBuilder]. Because `.capture()`/`.write()`
+/// return a plain [ScreenEventWriteBuilder] (no `.run()`), `.run()` can only be
+/// called before any write — the write-before-`.run()` ordering can't compile.
+final class ScreenEventTransitionBuilder<T> extends ScreenEventWriteBuilder<T> {
+  const ScreenEventTransitionBuilder._({
+    required super.ref,
+    required super.event,
+    super.priorTransitions,
+  }) : super._();
+
+  /// Adds a host-action gate to this transition.
   FlowActionResultBuilder<T, I, O> run<I, O>(FlowActionRef<I, O> action) {
     return FlowActionResultBuilder<T, I, O>._(
       ref: ref,
       event: event,
       action: action,
+      priorTransitions: priorTransitions,
     );
   }
+}
+
+/// Maps the scalar event type [T] to its flow-state [FlowDataType] for
+/// `.capture()`. A non-scalar `T` (e.g. `void` or an object payload) is a loud
+/// authoring error — capture is scalar-only.
+FlowDataType _scalarFlowDataType<T>() {
+  if (T == String) return FlowDataType.string;
+  if (T == bool) return FlowDataType.bool;
+  if (T == int) return FlowDataType.int;
+  throw ArgumentError(
+    'capture() requires an OnboardingEvent<String|bool|int>; the event is '
+    'OnboardingEvent<$T>, whose value is not a capturable scalar.',
+  );
+}
+
+/// Maps a `.write()` literal [value] to its flow-state [FlowDataType]. Only
+/// `String`, `bool`, and `int` literals are supported.
+FlowDataType _literalFlowDataType(Object value) {
+  final type = flowPredicateLiteralType(value);
+  if (type == null) {
+    throw ArgumentError.value(
+      value,
+      'value',
+      'write() supports only String, bool, or int literals',
+    );
+  }
+  return type;
 }
 
 /// Builder returned by `screen(ref).on(event).run(action)`.
@@ -609,6 +739,7 @@ final class FlowActionResultBuilder<T, I, O> {
     required this.ref,
     required this.event,
     required this.action,
+    this.priorTransitions = const <FlowTransitionDef<dynamic>>[],
   });
 
   /// Screen this transition starts from.
@@ -620,15 +751,22 @@ final class FlowActionResultBuilder<T, I, O> {
   /// Host action whose result predicate this builder configures.
   final FlowActionRef<I, O> action;
 
-  /// Adds a result predicate to the action-backed transition.
-  ScreenEventTransitionBuilder<T> result(bool Function(O result) predicate) {
-    return ScreenEventTransitionBuilder<T>._(
+  /// Transitions accumulated from earlier `.on(...).goTo(...)` chains on the
+  /// same screen, threaded through so the completed action transition keeps
+  /// them.
+  final List<FlowTransitionDef<dynamic>> priorTransitions;
+
+  /// Adds a result predicate to the action-backed transition. Any
+  /// `.capture()`/`.write()` are authored after this on the returned builder.
+  ScreenEventWriteBuilder<T> result(bool Function(O result) predicate) {
+    return ScreenEventWriteBuilder<T>._(
       ref: ref,
       event: event,
       action: FlowActionDef<I, O>(
         action: action,
         resultPredicate: predicate,
       ),
+      priorTransitions: priorTransitions,
     );
   }
 }

@@ -122,11 +122,15 @@ FlowStateDeclaration _decodeFlowStateDeclaration(
 ) {
   _rejectUnknownKeys(
     json,
-    const {'classification', 'default', 'type'},
+    const {'classification', 'default', 'hostSeedable', 'type'},
     path,
   );
   if (json.containsKey('default') && json['default'] == null) {
     throw FormatException('Field "$path.default" cannot be null.');
+  }
+  final hostSeedableRaw = json['hostSeedable'];
+  if (hostSeedableRaw != null && hostSeedableRaw is! bool) {
+    throw FormatException('Field "$path.hostSeedable" must be a bool.');
   }
   return FlowStateDeclaration(
     type: _decodeFlowDataType(_requiredString(json, 'type'), path),
@@ -135,6 +139,7 @@ FlowStateDeclaration _decodeFlowStateDeclaration(
       path,
     ),
     defaultValue: json['default'],
+    hostSeedable: hostSeedableRaw == true,
   );
 }
 
@@ -877,6 +882,7 @@ Map<String, Object?> _encodeFlowStateDeclaration(
     'type': declaration.type.wireName,
     'classification': declaration.classification.wireName,
     if (declaration.defaultValue != null) 'default': declaration.defaultValue,
+    if (declaration.hostSeedable) 'hostSeedable': true,
   };
 }
 

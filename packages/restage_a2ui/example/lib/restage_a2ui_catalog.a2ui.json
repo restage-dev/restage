@@ -1,0 +1,72 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 1,
+    "availableLibraries": [
+      {
+        "namespace": "acme.widgets",
+        "version": 2
+      }
+    ],
+    "perItemSinceVersion": {
+      "CtaButton": 1,
+      "ProductCard": 1,
+      "RatingPicker": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/1+acme.widgets@2",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/1+acme.widgets@2",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "CtaButton": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "CtaButton"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      },
+      "ProductCard": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "ProductCard"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      },
+      "RatingPicker": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "RatingPicker"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "functions": {}
+  }
+}

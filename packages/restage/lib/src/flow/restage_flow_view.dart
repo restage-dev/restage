@@ -777,7 +777,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
         onEvent: (name, args) {
           // Inert unless this is the owning controller's current screen.
           if (screen.entryId != controller.currentScreenEntryId) return;
-          final normalized = normalizeRfwEventArgs(args);
+          final normalized = normalizeEventArgs(args);
           // The owner's interceptor runs first: if it consumes the event
           // (e.g. a paywall host running billing for purchase/restore), the
           // controller never sees it — no speculative graph transition.

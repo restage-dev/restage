@@ -8,6 +8,7 @@ import 'package:rfw/rfw.dart';
 import '../events/restage_event.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
+import 'flow_seed.dart';
 
 /// SDK-owned onboarding flow runtime controller.
 ///
@@ -18,6 +19,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
   RestageFlowController({
     required this.flow,
     required this.resolver,
+    this.initialState,
     required this.actions,
     required this.onEvent,
     required this.onComplete,
@@ -29,6 +31,12 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Resolver used to load the pinned flow document and screen blobs.
   final FlowResolver resolver;
+
+  /// Optional host-supplied initial flow-state values.
+  ///
+  /// Read once during [load] and overlaid over declaration defaults for the
+  /// root flow only (sub-flows are never host-seeded).
+  final FlowSeed? initialState;
 
   /// Optional host action registry for action-backed flow transitions.
   final FlowActionRegistry? actions;
@@ -156,6 +164,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
       if (_isDisposed) return;
       _validateResolved(resolved);
       final actionBindings = _validateActionContracts(resolved.document);
+      final seed = initialState?.toFlowState() ?? const <String, Object?>{};
+      _validateSeed(resolved.document, seed);
       final rootFrame = _FlowFrame(
         resolved: resolved,
         flowId: flow.id,
@@ -164,7 +174,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
         parentFlowSessionId: null,
         subFlowDepth: 0,
         actionBindings: actionBindings,
-        flowState: _initialFlowState(resolved.document),
+        flowState: _initialFlowState(resolved.document, seed),
       );
       _frames
         ..clear()
@@ -340,11 +350,15 @@ final class RestageFlowController<R> extends ChangeNotifier {
             .containsKey(_skipEventName);
   }
 
-  Map<String, Object?> _initialFlowState(FlowDocument document) {
+  Map<String, Object?> _initialFlowState(
+    FlowDocument document, [
+    Map<String, Object?> seed = const {},
+  ]) {
     return Map.unmodifiable({
       for (final entry in document.flowState.entries)
         if (entry.value.defaultValue != null)
           entry.key: entry.value.defaultValue,
+      ...seed,
     });
   }
 
@@ -488,6 +502,33 @@ final class RestageFlowController<R> extends ChangeNotifier {
     }
     _validateActionResultPredicates(document);
     return bindings;
+  }
+
+  void _validateSeed(FlowDocument document, Map<String, Object?> seed) {
+    for (final entry in seed.entries) {
+      final key = entry.key;
+      final declaration = document.flowState[key];
+      if (declaration == null) {
+        throw _error(
+          'seed_unknown_key',
+          'Seed key "$key" is not declared in flowState.',
+        );
+      }
+      if (!declaration.hostSeedable) {
+        throw _error(
+          'seed_not_seedable',
+          'Seed key "$key" is not host-seedable.',
+        );
+      }
+      final value = entry.value;
+      if (!_matchesFlowDataType(declaration.type, value)) {
+        throw _error(
+          'seed_type_mismatch',
+          'Seed key "$key" expected ${declaration.type.wireName}, found '
+              '${value == null ? 'null' : value.runtimeType}.',
+        );
+      }
+    }
   }
 
   void _validateActionContractField({

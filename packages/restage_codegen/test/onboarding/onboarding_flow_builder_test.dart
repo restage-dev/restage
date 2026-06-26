@@ -46,10 +46,150 @@ void main() {
         ),
       );
       expect(generated, contains('static FirstRunResult _decodeResult('));
+      // A flow with no host-seedable key emits no seed builder.
+      expect(generated, isNot(contains('implements FlowSeed')));
+      expect(generated, isNot(contains('FirstRunSeed')));
       final jsonBytes = result.readerWriter.testing.readBytes(
         AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
       );
       expect(jsonBytes, _canonicalFirstRunFlowJson());
+    });
+
+    test('emits a typed FlowSeed builder exposing only host-seedable keys',
+        () async {
+      final sources = _hostSeedSources();
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/first_run.rsflow.g.dart',
+        ),
+      );
+
+      expect(
+        generated,
+        allOf(
+          contains('final class FirstRunSeed implements FlowSeed'),
+          contains('const FirstRunSeed({'),
+          contains('this.isReturningUser'),
+          contains('final bool? isReturningUser;'),
+          contains('Map<String, Object?> toFlowState()'),
+          contains("if (isReturningUser != null) 'isReturningUser'"),
+          // The non-seedable 'tier' key must not be a seed parameter.
+          isNot(contains('tier')),
+        ),
+      );
+    });
+
+    test('a host-seedable key that is not a safe Dart identifier fails closed',
+        () async {
+      // The wire identifier rule admits hyphens and reserved/Object/method
+      // names, but a seed key is interpolated into the generated seed builder
+      // as a Dart field name, constructor parameter, and map key. An unsafe key
+      // must fail the build loudly (the dev renames it), never emit broken Dart.
+      for (final badKey in <String>[
+        'ab-test', // hyphen — invalid Dart identifier
+        'return', // reserved word
+        'runtimeType', // Object member — field/getter clash
+        'toFlowState', // clashes with the generated method
+      ]) {
+        final sources = _hostSeedSources(seedKey: badKey);
+        final logs = <LogRecord>[];
+        final readerWriter = await _readerWriterWith(sources);
+
+        final result = await testBuilders(
+          [
+            onboardingScreenBuilder(BuilderOptions.empty),
+            onboardingFlowBuilder(BuilderOptions.empty),
+          ],
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: logs.add,
+        );
+
+        expect(result.succeeded, isFalse, reason: badKey);
+        final joined = logs.map((log) => log.message).join('\n');
+        expect(
+          joined,
+          allOf(
+            contains('host-seedable'),
+            contains(badKey),
+          ),
+          reason: badKey,
+        );
+      }
+    });
+
+    test(
+        'a host-seedable key equal to the generated seed class name fails '
+        'closed', () async {
+      // 'FirstRunSeed' is a valid Dart identifier, but it equals the generated
+      // seed builder class name, so as a field it would collide with the class.
+      final sources = _hostSeedSources(seedKey: 'FirstRunSeed');
+      final logs = <LogRecord>[];
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.map((log) => log.message).join('\n'),
+        allOf(
+          contains('host-seedable'),
+          contains('FirstRunSeed'),
+        ),
+      );
+    });
+
+    test(
+        'an author class colliding with the generated seed builder fails '
+        'closed', () async {
+      final sources = _hostSeedSources(
+        extraDeclarations: 'final class FirstRunSeed {}',
+      );
+      final logs = <LogRecord>[];
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.map((log) => log.message).join('\n'),
+        allOf(
+          contains('generatedSymbolCollision'),
+          contains('FirstRunSeed'),
+        ),
+      );
     });
 
     test('generated decoder accepts canonical result and rejects bad maps',
@@ -1337,6 +1477,524 @@ final class NotificationResult {
       }
     });
   });
+
+  group('OnboardingFlowBuilder branching', () {
+    Future<FlowDocument> buildBranchingDoc(Map<String, String> sources) async {
+      final readerWriter = await _readerWriterWith(sources);
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final bytes = result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          'assets/onboarding/flows/branching.flow.json',
+        ),
+      );
+      return FlowDocumentCodec.decodeJson(utf8.decode(bytes));
+    }
+
+    Future<String> buildBranchingFailure(Map<String, String> sources) async {
+      final logs = <LogRecord>[];
+      final readerWriter = await _readerWriterWith(sources);
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+      );
+      expect(result.succeeded, isFalse);
+      return logs.map((log) => log.message).join('\n');
+    }
+
+    test('chained .on() lowers to one screen state with a multi-key on map',
+        () async {
+      final doc = await buildBranchingDoc(_forkSources());
+      final goal = doc.states['goal']! as ScreenFlowState;
+      expect(goal.on.keys, containsAll(<String>['sleep', 'focus']));
+      expect(goal.on['sleep']!.target, 'rating');
+      expect(goal.on['focus']!.target, 'rating');
+    });
+
+    test('.write() lowers to a LiteralFlowValueSource state write', () async {
+      final doc = await buildBranchingDoc(_forkSources());
+      final sleep = (doc.states['goal']! as ScreenFlowState).on['sleep']!
+          as GotoFlowTransition;
+      final write = sleep.stateWrites['goal']!;
+      expect(write.type, FlowDataType.string);
+      final value = write.value as LiteralFlowValueSource;
+      expect(value.type, FlowDataType.string);
+      expect(value.value, 'sleep');
+      final focus = (doc.states['goal']! as ScreenFlowState).on['focus']!
+          as GotoFlowTransition;
+      expect(
+        (focus.stateWrites['goal']!.value as LiteralFlowValueSource).value,
+        'focus',
+      );
+    });
+
+    test('.capture() lowers to a reserved-value EventFlowValueSource write',
+        () async {
+      final doc = await buildBranchingDoc(_forkSources());
+      final submit = (doc.states['rating']! as ScreenFlowState).on['submit']!
+          as GotoFlowTransition;
+      final write = submit.stateWrites['rating']!;
+      expect(write.type, FlowDataType.int);
+      final value = write.value as EventFlowValueSource;
+      // Capture reads the reserved event-value key; the flow-state slot is
+      // 'rating'.
+      expect(value.key, kCapturedEventValueKey);
+      expect(value.path, isEmpty);
+    });
+
+    test('an action-gate transition carries a state write', () async {
+      final doc = await buildBranchingDoc(_actionWriteSources());
+      final next = (doc.states['welcome']! as ScreenFlowState).on['next']!
+          as ActionFlowTransition;
+      expect(next.action, 'requestNotifications');
+      final write = next.stateWrites['granted']!;
+      expect(write.type, FlowDataType.bool);
+      expect((write.value as LiteralFlowValueSource).value, true);
+    });
+
+    test('a forking flow emits canonical, round-trippable JSON', () async {
+      final readerWriter = await _readerWriterWith(_forkSources());
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        _forkSources(),
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final bytes = result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          'assets/onboarding/flows/branching.flow.json',
+        ),
+      );
+      final source = utf8.decode(bytes);
+      final decoded = FlowDocumentCodec.decodeJson(source);
+      expect(
+        source,
+        utf8.decode(FlowDocumentCodec.encodeCanonicalJson(decoded)),
+      );
+    });
+
+    test('the forking flow matches its committed byte-golden', () async {
+      final readerWriter = await _readerWriterWith(_forkSources());
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        _forkSources(),
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final actual = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'assets/onboarding/flows/branching.flow.json',
+        ),
+      );
+      final regen = Platform.environment['REGEN_CODEGEN_GOLDENS'] == '1';
+      final golden = File('test/fixtures/goldens/branching.flow.json');
+      if (regen) {
+        golden.writeAsStringSync(actual);
+      }
+      expect(
+        actual,
+        golden.readAsStringSync(),
+        reason: 'Forking-flow golden drift. Regenerate with '
+            'REGEN_CODEGEN_GOLDENS=1 only when intended.',
+      );
+    });
+
+    test('two .on() for the same event on one screen fails closed', () async {
+      final messages = await buildBranchingFailure(_duplicateEventSources());
+      expect(messages, contains('duplicate'));
+      expect(messages, contains('sleep'));
+    });
+
+    test('a capture targeting an undeclared flowState key fails closed',
+        () async {
+      final messages = await buildBranchingFailure(_undeclaredKeySources());
+      expect(messages, contains('flowState'));
+    });
+
+    test('a capture on a non-scalar event fails closed', () async {
+      final messages = await buildBranchingFailure(_nonScalarCaptureSources());
+      expect(messages, contains('scalar'));
+    });
+
+    test(
+        'a .write() whose literal type mismatches the declared flowState '
+        'type fails closed', () async {
+      final messages = await buildBranchingFailure(_typeMismatchWriteSources());
+      expect(messages, contains("write('goal')"));
+      expect(messages, contains('produces string'));
+      expect(messages, contains("flowState declares 'goal' as int"));
+    });
+
+    test(
+        'a .capture() whose event type mismatches the declared flowState '
+        'type fails closed', () async {
+      final messages =
+          await buildBranchingFailure(_typeMismatchCaptureSources());
+      expect(messages, contains("capture('rating')"));
+      expect(messages, contains('produces int'));
+      expect(messages, contains("flowState declares 'rating' as string"));
+    });
+  });
+
+  group('OnboardingFlowBuilder predicate sugar', () {
+    Future<FlowDocument> buildDoc(Map<String, String> sources) async {
+      final readerWriter = await _readerWriterWith(sources);
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final bytes = result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          'assets/onboarding/flows/decision_route.flow.json',
+        ),
+      );
+      return FlowDocumentCodec.decodeJson(utf8.decode(bytes));
+    }
+
+    Future<String> buildFailure(Map<String, String> sources) async {
+      final logs = <LogRecord>[];
+      final readerWriter = await _readerWriterWith(sources);
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+      );
+      expect(result.succeeded, isFalse);
+      return logs.map((log) => log.message).join('\n');
+    }
+
+    FlowBranchPredicate whenOf(FlowDocument doc, int branchIndex) {
+      final decision = doc.states['route']! as DecisionFlowState;
+      return decision.branches[branchIndex].when;
+    }
+
+    test('state().equals() lowers byte-identically to the raw wire predicate',
+        () async {
+      final doc = await buildDoc(_sugarOperatorsSources());
+      // branch 0: state('goal').equals('sleep')
+      expect(
+        _canonicalWhen(whenOf(doc, 0)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': EqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.string,
+                  value: 'sleep',
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+    });
+
+    test('every operator + state-ref RHS lowers byte-identically to raw wire',
+        () async {
+      final doc = await buildDoc(_sugarOperatorsSources());
+      // branch 1: state('goal').notEquals('focus')
+      expect(
+        _canonicalWhen(whenOf(doc, 1)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': NotEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.string,
+                  value: 'focus',
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 2: state('rating').atLeast(4)
+      expect(
+        _canonicalWhen(whenOf(doc, 2)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.int,
+                  value: 4,
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 3: state('goal').oneOf(['sleep', 'focus'])
+      expect(
+        _canonicalWhen(whenOf(doc, 3)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': InFlowPredicateCondition(
+                values: [
+                  LiteralFlowValueSource(
+                    type: FlowDataType.string,
+                    value: 'sleep',
+                  ),
+                  LiteralFlowValueSource(
+                    type: FlowDataType.string,
+                    value: 'focus',
+                  ),
+                ],
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 4: state('goal').isSet()
+      expect(
+        _canonicalWhen(whenOf(doc, 4)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {'goal': ExistsFlowPredicateCondition(exists: true)},
+          ),
+        ),
+      );
+      // branch 5: state('goal').equals(state('preferred')) — state-ref RHS
+      expect(
+        _canonicalWhen(whenOf(doc, 5)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': EqualsFlowPredicateCondition(
+                value: StateFlowValueSource(key: 'preferred'),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 7: state('rating').atLeast(-5) — a negative int literal must
+      // lower the same as the runtime leg (both legs accept negative ints).
+      expect(
+        _canonicalWhen(whenOf(doc, 7)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.int,
+                  value: -5,
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 8: state('rating').atLeast((4)) — a parenthesized literal lowers
+      // the same as a bare literal (the runtime sees the unwrapped value).
+      expect(
+        _canonicalWhen(whenOf(doc, 8)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(type: FlowDataType.int, value: 4),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 9: state('goal').equals('sl' 'eep') — adjacent string literals
+      // fold to one string, the same as the runtime leg.
+      expect(
+        _canonicalWhen(whenOf(doc, 9)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'goal': EqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.string,
+                  value: 'sleep',
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+      // branch 10: state('rating').atLeast(-(5)) — a parenthesized negative
+      // int lowers the same as a bare negative (operand parens are unwrapped).
+      expect(
+        _canonicalWhen(whenOf(doc, 10)),
+        _canonicalWhen(
+          const FlowBranchPredicate(
+            fields: {
+              'rating': GreaterThanOrEqualsFlowPredicateCondition(
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.int,
+                  value: -5,
+                ),
+              ),
+            },
+          ),
+        ),
+      );
+    });
+
+    test('allOf merges distinct single-field predicates into one branch',
+        () async {
+      final doc = await buildDoc(_sugarOperatorsSources());
+      // branch 6: allOf([rating.atLeast(4), isPro.equals(true)])
+      final when = whenOf(doc, 6);
+      expect(when.fields.keys, containsAll(<String>['rating', 'isPro']));
+      expect(when.fields, hasLength(2));
+      expect(
+        when.fields['rating'],
+        isA<GreaterThanOrEqualsFlowPredicateCondition>(),
+      );
+      expect(when.fields['isPro'], isA<EqualsFlowPredicateCondition>());
+    });
+
+    test('allOf with two conditions on the same field fails closed', () async {
+      final messages = await buildFailure(_allOfSameFieldSources());
+      expect(messages, contains('allOf'));
+      expect(messages, contains('age'));
+    });
+
+    test('a comparison operator on a non-int literal fails closed', () async {
+      final messages = await buildFailure(_comparisonNonIntSources());
+      expect(messages, contains('greaterThan'));
+    });
+
+    test('a non-Restage state().<op>() chain is not reinterpreted as sugar',
+        () async {
+      // A same-named customer `state(...)` returning a different predicate must
+      // NOT be silently lowered to our wire — element resolution rejects it, so
+      // it falls to the raw-constructor path and fails the build loud.
+      final messages = await buildFailure(_nonSdkStateSources());
+      expect(messages, contains('FlowBranchPredicate'));
+    });
+
+    test('capture -> decision -> branch lowers to the routing wire', () async {
+      final doc = await buildDoc(_decisionRouteSources());
+      // the captured 'goal' write on the screen transition
+      final goal = (doc.states['goal']! as ScreenFlowState).on['goalChosen']!
+          as GotoFlowTransition;
+      final write = goal.stateWrites['goal']!;
+      expect((write.value as EventFlowValueSource).key, kCapturedEventValueKey);
+      // the decision routes on the captured value
+      final decision = doc.states['route']! as DecisionFlowState;
+      final sleep = decision.branches.single;
+      final condition =
+          sleep.when.fields['goal']! as EqualsFlowPredicateCondition;
+      expect((condition.value as LiteralFlowValueSource).value, 'sleep');
+      expect(sleep.target, 'sleep');
+      expect(decision.defaultBranch.target, 'done');
+    });
+
+    test('the decision-route flow matches its committed byte-golden', () async {
+      final readerWriter = await _readerWriterWith(_decisionRouteSources());
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        _decisionRouteSources(),
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final actual = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'assets/onboarding/flows/decision_route.flow.json',
+        ),
+      );
+      final regen = Platform.environment['REGEN_CODEGEN_GOLDENS'] == '1';
+      final golden = File('test/fixtures/goldens/decision_route.flow.json');
+      if (regen) {
+        golden.writeAsStringSync(actual);
+      }
+      expect(
+        actual,
+        golden.readAsStringSync(),
+        reason: 'Decision-route golden drift. Regenerate with '
+            'REGEN_CODEGEN_GOLDENS=1 only when intended.',
+      );
+    });
+  });
+}
+
+/// Canonically encodes a branch predicate by wrapping it in an identical
+/// minimal decision document, so two predicates can be compared byte-for-byte.
+/// The wrapper declares the fields the convergence predicates reference so the
+/// document validates.
+String _canonicalWhen(FlowBranchPredicate when) {
+  final document = FlowDocument(
+    flow: 'conv',
+    version: 1,
+    schemaVersion: 1,
+    minClient: 1,
+    initial: 'route',
+    flowState: const {
+      'goal': FlowStateDeclaration(
+        type: FlowDataType.string,
+        classification: FlowStateClassification.internal,
+      ),
+      'rating': FlowStateDeclaration(
+        type: FlowDataType.int,
+        classification: FlowStateClassification.internal,
+      ),
+      'isPro': FlowStateDeclaration(
+        type: FlowDataType.bool,
+        classification: FlowStateClassification.internal,
+      ),
+      'preferred': FlowStateDeclaration(
+        type: FlowDataType.string,
+        classification: FlowStateClassification.internal,
+      ),
+    },
+    screenArtifacts: const {},
+    states: {
+      'route': DecisionFlowState(
+        branches: [FlowBranch(when: when, target: 'end')],
+        defaultBranch: const FlowBranchTarget(target: 'end'),
+      ),
+      'end': const EndFlowState(result: {}),
+    },
+  );
+  return utf8.decode(FlowDocumentCodec.encodeCanonicalJson(document));
 }
 
 Matcher _canonicalFirstRunFlowJson() => predicate<List<int>>(
@@ -1458,6 +2116,62 @@ final class FirstRunFlow extends RestageFlow {
     );
   }
 }
+''',
+    };
+
+Map<String, String> _hostSeedSources({
+  String seedKey = 'isReturningUser',
+  String extraDeclarations = '',
+}) =>
+    {
+      'apps_examples|lib/onboarding/screens/welcome.dart':
+          _screenSource('welcome', 'WelcomeScreen', 'next'),
+      'apps_examples|lib/onboarding/screens/ready.dart':
+          _screenSource('ready', 'ReadyScreen', 'start'),
+      'apps_examples|lib/onboarding/flows/first_run.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/ready.dart';
+import '../screens/welcome.dart';
+
+part 'first_run.rsflow.g.dart';
+
+@OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
+final class FirstRunFlow extends RestageFlow {
+  const FirstRunFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: WelcomeScreenDescriptor.ref,
+      flowState: const {
+        '$seedKey': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.internal,
+          hostSeedable: true,
+        ),
+        // Not host-seedable: must NOT become a seed-builder parameter.
+        'tier': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(WelcomeScreenDescriptor.ref)
+            .on(WelcomeScreen.next)
+            .goTo(ReadyScreenDescriptor.ref),
+        screen(ReadyScreenDescriptor.ref)
+            .on(ReadyScreen.start)
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+
+$extraDeclarations
 ''',
     };
 
@@ -1797,8 +2511,6 @@ final class FirstRunFlow extends RestageFlow {
             .run(requestNotifications)
             .result((result) => result)
             .action(requestNotifications)
-            .decision((event) => true)
-            .subFlow(nestedFlow)
             .subflow(nestedFlow)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -1816,16 +2528,12 @@ const nestedFlow = OnboardingFlowRef<void>(
 
 void _decodeNested(Map<String, Object?> result) {}
 
-extension LaterPhaseTransitionApi<T> on ScreenEventTransitionBuilder<T> {
+// Test-only no-op methods named after the two builder-method names the flow
+// runtime rejects (`action`, `subflow`). They exist solely so the source below
+// resolves, letting the build reach the unsupported-runtime-feature guard,
+// which flags those names regardless of who defines them.
+extension RejectedBuilderMethodNames<T> on ScreenEventTransitionBuilder<T> {
   ScreenEventTransitionBuilder<T> action<I, O>(FlowActionRef<I, O> action) {
-    return this;
-  }
-
-  ScreenEventTransitionBuilder<T> decision(bool Function(T event) predicate) {
-    return this;
-  }
-
-  ScreenEventTransitionBuilder<T> subFlow<R>(OnboardingFlowRef<R> flow) {
     return this;
   }
 
@@ -2115,3 +2823,646 @@ final class $className extends StatelessWidget {
       );
 }
 ''';
+
+String _eventsScreenSource(
+  String id,
+  String className,
+  Map<String, String> events,
+) {
+  final fields = events.entries
+      .map(
+        (e) => '  static const ${e.key} = '
+            "OnboardingEvent<${e.value}>('${e.key}');",
+      )
+      .join('\n');
+  final first = events.keys.first;
+  return '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part '$id.rsscreen.g.dart';
+
+@OnboardingSource(id: '$id')
+final class $className extends StatelessWidget {
+$fields
+
+  const $className({super.key});
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ElevatedButton(
+          onPressed: onboardingEvent($className.$first),
+          child: const Text('$className'),
+        ),
+      );
+}
+''';
+}
+
+Map<String, String> _forkSources() => {
+      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+        'goal',
+        'GoalScreen',
+        const {'sleep': 'void', 'focus': 'void'},
+      ),
+      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+        'rating',
+        'RatingScreen',
+        const {'submit': 'int'},
+      ),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/goal.dart';
+import '../screens/rating.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: GoalScreenDescriptor.ref,
+      flowState: const {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+        'rating': FlowStateDeclaration(
+          type: FlowDataType.int,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(GoalScreenDescriptor.ref)
+            .on(GoalScreen.sleep)
+            .write('goal', 'sleep')
+            .goTo(RatingScreenDescriptor.ref)
+            .on(GoalScreen.focus)
+            .write('goal', 'focus')
+            .goTo(RatingScreenDescriptor.ref),
+        screen(RatingScreenDescriptor.ref)
+            .on(RatingScreen.submit)
+            .capture('rating')
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _decisionRouteSources() => {
+      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+        'goal',
+        'GoalScreen',
+        const {'goalChosen': 'String'},
+      ),
+      'apps_examples|lib/onboarding/screens/sleep.dart': _eventsScreenSource(
+        'sleep',
+        'SleepScreen',
+        const {'ack': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/goal.dart';
+import '../screens/sleep.dart';
+
+part 'decision_route.rsflow.g.dart';
+
+@FlowSource(id: 'decision_route', version: 1)
+final class DecisionRouteFlow extends RestageFlow {
+  const DecisionRouteFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final route = flowNode('route');
+    final done = endState('done');
+
+    return flow(
+      initial: GoalScreenDescriptor.ref,
+      flowState: const {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(GoalScreenDescriptor.ref)
+            .on(GoalScreen.goalChosen)
+            .capture('goal')
+            .goTo(route),
+        decision(
+          route,
+          branches: [
+            flowBranch(
+              when: state('goal').equals('sleep'),
+              target: SleepScreenDescriptor.ref,
+            ),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        screen(SleepScreenDescriptor.ref).on(SleepScreen.ack).goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _sugarOperatorsSources() => {
+      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+        'start',
+        'StartScreen',
+        const {'begin': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/start.dart';
+
+part 'decision_route.rsflow.g.dart';
+
+@FlowSource(id: 'decision_route', version: 1)
+final class DecisionRouteFlow extends RestageFlow {
+  const DecisionRouteFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final route = flowNode('route');
+    final done = endState('done');
+
+    return flow(
+      initial: StartScreenDescriptor.ref,
+      flowState: const {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+        'rating': FlowStateDeclaration(
+          type: FlowDataType.int,
+          classification: FlowStateClassification.internal,
+        ),
+        'isPro': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.internal,
+        ),
+        'preferred': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        decision(
+          route,
+          branches: [
+            flowBranch(when: state('goal').equals('sleep'), target: done),
+            flowBranch(when: state('goal').notEquals('focus'), target: done),
+            flowBranch(when: state('rating').atLeast(4), target: done),
+            flowBranch(
+              when: state('goal').oneOf(['sleep', 'focus']),
+              target: done,
+            ),
+            flowBranch(when: state('goal').isSet(), target: done),
+            flowBranch(
+              when: state('goal').equals(state('preferred')),
+              target: done,
+            ),
+            flowBranch(
+              when: allOf([
+                state('rating').atLeast(4),
+                state('isPro').equals(true),
+              ]),
+              target: done,
+            ),
+            flowBranch(when: state('rating').atLeast(-5), target: done),
+            flowBranch(when: state('rating').atLeast((4)), target: done),
+            flowBranch(when: state('goal').equals('sl' 'eep'), target: done),
+            flowBranch(when: state('rating').atLeast(-(5)), target: done),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _allOfSameFieldSources() => {
+      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+        'start',
+        'StartScreen',
+        const {'begin': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/start.dart';
+
+part 'decision_route.rsflow.g.dart';
+
+@FlowSource(id: 'decision_route', version: 1)
+final class DecisionRouteFlow extends RestageFlow {
+  const DecisionRouteFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final route = flowNode('route');
+    final done = endState('done');
+
+    return flow(
+      initial: StartScreenDescriptor.ref,
+      flowState: const {
+        'age': FlowStateDeclaration(
+          type: FlowDataType.int,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        decision(
+          route,
+          branches: [
+            flowBranch(
+              when: allOf([
+                state('age').atLeast(18),
+                state('age').atMost(65),
+              ]),
+              target: done,
+            ),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _comparisonNonIntSources() => {
+      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+        'start',
+        'StartScreen',
+        const {'begin': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/start.dart';
+
+part 'decision_route.rsflow.g.dart';
+
+@FlowSource(id: 'decision_route', version: 1)
+final class DecisionRouteFlow extends RestageFlow {
+  const DecisionRouteFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final route = flowNode('route');
+    final done = endState('done');
+
+    return flow(
+      initial: StartScreenDescriptor.ref,
+      flowState: const {
+        'age': FlowStateDeclaration(
+          type: FlowDataType.int,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        decision(
+          route,
+          branches: [
+            flowBranch(when: state('age').greaterThan('old'), target: done),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _nonSdkStateSources() => {
+      'apps_examples|lib/onboarding/screens/start.dart': _eventsScreenSource(
+        'start',
+        'StartScreen',
+        const {'begin': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/decision_route.dart': '''
+import 'package:restage/restage.dart' hide state;
+
+import '../screens/start.dart';
+
+part 'decision_route.rsflow.g.dart';
+
+// A customer construct that happens to spell `state(...).equals(...)` but is
+// NOT the Restage SDK sugar.
+class _CustomRef {
+  const _CustomRef();
+  FlowBranchPredicate equals(Object value) =>
+      const FlowBranchPredicate(fields: {});
+}
+
+_CustomRef state(String key) => const _CustomRef();
+
+@FlowSource(id: 'decision_route', version: 1)
+final class DecisionRouteFlow extends RestageFlow {
+  const DecisionRouteFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final route = flowNode('route');
+    final done = endState('done');
+
+    return flow(
+      initial: StartScreenDescriptor.ref,
+      flowState: const {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        decision(
+          route,
+          branches: [
+            flowBranch(when: state('goal').equals('sleep'), target: done),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _actionWriteSources() => {
+      'apps_examples|lib/onboarding/screens/welcome.dart':
+          _screenSource('welcome', 'WelcomeScreen', 'next'),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/welcome.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  static const requestNotifications =
+      FlowActionRef<void, bool>('requestNotifications');
+
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: WelcomeScreenDescriptor.ref,
+      flowState: const {
+        'granted': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(WelcomeScreenDescriptor.ref)
+            .on(WelcomeScreen.next)
+            .run(requestNotifications)
+            .result((result) => result)
+            .write('granted', true)
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _duplicateEventSources() => {
+      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+        'goal',
+        'GoalScreen',
+        const {'sleep': 'void'},
+      ),
+      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+        'rating',
+        'RatingScreen',
+        const {'submit': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/goal.dart';
+import '../screens/rating.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: GoalScreenDescriptor.ref,
+      states: [
+        screen(GoalScreenDescriptor.ref)
+            .on(GoalScreen.sleep)
+            .goTo(RatingScreenDescriptor.ref)
+            .on(GoalScreen.sleep)
+            .goTo(done),
+        screen(RatingScreenDescriptor.ref)
+            .on(RatingScreen.submit)
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _undeclaredKeySources() => {
+      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+        'rating',
+        'RatingScreen',
+        const {'submit': 'int'},
+      ),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/rating.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: RatingScreenDescriptor.ref,
+      states: [
+        screen(RatingScreenDescriptor.ref)
+            .on(RatingScreen.submit)
+            .capture('rating')
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _nonScalarCaptureSources() => {
+      'apps_examples|lib/onboarding/screens/welcome.dart':
+          _screenSource('welcome', 'WelcomeScreen', 'next'),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/welcome.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: WelcomeScreenDescriptor.ref,
+      flowState: const {
+        'x': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(WelcomeScreenDescriptor.ref)
+            .on(WelcomeScreen.next)
+            .capture('x')
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _typeMismatchWriteSources() => {
+      'apps_examples|lib/onboarding/screens/goal.dart': _eventsScreenSource(
+        'goal',
+        'GoalScreen',
+        const {'sleep': 'void'},
+      ),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/goal.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: GoalScreenDescriptor.ref,
+      // 'goal' is declared int, but the screen writes a String literal into it.
+      flowState: const {
+        'goal': FlowStateDeclaration(
+          type: FlowDataType.int,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(GoalScreenDescriptor.ref)
+            .on(GoalScreen.sleep)
+            .write('goal', 'sleep')
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _typeMismatchCaptureSources() => {
+      'apps_examples|lib/onboarding/screens/rating.dart': _eventsScreenSource(
+        'rating',
+        'RatingScreen',
+        const {'submit': 'int'},
+      ),
+      'apps_examples|lib/onboarding/flows/branching.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/rating.dart';
+
+part 'branching.rsflow.g.dart';
+
+@FlowSource(id: 'branching', version: 1)
+final class BranchingFlow extends RestageFlow {
+  const BranchingFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: RatingScreenDescriptor.ref,
+      // 'rating' is declared String, but submit is an OnboardingEvent<int>.
+      flowState: const {
+        'rating': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.internal,
+        ),
+      },
+      states: [
+        screen(RatingScreenDescriptor.ref)
+            .on(RatingScreen.submit)
+            .capture('rating')
+            .goTo(done),
+        end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };

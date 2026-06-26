@@ -293,6 +293,61 @@ final class WelcomeScreen extends StatelessWidget {
       );
     });
 
+    test('onboardingEvent scalar value wraps under the reserved value key',
+        () async {
+      // The producer side of `.capture()`: a scalar event value must reach the
+      // RFW event as `{ value: <v> }` (not a bare scalar a runtime map-decode
+      // would drop), so a flow `.capture()` reading the reserved key resolves.
+      const source = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'welcome.rsscreen.g.dart';
+
+@OnboardingSource(id: 'welcome')
+final class WelcomeScreen extends StatelessWidget {
+  static const rating = OnboardingEvent<int>('rating');
+
+  const WelcomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ElevatedButton(
+        onPressed: onboardingEvent(rating, 42),
+        child: const Text('Rate'),
+      ),
+    );
+  }
+}
+''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
+        source,
+      );
+
+      await testBuilder(
+        onboardingScreenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/onboarding/screens/welcome.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/onboarding/screens/welcome.rsscreen.g.dart':
+              anything,
+          'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
+              decodedMatches(contains('event "rating" { value: 42 }')),
+          'apps_examples|assets/onboarding/screens/welcome.rfw':
+              _decodesAsRfwLibrary(),
+          'apps_examples|assets/onboarding/screens/welcome.capability.json':
+              anything,
+        },
+      );
+    });
+
     test('filename / id mismatch rejects outputs with a diagnostic', () async {
       const source = '''
 import 'package:flutter/widgets.dart';

@@ -2,6 +2,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
     show classifyA2uiCatalogDart;
+import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -158,6 +159,54 @@ void main() {
         entry(name: 'Button', properties: [], library: WidgetLibrary.material),
       ]);
       expect(() => emitA2uiCatalog(catalog), throwsArgumentError);
+    });
+  });
+
+  group('emitA2uiCatalog — interactive parity with the Dart emitter', () {
+    test('an interactive widget the Dart path keeps is in the manifest too',
+        () {
+      // The manifest and the Dart CatalogItem set must agree by construction. A
+      // required interactive callback is LOWERED on the Dart path (the widget
+      // is emitted); the manifest must see the SAME eventSeam so it keeps the
+      // widget too — not drop it via the catalog-fed required-`eventProperty`
+      // path. Without threading the seam, the two artifacts diverge.
+      final catalog = catalogWith([
+        entry(
+          name: 'IconButton',
+          flutterType: 'package:fixture/fixture.dart#IconButton',
+          properties: [
+            prop('icon', PropertyType.string, required: true),
+            prop('onPressed', PropertyType.event, required: true),
+          ],
+        ),
+      ]);
+      final seam = <(String, String), A2uiCallbackSignature>{
+        ('IconButton', 'onPressed'): const A2uiCallbackDispatch(),
+      };
+
+      final dartSet = classifyA2uiCatalogDart(catalog, eventSeam: seam)
+          .widgets
+          .map((w) => w.entry.name)
+          .toSet();
+      expect(dartSet, contains('IconButton'));
+
+      final manifestSet = emitA2uiCatalog(catalog, eventSeam: seam)
+          .components
+          .map((c) => c.name)
+          .toSet();
+      expect(manifestSet, dartSet);
+    });
+
+    test('a built-in catalog (no seam) is byte-neutral on the manifest path',
+        () {
+      // No seam → identical to before the parameter existed.
+      final catalog = catalogWith([
+        entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+      ]);
+      expect(
+        emitA2uiCatalog(catalog).components.map((c) => c.name).toSet(),
+        {'Text'},
+      );
     });
   });
 }

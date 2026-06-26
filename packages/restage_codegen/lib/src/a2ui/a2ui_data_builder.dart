@@ -287,12 +287,16 @@ class A2uiDataBuilder {
     return name;
   }
 
-  /// A record reconstructed inline `(f1: <coerce> ?? <fallback>, …)`. A
-  /// non-null record is always constructible (each field reads through a
-  /// map-safe access, so a non-Map [raw] degrades to fallbacks, never throws).
-  /// A NULLABLE record instead reconstructs to null when [raw] is not a map —
-  /// the author allowed null, so an absent/malformed value is null, not a
-  /// fabricated record. (Every record field is a scalar or enum — reflector.)
+  /// A record reconstructed inline `(f1: <coerce> ?? <fallback>, …)`, guarded
+  /// so the WHOLE record reconstructs to null when [raw] is not a map — both a
+  /// nullable record (the author allowed null) AND a non-null record. A
+  /// non-null record that is entirely absent/malformed is the same case as a
+  /// missing nested data class: it propagates null so the enclosing object /
+  /// widget fails safe (the ruling-#5 never-fabricate-a-required-value
+  /// contract), rather than fabricating a record from per-field fallbacks. Only
+  /// when [raw] IS a map do the per-field fallbacks apply — a record's internal
+  /// fields cannot be null, so a present-but-missing internal field degrades to
+  /// its fallback. (Every record field is a scalar or enum — reflector.)
   String _recordExpression(ObjectNode record, String raw, String depth) {
     final parts = <String>[];
     for (final entry in record.fields.entries) {
@@ -304,7 +308,6 @@ class A2uiDataBuilder {
       parts.add('${entry.key}: $value');
     }
     final inline = '(${parts.join(', ')})';
-    if (!record.nullable) return inline;
     final notMap = '_restageA2uiAs<Map<String, Object?>>($raw) == null';
     return '$notMap ? null : $inline';
   }
@@ -312,11 +315,11 @@ class A2uiDataBuilder {
   /// The SINGLE field-value funnel that honors `node.nullable`, used by every
   /// non-fail-object field site (record fields, class optional/nullable
   /// fields). A NULLABLE node passes the coercion through (null-capable); a
-  /// NON-null node is made non-null — an already-non-null coercion (a non-null
-  /// record) as-is, any other null-capable coercion defaulted. This is the
-  /// chokepoint that keeps nullability from being forgotten at a field site.
-  /// The one arm it does NOT cover is a required NON-null CLASS field, which
-  /// fails the whole object on null (a statement, in [_classHelperDefinition]).
+  /// NON-null node is defaulted (every coercion is null-capable, so a
+  /// missing/malformed value degrades to the generic fallback at a field site).
+  /// This is the chokepoint that keeps nullability from being forgotten at a
+  /// field site. The one arm it does NOT cover is a required NON-null field
+  /// that fails the whole object on null (a statement in the class helper).
   String _fieldValueExpression(
     A2uiSchemaNode node,
     String access,
@@ -324,7 +327,6 @@ class A2uiDataBuilder {
   ) {
     final coerce = valueExpression(node, access, depth: depth);
     if (node.nullable) return coerce;
-    if (!_coercionYieldsNull(node)) return coerce;
     return '$coerce ?? ${_genericFallback(node)}';
   }
 
@@ -492,11 +494,11 @@ class A2uiDataBuilder {
       final field = object.fields[parameter.name]!;
       final access = '_raw[${_stringLiteral(parameter.name)}]';
       final required = object.required.contains(parameter.name);
-      if (required && !field.nullable && _coercionYieldsNull(field)) {
-        // The one statement-context arm: a REQUIRED, NON-nullable field whose
-        // coercion can be null fails the whole object (a missing/malformed
-        // required value is never fabricated; it propagates to a widget-level
-        // fail-safe).
+      if (required && !field.nullable) {
+        // The one statement-context arm: a REQUIRED, NON-nullable field fails
+        // the whole object when its coercion is null (every coercion is
+        // null-capable). A missing/malformed required value is never
+        // fabricated; it propagates to a widget-level fail-safe.
         final coerce = valueExpression(field, access, depth: '_depth + 1');
         lines
           ..add('  final ${parameter.name} = $coerce;')
@@ -522,20 +524,14 @@ class A2uiDataBuilder {
     return lines.join('\n');
   }
 
-  /// The public form of [_coercionYieldsNull]: whether [valueExpression] for
-  /// [node] can evaluate to null on bad render data — the predicate the
-  /// emitter's widget-argument site uses to decide whether a required, non-null
-  /// argument needs a fail-safe null guard.
-  bool valueCanBeNull(A2uiSchemaNode node) => _coercionYieldsNull(node);
-
-  /// Whether the value expression for [node] can evaluate to null on bad data.
-  /// Every shape coerces to a nullable result (null on a type mismatch) EXCEPT
-  /// a NON-NULL record, which inlines to a literal with per-field fallbacks and
-  /// is always constructible (a nullable record CAN be null — null on a non-Map
-  /// raw — so it does yield null).
-  bool _coercionYieldsNull(A2uiSchemaNode node) => !(node is ObjectNode &&
-      node.construction is A2uiRecordConstruction &&
-      !node.nullable);
+  /// Whether [valueExpression] for [node] can evaluate to null on bad render
+  /// data — the predicate the emitter's widget-argument site uses to decide
+  /// whether a required, non-null argument needs a fail-safe null guard. EVERY
+  /// value-builder coercion is null-capable: every shape (scalar, enum, list,
+  /// map, nested data class, AND record) reconstructs to null when its raw
+  /// value is missing or the wrong type, so a required-missing value always
+  /// fails safe and is never fabricated.
+  bool valueCanBeNull(A2uiSchemaNode node) => true;
 
   /// A collision-safe, identifier-safe symbol fragment from a canonical
   /// `defId` (`<libraryUri>#<symbol>[<typeArgs>]`): the symbol name with any

@@ -55,6 +55,7 @@ final class RestageProperty {
     this.priority,
     this.validationRule,
     this.minSchemaVersion = 1,
+    this.writeBackValue,
   }) : assert(
           // The mutual-exclusion invariant still counts the deprecated
           // `defaultValue` — a customer may set it, and it remains exclusive
@@ -105,4 +106,15 @@ final class RestageProperty {
   /// Catalog schema version that introduced this property. Defaults
   /// to 1.
   final int minSchemaVersion;
+
+  /// On a callback property, the name of the value property this callback
+  /// writes back to — the explicit pairing for a widget with more than one
+  /// interactive control, where the value↔callback pairing cannot be inferred
+  /// from the type list alone.
+  ///
+  /// Additive and optional (defaults to null). It is a hint for the A2UI
+  /// generation target only; the standard widget code path ignores it. When a
+  /// widget has exactly one value-changing callback and one matching value
+  /// property the pairing is inferred automatically and this is unnecessary.
+  final String? writeBackValue;
 }

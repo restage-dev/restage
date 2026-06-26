@@ -12,7 +12,7 @@ import 'package:test/test.dart';
 
 import '../_helpers/test_fixtures.dart';
 
-/// Decode the Serverpod `decode('<base64>', 'base64')` wire form, then unwrap
+/// Decode the backend `decode('<base64>', 'base64')` wire form, then unwrap
 /// the canonical [BlobSurfacePayload] frame to its inner blob. Paywalls publish
 /// through the surface store, so the wire `bytes` are the wrapped frame.
 List<int> _innerBlobOf(String wire) {
@@ -82,7 +82,7 @@ void main() {
           expect(body['projectSlug'], 'demo');
           expect(body['appSlug'], 'mobile');
           expect(body['surfaceSlug'], 'hello');
-          // The wire format for bytes is the Serverpod `decode('<base64>',
+          // The wire format for bytes is the backend `decode('<base64>',
           // 'base64')` string, wrapping the canonical blob-surface frame.
           final wireBytes = body['bytes'] as String;
           expect(wireBytes, startsWith("decode('"));

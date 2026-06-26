@@ -526,7 +526,7 @@ Future<_LoweredFlow?> _lowerFlow(
   final outboundExpr = _namedArg(flowCall, 'outbound');
   final flowState = flowStateExpr == null
       ? const <String, FlowStateDeclaration>{}
-      : _flowStateDeclarations(flowStateExpr, issues, assetId);
+      : _flowStateDeclarations(flowStateExpr, issues, assetId, flow.className);
   final outbound = outboundExpr == null
       ? const FlowOutboundDeclarations()
       : _outboundDeclarations(outboundExpr, issues, assetId);
@@ -624,14 +624,17 @@ Future<_LoweredFlow?> _lowerFlow(
       nodeLocals,
       actionsByName,
       actionContracts,
+      flowState,
       flow.minClient,
       issues,
       assetId,
     );
     if (screenNode == null) continue;
-    final actionContract = screenNode.actionContract;
-    if (actionContract != null) {
-      usedActionContracts[actionContract.actionName] = actionContract;
+    for (final transition in screenNode.transitions) {
+      final actionContract = transition.actionContract;
+      if (actionContract != null) {
+        usedActionContracts[actionContract.actionName] = actionContract;
+      }
     }
     if (states.containsKey(screenNode.screen.id)) {
       issues.add(
@@ -646,7 +649,8 @@ Future<_LoweredFlow?> _lowerFlow(
     states[screenNode.screen.id] = ScreenFlowState(
       screen: screenNode.screen.id,
       on: {
-        screenNode.eventId: screenNode.transition,
+        for (final transition in screenNode.transitions)
+          transition.eventId: transition.transition,
       },
     );
     final descriptor = screenNode.screen;
@@ -740,6 +744,7 @@ _ScreenNode? _parseScreenNode(
   Map<String, String> nodeLocals,
   Map<String, _FlowAction> actionsByName,
   Map<String, FlowActionContract> actionContracts,
+  Map<String, FlowStateDeclaration> flowState,
   int minClient,
   List<Issue> issues,
   AssetId assetId,
@@ -748,7 +753,7 @@ _ScreenNode? _parseScreenNode(
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Flow states must be screen(ref).on(event).goTo(target) or '
+        message: 'Flow states must be screen(ref).on(event)…goTo(target) or '
             'end(...) in the current flow runtime.',
         location: assetId.path,
       ),
@@ -765,9 +770,21 @@ _ScreenNode? _parseScreenNode(
   );
   if (target == null) return null;
 
-  final transitionCall = expression.target;
+  // Peel a contiguous run of `.capture()`/`.write()` calls between the
+  // `.goTo()` and the `.on()`/`.result()`. The chain nests outermost-first,
+  // so collect descending toward the receiver, then reverse to authored order.
+  var cursor = expression.target;
+  final writeCalls = <MethodInvocation>[];
+  while (cursor is MethodInvocation &&
+      (cursor.methodName.name == 'capture' ||
+          cursor.methodName.name == 'write')) {
+    writeCalls.add(cursor);
+    cursor = cursor.target;
+  }
+  final orderedWriteCalls = writeCalls.reversed.toList();
+
   final actionTransition = _parseActionTransition(
-    transitionCall,
+    cursor,
     target,
     actionsByName,
     actionContracts,
@@ -775,49 +792,257 @@ _ScreenNode? _parseScreenNode(
     issues,
     assetId,
   );
-  final onCall = actionTransition?.onCall ??
-      (transitionCall is MethodInvocation ? transitionCall : null);
+  final onCall =
+      actionTransition?.onCall ?? (cursor is MethodInvocation ? cursor : null);
   if (onCall is! MethodInvocation || onCall.methodName.name != 'on') {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Screen transitions must call .on(event).goTo(target) or '
-            '.on(event).run(action).result(predicate).goTo(target).',
+        message: 'Screen transitions must call .on(event)…goTo(target) or '
+            '.on(event).run(action).result(predicate)…goTo(target).',
         location: assetId.path,
       ),
     );
     return null;
   }
-  final screenCall = onCall.target;
-  if (screenCall is! MethodInvocation ||
-      screenCall.methodName.name != 'screen') {
-    issues.add(
-      Issue(
-        code: IssueCode.buildMethodTooComplex,
-        message: 'Screen states must start with screen(ref).',
-        location: assetId.path,
-      ),
+
+  final eventArg = onCall.argumentList.arguments.firstOrNull;
+  final event = _eventId(eventArg, issues, assetId);
+  if (event == null) return null;
+  final eventScalarType = _eventScalarFlowDataType(eventArg);
+  final stateWrites = _lowerTransitionStateWrites(
+    orderedWriteCalls,
+    eventScalarType,
+    flowState,
+    issues,
+    assetId,
+  );
+  if (stateWrites == null) return null;
+
+  final FlowTransition transition;
+  final FlowActionContract? contract;
+  if (actionTransition != null) {
+    final parsed = actionTransition.transition;
+    transition = ActionFlowTransition(
+      action: parsed.action,
+      resultPredicate: parsed.resultPredicate,
+      target: target,
+      stateWrites: stateWrites,
     );
-    return null;
+    contract = actionTransition.contract;
+  } else {
+    transition = GotoFlowTransition(target, stateWrites: stateWrites);
+    contract = null;
   }
-  final screen = _screenForRef(
-    screenCall.argumentList.arguments.firstOrNull,
-    descriptors,
-    issues,
-    assetId,
-  );
-  final event = _eventId(
-    onCall.argumentList.arguments.firstOrNull,
-    issues,
-    assetId,
-  );
-  if (screen == null || event == null) return null;
-  return _ScreenNode(
-    screen: screen,
+  final thisTransition = _ScreenTransition(
     eventId: event,
-    transition: actionTransition?.transition ?? FlowTransition.goto(target),
-    actionContract: actionTransition?.contract,
+    transition: transition,
+    actionContract: contract,
   );
+
+  // The `.on()` receiver is either `screen(ref)` (the first transition on this
+  // screen) or a prior `.goTo()` chain (a chained fork). Recurse on the latter
+  // so all transitions accumulate into one screen node.
+  final receiver = onCall.target;
+  if (receiver is MethodInvocation && receiver.methodName.name == 'screen') {
+    final screen = _screenForRef(
+      receiver.argumentList.arguments.firstOrNull,
+      descriptors,
+      issues,
+      assetId,
+    );
+    if (screen == null) return null;
+    return _ScreenNode(screen: screen, transitions: [thisTransition]);
+  }
+  if (receiver is MethodInvocation && receiver.methodName.name == 'goTo') {
+    final prior = _parseScreenNode(
+      receiver,
+      descriptors,
+      endLocals,
+      nodeLocals,
+      actionsByName,
+      actionContracts,
+      flowState,
+      minClient,
+      issues,
+      assetId,
+    );
+    if (prior == null) return null;
+    if (prior.transitions.any((t) => t.eventId == event)) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "duplicate event '$event' on screen "
+              "'${prior.screen.id}': a screen may author at most one "
+              'transition per event.',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+    return _ScreenNode(
+      screen: prior.screen,
+      transitions: [...prior.transitions, thisTransition],
+    );
+  }
+  issues.add(
+    Issue(
+      code: IssueCode.buildMethodTooComplex,
+      message: 'Screen states must start with screen(ref).',
+      location: assetId.path,
+    ),
+  );
+  return null;
+}
+
+/// Lowers the peeled `.capture()`/`.write()` calls of one transition into wire
+/// state writes. Each target key must be declared in `flow(flowState: {...})`
+/// and its type must match; `.capture()` requires a scalar event. Every failure
+/// is a loud build error, never a silent drop.
+Map<String, FlowStateWrite>? _lowerTransitionStateWrites(
+  List<MethodInvocation> writeCalls,
+  FlowDataType? eventScalarType,
+  Map<String, FlowStateDeclaration> flowState,
+  List<Issue> issues,
+  AssetId assetId,
+) {
+  final result = <String, FlowStateWrite>{};
+  for (final call in writeCalls) {
+    final method = call.methodName.name;
+    final key = _stringExpression(call.argumentList.arguments.firstOrNull);
+    if (key == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: '$method(...) requires a string flow-state key literal.',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+    if (result.containsKey(key)) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "duplicate state write '$key' on a single transition.",
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+    final declaration = flowState[key];
+    if (declaration == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "$method('$key') targets flow-state key '$key', which is "
+              'not declared in flow(flowState: {...}).',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+    final FlowStateWrite write;
+    if (method == 'capture') {
+      if (eventScalarType == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.buildMethodTooComplex,
+            message: "capture('$key') requires a scalar "
+                'OnboardingEvent<String|bool|int>.',
+            location: assetId.path,
+          ),
+        );
+        return null;
+      }
+      write = FlowStateWrite(
+        type: eventScalarType,
+        // A scalar event carries its value under the reserved `value` key
+        // (see the screen-event lowering), decoupled from the flow-state key.
+        value: const EventFlowValueSource(key: kCapturedEventValueKey),
+      );
+    } else {
+      final literal = _literalWriteValue(
+        call.argumentList.arguments.elementAtOrNull(1),
+      );
+      if (literal == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.buildMethodTooComplex,
+            message: "write('$key', ...) requires a String, bool, or int "
+                'literal value.',
+            location: assetId.path,
+          ),
+        );
+        return null;
+      }
+      write = FlowStateWrite(
+        type: literal.type,
+        value: LiteralFlowValueSource(type: literal.type, value: literal.value),
+      );
+    }
+    if (write.type != declaration.type) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "$method('$key') produces ${write.type.wireName} but "
+              "flowState declares '$key' as ${declaration.type.wireName}.",
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+    result[key] = write;
+  }
+  return result;
+}
+
+// Lowers a literal-constant expression to a typed value. The accepted forms are
+// bounded to literal SPELLINGS — bare literals, parenthesized literals, and
+// adjacent-string literals — matching what the runtime sugar/`write()` see as a
+// plain value. A computed const expression (`'a' + 'b'`, `1 + 1`, a const
+// reference) is intentionally NOT folded (that would need a const evaluator);
+// it stays a loud build error, so the build-time and runtime legs agree on the
+// same bounded literal contract.
+({FlowDataType type, Object value})? _literalWriteValue(
+  Expression? expression,
+) {
+  if (expression is ParenthesizedExpression) {
+    return _literalWriteValue(expression.expression);
+  }
+  final stringValue = _stringExpression(expression);
+  if (stringValue != null) {
+    return (type: FlowDataType.string, value: stringValue);
+  }
+  if (expression is BooleanLiteral) {
+    return (type: FlowDataType.bool, value: expression.value);
+  }
+  if (expression is IntegerLiteral && expression.value != null) {
+    return (type: FlowDataType.int, value: expression.value!);
+  }
+  if (expression is PrefixExpression && expression.operator.lexeme == '-') {
+    final operand = _literalWriteValue(expression.operand);
+    if (operand != null && operand.type == FlowDataType.int) {
+      return (type: FlowDataType.int, value: -(operand.value as int));
+    }
+  }
+  return null;
+}
+
+FlowDataType? _eventScalarFlowDataType(Expression? expression) {
+  final field = _onboardingEventFieldFor(expression);
+  if (field == null) return null;
+  final type = field.type;
+  if (type is! InterfaceType || type.typeArguments.length != 1) return null;
+  switch (type.typeArguments.single.getDisplayString()) {
+    case 'String':
+      return FlowDataType.string;
+    case 'bool':
+      return FlowDataType.bool;
+    case 'int':
+      return FlowDataType.int;
+  }
+  return null;
 }
 
 bool _isGraphNodeExpression(Expression expression) {
@@ -1276,16 +1501,7 @@ String? _eventId(
   List<Issue> issues,
   AssetId assetId,
 ) {
-  Element? element;
-  if (expression is PrefixedIdentifier) {
-    element = expression.identifier.element;
-  } else if (expression is PropertyAccess) {
-    element = expression.propertyName.element;
-  } else if (expression is SimpleIdentifier) {
-    element = expression.element;
-  }
-  if (element is PropertyAccessorElement) element = element.variable;
-  final eventField = _staticConstOnboardingEventField(element);
+  final eventField = _onboardingEventFieldFor(expression);
   if (eventField != null) {
     final id =
         eventField.computeConstantValue()?.getField('id')?.toStringValue();
@@ -1300,6 +1516,12 @@ String? _eventId(
     ),
   );
   return null;
+}
+
+FieldElement? _onboardingEventFieldFor(Expression? expression) {
+  return _staticConstOnboardingEventField(
+    _referencedVariableElement(expression),
+  );
 }
 
 FieldElement? _staticConstOnboardingEventField(Element? element) {
@@ -1667,6 +1889,7 @@ Map<String, FlowStateDeclaration>? _flowStateDeclarations(
   Expression expression,
   List<Issue> issues,
   AssetId assetId,
+  String flowClassName,
 ) {
   final entries = _stringKeyedMap(
     expression,
@@ -1675,6 +1898,7 @@ Map<String, FlowStateDeclaration>? _flowStateDeclarations(
     'flowState must be a literal map with string keys.',
   );
   if (entries == null) return null;
+  final seedClassName = '${_flowBaseName(flowClassName)}Seed';
   final result = <String, FlowStateDeclaration>{};
   for (final entry in entries.entries) {
     final declaration = _flowStateDeclaration(
@@ -1683,10 +1907,42 @@ Map<String, FlowStateDeclaration>? _flowStateDeclarations(
       assetId,
     );
     if (declaration == null) return null;
+    // A host-seedable key is interpolated into the generated seed builder as a
+    // field name, a constructor parameter, and a `toFlowState` map key. The
+    // wire identifier rule is broader than a Dart identifier (it admits hyphens
+    // and reserved/Object/method names), and a key equal to the generated seed
+    // class name would clash with the class itself, so reject an
+    // unrepresentable seed key with a clear diagnostic instead of broken Dart.
+    if (declaration.hostSeedable &&
+        !_isSeedKeyDartSafe(entry.key, seedClassName)) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "unsupported host-seedable key '${entry.key}': a "
+              'host-seedable flowState key must be a non-reserved Dart '
+              "identifier that is not an Object member name, 'toFlowState', or "
+              "the generated seed class name '$seedClassName'.",
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
     result[entry.key] = declaration;
   }
   return result;
 }
+
+bool _isSeedKeyDartSafe(String key, String seedClassName) =>
+    _isSafeDartIdentifier(key) &&
+    !_objectInstanceMemberNames.contains(key) &&
+    key != 'toFlowState' &&
+    key != seedClassName;
+
+/// The base name a flow's generated symbols derive from (the class name with a
+/// trailing `Flow` stripped).
+String _flowBaseName(String className) => className.endsWith('Flow')
+    ? className.substring(0, className.length - 'Flow'.length)
+    : className;
 
 FlowStateDeclaration? _flowStateDeclaration(
   Expression expression,
@@ -1717,10 +1973,25 @@ FlowStateDeclaration? _flowStateDeclaration(
   final defaultValue =
       defaultExpr == null ? null : _jsonValue(defaultExpr, issues, assetId);
   if (identical(defaultValue, _invalidJsonValue)) return null;
+  final hostSeedableExpr = _namedConstructorArg(creation, 'hostSeedable');
+  final hostSeedable = switch (hostSeedableExpr) {
+    null => false,
+    BooleanLiteral(:final value) => value,
+    _ => null,
+  };
+  if (hostSeedable == null) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      'hostSeedable must be a bool literal.',
+    );
+    return null;
+  }
   return FlowStateDeclaration(
     type: type,
     classification: classification,
     defaultValue: defaultValue,
+    hostSeedable: hostSeedable,
   );
 }
 
@@ -1996,6 +2267,14 @@ FlowStateWrite? _stateWrite(
   return FlowStateWrite(type: type, value: value);
 }
 
+/// The predicate-sugar operators keyed by method name, derived from the shared
+/// [FlowPredicateOperator] enum so the parser cannot drift from the authoring
+/// API on the operator set.
+final Map<String, FlowPredicateOperator> _sugarOperatorsByName = {
+  for (final operator in FlowPredicateOperator.values)
+    operator.methodName: operator,
+};
+
 FlowBranchPredicate? _flowBranchPredicate(
   Expression? expression,
   List<Issue> issues,
@@ -2009,12 +2288,29 @@ FlowBranchPredicate? _flowBranchPredicate(
     );
     return null;
   }
+  // Predicate sugar: `allOf([...])` and `state(K).<op>(...)`. The `allOf`, the
+  // operator method, and the `state(...)` receiver are each resolved to the
+  // Restage SDK library so a same-named customer construct is not silently
+  // reinterpreted as sugar.
+  if (expression is MethodInvocation) {
+    if (expression.methodName.name == 'allOf' &&
+        _resolvesToRestageSdk(expression)) {
+      return _allOfPredicate(expression, issues, assetId);
+    }
+    final operator = _sugarOperatorsByName[expression.methodName.name];
+    if (operator != null &&
+        _resolvesToRestageSdk(expression) &&
+        _isStateInvocation(expression.target)) {
+      return _statePredicateChain(expression, operator, issues, assetId);
+    }
+  }
   final creation = _instanceCreation(
     expression,
     'FlowBranchPredicate',
     issues,
     assetId,
-    'branch predicates must be FlowBranchPredicate(...) constructors.',
+    'branch predicates must be a FlowBranchPredicate(...) constructor, a '
+        'state(...).<op>(...) predicate, or allOf([...]).',
   );
   if (creation == null) return null;
   final fieldsExpr = _namedConstructorArg(creation, 'fields');
@@ -2145,6 +2441,208 @@ FlowPredicateCondition? _predicateCondition(
   return null;
 }
 
+bool _isStateInvocation(Expression? expression) {
+  return expression is MethodInvocation &&
+      expression.methodName.name == 'state' &&
+      _resolvesToRestageSdk(expression);
+}
+
+/// Whether [invocation]'s invoked function/method resolves to the Restage SDK
+/// library. A name-only match would let a same-named non-Restage `state(...)` /
+/// `allOf(...)` / operator (a customer DSL) be silently reinterpreted as Restage
+/// sugar and lowered to our wire while the runtime runs the other function;
+/// resolving the element to the SDK origin closes that drift. Falls back to
+/// accepting an unresolved element (a test AST without a resolved SDK element)
+/// by name so such fixtures still parse.
+bool _resolvesToRestageSdk(MethodInvocation invocation) {
+  final element = invocation.methodName.element;
+  if (element == null) return true;
+  final library = element.library;
+  if (library == null) return true;
+  return libraryUriMatchesOrigin(library.identifier, _kSdkLibraryOrigin);
+}
+
+/// Lowers a `state(K)` invocation into a [StateFlowValueSource], failing loud
+/// on a non-literal key. Shared by the predicate-chain receiver, the sugar
+/// right-hand side, and the bare value-source position.
+StateFlowValueSource? _stateSugarSource(
+  MethodInvocation invocation,
+  List<Issue> issues,
+  AssetId assetId,
+) {
+  final key = _stringExpression(invocation.argumentList.arguments.firstOrNull);
+  if (key == null) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      'state(...) requires a string key literal.',
+    );
+    return null;
+  }
+  return StateFlowValueSource(key: key);
+}
+
+/// Lowers `allOf([...])` into one merged [FlowBranchPredicate]. Each element is
+/// itself a single-field predicate; two conditions on the same field cannot be
+/// represented (one condition per field) and fail the build loud, via the
+/// shared [mergeFlowBranchPredicates] merge rule.
+FlowBranchPredicate? _allOfPredicate(
+  MethodInvocation invocation,
+  List<Issue> issues,
+  AssetId assetId,
+) {
+  final argument = invocation.argumentList.arguments.firstOrNull;
+  if (argument is! ListLiteral) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      'allOf(...) requires a literal list of predicates.',
+    );
+    return null;
+  }
+  final parsed = <FlowBranchPredicate>[];
+  for (final element in argument.elements) {
+    if (element is! Expression) {
+      _unsupportedGraphDeclaration(
+        issues,
+        assetId,
+        'collection control and spreads are not supported in allOf(...).',
+      );
+      return null;
+    }
+    final predicate = _flowBranchPredicate(element, issues, assetId);
+    if (predicate == null) return null;
+    parsed.add(predicate);
+  }
+  final duplicate = firstDuplicatePredicateField(parsed);
+  if (duplicate != null) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      'allOf cannot merge two conditions on field "$duplicate"; the predicate '
+      'wire allows one condition per field.',
+    );
+    return null;
+  }
+  return FlowBranchPredicate(
+    fields: {for (final predicate in parsed) ...predicate.fields},
+  );
+}
+
+/// Lowers a `state(K).<op>(...)` sugar chain into a single-field
+/// [FlowBranchPredicate], using the shared [buildFlowPredicateCondition] so the
+/// wire matches the authoring API exactly.
+FlowBranchPredicate? _statePredicateChain(
+  MethodInvocation invocation,
+  FlowPredicateOperator operator,
+  List<Issue> issues,
+  AssetId assetId,
+) {
+  final receiver = invocation.target! as MethodInvocation;
+  final source = _stateSugarSource(receiver, issues, assetId);
+  if (source == null) return null;
+  final condition = _sugarCondition(operator, invocation, issues, assetId);
+  if (condition == null) return null;
+  return FlowBranchPredicate(fields: {source.key: condition});
+}
+
+FlowPredicateCondition? _sugarCondition(
+  FlowPredicateOperator operator,
+  MethodInvocation invocation,
+  List<Issue> issues,
+  AssetId assetId,
+) {
+  final arguments = invocation.argumentList.arguments;
+  switch (operator.arity) {
+    case FlowPredicateValueArity.none:
+      if (arguments.isNotEmpty) {
+        _unsupportedGraphDeclaration(
+          issues,
+          assetId,
+          '${operator.methodName}() takes no arguments.',
+        );
+        return null;
+      }
+      return buildFlowPredicateCondition(operator);
+    case FlowPredicateValueArity.single:
+      final argument = arguments.firstOrNull;
+      if (argument == null) {
+        _unsupportedGraphDeclaration(
+          issues,
+          assetId,
+          '${operator.methodName}(...) requires a value.',
+        );
+        return null;
+      }
+      final value = _sugarValueSource(argument, operator, issues, assetId);
+      if (value == null) return null;
+      return buildFlowPredicateCondition(operator, value: value);
+    case FlowPredicateValueArity.list:
+      final argument = arguments.firstOrNull;
+      if (argument is! ListLiteral) {
+        _unsupportedGraphDeclaration(
+          issues,
+          assetId,
+          '${operator.methodName}(...) requires a literal list.',
+        );
+        return null;
+      }
+      final values = <FlowValueSource>[];
+      for (final element in argument.elements) {
+        if (element is! Expression) {
+          _unsupportedGraphDeclaration(
+            issues,
+            assetId,
+            'collection control and spreads are not supported in '
+            '${operator.methodName}(...).',
+          );
+          return null;
+        }
+        final value = _sugarValueSource(element, operator, issues, assetId);
+        if (value == null) return null;
+        values.add(value);
+      }
+      return buildFlowPredicateCondition(operator, values: values);
+  }
+}
+
+/// Coerces a sugar right-hand side AST into a [FlowValueSource]: a `state(K)`
+/// reference passes through; a scalar literal is auto-wrapped with its inferred
+/// wire type. A non-scalar literal — or a non-int literal to an int-only
+/// [operator] — fails the build loud.
+FlowValueSource? _sugarValueSource(
+  Expression expression,
+  FlowPredicateOperator operator,
+  List<Issue> issues,
+  AssetId assetId,
+) {
+  if (expression is MethodInvocation &&
+      expression.methodName.name == 'state' &&
+      _resolvesToRestageSdk(expression)) {
+    return _stateSugarSource(expression, issues, assetId);
+  }
+  final literal = _literalWriteValue(expression);
+  if (literal == null) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      '${operator.methodName}(...) requires a bool, int, or String literal '
+      'or a state(...) reference.',
+    );
+    return null;
+  }
+  if (operator.intOnly && literal.type != FlowDataType.int) {
+    _unsupportedGraphDeclaration(
+      issues,
+      assetId,
+      '${operator.methodName}(...) compares integers; pass an int literal '
+      'or a state(...) reference.',
+    );
+    return null;
+  }
+  return LiteralFlowValueSource(type: literal.type, value: literal.value);
+}
+
 FlowValueSource? _flowValueSource(
   Expression? expression,
   List<Issue> issues,
@@ -2157,6 +2655,11 @@ FlowValueSource? _flowValueSource(
       'FlowValueSource is required.',
     );
     return null;
+  }
+  if (expression is MethodInvocation &&
+      expression.methodName.name == 'state' &&
+      _resolvesToRestageSdk(expression)) {
+    return _stateSugarSource(expression, issues, assetId);
   }
   final literal = _maybeInstanceCreation(expression, 'LiteralFlowValueSource');
   if (literal != null) {
@@ -2739,15 +3242,15 @@ String _emitFlowDescriptor(
   _FlowSource flow,
   _LoweredFlow lowered,
 ) {
-  final baseName = flow.className.endsWith('Flow')
-      ? flow.className.substring(0, flow.className.length - 'Flow'.length)
-      : flow.className;
+  final baseName = _flowBaseName(flow.className);
   final resultClass = '${baseName}Result';
   final descriptorClass = '${flow.className}Descriptor';
   final actionsClass = _actionsClassName(flow.className);
   final actionsInterface =
       flow.actions.isEmpty ? '' : ' implements FlowActionRegistry';
   final result = _firstEndResult(lowered.document);
+  final seedClass =
+      _emitSeedClass('${baseName}Seed', lowered.document.flowState);
   return '''
 part of '$stem.dart';
 
@@ -2771,8 +3274,54 @@ final class $actionsClass$actionsInterface {
 ${_emitActionsConstructor(actionsClass, flow.actions)}
 ${_emitActionFields(flow.actions, flow.minClient, lowered.actionContracts)}
 }
+$seedClass''';
+}
+
+/// Emits a typed seed builder exposing only the flow's `hostSeedable` keys.
+///
+/// Returns an empty string when no key is host-seedable, so a flow that opts
+/// nothing in generates no builder. Each seedable key becomes an optional,
+/// nullable, typed parameter, so a non-seedable or mistyped seed is
+/// unconstructable; `toFlowState` omits unset keys (their declaration default
+/// applies).
+String _emitSeedClass(
+  String className,
+  Map<String, FlowStateDeclaration> flowState,
+) {
+  final seedable = <String, FlowDataType>{
+    for (final entry in flowState.entries)
+      if (entry.value.hostSeedable) entry.key: entry.value.type,
+  };
+  if (seedable.isEmpty) return '';
+  final params = seedable.keys.map((key) => '    this.$key,').join('\n');
+  final fields = seedable.entries
+      .map((entry) => '  final ${_seedDartType(entry.value)}? ${entry.key};')
+      .join('\n');
+  final mapEntries = seedable.keys
+      .map((key) => "        if ($key != null) '$key': $key,")
+      .join('\n');
+  return '''
+
+final class $className implements FlowSeed {
+  const $className({
+$params
+  });
+
+$fields
+
+  @override
+  Map<String, Object?> toFlowState() => {
+$mapEntries
+      };
+}
 ''';
 }
+
+String _seedDartType(FlowDataType type) => switch (type) {
+      FlowDataType.bool => 'bool',
+      FlowDataType.int => 'int',
+      FlowDataType.string => 'String',
+    };
 
 Map<String, Object?> _firstEndResult(FlowDocument document) {
   for (final state in document.states.values) {
@@ -3172,13 +3721,12 @@ final class _FlowSource {
   final bool invalidAnnotation;
 
   List<String> get generatedNames {
-    final baseName = className.endsWith('Flow')
-        ? className.substring(0, className.length - 'Flow'.length)
-        : className;
+    final baseName = _flowBaseName(className);
     return [
       '${className}Descriptor',
       '${baseName}Result',
       '${baseName}Actions',
+      '${baseName}Seed',
       if (actions.isNotEmpty) ...[
         'FlowActionBinding',
         'FlowActionDescriptor',
@@ -3255,12 +3803,20 @@ final class _ScreenDescriptor {
 final class _ScreenNode {
   const _ScreenNode({
     required this.screen,
+    required this.transitions,
+  });
+
+  final _ScreenDescriptor screen;
+  final List<_ScreenTransition> transitions;
+}
+
+final class _ScreenTransition {
+  const _ScreenTransition({
     required this.eventId,
     required this.transition,
     this.actionContract,
   });
 
-  final _ScreenDescriptor screen;
   final String eventId;
   final FlowTransition transition;
   final FlowActionContract? actionContract;

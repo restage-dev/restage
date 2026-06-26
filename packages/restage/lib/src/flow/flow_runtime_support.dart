@@ -5,6 +5,7 @@ import 'package:restage_core/library_registration.dart' as restage_core;
 import 'package:restage_cupertino/library_registration.dart'
     as restage_cupertino;
 import 'package:restage_material/library_registration.dart' as restage_material;
+import 'package:restage_shared/restage_shared.dart' show kCapturedEventValueKey;
 import 'package:rfw/rfw.dart';
 
 import '../runtime/library_runtime_registry.dart';
@@ -26,12 +27,19 @@ const LibraryName kFlowScreenLibrary =
 const FullyQualifiedWidgetName kFlowScreenWidget =
     FullyQualifiedWidgetName(kFlowScreenLibrary, 'OnboardingScreen');
 
-/// Coerces RFW event args to a string-keyed map. Inert non-map payloads become
-/// an empty map. Shared by the flow rendering surfaces so they normalize event
-/// arguments identically.
-Map<String, Object?> normalizeRfwEventArgs(Object? args) {
+/// Coerces a flow event payload to the canonical string-keyed args map.
+///
+/// The single normalization point every render path funnels through — the RFW
+/// rendering surfaces and the local-Dart authoring path — so a scalar event
+/// value reaches the runtime in one shape on every path and a flow `.capture()`
+/// resolves identically. A map is taken as-is; a non-null scalar is carried
+/// under the reserved [kCapturedEventValueKey] (the RFW screen blob already
+/// wraps it, so this is a no-op there and the active wrap for the local path);
+/// a null payload (a value-less event) becomes an empty map.
+Map<String, Object?> normalizeEventArgs(Object? args) {
   if (args is Map<String, Object?>) return args;
   if (args is Map) return args.cast<String, Object?>();
+  if (args != null) return <String, Object?>{kCapturedEventValueKey: args};
   return <String, Object?>{};
 }
 

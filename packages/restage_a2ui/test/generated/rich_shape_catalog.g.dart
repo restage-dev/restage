@@ -91,15 +91,21 @@ List<CatalogItem> buildRestageCatalogItems() {
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiArg_meta = (
-          count: _restageA2uiAs<num>(_restageA2uiAs<Map<String, Object?>>(
-                      data['meta'])?['count'])
-                  ?.toInt() ??
-              0,
-          title: _restageA2uiAs<String>(_restageA2uiAs<Map<String, Object?>>(
-                  data['meta'])?['title']) ??
-              ''
-        );
+        final _restageA2uiArg_meta =
+            _restageA2uiAs<Map<String, Object?>>(data['meta']) == null
+                ? null
+                : (
+                    count: _restageA2uiAs<num>(
+                                _restageA2uiAs<Map<String, Object?>>(
+                                    data['meta'])?['count'])
+                            ?.toInt() ??
+                        0,
+                    title: _restageA2uiAs<String>(
+                            _restageA2uiAs<Map<String, Object?>>(
+                                data['meta'])?['title']) ??
+                        ''
+                  );
+        if (_restageA2uiArg_meta == null) return const SizedBox.shrink();
         return p0.MetaBarFixture(
           meta: _restageA2uiArg_meta,
         );

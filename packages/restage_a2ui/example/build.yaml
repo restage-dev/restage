@@ -1,0 +1,17 @@
+# Enable the opt-in A2UI catalog builder. It is `auto_apply: none`, so a
+# consumer turns it on explicitly here — the generated catalog imports the genui
+# runtime, which only A2UI consumers depend on.
+#
+# This example targets A2UI (genui) only, not RFW delivery, so the RFW
+# customer-catalog + factory builders are turned off — they would emit unused
+# `.g.dart` files (and a RatingPicker "not mechanically generatable for RFW"
+# warning that does not apply to the A2UI path).
+targets:
+  $default:
+    builders:
+      restage_codegen:user_a2ui_catalog:
+        enabled: true
+      restage_codegen:user_catalog:
+        enabled: false
+      restage_codegen:user_factories:
+        enabled: false

@@ -22,7 +22,7 @@ RestageApi _apiWithClient(http.Client client) => RestageApi(
   credential: _stubCredential(),
 );
 
-/// The Serverpod ByteData wire form: `decode('<base64>', 'base64')`.
+/// The backend ByteData wire form: `decode('<base64>', 'base64')`.
 String _byteDataWire(List<int> bytes) =>
     "decode('${base64Encode(bytes)}', 'base64')";
 

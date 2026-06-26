@@ -5,6 +5,16 @@
 import 'package:restage_shared/src/flow_document/flow_action_schema.dart';
 import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
 
+/// The reserved event-payload field that carries a scalar event's value.
+///
+/// A scalar `onboardingEvent(evt, value)` emits its value under this key
+/// (`{value: …}`), and a flow `.capture(key)` reads it via
+/// `EventFlowValueSource(key: kCapturedEventValueKey)` while writing the
+/// captured value into its own flow-state `key`. Single-sourced here so the
+/// screen-event lowering, the capture lowering, and the authoring DSL never
+/// drift on the convention.
+const String kCapturedEventValueKey = 'value';
+
 enum FlowStateKind {
   screen('screen'),
   decision('decision'),
@@ -73,11 +83,13 @@ final class FlowStateDeclaration {
     required this.type,
     required this.classification,
     this.defaultValue,
+    this.hostSeedable = false,
   });
 
   final FlowDataType type;
   final FlowStateClassification classification;
   final Object? defaultValue;
+  final bool hostSeedable;
 }
 
 final class FlowOutboundDeclarations {

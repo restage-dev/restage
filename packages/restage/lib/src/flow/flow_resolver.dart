@@ -92,6 +92,7 @@ FlowStateDeclaration _freezeFlowStateDeclaration(
     type: declaration.type,
     classification: declaration.classification,
     defaultValue: _freezeJsonValue(declaration.defaultValue),
+    hostSeedable: declaration.hostSeedable,
   );
 }
 

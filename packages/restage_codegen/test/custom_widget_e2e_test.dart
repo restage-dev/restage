@@ -3000,8 +3000,8 @@ Object x() => AcmeMixed();
       // a richer "select this plan AND buy in one tap" action, it MUST NOT
       // emit a single handler list with the purchase event resolving against
       // pre-mutation state (re-order, read the post-mutation value, or
-      // reject) — see docs/follow-ups.md, "RFW event-arg switches are
-      // resolved at fetch-time, not in-callback".
+      // reject) — tracked as a follow-up: RFW event-arg switches are
+      // resolved at fetch-time, not in-callback.
       final result = await _transpile(
         '''
 $kClassifierStubs

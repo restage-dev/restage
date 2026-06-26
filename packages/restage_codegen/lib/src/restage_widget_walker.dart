@@ -62,6 +62,25 @@ Future<List<WidgetEntry>?> collectRestageWidgetsForPackage(
     }
   }
 
+  // A customer structured (data-class) property cannot yet render on the RFW
+  // path: the customer-factory emitter has no runtime reconstructor for a
+  // customer type (the structured-ref decoder table is built-in only). A
+  // widget carrying one is therefore EXCLUDED from the RFW catalog/factory —
+  // it still renders in the A2UI catalog (which reconstructs the value shape
+  // directly). This is a NON-FATAL exclusion (logged, not an issue), distinct
+  // from the unsupported-type / duplicate-name issues below which fail the
+  // build. RFW rendering of customer structured types is a future capability.
+  widgets.removeWhere((w) {
+    if (!_hasUnrenderableCustomerStructured(w)) return false;
+    log.info(
+      'Customer widget ${w.library.namespace}#${w.name} carries a structured '
+      'property and is excluded from the RFW catalog/factory; it renders in '
+      'the A2UI catalog. RFW rendering of customer structured types is a '
+      'future capability.',
+    );
+    return true;
+  });
+
   // The visitor catches duplicate (library, name) pairs within a single
   // file. Cross-file collisions only surface here, after aggregation.
   final byKey = <String, List<WidgetEntry>>{};
@@ -98,4 +117,21 @@ Future<List<WidgetEntry>?> collectRestageWidgetsForPackage(
       return a.name.compareTo(b.name);
     });
   return ordered;
+}
+
+/// Whether [w] carries a property that lowers to a CUSTOMER structured value
+/// (`PropertyType.structured` with a structured reference into a non-built-in
+/// library). Such a widget cannot render on the RFW path yet — the
+/// customer-factory emitter has no runtime reconstructor for a customer type —
+/// so it is excluded from the RFW catalog/factory (see
+/// [collectRestageWidgetsForPackage]). A built-in structured type (e.g.
+/// `TextStyle`) has a registered decoder and is NOT excluded.
+bool _hasUnrenderableCustomerStructured(WidgetEntry w) {
+  for (final property in w.properties) {
+    if (property.type != PropertyType.structured) continue;
+    final ref = property.structuredRef;
+    if (ref == null) continue;
+    if (WidgetLibrary.builtInByNamespace(ref.library) == null) return true;
+  }
+  return false;
 }

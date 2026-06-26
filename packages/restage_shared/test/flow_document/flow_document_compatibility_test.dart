@@ -153,6 +153,48 @@ void main() {
       );
     });
 
+    test('host-seedable flips classify by direction', () {
+      const seedable = {
+        'completed': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.exportable,
+          defaultValue: false,
+          hostSeedable: true,
+        ),
+      };
+      const nonSeedable = {
+        'completed': FlowStateDeclaration(
+          type: FlowDataType.bool,
+          classification: FlowStateClassification.exportable,
+          defaultValue: false,
+        ),
+      };
+
+      // false -> true: gaining seedability is a compatible addition; an old
+      // host that never seeds is unaffected.
+      final added = FlowDocumentCompatibility.diff(
+        from: _document(flowState: nonSeedable),
+        to: _document(flowState: seedable),
+      );
+      expect(added.classification, FlowCompatibilityClassification.additive);
+      expect(
+        added.changes.map((change) => change.code),
+        contains('flowStateSeedabilityChanged'),
+      );
+
+      // true -> false: removing seedability rejects an existing host seed
+      // (fail-closed) -> breaking. The asymmetry must not collapse.
+      final removed = FlowDocumentCompatibility.diff(
+        from: _document(flowState: seedable),
+        to: _document(flowState: nonSeedable),
+      );
+      expect(removed.classification, FlowCompatibilityClassification.breaking);
+      expect(
+        removed.changes.map((change) => change.code),
+        contains('flowStateSeedabilityChanged'),
+      );
+    });
+
     test('outbound declarations classify old decoder compatibility', () {
       const outbound = FlowOutboundDeclarations(
         terminalResult: FlowOutboundPayloadDeclaration(

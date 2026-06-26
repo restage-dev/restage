@@ -129,7 +129,7 @@ void main() {
       expect(source, contains('plan: _restageA2uiArg_plan,'));
     });
 
-    test('a non-null RECORD arg inlines with no guard (always constructible)',
+    test('a required RECORD arg fails the widget safe when missing/malformed',
         () {
       final recordNode = ObjectNode(
         fields: const {
@@ -152,12 +152,19 @@ void main() {
         richShapes: {('HeaderCard', 'header'): recordNode},
       );
 
-      // A non-null record reconstructs to an inline literal, which is never
-      // null — so no fail-safe guard (it would be a dead null-check).
-      expect(source, contains('final _restageA2uiArg_header = ('));
+      // A non-null record reconstructs to null when its raw is not a map, so a
+      // required record arg fails the widget safe (SizedBox.shrink) rather than
+      // fabricating a record from per-field fallbacks.
+      expect(source, contains('final _restageA2uiArg_header ='));
       expect(source, contains('title:'));
       expect(source, isNot(contains('BoundObject(')));
-      expect(source, isNot(contains('return const SizedBox.shrink();')));
+      expect(
+        source,
+        contains(
+          'if (_restageA2uiArg_header == null) '
+          'return const SizedBox.shrink();',
+        ),
+      );
       expect(source, contains('header: _restageA2uiArg_header,'));
     });
 

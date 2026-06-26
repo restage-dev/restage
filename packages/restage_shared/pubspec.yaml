@@ -2,7 +2,7 @@ name: restage_shared
 description: >-
   Pure-Dart Remote Flutter Widget (RFW) catalog format, schemas, validation, and
   shared value types used across the Restage packages.
-version: 1.0.1
+version: 1.0.2
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

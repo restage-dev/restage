@@ -214,6 +214,83 @@ void main() {
     expect(completed?.completed, isTrue);
   });
 
+  testWidgets('RestageOnboarding initialState overlays before first screen',
+      (tester) async {
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageOnboarding<_FirstRunResult>(
+        flow: flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _hostSeedDecisionDocument()),
+        ),
+        initialState: const _MapSeed({'isReturningUser': true}),
+        unavailable: FlowUnavailablePolicy.fallback(
+          builder: (_, error) => Text('fallback:${error.reason}'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Welcome'), findsNothing);
+    expect(find.textContaining('fallback:'), findsNothing);
+  });
+
+  testWidgets('RestageOnboarding initialState bad seed renders unavailable',
+      (tester) async {
+    FlowUnavailableError? callbackError;
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageOnboarding<_FirstRunResult>(
+        flow: flowRef,
+        resolver: _StaticFlowResolver(_resolvedFlow()),
+        initialState: const _MapSeed({'nope': true}),
+        unavailable: FlowUnavailablePolicy.fallback(
+          builder: (_, error) => Text(
+            'fallback:${error.reason}:${error.message}',
+          ),
+        ),
+        onFlowUnavailable: (error) => callbackError = error,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(callbackError?.reason, 'seed_unknown_key');
+    expect(callbackError?.message, contains('nope'));
+    expect(find.textContaining('fallback:seed_unknown_key'), findsOneWidget);
+    expect(find.textContaining('nope'), findsOneWidget);
+    expect(find.text('Welcome'), findsNothing);
+  });
+
+  testWidgets('RestageOnboarding seed is initial-only across a rebuild',
+      (tester) async {
+    // The seed is read at flow start; changing only initialState (same flow /
+    // resolver / actions) must not restart a running flow or re-seed it.
+    final resolver = _StaticFlowResolver(
+      _resolvedFlow(document: _hostSeedDecisionDocument()),
+    );
+    Widget build(FlowSeed seed) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: RestageOnboarding<_FirstRunResult>(
+            flow: flowRef,
+            resolver: resolver,
+            initialState: seed,
+            unavailable: const FlowUnavailablePolicy.hide(),
+          ),
+        );
+
+    await tester.pumpWidget(build(const _MapSeed({'isReturningUser': true})));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile'), findsOneWidget);
+
+    // Rebuild with a different seed only — the running flow stays on 'profile'.
+    await tester.pumpWidget(build(const _MapSeed({'isReturningUser': false})));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile'), findsOneWidget);
+    expect(find.text('Welcome'), findsNothing);
+  });
+
   testWidgets('legacy linear flow works when actions are omitted',
       (tester) async {
     await tester.pumpWidget(Directionality(
@@ -822,6 +899,15 @@ final class _FirstRunResult {
   }
 }
 
+final class _MapSeed implements FlowSeed {
+  const _MapSeed(this._values);
+
+  final Map<String, Object?> _values;
+
+  @override
+  Map<String, Object?> toFlowState() => _values;
+}
+
 final class _PendingResolver implements FlowResolver {
   final Completer<ResolvedFlow> _completer = Completer<ResolvedFlow>();
 
@@ -894,7 +980,9 @@ ResolvedFlow _resolvedFlow({
 
 FlowDocument _flowDocument({
   String flow = 'first_run',
+  String initial = 'welcome',
   Map<String, FlowActionContract>? actions,
+  Map<String, FlowStateDeclaration> flowState = const {},
   FlowOutboundDeclarations outbound = const FlowOutboundDeclarations(),
   bool legacyTerminalResultPassthrough = false,
   Map<String, FlowState>? states,
@@ -910,8 +998,9 @@ FlowDocument _flowDocument({
     version: 1,
     schemaVersion: 1,
     minClient: 3,
-    initial: 'welcome',
+    initial: initial,
     actions: actions ?? const {},
+    flowState: flowState,
     outbound: outbound,
     legacyTerminalResultPassthrough: legacyTerminalResultPassthrough,
     screenArtifacts: {
@@ -942,6 +1031,48 @@ FlowDocument _flowDocument({
           ),
           'done': EndFlowState(result: {'completed': true}),
         },
+  );
+}
+
+FlowDocument _hostSeedDecisionDocument() {
+  return _flowDocument(
+    initial: 'branch',
+    flowState: const {
+      'isReturningUser': FlowStateDeclaration(
+        type: FlowDataType.bool,
+        classification: FlowStateClassification.internal,
+        hostSeedable: true,
+      ),
+    },
+    states: const {
+      'branch': DecisionFlowState(
+        branches: [
+          FlowBranch(
+            when: FlowBranchPredicate(
+              fields: {
+                'isReturningUser': EqualsFlowPredicateCondition(
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.bool,
+                    value: true,
+                  ),
+                ),
+              },
+            ),
+            target: 'profile',
+          ),
+        ],
+        defaultBranch: FlowBranchTarget(target: 'welcome'),
+      ),
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {'next': FlowTransition.goto('done')},
+      ),
+      'profile': ScreenFlowState(
+        screen: 'profile',
+        on: {'finish': FlowTransition.goto('done')},
+      ),
+      'done': EndFlowState(result: {'completed': true}),
+    },
   );
 }
 

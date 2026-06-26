@@ -1,3 +1,14 @@
+## 0.1.2
+
+- Document the A2UI emit target's **rich structured data** support: a `@RestageWidget` property typed as a
+  customer data class (nested data classes, lists of objects, String-keyed maps, named records) generates a
+  rich `genui` schema that reconstructs and renders the value, with a fail-safe on a missing required value.
+- Document the opt-in `build_runner` builder workflow that produces the generated catalog and the capability
+  stamp from `@RestageWidget` source.
+- This package is unchanged at runtime; the rich-data support is in the build-time toolchain
+  (`restage_codegen`). Sealed-class unions and native (RFW) delivery of custom structured data are tracked
+  future capabilities.
+
 ## 0.1.1
 
 - Add a usage example.

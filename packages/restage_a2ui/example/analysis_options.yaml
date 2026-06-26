@@ -1,0 +1,20 @@
+# Public-bound BSD-3-Clause example — uses flutter_lints (matches pub.dev
+# community norms) instead of the workspace's stricter baseline.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  # The generated A2UI catalog is emitter output, not hand-written source — the
+  # emitter unconditionally emits its full helper set, so a catalog that uses
+  # only some helpers leaves the rest unused, and its internal locals follow the
+  # emitter's `_restageA2ui*` naming. The render test compiles + drives it
+  # against the real genui SDK (the compile + behaviour floor), so excluding it
+  # from lint loses no coverage.
+  exclude:
+    - lib/restage_a2ui_catalog.g.dart
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore

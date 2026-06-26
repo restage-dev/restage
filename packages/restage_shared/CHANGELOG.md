@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2
+
+- Add flow predicate sugar: the `FlowPredicateOperator` /
+  `FlowPredicateValueArity` vocabulary and related flow-document support for
+  decision-state authoring.
+
 ## 1.0.1
 
 - Add a usage example.
