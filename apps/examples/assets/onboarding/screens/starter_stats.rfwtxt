@@ -1,0 +1,7 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget StatBadge = Container(padding: [14.0, 10.0, 14.0, 10.0], color: data.theme.colorScheme.secondaryContainer, borderRadius: 12.0, child: Row(mainAxisSize: "min", children: [Text(text: args.label, color: data.theme.colorScheme.onSecondaryContainer, fontSize: 13.0, fontWeight: "w600"), SizedBox(width: 8.0), Text(text: args.value, color: data.theme.colorScheme.primary, fontSize: 15.0, fontWeight: "w800")]));
+
+widget OnboardingScreen = Scaffold(body: SafeArea(child: Padding(padding: [28.0, 28.0, 28.0, 28.0], child: Column(crossAxisAlignment: "stretch", children: [Spacer(), Text(text: "Your widget, delivered", textAlign: "center", color: data.theme.colorScheme.onSurface, fontSize: 26.0, fontWeight: "w800"), SizedBox(height: 8.0), Text(text: "StatBadge is your @RestageWidget — rendered here from the blob.", textAlign: "center", color: data.theme.colorScheme.onSurfaceVariant, fontSize: 15.0, height: 1.4), SizedBox(height: 28.0), Center(child: StatBadge(label: "Streak", value: "7 days")), SizedBox(height: 12.0), Center(child: StatBadge(label: "Saved", value: "$48.20")), SizedBox(height: 12.0), Center(child: StatBadge(label: "Rank", value: "Top 5%")), Spacer(), FilledButton(onPressed: event "done" {}, padding: [0.0, 16.0, 0.0, 16.0], child: Text(text: "Done"))]))));

@@ -359,6 +359,53 @@ void main() {
     );
   });
 
+  // ---------------------------------------------------------------------------
+  // Command registration
+  // Asserts that `restage surface --help` and `restage paywall --help` list
+  // the lifecycle subcommands added in this chapter. These tests do not
+  // make any network calls — the help text is produced entirely by the
+  // command-runner and redirected to the stdout sink via the print zone.
+  // ---------------------------------------------------------------------------
+
+  group('command registration', () {
+    test('restage surface --help lists all lifecycle subcommands', () async {
+      final cli = RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+      );
+      final exit = await cli.run(const ['surface', '--help']);
+      expect(exit, 0, reason: stderr.toString());
+      final out = stdout.toString();
+      expect(out, contains('status'));
+      expect(out, contains('kill'));
+      expect(out, contains('freeze'));
+      expect(out, contains('unfreeze'));
+      expect(out, contains('rollback'));
+    });
+
+    test('restage paywall --help lists lifecycle subcommands alongside '
+        'list and publish', () async {
+      final cli = RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+      );
+      final exit = await cli.run(const ['paywall', '--help']);
+      expect(exit, 0, reason: stderr.toString());
+      final out = stdout.toString();
+      expect(out, contains('list'));
+      expect(out, contains('publish'));
+      expect(out, contains('status'));
+      expect(out, contains('kill'));
+      expect(out, contains('freeze'));
+      expect(out, contains('unfreeze'));
+      expect(out, contains('rollback'));
+    });
+  });
+
   group('restage whoami', () {
     test('with a stored valid credential: prints the email', () async {
       await store.write(

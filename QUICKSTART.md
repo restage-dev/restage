@@ -7,11 +7,11 @@ steps build any surface: onboarding, an in-app message, or a full screen.
 The whole thing runs offline. You do not need a Restage account or a backend to
 write a surface and render it on device.
 
-If you would rather read working code than a walkthrough, the
-[`apps/examples`](apps/examples) directory has six complete paywalls plus
-engagement-surface examples (onboarding, a permission prompt, an in-app message,
-and a survey). Copying one of those is a perfectly good way to start. This guide
-builds a smaller version of the same thing from scratch.
+If you would rather read working code than a walkthrough, the [`apps/examples`](apps/examples)
+README has a **Starters** section — four minimal, copy-me surfaces (a paywall, an
+onboarding flow, a one-screen message, and a custom widget), each the smallest file
+that still ships — plus a library of fuller, polished surfaces. Copying a starter is the
+fastest way to begin. This guide builds one from scratch so you see each piece.
 
 ## 1. Add the packages
 

@@ -1,0 +1,222 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 1,
+    "availableLibraries": [],
+    "perItemSinceVersion": {
+      "ActionButton": 1,
+      "MultiSelect": 1,
+      "QuickCheck": 1,
+      "Range": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/1",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/1",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "ActionButton": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "ActionButton"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "label"
+        ]
+      },
+      "MultiSelect": {
+        "type": "object",
+        "properties": {
+          "chosen": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "MultiSelect"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "chosen"
+        ]
+      },
+      "QuickCheck": {
+        "type": "object",
+        "properties": {
+          "selected": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "QuickCheck"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "selected"
+        ]
+      },
+      "Range": {
+        "type": "object",
+        "properties": {
+          "low": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "high": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "Range"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "low",
+          "high"
+        ]
+      }
+    },
+    "functions": {}
+  }
+}

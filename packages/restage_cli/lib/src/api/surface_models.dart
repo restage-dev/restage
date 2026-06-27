@@ -54,6 +54,101 @@ class SurfaceSummary {
   }
 }
 
+/// Operator lifecycle snapshot of one surface in one environment, decoded from
+/// the backend's status view. Unknown fields (and the trailing `__className__`
+/// discriminator) are ignored.
+@experimental
+@immutable
+class SurfaceStatusResult {
+  /// Construct a status result.
+  const SurfaceStatusResult({
+    required this.surfaceType,
+    required this.surfaceSlug,
+    required this.environmentSlug,
+    required this.liveVersion,
+    required this.locked,
+    required this.deliveryShape,
+    required this.versions,
+  });
+
+  /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey`).
+  final String surfaceType;
+
+  /// Surface slug, unique within an app + type.
+  final String surfaceSlug;
+
+  /// Environment slug the snapshot is scoped to.
+  final String environmentSlug;
+
+  /// Active published version, or null when nothing has been activated.
+  final int? liveVersion;
+
+  /// Whether the surface is locked against new publishes.
+  final bool locked;
+
+  /// Delivery shape wire name (`blob` or `flow`).
+  final String deliveryShape;
+
+  /// Ordered list of published versions, most-recent first.
+  final List<SurfaceVersionResult> versions;
+
+  /// Rollback re-points the active-version pointer, which only changes what a
+  /// blob surface serves; a version-pinned flow is unaffected, so rollback is
+  /// offered only for blob-shaped surfaces.
+  bool get supportsRollback => deliveryShape == 'blob';
+
+  /// Decode from the backend's JSON-shaped wire payload.
+  factory SurfaceStatusResult.fromJson(Map<String, dynamic> json) {
+    final rawVersions = json['versions'] as List<dynamic>? ?? const [];
+    return SurfaceStatusResult(
+      surfaceType: json['surfaceType']?.toString() ?? '',
+      surfaceSlug: json['surfaceSlug']! as String,
+      environmentSlug: json['environmentSlug']! as String,
+      liveVersion: json['liveVersion'] as int?,
+      locked: json['locked']! as bool,
+      deliveryShape: json['deliveryShape']?.toString() ?? '',
+      versions: [
+        for (final v in rawVersions)
+          SurfaceVersionResult.fromJson(v as Map<String, dynamic>),
+      ],
+    );
+  }
+}
+
+/// One immutable published version in [SurfaceStatusResult.versions].
+@experimental
+@immutable
+class SurfaceVersionResult {
+  /// Construct a version result.
+  const SurfaceVersionResult({
+    required this.version,
+    required this.publishedAt,
+    required this.contentHash,
+    required this.isActive,
+  });
+
+  /// Monotonically increasing version number.
+  final int version;
+
+  /// Wall-clock instant the version was published.
+  final DateTime publishedAt;
+
+  /// Content hash of the published payload.
+  final String contentHash;
+
+  /// Whether this version is the current active-serve version.
+  final bool isActive;
+
+  /// Decode from the backend's JSON-shaped wire payload.
+  factory SurfaceVersionResult.fromJson(Map<String, dynamic> json) =>
+      SurfaceVersionResult(
+        version: json['version']! as int,
+        publishedAt: DateTime.parse(json['publishedAt']! as String),
+        contentHash: json['contentHash']! as String,
+        isActive: json['isActive']! as bool,
+      );
+}
+
 /// Sealed hierarchy for typed errors returned by surface endpoints. The
 /// CLI catches the transport-layer exception, runs
 /// [decodeSurfaceTypedException] over the body, and surfaces these to the
@@ -113,6 +208,34 @@ class SurfaceEnvironmentNotFound extends SurfaceException {
       'SurfaceEnvironmentNotFound(environmentSlug: $environmentSlug)';
 }
 
+/// Rollback was requested on a surface whose delivery shape does not support
+/// re-pointing (e.g. a flow surface).
+@experimental
+class SurfaceRollbackUnsupported extends SurfaceException {
+  /// Construct with the offending [surfaceSlug].
+  const SurfaceRollbackUnsupported({required this.surfaceSlug});
+  final String surfaceSlug;
+
+  @override
+  String toString() => 'SurfaceRollbackUnsupported(surfaceSlug: $surfaceSlug)';
+}
+
+/// The requested rollback target version does not exist for the surface.
+@experimental
+class SurfaceVersionNotFound extends SurfaceException {
+  /// Construct with the offending [surfaceSlug] and [toVersion].
+  const SurfaceVersionNotFound({
+    required this.surfaceSlug,
+    required this.toVersion,
+  });
+  final String surfaceSlug;
+  final int toVersion;
+
+  @override
+  String toString() =>
+      'SurfaceVersionNotFound(surfaceSlug: $surfaceSlug, toVersion: $toVersion)';
+}
+
 /// Attempt to decode [body] as one of the typed surface exceptions.
 ///
 /// Returns null when [body] is not a surface typed-exception payload (the
@@ -150,6 +273,21 @@ SurfaceException? decodeSurfaceTypedException(String body) {
     case 'EnvironmentNotFoundException':
       return SurfaceEnvironmentNotFound(
         environmentSlug: data['environmentSlug'] as String,
+      );
+    case 'SurfaceRollbackUnsupportedException':
+      return SurfaceRollbackUnsupported(
+        surfaceSlug: data['surfaceSlug'] as String,
+      );
+    case 'SurfaceVersionNotFoundException':
+      // Defensive: if the expected fields are absent or wrong-typed, fall
+      // through to the generic renderer rather than throwing.
+      final versionSlug = data['surfaceSlug'];
+      final versionNum =
+          data['version']; // wire key is 'version', not 'toVersion'
+      if (versionSlug is! String || versionNum is! int) return null;
+      return SurfaceVersionNotFound(
+        surfaceSlug: versionSlug,
+        toVersion: versionNum,
       );
     default:
       return null;

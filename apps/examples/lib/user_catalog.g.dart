@@ -83,5 +83,32 @@ final Catalog kUserCatalog = Catalog(
         ),
       ],
     ),
+    WidgetEntry(
+      wireId: WireId('w0009'),
+      name: 'StatBadge',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'A labelled value pill, e.g. "Streak · 7 days".',
+      flutterType:
+          'package:restage_example/widgets/minimal_custom_widget.dart#StatBadge',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0021'),
+          name: 'label',
+          type: PropertyType.string,
+          description: 'Caption text.',
+          required: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0022'),
+          name: 'value',
+          type: PropertyType.string,
+          description: 'Value text.',
+          required: true,
+        ),
+      ],
+    ),
   ],
 );

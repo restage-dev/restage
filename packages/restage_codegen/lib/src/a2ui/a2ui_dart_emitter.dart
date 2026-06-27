@@ -467,7 +467,14 @@ String emitA2uiCatalogDart(
   _assertPrefixableSpellings(plan, dataBuilder);
   final buf = StringBuffer();
   writeGeneratedHeader(buf);
-  buf.writeln();
+  // The emitter emits its full helper set unconditionally (child-slot, color,
+  // font-weight, and per-class rich-shape reconstruction helpers); a catalog
+  // that uses only some leaves the rest unreferenced. Suppress the resulting
+  // analyzer warning in the generated file so a consumer's `flutter analyze`
+  // stays clean without them having to exclude the file.
+  buf
+    ..writeln('// ignore_for_file: unused_element')
+    ..writeln();
 
   for (final uri in importUris) {
     final prefix = prefixes[uri];
@@ -736,6 +743,271 @@ A2uiSchemaNode _findFieldNodeWithDefId(
     'across the widget fields.',
   );
 }
+
+// ── A2UI data-schema MAP projection (the standalone-document twin) ───────────
+//
+// The standalone `.a2ui.json` catalog document carries each component's full
+// data schema (so a producer generating payloads against the document alone —
+// not the generated `.g.dart` — can see a component's fields). It is projected
+// from the SAME `plan.fields` the generated `CatalogItem.dataSchema` is, but as
+// a plain `Map` built directly here — NOT via `json_schema_builder` (which the
+// build-time toolchain must not depend on; see `a2ui_isolation_test`). Each map
+// REPLICATES exactly what the `.g.dart`'s `S.*` constructor serializes to
+// (`Schema.value` on json_schema_builder 0.1.x: `'type'` always present, all
+// other keywords omitted when null but kept when an explicit empty
+// `required: []` is passed). So a component's document data schema equals the
+// runtime `CatalogItem.dataSchema.value`, and the `restage_a2ui` doc-tie pins
+// that against the real genui SDK (it also fails loud if a future
+// json_schema_builder serialization change makes the two diverge).
+//
+// Each `…Map` function below mirrors its `…Expression`/`…Schema` source twin
+// arm-for-arm (same fail-loud arms, same nullability + `$defs`/`$ref` two-pass,
+// same write-back value-reference shape), reusing the shared, output-agnostic
+// helpers (`_collectRefTargets`, `_assignSafeDefKeys`, `_DefsContext`, …).
+
+/// The data-schema map for [plan] — the document-side twin of
+/// [_schemaExpression]. Consumes the SAME field projection, so the document's
+/// component schema and the generated `CatalogItem` schema agree.
+Map<String, Object?> a2uiWidgetDataSchemaMapForPlan(A2uiDartWidgetPlan plan) =>
+    _widgetDataSchemaMap([
+      for (final field in plan.fields)
+        (
+          name: field.property.name,
+          required: field.property.required,
+          emission: field.emission,
+        ),
+    ]);
+
+/// Map mirror of [a2uiWidgetDataSchemaExpression].
+Map<String, Object?> _widgetDataSchemaMap(List<A2uiWidgetField> fields) {
+  final refTargets = <String>{};
+  for (final field in fields) {
+    final emission = field.emission;
+    if (emission is A2uiDataField) {
+      refTargets.addAll(_collectRefTargets(emission.node));
+    }
+  }
+  if (refTargets.isEmpty) {
+    return _widgetObjectSchemaMap(fields);
+  }
+
+  final defIds = <String>{_syntheticRootDefId, ...refTargets};
+  final safeKeys = _assignSafeDefKeys(defIds);
+  final ctx = _DefsContext(refTargets: refTargets, safeKeys: safeKeys);
+
+  final nodeForDef = <String, A2uiSchemaNode>{
+    for (final id in refTargets) id: _findFieldNodeWithDefId(fields, id),
+  };
+
+  final orderedIds = defIds.toList()
+    ..sort((a, b) => safeKeys[a]!.compareTo(safeKeys[b]!));
+  final defs = <String, Object?>{};
+  for (final id in orderedIds) {
+    defs[safeKeys[id]!] = id == _syntheticRootDefId
+        ? _widgetObjectSchemaMap(fields, ctx: ctx)
+        : _projectNodeMap(nodeForDef[id]!, ctx, atDefRoot: true);
+  }
+  // `$defs` before `$ref` matches json_schema_builder's `S.combined` map order
+  // (its factory literal lists `$defs` first), so the document is byte-stable
+  // against what the `.g.dart`'s `S.combined($ref:, $defs:)` serializes to.
+  return {
+    r'$defs': defs,
+    r'$ref': _refPointer(safeKeys[_syntheticRootDefId]!),
+  };
+}
+
+/// Map mirror of [_widgetObjectSchema].
+Map<String, Object?> _widgetObjectSchemaMap(
+  List<A2uiWidgetField> fields, {
+  _DefsContext? ctx,
+}) {
+  final properties = <String, Object?>{
+    for (final field in fields)
+      field.name: _fieldSchemaMap(field.emission, ctx),
+  };
+  final required = <String>[
+    for (final field in fields)
+      if (field.required) field.name,
+  ];
+  return {'type': 'object', 'properties': properties, 'required': required};
+}
+
+/// Map mirror of [_fieldSchema].
+Map<String, Object?> _fieldSchemaMap(
+  A2uiFieldEmission emission,
+  _DefsContext? ctx,
+) {
+  switch (emission) {
+    case A2uiDataField(:final node, :final writeBack):
+      if (writeBack && (node is ScalarNode || node is ListNode)) {
+        return _writeBackReferenceMap(node);
+      }
+      return ctx == null
+          ? _schemaForNodeMap(node)
+          : _projectNodeMap(node, ctx, atDefRoot: false);
+    case A2uiChildField(:final slot):
+      switch (slot) {
+        case A2uiChildNode():
+          return {'type': 'string'};
+        case A2uiChildrenNode():
+          return {
+            'type': 'array',
+            'items': {'type': 'string'},
+          };
+      }
+  }
+}
+
+/// Map mirror of [_writeBackReferenceSchema] — the genui value-reference shape
+/// (a literal OR a `{path}` binding OR a `{call}` function-call source).
+Map<String, Object?> _writeBackReferenceMap(A2uiSchemaNode node) => {
+      'oneOf': <Object?>[
+        _schemaForNodeBaseMap(node),
+        {
+          'type': 'object',
+          'properties': {
+            'path': {'type': 'string'},
+          },
+          'required': const ['path'],
+        },
+        {
+          'type': 'object',
+          'properties': {
+            'call': {'type': 'string'},
+            'args': {'type': 'object', 'additionalProperties': true},
+          },
+          'required': const ['call'],
+        },
+      ],
+    };
+
+/// Map mirror of [_schemaForNode].
+Map<String, Object?> _schemaForNodeMap(A2uiSchemaNode node) =>
+    _wrapNullableMap(_schemaForNodeBaseMap(node), node.nullable);
+
+/// Map mirror of [_wrapNullable].
+Map<String, Object?> _wrapNullableMap(
+  Map<String, Object?> base,
+  bool nullable,
+) =>
+    nullable
+        ? {
+            'anyOf': <Object?>[
+              base,
+              {'type': 'null'},
+            ],
+          }
+        : base;
+
+/// Map mirror of [_schemaForNodeBase].
+Map<String, Object?> _schemaForNodeBaseMap(A2uiSchemaNode node) {
+  switch (node) {
+    case ScalarNode(:final type):
+      switch (type) {
+        case A2uiScalarType.boolean:
+          return {'type': 'boolean'};
+        case A2uiScalarType.number:
+          return {'type': 'number'};
+        case A2uiScalarType.integer:
+          return {'type': 'integer'};
+        case A2uiScalarType.string:
+          return {'type': 'string'};
+      }
+    case EnumNode(:final members):
+      if (members.isEmpty) return {'type': 'string'};
+      return {'type': 'string', 'enum': members.toList()};
+    case ListNode(:final element):
+      return {'type': 'array', 'items': _schemaForNodeMap(element)};
+    case ObjectNode(:final fields, :final required):
+      return _objectSchemaMap(fields, required);
+    case MapNode(:final valueType):
+      return {
+        'type': 'object',
+        'additionalProperties': _schemaForNodeMap(valueType),
+      };
+    case UnionNode() || RefNode():
+      throw StateError(_richNodeUnsupportedMessage(node));
+  }
+}
+
+/// Map mirror of [_objectSchema].
+Map<String, Object?> _objectSchemaMap(
+  Map<String, A2uiSchemaNode> fields,
+  Set<String> required,
+) {
+  final properties = <String, Object?>{
+    for (final entry in fields.entries)
+      entry.key: _schemaForNodeMap(entry.value),
+  };
+  return {
+    'type': 'object',
+    'properties': properties,
+    'required': required.toList(),
+  };
+}
+
+/// Map mirror of [_projectNode].
+Map<String, Object?> _projectNodeMap(
+  A2uiSchemaNode node,
+  _DefsContext ctx, {
+  required bool atDefRoot,
+}) {
+  final base = _projectNodeBaseMap(node, ctx, atDefRoot: atDefRoot);
+  return _wrapNullableMap(base, !atDefRoot && node.nullable);
+}
+
+/// Map mirror of [_projectNodeBase].
+Map<String, Object?> _projectNodeBaseMap(
+  A2uiSchemaNode node,
+  _DefsContext ctx, {
+  required bool atDefRoot,
+}) {
+  switch (node) {
+    case ScalarNode() || EnumNode():
+      return _schemaForNodeBaseMap(node);
+    case ListNode(:final element):
+      return {
+        'type': 'array',
+        'items': _projectNodeMap(element, ctx, atDefRoot: false),
+      };
+    case MapNode(:final valueType):
+      return {
+        'type': 'object',
+        'additionalProperties':
+            _projectNodeMap(valueType, ctx, atDefRoot: false),
+      };
+    case ObjectNode(:final fields, :final required, :final defId):
+      if (!atDefRoot && defId != null && ctx.refTargets.contains(defId)) {
+        return _refMap(ctx, defId);
+      }
+      final properties = <String, Object?>{
+        for (final entry in fields.entries)
+          entry.key: _projectNodeMap(entry.value, ctx, atDefRoot: false),
+      };
+      return {
+        'type': 'object',
+        'properties': properties,
+        'required': required.toList(),
+      };
+    case RefNode(:final defId):
+      return _refMap(ctx, defId);
+    case UnionNode():
+      throw StateError(_richNodeUnsupportedMessage(node));
+  }
+}
+
+/// Map mirror of [_refExpression].
+Map<String, Object?> _refMap(_DefsContext ctx, String defId) {
+  final key = ctx.safeKeys[defId];
+  if (key == null) {
+    throw StateError('A2UI projection: no \$defs key assigned for "$defId".');
+  }
+  return {r'$ref': _refPointer(key)};
+}
+
+/// The JSON pointer `#/$defs/<key>` value (the runtime twin of [_refLiteral],
+/// which produces the same pointer as Dart SOURCE).
+String _refPointer(String key) => '#/\$defs/$key';
 
 /// The widget `S.object` body for [fields]. With a [ctx] each data field is
 /// projected cycle-aware (recursive occurrences become `$ref`s, the `$defs`

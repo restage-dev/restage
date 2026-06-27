@@ -1,6 +1,10 @@
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
-    show A2uiRichShapes, classifyA2uiCatalogDart;
+    show
+        A2uiDartWidgetPlan,
+        A2uiRichShapes,
+        a2uiWidgetDataSchemaMapForPlan,
+        classifyA2uiCatalogDart;
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -9,15 +13,24 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Restage **capability/manifest view** of the A2UI catalog.
 ///
 /// **The catalog.json/manifest vs the Dart CatalogItem split.** This produces
-/// the capability/manifest artifact: the component name list + the two-axis
-/// capability stamp, with **discriminator-only** component schemas. Its job is
-/// the app-side pre-render check (walk component names + read the stamp) and
-/// versioning/inspection — none of which needs the per-property schema. The
-/// **authoritative functional contract** — the full per-property `dataSchema`
-/// and the `widgetBuilder` — lives in the generated Dart `CatalogItem` set
-/// (`emitA2uiCatalogDart`), from which genui projects the LLM contract at
-/// runtime. The manifest deliberately does NOT duplicate that schema (it would
-/// be a drift vector with no consumer).
+/// the capability/manifest artifact: the component name list, the two-axis
+/// capability stamp, and a **self-describing per-component data schema**. Its
+/// jobs are the app-side pre-render check (walk component names + read the
+/// stamp), versioning/inspection, and — for a producer that generates payloads
+/// against the standalone document alone (not the generated `.g.dart`) —
+/// advertising each component's fields. The still-**authoritative functional
+/// contract** — the per-property `dataSchema` AND the `widgetBuilder` — lives
+/// in the generated Dart `CatalogItem` set (`emitA2uiCatalogDart`), from which
+/// genui projects the LLM contract at runtime. The document does NOT carry a
+/// `widgetBuilder` (build-time only), but its per-component data schema is
+/// the SAME schema the `CatalogItem` carries: both are projected from the SAME
+/// classified plan fields ([a2uiWidgetDataSchemaMapForPlan] mirrors
+/// `emitA2uiCatalogDart`'s schema expression arm-for-arm, emitting the plain
+/// map the `.g.dart`'s `S.*` schema serializes to — without depending on
+/// json_schema_builder), so a component's document schema equals the runtime
+/// `CatalogItem.dataSchema.value`. The `restage_a2ui` artifact-tie test pins
+/// that equivalence against the real genui SDK, closing the drift vector that
+/// would otherwise come from carrying the schema in two places.
 ///
 /// **One emittable set, both artifacts agree by construction.** This manifest
 /// and the Dart `CatalogItem` set are emitted over the SAME A2UI-emittable
@@ -48,9 +61,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///    capability versions. Carrying this second axis is what keeps the app-side
 ///    check from failing open for custom libraries.
 ///
-/// Each manifest component's schema is the **discriminator-only** object schema
-/// (the `component` const) by design — the full per-property schema is the Dart
-/// `CatalogItem`'s job, not the manifest's (see the split above).
+/// Each component's schema is the component's data schema with the `component`
+/// discriminator injected — replicating genui's `CatalogItem.dataSchema`
+/// getter, so the document carries genui's canonical component-schema format
+/// (see [_componentSchema]).
 ///
 /// Throws an [ArgumentError] when:
 ///  * two widgets share a component name (the A2UI catalog is a flat name-keyed
@@ -71,35 +85,35 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
   // The interactivity seam + rich shapes + the pairing seam are threaded
   // through so an interactive widget the Dart emitter keeps (a lowered
   // callback) is kept here too.
-  final emittable = classifyA2uiCatalogDart(
+  final plans = classifyA2uiCatalogDart(
     catalog,
     nativeIndex: nativeIndex,
     eventSeam: eventSeam,
     richShapes: richShapes,
     pairingSeam: pairingSeam,
-  ).widgets.map((plan) => plan.entry).toList(growable: false);
+  ).widgets;
+  final emittable = [for (final plan in plans) plan.entry];
 
   // De-duplicate by name; ANY duplicate name fails loud (the catalog map is
   // flat). Cross-library is called out as the special case in the message.
-  final byName = <String, WidgetEntry>{};
-  for (final widget in emittable) {
-    final existing = byName[widget.name];
+  // Keyed by the PLAN (not just the entry) so the component schema can be
+  // projected from the plan's classified fields.
+  final byName = <String, A2uiDartWidgetPlan>{};
+  for (final plan in plans) {
+    final existing = byName[plan.entry.name];
     if (existing != null) {
       throw ArgumentError.value(
-        widget.name,
+        plan.entry.name,
         'name',
-        _duplicateNameMessage(widget, existing),
+        _duplicateNameMessage(plan.entry, existing.entry),
       );
     }
-    byName[widget.name] = widget;
+    byName[plan.entry.name] = plan;
   }
 
   final components = [
-    for (final widget in byName.values)
-      A2uiComponent(
-        name: widget.name,
-        dataSchema: _discriminatorOnlySchema(widget.name),
-      ),
+    for (final plan in byName.values)
+      A2uiComponent(name: plan.entry.name, dataSchema: _componentSchema(plan)),
   ];
 
   // Built-in axis: the single canonical content-version formula over the
@@ -137,7 +151,7 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
   }
 
   final perItemSinceVersion = {
-    for (final widget in byName.values) widget.name: widget.sinceVersion,
+    for (final plan in byName.values) plan.entry.name: plan.entry.sinceVersion,
   };
 
   return RestageStampedA2uiCatalog(
@@ -168,18 +182,49 @@ String _duplicateNameMessage(WidgetEntry widget, WidgetEntry existing) {
       'declared more than once in library "${widget.library.namespace}".';
 }
 
-/// The minimal-valid component schema: an object whose only constraint is the
-/// `component` discriminator (a const equal to the component name). The A2UI
-/// renderer selects a component by this discriminator; the per-property body is
-/// added in a later milestone.
-Map<String, Object?> _discriminatorOnlySchema(String name) => {
-      'type': 'object',
-      'properties': {
-        'component': {
-          'type': 'string',
-          'enum': [name],
-        },
+/// The component schema for [plan]: the component's full data schema (projected
+/// from the plan's classified fields via [a2uiWidgetDataSchemaMapForPlan]) with
+/// the `component` discriminator injected. A producer can therefore read a
+/// component's fields from the standalone document alone — not only from the
+/// generated `.g.dart`.
+///
+/// This REPLICATES genui's `CatalogItem.dataSchema` getter exactly — its
+/// canonical component-schema format (the same shape genui's own
+/// `Catalog.toCapabilitiesJson()` emits per component): the data schema is
+/// spread, then `properties` is overlaid with the existing data properties plus
+/// a `component` const-enum discriminator, and `required` is overlaid with
+/// `component` ahead of the data's required set. So a component's document
+/// schema equals the runtime `CatalogItem.dataSchema.value` by construction
+/// (the `restage_a2ui` document-tie pins it against the real genui SDK).
+///
+/// The spread handles every data-schema shape uniformly: an object-rooted data
+/// schema already carries `properties`/`required` (overlaid); a
+/// recursion-bearing `$ref`/`$defs` data schema carries neither, so `component`
+/// is added as a `$ref` sibling (evaluated under draft 2020-12, exactly as
+/// genui does). A component with no data fields yields
+/// `{type: object, properties: {component}, required: [component]}`.
+///
+/// **Recursion ref scope.** For a recursion-bearing component, the schema keeps
+/// genui's own `#/$defs/…` pointers, which are component-root-relative — each
+/// `components.<Name>` schema is a STANDALONE schema resource (resolve `$ref`
+/// within the component schema, not the whole `.a2ui.json` document). This
+/// matches genui's `toCapabilitiesJson` schema-for-schema (genui nests the same
+/// component `dataSchema.value` under `components`); we deliberately match it
+/// rather than rewriting refs.
+Map<String, Object?> _componentSchema(A2uiDartWidgetPlan plan) {
+  final data = a2uiWidgetDataSchemaMapForPlan(plan);
+  final dataProps = (data['properties'] as Map?)?.cast<String, Object?>() ??
+      const <String, Object?>{};
+  final dataRequired = (data['required'] as List?) ?? const <Object?>[];
+  return <String, Object?>{
+    ...data,
+    'properties': <String, Object?>{
+      ...dataProps,
+      'component': <String, Object?>{
+        'type': 'string',
+        'enum': [plan.entry.name],
       },
-      'required': ['component'],
-      'additionalProperties': false,
-    };
+    },
+    'required': <Object?>['component', ...dataRequired],
+  };
+}

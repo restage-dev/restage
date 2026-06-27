@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_shape_reflector.dart';
@@ -30,6 +32,15 @@ const _fixtureRelativePath =
 /// dependency), beside the fixture it imports.
 const _generatedPath =
     '../restage_a2ui/test/generated/rich_shape_catalog.g.dart';
+
+/// The committed standalone A2UI document for the same fixture. Its
+/// per-component data schemas are tied — against the real genui SDK — to the
+/// generated catalog's `CatalogItem.dataSchema` by the `restage_a2ui`
+/// `a2ui_schema_document_tie_test`. It carries the rich shapes (nested objects,
+/// lists-of-objects, maps, and a recursive `CommentThread`), so that tie
+/// exercises the document projection over every shape the emitter produces.
+const _manifestPath =
+    '../restage_a2ui/test/generated/rich_shape_catalog.a2ui.json';
 
 /// The import the committed `.g.dart` uses for the fixture (the resolved
 /// `file://` URI is normalized to this at the test boundary).
@@ -278,6 +289,32 @@ void main() {
         file.readAsStringSync().trimRight(),
         reason: 'the committed rich-shape catalog has drifted from the '
             'emitter; regenerate with REGEN_A2UI_DART_GOLDEN=1',
+      );
+
+      // The standalone A2UI document for the SAME fixture/shapes — its
+      // per-component data schemas carry the full rich data shapes. Emitted
+      // from the SAME `shapes` so the document and the `.g.dart` `CatalogItem`
+      // schema agree by construction; the `restage_a2ui` document-tie pins that
+      // equivalence against the real genui SDK. No URI normalization: the
+      // document carries no import URIs (the `$defs` keys are symbol-derived).
+      const encoder = JsonEncoder.withIndent('  ');
+      final manifest = emitA2uiCatalog(catalog, richShapes: shapes);
+      final manifestJson = encoder.convert(manifest.toJson());
+      final manifestFile = File(_manifestPath);
+      if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
+        manifestFile.parent.createSync(recursive: true);
+        manifestFile.writeAsStringSync('$manifestJson\n');
+      }
+      expect(
+        manifestFile.existsSync(),
+        isTrue,
+        reason: 'run with REGEN_A2UI_GOLDEN=1 to generate $_manifestPath',
+      );
+      expect(
+        manifestJson,
+        manifestFile.readAsStringSync().trimRight(),
+        reason: 'the committed rich-shape A2UI document has drifted from the '
+            'emitter; regenerate with REGEN_A2UI_GOLDEN=1',
       );
     });
   });

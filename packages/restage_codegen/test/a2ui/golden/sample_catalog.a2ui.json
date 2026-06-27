@@ -34,12 +34,14 @@
         },
         "required": [
           "component"
-        ],
-        "additionalProperties": false
+        ]
       },
       "Column": {
         "type": "object",
         "properties": {
+          "spacing": {
+            "type": "number"
+          },
           "component": {
             "type": "string",
             "enum": [
@@ -49,8 +51,7 @@
         },
         "required": [
           "component"
-        ],
-        "additionalProperties": false
+        ]
       },
       "FilledButton": {
         "type": "object",
@@ -64,12 +65,14 @@
         },
         "required": [
           "component"
-        ],
-        "additionalProperties": false
+        ]
       },
       "Text": {
         "type": "object",
         "properties": {
+          "text": {
+            "type": "string"
+          },
           "component": {
             "type": "string",
             "enum": [
@@ -78,9 +81,9 @@
           }
         },
         "required": [
-          "component"
-        ],
-        "additionalProperties": false
+          "component",
+          "text"
+        ]
       }
     },
     "functions": {}

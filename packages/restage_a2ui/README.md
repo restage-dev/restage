@@ -123,14 +123,21 @@ targets:
 **5. Generate:**
 
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build
 ```
 
 **6. Your two outputs appear** (under `lib/`):
 
 - `…catalog.g.dart` — `buildRestageCatalogItems()`: the genui `CatalogItem`s (each with its data schema and
   widget builder) that genui renders against.
-- `…catalog.a2ui.json` — the A2UI-standard catalog document (`{ restageCapability, a2uiCatalog }`).
+- `…catalog.a2ui.json` — the A2UI-standard catalog document (`{ restageCapability, a2uiCatalog }`). Each
+  `a2uiCatalog.components.<Name>` carries that component's full data schema — the *same* schema genui's own
+  `Catalog.toCapabilitiesJson()` would emit (the data fields plus the injected `component` discriminator) — so
+  a producer can generate payloads against this document alone. Two notes that follow genui's conventions: each
+  component schema is a **standalone schema resource** (a recursive component keeps genui's component-root-relative
+  `#/$defs/…` pointers, so resolve `$ref` *within* the component schema, not against the whole file); and `id` +
+  `component` are **reserved A2UI envelope keys** — genui strips them from a component's data, so don't name a
+  top-level `@RestageWidget` field either (nest it in a data class if you need that name).
 
 **7. Render with genui:**
 
