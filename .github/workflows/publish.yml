@@ -144,5 +144,27 @@ jobs:
             exit 1
           fi
 
-          echo "Dry-run clean. Publishing $PKG..."
+          # Hand pub a GitHub-signed OIDC token for trusted publishing. The
+          # Flutter setup action does not provision this credential (unlike the
+          # Dart setup action), so without it `pub publish` falls back to an
+          # interactive browser login and hangs. This mirrors the documented
+          # "identity-token | pub token add https://pub.dev" flow, registering
+          # the token by env var so it remains fresh and out of the pub token
+          # cache file.
+          echo "Dry-run clean. Configuring OIDC trusted publishing for $PKG..."
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error::OIDC request env missing - the job needs 'permissions: id-token: write'"
+            exit 1
+          fi
+          export PUB_TOKEN="$(curl -sS \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fpub.dev" | jq -r '.value')"
+          if [[ -z "${PUB_TOKEN}" || "${PUB_TOKEN}" == "null" ]]; then
+            echo "::error::could not mint a GitHub OIDC token for pub.dev"
+            exit 1
+          fi
+          "$pub_bin" pub token add https://pub.dev --env-var PUB_TOKEN \
+            || { echo "::error::pub token add failed"; exit 1; }
+
+          echo "Publishing $PKG via trusted publishing..."
           "$pub_bin" pub publish --force
