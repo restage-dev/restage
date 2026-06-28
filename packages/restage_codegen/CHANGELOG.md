@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.4
+
+- Carry each component's full data schema in the standalone A2UI catalog document, not only the
+  component discriminator, so a consumer reading the document alone (without the generated Dart) sees
+  every component's fields and can generate rich payloads against it.
+- Suppress `unused_element` in the generated A2UI catalog so a catalog that references only some of the
+  shared helpers analyzes clean in the consumer's project.
+
 ## 1.0.3
 
 - Emit a rich A2UI catalog for a customer `@RestageWidget` whose property is typed as a data class: nested

@@ -1,3 +1,9 @@
+## 0.1.3
+
+- Update the catalog walkthrough to drop the removed `build_runner` `--delete-conflicting-outputs` flag.
+- Regenerate the bundled example catalog so its standalone A2UI document carries each component's full
+  data schema (see `restage_codegen` 1.0.4). This package is unchanged at runtime.
+
 ## 0.1.2
 
 - Document the A2UI emit target's **rich structured data** support: a `@RestageWidget` property typed as a
