@@ -39,12 +39,18 @@ Catalog _mixedCatalog({int? acmeCapabilityVersion = 3}) {
 
 void main() {
   group('emitA2uiCatalog — components', () {
-    test('projects each widget to a discriminator-only component', () {
+    test('injects the discriminator into the per-property data schema', () {
       // emitA2uiCatalog emits over the A2UI-emittable set, so the fixtures use
       // emittable widgets (scalar/enum/child-with-field), never an unrealistic
       // children-slot-without-a-children-field (which scopes out of both arts).
+      // The component schema replicates genui's `CatalogItem.dataSchema`
+      // getter: the data properties plus a `component` const-enum, `component`
+      // ahead of the data's required set, and NO `additionalProperties`.
       final catalog = catalogWith([
-        entry(name: 'Text', properties: [prop('text', PropertyType.string)]),
+        entry(
+          name: 'Text',
+          properties: [prop('text', PropertyType.string, required: true)],
+        ),
         entry(name: 'Column', properties: [prop('spacing', PropertyType.real)]),
       ]);
 
@@ -54,17 +60,50 @@ void main() {
         result.components.map((c) => c.name).toSet(),
         {'Text', 'Column'},
       );
+
+      // A REQUIRED scalar property: carried in `properties` alongside the
+      // `component` discriminator AND added to `required`.
       final text = result.components.firstWhere((c) => c.name == 'Text');
       expect(text.dataSchema, {
         'type': 'object',
         'properties': {
+          'text': {'type': 'string'},
           'component': {
             'type': 'string',
             'enum': ['Text'],
           },
         },
+        'required': ['component', 'text'],
+      });
+
+      // An OPTIONAL property: carried in `properties` but NOT in `required`.
+      final column = result.components.firstWhere((c) => c.name == 'Column');
+      expect(column.dataSchema, {
+        'type': 'object',
+        'properties': {
+          'spacing': {'type': 'number'},
+          'component': {
+            'type': 'string',
+            'enum': ['Column'],
+          },
+        },
         'required': ['component'],
-        'additionalProperties': false,
+      });
+    });
+
+    test('a component with no data fields is the bare discriminator', () {
+      final result = emitA2uiCatalog(
+        catalogWith([entry(name: 'Spacer', properties: [])]),
+      );
+      expect(result.components.single.dataSchema, {
+        'type': 'object',
+        'properties': {
+          'component': {
+            'type': 'string',
+            'enum': ['Spacer'],
+          },
+        },
+        'required': ['component'],
       });
     });
 

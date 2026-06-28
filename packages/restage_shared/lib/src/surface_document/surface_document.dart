@@ -386,8 +386,21 @@ bool _requiredLibrariesEqual(
   return true;
 }
 
-const _flowPayloadKind = 'flow';
-const _blobPayloadKind = 'blob';
+/// The [SurfacePayload.payloadKind] value for a [FlowSurfacePayload].
+///
+/// Use this to distinguish a flow-shaped payload from a blob-shaped one
+/// without a runtime type check.
+const kFlowPayloadKind = 'flow';
+
+/// The [SurfacePayload.payloadKind] value for a [BlobSurfacePayload].
+///
+/// See [kFlowPayloadKind].
+const kBlobPayloadKind = 'blob';
+
+// Internal aliases kept for the canonical-bytes builders + decoder switch —
+// single source of truth.
+const String _flowPayloadKind = kFlowPayloadKind;
+const String _blobPayloadKind = kBlobPayloadKind;
 
 SurfacePayload _decodeBlobPayload(
   _PayloadReader reader, {

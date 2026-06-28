@@ -1,6 +1,10 @@
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/surface_kill_command.dart';
+import 'package:restage_cli/src/commands/surface_lock_command.dart';
 import 'package:restage_cli/src/commands/surface_publish_command.dart';
+import 'package:restage_cli/src/commands/surface_rollback_command.dart';
+import 'package:restage_cli/src/commands/surface_status_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 
@@ -21,6 +25,53 @@ class SurfaceCommand extends Command<int> {
   }) {
     addSubcommand(
       SurfacePublishCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceStatusCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceKillCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceRollbackCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceLockCommand(
+        lock: true,
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceLockCommand(
+        lock: false,
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,

@@ -182,7 +182,10 @@ String? _lastPurchasedProductId(List<RestageEvent> events) {
 /// device-fit gate is the Inter + safe-area fit-test (run separately). Width
 /// stays 800 so the full-width-CTA geometry assertions are unchanged.
 void _useTallSurface(WidgetTester tester) {
-  tester.view.physicalSize = const Size(800, 3000);
+  // Tall enough that every gallery tile builds (the list is lazy, and
+  // `_tapText` relies on `find.text` matching a built tile). Grew with the
+  // Starters section; keep headroom for future tiles.
+  tester.view.physicalSize = const Size(800, 5000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);

@@ -215,6 +215,10 @@ String legibleApiError(RestageApiException e, String action) {
           "environment '$environmentSlug'. Please try again.";
     case SurfaceEnvironmentNotFound(:final environmentSlug):
       return "No environment '$environmentSlug' was found.";
+    case SurfaceRollbackUnsupported(:final surfaceSlug):
+      return "Rollback isn't supported for paywall '$surfaceSlug'.";
+    case SurfaceVersionNotFound(:final surfaceSlug, :final toVersion):
+      return "No version $toVersion was found for paywall '$surfaceSlug'.";
     case null:
       return 'The Restage backend returned an error (status ${e.statusCode}).';
   }

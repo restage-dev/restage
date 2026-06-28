@@ -22,6 +22,27 @@ hold their palette; a theme-adaptive surface would repaint.
 
 ## What's in here
 
+### Starters — minimal, copy-me
+
+The fastest way in. Four barebones surfaces — the smallest file per capability,
+the deliberate inverse of the polished branded library below. They lean on the
+system theme (no hard-coded palette), so they repaint when you flip the
+gallery's light/dark toggle; copy one, retitle it, restyle it, ship it. They
+appear in the gallery's first "Starters" section.
+
+| Starter | File(s) | Shows |
+|---|---|---|
+| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | `@PaywallSource` with a two-plan tap-to-select, `paywallPriceFor(slot:)`, and `paywallPurchase(slot:)` — the selection + money path lower into the delivered blob. |
+| **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that navigates, `.write`s the captured answer, and routes the ending on it with a `decision()` — answer-driven branching. |
+| **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | The smallest flow — one screen (a notice / "any screen you render"): the CTA completes, the × is a host-handled `dismiss`. |
+| **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | A `@RestageWidget` (`StatBadge`) whose pure-composition `build` is **inlined into the blob** by codegen, so your own widget renders through RFW inside a delivered surface — no runtime factory. |
+
+> **Where files live.** A paywall must be in `lib/paywalls/`, an onboarding
+> screen in `lib/onboarding/screens/`, and a flow in `lib/onboarding/flows/` —
+> the build-time codegen watches exactly those directories, and a screen's `id`
+> must match its file name. The starters follow that convention (they aren't in
+> a separate folder); the gallery's "Starters" section is what groups them.
+
 ### Paywalls — `lib/paywalls/`
 
 Each paywall is a `@PaywallSource`-annotated `StatefulWidget` written in

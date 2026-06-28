@@ -117,6 +117,123 @@ class SurfaceApi {
     });
   }
 
+  /// Live lifecycle snapshot of (project, app, surfaceType, surfaceSlug) in
+  /// [environment]. Returns the active version, lock state, delivery shape, and
+  /// version history. Requires the member role.
+  ///
+  /// [organizationId] disambiguates the owning organization when the caller
+  /// belongs to several; when omitted the backend resolves it.
+  Future<SurfaceStatusResult> surfaceStatus({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    int? organizationId,
+  }) async {
+    final raw = await _api.call('surface', 'surfaceStatus', <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'organizationId': ?organizationId,
+    });
+    return SurfaceStatusResult.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Kill the surface — null its active-version pointer so the SDK falls back
+  /// to its bundled asset. [frozen] also locks the surface against new
+  /// publishes. [reason] is recorded in the audit trail. Requires the admin
+  /// role.
+  ///
+  /// The [frozen] flag maps to the backend's kill `mode`: `'frozen'` when true,
+  /// `'transient'` when false.
+  ///
+  /// [organizationId] disambiguates the owning organization when the caller
+  /// belongs to several; when omitted the backend resolves it.
+  Future<void> kill({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required bool frozen,
+    required String reason,
+    int? organizationId,
+  }) async {
+    await _api.call('surface', 'killSurface', <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'mode': frozen ? 'frozen' : 'transient',
+      'reason': reason,
+      'organizationId': ?organizationId,
+    });
+  }
+
+  /// Set or clear the surface's publish-lock. When [locked] is true no further
+  /// publishes are accepted until the lock is cleared. [reason] is recorded in
+  /// the audit trail. Requires the admin role.
+  ///
+  /// [organizationId] disambiguates the owning organization when the caller
+  /// belongs to several; when omitted the backend resolves it.
+  Future<void> setLock({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required bool locked,
+    required String reason,
+    int? organizationId,
+  }) async {
+    await _api.call('surface', 'setSurfaceLock', <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'locked': locked,
+      'reason': reason,
+      'organizationId': ?organizationId,
+    });
+  }
+
+  /// Roll a blob-shaped surface back to [toVersion] by re-pointing the
+  /// active-version pointer. [lockAfter] freezes the surface after the
+  /// re-point to prevent accidental overwrite. [reason] is recorded in the
+  /// audit trail. The backend rejects a flow-shaped surface. Requires the
+  /// admin role.
+  ///
+  /// [organizationId] disambiguates the owning organization when the caller
+  /// belongs to several; when omitted the backend resolves it.
+  Future<void> rollback({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required int toVersion,
+    required bool lockAfter,
+    required String reason,
+    int? organizationId,
+  }) async {
+    await _api.call('surface', 'rollbackSurface', <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'toVersion': toVersion,
+      'lockAfter': lockAfter,
+      'reason': reason,
+      'organizationId': ?organizationId,
+    });
+  }
+
   /// Snapshot the latest draft for (project, app, surfaceType, surfaceSlug)
   /// into the named [environment]. Returns the newly assigned version
   /// number, monotonic per (surface, environment). Requires the admin role.

@@ -1,0 +1,242 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 1,
+    "availableLibraries": [],
+    "perItemSinceVersion": {
+      "CommentThread": 1,
+      "FeatureGrid": 1,
+      "Glossary": 1,
+      "LinkCard": 1,
+      "MetaBar": 1,
+      "PlanCard": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/1",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/1",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "CommentThread": {
+        "$defs": {
+          "Comment": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "reply": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Comment"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
+          "__a2ui_root__": {
+            "type": "object",
+            "properties": {
+              "root": {
+                "$ref": "#/$defs/Comment"
+              }
+            },
+            "required": [
+              "root"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "CommentThread"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "FeatureGrid": {
+        "type": "object",
+        "properties": {
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "included": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "label",
+                "included"
+              ]
+            }
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "FeatureGrid"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "features"
+        ]
+      },
+      "Glossary": {
+        "type": "object",
+        "properties": {
+          "terms": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "Glossary"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "terms"
+        ]
+      },
+      "LinkCard": {
+        "type": "object",
+        "properties": {
+          "link": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "label"
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "LinkCard"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "link"
+        ]
+      },
+      "MetaBar": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "count",
+              "title"
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "MetaBar"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "meta"
+        ]
+      },
+      "PlanCard": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "price": {
+                "type": "number"
+              },
+              "badge": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "popular",
+                      "bestValue"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tagline": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "price"
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PlanCard"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "plan"
+        ]
+      }
+    },
+    "functions": {}
+  }
+}

@@ -327,6 +327,11 @@ class PaywallPublishCommand extends Command<int> {
           );
         }
         return 1;
+      case SurfaceRollbackUnsupported():
+      case SurfaceVersionNotFound():
+        // These variants are not reachable on the publish path; fall through
+        // to the generic renderer.
+        break;
       case null:
         break;
     }

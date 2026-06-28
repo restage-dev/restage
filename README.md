@@ -50,18 +50,24 @@ class WelcomeScreen extends StatelessWidget {
 
 `dart run build_runner build` lowers that to a committed `.rfw` blob; the SDK renders it, fully offline. Swap `@ScreenSource` for `@PaywallSource`, `@FlowSource`, and the rest — every surface runs on the same catalog, compiler, and runtime. Full walkthrough in [QUICKSTART.md](QUICKSTART.md).
 
+## Start here
+
+The fastest way in is to copy a starter. The [`apps/examples`](apps/examples) README has a **Starters** section: four minimal, copy-me surfaces — a paywall, an onboarding flow, a one-screen message, and a custom widget — each the smallest file that still compiles and ships. Retitle it, restyle it, ship it. Prefer a step-by-step build? The [Quickstart](QUICKSTART.md) writes one from scratch.
+
 ## How it works
 
 - **App Store Review Guideline 4.7 compliant by design** (and Google Play's equivalent). The blob is inert data — references and literal values, no JavaScript, no eval, no bytecode. Your over-the-air updates ship content, not code.
 - **It fails safe, not wrong.** The compiler stops at build time with a diagnostic rather than lowering a construct differently. Surfaces are immutably versioned and carry a `sinceVersion` floor, so a delivered surface can never reach a client too old to render it. Delivery is fail-closed with tiered fallback (cached → bundled → error builder), hold-last-good, and one-click rollback.
-- **No lock-in.** A surface is just a `.rfw` file — serve it from your own backend or CDN and you have an OTA pipeline you run yourself. Restage's hosted delivery (private beta) adds earnings attribution, A/B, and the safety net above; the SDK runs without it.
+- **No lock-in.** A surface is just a `.rfw` file — serve it from your own backend or CDN and you have an OTA pipeline you run yourself. Restage's hosted delivery (coming soon) runs that pipeline for you, with the safety net above; the SDK runs without it.
 
 ## What you get
 
 - **Every surface, one runtime** — paywalls, onboarding, messages, surveys, permission prompts, full screens. `apps/examples/` has copyable, offline versions of each. Multi-screen flows, back navigation, and interactive state travel in the blob with no host code.
 - **A 115-widget catalog** across `restage_core` / `restage_material` / `restage_cupertino`, extensible with your own design-system widgets via `@RestageWidget`.
-- **Monetization** for commerce surfaces — billing, signed offers, server-side receipt validation, entitlements, and per-surface revenue attribution.
+- **Monetization** for commerce surfaces — a pluggable billing gateway (bundled, RevenueCat, or your own), purchase and restore, promotional offers, and an entitlement stream with grant/revoke events. Receipt validation and revenue attribution run on a backend — yours, or the coming hosted platform.
 - **A2UI (early)** — the same source can emit a genui A2UI catalog, so AI-generated UI builds from your real widgets, not a generic palette.
+
+**Coming soon: hosted delivery — and much more will follow.**
 
 ## Install
 

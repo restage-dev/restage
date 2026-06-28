@@ -10,6 +10,33 @@ import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
+/// Minimal fake that records the most-recent [call] invocation and returns a
+/// constructor-supplied [response]. Used for lifecycle methods where testing
+/// the HTTP wire format adds no value over testing the arg-map shape.
+class FakeRestageApi implements RestageApi {
+  FakeRestageApi({required this.response});
+
+  final dynamic response;
+  String? lastEndpoint;
+  String? lastMethod;
+  Map<String, dynamic>? lastArgs;
+
+  @override
+  Future<dynamic> call(
+    String endpointName,
+    String methodName,
+    Map<String, dynamic> args,
+  ) async {
+    lastEndpoint = endpointName;
+    lastMethod = methodName;
+    lastArgs = args;
+    return response;
+  }
+
+  @override
+  void close() {}
+}
+
 Credential _stubCredential() => const Credential(
   endpoint: 'http://localhost:8080/',
   kind: CredentialKind.authKey,
@@ -201,6 +228,171 @@ void main() {
         (thrown! as RestageApiException).body,
       );
       expect(decoded, isA<SurfacePublishConflict>());
+    });
+  });
+
+  group('SurfaceApi.kill', () {
+    test('encodes frozen mode + reason and targets killSurface', () async {
+      final fake = FakeRestageApi(response: null);
+      await SurfaceApi(fake).kill(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 'pro',
+        environment: 'production',
+        frozen: true,
+        reason: 'bad price',
+      );
+      expect(fake.lastEndpoint, 'surface');
+      expect(fake.lastMethod, 'killSurface');
+      expect(fake.lastArgs!['mode'], 'frozen');
+      expect(fake.lastArgs!['reason'], 'bad price');
+      expect(fake.lastArgs!['surfaceType'], 'paywall');
+    });
+
+    test('encodes transient mode when frozen is false', () async {
+      final fake = FakeRestageApi(response: null);
+      await SurfaceApi(fake).kill(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.onboarding,
+        surfaceSlug: 'welcome',
+        environment: 'staging',
+        frozen: false,
+        reason: 'test',
+      );
+      expect(fake.lastArgs!['mode'], 'transient');
+    });
+
+    test('threads organizationId when provided, omits it when null', () async {
+      final fake = FakeRestageApi(response: null);
+      await SurfaceApi(fake).kill(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 's',
+        environment: 'e',
+        frozen: true,
+        reason: 'r',
+        organizationId: 42,
+      );
+      expect(fake.lastArgs!['organizationId'], 42);
+
+      await SurfaceApi(fake).kill(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 's',
+        environment: 'e',
+        frozen: true,
+        reason: 'r',
+      );
+      expect(fake.lastArgs!.containsKey('organizationId'), isFalse);
+    });
+  });
+
+  group('SurfaceApi.setLock', () {
+    test('encodes locked + reason and targets setSurfaceLock', () async {
+      final fake = FakeRestageApi(response: null);
+      await SurfaceApi(fake).setLock(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 'pro',
+        environment: 'production',
+        locked: true,
+        reason: 'freeze for release',
+      );
+      expect(fake.lastMethod, 'setSurfaceLock');
+      expect(fake.lastArgs!['locked'], true);
+      expect(fake.lastArgs!['reason'], 'freeze for release');
+      expect(fake.lastArgs!['surfaceType'], 'paywall');
+    });
+  });
+
+  group('SurfaceApi.rollback', () {
+    test('encodes toVersion + lockAfter and targets rollbackSurface', () async {
+      final fake = FakeRestageApi(response: null);
+      await SurfaceApi(fake).rollback(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 'pro',
+        environment: 'production',
+        toVersion: 3,
+        lockAfter: true,
+        reason: 'revert',
+      );
+      expect(fake.lastEndpoint, 'surface');
+      expect(fake.lastMethod, 'rollbackSurface');
+      expect(fake.lastArgs!['toVersion'], 3);
+      expect(fake.lastArgs!['lockAfter'], true);
+      expect(fake.lastArgs!['reason'], 'revert');
+    });
+
+    test('threads organizationId when provided, omits it when null', () async {
+      final fake = FakeRestageApi(response: null);
+      await SurfaceApi(fake).rollback(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 's',
+        environment: 'e',
+        toVersion: 1,
+        lockAfter: false,
+        reason: 'r',
+        organizationId: 7,
+      );
+      expect(fake.lastArgs!['organizationId'], 7);
+
+      await SurfaceApi(fake).rollback(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 's',
+        environment: 'e',
+        toVersion: 1,
+        lockAfter: false,
+        reason: 'r',
+      );
+      expect(fake.lastArgs!.containsKey('organizationId'), isFalse);
+    });
+  });
+
+  group('SurfaceApi.surfaceStatus', () {
+    test('decodes response + targets surfaceStatus method', () async {
+      final fake = FakeRestageApi(
+        response: {
+          'surfaceType': 'paywall',
+          'surfaceSlug': 'pro',
+          'environmentSlug': 'production',
+          'liveVersion': 2,
+          'locked': false,
+          'deliveryShape': 'blob',
+          'versions': <dynamic>[
+            {
+              'version': 2,
+              'publishedAt': '2026-06-25T00:00:00.000Z',
+              'contentHash': 'abc',
+              'isActive': true,
+            },
+          ],
+        },
+      );
+      final result = await SurfaceApi(fake).surfaceStatus(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 'pro',
+        environment: 'production',
+      );
+      expect(fake.lastMethod, 'surfaceStatus');
+      expect(fake.lastArgs!['surfaceType'], 'paywall');
+      expect(fake.lastArgs!['surfaceSlug'], 'pro');
+      expect(fake.lastArgs!['environmentSlug'], 'production');
+      expect(result.liveVersion, 2);
+      expect(result.supportsRollback, isTrue);
+      expect(result.versions, hasLength(1));
     });
   });
 }

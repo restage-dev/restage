@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
@@ -48,6 +50,14 @@ const _generatedPath =
 /// The import the committed `.g.dart` uses for the fixture (the resolved
 /// `file://` URI is normalized to this at the test boundary).
 const _fixtureImport = 'interactive_fixture.dart';
+
+/// The committed standalone A2UI document for the same interactive fixture. Its
+/// per-component schemas carry the write-back value-reference `oneOf` shape.
+/// The `restage_a2ui` doc-tie test ties them — against the real genui SDK — to
+/// the generated catalog's `CatalogItem.dataSchema`, so the interactive
+/// (write-back / dispatch) document projection cannot drift from genui.
+const _manifestPath =
+    '../restage_a2ui/test/generated/interactive_catalog.a2ui.json';
 
 /// One value property: its catalog name and JSON-shape property type.
 typedef _ValueProp = (String name, PropertyType type);
@@ -301,6 +311,37 @@ void main() {
         file.readAsStringSync().trimRight(),
         reason: 'the committed interactive catalog has drifted from the '
             'emitter; regenerate with REGEN_A2UI_DART_GOLDEN=1',
+      );
+
+      // The standalone A2UI document for the SAME interactive fixture/seams —
+      // its per-component schemas carry the write-back `oneOf` value-reference
+      // shape. Emitted from the SAME seams so the document and the `.g.dart`
+      // CatalogItem schema agree; the restage_a2ui document-tie pins that
+      // against real genui. No URI normalization (the document carries no
+      // import URIs).
+      const encoder = JsonEncoder.withIndent('  ');
+      final fixtureUri = _fixtureUri(library);
+      final manifest = emitA2uiCatalog(
+        _proofCatalog(fixtureUri),
+        eventSeam: _eventSeam(library),
+        pairingSeam: _pairingSeam(library),
+      );
+      final manifestJson = encoder.convert(manifest.toJson());
+      final manifestFile = File(_manifestPath);
+      if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
+        manifestFile.parent.createSync(recursive: true);
+        manifestFile.writeAsStringSync('$manifestJson\n');
+      }
+      expect(
+        manifestFile.existsSync(),
+        isTrue,
+        reason: 'run with REGEN_A2UI_GOLDEN=1 to generate $_manifestPath',
+      );
+      expect(
+        manifestJson,
+        manifestFile.readAsStringSync().trimRight(),
+        reason: 'the committed interactive A2UI document has drifted from the '
+            'emitter; regenerate with REGEN_A2UI_GOLDEN=1',
       );
     });
   });

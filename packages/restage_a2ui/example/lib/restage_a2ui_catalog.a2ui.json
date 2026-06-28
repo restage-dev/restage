@@ -24,6 +24,9 @@
       "CtaButton": {
         "type": "object",
         "properties": {
+          "label": {
+            "type": "string"
+          },
           "component": {
             "type": "string",
             "enum": [
@@ -33,12 +36,87 @@
         },
         "required": [
           "component"
-        ],
-        "additionalProperties": false
+        ]
       },
       "ProductCard": {
         "type": "object",
         "properties": {
+          "product": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "price": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ]
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "features": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "included": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "included"
+                  ]
+                }
+              },
+              "attributes": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "size": {
+                "type": "object",
+                "properties": {
+                  "height": {
+                    "type": "number"
+                  },
+                  "width": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "height",
+                  "width"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "price",
+              "tags",
+              "features",
+              "attributes",
+              "size"
+            ]
+          },
           "component": {
             "type": "string",
             "enum": [
@@ -47,13 +125,46 @@
           }
         },
         "required": [
-          "component"
-        ],
-        "additionalProperties": false
+          "component",
+          "product"
+        ]
       },
       "RatingPicker": {
         "type": "object",
         "properties": {
+          "rating": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
           "component": {
             "type": "string",
             "enum": [
@@ -63,8 +174,7 @@
         },
         "required": [
           "component"
-        ],
-        "additionalProperties": false
+        ]
       }
     },
     "functions": {}

@@ -13,6 +13,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/acme_border.dart';
 import 'package:restage_example/widgets/acme_stack.dart';
+import 'package:restage_example/widgets/minimal_custom_widget.dart';
 import 'package:restage_example/widgets/promo_badge.dart';
 
 /// Registers every emittable @RestageWidget-annotated class
@@ -27,6 +28,7 @@ void registerRestageCustomerWidgets() {
       RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
       RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
       RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
+      RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
     ],
   );
 }
@@ -49,5 +51,14 @@ Widget _buildPromoBadge(BuildContext context, DataSource source) {
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('PromoBadge.label is required.')),
     color: ArgumentDecoders.color(source, <Object>['color']),
+  );
+}
+
+Widget _buildStatBadge(BuildContext context, DataSource source) {
+  return StatBadge(
+    label: source.v<String>(<Object>['label']) ??
+        (throw ArgumentError('StatBadge.label is required.')),
+    value: source.v<String>(<Object>['value']) ??
+        (throw ArgumentError('StatBadge.value is required.')),
   );
 }

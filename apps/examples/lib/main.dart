@@ -10,6 +10,8 @@ import 'onboarding/apex_drop_demo.dart';
 import 'onboarding/chrome_ladder_demo.dart';
 import 'onboarding/crave_permission_demo.dart';
 import 'onboarding/lumen_onboarding_demo.dart';
+import 'onboarding/minimal_notice_demo.dart';
+import 'onboarding/minimal_onboarding_demo.dart';
 import 'onboarding/reel_cancel_demo.dart';
 import 'onboarding/tally_onboarding_demo.dart';
 import 'paywalls/ascend_premium.dart';
@@ -20,6 +22,7 @@ import 'paywalls/pulse_premium.dart';
 import 'paywalls/sentinel_protection.dart';
 import 'stub_products.dart';
 import 'user_factories.g.dart';
+import 'widgets/minimal_custom_widget_demo.dart';
 
 void main() {
   registerRestageCustomerWidgets();
@@ -73,10 +76,123 @@ class _RestageExampleAppState extends State<RestageExampleApp> {
         brightness: Brightness.dark,
       ),
       themeMode: _themeMode,
+      // Installed above the Navigator so pushed surfaces (the starters) can read
+      // the brightness + flip it from their own in-surface toggle.
+      builder: (context, child) => BrightnessScope(
+        isDark: _themeMode == ThemeMode.dark,
+        onToggle: _toggleBrightness,
+        child: child!,
+      ),
       home: _GalleryHome(
         isDark: _themeMode == ThemeMode.dark,
         onToggleBrightness: _toggleBrightness,
       ),
+    );
+  }
+}
+
+/// Exposes the app brightness and a toggle to descendants — including pushed
+/// routes, since it sits above the Navigator (via `MaterialApp.builder`). Pure
+/// Flutter, no state-management package.
+class BrightnessScope extends InheritedWidget {
+  /// Creates the brightness scope.
+  const BrightnessScope({
+    super.key,
+    required this.isDark,
+    required this.onToggle,
+    required super.child,
+  });
+
+  /// Whether the app is currently in dark mode.
+  final bool isDark;
+
+  /// Flips the app between light and dark.
+  final VoidCallback onToggle;
+
+  /// The nearest scope. Asserts one is in the tree.
+  static BrightnessScope of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<BrightnessScope>();
+    assert(scope != null, 'No BrightnessScope in context');
+    return scope!;
+  }
+
+  @override
+  bool updateShouldNotify(BrightnessScope oldWidget) =>
+      isDark != oldWidget.isDark;
+}
+
+/// Overlays a top-centre demo-chrome pill on [child]: a "delivered RFW blob"
+/// label (so it's clear the surface is rendered from a render blob, not local
+/// Flutter) plus a light/dark toggle to see the theme-adaptive repaint in place.
+///
+/// This is gallery chrome, not part of the starter surfaces — it lives here in
+/// the host, so a copied starter file never carries it.
+class ThemeToggleScope extends StatelessWidget {
+  /// Wraps [child] with the top-centre demo-chrome pill.
+  const ThemeToggleScope({super.key, required this.child});
+
+  /// The surface the pill floats over.
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = BrightnessScope.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: scheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  padding: const EdgeInsets.only(left: 14),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.bolt_rounded,
+                        size: 16,
+                        color: scheme.onSecondaryContainer,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'RFW render blob',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          scope.isDark
+                              ? Icons.light_mode_outlined
+                              : Icons.dark_mode_outlined,
+                          size: 18,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                        tooltip: 'Toggle light / dark',
+                        onPressed: scope.onToggle,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -125,6 +241,64 @@ class _GalleryHome extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 8),
             children: [
+              // Barebones, copy-me starters — the smallest file per capability,
+              // system-themed so they repaint with the brightness toggle. The
+              // deliberate inverse of the polished branded library below: copy
+              // one, retitle it, restyle it, ship it.
+              const _SectionHeader('Starters — minimal, copy-me'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Each renders from a delivered RFW blob — real Flutter '
+                  'widgets, no webview.',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.3,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              _ExampleTile(
+                title: 'Minimal paywall',
+                subtitle: 'The smallest plan-select paywall: tap a plan, the '
+                    'CTA re-targets, buy. Theme-adaptive (delivered blob).',
+                leading: const Icon(Icons.lock_open_outlined),
+                destination: const _RemotePaywallScreen(
+                  id: 'minimal_paywall',
+                  priceQueries: kStubPriceQueries,
+                ),
+                showThemeToggle: true,
+              ),
+              _ExampleTile(
+                title: 'Minimal onboarding',
+                subtitle:
+                    'A short flow that navigates, captures an answer, and '
+                    'branches on it: welcome → question → a tailored ending.',
+                leading: const Icon(Icons.alt_route_outlined),
+                destination: const MinimalOnboardingDemo(),
+                // The host supplies its own flow chrome (a persistent close +
+                // an in-flow back), so no gallery escape button on top.
+                showThemeToggle: true,
+              ),
+              _ExampleTile(
+                title: 'Minimal surface',
+                subtitle:
+                    'The smallest flow — one screen. A notice (any screen '
+                    'you render): the CTA acts, the × dismisses.',
+                leading: const Icon(Icons.campaign_outlined),
+                destination: const MinimalNoticeDemo(),
+                showThemeToggle: true,
+              ),
+              _ExampleTile(
+                title: 'Custom widget',
+                subtitle: 'Your own @RestageWidget (StatBadge), inlined into a '
+                    'delivered blob and rendered through RFW.',
+                leading: const Icon(Icons.extension_outlined),
+                destination: const MinimalCustomWidgetDemo(),
+                showEscapeButton: true,
+                showThemeToggle: true,
+              ),
+              const Divider(height: 32),
               const _SectionHeader('Authored in Flutter (local preview)'),
               _ExampleTile(
                 title: 'Pulse Premium',
@@ -439,12 +613,18 @@ class _ExampleTile extends StatelessWidget {
     required this.destination,
     this.showEscapeButton = false,
     this.surfaceBrightness,
+    this.showThemeToggle = false,
   });
 
   final String title;
   final String subtitle;
   final Widget leading;
   final Widget destination;
+
+  /// Whether to overlay a top-centre light/dark toggle on the pushed surface.
+  /// Set `true` for the system-themed starters so their repaint can be seen in
+  /// place; the fixed-brand surfaces below leave it `false` (they hold palette).
+  final bool showThemeToggle;
 
   /// Whether the pushed example overlays the gallery's "back to examples"
   /// escape control.
@@ -490,7 +670,9 @@ class _ExampleTile extends StatelessWidget {
                   Navigator.of(routeContext).maybePop();
                 }
               },
-              child: destination,
+              child: showThemeToggle
+                  ? ThemeToggleScope(child: destination)
+                  : destination,
             ),
           ),
         ),
