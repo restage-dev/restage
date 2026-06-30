@@ -1,0 +1,52 @@
+name: Publish closeout
+
+on:
+  workflow_run:
+    workflows: ["Publish to pub.dev"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Commit SHA to close out
+        required: true
+        type: string
+      run_url:
+        description: Optional Actions run URL to link from the deployment status
+        required: false
+        type: string
+
+concurrency:
+  group: publish-closeout-${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.sha }}
+  cancel-in-progress: false
+
+jobs:
+  closeout:
+    name: GitHub Release + pub.dev deployment
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      deployments: write
+    env:
+      RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.sha }}
+      RELEASE_RUN_URL: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.html_url || inputs.run_url }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Close out publish
+        run: |
+          set -euo pipefail
+          run_url="${RELEASE_RUN_URL:-${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}"
+          dart tool/publish_closeout.dart \
+            --sha "$RELEASE_SHA" \
+            --repo "$GITHUB_REPOSITORY" \
+            --run-url "$run_url"

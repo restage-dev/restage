@@ -35,12 +35,15 @@ jobs:
       - name: Analyze
         run: dart analyze
 
+      - name: Test release tooling
+        run: dart tool/publish_closeout_test.dart
+
       - name: Format check
         # Exclude emitter-generated fixtures (test/generated/*.g.dart and
         # package example catalogs) whose codegen output diverges from
         # `dart format` by design.
         run: |
-          find packages apps -name '*.dart' \
+          find packages apps tool -name '*.dart' \
             -not -path '*/test/generated/*' \
             -not -path '*/example/lib/*.g.dart' \
             -not -path '*/.dart_tool/*' -print0 \
@@ -54,4 +57,4 @@ jobs:
         # lightweight Dart packages.
         run: |
           melos run test:dart --scope="rfw_catalog_schema,restage_shared,restage_mcp,restage_cli"
-          melos run test:flutter
+          melos run test:flutter --no-select
