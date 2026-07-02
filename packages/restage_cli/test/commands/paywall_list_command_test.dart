@@ -153,6 +153,51 @@ void main() {
       expect(seenBody['appSlug'], 'flag-app');
     });
 
+    test('resolves configured organization before listing', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        organization: 'restage',
+      );
+
+      Map<String, dynamic>? seenListBody;
+      final client = scriptedHttpClient([
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listMine');
+          return http.Response(
+            jsonEncode([
+              {
+                'organizationId': 7,
+                'slug': 'restage',
+                'name': 'Restage',
+                'role': 'owner',
+              },
+            ]),
+            200,
+          );
+        },
+        (req) {
+          seenListBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response('[]', 200);
+        },
+      ]);
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run(['paywall', 'list', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(seenListBody, isNotNull);
+      expect(seenListBody!['method'], 'list');
+      expect(seenListBody!['organizationId'], 7);
+    });
+
     test('errors when no project context is available', () async {
       await seedCredential(store);
       // No restage_config.yaml, no --project/--app flags.

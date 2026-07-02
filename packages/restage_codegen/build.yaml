@@ -54,7 +54,21 @@ builders:
         - "user_catalog.g.dart"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    # Owns the append to the wire-id event log; run before the JSON emitter so
+    # that emitter reads a fully-appended log (race-free) and appends nothing.
+    runs_before: ['restage_codegen:user_catalog_json']
+  user_catalog_json:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['userCatalogJsonBuilder']
+    build_extensions:
+      $lib$:
+        - "src/widget_catalog/catalog.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before:
+      - 'restage_codegen:paywall_codegen'
+      - 'restage_codegen:onboarding_screen_codegen'
+      - 'restage_codegen:factory_functions'
   factory_functions:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['factoryFunctionBuilder']

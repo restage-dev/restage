@@ -3152,6 +3152,173 @@ Object x() => AcmeBox();
       expect(_widget(result.decoded!, 'Paywall').arguments['gap'], 8.0);
     });
   });
+
+  // A REGISTERED customer widget (one present in the merged catalog, as it is
+  // once its package emits catalog.json) keeps its inline-vs-reference choice by
+  // class: a class-4a (inlinable) widget still inlines — its composition travels
+  // in the blob and renders with no runtime factory; a class-4b (imperative)
+  // widget references the catalog entry, resolved by the runtime factory.
+  group('registered customer widget — 4a inlines, 4b references', () {
+    Catalog catalogWithCustom(List<WidgetEntry> widgets) => Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {
+            WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+            WidgetLibrary.custom('acme.ds'):
+                const LibraryInfo(version: '0.1.0'),
+          },
+          widgets: widgets,
+        );
+
+    WidgetEntry customEntry(String name, List<PropertyEntry> properties) =>
+        entry(
+          name: name,
+          properties: properties,
+          library: WidgetLibrary.custom('acme.ds'),
+          category: WidgetCategory.decoration,
+          flutterType: 'package:restage_codegen/_e2e_probe.dart#$name',
+        );
+
+    test('a REGISTERED 4a customer widget still INLINES (definition emitted)',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String? data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(name: 'Badge4a',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration, description: 'b')
+class Badge4a extends StatelessWidget {
+  const Badge4a({this.label});
+  final String? label;
+  Widget build(BuildContext context) => Text(label);   // pure composition = 4a
+}
+
+Object x() => Badge4a(label: "Pro");
+''',
+        catalogWithCustom([
+          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
+          customEntry('Badge4a', [prop('label', PropertyType.string)]),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      final decoded = result.decoded!;
+      // The 4a widget is INLINED: its definition body travels in the blob.
+      expect(
+        decoded.widgets.map((w) => w.name),
+        containsAll(['Badge4a', 'Paywall']),
+      );
+      expect(_widget(decoded, 'Badge4a').name, 'Text');
+      expect(_widget(decoded, 'Paywall').name, 'Badge4a');
+    });
+
+    test(
+        'a REGISTERED 4b customer widget is REFERENCED (no inline definition, '
+        'no customWidgetUnclassified)', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.width});
+  final double? width;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(name: 'Badge4b',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration, description: 'b')
+class Badge4b extends StatelessWidget {
+  const Badge4b({this.label, this.count});
+  final String? label;
+  final int? count;
+  // Runtime arithmetic on a constructor arg -> not blob-expressible -> 4b.
+  Widget build(BuildContext context) => Box(width: count! * 2.0);
+}
+
+Object x() => Badge4b(label: "Pro", count: 3);
+''',
+        catalogWithCustom([
+          _entry('Box', [prop('width', PropertyType.real)]),
+          customEntry('Badge4b', [
+            prop('label', PropertyType.string),
+            prop('count', PropertyType.integer),
+          ]),
+        ]),
+      );
+
+      expect(
+        result.issues
+            .where((i) => i.code == IssueCode.customWidgetUnclassified),
+        isEmpty,
+      );
+      final decoded = result.decoded!;
+      // The paywall REFERENCES Badge4b by name; no local definition is emitted.
+      expect(_widget(decoded, 'Paywall').name, 'Badge4b');
+      expect(decoded.widgets.map((w) => w.name), isNot(contains('Badge4b')));
+    });
+
+    test(
+        'a registered 4b customer widget named like a surface root FAILS LOUD '
+        '(never a silent self-reference)', () async {
+      // A registered customer widget whose name is the reserved paywall root
+      // name would emit `Paywall(...)` into the blob, which name-resolution
+      // binds to the surface root itself (self-recursion). The reference path
+      // must diagnose it, not emit an admitted-but-wrong reference. Referenced
+      // as a CHILD (a root custom widget would inline instead) and 4b (so it
+      // takes the reference path, not the inline path).
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.child});
+  final Widget? child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Uncatalogued extends StatelessWidget {
+  const Uncatalogued();
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(name: 'Paywall',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration, description: 'b')
+class AcmeReserved extends StatelessWidget {
+  const AcmeReserved();
+  // Composes a non-catalog widget -> not inlinable (4b) -> reference path.
+  Widget build(BuildContext context) => Uncatalogued();
+}
+
+Object x() => Box(child: AcmeReserved());
+''',
+        catalogWithCustom([
+          _entry('Box', [prop('child', PropertyType.widget)]),
+          entry(
+            name: 'Paywall',
+            properties: const [],
+            library: WidgetLibrary.custom('acme.ds'),
+            category: WidgetCategory.decoration,
+            flutterType: 'package:restage_codegen/_e2e_probe.dart#AcmeReserved',
+          ),
+        ]),
+      );
+
+      expect(result.decoded, isNull);
+      expect(
+        result.issues.any((i) => i.code == IssueCode.customWidgetNameCollision),
+        isTrue,
+      );
+    });
+  });
 }
 
 /// The root [fmt.ConstructorCall] of the widget named [name] in [library].

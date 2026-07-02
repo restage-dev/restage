@@ -20,6 +20,7 @@ import '../events/restage_event.dart';
 import '../flow/flow_resolver.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/restage_variant_resolver.dart';
+import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
 import 'restage_identity.dart';
@@ -150,6 +151,10 @@ abstract final class Restage {
       locale: locale,
       enabled: analyticsEnabled,
     );
+    _configureSurfaceAssignmentKeyProvider(
+      baseUrl: baseUrl,
+      enabled: analyticsEnabled,
+    );
     if (baseUrl != null) {
       // Microtask-defer so `configure` stays sync-returning. The cold-start
       // sync runs after the host's `runApp` settles. Re-calls of
@@ -178,6 +183,7 @@ abstract final class Restage {
   }) {
     if (!enabled || baseUrl == null || baseUrl.isEmpty) {
       _analyticsTransport = null;
+      _analyticsAppContext = null;
       return;
     }
     _analyticsIdentity ??= AnalyticsIdentity();
@@ -193,6 +199,18 @@ abstract final class Restage {
       onError: (error, _) =>
           debugPrint('[restage][analytics] dropped a batch: $error'),
     );
+  }
+
+  static void _configureSurfaceAssignmentKeyProvider({
+    String? baseUrl,
+    required bool enabled,
+  }) {
+    final identity = _analyticsIdentity;
+    if (!enabled || baseUrl == null || baseUrl.isEmpty || identity == null) {
+      SurfaceAssignmentKeyProvider.clear();
+      return;
+    }
+    SurfaceAssignmentKeyProvider.current = identity.anonymousId;
   }
 
   static String _analyticsEndpoint(String baseUrl) {
@@ -345,8 +363,10 @@ abstract final class Restage {
   /// [capabilityVersion] is the library's declared monotonic capability version
   /// (its `@RestageLibrary(capabilityVersion: …)`), recorded so a delivered
   /// surface's required-library floor can be verified before render. The
-  /// generated registration helper passes it automatically; omit it for an
-  /// unversioned library (which then satisfies no positive requirement).
+  /// generated registration helper passes it automatically for a library that
+  /// requires a delivery-time capability floor; a library that needs none
+  /// registers unversioned. Omit it for an unversioned library (which then
+  /// satisfies no positive requirement).
   ///
   /// Asserts (debug only): [library] must not use a reserved built-in
   /// namespace (`restage.core` / `restage.material` / `restage.cupertino`),
@@ -1064,6 +1084,7 @@ abstract final class Restage {
     _analyticsTransport = null;
     _analyticsIdentity = null;
     _analyticsAppContext = null;
+    SurfaceAssignmentKeyProvider.clear();
     debugAnalyticsHttpClient = null;
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();

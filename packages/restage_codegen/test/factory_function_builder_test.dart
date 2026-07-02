@@ -409,7 +409,14 @@ void main() {
       );
     });
 
-    test('rejects a non-built-in library namespace', () async {
+    test(
+        'skips a pure-customer catalog (no built-in library) without emitting '
+        'or throwing', () async {
+      // A customer package emits its own catalog.json, and this builder is
+      // keyed on catalog.json, so it runs on the customer catalog too. Customer
+      // widgets register through the @RestageWidget factory aggregator, not
+      // this builder — so it must skip cleanly, not treat the customer
+      // namespace as a configuration error.
       const catalogJson = '''
 {
   "schemaVersion": 4,
@@ -431,13 +438,11 @@ void main() {
           'acme_design_system|lib/src/widget_catalog/catalog.json': catalogJson,
         },
         rootPackage: 'acme_design_system',
+        // No registration.g.dart is written for a customer catalog.
         outputs: const {},
         onLog: logs.add,
       );
-      expect(
-        _severeText(logs),
-        contains('Unsupported library namespace'),
-      );
+      expect(_severeText(logs), isEmpty);
     });
   });
 }

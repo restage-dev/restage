@@ -23,7 +23,9 @@ export 'src/flow/flow_chrome.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
 export 'src/flow/flow_descriptors.dart';
 export 'src/flow/flow_predicates.dart';
-export 'src/flow/flow_resolver.dart';
+// `ActiveArmFlowResolver` is an SDK-internal resolver capability (the active-arm
+// seam); it is consumed within the package, not part of the public API.
+export 'src/flow/flow_resolver.dart' hide ActiveArmFlowResolver;
 export 'src/flow/flow_seed.dart';
 export 'src/flow/flow_transitions.dart';
 export 'src/flow/restage_flow_view.dart';
@@ -36,6 +38,7 @@ export 'package:restage_shared/restage_shared.dart'
         ChildrenSlot,
         EntitlementSource,
         RestageEntitlement,
+        RestageLibrary,
         RestageProduct,
         RestageProperty,
         RestageWidget,

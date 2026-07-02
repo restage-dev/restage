@@ -5,9 +5,9 @@
 The public schema, annotations, wire-identity types, and JSON codecs for a
 [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog.
 
-This package describes **what** a catalog looks like — the durable contract
+This package describes **what** a catalog looks like: the durable contract
 shared between catalog producers (compilers, codegen builders), catalog
-consumers (editors, SDK runtimes, backends), and any tooling that decodes
+consumers (authoring tools, SDK runtimes, backends), and any tooling that decodes
 or transmits an RFW-targeted widget catalog.
 
 ## What this package contains
@@ -46,5 +46,5 @@ baseline without wire IDs cannot masquerade as a canonical `Catalog`.
 
 ## Stability
 
-`1.0.0`: the public surface is stable. Semver is honoured from this
+`1.0.0`: the public surface is stable. Semver is honored from this
 release; breaking changes require a major-version bump.

@@ -7,6 +7,7 @@ import 'package:restage_codegen/src/onboarding/flow_builder.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_codegen/src/paywall_flow_builder.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
+import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:restage_codegen/src/visitors/paywall_source_visitor.dart';
 
@@ -38,6 +39,14 @@ Builder paywallFlowBuilder(BuilderOptions options) =>
 /// classes and emits a single `lib/user_catalog.g.dart` aggregating them.
 Builder userCatalogBuilder(BuilderOptions options) =>
     UserCatalogBuilder(options);
+
+/// build_runner factory entry point for the package-wide customer-catalog
+/// JSON emitter. Walks every `lib/**.dart` for `@RestageWidget`-annotated
+/// classes and emits `lib/src/widget_catalog/catalog.json` from the same
+/// allocation as `lib/user_catalog.g.dart`, so a paywall referencing a
+/// registered custom widget resolves it against the catalog.
+Builder userCatalogJsonBuilder(BuilderOptions options) =>
+    UserCatalogJsonBuilder(options);
 
 /// build_runner factory entry point for the per-package factory function
 /// emitter. Reads each curated library's `lib/src/widget_catalog/catalog.json`

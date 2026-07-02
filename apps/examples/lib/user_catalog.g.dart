@@ -8,7 +8,7 @@ final Catalog kUserCatalog = Catalog(
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.custom('restage_example.widgets'):
-        const LibraryInfo(version: '0.0.0'),
+        const LibraryInfo(version: '0.0.0', capabilityVersion: 1),
   },
   widgets: [
     WidgetEntry(
@@ -57,6 +57,33 @@ final Catalog kUserCatalog = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0010'),
+      name: 'PricingCard',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description:
+          'Renders a subscription plan (a nested data-class property).',
+      flutterType:
+          'package:restage_example/widgets/pricing_card.dart#PricingCard',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0024'),
+          name: 'plan',
+          type: PropertyType.structured,
+          description: 'The plan to render.',
+          required: true,
+          structuredRef: WireIdRef(
+              library: 'restage_example.widgets', wireId: WireId('s0001')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage_example.widgets', wireId: WireId('s0001'))),
+        ),
+      ],
+    ),
+    WidgetEntry(
       wireId: WireId('w0003'),
       name: 'PromoBadge',
       library: WidgetLibrary.custom('restage_example.widgets'),
@@ -84,6 +111,33 @@ final Catalog kUserCatalog = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0012'),
+      name: 'PulseBadge',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'A badge that pulses, driven by an AnimationController.',
+      flutterType:
+          'package:restage_example/widgets/pulse_badge.dart#PulseBadge',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0033'),
+          name: 'label',
+          type: PropertyType.string,
+          description: 'Caption text.',
+          required: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0034'),
+          name: 'count',
+          type: PropertyType.integer,
+          description: 'Count shown after the caption.',
+          required: true,
+        ),
+      ],
+    ),
+    WidgetEntry(
       wireId: WireId('w0009'),
       name: 'StatBadge',
       library: WidgetLibrary.custom('restage_example.widgets'),
@@ -107,6 +161,146 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.string,
           description: 'Value text.',
           required: true,
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0011'),
+      name: 'StreakBadge',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'A pill showing a streak count, its fill deepening with it.',
+      flutterType:
+          'package:restage_example/widgets/streak_badge.dart#StreakBadge',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0031'),
+          name: 'label',
+          type: PropertyType.string,
+          description: 'Caption text.',
+          required: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0032'),
+          name: 'count',
+          type: PropertyType.integer,
+          description: 'Streak count.',
+          required: true,
+        ),
+      ],
+    ),
+  ],
+  structuredTypes: [
+    StructuredEntry(
+      wireId: WireId('s0001'),
+      name: 'Plan',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      description:
+          'A subscription plan rendered inside a [PricingCard] — a customer data class with a nested [Price], an optional badge, and an enum tier.',
+      sourceType: 'package:restage_example/widgets/pricing_card.dart#Plan',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0025'),
+          name: 'name',
+          type: PropertyType.string,
+          description: 'The plan\'s display name.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        StructuredField(
+          wireId: WireId('p0026'),
+          name: 'price',
+          type: PropertyType.structured,
+          description:
+              'The plan\'s price (a nested data class — a two-level structured graph).',
+          structuredRef: WireIdRef(
+              library: 'restage_example.widgets', wireId: WireId('s0002')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage_example.widgets', wireId: WireId('s0002'))),
+        ),
+        StructuredField(
+          wireId: WireId('p0027'),
+          name: 'badge',
+          type: PropertyType.string,
+          description:
+              'An optional highlight badge (e.g. `\'Most popular\'`); `null` when the wire omits it.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        StructuredField(
+          wireId: WireId('p0028'),
+          name: 'tier',
+          type: PropertyType.enumValue,
+          description:
+              'The billing tier. Defaults to [PlanTier.starter] when the wire omits it.',
+          valueShape: EnumShape(
+              propertyType: PropertyType.enumValue,
+              enumRef: DartTypeRef(
+                  libraryUri:
+                      'package:restage_example/widgets/pricing_card.dart',
+                  symbolName: 'PlanTier')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0001'),
+          argMappings: {
+            'badge': ArgMapping(targetFields: [WireId('p0027')]),
+            'name': ArgMapping(targetFields: [WireId('p0025')]),
+            'price': ArgMapping(targetFields: [WireId('p0026')]),
+            'tier': ArgMapping(targetFields: [WireId('p0028')]),
+          },
+          description: 'Creates a plan.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0002'),
+      name: 'Price',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      description:
+          'A price: an integer [amount] in the currency\'s minor units plus the ISO currency code.',
+      sourceType: 'package:restage_example/widgets/pricing_card.dart#Price',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0029'),
+          name: 'amount',
+          type: PropertyType.integer,
+          description:
+              'The amount in the currency\'s minor units (e.g. cents).',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.integer,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        StructuredField(
+          wireId: WireId('p0030'),
+          name: 'currency',
+          type: PropertyType.string,
+          description:
+              'The ISO-4217 currency code. Defaults to `\'USD\'` when the wire omits it.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0002'),
+          argMappings: {
+            'amount': ArgMapping(targetFields: [WireId('p0029')]),
+            'currency': ArgMapping(targetFields: [WireId('p0030')]),
+          },
+          description: 'Creates a price.',
         ),
       ],
     ),

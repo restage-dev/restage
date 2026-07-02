@@ -53,6 +53,7 @@ final class FlowCustomEvent extends RestageEvent {
     required this.flowVersion,
     required this.eventName,
     required this.fields,
+    this.resolvedVersion,
     super.firedAt,
   });
 
@@ -62,8 +63,13 @@ final class FlowCustomEvent extends RestageEvent {
   /// Stable onboarding flow identifier.
   final String flowId;
 
-  /// Flow descriptor version.
+  /// Flow descriptor version — the stable client-contract version.
   final int flowVersion;
+
+  /// The server-resolved active version, when the active arm served a version
+  /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
+  /// exact resolve or an active-arm fallback to the bundled document.
+  final int? resolvedVersion;
 
   /// Flow-authored semantic event name.
   final String eventName;
@@ -76,6 +82,7 @@ final class FlowCustomEvent extends RestageEvent {
         'name': name,
         'flowId': flowId,
         'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
         'eventName': eventName,
         'fields': fields,
         if (firedAt != null) 'firedAt': firedAt!.toIso8601String(),
@@ -100,6 +107,7 @@ final class FlowStarted extends RestageEvent {
   const FlowStarted({
     required this.flowId,
     required this.flowVersion,
+    this.resolvedVersion,
     this.flowSessionId,
     this.parentFlowSessionId,
     super.firedAt,
@@ -111,8 +119,13 @@ final class FlowStarted extends RestageEvent {
   /// Stable onboarding flow identifier.
   final String flowId;
 
-  /// Flow descriptor version.
+  /// Flow descriptor version — the stable client-contract version.
   final int flowVersion;
+
+  /// The server-resolved active version, when the active arm served a version
+  /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
+  /// exact resolve or an active-arm fallback to the bundled document.
+  final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.
   final String? flowSessionId;
@@ -125,6 +138,7 @@ final class FlowStarted extends RestageEvent {
         'name': name,
         'flowId': flowId,
         'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
         if (flowSessionId != null) 'flowSessionId': flowSessionId,
         if (parentFlowSessionId != null)
           'parentFlowSessionId': parentFlowSessionId,
@@ -142,6 +156,7 @@ final class FlowCompleted extends RestageEvent {
   const FlowCompleted({
     required this.flowId,
     required this.flowVersion,
+    this.resolvedVersion,
     this.flowSessionId,
     this.parentFlowSessionId,
     super.firedAt,
@@ -153,8 +168,13 @@ final class FlowCompleted extends RestageEvent {
   /// Stable onboarding flow identifier.
   final String flowId;
 
-  /// Flow descriptor version.
+  /// Flow descriptor version — the stable client-contract version.
   final int flowVersion;
+
+  /// The server-resolved active version, when the active arm served a version
+  /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
+  /// exact resolve or an active-arm fallback to the bundled document.
+  final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.
   final String? flowSessionId;
@@ -167,6 +187,7 @@ final class FlowCompleted extends RestageEvent {
         'name': name,
         'flowId': flowId,
         'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
         if (flowSessionId != null) 'flowSessionId': flowSessionId,
         if (parentFlowSessionId != null)
           'parentFlowSessionId': parentFlowSessionId,
@@ -189,6 +210,7 @@ final class OnboardingStepViewed extends RestageEvent {
     required this.flowVersion,
     required this.screenId,
     required this.stepIndex,
+    this.resolvedVersion,
     this.flowSessionId,
     this.stepCount,
     super.firedAt,
@@ -200,8 +222,13 @@ final class OnboardingStepViewed extends RestageEvent {
   /// Stable onboarding flow identifier.
   final String flowId;
 
-  /// Flow descriptor version.
+  /// Flow descriptor version — the stable client-contract version.
   final int flowVersion;
+
+  /// The server-resolved active version, when the active arm served a version
+  /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
+  /// exact resolve or an active-arm fallback to the bundled document.
+  final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.
   final String? flowSessionId;
@@ -229,6 +256,7 @@ final class OnboardingStepViewed extends RestageEvent {
         'name': name,
         'flowId': flowId,
         'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
         if (flowSessionId != null) 'flowSessionId': flowSessionId,
         'screenId': screenId,
         'stepIndex': stepIndex,
@@ -251,6 +279,7 @@ final class OnboardingSkipped extends RestageEvent {
     required this.flowVersion,
     required this.atScreenId,
     required this.stepIndex,
+    this.resolvedVersion,
     this.flowSessionId,
     super.firedAt,
   });
@@ -261,8 +290,13 @@ final class OnboardingSkipped extends RestageEvent {
   /// Stable onboarding flow identifier.
   final String flowId;
 
-  /// Flow descriptor version.
+  /// Flow descriptor version — the stable client-contract version.
   final int flowVersion;
+
+  /// The server-resolved active version, when the active arm served a version
+  /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
+  /// exact resolve or an active-arm fallback to the bundled document.
+  final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.
   final String? flowSessionId;
@@ -279,6 +313,7 @@ final class OnboardingSkipped extends RestageEvent {
         'name': name,
         'flowId': flowId,
         'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
         if (flowSessionId != null) 'flowSessionId': flowSessionId,
         'atScreenId': atScreenId,
         'stepIndex': stepIndex,
@@ -301,6 +336,7 @@ final class OnboardingPermissionResponse extends RestageEvent {
     required this.flowVersion,
     required this.permission,
     required this.granted,
+    this.resolvedVersion,
     this.flowSessionId,
     super.firedAt,
   });
@@ -311,8 +347,13 @@ final class OnboardingPermissionResponse extends RestageEvent {
   /// Stable onboarding flow identifier.
   final String flowId;
 
-  /// Flow descriptor version.
+  /// Flow descriptor version — the stable client-contract version.
   final int flowVersion;
+
+  /// The server-resolved active version, when the active arm served a version
+  /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
+  /// exact resolve or an active-arm fallback to the bundled document.
+  final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.
   final String? flowSessionId;
@@ -328,6 +369,7 @@ final class OnboardingPermissionResponse extends RestageEvent {
         'name': name,
         'flowId': flowId,
         'flowVersion': flowVersion,
+        if (resolvedVersion != null) 'resolvedVersion': resolvedVersion,
         if (flowSessionId != null) 'flowSessionId': flowSessionId,
         'permission': permission,
         'granted': granted,

@@ -6,15 +6,23 @@ import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart';
 
 class _StaticResolver implements VariantResolver {
-  _StaticResolver(this.bytes);
+  _StaticResolver(this.bytes, {this.experimentId, this.variantId});
   final Uint8List bytes;
+  final String? experimentId;
+  final String? variantId;
+
   @override
   Future<ResolvedVariant> resolve(
     String id, {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: bytes, paywallId: id);
+      ResolvedVariant(
+        bytes: bytes,
+        paywallId: id,
+        experimentId: experimentId,
+        variantId: variantId,
+      );
 }
 
 void main() {
@@ -55,7 +63,11 @@ void main() {
       home: Scaffold(
         body: RestagePaywall(
           id: 'hi',
-          resolver: _StaticResolver(bytes),
+          resolver: _StaticResolver(
+            bytes,
+            experimentId: 'exp_paywall_copy',
+            variantId: 'variant_a',
+          ),
           onEvent: received.add,
         ),
       ),
@@ -70,5 +82,8 @@ void main() {
         'paywall_viewed',
       ]),
     );
+    final viewed = received.whereType<PaywallViewed>().single;
+    expect(viewed.experimentId, 'exp_paywall_copy');
+    expect(viewed.variantId, 'variant_a');
   });
 }

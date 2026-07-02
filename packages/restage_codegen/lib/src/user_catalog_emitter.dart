@@ -78,9 +78,73 @@ Catalog userCatalogFromWidgets(List<WidgetEntry> widgets) {
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: _generatedAt,
-    libraries: _aggregateLibraryInfo(widgets),
+    // Widget-only graph: no structured admission, so no capver stamp.
+    libraries: _aggregateLibraryInfo(widgets, const {}),
     widgets: widgets,
   );
+}
+
+/// Builds the full customer catalog shape — widgets PLUS a native structured
+/// graph (`structuredTypes` / `unions`). Unlike [userCatalogFromWidgets], this
+/// accepts a structured graph (it is the path a customer widget rendering a
+/// data-class property takes); the allocation pass mints the graph's wire IDs.
+Catalog userCatalogFromGraph({
+  required List<WidgetEntry> widgets,
+  List<StructuredEntry> structuredTypes = const [],
+  List<UnionEntry> unions = const [],
+  Map<String, int> stampedCapabilityVersions = const {},
+}) {
+  _rejectUnsupportedFullGraph(
+    widgets,
+    hasStructuredGraph: structuredTypes.isNotEmpty,
+  );
+  return Catalog(
+    schemaVersion: kSupportedSchemaVersion,
+    generatedAt: _generatedAt,
+    libraries: _aggregateLibraryInfo(widgets, stampedCapabilityVersions),
+    widgets: widgets,
+    structuredTypes: structuredTypes,
+    unions: unions,
+  );
+}
+
+/// Guards the full-graph builder: a decompose recipe or a design-token default
+/// is never producible by the customer annotation pipeline, so both fail loud.
+/// A structured/union graph reference is allowed ONLY when a structured graph
+/// is provided to back it ([hasStructuredGraph]) — a bare reference with no
+/// graph is the same unpreservable shape the widget-only builder rejects.
+void _rejectUnsupportedFullGraph(
+  List<WidgetEntry> widgets, {
+  required bool hasStructuredGraph,
+}) {
+  for (final widget in widgets) {
+    if (widget.decomposes.isNotEmpty) {
+      throw UnsupportedError(
+        'Customer catalog builder for ${widget.library.namespace}#'
+        '${widget.name} cannot preserve a native decompose graph — customer '
+        'widgets are leaf @RestageWidgets and do not carry decompose recipes.',
+      );
+    }
+    for (final property in widget.properties) {
+      if (!hasStructuredGraph &&
+          (property.structuredRef != null ||
+              _valueShapeNeedsGraph(property.valueShape))) {
+        throw UnsupportedError(
+          'Customer catalog builder for ${widget.library.namespace}#'
+          '${widget.name}.${property.name} carries a structured/union graph '
+          'reference but no structured graph was provided to back it.',
+        );
+      }
+      if (property.defaultSource is TokenRefDefault) {
+        throw UnsupportedError(
+          'Customer catalog builder for ${widget.library.namespace}#'
+          '${widget.name}.${property.name} cannot preserve a design-token '
+          'default because the customer annotation pipeline cannot preserve '
+          'designTokens.',
+        );
+      }
+    }
+  }
 }
 
 /// `generatedAt` is intentionally fixed (not a real timestamp) so emitter
@@ -90,14 +154,21 @@ const String _generatedAt = '1970-01-01T00:00:00Z';
 
 Map<WidgetLibrary, LibraryInfo> _aggregateLibraryInfo(
   List<WidgetEntry> widgets,
+  Map<String, int> stampedCapabilityVersions,
 ) {
   // One envelope entry per distinct contributing library. Per-kind counts are
   // computed off the catalog's entry lists, not stored here.
   // `version` is a deterministic placeholder until builder configuration
   // or consuming-package metadata supplies customer library versions.
+  // A STRUCTURED-ADMITTING library carries its declared `capabilityVersion`
+  // (the delivery floor); every other library stays byte-stable (no capver),
+  // so a scalar / built-in-structured-only customer catalog is unchanged.
   return {
     for (final library in {for (final w in widgets) w.library})
-      library: const LibraryInfo(version: '0.0.0'),
+      library: LibraryInfo(
+        version: '0.0.0',
+        capabilityVersion: stampedCapabilityVersions[library.namespace],
+      ),
   };
 }
 

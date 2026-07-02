@@ -8,13 +8,19 @@ const List<HelperDefinition> onboardingHelpers = [
     name: 'onboardingEvent',
     libraryOrigin: _kSdkLibraryOrigin,
     returnCategory: HelperReturnCategory.voidCallback,
-    translate: _translateOnboardingEvent,
+    translate: _translateScreenEvent,
+  ),
+  HelperDefinition(
+    name: 'surfaceEvent',
+    libraryOrigin: _kSdkLibraryOrigin,
+    returnCategory: HelperReturnCategory.voidCallback,
+    translate: _translateScreenEvent,
   ),
 ];
 
-String _translateOnboardingEvent(HelperCallArgs args) {
+String _translateScreenEvent(HelperCallArgs args) {
   if (args.positional.isEmpty) {
-    throw ArgumentError('onboardingEvent requires an event descriptor');
+    throw ArgumentError('screen event helper requires an event descriptor');
   }
   final name = _stripQuotes(args.positional.first);
   final body = args.positional.length > 1 ? args.positional[1] : '{}';

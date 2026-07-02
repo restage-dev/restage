@@ -3,8 +3,8 @@ part of 'reel_cancel.dart';
 abstract final class ReelCancelFlowDescriptor {
   const ReelCancelFlowDescriptor._();
 
-  static const OnboardingFlowRef<ReelCancelResult> ref =
-      OnboardingFlowRef<ReelCancelResult>(
+  static const SurfaceFlowRef<ReelCancelResult> ref =
+      SurfaceFlowRef<ReelCancelResult>(
     id: 'reel_cancel',
     version: 1,
     minClient: 1,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:yaml/yaml.dart';
 
 /// Default filename for the per-project config consumed by every
@@ -20,6 +21,8 @@ class RestageConfig {
     required this.project,
     required this.app,
     this.defaultEnvironment,
+    this.organization,
+    this.endpoint,
   });
 
   /// Project slug the host repository belongs to.
@@ -31,6 +34,14 @@ class RestageConfig {
   /// Default environment slug for the publish flow. Optional — when
   /// unset, commands prompt (in interactive mode) or require `--env`.
   final String? defaultEnvironment;
+
+  /// Organization slug for this project. Optional for configs written by
+  /// older CLI versions.
+  final String? organization;
+
+  /// Backend endpoint expected by this project. Optional for configs written
+  /// by older CLI versions.
+  final String? endpoint;
 
   /// Decode from a YAML string. Throws [RestageConfigFormatException] when
   /// required keys are missing or have the wrong shape.
@@ -50,10 +61,14 @@ class RestageConfig {
     final project = _requireString(map, 'project');
     final app = _requireString(map, 'app');
     final defaultEnvironment = _optionalString(map, 'defaultEnvironment');
+    final organization = _optionalString(map, 'organization');
+    final endpoint = _optionalString(map, 'endpoint');
     return RestageConfig(
       project: project,
       app: app,
       defaultEnvironment: defaultEnvironment,
+      organization: organization,
+      endpoint: endpoint,
     );
   }
 
@@ -66,6 +81,12 @@ class RestageConfig {
       ..writeln('app: $app');
     if (defaultEnvironment != null) {
       buffer.writeln('defaultEnvironment: $defaultEnvironment');
+    }
+    if (organization != null) {
+      buffer.writeln('organization: $organization');
+    }
+    if (endpoint != null) {
+      buffer.writeln('endpoint: $endpoint');
     }
     return buffer.toString();
   }
@@ -81,6 +102,73 @@ class RestageConfigFormatException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Thrown when a project config expects a different backend than the
+/// stored credential was issued for.
+abstract interface class EndpointConfigurationException implements Exception {}
+
+/// Thrown when an endpoint string cannot be used as a backend origin.
+class EndpointFormatException implements EndpointConfigurationException {
+  /// Construct with a human-readable [message].
+  const EndpointFormatException(this.message);
+
+  /// Human-readable description of the problem.
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Thrown when a project config expects a different backend than the
+/// stored credential was issued for.
+class EndpointMismatchException implements EndpointConfigurationException {
+  /// Construct with the normalized endpoints involved in the mismatch.
+  const EndpointMismatchException({
+    required this.configEndpoint,
+    required this.credentialEndpoint,
+  });
+
+  /// Backend endpoint requested by the project config.
+  final Uri configEndpoint;
+
+  /// Backend endpoint the stored credential belongs to.
+  final Uri credentialEndpoint;
+
+  @override
+  String toString() =>
+      'restage_config.yaml expects $configEndpoint, but the stored '
+      'credential belongs to $credentialEndpoint. Run `restage login '
+      '--endpoint $configEndpoint` to sign in for this project.';
+}
+
+/// Resolve the backend endpoint to use for an API client.
+///
+/// A project config may name the expected backend, but a stored credential
+/// may only be sent to the endpoint it belongs to. Missing config endpoint
+/// falls back to the credential endpoint; a mismatched config endpoint fails
+/// before an API client can send credentials.
+Uri resolveApiEndpoint({
+  required RestageConfig? config,
+  required Credential credential,
+}) {
+  final credentialEndpoint = _parseEndpoint(
+    credential.endpoint,
+    source: _EndpointSource.credential,
+  );
+  final configValue = config?.endpoint?.trim();
+  if (configValue == null || configValue.isEmpty) {
+    return credentialEndpoint;
+  }
+  final configEndpoint = _parseEndpoint(
+    configValue,
+    source: _EndpointSource.config,
+  );
+  if (configEndpoint == credentialEndpoint) return configEndpoint;
+  throw EndpointMismatchException(
+    configEndpoint: configEndpoint,
+    credentialEndpoint: credentialEndpoint,
+  );
 }
 
 /// Walks up from [from] (defaulting to `Directory.current`) looking for
@@ -134,4 +222,42 @@ String? _optionalString(Map<dynamic, dynamic> map, String key) {
     );
   }
   return value;
+}
+
+enum _EndpointSource { config, credential }
+
+Uri _parseEndpoint(String value, {required _EndpointSource source}) {
+  final Uri endpoint;
+  try {
+    endpoint = Uri.parse(value);
+  } on FormatException {
+    throw _endpointFormatException(value, source: source);
+  }
+  if (!endpoint.hasScheme || endpoint.host.isEmpty) {
+    throw _endpointFormatException(value, source: source);
+  }
+  return _normalizeEndpoint(endpoint);
+}
+
+EndpointFormatException _endpointFormatException(
+  String value, {
+  required _EndpointSource source,
+}) {
+  return switch (source) {
+    _EndpointSource.config => EndpointFormatException(
+      'Invalid endpoint in restage_config.yaml: `$value`. Set it to an '
+      'absolute backend URL and run `restage login --endpoint <url>`.',
+    ),
+    _EndpointSource.credential => EndpointFormatException(
+      'The stored credential has an invalid endpoint. Run `restage login` '
+      'to refresh it.',
+    ),
+  };
+}
+
+Uri _normalizeEndpoint(Uri endpoint) {
+  final path = endpoint.path;
+  if (path.isEmpty) return endpoint.replace(path: '/');
+  if (path.endsWith('/')) return endpoint;
+  return endpoint.replace(path: '$path/');
 }

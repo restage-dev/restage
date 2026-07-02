@@ -8,6 +8,7 @@ import 'package:restage_cli/src/api/paywall_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_payload.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -124,6 +125,16 @@ class PaywallPublishCommand extends Command<int> {
       );
       return 1;
     }
+    final Uri apiEndpoint;
+    try {
+      apiEndpoint = resolveApiEndpoint(
+        config: loaded?.config,
+        credential: credential,
+      );
+    } on EndpointConfigurationException catch (e) {
+      _stderr.writeln(e.toString());
+      return 1;
+    }
 
     final environment = await _resolveEnvironment(
       argResults?['env'] as String?,
@@ -162,6 +173,8 @@ class PaywallPublishCommand extends Command<int> {
 
     return _runPipeline(
       credential: credential,
+      apiEndpoint: apiEndpoint,
+      config: loaded?.config,
       paywall: paywallName,
       project: project,
       app: app,
@@ -180,6 +193,8 @@ class PaywallPublishCommand extends Command<int> {
   /// can retry the publish without re-running save.
   Future<int> _runPipeline({
     required Credential credential,
+    required Uri apiEndpoint,
+    required RestageConfig? config,
     required String paywall,
     required String project,
     required String app,
@@ -191,7 +206,7 @@ class PaywallPublishCommand extends Command<int> {
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: Uri.parse(credential.endpoint),
+        endpoint: apiEndpoint,
         httpClient: _httpClient,
         credential: credential,
       );
@@ -200,6 +215,12 @@ class PaywallPublishCommand extends Command<int> {
       return 1;
     }
     try {
+      final configuredOrganization = await resolveConfiguredOrganization(
+        api: api,
+        config: config,
+        stderr: _stderr,
+      );
+      if (configuredOrganization == null) return 1;
       final paywallApi = PaywallApi(api);
 
       try {
@@ -210,6 +231,7 @@ class PaywallPublishCommand extends Command<int> {
           bytes: bytes,
           minClient: minClient,
           requiredLibraries: requiredLibraries,
+          organizationId: configuredOrganization.organizationId,
         );
       } on RestageApiException catch (e) {
         return _handleApiException(e, stage: _Stage.save, paywall: paywall);
@@ -224,6 +246,7 @@ class PaywallPublishCommand extends Command<int> {
           app: app,
           paywall: paywall,
           environment: environment,
+          organizationId: configuredOrganization.organizationId,
         );
         _stdout.writeln(
           'Published $paywall to $environment as version $version.',

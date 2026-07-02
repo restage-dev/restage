@@ -52,6 +52,15 @@ class SurfaceSummary {
       },
     );
   }
+
+  /// Encode for `--json` CLI output.
+  Map<String, dynamic> toJson() => {
+    'surfaceType': surfaceType,
+    'slug': slug,
+    'name': name,
+    'draftUpdatedAt': draftUpdatedAt.toUtc().toIso8601String(),
+    'publishedVersionByEnvironment': publishedVersionByEnvironment,
+  };
 }
 
 /// Operator lifecycle snapshot of one surface in one environment, decoded from
@@ -93,8 +102,8 @@ class SurfaceStatusResult {
   final List<SurfaceVersionResult> versions;
 
   /// Rollback re-points the active-version pointer, which only changes what a
-  /// blob surface serves; a version-pinned flow is unaffected, so rollback is
-  /// offered only for blob-shaped surfaces.
+  /// blob surface serves; version-pinned flow surfaces are previewed through
+  /// rollback preflight instead.
   bool get supportsRollback => deliveryShape == 'blob';
 
   /// Decode from the backend's JSON-shaped wire payload.
@@ -147,6 +156,332 @@ class SurfaceVersionResult {
         contentHash: json['contentHash']! as String,
         isActive: json['isActive']! as bool,
       );
+}
+
+/// One rendered server-side audit event for a surface/governance timeline.
+@experimental
+@immutable
+class SurfaceAuditLogEntry {
+  /// Construct an audit log entry.
+  const SurfaceAuditLogEntry({
+    required this.action,
+    required this.actorType,
+    required this.actorEmail,
+    required this.outcome,
+    required this.severity,
+    required this.targetType,
+    required this.targetId,
+    required this.occurredAt,
+    required this.reason,
+    required this.context,
+    required this.chainState,
+    required this.chainVerified,
+    required this.entryId,
+  });
+
+  /// Audit action wire name.
+  final String action;
+
+  /// Actor type wire name.
+  final String actorType;
+
+  /// Resolved actor email when visible to this caller.
+  final String? actorEmail;
+
+  /// Audit outcome wire name.
+  final String outcome;
+
+  /// Audit severity wire name.
+  final String severity;
+
+  /// Target type wire name, when present.
+  final String? targetType;
+
+  /// Target id, when present.
+  final String? targetId;
+
+  /// Event occurrence time.
+  final DateTime occurredAt;
+
+  /// Audit reason, when visible.
+  final String? reason;
+
+  /// Action-specific immutable context recorded by the server.
+  final Map<String, String> context;
+
+  /// `chained` or `pendingChain`.
+  final String chainState;
+
+  /// Whether a chained entry is at/below the verified high-water mark.
+  final bool chainVerified;
+
+  /// Chain entry id for chained rows.
+  final int? entryId;
+
+  /// Decode from the backend's JSON-shaped wire payload.
+  factory SurfaceAuditLogEntry.fromJson(Map<String, dynamic> json) {
+    return SurfaceAuditLogEntry(
+      action: json['action']! as String,
+      actorType: json['actorType']! as String,
+      actorEmail: json['actorEmail'] as String?,
+      outcome: json['outcome']! as String,
+      severity: json['severity']! as String,
+      targetType: json['targetType'] as String?,
+      targetId: json['targetId'] as String?,
+      occurredAt: DateTime.parse(json['occurredAt']! as String),
+      reason: json['reason'] as String?,
+      context: _stringMap(json['context']),
+      chainState: json['chainState']! as String,
+      chainVerified: json['chainVerified']! as bool,
+      entryId: json['entryId'] as int?,
+    );
+  }
+
+  /// Encode for `--json` CLI output.
+  Map<String, dynamic> toJson() => {
+    'action': action,
+    'actorType': actorType,
+    if (actorEmail != null) 'actorEmail': actorEmail,
+    'outcome': outcome,
+    'severity': severity,
+    if (targetType != null) 'targetType': targetType,
+    if (targetId != null) 'targetId': targetId,
+    'occurredAt': occurredAt.toUtc().toIso8601String(),
+    if (reason != null) 'reason': reason,
+    'context': context,
+    'chainState': chainState,
+    'chainVerified': chainVerified,
+    if (entryId != null) 'entryId': entryId,
+  };
+}
+
+/// One row in the compliance / DHF export.
+@experimental
+@immutable
+class SurfaceComplianceExportRow {
+  /// Construct an export row.
+  const SurfaceComplianceExportRow({
+    required this.occurredAt,
+    required this.action,
+    required this.surfaceSlug,
+    required this.surfaceType,
+    required this.environmentSlug,
+    required this.version,
+    required this.actorEmail,
+    required this.reason,
+    required this.chainState,
+    required this.chainVerified,
+    required this.entryId,
+  });
+
+  /// Event occurrence time.
+  final DateTime occurredAt;
+
+  /// Audit action wire name.
+  final String action;
+
+  /// Surface slug, when the action context carries it.
+  final String? surfaceSlug;
+
+  /// Surface type wire name.
+  final String? surfaceType;
+
+  /// Environment slug, when applicable.
+  final String? environmentSlug;
+
+  /// Action-specific version, when one exists.
+  final int? version;
+
+  /// Resolved actor email.
+  final String? actorEmail;
+
+  /// Audit reason.
+  final String? reason;
+
+  /// `chained` or `pendingChain`.
+  final String chainState;
+
+  /// Whether the row is verified by the current chain high-water.
+  final bool chainVerified;
+
+  /// Chain entry id for chained rows.
+  final int? entryId;
+
+  /// Decode from the backend's JSON-shaped wire payload.
+  factory SurfaceComplianceExportRow.fromJson(Map<String, dynamic> json) {
+    return SurfaceComplianceExportRow(
+      occurredAt: DateTime.parse(json['occurredAt']! as String),
+      action: json['action']! as String,
+      surfaceSlug: json['surfaceSlug'] as String?,
+      surfaceType: json['surfaceType'] as String?,
+      environmentSlug: json['environmentSlug'] as String?,
+      version: json['version'] as int?,
+      actorEmail: json['actorEmail'] as String?,
+      reason: json['reason'] as String?,
+      chainState: json['chainState']! as String,
+      chainVerified: json['chainVerified']! as bool,
+      entryId: json['entryId'] as int?,
+    );
+  }
+
+  /// Encode for `--json` CLI output.
+  Map<String, dynamic> toJson() => {
+    'occurredAt': occurredAt.toUtc().toIso8601String(),
+    'action': action,
+    if (surfaceSlug != null) 'surfaceSlug': surfaceSlug,
+    if (surfaceType != null) 'surfaceType': surfaceType,
+    if (environmentSlug != null) 'environmentSlug': environmentSlug,
+    if (version != null) 'version': version,
+    if (actorEmail != null) 'actorEmail': actorEmail,
+    if (reason != null) 'reason': reason,
+    'chainState': chainState,
+    'chainVerified': chainVerified,
+    if (entryId != null) 'entryId': entryId,
+  };
+}
+
+/// Org-level chain verification verdict projected by the backend.
+@experimental
+@immutable
+class SurfaceChainVerdictResult {
+  /// Construct a chain verdict result.
+  const SurfaceChainVerdictResult({
+    required this.status,
+    required this.verifiedThroughEntryId,
+    required this.verifiedThroughOccurredAt,
+    required this.failedEntryId,
+    required this.failedCheck,
+    required this.lastRunAt,
+  });
+
+  /// Verdict status wire name.
+  final String status;
+
+  /// Latest clean high-water entry id.
+  final int? verifiedThroughEntryId;
+
+  /// Occurrence time of the latest clean high-water entry.
+  final DateTime? verifiedThroughOccurredAt;
+
+  /// Failed entry id for a broken verdict.
+  final int? failedEntryId;
+
+  /// Failed check label for a broken verdict.
+  final String? failedCheck;
+
+  /// Latest verifier run completion time.
+  final DateTime? lastRunAt;
+
+  /// Decode from the backend's JSON-shaped wire payload.
+  factory SurfaceChainVerdictResult.fromJson(Map<String, dynamic> json) {
+    return SurfaceChainVerdictResult(
+      status: json['status']! as String,
+      verifiedThroughEntryId: json['verifiedThroughEntryId'] as int?,
+      verifiedThroughOccurredAt: _optionalDateTime(
+        json['verifiedThroughOccurredAt'],
+      ),
+      failedEntryId: json['failedEntryId'] as int?,
+      failedCheck: json['failedCheck'] as String?,
+      lastRunAt: _optionalDateTime(json['lastRunAt']),
+    );
+  }
+
+  /// Encode for `--json` CLI output.
+  Map<String, dynamic> toJson() => {
+    'status': status,
+    if (verifiedThroughEntryId != null)
+      'verifiedThroughEntryId': verifiedThroughEntryId,
+    if (verifiedThroughOccurredAt != null)
+      'verifiedThroughOccurredAt': verifiedThroughOccurredAt!
+          .toUtc()
+          .toIso8601String(),
+    if (failedEntryId != null) 'failedEntryId': failedEntryId,
+    if (failedCheck != null) 'failedCheck': failedCheck,
+    if (lastRunAt != null) 'lastRunAt': lastRunAt!.toUtc().toIso8601String(),
+  };
+}
+
+/// How rolling a surface back to a target version is expected to affect the
+/// currently-live cohort. Informational — rollback is never blocked by it.
+/// [unknown] is a forward-compatible fallback for a classification the backend
+/// may add later; the command treats it as "proceed, no special note".
+@experimental
+enum RollbackPreflightClassification {
+  /// The target's contract is within the current-active contract — live clients
+  /// render the rolled-back version via the active arm.
+  compatible,
+
+  /// The target's contract differs from the current-active one — live clients
+  /// on the current contract fall back to their bundled copy.
+  contractChange,
+
+  /// A flow-shaped paywall target — re-pointing is refused (no hosted paywall
+  /// flow serve path yet).
+  unsupportedTargetShape,
+
+  /// No current-active version (killed / never-activated) — the re-point
+  /// reactivates the target; there is no live cohort to compare against.
+  noActiveBaseline,
+
+  /// An unrecognized classification (forward-compatibility).
+  unknown;
+
+  /// Maps the backend's by-name wire value to a classification, tolerating an
+  /// unknown value rather than throwing.
+  static RollbackPreflightClassification fromWire(String name) =>
+      values.firstWhere((c) => c.name == name, orElse: () => unknown);
+}
+
+/// Informational preview of a rollback to [toVersion]: how it is expected to
+/// affect the currently-live cohort ([classification]) and, for a contract
+/// change, the offending contract differences ([blockingChanges]). A read —
+/// rollback is never blocked by it.
+@experimental
+@immutable
+class RollbackPreflightResult {
+  /// Construct a preflight result.
+  const RollbackPreflightResult({
+    required this.surfaceType,
+    required this.surfaceSlug,
+    required this.environmentSlug,
+    required this.toVersion,
+    required this.classification,
+    required this.blockingChanges,
+  });
+
+  /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey`).
+  final String surfaceType;
+
+  /// Surface slug, unique within an app + type.
+  final String surfaceSlug;
+
+  /// Environment slug the preview is scoped to.
+  final String environmentSlug;
+
+  /// The version the rollback would re-point to.
+  final int toVersion;
+
+  /// The expected cohort impact.
+  final RollbackPreflightClassification classification;
+
+  /// For [RollbackPreflightClassification.contractChange], the rendered
+  /// offending contract differences; empty otherwise.
+  final List<String> blockingChanges;
+
+  /// Decode from the backend's JSON-shaped wire payload.
+  factory RollbackPreflightResult.fromJson(Map<String, dynamic> json) {
+    final rawChanges = json['blockingChanges'] as List<dynamic>? ?? const [];
+    return RollbackPreflightResult(
+      surfaceType: json['surfaceType']?.toString() ?? '',
+      surfaceSlug: json['surfaceSlug']! as String,
+      environmentSlug: json['environmentSlug']! as String,
+      toVersion: json['toVersion']! as int,
+      classification: RollbackPreflightClassification.fromWire(
+        json['classification']?.toString() ?? '',
+      ),
+      blockingChanges: [for (final c in rawChanges) c.toString()],
+    );
+  }
 }
 
 /// Sealed hierarchy for typed errors returned by surface endpoints. The
@@ -292,4 +627,17 @@ SurfaceException? decodeSurfaceTypedException(String body) {
     default:
       return null;
   }
+}
+
+Map<String, String> _stringMap(Object? raw) {
+  if (raw is! Map) return const {};
+  return {
+    for (final entry in raw.entries)
+      entry.key.toString(): entry.value?.toString() ?? '',
+  };
+}
+
+DateTime? _optionalDateTime(Object? raw) {
+  if (raw == null) return null;
+  return DateTime.parse(raw as String);
 }

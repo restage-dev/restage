@@ -3,7 +3,7 @@ part of 'tally_invest.dart';
 abstract final class TallyInvestScreenDescriptor {
   const TallyInvestScreenDescriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: 'tally_invest',
     artifactPath: 'tally_invest.rfw',
     version: 1,

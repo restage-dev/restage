@@ -1,16 +1,16 @@
 # Build your first surface
 
-This walks you from nothing to a real surface rendering in your Flutter app. We
-will build a paywall, because it is the most common first surface, but the same
+This walks you from nothing to a real surface rendering in your Flutter app.
+We'll build a paywall, because it's the most common first surface, but the same
 steps build any surface: onboarding, an in-app message, or a full screen.
 
-The whole thing runs offline. You do not need a Restage account or a backend to
+The whole thing runs offline. You don't need a Restage account or a backend to
 write a surface and render it on device.
 
-If you would rather read working code than a walkthrough, the [`apps/examples`](apps/examples)
-README has a **Starters** section — four minimal, copy-me surfaces (a paywall, an
+If you'd rather read working code than a walkthrough, the [`apps/examples`](apps/examples)
+README has a **Starters** section: four minimal, copy-me surfaces (a paywall, an
 onboarding flow, a one-screen message, and a custom widget), each the smallest file
-that still ships — plus a library of fuller, polished surfaces. Copying a starter is the
+that still ships, plus a library of fuller, polished surfaces. Copying a starter is the
 fastest way to begin. This guide builds one from scratch so you see each piece.
 
 ## 1. Add the packages
@@ -21,12 +21,12 @@ In your Flutter app's `pubspec.yaml`:
 dependencies:
   flutter:
     sdk: flutter
-  restage: ^0.1.0
-  restage_material: ^0.1.0
+  restage: ^1.0.0
+  restage_material: ^1.0.0
 
 dev_dependencies:
   build_runner: ">=2.4.0 <3.0.0"
-  restage_codegen: ^0.1.0
+  restage_codegen: ^1.0.0
 ```
 
 Then fetch them:
@@ -36,14 +36,14 @@ flutter pub get
 ```
 
 (If you have the CLI installed, `restage init` will do this step and scaffold a
-starter paywall for you. This guide assumes you are doing it by hand so you can see
-each piece.)
+starter paywall for you. This guide assumes you're doing it by hand.)
 
 ## 2. Write the surface
 
 A simple paywall is a `StatelessWidget` annotated with `@PaywallSource`. You write
-ordinary Flutter. The `id` is how you will reference the surface when you render
-it. (Interactive paywalls — plan selection and the like — are a `StatefulWidget`
+ordinary Flutter. These are your own widgets: swap in your design-system components
+and they ship the same way. The `id` is how you'll reference the surface when you
+render it. (Interactive paywalls, plan selection and the like, are a `StatefulWidget`
 root holding their selection state; the examples show that pattern.)
 
 Save this as `lib/paywalls/pro_upgrade.dart`:
@@ -107,7 +107,7 @@ tree literally, so: write each string as a single literal, keep the build tree
 flat rather than extracting helper widgets, and write any theme reads inline at the
 point of use. The examples document the full list. And one capability boundary:
 fully custom render logic (a `CustomPainter`, for instance) is not available in a
-surface; compose from Flutter's own widgets instead. If the build step cannot lower
+surface; compose from Flutter's own widgets instead. If the build step can't lower
 something, it tells you at build time rather than rendering it differently.
 
 ## 3. Compile it
@@ -202,9 +202,9 @@ flutter run
 ```
 
 A debug `flutter run` doesn't tree-shake icons, so it needs no flag. When you build
-a **release** of an app that ships a Restage surface, add `--no-tree-shake-icons` —
-the render blob constructs icons from runtime values, which the release icon
-tree-shaker can't reason about, so the build fails without it:
+a **release** of an app that ships a Restage surface, add `--no-tree-shake-icons`.
+The render blob constructs icons from runtime values, which the release icon
+tree-shaker can't see, so the build fails without the flag:
 
 ```sh
 flutter build ios --no-tree-shake-icons
@@ -224,11 +224,11 @@ Or keep it rebuilding as you edit:
 dart run build_runner watch
 ```
 
-One thing to know: Flutter does not hot-reload bundled assets, so after the `.rfw`
+One thing to know: Flutter doesn't hot-reload bundled assets, so after the `.rfw`
 rebuilds, hot-restart the running app (press `R` in `flutter run`) to pick up the
 new blob.
 
-That is the whole local loop: write Flutter, compile, render, repeat. Everything so
+That's the whole local loop: write Flutter, compile, render, repeat. Everything so
 far works with no account and no network.
 
 ## Where to go next
@@ -240,6 +240,7 @@ far works with no account and no network.
   the selection updates, the purchase re-targets) that travels inside the render
   blob with no host code. The examples README explains the pattern.
 - **Hosted delivery.** When you want a published surface to update installed apps
-  over the air, that is what hosted delivery and the CLI's `restage publish` are
-  for. Hosted delivery is in private beta; the SDK already falls back to your
-  bundled blob until it is available, so nothing you build now has to change.
+  over the air, that's what hosted delivery and the CLI's publish commands
+  (`restage paywall publish`, `restage surface publish`) are for. Hosted delivery
+  is in private beta; the SDK already falls back to your bundled blob until it's
+  available, so nothing you build now has to change.

@@ -3,8 +3,8 @@ part of 'minimal_onboarding.dart';
 abstract final class MinimalOnboardingFlowDescriptor {
   const MinimalOnboardingFlowDescriptor._();
 
-  static const OnboardingFlowRef<MinimalOnboardingResult> ref =
-      OnboardingFlowRef<MinimalOnboardingResult>(
+  static const SurfaceFlowRef<MinimalOnboardingResult> ref =
+      SurfaceFlowRef<MinimalOnboardingResult>(
     id: 'minimal_onboarding',
     version: 1,
     minClient: 1,

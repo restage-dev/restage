@@ -419,7 +419,7 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
 List<_ScreenDescriptor> _parseScreenDescriptors(String source) {
   final pattern = RegExp(
     r'abstract final class\s+(\w+Descriptor)[\s\S]*?'
-    r'OnboardingScreenRef\s*\([\s\S]*?'
+    r'(?:OnboardingScreenRef|SurfaceScreenRef)\s*\([\s\S]*?'
     r"id:\s*'([^']+)'[\s\S]*?"
     r"artifactPath:\s*'([^']+)'[\s\S]*?"
     r'version:\s*(\d+)[\s\S]*?'
@@ -657,12 +657,15 @@ Future<_LoweredFlow?> _lowerFlow(
     screenArtifacts[descriptor.id] =
         await _artifactFor(buildStep, assetId, descriptor, issues);
   }
-  if (endCount != 1) {
+  final hasTerminalScreenState = states.values.any(
+    (state) => state is ScreenFlowState && state.on.isEmpty,
+  );
+  if (endCount > 1 || (endCount == 0 && !hasTerminalScreenState)) {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Onboarding flows must declare exactly one end '
-            'state; found $endCount.',
+        message: 'Flows must declare one end state unless a reachable screen '
+            'has no outgoing transitions; found $endCount end states.',
         location: '${assetId.path}#${flow.className}.buildFlow',
       ),
     );
@@ -749,12 +752,25 @@ _ScreenNode? _parseScreenNode(
   List<Issue> issues,
   AssetId assetId,
 ) {
+  if (expression is MethodInvocation &&
+      expression.methodName.name == 'screen') {
+    final screen = _screenForRef(
+      expression.argumentList.arguments.firstOrNull,
+      descriptors,
+      issues,
+      assetId,
+    );
+    if (screen == null) return null;
+    return _ScreenNode(screen: screen, transitions: const []);
+  }
+
   if (expression is! MethodInvocation || expression.methodName.name != 'goTo') {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'Flow states must be screen(ref).on(event)…goTo(target) or '
-            'end(...) in the current flow runtime.',
+        message: 'Flow states must be screen(ref), '
+            'screen(ref).on(event)…goTo(target), or end(...) in the current '
+            'flow runtime.',
         location: assetId.path,
       ),
     );
@@ -3257,8 +3273,8 @@ part of '$stem.dart';
 abstract final class $descriptorClass {
   const $descriptorClass._();
 
-  static const OnboardingFlowRef<$resultClass> ref =
-      OnboardingFlowRef<$resultClass>(
+  static const SurfaceFlowRef<$resultClass> ref =
+      SurfaceFlowRef<$resultClass>(
     id: '${flow.id}',
     version: ${flow.version},
     minClient: ${flow.minClient},

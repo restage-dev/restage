@@ -112,5 +112,99 @@ void main() {
       expect(exitCode, 0);
       expect(stdout.toString(), contains('Usage:'));
     });
+
+    test('no arguments in a TTY launches the console', () async {
+      var launched = false;
+      final exitCode = await RestageCli(
+        stdout: StringBuffer(),
+        stderr: StringBuffer(),
+        hasTerminal: () => true,
+        consoleLauncher: (_) async {
+          launched = true;
+          return 0;
+        },
+      ).run(const <String>[]);
+
+      expect(exitCode, 0);
+      expect(launched, isTrue);
+    });
+
+    test(
+      'no arguments outside a TTY prints usage and does not launch console',
+      () async {
+        var launched = false;
+        final stdout = StringBuffer();
+        final exitCode = await RestageCli(
+          stdout: stdout,
+          stderr: StringBuffer(),
+          hasTerminal: () => false,
+          consoleLauncher: (_) async {
+            launched = true;
+            return 0;
+          },
+        ).run(const <String>[]);
+
+        expect(exitCode, 0);
+        expect(launched, isFalse);
+        expect(stdout.toString(), contains('Usage:'));
+      },
+    );
+
+    test('--help does not launch the console even in a TTY', () async {
+      var launched = false;
+      final stdout = StringBuffer();
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: StringBuffer(),
+        hasTerminal: () => true,
+        consoleLauncher: (_) async {
+          launched = true;
+          return 0;
+        },
+      ).run(const ['--help']);
+
+      expect(exitCode, 0);
+      expect(launched, isFalse);
+      expect(stdout.toString(), contains('Usage:'));
+    });
+
+    test(
+      '--non-interactive with no command does not launch the console',
+      () async {
+        var launched = false;
+        final stdout = StringBuffer();
+        final exitCode = await RestageCli(
+          stdout: stdout,
+          stderr: StringBuffer(),
+          hasTerminal: () => true,
+          consoleLauncher: (_) async {
+            launched = true;
+            return 0;
+          },
+        ).run(const ['--non-interactive']);
+
+        expect(exitCode, 0);
+        expect(launched, isFalse);
+        expect(stdout.toString(), contains('Usage:'));
+      },
+    );
+
+    test('unknown command does not launch the console even in a TTY', () async {
+      var launched = false;
+      final stderr = StringBuffer();
+      final exitCode = await RestageCli(
+        stdout: StringBuffer(),
+        stderr: stderr,
+        hasTerminal: () => true,
+        consoleLauncher: (_) async {
+          launched = true;
+          return 0;
+        },
+      ).run(const ['not-a-command']);
+
+      expect(exitCode, 1);
+      expect(launched, isFalse);
+      expect(stderr.toString(), contains('not-a-command'));
+    });
   });
 }

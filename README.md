@@ -23,51 +23,60 @@
 </p>
 
 <!--
-  Hero — animated overprint wordmark (the same asset the restage package README
-  uses). GitHub renders the theme-adaptive animated SVG; viewers that strip SVG
-  fall back to the WebP. Paths are relative to the PUBLIC REPO ROOT, where this
-  file lands at extraction (runbook Step 8) — so the hero renders on the GitHub
-  landing page, not when previewing this staged copy under docs/launch/front-door/.
+  Hero — animated overprint wordmark. GitHub renders the theme-adaptive animated
+  SVG; viewers that strip SVG fall back to the WebP. Paths are relative to the
+  repository root.
 -->
 
-**Server-driven UI for Flutter.** Build any surface of your app — onboarding, in-app messages, surveys, paywalls, whole screens — in vanilla Flutter, then ship changes to it over the air without an app-store release. It renders as real Flutter widgets in your own widget tree — not a webview, not a platform view.
+**Server-driven UI for Flutter.** Build any surface of your app from the widgets you already write and ship changes over the air, no app-store release: what ships is content, not code. Surfaces render as *real* Flutter widgets inside your widget tree, and every change is versioned, reversible, and auditable.
 
-The Flutter you author is the artifact that ships. A build step compiles your widget into a small data file (a [Remote Flutter Widgets](https://pub.dev/packages/rfw) blob); the SDK renders it. Your design system and theme come with it: a `Theme.of(context)` read resolves against your live `ThemeData` at render time, so a delivered surface follows your app into dark mode or a rebrand with no recompile. Webview and native-island tools can't do that — they render in a second engine that has no access to your widgets.
+Write a screen in ordinary Flutter. A build step compiles it to a small data file (a [Remote Flutter Widgets](https://pub.dev/packages/rfw) blob) and the SDK renders it, using your live theme.
 
 ```dart
 @ScreenSource(id: 'welcome')
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   @override
   Widget build(BuildContext context) => Column(children: [
         Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
-        FilledButton(onPressed: onboardingEvent(next), child: const Text('Get started')),
+        FilledButton(onPressed: surfaceEvent(next), child: const Text('Get started')),
       ]);
 }
 ```
 
-`dart run build_runner build` lowers that to a committed `.rfw` blob; the SDK renders it, fully offline. Swap `@ScreenSource` for `@PaywallSource`, `@FlowSource`, and the rest — every surface runs on the same catalog, compiler, and runtime. Full walkthrough in [QUICKSTART.md](QUICKSTART.md).
+`dart run build_runner build` turns this into a `.rfw` blob that renders fully offline. Swap `@ScreenSource` for `@PaywallSource` or `@FlowSource`: every surface runs on the same catalog and runtime.
 
-## Start here
+## Why Restage
 
-The fastest way in is to copy a starter. The [`apps/examples`](apps/examples) README has a **Starters** section: four minimal, copy-me surfaces — a paywall, an onboarding flow, a one-screen message, and a custom widget — each the smallest file that still compiles and ships. Retitle it, restyle it, ship it. Prefer a step-by-step build? The [Quickstart](QUICKSTART.md) writes one from scratch.
+- **Your real Flutter UI, over the air.** Use your own widgets and design system; what ships is compiled from that exact code. Not a fixed palette, not a JSON dialect, not a webview.
+- **Your design system comes with it.** `Theme.of(context)` resolves live at render time. A delivered surface follows your app into dark mode or a rebrand, with no recompile.
+- **No code over the air.** An update changes the screens your app shows. It does *not* run new code, so an update can't do anything your released app couldn't already do. That keeps updates App Store-safe, and makes OTA UI viable where compliance matters.
+- **Fails safe, not wrong.** The build step stops with an error instead of guessing. A surface can't reach a client too old to render it, and a failed fetch falls back to your bundled copy.
+- **One runtime, any surface.** Paywalls, onboarding, messages, surveys, a single card, or a whole screen: anything you author runs on the same runtime. Drop one into your own `Scaffold` and only that region is server-driven.
+- **No lock-in.** A surface is just a `.rfw` file. Serve it from your own backend or CDN. The SDK runs fully offline, no hosted service required.
 
-## How it works
+## Built for controlled delivery
 
-- **App Store Review Guideline 4.7 compliant by design** (and Google Play's equivalent). The blob is inert data — references and literal values, no JavaScript, no eval, no bytecode. Your over-the-air updates ship content, not code.
-- **It fails safe, not wrong.** The compiler stops at build time with a diagnostic rather than lowering a construct differently. Surfaces are immutably versioned and carry a `sinceVersion` floor, so a delivered surface can never reach a client too old to render it. Delivery is fail-closed with tiered fallback (cached → bundled → error builder), hold-last-good, and one-click rollback.
-- **No lock-in.** A surface is just a `.rfw` file — serve it from your own backend or CDN and you have an OTA pipeline you run yourself. Restage's hosted delivery (coming soon) runs that pipeline for you, with the safety net above; the SDK runs without it.
+Ship UI over the air: versioned, reversible, auditable.
+
+- The SDK ships the safety half: immutable surface versions, and clients that fail closed to a safe one.
+- The delivery service builds the control on top: roll back, freeze, or kill any version, with an exportable audit trail of what changed, when, and by whom.
+
+It's the change control a regulated or enterprise team needs. The hosted service is coming soon.
+
+## Get started
+
+Copy a starter. The [`apps/examples`](apps/examples) README has four minimal, copy-me surfaces: a paywall, an onboarding flow, a one-screen message, and a custom widget. Retitle it, restyle it, ship it.
+
+Prefer building from scratch? The [Quickstart](QUICKSTART.md) writes one step by step.
 
 ## What you get
 
-- **Every surface, one runtime** — paywalls, onboarding, messages, surveys, permission prompts, full screens. `apps/examples/` has copyable, offline versions of each. Multi-screen flows, back navigation, and interactive state travel in the blob with no host code.
-- **A 115-widget catalog** across `restage_core` / `restage_material` / `restage_cupertino`, extensible with your own design-system widgets via `@RestageWidget`.
-- **Monetization** for commerce surfaces — a pluggable billing gateway (bundled, RevenueCat, or your own), purchase and restore, promotional offers, and an entitlement stream with grant/revoke events. Receipt validation and revenue attribution run on a backend — yours, or the coming hosted platform.
-- **A2UI (early)** — the same source can emit a genui A2UI catalog, so AI-generated UI builds from your real widgets, not a generic palette.
-
-**Coming soon: hosted delivery — and much more will follow.**
+- **A 115-widget catalog** across `restage_core`, `restage_material`, and `restage_cupertino`. Extend it with your own widgets via `@RestageWidget`.
+- **Monetization** for commerce surfaces: a pluggable billing gateway, purchase and restore, promotional offers, and an entitlement stream. Receipt validation and revenue attribution run on a backend: yours, or the hosted one when it ships.
+- **A2UI (early):** the same source emits a genui A2UI catalog, so AI-generated UI builds from your real widgets.
 
 ## Install
 
@@ -81,7 +90,9 @@ dev_dependencies:
   build_runner: ">=2.4.0 <3.0.0"
 ```
 
-The `restage` CLI is optional (`dart pub global activate restage_cli`). When you build a **release** that ships a Restage surface, pass `--no-tree-shake-icons` — the blob constructs icons from runtime values, which the release icon tree-shaker can't reason about. A debug `flutter run` doesn't need it.
+The `restage` CLI is optional: `dart pub global activate restage_cli`.
+
+> **Note:** when you build a release that ships a Restage surface, pass `--no-tree-shake-icons`. The blob builds icons from runtime values, which the release tree-shaker can't see. A debug `flutter run` doesn't need it.
 
 ## Packages
 
@@ -101,13 +112,18 @@ The `restage` CLI is optional (`dart pub global activate restage_cli`). When you
 
 ## License
 
-Open source where it runs in your app, fair-source where it builds your blobs.
+Open source where it runs in your app. Fair-source where it builds your blobs.
 
-- **BSD-3-Clause** — the SDK, the catalog libraries, the schema, the CLI, the MCP server, the A2UI check, and the examples. (The same license Flutter itself uses.)
-- **FSL-1.1-ALv2** — the build-time toolchain (`restage_codegen`, `rfw_catalog_compiler`): source-available, free for all use including inside your own company, and it converts to Apache-2.0 two years after each release.
+- **BSD-3-Clause:** the SDK, the catalog libraries, the schema, the CLI, the MCP server, the A2UI check, and the examples. The same license Flutter uses.
+- **FSL-1.1-ALv2:** the build-time toolchain (`restage_codegen`, `rfw_catalog_compiler`). Source-available, free for all use including inside your own company, and it converts to Apache-2.0 two years after each release.
 
-The hosted backend, dashboard, editor, and delivery are proprietary. Every package carries its own `LICENSE`.
+The hosted platform is proprietary. Every package carries its own `LICENSE`.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The easiest place to start is the widget catalog — adding a widget is a curation entry plus generated registration.
+See [CONTRIBUTING.md](CONTRIBUTING.md). The easiest place to start is the widget catalog: adding a widget is a curation entry plus generated registration.
+
+## What's next
+
+- [Quickstart](QUICKSTART.md): build your first surface.
+- [`apps/examples`](apps/examples): copy a starter.

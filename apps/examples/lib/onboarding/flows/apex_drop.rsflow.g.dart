@@ -3,8 +3,8 @@ part of 'apex_drop.dart';
 abstract final class ApexDropFlowDescriptor {
   const ApexDropFlowDescriptor._();
 
-  static const OnboardingFlowRef<ApexDropResult> ref =
-      OnboardingFlowRef<ApexDropResult>(
+  static const SurfaceFlowRef<ApexDropResult> ref =
+      SurfaceFlowRef<ApexDropResult>(
     id: 'apex_drop',
     version: 1,
     minClient: 1,

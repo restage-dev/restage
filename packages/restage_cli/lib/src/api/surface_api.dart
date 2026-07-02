@@ -142,6 +142,71 @@ class SurfaceApi {
     return SurfaceStatusResult.fromJson(raw as Map<String, dynamic>);
   }
 
+  /// Audit timeline for one surface in [environment]. Includes chained and
+  /// pending-chain events. Requires the member role.
+  Future<List<SurfaceAuditLogEntry>> listSurfaceHistory({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    int? organizationId,
+  }) async {
+    final raw = await _api
+        .call('surface', 'listSurfaceHistory', <String, dynamic>{
+          'projectSlug': project,
+          'appSlug': app,
+          'surfaceType': surfaceType.wireName,
+          'surfaceSlug': surfaceSlug,
+          'environmentSlug': environment,
+          'organizationId': ?organizationId,
+        });
+    return [
+      for (final item in raw as List<dynamic>)
+        SurfaceAuditLogEntry.fromJson(item as Map<String, dynamic>),
+    ];
+  }
+
+  /// Full organization audit stream. Requires the admin role.
+  Future<List<SurfaceAuditLogEntry>> listAuditLog({
+    required int organizationId,
+  }) async {
+    final raw = await _api.call('surface', 'listAuditLog', <String, dynamic>{
+      'organizationId': organizationId,
+    });
+    return [
+      for (final item in raw as List<dynamic>)
+        SurfaceAuditLogEntry.fromJson(item as Map<String, dynamic>),
+    ];
+  }
+
+  /// Compliance / DHF export rows. Requires admin role and a paid plan.
+  Future<List<SurfaceComplianceExportRow>> exportComplianceAudit({
+    required int organizationId,
+  }) async {
+    final raw = await _api.call(
+      'surface',
+      'exportComplianceAudit',
+      <String, dynamic>{'organizationId': organizationId},
+    );
+    return [
+      for (final item in raw as List<dynamic>)
+        SurfaceComplianceExportRow.fromJson(item as Map<String, dynamic>),
+    ];
+  }
+
+  /// Organization-level chain verification verdict. Requires the admin role.
+  Future<SurfaceChainVerdictResult> surfaceChainVerdict({
+    required int organizationId,
+  }) async {
+    final raw = await _api.call(
+      'surface',
+      'surfaceChainVerdict',
+      <String, dynamic>{'organizationId': organizationId},
+    );
+    return SurfaceChainVerdictResult.fromJson(raw as Map<String, dynamic>);
+  }
+
   /// Kill the surface — null its active-version pointer so the SDK falls back
   /// to its bundled asset. [frozen] also locks the surface against new
   /// publishes. [reason] is recorded in the audit trail. Requires the admin
@@ -232,6 +297,34 @@ class SurfaceApi {
       'reason': reason,
       'organizationId': ?organizationId,
     });
+  }
+
+  /// Informational preview of a rollback to [toVersion]: how it is expected to
+  /// affect the currently-live cohort. Does NOT mutate state and does NOT block
+  /// rollback. Requires the admin role (it previews an admin operation).
+  ///
+  /// [organizationId] disambiguates the owning organization when the caller
+  /// belongs to several; when omitted the backend resolves it.
+  Future<RollbackPreflightResult> rollbackPreflight({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required int toVersion,
+    int? organizationId,
+  }) async {
+    final raw = await _api
+        .call('surface', 'rollbackPreflight', <String, dynamic>{
+          'projectSlug': project,
+          'appSlug': app,
+          'surfaceType': surfaceType.wireName,
+          'surfaceSlug': surfaceSlug,
+          'environmentSlug': environment,
+          'toVersion': toVersion,
+          'organizationId': ?organizationId,
+        });
+    return RollbackPreflightResult.fromJson(raw as Map<String, dynamic>);
   }
 
   /// Snapshot the latest draft for (project, app, surfaceType, surfaceSlug)

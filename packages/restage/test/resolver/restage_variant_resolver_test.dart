@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/restage.dart';
 // The installed built-in catalog content version is the resolver's capability
 // ceiling (internal; the resolver's own tests reach it via the src path).
@@ -41,7 +42,12 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: _server(envelope, onRequest: requests.add),
+        httpClient: _server(
+          envelope,
+          experimentId: 'exp_paywall_copy',
+          variantId: 'variant_a',
+          onRequest: requests.add,
+        ),
       );
 
       final variant = await resolver.resolve('pro_upgrade');
@@ -61,8 +67,33 @@ void main() {
       // The resolved variant carries the blob, the id, and the SERVED version.
       expect(variant.bytes, blob);
       expect(variant.paywallId, 'pro_upgrade');
+      expect(variant.experimentId, 'exp_paywall_copy');
+      expect(variant.variantId, 'variant_a');
       expect(variant.paywallPublishedVersion, 5);
       expect(variant.cacheHit, isFalse);
+    });
+
+    test('threads the internal assignment key into the active hosted request',
+        () async {
+      addTearDown(SurfaceAssignmentKeyProvider.clear);
+      SurfaceAssignmentKeyProvider.current = () async => 'anon-assignment-1';
+      final envelope =
+          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _server(envelope, onRequest: requests.add),
+      );
+
+      await resolver.resolve('pro_upgrade');
+
+      expect(jsonDecode(requests.single.body), {
+        'surfaceType': 'paywall',
+        'surfaceSlug': 'pro_upgrade',
+        'assignmentKey': 'anon-assignment-1',
+      });
     });
   });
 
@@ -295,19 +326,30 @@ void main() {
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
-          http.Response(jsonEncode({'envelope': base64Encode(envelope)}), 200),
+          http.Response(
+            _surfaceResponseJson(
+              envelope,
+              experimentId: 'exp_paywall_copy',
+              variantId: 'variant_a',
+            ),
+            200,
+          ),
           http.Response(jsonEncode({'error': 'unavailable'}), 404),
         ]),
       );
 
       final first = await resolver.resolve('pro_upgrade');
       expect(first.cacheHit, isFalse);
+      expect(first.experimentId, 'exp_paywall_copy');
+      expect(first.variantId, 'variant_a');
       expect(first.paywallPublishedVersion, 5);
 
       final second = await resolver.resolve('pro_upgrade');
       // Fetch failed -> served from the in-memory hold-last-good cache.
       expect(second.cacheHit, isTrue);
       expect(second.bytes, blob);
+      expect(second.experimentId, 'exp_paywall_copy');
+      expect(second.variantId, 'variant_a');
       expect(second.paywallPublishedVersion, 5);
     });
 
@@ -431,7 +473,14 @@ void main() {
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
-          http.Response(jsonEncode({'envelope': base64Encode(envelope)}), 200),
+          http.Response(
+            _surfaceResponseJson(
+              envelope,
+              experimentId: 'exp_paywall_copy',
+              variantId: 'variant_a',
+            ),
+            200,
+          ),
           http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ]),
       );
@@ -440,10 +489,14 @@ void main() {
       final second = await resolver.resolvePayload('pro_upgrade');
 
       expect((first as BlobPaywallPayload).variant.cacheHit, isFalse);
+      expect(first.variant.experimentId, 'exp_paywall_copy');
+      expect(first.variant.variantId, 'variant_a');
       expect(second, isA<BlobPaywallPayload>());
       final secondBlob = second as BlobPaywallPayload;
       expect(secondBlob.variant.cacheHit, isTrue);
       expect(secondBlob.variant.bytes, blob);
+      expect(secondBlob.variant.experimentId, 'exp_paywall_copy');
+      expect(secondBlob.variant.variantId, 'variant_a');
       expect(secondBlob.variant.paywallPublishedVersion, 5);
     });
 
@@ -541,14 +594,32 @@ void main() {
 /// A `MockClient` serving [envelope] (base64-wrapped) from the surface route.
 MockClient _server(
   Uint8List envelope, {
+  String? experimentId,
+  String? variantId,
   void Function(http.Request request)? onRequest,
 }) {
   return MockClient((request) async {
     onRequest?.call(request);
     return http.Response(
-      jsonEncode({'envelope': base64Encode(envelope)}),
+      _surfaceResponseJson(
+        envelope,
+        experimentId: experimentId,
+        variantId: variantId,
+      ),
       200,
     );
+  });
+}
+
+String _surfaceResponseJson(
+  Uint8List envelope, {
+  String? experimentId,
+  String? variantId,
+}) {
+  return jsonEncode({
+    'envelope': base64Encode(envelope),
+    if (experimentId != null) 'experimentId': experimentId,
+    if (variantId != null) 'variantId': variantId,
   });
 }
 

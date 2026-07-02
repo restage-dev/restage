@@ -11,7 +11,7 @@ SDK). `restage_a2ui` is what an app uses on the *other* end: it checks an A2UI p
 the app actually registered **before** handing it to genui, so a payload your build can't render faithfully
 fails with a clean, actionable diagnostic instead of throwing mid-render.
 
-## What this is — and is not
+## What this is (and is not)
 
 - **It is** an app-side safety wrapper: a pre-render check + a capability sidecar you can wrap your cached
   payloads in.

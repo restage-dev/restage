@@ -31,12 +31,12 @@ void main() {
       });
       expect(result.liveVersion, 2);
       expect(result.locked, isFalse);
-      expect(result.supportsRollback, isTrue);
+      expect(result.deliveryShape, 'blob');
       expect(result.versions, hasLength(2));
       expect(result.versions.first.isActive, isTrue);
     });
 
-    test('supportsRollback is false for a flow surface', () {
+    test('decodes a flow surface with a null liveVersion', () {
       final result = SurfaceStatusResult.fromJson({
         'surfaceType': 'onboarding',
         'surfaceSlug': 'welcome',
@@ -46,8 +46,69 @@ void main() {
         'deliveryShape': 'flow',
         'versions': <dynamic>[],
       });
-      expect(result.supportsRollback, isFalse);
+      expect(result.deliveryShape, 'flow');
       expect(result.liveVersion, isNull);
+    });
+  });
+
+  group('RollbackPreflightResult', () {
+    RollbackPreflightResult decode(
+      String classification, {
+      List<String> blockingChanges = const [],
+    }) => RollbackPreflightResult.fromJson({
+      'surfaceType': 'onboarding',
+      'surfaceSlug': 'welcome',
+      'environmentSlug': 'production',
+      'toVersion': 1,
+      'classification': classification,
+      'blockingChanges': blockingChanges,
+      '__className__': 'RollbackPreflightView',
+    });
+
+    test('fromJson round-trips each known classification', () {
+      expect(
+        decode('compatible').classification,
+        RollbackPreflightClassification.compatible,
+      );
+      expect(
+        decode('contractChange').classification,
+        RollbackPreflightClassification.contractChange,
+      );
+      expect(
+        decode('unsupportedTargetShape').classification,
+        RollbackPreflightClassification.unsupportedTargetShape,
+      );
+      expect(
+        decode('noActiveBaseline').classification,
+        RollbackPreflightClassification.noActiveBaseline,
+      );
+    });
+
+    test('an unknown classification decodes to unknown (forward-compat)', () {
+      expect(
+        decode('somethingNew').classification,
+        RollbackPreflightClassification.unknown,
+      );
+    });
+
+    test('blockingChanges + scalars decode', () {
+      final result = decode(
+        'contractChange',
+        blockingChanges: const ['a', 'b'],
+      );
+      expect(result.toVersion, 1);
+      expect(result.blockingChanges, ['a', 'b']);
+    });
+
+    test('absent blockingChanges decodes to empty', () {
+      final result = RollbackPreflightResult.fromJson({
+        'surfaceType': 'onboarding',
+        'surfaceSlug': 'welcome',
+        'environmentSlug': 'production',
+        'toVersion': 2,
+        'classification': 'compatible',
+      });
+      expect(result.blockingChanges, isEmpty);
     });
   });
 
@@ -174,6 +235,81 @@ void main() {
 
     test('returns null for an empty body', () {
       expect(decodeSurfaceTypedException(''), isNull);
+    });
+  });
+
+  group('surface audit DTOs', () {
+    test('SurfaceAuditLogEntry.fromJson decodes a timeline row', () {
+      final entry = SurfaceAuditLogEntry.fromJson({
+        '__className__': 'SurfaceAuditLogEntryView',
+        'action': 'surfacePublished',
+        'actorType': 'human',
+        'actorEmail': 'owner@example.com',
+        'outcome': 'success',
+        'severity': 'notice',
+        'targetType': 'surface',
+        'targetId': '42',
+        'occurredAt': '2026-06-29T18:17:51.000Z',
+        'reason': 'demo publish',
+        'context': {
+          'surfaceSlug': 'pro',
+          'surfaceType': 'paywall',
+          'environmentSlug': 'staging',
+          'publishedVersion': '2',
+        },
+        'chainState': 'chained',
+        'chainVerified': true,
+        'entryId': 99,
+      });
+
+      expect(entry.action, 'surfacePublished');
+      expect(entry.actorEmail, 'owner@example.com');
+      expect(entry.context['surfaceSlug'], 'pro');
+      expect(entry.chainVerified, isTrue);
+      expect(entry.entryId, 99);
+      expect(entry.toJson()['reason'], 'demo publish');
+    });
+
+    test('SurfaceComplianceExportRow.fromJson decodes a flat export row', () {
+      final row = SurfaceComplianceExportRow.fromJson({
+        '__className__': 'SurfaceComplianceExportRow',
+        'occurredAt': '2026-06-29T18:17:51.000Z',
+        'action': 'surfaceKilled',
+        'surfaceSlug': 'pro',
+        'surfaceType': 'paywall',
+        'environmentSlug': 'production',
+        'version': 2,
+        'actorEmail': 'admin@example.com',
+        'reason': 'incident',
+        'chainState': 'pendingChain',
+        'chainVerified': false,
+        'entryId': 100,
+      });
+
+      expect(row.action, 'surfaceKilled');
+      expect(row.environmentSlug, 'production');
+      expect(row.version, 2);
+      expect(row.chainState, 'pendingChain');
+      expect(row.chainVerified, isFalse);
+      expect(row.toJson()['surfaceSlug'], 'pro');
+    });
+
+    test('SurfaceChainVerdictResult.fromJson decodes optional fields', () {
+      final verdict = SurfaceChainVerdictResult.fromJson({
+        '__className__': 'SurfaceChainVerdict',
+        'status': 'broken',
+        'verifiedThroughEntryId': 7,
+        'verifiedThroughOccurredAt': '2026-06-29T18:00:00.000Z',
+        'failedEntryId': 8,
+        'failedCheck': 'hashMismatch',
+        'lastRunAt': '2026-06-29T18:30:00.000Z',
+      });
+
+      expect(verdict.status, 'broken');
+      expect(verdict.verifiedThroughEntryId, 7);
+      expect(verdict.failedEntryId, 8);
+      expect(verdict.failedCheck, 'hashMismatch');
+      expect(verdict.toJson()['lastRunAt'], '2026-06-29T18:30:00.000Z');
     });
   });
 

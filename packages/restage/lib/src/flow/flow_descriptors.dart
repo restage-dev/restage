@@ -34,6 +34,9 @@ final class OnboardingScreenRef extends FlowTargetRef {
   final int minClient;
 }
 
+/// Neutral alias for a generated flow screen artifact reference.
+typedef SurfaceScreenRef = OnboardingScreenRef;
+
 /// Reference to a terminal flow state.
 final class EndStateRef extends FlowTargetRef {
   /// Creates a terminal state reference.
@@ -89,6 +92,9 @@ final class OnboardingFlowRef<R> {
   final FlowResultDecoder<R> decodeResult;
 }
 
+/// Neutral alias for a generated flow artifact reference.
+typedef SurfaceFlowRef<R> = OnboardingFlowRef<R>;
+
 /// Descriptor for an event authored by an onboarding screen.
 final class OnboardingEvent<T> {
   /// Creates an onboarding event descriptor.
@@ -97,6 +103,9 @@ final class OnboardingEvent<T> {
   /// Stable event identifier.
   final String id;
 }
+
+/// Neutral alias for a flow screen event descriptor.
+typedef SurfaceEvent<T> = OnboardingEvent<T>;
 
 /// Flow event names commonly emitted by paywall blobs when they are rendered
 /// as flow screens.

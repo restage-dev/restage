@@ -15,6 +15,30 @@ abstract interface class FlowResolver {
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow);
 }
 
+/// SDK-internal capability a resolver exposes when it can serve a flow's
+/// server-*active* version (the OTA arm) for the ROOT flow, in addition to the
+/// exact-version [FlowResolver.resolve].
+///
+/// Mirrors the `FlowCapableVariantResolver` pattern: the public [FlowResolver]
+/// interface stays at its single member; the active capability lives on the
+/// concrete resolver. The flow controller routes the ROOT resolve to
+/// [resolveActiveRoot] only when [activeArmEnabled] is true, and EVERY sub-flow
+/// to [FlowResolver.resolve] (exact) — so sub-flows stay exact-pinned. A
+/// host-supplied custom [FlowResolver] does NOT implement this; it stays
+/// exact-only, and the controller never routes it through the active arm.
+@internal
+abstract interface class ActiveArmFlowResolver {
+  /// Whether the ROOT flow should resolve through the active arm. False keeps
+  /// the controller on the byte-unchanged exact path.
+  bool get activeArmEnabled;
+
+  /// Resolves the ROOT [flow] from the server's currently-active version,
+  /// fail-closed and contract-gated against the client's bundled document, with
+  /// a hold-last-good → bundled → typed-error fallback ladder. Never an ungated
+  /// accept: with no bundled contract it fails closed.
+  Future<ResolvedFlow> resolveActiveRoot<R>(OnboardingFlowRef<R> flow);
+}
+
 /// A validated flow document and the exact screen blobs it references.
 ///
 /// Screen blobs are keyed by screen id after hash and compatibility checks by
@@ -62,20 +86,20 @@ final class ResolvedFlow {
   }
 }
 
+// Deep-freezes a resolved document. Built as a `copyWith` overriding ONLY the
+// collections that need deep-freezing: every scalar/enum field — and any field
+// added later — rides through from `document` unchanged, so the freeze can never
+// silently drop a field. A field-by-field rebuild once reverted the delivery-
+// mode marker on freeze; this closes that drop-class by construction rather than
+// relying on per-field vigilance.
 FlowDocument _freezeDocument(FlowDocument document) {
-  return FlowDocument(
-    flow: document.flow,
-    version: document.version,
-    schemaVersion: document.schemaVersion,
-    minClient: document.minClient,
-    initial: document.initial,
+  return document.copyWith(
     actions: Map.unmodifiable(document.actions),
     flowState: Map.unmodifiable({
       for (final entry in document.flowState.entries)
         entry.key: _freezeFlowStateDeclaration(entry.value),
     }),
     outbound: _freezeOutboundDeclarations(document.outbound),
-    legacyTerminalResultPassthrough: document.legacyTerminalResultPassthrough,
     screenArtifacts: Map.unmodifiable(document.screenArtifacts),
     states: Map.unmodifiable({
       for (final entry in document.states.entries)

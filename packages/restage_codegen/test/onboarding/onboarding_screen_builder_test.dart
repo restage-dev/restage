@@ -90,6 +90,8 @@ final class WelcomeScreen extends StatelessWidget {
             allOf(
               contains("part of 'welcome.dart';"),
               contains('abstract final class WelcomeScreenDescriptor'),
+              contains('static const SurfaceScreenRef ref'),
+              contains('SurfaceScreenRef('),
               contains("id: 'welcome'"),
               contains("artifactPath: 'welcome.rfw'"),
             ),
@@ -107,6 +109,62 @@ final class WelcomeScreen extends StatelessWidget {
           'apps_examples|assets/onboarding/screens/welcome.rfw':
               _decodesAsRfwLibrary(),
           'apps_examples|assets/onboarding/screens/welcome.capability.json':
+              anything,
+        },
+      );
+    });
+
+    test('generic @ScreenSource lowers neutral surfaceEvent helpers', () async {
+      const source = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'notice.rsscreen.g.dart';
+
+@ScreenSource(id: 'notice')
+final class NoticeScreen extends StatelessWidget {
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  const NoticeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ElevatedButton(
+        onPressed: surfaceEvent(dismiss),
+        child: const Text('Dismiss'),
+      ),
+    );
+  }
+}
+''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/onboarding/screens/notice.dart'),
+        source,
+      );
+
+      await testBuilder(
+        onboardingScreenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/onboarding/screens/notice.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/onboarding/screens/notice.rsscreen.g.dart':
+              decodedMatches(
+            allOf(
+              contains('abstract final class NoticeScreenDescriptor'),
+              contains('static const SurfaceScreenRef ref'),
+            ),
+          ),
+          'apps_examples|assets/onboarding/screens/notice.rfwtxt':
+              decodedMatches(contains('event "dismiss" {}')),
+          'apps_examples|assets/onboarding/screens/notice.rfw':
+              _decodesAsRfwLibrary(),
+          'apps_examples|assets/onboarding/screens/notice.capability.json':
               anything,
         },
       );

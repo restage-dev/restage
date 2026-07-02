@@ -105,6 +105,7 @@ class SurfaceKillCommand extends Command<int> {
       interactive: _interactive,
       stderr: _stderr,
       credentialStore: _credentialStore,
+      httpClient: _httpClient,
     );
     if (ctx == null) return 1;
 
@@ -112,7 +113,7 @@ class SurfaceKillCommand extends Command<int> {
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: Uri.parse(ctx.credential.endpoint),
+        endpoint: ctx.apiEndpoint,
         httpClient: _httpClient,
         credential: ctx.credential,
       );
@@ -131,6 +132,7 @@ class SurfaceKillCommand extends Command<int> {
           surfaceType: surfaceType,
           surfaceSlug: slug,
           environment: ctx.environment,
+          organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
         return _renderError(e);
@@ -176,6 +178,7 @@ class SurfaceKillCommand extends Command<int> {
           environment: ctx.environment,
           frozen: frozen,
           reason: reason,
+          organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
         if (decodeGenericTypedException(e.body) is UnauthorizedAccess) {

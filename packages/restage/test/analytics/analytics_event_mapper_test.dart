@@ -190,6 +190,25 @@ void main() {
         'granted': false,
       });
     });
+
+    test(
+        'splits contract version (envelope surfaceVersion) from resolved active '
+        'version (properties.resolvedVersion)', () {
+      final envelope = map(
+        const FlowStarted(
+          flowId: 'first_run',
+          flowVersion: 1,
+          resolvedVersion: 9,
+          flowSessionId: 'flow-sess-4',
+        ),
+      );
+      // flowVersion is the stable client-contract version → promoted to the
+      // typed envelope surfaceVersion.
+      expect(envelope.surfaceVersion, '1');
+      // resolvedVersion has no typed envelope home → it rides in properties,
+      // distinct from the contract version.
+      expect(envelope.properties['resolvedVersion'], 9);
+    });
   });
 
   group('production suppression (no zeroed session summary by default)', () {

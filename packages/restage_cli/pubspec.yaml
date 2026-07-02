@@ -1,7 +1,7 @@
 name: restage_cli
 description: >-
-  The Restage command-line interface. Sign in, publish paywalls and engagement surfaces, and
-  bootstrap projects against a Restage backend.
+  The Restage command-line interface. Sign in, bootstrap projects, and publish your surfaces
+  over the air. Publishing targets the hosted Restage service (coming soon).
 version: 0.1.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
@@ -29,6 +29,7 @@ dependencies:
   args: ^2.5.0
   http: ^1.2.0
   meta: ^1.15.0
+  nocterm: ^0.8.0
   path: ^1.9.0
   restage_shared:
     path: ../restage_shared

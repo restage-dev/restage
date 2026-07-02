@@ -15,6 +15,22 @@ import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
 /// drift on the convention.
 const String kCapturedEventValueKey = 'value';
 
+enum FlowDeliveryMode {
+  typed('typed'),
+  general('general');
+
+  const FlowDeliveryMode(this.wireName);
+
+  final String wireName;
+
+  static FlowDeliveryMode fromWireName(String name) {
+    for (final mode in FlowDeliveryMode.values) {
+      if (mode.wireName == name) return mode;
+    }
+    throw FormatException('Unsupported deliveryMode "$name".');
+  }
+}
+
 enum FlowStateKind {
   screen('screen'),
   decision('decision'),
@@ -62,6 +78,7 @@ final class FlowDocument {
     this.outbound = const FlowOutboundDeclarations(),
     this.legacyTerminalResultPassthrough = false,
     this.unsupportedFeatures = const {},
+    this.deliveryMode = FlowDeliveryMode.typed,
   });
 
   final String flow;
@@ -76,6 +93,46 @@ final class FlowDocument {
   final Map<String, ScreenArtifact> screenArtifacts;
   final Map<String, FlowState> states;
   final Set<String> unsupportedFeatures;
+  final FlowDeliveryMode deliveryMode;
+
+  // A value-copy overriding only the supplied fields; every unsupplied field
+  // rides through from `this`. Consumers that reconstruct a document (e.g. the
+  // resolver's deep-freeze) start from this so a NEW field can never be
+  // silently dropped — it is carried unless explicitly overridden, closing the
+  // drop-class by construction. No field is nullable, so `?? this.field` is
+  // unambiguous.
+  FlowDocument copyWith({
+    String? flow,
+    int? version,
+    int? schemaVersion,
+    int? minClient,
+    String? initial,
+    Map<String, FlowActionContract>? actions,
+    Map<String, FlowStateDeclaration>? flowState,
+    FlowOutboundDeclarations? outbound,
+    bool? legacyTerminalResultPassthrough,
+    Map<String, ScreenArtifact>? screenArtifacts,
+    Map<String, FlowState>? states,
+    Set<String>? unsupportedFeatures,
+    FlowDeliveryMode? deliveryMode,
+  }) {
+    return FlowDocument(
+      flow: flow ?? this.flow,
+      version: version ?? this.version,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      minClient: minClient ?? this.minClient,
+      initial: initial ?? this.initial,
+      actions: actions ?? this.actions,
+      flowState: flowState ?? this.flowState,
+      outbound: outbound ?? this.outbound,
+      legacyTerminalResultPassthrough: legacyTerminalResultPassthrough ??
+          this.legacyTerminalResultPassthrough,
+      screenArtifacts: screenArtifacts ?? this.screenArtifacts,
+      states: states ?? this.states,
+      unsupportedFeatures: unsupportedFeatures ?? this.unsupportedFeatures,
+      deliveryMode: deliveryMode ?? this.deliveryMode,
+    );
+  }
 }
 
 final class FlowStateDeclaration {

@@ -274,6 +274,20 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
       issues: [...acc.issues, ...r.issues],
       structuredTypes: [...acc.structuredTypes, ...r.structuredTypes],
       unions: [...acc.unions, ...r.unions],
+      slotTargets: {...acc.slotTargets, ...r.slotTargets},
+      nullableStructuredSlots: {
+        ...acc.nullableStructuredSlots,
+        ...r.nullableStructuredSlots,
+      },
+      localUnrenderable: {...acc.localUnrenderable, ...r.localUnrenderable},
+      widgetUnrenderable: {
+        ...acc.widgetUnrenderable,
+        ...r.widgetUnrenderable,
+      },
+      reconstructionPlans: {
+        ...acc.reconstructionPlans,
+        ...r.reconstructionPlans,
+      },
     ),
   );
 }

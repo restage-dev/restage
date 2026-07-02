@@ -3,8 +3,8 @@ part of 'first_run.dart';
 abstract final class FirstRunFlowDescriptor {
   const FirstRunFlowDescriptor._();
 
-  static const OnboardingFlowRef<FirstRunResult> ref =
-      OnboardingFlowRef<FirstRunResult>(
+  static const SurfaceFlowRef<FirstRunResult> ref =
+      SurfaceFlowRef<FirstRunResult>(
     id: 'first_run',
     version: 1,
     minClient: 1,

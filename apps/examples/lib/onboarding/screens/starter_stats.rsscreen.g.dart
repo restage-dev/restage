@@ -3,7 +3,7 @@ part of 'starter_stats.dart';
 abstract final class StarterStatsScreenDescriptor {
   const StarterStatsScreenDescriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: 'starter_stats',
     artifactPath: 'starter_stats.rfw',
     version: 1,

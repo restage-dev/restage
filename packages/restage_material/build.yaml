@@ -1,7 +1,11 @@
-# Registry-driven library — opt out of the @RestageWidget aggregator.
-# Widget metadata lives in lib/registry.dart, not annotation walks.
+# Registry-driven library — opt out of the @RestageWidget aggregators.
+# Widget metadata lives in lib/registry.dart, not annotation walks; the
+# per-package catalog.json comes from the curated registry pipeline, so the
+# annotation-driven catalog + catalog.json emitters are both disabled here.
 targets:
   $default:
     builders:
       restage_codegen:user_catalog:
+        enabled: false
+      restage_codegen:user_catalog_json:
         enabled: false

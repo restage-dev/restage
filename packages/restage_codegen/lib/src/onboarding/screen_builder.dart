@@ -143,6 +143,7 @@ final class OnboardingScreenBuilder implements Builder {
         widgetDefinitions: translation.widgetDefinitions,
         widgetDefinitionStates: translation.widgetDefinitionStates,
         rootWidgetState: translation.rootWidgetState,
+        customLibraryImports: translation.referencedCustomLibraries,
       );
       try {
         final rfwLibrary = fmt.parseLibraryFile(text, sourceIdentifier: src.id);
@@ -242,7 +243,7 @@ part of '$stem.dart';
 abstract final class ${src.className}Descriptor {
   const ${src.className}Descriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: '${src.id}',
     artifactPath: '${src.id}.rfw',
     version: ${src.version},

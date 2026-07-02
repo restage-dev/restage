@@ -16,6 +16,10 @@ subprocess and talks to it over standard input/output.
 dart pub global activate restage_mcp
 ```
 
+> **Note:** `restage_mcp` isn't on pub.dev yet; until it's published, activate
+> it from a source checkout with
+> `dart pub global activate --source path <checkout>/packages/restage_mcp`.
+
 This puts the `restage_mcp` executable on your `PATH` (via `~/.pub-cache/bin`;
 make sure that directory is on your `PATH`).
 
@@ -59,7 +63,7 @@ Add to `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 
 ## Authentication
 
-You can sign in two ways — both write the same cached session, so you only sign
+You can sign in two ways; both write the same cached session, so you only sign
 in once:
 
 - **In your agent:** call the `restage_login` tool. It opens your browser and
@@ -67,9 +71,9 @@ in once:
   finish. No CLI needed.
 - **With the CLI:** run `restage login` once; the MCP server reuses that session.
 
-If you are not signed in, tools return a clear message telling you to sign in.
+If you're not signed in, tools return a clear message telling you to sign in.
 Your session token is never returned by any tool. Use `restage_whoami` to check
-who you are signed in as, and `restage_logout` to sign out.
+who you're signed in as, and `restage_logout` to sign out.
 
 > **Don't pass secrets as tool argument values.** If an argument fails schema
 > validation (e.g. a key string where a numeric id is expected), the MCP host's
@@ -78,10 +82,11 @@ who you are signed in as, and `restage_logout` to sign out.
 
 ### Choosing the backend to sign in against
 
-The in-MCP login needs to know which backend to authenticate against when there
-is no session yet. Out of the box the executable falls back to a local backend
-at `http://localhost:8080/` (useful for development), so to sign in against the
-hosted Restage backend set `RESTAGE_BACKEND_URL` in the host config:
+The in-MCP login needs to know which backend to authenticate against when
+there's no session yet. Out of the box the executable falls back to a local
+backend at `http://localhost:8080/` (useful for development), so to sign in
+against the hosted Restage backend (hosted access is in private beta) set
+`RESTAGE_BACKEND_URL` in the host config:
 
 ```json
 {
@@ -95,7 +100,7 @@ hosted Restage backend set `RESTAGE_BACKEND_URL` in the host config:
 ```
 
 `RESTAGE_BACKEND_URL` is a **login-time** setting (where to authenticate when
-there is no session yet). Once signed in, each tool uses the backend your
+there's no session yet). Once signed in, each tool uses the backend your
 session was minted against, regardless of this value. Point it at your own URL
 to sign in against a self-hosted or staging backend instead.
 
@@ -151,29 +156,29 @@ to sign in against a self-hosted or staging backend instead.
 
 | Tool | What it does |
 | --- | --- |
-| `restage_list_api_keys` | List an environment's API keys (redacted — no hash or plaintext). |
+| `restage_list_api_keys` | List an environment's API keys (redacted: no hash or plaintext). |
 | `restage_revoke_api_key` | Revoke a key by id (admin). |
 
-> Minting API keys is intentionally not exposed here — it returns a one-time
+> Minting API keys is intentionally not exposed here: it returns a one-time
 > plaintext secret. Mint keys from the dashboard or the `restage` CLI.
 
 > **`restage_upsert_product_slot` is a full replace.** It sets the slot's
 > complete product mapping every call: a store id you pass as `null` is
-> *unmapped*. To keep an existing mapping, pass its current product id — list
+> *unmapped*. To keep an existing mapping, pass its current product id; list
 > the slots and products first to read the current mapping.
 
 ## Security posture
 
-`restage_mcp` handles your Restage session, so it is built to keep secrets off
+`restage_mcp` handles your Restage session, so it's built to keep secrets off
 the channel it speaks to your agent. Concretely, it defends against:
 
-- **Corrupt or crafted local data** — a malformed or hand-edited credentials
+- **Corrupt or crafted local data.** A malformed or hand-edited credentials
   file never leaks its bytes (e.g. a token embedded in the stored endpoint) into
   a tool result or error.
-- **Its own bugs** — no exception, stack trace, or secret is ever forwarded to
+- **Its own bugs.** No exception, stack trace, or secret is ever forwarded to
   the client; an internal error returns a fixed, generic message (a one-line
   type breadcrumb goes to stderr only).
-- **Untrusted agent input** — tool arguments are schema-validated; one caveat is
+- **Untrusted agent input.** Tool arguments are schema-validated; one caveat is
   documented above (don't pass secrets as argument values).
 
 As defense-in-depth it also scrubs your session token and the device-login grant

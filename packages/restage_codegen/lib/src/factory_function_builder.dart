@@ -41,6 +41,16 @@ final class FactoryFunctionBuilder implements Builder {
     final json = await buildStep.readAsString(input);
     final catalog = requireNativeCatalog(decodeCatalog(json));
 
+    // A pure-customer catalog (no built-in library) registers through the
+    // @RestageWidget factory aggregator, not this builder. Since a customer
+    // package now emits its own catalog.json — and this builder is keyed on
+    // catalog.json — it runs on the customer catalog too; skip it rather than
+    // treating a customer namespace as a configuration error.
+    final hasBuiltInLibrary = catalog.libraries.keys.any(
+      (l) => WidgetLibrary.builtInByNamespace(l.namespace) != null,
+    );
+    if (!hasBuiltInLibrary) return;
+
     if (catalog.libraries.length != 1) {
       throw StateError(
         'Expected exactly one library in ${input.path}; '

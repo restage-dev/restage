@@ -157,7 +157,9 @@ const Map<ModalSheetFunction, Map<String, ModalSheetArgumentDisposition>>
     'pageBuilder': ModalSheetArgumentDisposition.pageBuilder,
     'enableDrag': ModalSheetArgumentDisposition.map,
     'showDragHandle': ModalSheetArgumentDisposition.map,
+    'scrollableBuilder': ModalSheetArgumentDisposition.defer,
     'useNestedNavigation': ModalSheetArgumentDisposition.defer,
+    'settings': ModalSheetArgumentDisposition.defer,
     'topGap': ModalSheetArgumentDisposition.defer,
   },
 };

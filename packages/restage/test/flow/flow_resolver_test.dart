@@ -200,6 +200,98 @@ void main() {
     expect(resolved.document.flowState['inviteCode']!.hostSeedable, isTrue);
   });
 
+  // Close-the-class guard: the resolver freeze reconstructs a FlowDocument, and
+  // a field-by-field rebuild silently drops any field it forgets (it once
+  // reverted the delivery-mode marker). The freeze is now a `copyWith` so every
+  // field rides through unless explicitly overridden; this asserts that fidelity
+  // on a document that sets a distinct non-default value on EVERY field. If a
+  // future field is added and the freeze drops it, this goes red.
+  test('freeze preserves every document field (close-the-class guard)', () {
+    final screenBytes = Uint8List.fromList([9, 8, 7, 255]);
+    final document = FlowDocument(
+      flow: 'first_run',
+      version: 7,
+      schemaVersion: 1,
+      minClient: 5,
+      initial: 'welcome',
+      actions: {
+        'submit': const FlowActionContract(
+          actionName: 'submit',
+          contractVersion: 2,
+          argsSchema: FlowActionSchema.object({}),
+          resultSchema: FlowActionSchema.bool(),
+          minClient: 4,
+          idempotent: true,
+        ),
+      },
+      flowState: const {
+        'inviteCode': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.persistedDevice,
+          defaultValue: 'seed',
+          hostSeedable: true,
+        ),
+      },
+      outbound: const FlowOutboundDeclarations(
+        terminalResult: FlowOutboundPayloadDeclaration(
+          fields: {
+            'done': FlowOutboundField(
+              type: FlowDataType.bool,
+              ref: EventFlowOutboundRef(key: 'done'),
+            ),
+          },
+        ),
+      ),
+      legacyTerminalResultPassthrough: true,
+      screenArtifacts: {
+        'welcome': ScreenArtifact(
+          path: 'welcome.rfw',
+          version: 1,
+          schemaVersion: 1,
+          minClient: 1,
+          contentHash: FlowContentHash.compute(screenBytes),
+        ),
+      },
+      states: const {
+        'welcome': ScreenFlowState(
+          screen: 'welcome',
+          on: {'next': FlowTransition.goto('done')},
+        ),
+        'done': EndFlowState(result: {'ok': true}),
+      },
+      unsupportedFeatures: const {'futureThing'},
+      deliveryMode: FlowDeliveryMode.general,
+    );
+
+    final frozen = ResolvedFlow(
+      document: document,
+      screenBlobs: {'welcome': screenBytes},
+      cacheHit: false,
+    ).document;
+
+    // Every scalar / enum field survives the freeze.
+    expect(frozen.flow, 'first_run');
+    expect(frozen.version, 7);
+    expect(frozen.schemaVersion, 1);
+    expect(frozen.minClient, 5);
+    expect(frozen.initial, 'welcome');
+    expect(frozen.legacyTerminalResultPassthrough, isTrue);
+    expect(frozen.deliveryMode, FlowDeliveryMode.general);
+
+    // Every collection field's content survives.
+    expect(frozen.actions.keys, contains('submit'));
+    expect(frozen.flowState.keys, contains('inviteCode'));
+    expect(frozen.outbound.terminalResult.fields.keys, contains('done'));
+    expect(frozen.screenArtifacts.keys, contains('welcome'));
+    expect(frozen.states.keys.toSet(), {'welcome', 'done'});
+    expect(frozen.unsupportedFeatures, {'futureThing'});
+
+    // The reconstructed collections are still deep-frozen (unmodifiable).
+    expect(() => frozen.actions.clear(), throwsUnsupportedError);
+    expect(() => frozen.states.clear(), throwsUnsupportedError);
+    expect(() => frozen.unsupportedFeatures.clear(), throwsUnsupportedError);
+  });
+
   test('cache hits only when document bytes and artifact hashes are unchanged',
       () async {
     final firstBytes = Uint8List.fromList([1, 2, 3]);

@@ -308,12 +308,13 @@ abstract final class FlowDocumentValidation {
       }
     }
 
-    if (!hasEndState) {
+    if (!hasEndState && !_hasReachableTerminalScreen(document)) {
       issues.add(
         const FlowDocumentValidationIssue(
           code: 'missingEndState',
           path: r'$.states',
-          message: 'At least one end state is required.',
+          message: 'At least one end state or reachable terminal screen is '
+              'required.',
         ),
       );
     }
@@ -1027,8 +1028,35 @@ void _validateReachability(
   FlowDocument document,
   List<FlowDocumentValidationIssue> issues,
 ) {
+  final reachable = _reachableStateIds(document);
+  if (reachable.isEmpty) return;
+
+  for (final id in document.states.keys) {
+    if (!reachable.contains(id)) {
+      issues.add(
+        FlowDocumentValidationIssue(
+          code: 'unreachableState',
+          path: '\$.states.$id',
+          message: 'State $id is not reachable from ${document.initial}.',
+        ),
+      );
+    }
+  }
+}
+
+bool _hasReachableTerminalScreen(FlowDocument document) {
+  for (final id in _reachableStateIds(document)) {
+    final state = document.states[id];
+    if (state is ScreenFlowState && state.on.isEmpty) {
+      return true;
+    }
+  }
+  return false;
+}
+
+Set<String> _reachableStateIds(FlowDocument document) {
   if (!document.states.containsKey(document.initial)) {
-    return;
+    return const {};
   }
 
   final reachable = <String>{};
@@ -1045,18 +1073,7 @@ void _validateReachability(
       }
     }
   }
-
-  for (final id in document.states.keys) {
-    if (!reachable.contains(id)) {
-      issues.add(
-        FlowDocumentValidationIssue(
-          code: 'unreachableState',
-          path: '\$.states.$id',
-          message: 'State $id is not reachable from ${document.initial}.',
-        ),
-      );
-    }
-  }
+  return reachable;
 }
 
 void _validateScreenlessCycles(

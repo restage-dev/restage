@@ -36,6 +36,7 @@ String emitPaywallLibrary(
   Map<String, String> widgetDefinitions = const {},
   Map<String, Map<String, String>> widgetDefinitionStates = const {},
   Map<String, String> rootWidgetState = const {},
+  Iterable<String> customLibraryImports = const [],
 }) {
   return emitRemoteWidgetLibrary(
     fragment,
@@ -43,6 +44,7 @@ String emitPaywallLibrary(
     widgetDefinitions: widgetDefinitions,
     widgetDefinitionStates: widgetDefinitionStates,
     rootWidgetState: rootWidgetState,
+    customLibraryImports: customLibraryImports,
   );
 }
 
@@ -54,6 +56,7 @@ String emitRemoteWidgetLibrary(
   Map<String, String> widgetDefinitions = const {},
   Map<String, Map<String, String>> widgetDefinitionStates = const {},
   Map<String, String> rootWidgetState = const {},
+  Iterable<String> customLibraryImports = const [],
 }) {
   final definitions = StringBuffer();
   for (final entry in widgetDefinitions.entries) {
@@ -64,8 +67,14 @@ String emitRemoteWidgetLibrary(
   if (widgetDefinitions.isNotEmpty) {
     definitions.writeln();
   }
+  // A referenced custom widget resolves against its imported library — the
+  // built-in preamble alone does not cover customer widgets. Emit one import
+  // per referenced custom library, sorted + deduped for a deterministic blob.
+  final customImports = ({...customLibraryImports}.toList()..sort())
+      .map((namespace) => 'import $namespace;\n')
+      .join();
   final rootStateBlock = _stateBlock(rootWidgetState);
-  return '$kRfwImportPreamble\n'
+  return '$kRfwImportPreamble$customImports\n'
       '${definitions}widget $rootWidgetName$rootStateBlock = $fragment;\n';
 }
 

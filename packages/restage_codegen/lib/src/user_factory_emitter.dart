@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -29,10 +30,59 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 String? emitUserFactoriesDart(
   List<WidgetEntry> widgets, {
   void Function(WidgetEntry skipped)? onSkip,
+  List<StructuredEntry> structuredTypes = const [],
+  Map<String, String> slotTargets = const {},
+  Set<String> nullableStructuredSlots = const {},
+  Map<String, ReconstructionPlan> reconstructionPlans = const {},
+  Map<String, int> stampedCapabilityVersions = const {},
 }) {
+  // Uniform-prefix import aliases: every referenced CUSTOMER library (a widget
+  // class, a nested structured type, or a referenced enum) gets a unique alias
+  // (`s0`, `s1`, ...), assigned over the sorted URIs for byte-deterministic
+  // emit. The reconstruction then names every customer type QUALIFIED
+  // (`s0.Badge`, `s0.Tone`), so two same-name types from different libraries
+  // can never collide by construction — the aliased-import scheme keeps both,
+  // both render.
+  // Built-in libraries (`dart:` / `package:flutter/`) are NOT aliased; their
+  // types come bare through the `widgets.dart` re-exports.
+  final aliasByUri = <String, String>{};
+  {
+    final customerUris = <String>{
+      for (final entry in widgets) _libraryUriOf(entry.flutterType),
+      for (final structured in structuredTypes)
+        _libraryUriOf(structured.sourceType),
+      for (final entry in widgets)
+        for (final prop in entry.properties)
+          if (_enumLibOf(prop.valueShape) case final uri?) uri,
+      for (final structured in structuredTypes)
+        for (final field in structured.fields)
+          if (_enumLibOf(field.valueShape) case final uri?) uri,
+    }.where(_isCustomerLibUri).toList()
+      ..sort();
+    for (var i = 0; i < customerUris.length; i++) {
+      aliasByUri[customerUris[i]] = 's$i';
+    }
+  }
+
+  // The build-time context for the inline customer reconstructor: the admitted
+  // structured types + their plans + the slot map + the import-alias map, all
+  // name-based (no allocated wire IDs needed).
+  final customer = structuredTypes.isEmpty
+      ? null
+      : (
+          structuredBySourceType: {
+            for (final structured in structuredTypes)
+              structured.sourceType: structured,
+          },
+          plansBySourceType: reconstructionPlans,
+          slotTargets: slotTargets,
+          nullableStructuredSlots: nullableStructuredSlots,
+          aliases: aliasByUri,
+        );
+
   final emittable = <(WidgetEntry, String)>[];
   for (final entry in widgets) {
-    final body = emitFactoryFunction(entry);
+    final body = emitFactoryFunction(entry, customer: customer);
     if (body == null) {
       onSkip?.call(entry);
       continue;
@@ -41,13 +91,25 @@ String? emitUserFactoriesDart(
   }
   if (emittable.isEmpty) return null;
 
-  // One import per source file containing an emittable `@RestageWidget`.
-  // Derived from `flutterType` (`<package URI>#<class name>`); the URI
-  // before `#` is the import target. Sorted for byte-deterministic emit.
-  final widgetImports = <String>{
+  // One import per referenced customer library: the source file of each
+  // emittable `@RestageWidget`, the referenced structured types the inline
+  // reconstructor NAMES, and every referenced enum's library (an
+  // `ArgumentDecoders.enumValue<Tone>(...)` needs `Tone`'s library). Derived
+  // from the `<uri>#<name>` FQNs + enum shapes; the nameability predicate
+  // already excluded any unnameable (private) referenced type, so every URI
+  // here is importable. Emitted WITH the uniform-prefix alias, sorted for
+  // byte-deterministic emit.
+  final referencedUris = <String>{
+    for (final (entry, _) in emittable) _libraryUriOf(entry.flutterType),
+    for (final structured in structuredTypes)
+      _libraryUriOf(structured.sourceType),
     for (final (entry, _) in emittable)
-      entry.flutterType.substring(0, entry.flutterType.indexOf('#')),
-  }.toList()
+      for (final prop in entry.properties)
+        if (_enumLibOf(prop.valueShape) case final uri?) uri,
+    for (final structured in structuredTypes)
+      for (final field in structured.fields)
+        if (_enumLibOf(field.valueShape) case final uri?) uri,
+  }.where(_isCustomerLibUri).toList()
     ..sort();
 
   // Group emittable entries by library so each
@@ -84,8 +146,8 @@ String? emitUserFactoriesDart(
     // isn't required to depend on rfw).
     ..writeln("import 'package:flutter/widgets.dart';")
     ..writeln("import 'package:restage/restage.dart';");
-  for (final import in widgetImports) {
-    buf.writeln("import '$import';");
+  for (final import in referencedUris) {
+    buf.writeln("import '$import' as ${aliasByUri[import]};");
   }
   buf
     ..writeln()
@@ -97,10 +159,17 @@ String? emitUserFactoriesDart(
     ..writeln('void registerRestageCustomerWidgets() {');
   for (final library in orderedLibraries) {
     final entries = byLibrary[library]!;
+    // A structured-admitting library carries its declared capabilityVersion so
+    // the runtime floor (`LibraryRuntimeRegistry.satisfies`) fail-closes an
+    // under-capable client; other libraries register unversioned (byte-stable).
+    final capabilityVersion = stampedCapabilityVersions[library.namespace];
     buf
       ..writeln('  Restage.registerWidgetLibrary(')
-      ..writeln('    ${_libraryFieldRef(library)},')
-      ..writeln('    widgets: const <RestageWidgetFactory>[');
+      ..writeln('    ${_libraryFieldRef(library)},');
+    if (capabilityVersion != null) {
+      buf.writeln('    capabilityVersion: $capabilityVersion,');
+    }
+    buf.writeln('    widgets: const <RestageWidgetFactory>[');
     for (final (entry, _) in entries) {
       buf.writeln(
         "      RestageWidgetFactory(name: '${entry.name}', "
@@ -120,6 +189,21 @@ String? emitUserFactoriesDart(
 
   return formatGeneratedDart(buf.toString());
 }
+
+/// The import URI (the part before `#`) of a `<library-uri>#<name>` reference.
+String _libraryUriOf(String qualifiedRef) =>
+    qualifiedRef.substring(0, qualifiedRef.indexOf('#'));
+
+/// Whether [uri] is a CUSTOMER library (aliased) rather than a built-in one
+/// (`dart:` / `package:flutter/`, which come bare through the `widgets.dart`
+/// re-exports and must not be aliased).
+bool _isCustomerLibUri(String uri) =>
+    !uri.startsWith('dart:') && !uri.startsWith('package:flutter/');
+
+/// The defining library URI of [shape]'s enum type, or `null` when [shape] is
+/// not an [EnumShape] (so it names no source-qualified enum to import).
+String? _enumLibOf(CatalogValueShape? shape) =>
+    shape is EnumShape ? shape.enumRef.libraryUri : null;
 
 /// Renders a Dart expression resolving to [lib] when read in code that
 /// imports the Restage SDK (which re-exports `WidgetLibrary` from

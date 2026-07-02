@@ -1,0 +1,335 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "1970-01-01T00:00:00Z",
+  "libraries": {
+    "restage_example.widgets": {
+      "version": "0.0.0",
+      "capabilityVersion": 1
+    }
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "AcmeBorder",
+      "library": "restage_example.widgets",
+      "category": "layout",
+      "description": "Wraps a single child in a colored border.",
+      "flutterType": "package:restage_example/widgets/acme_border.dart#AcmeBorder",
+      "childrenSlot": "single",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "child",
+          "type": "widget",
+          "description": "Wrapped child widget.",
+          "required": true
+        },
+        {
+          "wireId": "p0002",
+          "name": "color",
+          "type": "color",
+          "description": "Border color. Defaults to the primary container."
+        }
+      ]
+    },
+    {
+      "wireId": "w0002",
+      "name": "AcmeStack",
+      "library": "restage_example.widgets",
+      "category": "layout",
+      "description": "Overlays a list of children in z-order.",
+      "flutterType": "package:restage_example/widgets/acme_stack.dart#AcmeStack",
+      "childrenSlot": "list",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0003",
+          "name": "children",
+          "type": "widgetList",
+          "description": "Overlay children, top-most last."
+        }
+      ]
+    },
+    {
+      "wireId": "w0010",
+      "name": "PricingCard",
+      "library": "restage_example.widgets",
+      "category": "decoration",
+      "description": "Renders a subscription plan (a nested data-class property).",
+      "flutterType": "package:restage_example/widgets/pricing_card.dart#PricingCard",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0024",
+          "name": "plan",
+          "type": "structured",
+          "description": "The plan to render.",
+          "required": true,
+          "structuredRef": {
+            "library": "restage_example.widgets",
+            "wireId": "s0001"
+          },
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage_example.widgets",
+              "wireId": "s0001"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "wireId": "w0003",
+      "name": "PromoBadge",
+      "library": "restage_example.widgets",
+      "category": "action",
+      "description": "Pill-shaped promotional label.",
+      "flutterType": "package:restage_example/widgets/promo_badge.dart#PromoBadge",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0004",
+          "name": "label",
+          "type": "string",
+          "description": "Visible label.",
+          "required": true
+        },
+        {
+          "wireId": "p0005",
+          "name": "color",
+          "type": "color",
+          "description": "Background color. Defaults to the primary container."
+        }
+      ]
+    },
+    {
+      "wireId": "w0012",
+      "name": "PulseBadge",
+      "library": "restage_example.widgets",
+      "category": "decoration",
+      "description": "A badge that pulses, driven by an AnimationController.",
+      "flutterType": "package:restage_example/widgets/pulse_badge.dart#PulseBadge",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0033",
+          "name": "label",
+          "type": "string",
+          "description": "Caption text.",
+          "required": true
+        },
+        {
+          "wireId": "p0034",
+          "name": "count",
+          "type": "integer",
+          "description": "Count shown after the caption.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "wireId": "w0009",
+      "name": "StatBadge",
+      "library": "restage_example.widgets",
+      "category": "decoration",
+      "description": "A labelled value pill, e.g. \"Streak · 7 days\".",
+      "flutterType": "package:restage_example/widgets/minimal_custom_widget.dart#StatBadge",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0021",
+          "name": "label",
+          "type": "string",
+          "description": "Caption text.",
+          "required": true
+        },
+        {
+          "wireId": "p0022",
+          "name": "value",
+          "type": "string",
+          "description": "Value text.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "wireId": "w0011",
+      "name": "StreakBadge",
+      "library": "restage_example.widgets",
+      "category": "decoration",
+      "description": "A pill showing a streak count, its fill deepening with it.",
+      "flutterType": "package:restage_example/widgets/streak_badge.dart#StreakBadge",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0031",
+          "name": "label",
+          "type": "string",
+          "description": "Caption text.",
+          "required": true
+        },
+        {
+          "wireId": "p0032",
+          "name": "count",
+          "type": "integer",
+          "description": "Streak count.",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Plan",
+      "library": "restage_example.widgets",
+      "description": "A subscription plan rendered inside a [PricingCard] — a customer data class with a nested [Price], an optional badge, and an enum tier.",
+      "sourceType": "package:restage_example/widgets/pricing_card.dart#Plan",
+      "fields": [
+        {
+          "wireId": "p0025",
+          "name": "name",
+          "type": "string",
+          "description": "The plan's display name.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0026",
+          "name": "price",
+          "type": "structured",
+          "description": "The plan's price (a nested data class — a two-level structured graph).",
+          "structuredRef": {
+            "library": "restage_example.widgets",
+            "wireId": "s0002"
+          },
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage_example.widgets",
+              "wireId": "s0002"
+            }
+          }
+        },
+        {
+          "wireId": "p0027",
+          "name": "badge",
+          "type": "string",
+          "description": "An optional highlight badge (e.g. `'Most popular'`); `null` when the wire omits it.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0028",
+          "name": "tier",
+          "type": "enumValue",
+          "description": "The billing tier. Defaults to [PlanTier.starter] when the wire omits it.",
+          "valueShape": {
+            "kind": "enumValue",
+            "propertyType": "enumValue",
+            "enumRef": {
+              "libraryUri": "package:restage_example/widgets/pricing_card.dart",
+              "symbolName": "PlanTier"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0001",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "name": [
+              "p0025"
+            ],
+            "price": [
+              "p0026"
+            ],
+            "badge": [
+              "p0027"
+            ],
+            "tier": [
+              "p0028"
+            ]
+          },
+          "description": "Creates a plan."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0002",
+      "name": "Price",
+      "library": "restage_example.widgets",
+      "description": "A price: an integer [amount] in the currency's minor units plus the ISO currency code.",
+      "sourceType": "package:restage_example/widgets/pricing_card.dart#Price",
+      "fields": [
+        {
+          "wireId": "p0029",
+          "name": "amount",
+          "type": "integer",
+          "description": "The amount in the currency's minor units (e.g. cents).",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        },
+        {
+          "wireId": "p0030",
+          "name": "currency",
+          "type": "string",
+          "description": "The ISO-4217 currency code. Defaults to `'USD'` when the wire omits it.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0002",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "amount": [
+              "p0029"
+            ],
+            "currency": [
+              "p0030"
+            ]
+          },
+          "description": "Creates a price."
+        }
+      ],
+      "stability": "volatile"
+    }
+  ]
+}

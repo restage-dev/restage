@@ -1,4 +1,7 @@
 import 'package:collection/collection.dart';
+import 'package:restage_codegen/src/customer_structured_admissibility.dart'
+    show structuredSlotKey;
+import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -89,11 +92,19 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 String? emitFactoryFunction(
   WidgetEntry entry, {
   NativeCatalogIndex? nativeIndex,
+  CustomerReconstruction? customer,
 }) {
-  if (!_isMechanicallyEmittable(entry, nativeIndex: nativeIndex)) return null;
+  if (!_isMechanicallyEmittable(
+    entry,
+    nativeIndex: nativeIndex,
+    customer: customer,
+  )) {
+    return null;
+  }
 
+  final customerAliases = customer?.aliases ?? const <String, String>{};
   final functionName = functionNameFor(entry);
-  final ctor = _ctorExpressionFor(entry);
+  final ctor = _ctorExpressionFor(entry, aliases: customerAliases);
   final canonicalChild = _canonicalChildPropertyOf(entry);
   final gatingProp = _gatingPropertyOf(entry);
 
@@ -112,7 +123,29 @@ String? emitFactoryFunction(
 
   for (final p in entry.properties) {
     if (!p.positional || consumedByRecipes.contains(p.name)) continue;
-    argLines.add('    ${_positionalEmit(p, entry.name, index: nativeIndex)},');
+    // A POSITIONAL customer structured prop routes through the reconstructor
+    // (emitted positionally, no name prefix) — the positional analog of the
+    // named structured prop below. Without this it would fall into the old
+    // structured decoder and throw "no registered decoder" (a build crash).
+    final customerSourceType = _customerPropSourceType(p, entry, customer);
+    if (customerSourceType != null) {
+      final value = _customerStructuredPropValue(
+        customerSourceType,
+        p,
+        entry,
+        customer!,
+        nativeIndex,
+      );
+      argLines.add('    $value,');
+      continue;
+    }
+    final positional = _positionalEmit(
+      p,
+      entry.name,
+      index: nativeIndex,
+      aliases: customerAliases,
+    );
+    argLines.add('    $positional,');
   }
 
   if (entry.decomposes.isNotEmpty) {
@@ -188,16 +221,39 @@ String? emitFactoryFunction(
       );
       continue;
     }
-    argLines.add(
-      '    ${p.name}: ${_decodeExpression(p, entry.name, index: nativeIndex)},',
+    final customerSourceType = _customerPropSourceType(p, entry, customer);
+    if (customerSourceType != null) {
+      // A customer structured slot renders through the inline reconstructor,
+      // reading its fields from the wire map at this property's path (a NAMED
+      // arg — the positional analog is routed the same way in the positional
+      // loop above).
+      final value = _customerStructuredPropValue(
+        customerSourceType,
+        p,
+        entry,
+        customer!,
+        nativeIndex,
+      );
+      argLines.add('    ${p.name}: $value,');
+      continue;
+    }
+    final decoded = _decodeExpression(
+      p,
+      entry.name,
+      index: nativeIndex,
+      aliases: customerAliases,
     );
+    argLines.add('    ${p.name}: $decoded,');
   }
 
   if (canonicalChild != null) {
-    argLines.add(
-      '    ${canonicalChild.name}: '
-      '${_decodeExpression(canonicalChild, entry.name, index: nativeIndex)},',
+    final decoded = _decodeExpression(
+      canonicalChild,
+      entry.name,
+      index: nativeIndex,
+      aliases: customerAliases,
     );
+    argLines.add('    ${canonicalChild.name}: $decoded,');
   }
 
   final preamble = gatingProp == null
@@ -229,6 +285,7 @@ String _positionalEmit(
   PropertyEntry prop,
   String widgetName, {
   NativeCatalogIndex? index,
+  Map<String, String> aliases = const {},
 }) {
   if (prop.synthetic == _iconDataSynthetic) {
     final read = "source.v<int>(<Object>['${prop.name}'])";
@@ -237,7 +294,7 @@ String _positionalEmit(
         : '0';
     return "IconData($read ?? $fallback, fontFamily: 'MaterialIcons')";
   }
-  return _decodeExpression(prop, widgetName, index: index);
+  return _decodeExpression(prop, widgetName, index: index, aliases: aliases);
 }
 
 String _nativeRecipeEmit(
@@ -913,12 +970,33 @@ const Set<String> kSupportedSyntheticStrategies = {
 String functionNameFor(WidgetEntry entry) =>
     '_build${entry.name.replaceAll('.', '')}';
 
+/// Whether the factory can mechanically emit EVERY aspect of [entry] (all
+/// properties, slots, events, synthetics, decompositions) against the current
+/// generator surface — the same whole-widget check `emitFactoryFunction` gates
+/// on before producing a body. The walker uses it to close the admit-then-skip
+/// gap: a widget this feature admits for a structured prop but whose OTHER
+/// props are not all emittable (e.g. a direct enum prop with no metadata) is
+/// excluded-loud at the ONE admission point rather than admitted-into-the-
+/// catalog then skipped-by-the-factory. [customer] provides the inline
+/// reconstruction context so a customer structured prop counts as emittable.
+bool isFactoryEmittable(
+  WidgetEntry entry, {
+  NativeCatalogIndex? nativeIndex,
+  CustomerReconstruction? customer,
+}) =>
+    _isMechanicallyEmittable(
+      entry,
+      nativeIndex: nativeIndex,
+      customer: customer,
+    );
+
 /// True when every aspect of [entry] can be emitted by the current
 /// generator surface. See [emitFactoryFunction] for the per-category
 /// eligibility rules.
 bool _isMechanicallyEmittable(
   WidgetEntry entry, {
   required NativeCatalogIndex? nativeIndex,
+  CustomerReconstruction? customer,
 }) {
   // single/list slots must point at a canonically-named widget /
   // widgetList property. Anything else (e.g. Scaffold's body+appBar,
@@ -1030,6 +1108,13 @@ bool _isMechanicallyEmittable(
     //   2. A resolvable ref whose structured type has no registered decoder
     //      — the registered-table gap. Throw the same way.
     if (prop.type == PropertyType.structured) {
+      // A CUSTOMER structured slot has no registered runtime decoder (the table
+      // is built-in only); it renders through the inline reconstructor instead.
+      // The admission predicate already guaranteed the whole closure is
+      // renderable + has a reconstruction plan, so an admitted customer slot is
+      // emittable here. (No 'admitted-but-skip' path: an admitted slot the
+      // reconstructor can't handle is a predicate gap, excluded upstream.)
+      if (_customerReconstructableProp(prop, entry, customer)) continue;
       if (_structuredRefOf(prop) == null) {
         throw StateError(
           "Catalog entry '${entry.name}' property '${prop.name}' is a "
@@ -1444,8 +1529,13 @@ bool _isEmittableProperty(PropertyEntry prop, NativeCatalogIndex? index) {
 /// Returns the constructor expression to invoke for [entry], parsed from
 /// `flutterType`. The class portion (after `#`) may contain a
 /// `.factoryName` suffix (e.g. `Image.network`); the whole thing is the
-/// Dart constructor reference.
-String _ctorExpressionFor(WidgetEntry entry) {
+/// Dart constructor reference. A CUSTOMER widget whose library is aliased in
+/// [aliases] is qualified (`s0.BadgeCard` / `s0.Image.network`) so it resolves
+/// through the uniform-prefix import; a built-in widget stays bare.
+String _ctorExpressionFor(
+  WidgetEntry entry, {
+  Map<String, String> aliases = const {},
+}) {
   final hashIndex = entry.flutterType.indexOf('#');
   if (hashIndex < 0 || hashIndex == entry.flutterType.length - 1) {
     throw StateError(
@@ -1454,16 +1544,21 @@ String _ctorExpressionFor(WidgetEntry entry) {
       "'<package URI>#<ClassName>.<factoryName>'.",
     );
   }
-  return entry.flutterType.substring(hashIndex + 1);
+  return _qualifyName(
+    entry.flutterType.substring(hashIndex + 1),
+    entry.flutterType.substring(0, hashIndex),
+    aliases,
+  );
 }
 
 String _decodeExpression(
   PropertyEntry prop,
   String widgetName, {
   NativeCatalogIndex? index,
+  Map<String, String> aliases = const {},
 }) {
   final path = "<Object>['${prop.name}']";
-  final decoded = _decoderCallFor(prop, path, index: index);
+  final decoded = _decoderCallFor(prop, path, index: index, aliases: aliases);
   // Literal `defaultValue` takes precedence. Otherwise a `required`
   // scalar without a default emits a throw so a malformed blob fails
   // loudly (the SDK surfaces the throw as `PaywallLoadFailed`) rather
@@ -1473,7 +1568,7 @@ String _decodeExpression(
   // `event` paths return non-null Flutter values directly (RFW
   // substitutes an error widget / empty list / void handler when the
   // slot is missing).
-  final defaultExpr = _defaultExpressionFor(prop);
+  final defaultExpr = _defaultExpressionFor(prop, aliases: aliases);
   if (defaultExpr != null) return '$decoded ?? $defaultExpr';
   if (!prop.required) return decoded;
   // Typed-handler events return `T?` from `source.handler<T>(...)`.
@@ -1637,6 +1732,265 @@ String? _structuredRefDecoderFor(
   return _kStructuredRefDecoders[structured.name];
 }
 
+/// The build-time context for reconstructing customer structured values inline:
+/// the discovered structured types + their reconstruction plans, both keyed by
+/// `sourceType`, the slot -> target-`sourceType` map (which resolves each
+/// structured slot without needing an allocated wire ID, so the factory
+/// reconstruction is name-based and deterministic), and the import-alias map.
+///
+/// `aliases` maps each referenced CUSTOMER library URI to its unique
+/// uniform-prefix import alias (`s0`, `s1`, ...). Every customer type the
+/// reconstruction names — a widget constructor, a nested structured
+/// constructor, a referenced enum — is emitted QUALIFIED through its library's
+/// alias (`s0.Badge`, `s0.Tone`), so two same-name types from different
+/// libraries can never collide by construction (the alias scheme keeps both,
+/// both render). Built-in types (`dart:`/`package:flutter/`) are absent from
+/// the map and stay bare (they resolve through the `widgets.dart` re-exports).
+typedef CustomerReconstruction = ({
+  Map<String, StructuredEntry> structuredBySourceType,
+  Map<String, ReconstructionPlan> plansBySourceType,
+  Map<String, String> slotTargets,
+  Set<String> nullableStructuredSlots,
+  Map<String, String> aliases,
+});
+
+/// Qualifies [bareName] with the import alias for [libraryUri] when that
+/// library is an aliased customer library, else returns [bareName] unchanged (a
+/// built-in type, or no aliasing context). The alias prefixes the WHOLE
+/// reference, so a named constructor (`Foo.bar`) or an enum member access
+/// (`Tone.values`) qualifies correctly as `s0.Foo.bar` / `s0.Tone.values`.
+String _qualifyName(
+  String bareName,
+  String? libraryUri,
+  Map<String, String> aliases,
+) {
+  if (libraryUri == null) return bareName;
+  final alias = aliases[libraryUri];
+  return alias == null ? bareName : '$alias.$bareName';
+}
+
+/// The import URI (before the `#`) of a `<library-uri>#<ClassName>` reference.
+String _libraryUriOf(String qualifiedRef) =>
+    qualifiedRef.substring(0, qualifiedRef.indexOf('#'));
+
+/// The defining library URI of [prop]'s enum type, or `null` when [prop] does
+/// not carry an [EnumShape] (its enum type comes from `enumType` metadata with
+/// no source library, or it is not an enum at all).
+String? _enumLibraryUri(PropertyEntry prop) {
+  final shape = prop.valueShape;
+  return shape is EnumShape ? shape.enumRef.libraryUri : null;
+}
+
+/// Whether [ctx] can reconstruct the structured type [sourceType] inline (it
+/// was admitted and has both a lowered entry and a reconstruction plan).
+bool _canReconstructCustomer(CustomerReconstruction? ctx, String? sourceType) =>
+    ctx != null &&
+    sourceType != null &&
+    ctx.structuredBySourceType.containsKey(sourceType) &&
+    ctx.plansBySourceType.containsKey(sourceType);
+
+/// The Dart class name for a `<library-uri>#<ClassName>` [sourceType].
+String _typeNameForSourceType(String sourceType) =>
+    sourceType.substring(sourceType.indexOf('#') + 1);
+
+/// The customer structured `sourceType` a widget [prop] on [entry] targets —
+/// resolved via the slot map (keyed by the widget's `flutterType` + property
+/// name, the same key discovery recorded) — or `null` when [prop] is not a
+/// reconstructable customer structured slot.
+String? _customerPropSourceType(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+) {
+  if (customer == null || prop.type != PropertyType.structured) return null;
+  final sourceType =
+      customer.slotTargets[structuredSlotKey(entry.flutterType, prop.name)];
+  return _canReconstructCustomer(customer, sourceType) ? sourceType : null;
+}
+
+/// Whether [prop] on [entry] renders through the inline customer reconstructor.
+bool _customerReconstructableProp(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+) =>
+    _customerPropSourceType(prop, entry, customer) != null;
+
+/// The argument VALUE expression for a customer structured WIDGET property [p]
+/// on [entry] targeting [sourceType] — the LEVEL-0 reconstruction entry, shared
+/// by the named and positional arg loops so both emit the same fail-closed
+/// value (the named loop prepends `p.name:`, the positional loop emits bare).
+///
+/// Absent-map behavior by the prop's kind (`p.required` + the build-time
+/// nullability signal `customer.nullableStructuredSlots`):
+///  * REQUIRED -> presence-check + throw (its target's fields may all be
+///    optional, so the leaf fail-closes never fire), never fabricating;
+///  * OPTIONAL NULLABLE (`Badge? badge`) -> presence-check to `null` (absent ->
+///    null, never crashes on an absent nested-required leaf);
+///  * OPTIONAL NON-NULLABLE (`Badge badge = const Badge(...)`) -> reconstruct
+///    UNCONDITIONALLY (a `: null` arm would type-error the non-null slot; the
+///    absent-with-default reconstructs-from-wire boundary is an accepted
+///    boundary for now).
+String _customerStructuredPropValue(
+  String sourceType,
+  PropertyEntry p,
+  WidgetEntry entry,
+  CustomerReconstruction customer,
+  NativeCatalogIndex? nativeIndex,
+) {
+  final reconstruction =
+      _emitCustomerReconstruction(sourceType, [p.name], customer, nativeIndex);
+  final pathLiteral = "<Object>['${p.name}']";
+  if (p.required) {
+    final message = "'${entry.name}.${p.name} is required.'";
+    return 'source.isMap($pathLiteral) ? $reconstruction '
+        ': (throw ArgumentError($message))';
+  }
+  final slotKey = structuredSlotKey(entry.flutterType, p.name);
+  if (customer.nullableStructuredSlots.contains(slotKey)) {
+    return 'source.isMap($pathLiteral) ? $reconstruction : null';
+  }
+  return reconstruction;
+}
+
+/// Emits the inline reconstruction expression for the customer structured type
+/// [sourceType], reading each field from the wire map at [path] + the field
+/// name.
+/// Args are emitted in the plan's constructor order and KIND (positional /
+/// named), so a positional-param class doesn't compile-error under named args.
+/// Recurses for nested structured fields; fail-closed on a missing required
+/// scalar field.
+String _emitCustomerReconstruction(
+  String sourceType,
+  List<String> path,
+  CustomerReconstruction ctx,
+  NativeCatalogIndex? nativeIndex,
+) {
+  final structured = ctx.structuredBySourceType[sourceType]!;
+  final plan = ctx.plansBySourceType[sourceType]!;
+  // Qualify the type through its import alias so two same-name structured
+  // types from different libraries never collide (the alias scheme keeps both).
+  final typeName = _qualifyName(
+    _typeNameForSourceType(sourceType),
+    _libraryUriOf(sourceType),
+    ctx.aliases,
+  );
+  final ctorName = plan.namedConstructor == null
+      ? typeName
+      : '$typeName.${plan.namedConstructor}';
+  final fieldsByName = {
+    for (final field in structured.fields) field.name: field,
+  };
+  final args = <String>[];
+  for (final arg in plan.args) {
+    final field = fieldsByName[arg.fieldName]!;
+    final value = _customerFieldDecode(
+      field,
+      sourceType,
+      [...path, arg.fieldName],
+      ctx,
+      nativeIndex,
+      isRequired: arg.isRequired,
+      defaultCode: arg.defaultCode,
+      defaultEnumValue: arg.defaultEnumValue,
+    );
+    args.add(arg.isNamed ? '${arg.fieldName}: $value' : value);
+  }
+  return '$ctorName(${args.join(', ')})';
+}
+
+/// The decode expression for a single customer structured [field] at [path]. A
+/// nested structured field recurses; every other type reuses the built-in
+/// [_decoderCallFor] via a synthetic property (so scalars/color/enum decode
+/// identically to a widget property). Fail-closed + type-correct:
+///  * a REQUIRED leaf field fail-closes on a missing value (throws);
+///  * a REQUIRED nested field presence-checks its map (throws when absent)
+///    rather than fabricating an empty nested object;
+///  * an OPTIONAL NON-NULLABLE field coalesces the nullable decode to its
+///    reproduced ctor default — a primitive literal ([defaultCode]) or a
+///    customer-enum constant ([defaultEnumValue], qualified here through the
+///    field's import alias) — so it type-checks against the non-null parameter;
+///  * an OPTIONAL NULLABLE nested field yields `null` on an absent map (never
+///    fabricates a nested object from missing wire values).
+String _customerFieldDecode(
+  StructuredField field,
+  String ownerSourceType,
+  List<String> path,
+  CustomerReconstruction ctx,
+  NativeCatalogIndex? nativeIndex, {
+  required bool isRequired,
+  required String? defaultCode,
+  required String? defaultEnumValue,
+}) {
+  final pathLiteral = "<Object>[${path.map((p) => "'$p'").join(', ')}]";
+  if (field.type == PropertyType.structured) {
+    final nested =
+        ctx.slotTargets[structuredSlotKey(ownerSourceType, field.name)];
+    if (_canReconstructCustomer(ctx, nested)) {
+      final reconstruction =
+          _emitCustomerReconstruction(nested!, path, ctx, nativeIndex);
+      if (isRequired) {
+        // A required nested object: its own fields may all be optional, so the
+        // recursion's leaf fail-closes would not fire — presence-check the
+        // nested map itself and throw when absent, never fabricate.
+        final owner = _typeNameForSourceType(ownerSourceType);
+        final message = "'$owner.${field.name} is required.'";
+        return 'source.isMap($pathLiteral) ? $reconstruction '
+            ': (throw ArgumentError($message))';
+      }
+      // An optional nested object: presence-check the map and, on an absent
+      // map, supply the reproduced ctor default (an optional non-nullable
+      // nested field — rare, a primitive default is impossible for a data
+      // class so this is excluded upstream) or `null` (an optional nullable
+      // nested field). Never fabricate a nested object from missing values.
+      final absent = defaultCode ?? 'null';
+      return 'source.isMap($pathLiteral) ? $reconstruction : $absent';
+    }
+  }
+  final synthetic = PropertyEntry(
+    wireId: field.wireId,
+    name: field.name,
+    type: field.type,
+    description: field.description,
+    required: isRequired,
+    structuredRef: field.structuredRef,
+    valueShape: field.valueShape,
+  );
+  final decoded = _decoderCallFor(
+    synthetic,
+    pathLiteral,
+    index: nativeIndex,
+    aliases: ctx.aliases,
+  );
+  if (isRequired && _decoderReturnsNullable(field.type)) {
+    final owner = _typeNameForSourceType(ownerSourceType);
+    final message = "'$owner.${field.name} is required.'";
+    return '$decoded ?? (throw ArgumentError($message))';
+  }
+  if (defaultEnumValue != null) {
+    // An optional non-nullable ENUM leaf: coalesce the nullable enum decode to
+    // its reproduced default, qualified through the field's import alias
+    // (`s0.Tone.soft`) so it resolves.
+    final enumType = _enumDartTypeName(synthetic);
+    if (enumType == null) {
+      throw StateError(
+        'Field ${field.name} carries an enum default but no enum type '
+        'metadata; the reconstruction plan and lowered field disagree.',
+      );
+    }
+    final qualified =
+        _qualifyName(enumType, _enumLibraryUri(synthetic), ctx.aliases);
+    return '$decoded ?? $qualified.$defaultEnumValue';
+  }
+  if (defaultCode != null) {
+    // An optional non-nullable leaf: coalesce the nullable decode to the
+    // reproduced primitive-literal ctor default so it type-checks against the
+    // non-null param.
+    return '$decoded ?? $defaultCode';
+  }
+  return decoded;
+}
+
 /// The structured reference a `structured` property points at: the top-level
 /// `structuredRef` when set, otherwise the ref carried on a resolved
 /// [StructuredShape] `valueShape`.
@@ -1651,6 +2005,7 @@ String _decoderCallFor(
   PropertyEntry prop,
   String path, {
   NativeCatalogIndex? index,
+  Map<String, String> aliases = const {},
 }) {
   switch (prop.type) {
     case PropertyType.boolean:
@@ -1757,7 +2112,11 @@ String _decoderCallFor(
           'Eligibility gate should have rejected this entry.',
         );
       }
-      return 'ArgumentDecoders.enumValue<$t>($t.values, source, $path)';
+      // A CUSTOMER enum (its defining library aliased) is qualified so it
+      // resolves through the uniform-prefix import; a built-in (Flutter) enum
+      // stays bare (it comes through the `widgets.dart` re-exports).
+      final e = _qualifyName(t, _enumLibraryUri(prop), aliases);
+      return 'ArgumentDecoders.enumValue<$e>($e.values, source, $path)';
     case PropertyType.event:
       final signature = prop.callbackSignature;
       if (signature == null) {
@@ -1814,7 +2173,10 @@ String _decoderCallFor(
 /// parameter default (typically theme-resolved at construction time)
 /// supplies the value. Brand-token resolution is not wired through this
 /// emitter path.
-String? _defaultExpressionFor(PropertyEntry prop) {
+String? _defaultExpressionFor(
+  PropertyEntry prop, {
+  Map<String, String> aliases = const {},
+}) {
   // Theme-binding defaults resolve at render time against the active
   // Flutter theme — codegen emits a call to the runtime resolver
   // (`resolveThemeBinding`, exported from the core runtime package).
@@ -1850,7 +2212,10 @@ String? _defaultExpressionFor(PropertyEntry prop) {
     // the Flutter ctor parameter.
     final enumType = _enumDartTypeName(prop);
     if (prop.type == PropertyType.enumValue && enumType != null) {
-      return '$enumType.$value';
+      // A CUSTOMER enum default is qualified through its import alias so it
+      // resolves; a built-in (Flutter) enum stays bare.
+      final e = _qualifyName(enumType, _enumLibraryUri(prop), aliases);
+      return '$e.$value';
     }
     // String defaults on `alignment` properties name a member on
     // `AlignmentDirectional` (e.g. `'topStart'`, `'center'`). The
@@ -1936,12 +2301,13 @@ String? _enumDartTypeName(PropertyEntry prop) {
 }
 
 /// Renders [value] as a single-quoted Dart string literal, escaping
-/// backslashes, single quotes, and newlines so the emitted source
-/// parses byte-stably.
+/// backslashes, single quotes, `$` (so it is a literal, not interpolation),
+/// and newlines so the emitted source parses byte-stably.
 String _dartStringLiteral(String value) {
   final escaped = value
       .replaceAll(r'\', r'\\')
       .replaceAll("'", r"\'")
+      .replaceAll(r'$', r'\$')
       .replaceAll('\n', r'\n');
   return "'$escaped'";
 }

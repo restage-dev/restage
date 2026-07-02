@@ -3,8 +3,8 @@ part of 'tally_onboarding.dart';
 abstract final class TallyOnboardingFlowDescriptor {
   const TallyOnboardingFlowDescriptor._();
 
-  static const OnboardingFlowRef<TallyOnboardingResult> ref =
-      OnboardingFlowRef<TallyOnboardingResult>(
+  static const SurfaceFlowRef<TallyOnboardingResult> ref =
+      SurfaceFlowRef<TallyOnboardingResult>(
     id: 'tally_onboarding',
     version: 1,
     minClient: 1,

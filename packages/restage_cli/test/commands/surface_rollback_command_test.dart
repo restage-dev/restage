@@ -69,6 +69,24 @@ void main() {
 
   http.Response rollbackOkResponse() => http.Response('', 200);
 
+  // The informational preflight the command calls after version validation and
+  // before the confirm. Default is the common compatible case.
+  http.Response preflightResponse({
+    String classification = 'compatible',
+    List<String> blockingChanges = const [],
+  }) => http.Response(
+    jsonEncode({
+      '__className__': 'RollbackPreflightView',
+      'surfaceType': 'paywall',
+      'surfaceSlug': 'pro',
+      'environmentSlug': 'staging',
+      'toVersion': 1,
+      'classification': classification,
+      'blockingChanges': blockingChanges,
+    }),
+    200,
+  );
+
   CommandRunner<int> makeRunner({
     required StringSink stdout,
     required StringSink stderr,
@@ -130,6 +148,11 @@ void main() {
             return statusResponse();
           },
           (req) {
+            final body = jsonDecode(req.body) as Map<String, dynamic>;
+            expect(body['method'], 'rollbackPreflight');
+            return preflightResponse();
+          },
+          (req) {
             capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
             return rollbackOkResponse();
           },
@@ -157,6 +180,7 @@ void main() {
       Map<String, dynamic>? capturedBody;
       final client = scriptedHttpClient([
         (_) => statusResponse(),
+        (_) => preflightResponse(),
         (req) {
           capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
           return rollbackOkResponse();
@@ -175,32 +199,34 @@ void main() {
       expect(out.toString(), contains('(frozen)'));
     });
 
-    test(
-      '(c) flow surface exits 1 with flow message, rollback NOT called',
-      () async {
-        var rollbackCalled = false;
-        final client = scriptedHttpClient([
-          (_) => statusResponse(deliveryShape: 'flow', versions: const []),
-          (req) {
-            final body = jsonDecode(req.body) as Map<String, dynamic>;
-            if (body['method'] == 'rollbackSurface') rollbackCalled = true;
-            return rollbackOkResponse();
-          },
-        ]);
+    test('(c) a flow surface rolls back now (gate-1 relaxed) — preflight + '
+        'rollback are called, exits 0', () async {
+      var rollbackCalled = false;
+      final client = scriptedHttpClient([
+        (_) => statusResponse(deliveryShape: 'flow'), // default versions 1–3
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'rollbackPreflight');
+          return preflightResponse();
+        },
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          if (body['method'] == 'rollbackSurface') rollbackCalled = true;
+          return rollbackOkResponse();
+        },
+      ]);
 
-        final err = StringBuffer();
-        final code = await makeRunner(
-          stdout: StringBuffer(),
-          stderr: err,
-          httpClient: client,
-        ).run(baseArgs());
+      final out = StringBuffer();
+      final code = await makeRunner(
+        stdout: out,
+        stderr: StringBuffer(),
+        httpClient: client,
+      ).run(baseArgs());
 
-        expect(code, 1);
-        expect(err.toString(), contains("isn't supported"));
-        expect(err.toString(), contains('flow'));
-        expect(rollbackCalled, isFalse);
-      },
-    );
+      expect(code, 0);
+      expect(rollbackCalled, isTrue);
+      expect(out.toString(), contains('Rolled back "pro"'));
+    });
 
     test('(d) missing --to-version exits 1, rollback NOT called', () async {
       var apiCalled = false;
@@ -236,8 +262,9 @@ void main() {
       () async {
         var rollbackCalled = false;
         final client = scriptedHttpClient([
-          // Status is fetched before confirmDestructive runs.
+          // Status + preflight run before confirmDestructive.
           (_) => statusResponse(),
+          (_) => preflightResponse(),
           (req) {
             final body = jsonDecode(req.body) as Map<String, dynamic>;
             if (body['method'] == 'rollbackSurface') rollbackCalled = true;
@@ -290,7 +317,8 @@ void main() {
       () async {
         var rollbackCalled = false;
         final client = scriptedHttpClient([
-          (_) => statusResponse(), // only status is fetched
+          (_) => statusResponse(), // status + preflight run before the confirm
+          (_) => preflightResponse(),
           (req) {
             final body = jsonDecode(req.body) as Map<String, dynamic>;
             if (body['method'] == 'rollbackSurface') rollbackCalled = true;
@@ -330,6 +358,7 @@ void main() {
         });
         final client = scriptedHttpClient([
           (_) => statusResponse(), // versions 1–3 pass local validation
+          (_) => preflightResponse(),
           (_) => http.Response(versionNotFoundBody, 400),
         ]);
 
@@ -349,6 +378,98 @@ void main() {
           msg,
           isNot(contains('SurfaceVersionNotFound(')),
         ); // no debug repr
+      },
+    );
+
+    test(
+      '(i) a flow-shaped paywall target (unsupportedTargetShape) is refused at '
+      'the preflight — exits 1, rollback NOT called',
+      () async {
+        var rollbackCalled = false;
+        final client = scriptedHttpClient([
+          (_) => statusResponse(),
+          (_) => preflightResponse(classification: 'unsupportedTargetShape'),
+          (req) {
+            final body = jsonDecode(req.body) as Map<String, dynamic>;
+            if (body['method'] == 'rollbackSurface') rollbackCalled = true;
+            return rollbackOkResponse();
+          },
+        ]);
+
+        final err = StringBuffer();
+        final code = await makeRunner(
+          stdout: StringBuffer(),
+          stderr: err,
+          httpClient: client,
+        ).run(baseArgs());
+
+        expect(code, 1);
+        expect(err.toString(), contains('flow-shaped version'));
+        expect(err.toString(), contains("isn't"));
+        expect(rollbackCalled, isFalse);
+      },
+    );
+
+    test(
+      '(j) a contractChange preflight surfaces a cohort-impact warning + the '
+      'proxy caveat in the confirm prompt, then proceeds',
+      () async {
+        final client = scriptedHttpClient([
+          (_) => statusResponse(deliveryShape: 'flow'),
+          (_) => preflightResponse(
+            classification: 'contractChange',
+            blockingChanges: const [r'minClientRaised @ $.minClient: floor up'],
+          ),
+          (_) => rollbackOkResponse(),
+        ]);
+
+        final out = StringBuffer();
+        final code = await makeRunner(
+          stdout: out,
+          stderr: StringBuffer(),
+          httpClient: client,
+          interactive: const _FakeInteractive(confirmAnswer: true),
+        ).run(baseArgs(yes: false)); // interactive → the impact line is shown
+
+        expect(code, 0);
+        final shown = out.toString();
+        expect(shown, contains('Cohort impact'));
+        expect(shown, contains('fall back to their bundled copy'));
+        expect(shown, contains('minClientRaised'));
+        expect(shown, contains('re-checks against its own bundled copy'));
+      },
+    );
+
+    test(
+      '(k) a backend SurfaceRollbackUnsupportedException (defense-in-depth) '
+      'prints the residual flow-shaped-paywall message and exits 1',
+      () async {
+        final unsupportedBody = jsonEncode({
+          'className': 'SurfaceRollbackUnsupportedException',
+          'data': {
+            '__className__': 'SurfaceRollbackUnsupportedException',
+            'surfaceSlug': 'pro',
+          },
+        });
+        final client = scriptedHttpClient([
+          (_) => statusResponse(),
+          // The preflight says compatible, but the backend still refuses (a
+          // race / poisoned row) — the error renderer must use the residual
+          // wording, not the retired "active-flow delivery" message.
+          (_) => preflightResponse(),
+          (_) => http.Response(unsupportedBody, 400),
+        ]);
+
+        final err = StringBuffer();
+        final code = await makeRunner(
+          stdout: StringBuffer(),
+          stderr: err,
+          httpClient: client,
+        ).run(baseArgs());
+
+        expect(code, 1);
+        expect(err.toString(), contains('flow-shaped version'));
+        expect(err.toString(), isNot(contains('active-flow delivery')));
       },
     );
   });

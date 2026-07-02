@@ -2,7 +2,7 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-The Restage command-line interface — the universal agent, human, and CI
+The Restage command-line interface: the universal agent, human, and CI
 surface for building, previewing, and publishing your Restage surfaces.
 
 ## Status
@@ -15,15 +15,18 @@ stable.
 Two install paths are supported. Both produce the same `restage` binary
 on your `PATH`; pick the one that suits your environment.
 
-### From pub.dev (canonical)
+### From pub.dev (once published)
 
 ```sh
 dart pub global activate restage_cli
 ```
 
+> **Note:** `restage_cli` isn't on pub.dev yet; use the native-binary install
+> below until it's published.
+
 After activation, the `restage` shell wrapper is on your `PATH` (assuming
-`$HOME/.pub-cache/bin` is in your shell's `PATH`). This is the right
-install path for most users.
+`$HOME/.pub-cache/bin` is in your shell's `PATH`). Once published, this is the
+right install path for most users.
 
 ### Native binary
 
@@ -35,7 +38,7 @@ melos run cli:install
 
 The melos script compiles the CLI to a native binary and installs it at
 `$PUB_CACHE/bin/restage` (overriding the pub-global shell wrapper). The
-native binary skips the wrapper's per-invocation snapshot rebuild — which
+native binary skips the wrapper's per-invocation snapshot rebuild, which
 is noticeable on a home directory that contains spaces. Switch between
 the two install paths freely.
 
@@ -66,10 +69,13 @@ restage preview path/to/paywall.rfw
 restage doctor
 ```
 
+`init`, `preview`, and `doctor` work fully offline. `login` and the publish
+commands talk to a Restage backend; hosted access is in private beta.
+
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts; missing required values without a default exit non-zero with a
 clear `required: --foo <value>` message.
 
 ## License
 
-BSD-3-Clause — see `LICENSE`.
+BSD-3-Clause. See `LICENSE`.

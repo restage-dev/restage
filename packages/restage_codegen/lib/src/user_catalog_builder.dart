@@ -33,8 +33,8 @@ final class UserCatalogBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    final widgets = await collectRestageWidgetsForPackage(buildStep);
-    if (widgets == null) return;
+    final collection = await collectRestageWidgetsForPackage(buildStep);
+    if (collection == null) return;
 
     final logContents =
         await readRootEventLog(buildStep, buildStep.inputId.package);
@@ -46,7 +46,10 @@ final class UserCatalogBuilder implements Builder {
           );
     final allocation = allocateUserCatalogFromWidgets(
       package: buildStep.inputId.package,
-      widgets: widgets,
+      widgets: collection.widgets,
+      structuredTypes: collection.structuredTypes,
+      slotTargets: collection.slotTargets,
+      stampedCapabilityVersions: collection.stampedCapabilityVersions,
       existingEvents: existingEvents,
     );
 

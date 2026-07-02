@@ -37,6 +37,11 @@ import 'system_back_policy.dart';
 ///
 /// Returns `true` to consume the event (the controller does not see it),
 /// `false` to let it flow through to [RestageFlowController.handleEvent].
+///
+/// This is a raw, host-owned escape hatch that runs BEFORE the controller's
+/// capped path, so the raw event [name] is NOT filtered by the general-surface
+/// custom-event/host-signal cap. Treat the name as untrusted content on a
+/// general / server-delivered surface — see [RestageFlowView.onScreenEvent].
 typedef FlowScreenEventInterceptor = bool Function(
   String name,
   Map<String, Object?> args,
@@ -86,6 +91,16 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// host uses to intercept purchase/restore initiation (running billing rather
   /// than a graph transition) while still forwarding navigation events to the
   /// flow. Null keeps the default behavior verbatim, so onboarding is untouched.
+  ///
+  /// > **This is a raw, UNCAPPED, host-owned escape hatch.** It receives the raw
+  /// > screen-event name *before* the controller's capped path — so it is NOT
+  /// > governed by the general-surface custom-event/host-signal cap (which
+  /// > governs the `onEvent`/`FlowCustomEvent` channel). On a general /
+  /// > server-delivered surface the event name is untrusted content the document
+  /// > author chose; a host that switches on the name here owns that decision as
+  /// > reviewed app code and **must not** branch an unrecognized name into a
+  /// > privileged action. Prefer the capped `onEvent` channel for
+  /// > general-surface behavior; use this only for host-reviewed handling.
   final FlowScreenEventInterceptor? onScreenEvent;
 
   /// What happens on a platform system-back gesture once in-flow back is

@@ -66,6 +66,7 @@ final class RestageOnboarding<R> extends StatefulWidget {
     this.initialState,
     required this.unavailable,
     this.actions,
+    this.installedSignalNames = const <String>{},
     this.resolver,
     this.onFlowUnavailable,
     this.onComplete,
@@ -99,6 +100,13 @@ final class RestageOnboarding<R> extends StatefulWidget {
   ///
   /// Required only when the resolved flow document declares host actions.
   final FlowActionRegistry? actions;
+
+  /// The installed custom-event / host-signal names the host has a reviewed
+  /// handler for. On a GENERAL (editor-authored) surface this caps the
+  /// custom-event channel alongside [actions]: a signal name the document did
+  /// not ship a handler for fails closed. Ignored on typed surfaces. Empty by
+  /// default.
+  final Set<String> installedSignalNames;
 
   /// Optional resolver used to load the flow descriptor.
   ///
@@ -174,7 +182,11 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.flow, widget.flow) ||
         !identical(oldWidget.resolver, widget.resolver) ||
-        !identical(oldWidget.actions, widget.actions)) {
+        !identical(oldWidget.actions, widget.actions) ||
+        !identical(
+          oldWidget.installedSignalNames,
+          widget.installedSignalNames,
+        )) {
       _start();
     }
   }
@@ -188,6 +200,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       resolver: widget.resolver ?? Restage.defaultFlowResolver,
       initialState: widget.initialState,
       actions: widget.actions,
+      installedSignalNames: widget.installedSignalNames,
       onEvent: (event) {
         if (!mounted || !identical(_controller, controller)) return;
         Restage.fireEvent(event);

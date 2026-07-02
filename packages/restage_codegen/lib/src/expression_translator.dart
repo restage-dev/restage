@@ -42,6 +42,10 @@ import 'package:restage_shared/restage_shared.dart'
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _kRestageFlutterSdkLibraryOrigin = 'package:restage';
+const Set<String> _kScreenEventHelperNames = {
+  'onboardingEvent',
+  'surfaceEvent',
+};
 
 /// The synthetic-strategy marker on the uniform `borderRadius` slot. The
 /// decompose interception gates on it so an asymmetric / `.all` BorderRadius
@@ -92,10 +96,12 @@ final class TranslationResult {
     Map<String, String> widgetDefinitions = const {},
     Map<String, Map<String, String>> widgetDefinitionStates = const {},
     Map<String, String> rootWidgetState = const {},
+    Set<String> referencedCustomLibraries = const {},
   })  : issues = List.unmodifiable(issues),
         widgetDefinitions = Map.unmodifiable(widgetDefinitions),
         widgetDefinitionStates = Map.unmodifiable(widgetDefinitionStates),
-        rootWidgetState = Map.unmodifiable(rootWidgetState);
+        rootWidgetState = Map.unmodifiable(rootWidgetState),
+        referencedCustomLibraries = Set.unmodifiable(referencedCustomLibraries);
 
   /// The DSL fragment, e.g. `"42"` or `'event "name" {}'`. Empty string if
   /// translation failed and one or more [issues] were collected.
@@ -126,6 +132,12 @@ final class TranslationResult {
   /// Root widget initial-state map: field-name → literal-DSL. Empty for a
   /// stateless root source.
   final Map<String, String> rootWidgetState;
+
+  /// Namespaces of the CUSTOM catalog libraries this translation references (a
+  /// widget resolved to a non-built-in catalog entry, not inlined). The emitter
+  /// imports each so the reference resolves at runtime. Empty when the surface
+  /// references only built-in and inlined widgets.
+  final Set<String> referencedCustomLibraries;
 }
 
 /// Internal build artifact describing a lowered paywall-root navigation flow.
@@ -354,6 +366,10 @@ final class ExpressionTranslator {
   // outside a translate() call.
   Map<String, String>? _currentDefinitionOwners;
 
+  // Namespaces of the custom catalog libraries referenced (not inlined) in the
+  // current translate() call — the emitter imports each. Null outside a call.
+  Set<String>? _currentReferencedCustomLibraries;
+
   // Lowered coalesce fallbacks discovered while translating a definition body,
   // keyed by classKey then property name: the value a call site that omits (or
   // passes explicit null) the property is completed with. Populated once per
@@ -441,9 +457,11 @@ final class ExpressionTranslator {
     final widgetDefinitionStates = <String, Map<String, String>>{};
     final rootWidgetState = <String, String>{};
     final definitionOwners = <String, String>{};
+    final referencedCustomLibraries = <String>{};
     _currentWidgetDefinitions = widgetDefinitions;
     _currentWidgetDefinitionStates = widgetDefinitionStates;
     _currentDefinitionOwners = definitionOwners;
+    _currentReferencedCustomLibraries = referencedCustomLibraries;
     var dsl = '';
     var suppressed = false;
     NavigationLowering? navigationLowering;
@@ -529,6 +547,7 @@ final class ExpressionTranslator {
       _currentWidgetDefinitions = null;
       _currentWidgetDefinitionStates = null;
       _currentDefinitionOwners = null;
+      _currentReferencedCustomLibraries = null;
       // Clear the per-call source context so it never lingers past this call —
       // a helper invoked directly (not through `translate`) would otherwise
       // read a stale source path / line info from a previous translation.
@@ -543,6 +562,7 @@ final class ExpressionTranslator {
       widgetDefinitions: widgetDefinitions,
       widgetDefinitionStates: widgetDefinitionStates,
       rootWidgetState: rootWidgetState,
+      referencedCustomLibraries: referencedCustomLibraries,
     );
   }
 
@@ -604,11 +624,13 @@ final class ExpressionTranslator {
     }
 
     final name = blueprint.rfwName;
-    // A name that shadows the paywall root or a catalog widget would make a
-    // reference in the blob ambiguous — the same diagnostic the inline path
-    // raises.
-    if (name == paywallRootWidgetName ||
-        catalog.widgets.any((w) => w.name == name)) {
+    // A name that shadows the paywall root or a DIFFERENT catalog widget would
+    // make a reference in the blob ambiguous — the same diagnostic the inline
+    // path raises. The widget's OWN catalog entry (same name AND same source)
+    // is not a collision: a registered inlinable widget inlines itself.
+    final shadowsOtherCatalogWidget = catalog.widgets
+        .any((w) => w.name == name && w.flutterType != blueprint.classKey);
+    if (name == paywallRootWidgetName || shadowsOtherCatalogWidget) {
       issues.add(
         _nameCollisionIssue(
           blueprint.classKey,
@@ -2751,7 +2773,7 @@ final class ExpressionTranslator {
         helper = helpers.findByNameOnly(method);
       }
       if (helper != null) {
-        if (helper.name == 'onboardingEvent') {
+        if (_kScreenEventHelperNames.contains(helper.name)) {
           final helperArgs = _translateOnboardingEventArgs(expr, issues);
           if (helperArgs == null) return '';
           return _safeHelperTranslate(expr, helper, helperArgs, issues);
@@ -4396,6 +4418,30 @@ final class ExpressionTranslator {
       final candidates = findWidgetsByName(catalog, widgetName);
       entry = candidates.isEmpty ? null : candidates.first;
     }
+    // A REGISTERED customer widget that CAN inline (class 4a) still inlines —
+    // its composition travels in the blob and renders with no runtime factory.
+    // One that CANNOT inline (class 4b, or a not-yet-inlinable 4a) falls
+    // through to the catalog reference below, resolved by the runtime-
+    // registered factory. Built-in catalog widgets are never customer widgets,
+    // so they always reference (unchanged). Without this, emitting a customer
+    // catalog would flip every registered widget — including inlinable ones —
+    // to a reference across every surface.
+    if (entry != null &&
+        widgetClass != null &&
+        WidgetLibrary.builtInByNamespace(entry.library.namespace) == null) {
+      final key = customWidgetKey(widgetClass);
+      final classification = customWidgetClassifications[key];
+      if (classification != null) {
+        final issueMark = issues.length;
+        final inlined =
+            _tryInlineCustomWidget(classification, key, args, anchor, issues);
+        if (inlined != null && inlined.isNotEmpty) return inlined;
+        // Not inlined (4b, a not-yet-inlinable 4a, or an inline-attempt
+        // diagnostic): discard any inline-specific diagnostics and reference
+        // the registered catalog entry below.
+        issues.removeRange(issueMark, issues.length);
+      }
+    }
     if (entry == null) {
       if (widgetClass != null) {
         final key = customWidgetKey(widgetClass);
@@ -4504,6 +4550,48 @@ final class ExpressionTranslator {
         ),
       );
       return '';
+    }
+
+    // A referenced CUSTOM (non-built-in) catalog widget resolves against its
+    // imported library at runtime — record it so the emitter imports it. A
+    // built-in widget needs no extra import (the preamble covers it), and an
+    // inlinable customer widget returned above (it carries its own definition).
+    if (WidgetLibrary.builtInByNamespace(entry.library.namespace) == null) {
+      // The reference emits the widget's bare name into the blob. If that name
+      // collides with a surface root or a DIFFERENT catalog widget, the
+      // reference is ambiguous: name resolution would bind it to the root (a
+      // self-recursion) or to the other widget (a silent wrong render), never
+      // to this customer widget. Fail loud rather than emit an
+      // admitted-but-wrong reference. (The inline path raises the same class of
+      // diagnostic; a widget that reaches the reference path — 4b, or a
+      // not-yet-inlinable 4a whose inline diagnostic was rolled back — needs
+      // its own guard here. Locals capture the promoted `entry` so the closure
+      // below can read them.)
+      final refName = entry.name;
+      final refFlutterType = entry.flutterType;
+      final conflict = (refName == paywallRootWidgetName ||
+              refName == onboardingScreenRootWidgetName)
+          ? 'a reserved surface root widget name'
+          : catalog.widgets.any(
+              (w) => w.name == refName && w.flutterType != refFlutterType,
+            )
+              ? 'another catalog widget with the same name'
+              : null;
+      if (conflict != null) {
+        issues.add(
+          Issue(
+            code: IssueCode.customWidgetNameCollision,
+            message:
+                "The custom widget '$refFlutterType' cannot be referenced: "
+                "its name '$refName' collides with $conflict. Rename the "
+                'widget class so its name is unique across the catalog and '
+                'the surface roots.',
+            location: refFlutterType,
+          ),
+        );
+        return '';
+      }
+      _currentReferencedCustomLibraries?.add(entry.library.namespace);
     }
 
     final localIssueStart = issues.length;
@@ -4858,7 +4946,12 @@ final class ExpressionTranslator {
         );
         return '';
       }
-      if (catalog.widgets.any((w) => w.name == name)) {
+      // A DIFFERENT catalog widget sharing this name is a real ambiguity; the
+      // widget's OWN catalog entry (same name AND same source) is not — a
+      // registered inlinable widget inlines itself, and its definition simply
+      // shadows the (unused) reference.
+      if (catalog.widgets
+          .any((w) => w.name == name && w.flutterType != blueprint.classKey)) {
         issues.add(_nameCollisionIssue(key, name, 'the catalog widget'));
         return '';
       }

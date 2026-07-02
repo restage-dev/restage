@@ -368,6 +368,22 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('command registration', () {
+    test('restage --help lists discovery and context commands', () async {
+      final cli = RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+      );
+      final exit = await cli.run(const ['--help']);
+      expect(exit, 0, reason: stderr.toString());
+      final out = stdout.toString();
+      expect(out, contains('projects'));
+      expect(out, contains('apps'));
+      expect(out, contains('envs'));
+      expect(out, contains('status'));
+    });
+
     test('restage surface --help lists all lifecycle subcommands', () async {
       final cli = RestageCli(
         stdout: stdout,
@@ -403,6 +419,71 @@ void main() {
       expect(out, contains('freeze'));
       expect(out, contains('unfreeze'));
       expect(out, contains('rollback'));
+    });
+  });
+
+  group('non-interactive discovery', () {
+    test('projects exits with an organization flag hint when orgs are '
+        'ambiguous', () async {
+      await store.write(
+        const Credential(
+          endpoint: 'https://api.example.com/',
+          kind: CredentialKind.authKey,
+          authToken: '42:abc',
+        ),
+      );
+      final cli = RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: _ambiguousOrganizationsClient(),
+      );
+
+      final exit = await cli.run(const ['--non-interactive', 'projects']);
+
+      expect(exit, 1);
+      expect(stderr.toString(), contains('--organization <slug>'));
+      expect(stdout.toString(), isEmpty);
+    });
+
+    test('init exits with an organization flag hint when orgs are '
+        'ambiguous', () async {
+      await File(p.join(tempDir.path, 'pubspec.yaml')).writeAsString('''
+name: my_app
+environment:
+  sdk: ^3.5.0
+''');
+      await store.write(
+        const Credential(
+          endpoint: 'https://api.example.com/',
+          kind: CredentialKind.authKey,
+          authToken: '42:abc',
+        ),
+      );
+      final cli = RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        defaultEndpoint: Uri.parse('https://api.example.com/'),
+        httpClient: _ambiguousOrganizationsClient(),
+      );
+
+      final exit = await cli.run([
+        '--non-interactive',
+        'init',
+        '--directory',
+        tempDir.path,
+        '--no-starter',
+        '--no-wire-deps',
+      ]);
+
+      expect(exit, 1);
+      expect(stderr.toString(), contains('--organization <slug>'));
+      expect(
+        File(p.join(tempDir.path, 'restage_config.yaml')).existsSync(),
+        isFalse,
+      );
     });
   });
 
@@ -477,3 +558,19 @@ void main() {
     });
   });
 }
+
+http.Client _ambiguousOrganizationsClient() => _scriptedClient(<_ScriptStep>[
+  (req, _) {
+    final body = jsonDecode(req.body) as Map<String, dynamic>;
+    expect(body['method'], 'listMine');
+    return _jsonResponse([
+      {
+        'organizationId': 7,
+        'slug': 'default',
+        'name': 'Default',
+        'role': 'owner',
+      },
+      {'organizationId': 8, 'slug': 'team', 'name': 'Team', 'role': 'member'},
+    ]);
+  },
+]);

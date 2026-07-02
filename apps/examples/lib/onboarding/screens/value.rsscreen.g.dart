@@ -3,7 +3,7 @@ part of 'value.dart';
 abstract final class ValueScreenDescriptor {
   const ValueScreenDescriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: 'value',
     artifactPath: 'value.rfw',
     version: 1,
