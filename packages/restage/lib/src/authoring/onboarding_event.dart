@@ -12,13 +12,32 @@ VoidCallback onboardingEvent<T, V extends T>(
   OnboardingEvent<T> event, [
   V? value,
 ]) {
+  return _flowEvent('onboardingEvent', event, value);
+}
+
+/// Returns a callback that fires a neutral flow screen event.
+///
+/// In a codegen-built screen, this call is replaced at build time with a
+/// descriptor event reference and never executes at runtime.
+VoidCallback surfaceEvent<T, V extends T>(
+  SurfaceEvent<T> event, [
+  V? value,
+]) {
+  return _flowEvent('surfaceEvent', event, value);
+}
+
+VoidCallback _flowEvent<T, V extends T>(
+  String helperName,
+  OnboardingEvent<T> event,
+  V? value,
+) {
   final dispatcher = activeOnboardingEventDispatcher();
   return () {
     if (dispatcher != null) {
       dispatcher(event.id, value);
       return;
     }
-    _reportNoDispatcher('onboardingEvent', <String, Object?>{
+    _reportNoDispatcher(helperName, <String, Object?>{
       'eventId': event.id,
       'value': value,
     });

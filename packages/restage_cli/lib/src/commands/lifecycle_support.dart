@@ -1,6 +1,9 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -18,13 +21,18 @@ class LifecycleContext {
   /// Construct a [LifecycleContext].
   const LifecycleContext({
     required this.credential,
+    required this.apiEndpoint,
     required this.project,
     required this.app,
     required this.environment,
+    required this.organizationId,
   });
 
   /// The authenticated credential to use for API calls.
   final Credential credential;
+
+  /// Backend endpoint that may receive [credential].
+  final Uri apiEndpoint;
 
   /// Project slug.
   final String project;
@@ -34,6 +42,9 @@ class LifecycleContext {
 
   /// Target environment slug.
   final String environment;
+
+  /// Backend organization id selected by `restage_config.yaml`, if any.
+  final int? organizationId;
 }
 
 /// Register the options every lifecycle command shares.
@@ -85,6 +96,7 @@ Future<LifecycleContext?> loadLifecycleContext({
   required Interactive interactive,
   required StringSink stderr,
   FileCredentialStore? credentialStore,
+  http.Client? httpClient,
 }) async {
   final store = credentialStore ?? FileCredentialStore.atDefaultLocation();
   final credential = await store.read();
@@ -96,6 +108,16 @@ Future<LifecycleContext?> loadLifecycleContext({
   final loaded = await loadRestageConfig(
     from: Directory(argResults?['directory'] as String? ?? '.'),
   );
+  final Uri apiEndpoint;
+  try {
+    apiEndpoint = resolveApiEndpoint(
+      config: loaded?.config,
+      credential: credential,
+    );
+  } on EndpointConfigurationException catch (e) {
+    stderr.writeln(e.toString());
+    return null;
+  }
 
   final project = (argResults?['project'] as String?) ?? loaded?.config.project;
   final app = (argResults?['app'] as String?) ?? loaded?.config.app;
@@ -124,11 +146,36 @@ Future<LifecycleContext?> loadLifecycleContext({
     return null;
   }
 
+  final RestageApi api;
+  try {
+    api = RestageApi(
+      endpoint: apiEndpoint,
+      httpClient: httpClient,
+      credential: credential,
+    );
+  } on InsecureEndpointException catch (e) {
+    stderr.writeln(e.toString());
+    return null;
+  }
+  final ConfiguredOrganizationContext? configuredOrganization;
+  try {
+    configuredOrganization = await resolveConfiguredOrganization(
+      api: api,
+      config: loaded?.config,
+      stderr: stderr,
+    );
+  } finally {
+    if (httpClient == null) api.close();
+  }
+  if (configuredOrganization == null) return null;
+
   return LifecycleContext(
     credential: credential,
+    apiEndpoint: apiEndpoint,
     project: project,
     app: app,
     environment: environment,
+    organizationId: configuredOrganization.organizationId,
   );
 }
 

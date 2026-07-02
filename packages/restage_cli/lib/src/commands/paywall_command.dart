@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/paywall_list_command.dart';
 import 'package:restage_cli/src/commands/paywall_publish_command.dart';
 import 'package:restage_cli/src/commands/surface_kill_command.dart';
+import 'package:restage_cli/src/commands/surface_history_command.dart';
 import 'package:restage_cli/src/commands/surface_lock_command.dart';
 import 'package:restage_cli/src/commands/surface_rollback_command.dart';
 import 'package:restage_cli/src/commands/surface_status_command.dart';
@@ -44,6 +45,16 @@ class PaywallCommand extends Command<int> {
     );
     addSubcommand(
       SurfaceStatusCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        fixedSurfaceType: SurfaceType.paywall,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceHistoryCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,

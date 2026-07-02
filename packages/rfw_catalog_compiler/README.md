@@ -6,7 +6,7 @@ Analyzer-backed compiler pipeline that turns annotated Dart widget libraries
 into a [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog. It walks a customer's
 `@RestageLibrary` / `@RestageWidget` source with the Dart analyzer, builds an
 internal IR, allocates stable wire IDs, and lowers the result to the public
-`rfw_catalog_schema` wire shape — the durable contract that editors, SDK
+`rfw_catalog_schema` wire shape: the durable contract that authoring tools, SDK
 runtimes, and backends decode.
 
 A catalog produced here describes the widget vocabulary available to any
@@ -37,7 +37,7 @@ server-driven UI surface, independent of which surface is being rendered.
   post-allocation reference sites with explicit duplicate-key detection.
 - **Compatibility diff.** Per-entry change detection between two catalog
   versions, a forwarding/breaking compatibility classifier, and `CompatRule`
-  emission — the tooling that decides whether a regenerated catalog is a safe
+  emission: the tooling that decides whether a regenerated catalog is a safe
   forwarding change.
 - **Policy layer.** Deny-lists, category and design-token heuristics, mutex
   rules, metadata inference, stability classification, and the structured-walk

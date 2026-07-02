@@ -3,8 +3,8 @@ part of 'lumen_onboarding.dart';
 abstract final class LumenOnboardingFlowDescriptor {
   const LumenOnboardingFlowDescriptor._();
 
-  static const OnboardingFlowRef<LumenOnboardingResult> ref =
-      OnboardingFlowRef<LumenOnboardingResult>(
+  static const SurfaceFlowRef<LumenOnboardingResult> ref =
+      SurfaceFlowRef<LumenOnboardingResult>(
     id: 'lumen_onboarding',
     version: 1,
     minClient: 1,

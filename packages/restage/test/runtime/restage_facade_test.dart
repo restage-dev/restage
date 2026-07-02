@@ -1,10 +1,18 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 // Direct path import — the registry is internal; the test reaches in to
 // verify the public facade routes registrations into it.
 // ignore: implementation_imports
 import 'package:restage/src/runtime/library_runtime_registry.dart';
+// Direct path import — the assignment-key provider is internal; these tests pin
+// configure/debugReset lifecycle rather than exposing a host-facing API.
+// ignore: implementation_imports
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 // Direct path import — the RPC client is internal, but the test-only facade
 // seam exposes it for compatibility.
 // ignore: implementation_imports
@@ -12,9 +20,15 @@ import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 // `rfw` exposes a `WidgetLibrary` that collides with the catalog identifier
 // re-exported from `restage`. Hide the rfw symbol.
 import 'package:rfw/rfw.dart' hide WidgetLibrary;
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  setUp(() => Restage.debugReset());
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    Restage.debugReset();
+  });
 
   test('configure sets apiKey, environment, products', () {
     Restage.configure(
@@ -129,4 +143,75 @@ void main() {
     Restage.reset();
     // No assertion — just verifies they don't throw.
   });
+
+  test(
+      'configure with baseUrl and analytics enabled installs the internal '
+      'assignment-key provider', () async {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.com',
+    );
+    _installNoopRpcClient();
+
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+  });
+
+  test(
+      'analyticsEnabled false disables assignment keys even with hosted '
+      'delivery configured', () async {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.com',
+      analyticsEnabled: false,
+    );
+    _installNoopRpcClient();
+
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
+  });
+
+  test('configure without baseUrl leaves assignment keys disabled', () async {
+    Restage.configure(apiKey: 'rs_pk_test');
+
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
+  });
+
+  test('debugReset clears the internal assignment-key provider', () async {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.com',
+    );
+    _installNoopRpcClient();
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+
+    Restage.debugReset();
+
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
+  });
+
+  test('reconfiguring from hosted to bundled-only clears assignment keys',
+      () async {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.com',
+    );
+    _installNoopRpcClient();
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNotNull);
+
+    Restage.configure(apiKey: 'rs_pk_test');
+
+    expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
+  });
+}
+
+void _installNoopRpcClient() {
+  Restage.debugRestageRpcClient = RestageRpcClient(
+    baseUrl: 'https://api.example.com',
+    apiKey: 'rs_pk_test',
+    httpClient: MockClient(
+      (_) async => http.Response(
+        jsonEncode(<String, Object?>{'entitlements': <Object?>[]}),
+        200,
+      ),
+    ),
+  );
 }

@@ -18,6 +18,7 @@ import '../runtime/paywall_error.dart';
 import 'asset_variant_resolver.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
+import 'surface_assignment_key_provider.dart';
 import 'variant_resolver.dart';
 
 /// Resolves paywalls from Restage-hosted delivery.
@@ -185,18 +186,19 @@ final class RestageVariantResolver
       return const _FreshResolution.rejected(); // no hosted tier (no baseUrl)
     }
 
-    final bytes = await client.fetchSurface(
+    final result = await client.fetchSurface(
       surfaceType: SurfaceType.paywall.wireName,
       surfaceSlug: id,
+      assignmentKey: await SurfaceAssignmentKeyProvider.resolve(),
       // version omitted → the delivery service's active-version arm.
     );
-    if (bytes == null) {
+    if (result == null) {
       return const _FreshResolution.rejected(); // transport failure
     }
 
     final SurfaceDocument document;
     try {
-      document = SurfaceDocumentCodec.decode(bytes);
+      document = SurfaceDocumentCodec.decode(result.envelopeBytes);
     } on FormatException catch (error) {
       debugPrint('[restage] hosted paywall "$id" failed to decode: $error');
       return const _FreshResolution.rejected();
@@ -249,6 +251,8 @@ final class RestageVariantResolver
       variant: ResolvedVariant(
         bytes: payload.blob,
         paywallId: id,
+        variantId: result.variantId,
+        experimentId: result.experimentId,
         paywallPublishedVersion: document.version,
       ),
       minClient: document.minClient,

@@ -3,8 +3,8 @@ part of 'crave_permission.dart';
 abstract final class CravePermissionFlowDescriptor {
   const CravePermissionFlowDescriptor._();
 
-  static const OnboardingFlowRef<CravePermissionResult> ref =
-      OnboardingFlowRef<CravePermissionResult>(
+  static const SurfaceFlowRef<CravePermissionResult> ref =
+      SurfaceFlowRef<CravePermissionResult>(
     id: 'crave_permission',
     version: 1,
     minClient: 1,

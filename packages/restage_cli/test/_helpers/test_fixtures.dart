@@ -32,12 +32,20 @@ Future<void> seedRestageConfig(
   String project,
   String app, {
   String? defaultEnvironment,
+  String? organization,
+  String? endpoint,
 }) async {
   final buffer = StringBuffer()
     ..writeln('project: $project')
     ..writeln('app: $app');
   if (defaultEnvironment != null) {
     buffer.writeln('defaultEnvironment: $defaultEnvironment');
+  }
+  if (organization != null) {
+    buffer.writeln('organization: $organization');
+  }
+  if (endpoint != null) {
+    buffer.writeln('endpoint: $endpoint');
   }
   await File(
     p.join(dir.path, 'restage_config.yaml'),

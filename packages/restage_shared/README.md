@@ -27,10 +27,10 @@ directly.
 A handful of catalog-adjacent helpers are defined here rather than in the schema
 package:
 
-- **`kSupportedCurveNames`** — the animation curve vocabulary the catalog,
+- **`kSupportedCurveNames`**: the animation curve vocabulary the catalog,
   codegen, and runtime agree on.
-- **`kRestageFormattedTextProps`** — the formatted-text property set.
-- **`kMaxInlineSpanDepth`** — the inline-span nesting limit enforced when
+- **`kRestageFormattedTextProps`**: the formatted-text property set.
+- **`kMaxInlineSpanDepth`**: the inline-span nesting limit enforced when
   decoding rich text.
 
 ### Surface and flow documents
@@ -38,26 +38,26 @@ package:
 The wire format for server-driven surfaces and the multi-screen flows that drive
 onboarding, messages, and surveys:
 
-- **`SurfaceDocument`** and its codec — the envelope a surface is delivered in,
+- **`SurfaceDocument`** and its codec: the envelope a surface is delivered in,
   with `SurfaceType` and the blob/flow payload split.
-- **`FlowDocument`** and its codec, hash, validation, and compatibility diff —
+- **`FlowDocument`** and its codec, hash, validation, and compatibility diff:
   the declarative flow graph (screens, decisions, sub-flows, branches), plus the
   action schemas and the content hash used for change detection.
 
 ### Value types
 
-- **`RestageProduct`** — a purchasable product (id, slot, entitlement),
+- **`RestageProduct`**: a purchasable product (id, slot, entitlement),
   configured at app startup.
-- **`RestageEntitlement`** — an abstract feature gate the user has access to
+- **`RestageEntitlement`**: an abstract feature gate the user has access to
   (for example `'pro'`).
-- **`EntitlementSource`** — how an entitlement was obtained (`purchase`,
+- **`EntitlementSource`**: how an entitlement was obtained (`purchase`,
   `restore`, `renewal`, `promotional`).
 
 ### Analytics taxonomy
 
 The behavioral-analytics event contract every surface emits:
 
-- **`AnalyticsEvent`** — the client event envelope.
+- **`AnalyticsEvent`**: the client event envelope.
 - The reserved-key set, wire enums, skew bounds, and the taxonomy registry that
   define and validate that envelope.
 
@@ -68,12 +68,12 @@ ingest-side shapes live alongside the client ones.
 
 ### Theme contract
 
-- **`kThemeContractPaths`** — the `data.theme.*` paths a delivered surface may
+- **`kThemeContractPaths`**: the `data.theme.*` paths a delivered surface may
   read from the host's theme.
 
 ### Capability and metering
 
-- **`CapabilityManifest`** — the capability floor a delivered document declares,
+- **`CapabilityManifest`**: the capability floor a delivered document declares,
   so an older reader fails closed rather than misrendering.
 - The metering fold types used to roll usage into reportable totals.
 

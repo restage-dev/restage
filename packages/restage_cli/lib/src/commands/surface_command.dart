@@ -1,6 +1,8 @@
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/surface_kill_command.dart';
+import 'package:restage_cli/src/commands/surface_history_command.dart';
+import 'package:restage_cli/src/commands/surface_list_command.dart';
 import 'package:restage_cli/src/commands/surface_lock_command.dart';
 import 'package:restage_cli/src/commands/surface_publish_command.dart';
 import 'package:restage_cli/src/commands/surface_rollback_command.dart';
@@ -24,6 +26,14 @@ class SurfaceCommand extends Command<int> {
     http.Client? httpClient,
   }) {
     addSubcommand(
+      SurfaceListCommand(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
       SurfacePublishCommand(
         stdout: stdout,
         stderr: stderr,
@@ -34,6 +44,15 @@ class SurfaceCommand extends Command<int> {
     );
     addSubcommand(
       SurfaceStatusCommand(
+        stdout: stdout,
+        stderr: stderr,
+        interactive: interactive,
+        credentialStore: credentialStore,
+        httpClient: httpClient,
+      ),
+    );
+    addSubcommand(
+      SurfaceHistoryCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,

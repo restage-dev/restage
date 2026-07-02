@@ -12,6 +12,7 @@ import 'package:restage/restage.dart';
 abstract final class WelcomeScreen {
   static const next = OnboardingEvent<void>('next');
   static const age = OnboardingEvent<int>('age');
+  static const close = SurfaceEvent<void>('close');
 }
 
 void main() {
@@ -19,6 +20,14 @@ void main() {
     const event = OnboardingEvent<void>('next');
 
     expect(event.id, 'next');
+    expect(event, isA<OnboardingEvent<void>>());
+  });
+
+  test('SurfaceEvent stores the event id and keeps the event type', () {
+    const event = SurfaceEvent<void>('close');
+
+    expect(event.id, 'close');
+    expect(event, isA<SurfaceEvent<void>>());
     expect(event, isA<OnboardingEvent<void>>());
   });
 
@@ -65,6 +74,29 @@ void main() {
 
     expect(receivedEventId, 'age');
     expect(receivedValue, 42);
+  });
+
+  testWidgets('surfaceEvent dispatches through the active dispatcher',
+      (tester) async {
+    String? receivedEventId;
+    Object? receivedValue;
+    VoidCallback? captured;
+
+    await tester.pumpWidget(RestageOnboardingEventDispatcher(
+      onEvent: (eventId, value) {
+        receivedEventId = eventId;
+        receivedValue = value;
+      },
+      child: Builder(builder: (_) {
+        captured = surfaceEvent(WelcomeScreen.close);
+        return const SizedBox();
+      }),
+    ));
+
+    captured!();
+
+    expect(receivedEventId, 'close');
+    expect(receivedValue, isNull);
   });
 
   test('onboardingEvent rejects the wrong payload type statically', () async {

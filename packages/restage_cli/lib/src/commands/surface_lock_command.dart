@@ -96,6 +96,7 @@ class SurfaceLockCommand extends Command<int> {
       interactive: _interactive,
       stderr: _stderr,
       credentialStore: _credentialStore,
+      httpClient: _httpClient,
     );
     if (ctx == null) return 1;
 
@@ -103,7 +104,7 @@ class SurfaceLockCommand extends Command<int> {
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: Uri.parse(ctx.credential.endpoint),
+        endpoint: ctx.apiEndpoint,
         httpClient: _httpClient,
         credential: ctx.credential,
       );
@@ -122,6 +123,7 @@ class SurfaceLockCommand extends Command<int> {
           environment: ctx.environment,
           locked: _lock,
           reason: reason,
+          organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
         if (decodeGenericTypedException(e.body) is UnauthorizedAccess) {

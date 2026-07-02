@@ -21,6 +21,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.resolver,
     this.initialState,
     required this.actions,
+    this.installedSignalNames = const <String>{},
     required this.onEvent,
     required this.onComplete,
     required this.onUnavailable,
@@ -40,6 +41,17 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Optional host action registry for action-backed flow transitions.
   final FlowActionRegistry? actions;
+
+  /// The installed custom-event / host-signal names the host has a reviewed
+  /// handler for. On a GENERAL surface this is the second capped vocabulary
+  /// channel (alongside the action-verb registry): a custom-event name the
+  /// document declares or fires that is not in this set is a capability the app
+  /// did not ship, so it fails closed — rejected at load and never dispatched to
+  /// the host as a behavior trigger. Typed surfaces are not capped (the dev owns
+  /// the reviewed handler for whatever their compiled flow fires); the set is
+  /// ignored there. Empty by default (a general surface with no installed
+  /// signals fires no custom event — fail-closed default).
+  final Set<String> installedSignalNames;
 
   /// Emits global SDK events.
   final void Function(RestageEvent event) onEvent;
@@ -75,6 +87,20 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   final String _operationSessionId = _mintOperationSessionId();
   final List<_FlowFrame> _frames = <_FlowFrame>[];
+
+  /// The SURFACE's delivery mode, established once from the ROOT document at
+  /// [load]. The custom-event-name cap and the outbound-filter posture are
+  /// anchored to THIS, never to a per-frame document's self-attested marker — a
+  /// sub-flow (a mode boundary) cannot lie its way out of the cap by attesting
+  /// `typed`. Null only before the root resolves (no custom event can fire yet).
+  FlowDeliveryMode? _surfaceMode;
+
+  /// Whether the custom-event / host-signal cap applies to this surface. True on
+  /// a general surface AND — fail-closed — whenever the surface mode is not yet
+  /// anchored (null). The cap never disengages on an unknown mode; only a
+  /// DEFINITIVELY-typed surface is uncapped (the reviewed dev owns the handler),
+  /// so the cap does not rely on load-ordering to stay engaged.
+  bool get _signalCapApplies => _surfaceMode != FlowDeliveryMode.typed;
   Object? _activeActionToken;
   int _nextOperationId = 0;
   int? _currentScreenEntryId;
@@ -160,16 +186,40 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// Loads and decodes the initial flow screen.
   Future<void> load() async {
     try {
-      final resolved = await resolver.resolve(flow);
+      // Route the ROOT resolve through the active arm only when the resolver
+      // opted in (the @internal ActiveArmFlowResolver capability). Otherwise —
+      // a non-active resolver, or active off — take the byte-unchanged exact
+      // path. Sub-flows always use the exact `resolve` (see the sub-flow path).
+      // (ActiveArmFlowResolver is not a FlowResolver subtype, so `is` cannot
+      // promote — the explicit cast mirrors the FlowCapableVariantResolver seam.)
+      final activeResolver = resolver is ActiveArmFlowResolver
+          ? resolver as ActiveArmFlowResolver
+          : null;
+      final active = activeResolver?.activeArmEnabled ?? false;
+      final resolved = active
+          ? await activeResolver!.resolveActiveRoot(flow)
+          : await resolver.resolve(flow);
       if (_isDisposed) return;
-      _validateResolved(resolved);
+      _validateResolved(resolved, active: active);
+      // Anchor the surface mode ONCE from the root document. Every later cap /
+      // filter decision reads this, not a per-frame marker.
+      _surfaceMode = resolved.document.deliveryMode;
       final actionBindings = _validateActionContracts(resolved.document);
+      _validateGeneralSignalNames(resolved.document);
       final seed = initialState?.toFlowState() ?? const <String, Object?>{};
       _validateSeed(resolved.document, seed);
       final rootFrame = _FlowFrame(
         resolved: resolved,
         flowId: flow.id,
         flowVersion: flow.version,
+        // Record the resolved version for lifecycle events ONLY when the active
+        // arm served a DIFFERENT version than the requested contract — i.e. a
+        // real content OTA. An exact resolve (active off), or an active-arm
+        // fallback to the bundled document (whose version equals the contract),
+        // leaves it null so analytics cleanly distinguishes an OTA from a no-op.
+        resolvedVersion: active && resolved.document.version != flow.version
+            ? resolved.document.version
+            : null,
         flowSessionId: _mintFlowSessionId(),
         parentFlowSessionId: null,
         subFlowDepth: 0,
@@ -221,6 +271,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       onEvent(OnboardingSkipped(
         flowId: frame.flowId,
         flowVersion: frame.flowVersion,
+        resolvedVersion: frame.resolvedVersion,
         flowSessionId: frame.flowSessionId,
         atScreenId: current,
         stepIndex: frame.screenHistory.length - 1,
@@ -371,7 +422,14 @@ final class RestageFlowController<R> extends ChangeNotifier {
     super.dispose();
   }
 
-  void _validateResolved(ResolvedFlow resolved) {
+  /// Validates a resolved flow against the requested ref. [active] is true ONLY
+  /// for a flow resolved through the active arm: it skips EXACTLY the bare
+  /// `version ==` exact-pin (check B) — which the resolver's render gate has
+  /// already replaced — while EVERY other check (flow id, schemaVersion, the
+  /// doc + per-artifact capability floors, document validation) keeps running on
+  /// the active document (the binding backstop). For exact/bundled resolves
+  /// [active] is false and check B runs as before.
+  void _validateResolved(ResolvedFlow resolved, {bool active = false}) {
     final document = resolved.document;
     if (document.flow != flow.id) {
       throw _error(
@@ -380,7 +438,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
             'flow "${flow.id}".',
       );
     }
-    if (document.version != flow.version) {
+    if (!active && document.version != flow.version) {
       throw _error(
         'version_mismatch',
         'Flow JSON version ${document.version} does not match requested '
@@ -502,6 +560,38 @@ final class RestageFlowController<R> extends ChangeNotifier {
     }
     _validateActionResultPredicates(document);
     return bindings;
+  }
+
+  /// Fails a document closed at admission if — on a general SURFACE — it
+  /// declares a custom-event / host-signal name the host did not install a
+  /// handler for.
+  ///
+  /// This is the load-side of the both-channel cap: on a general surface,
+  /// custom-event names are capped to [installedSignalNames] exactly as action
+  /// verbs are capped to the installed action registry. Called at every point a
+  /// document is admitted to the runtime — the root ([load]) and every sub-flow
+  /// entry ([_enterSubFlow]) — mirroring [_validateActionContracts], so the cap
+  /// is a uniform whole-flow guarantee, not root-only. The gate keys on
+  /// [_surfaceMode] (the SURFACE mode, anchored from the root at load), NOT the
+  /// passed document's self-attested marker — so a sub-flow served as `typed`
+  /// inside a general surface is still capped (it cannot attest its way out).
+  /// An `outbound.customEvents` name with no installed handler is a capability
+  /// the OTA document invented — a governing-invariant violation — so the
+  /// document fails closed (to the bundled surface) rather than silently dropping
+  /// the signal at runtime. Typed surfaces keep their existing open behavior (the
+  /// reviewed dev owns the handler). The dispatch-time check in [_emitCustomEvent]
+  /// then re-enforces the cap at the emission chokepoint as defense-in-depth.
+  void _validateGeneralSignalNames(FlowDocument document) {
+    if (!_signalCapApplies) return;
+    for (final name in document.outbound.customEvents.keys) {
+      if (!installedSignalNames.contains(name)) {
+        throw _error(
+          'signal_not_installed',
+          'General surface declares custom-event/host-signal name "$name" with '
+              'no installed handler; a new signal type requires an app release.',
+        );
+      }
+    }
   }
 
   void _validateSeed(FlowDocument document, Map<String, Object?> seed) {
@@ -721,6 +811,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       _validateSubFlowResolved(parentFrame, state, childResolved);
       final childActionBindings =
           _validateActionContracts(childResolved.document);
+      _validateGeneralSignalNames(childResolved.document);
       final childInput = _subFlowInput(parentFrame, state, childResolved);
       final childFrame = _FlowFrame(
         resolved: childResolved,
@@ -762,6 +853,21 @@ final class RestageFlowController<R> extends ChangeNotifier {
     ResolvedFlow resolved,
   ) {
     final document = resolved.document;
+    // One surface, one mode: a sub-flow's delivery mode must match the surface
+    // ([_surfaceMode], anchored at the root). A general surface has no typed
+    // sub-flows (and vice versa) — a mismatch is a mode boundary that could
+    // otherwise attest its way out of a mode-gated cap, so it fails closed to
+    // bundled. Belt-and-suspenders with the surface-anchored cap gates.
+    if (document.deliveryMode != _surfaceMode) {
+      throw _subFlowUnavailableError(
+        state,
+        reason: 'delivery_mode_mismatch',
+        message:
+            'Sub-flow deliveryMode "${document.deliveryMode.wireName}" does '
+            'not match the surface deliveryMode '
+            '"${_surfaceMode?.wireName ?? 'unknown'}".',
+      );
+    }
     if (document.flow != state.flow) {
       throw _subFlowUnavailableError(
         state,
@@ -1021,6 +1127,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       onEvent(FlowCompleted(
         flowId: frame.flowId,
         flowVersion: frame.flowVersion,
+        resolvedVersion: frame.resolvedVersion,
         flowSessionId: frame.flowSessionId,
         parentFlowSessionId: frame.parentFlowSessionId,
       ));
@@ -1041,6 +1148,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     onEvent(FlowCompleted(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
+      resolvedVersion: frame.resolvedVersion,
       flowSessionId: frame.flowSessionId,
       parentFlowSessionId: frame.parentFlowSessionId,
     ));
@@ -1103,6 +1211,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     onEvent(FlowStarted(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
+      resolvedVersion: frame.resolvedVersion,
       flowSessionId: frame.flowSessionId,
       parentFlowSessionId: frame.parentFlowSessionId,
     ));
@@ -1116,6 +1225,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     onEvent(OnboardingStepViewed(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
+      resolvedVersion: frame.resolvedVersion,
       flowSessionId: frame.flowSessionId,
       screenId: screenId,
       stepIndex: frame.screenHistory.length - 1,
@@ -1143,6 +1253,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     onEvent(OnboardingPermissionResponse(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
+      resolvedVersion: frame.resolvedVersion,
       flowSessionId: frame.flowSessionId,
       permission: action,
       granted: granted,
@@ -1154,7 +1265,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
     Map<String, Object?> result,
   ) {
     final document = frame.resolved.document;
-    if (document.legacyTerminalResultPassthrough) {
+    // `legacyTerminalResultPassthrough` is a backward-compat flag for pre-outbound
+    // TYPED documents; a general SURFACE is new and has no legacy docs, so it must
+    // NEVER raw-passthrough — it always filters through `outbound` (empty ⇒ {}),
+    // keeping the allowlist uniformly authoritative and the untyped result
+    // filtered-not-raw. Anchored on [_surfaceMode], not the per-frame marker.
+    if (document.legacyTerminalResultPassthrough &&
+        _surfaceMode == FlowDeliveryMode.typed) {
       return result;
     }
     return _filterOutboundFields(
@@ -1175,6 +1292,19 @@ final class RestageFlowController<R> extends ChangeNotifier {
     final document = frame.resolved.document;
     final declaration = document.outbound.customEvents[eventName];
     if (declaration == null) return false;
+    // The dispatch-side of the both-channel cap: on a general SURFACE, a
+    // custom-event name is emitted to the host only if the host installed a
+    // handler for it. Keyed on [_surfaceMode] (anchored from the root at load),
+    // NOT `document.deliveryMode` — so a sub-flow's self-attested marker cannot
+    // escape the cap. Admission (_validateGeneralSignalNames at the root and
+    // every sub-flow entry) already fails a general surface closed for an
+    // uninstalled declared name, so this is redundant defense-in-depth — the
+    // single emission chokepoint every custom event (any frame) passes through,
+    // guaranteeing an uninstalled name can never reach the host as a behavior
+    // trigger even if an admission path is ever missed.
+    if (_signalCapApplies && !installedSignalNames.contains(eventName)) {
+      return false;
+    }
     final fields = _filterOutboundFields(
       frame,
       declaration,
@@ -1186,6 +1316,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     onEvent(FlowCustomEvent(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
+      resolvedVersion: frame.resolvedVersion,
       eventName: eventName,
       fields: Map.unmodifiable(fields),
     ));
@@ -1749,12 +1880,23 @@ final class _FlowFrame {
     required this.subFlowDepth,
     required this.actionBindings,
     required Map<String, Object?> flowState,
+    this.resolvedVersion,
     this.parent,
   }) : flowState = Map.unmodifiable(flowState);
 
   final ResolvedFlow resolved;
   final String flowId;
+
+  /// The stable client-contract version (the requested ref version).
   final int flowVersion;
+
+  /// The server-resolved active version when the active arm served a version
+  /// DIFFERENT from the requested contract (a content OTA); null for an exact
+  /// resolve, an active-arm fallback to the bundled document, or any sub-flow
+  /// (which stays exact-pinned). Distinct from [flowVersion] so lifecycle events
+  /// can report when a different content version actually rendered.
+  final int? resolvedVersion;
+
   final String flowSessionId;
   final String? parentFlowSessionId;
   final int subFlowDepth;

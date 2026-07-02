@@ -40,8 +40,16 @@ void main() {
         allOf(
           contains("part of 'first_run.dart';"),
           contains('abstract final class FirstRunFlowDescriptor'),
+          contains('SurfaceFlowRef<FirstRunResult>'),
         ),
       );
+      final screenGenerated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/screens/welcome.rsscreen.g.dart',
+        ),
+      );
+      expect(screenGenerated, contains('SurfaceScreenRef'));
 
       final jsonBytes = result.readerWriter.testing.readBytes(
         AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),

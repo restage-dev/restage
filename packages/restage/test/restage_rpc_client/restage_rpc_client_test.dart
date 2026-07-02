@@ -284,6 +284,112 @@ void main() {
   });
 
   group('RestageRpcClient.fetchSurface version omission', () {
+    test('returns envelope bytes with valid assignment metadata', () async {
+      final mock = MockClient((req) async {
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode([1, 2, 3]),
+            'experimentId': 'exp_paywall_copy',
+            'variantId': 'variant_a',
+          }),
+          200,
+        );
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(result.experimentId, 'exp_paywall_copy');
+      expect(result.variantId, 'variant_a');
+    });
+
+    test('treats null assignment metadata as no assignment metadata', () async {
+      final mock = MockClient((req) async {
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode([1, 2, 3]),
+            'experimentId': null,
+            'variantId': null,
+          }),
+          200,
+        );
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(result.experimentId, isNull);
+      expect(result.variantId, isNull);
+    });
+
+    test('fails closed on malformed assignment metadata', () async {
+      final cases = <Map<String, Object?>>[
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': 'exp'
+        },
+        {
+          'envelope': base64Encode([1]),
+          'variantId': 'variant_a'
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': '',
+          'variantId': 'variant_a',
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': ' exp ',
+          'variantId': 'variant_a',
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': 'exp',
+          'variantId': 'variant\u0000a',
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': 'exp',
+          'variantId': 1,
+        },
+      ];
+
+      for (final body in cases) {
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient(
+            (_) async => http.Response(jsonEncode(body), 200),
+          ),
+        );
+
+        final result = await client.fetchSurface(
+          surfaceType: 'paywall',
+          surfaceSlug: 'pro_upgrade',
+        );
+
+        expect(result, isNull);
+      }
+    });
+
     test('includes version in the body when an exact version is requested',
         () async {
       late http.Request seen;
@@ -342,6 +448,43 @@ void main() {
         'surfaceSlug': 'pro_upgrade',
       });
       expect((jsonDecode(seen.body) as Map).containsKey('version'), isFalse);
+    });
+
+    test('includes assignmentKey only when the caller provides one', () async {
+      final seenBodies = <Map<String, dynamic>>[];
+      final mock = MockClient((req) async {
+        seenBodies.add((jsonDecode(req.body) as Map).cast());
+        return http.Response(
+            jsonEncode({
+              'envelope': base64Encode([1, 2])
+            }),
+            200);
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+        assignmentKey: 'anon-123',
+      );
+      await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(seenBodies.first, {
+        'surfaceType': 'paywall',
+        'surfaceSlug': 'pro_upgrade',
+        'assignmentKey': 'anon-123',
+      });
+      expect(seenBodies.last, {
+        'surfaceType': 'paywall',
+        'surfaceSlug': 'pro_upgrade',
+      });
     });
   });
 }

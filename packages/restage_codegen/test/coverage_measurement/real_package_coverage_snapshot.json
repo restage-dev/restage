@@ -6,12 +6,17 @@
     "inlinable/+const-fold": [],
     "inlinable/+theme-as-data": [
       "package:restage_example/widgets/acme_border.dart#AcmeBorder",
+      "package:restage_example/widgets/minimal_custom_widget.dart#StatBadge",
       "package:restage_example/widgets/promo_badge.dart#PromoBadge"
     ],
     "inlinable/+declarative-state": [],
     "classifier-only/emit-failed": [],
-    "deferred": [],
-    "structural": []
+    "deferred": [
+      "package:restage_example/widgets/pricing_card.dart#PricingCard"
+    ],
+    "structural": [
+      "package:restage_example/widgets/streak_badge.dart#StreakBadge"
+    ]
   },
   "emitConfirmed": {
     "inlinable/composition-only": [
@@ -20,11 +25,16 @@
     "inlinable/+const-fold": [],
     "inlinable/+theme-as-data": [
       "package:restage_example/widgets/acme_border.dart#AcmeBorder",
+      "package:restage_example/widgets/minimal_custom_widget.dart#StatBadge",
       "package:restage_example/widgets/promo_badge.dart#PromoBadge"
     ],
     "inlinable/+declarative-state": [],
     "classifier-only/emit-failed": [],
-    "deferred": [],
-    "structural": []
+    "deferred": [
+      "package:restage_example/widgets/pricing_card.dart#PricingCard"
+    ],
+    "structural": [
+      "package:restage_example/widgets/streak_badge.dart#StreakBadge"
+    ]
   }
 }

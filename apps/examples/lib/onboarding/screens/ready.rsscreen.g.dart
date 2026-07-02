@@ -3,7 +3,7 @@ part of 'ready.dart';
 abstract final class ReadyScreenDescriptor {
   const ReadyScreenDescriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: 'ready',
     artifactPath: 'ready.rfw',
     version: 1,

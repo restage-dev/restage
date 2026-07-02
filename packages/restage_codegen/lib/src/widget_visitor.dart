@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/customer_structured_discovery.dart';
+import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -23,10 +24,20 @@ final class WidgetVisitorResult {
     required List<Issue> issues,
     List<StructuredEntry> structuredTypes = const [],
     List<UnionEntry> unions = const [],
+    Map<String, String> slotTargets = const {},
+    Set<String> nullableStructuredSlots = const {},
+    Map<String, String> localUnrenderable = const {},
+    Map<String, String> widgetUnrenderable = const {},
+    Map<String, ReconstructionPlan> reconstructionPlans = const {},
   })  : widgets = List.unmodifiable(widgets),
         issues = List.unmodifiable(issues),
         structuredTypes = List.unmodifiable(structuredTypes),
-        unions = List.unmodifiable(unions);
+        unions = List.unmodifiable(unions),
+        slotTargets = Map.unmodifiable(slotTargets),
+        nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
+        localUnrenderable = Map.unmodifiable(localUnrenderable),
+        widgetUnrenderable = Map.unmodifiable(widgetUnrenderable),
+        reconstructionPlans = Map.unmodifiable(reconstructionPlans);
 
   /// Successfully extracted widget entries.
   final List<WidgetEntry> widgets;
@@ -41,6 +52,26 @@ final class WidgetVisitorResult {
   /// Customer unions referenced by the widgets' properties (unallocated wire
   /// IDs; a later pass mints them).
   final List<UnionEntry> unions;
+
+  /// Structured slot -> target sourceType FQN, keyed `'<ownerFqn>.<slotName>'`
+  /// (see [CustomerStructuredDiscovery.slotTargets]).
+  final Map<String, String> slotTargets;
+
+  /// Nullable WIDGET structured-prop slot keys (see
+  /// [CustomerStructuredDiscovery.nullableStructuredSlots]).
+  final Set<String> nullableStructuredSlots;
+
+  /// Structured types whose walk dropped an unsupported inner field (see
+  /// [CustomerStructuredDiscovery.localUnrenderable]).
+  final Map<String, String> localUnrenderable;
+
+  /// Widgets whose constructor has a positional hole, keyed by `flutterType` ->
+  /// a human-readable reason. Excluded-loud at the admission point.
+  final Map<String, String> widgetUnrenderable;
+
+  /// The build-time reconstruction recipe per renderable structured type (see
+  /// [CustomerStructuredDiscovery.reconstructionPlans]).
+  final Map<String, ReconstructionPlan> reconstructionPlans;
 }
 
 /// Walks [library] for classes annotated with `@RestageWidget`. For each:
@@ -73,11 +104,26 @@ WidgetVisitorResult visitRestageWidgets(
     issues: issues,
   );
 
+  // Widgets whose constructor has a POSITIONAL HOLE — excluded-loud at the one
+  // admission point (a silent wrong-render otherwise). Keyed by `flutterType`.
+  final widgetUnrenderable = <String, String>{};
   for (final cls in widgetClasses) {
     final annotation = firstAnnotation(cls, 'RestageWidget')!;
     final entry =
         _readWidgetAnnotation(cls, annotation, assetId, issues, structured);
-    if (entry != null) widgets.add(entry);
+    if (entry == null) continue;
+    widgets.add(entry);
+    // A positional ctor param NOT bound to an annotated `@RestageProperty`
+    // field (the factory emits no arg for it) before an annotated
+    // field-positional
+    // shifts the later prop's value into the hole's slot — the widget-level
+    // analog of the nested positional-hole guard, sharing one hole definition.
+    final ctor = defaultGenerativeConstructor(cls);
+    if (ctor != null) {
+      final propNames = {for (final p in entry.properties) p.name};
+      final hole = positionalHoleReason(ctor, propNames);
+      if (hole != null) widgetUnrenderable[entry.flutterType] = hole;
+    }
   }
 
   final byKey = <String, List<WidgetEntry>>{};
@@ -110,6 +156,11 @@ WidgetVisitorResult visitRestageWidgets(
     issues: issues,
     structuredTypes: structured.structuredTypes,
     unions: structured.unions,
+    slotTargets: structured.slotTargets,
+    nullableStructuredSlots: structured.nullableStructuredSlots,
+    localUnrenderable: structured.localUnrenderable,
+    widgetUnrenderable: widgetUnrenderable,
+    reconstructionPlans: structured.reconstructionPlans,
   );
 }
 
@@ -189,10 +240,20 @@ WidgetEntry? _readWidgetAnnotation(
   final fires = _firesFromAnnotation(value, issues, widgetLocation);
   final deprecatedSince = value.getField('deprecatedSince')?.toStringValue();
 
-  final properties = <PropertyEntry>[];
+  // Collect each property with a stable ordering key so POSITIONAL args emit in
+  // CONSTRUCTOR order, not field-declaration order: a positional ctor param
+  // gets its ctor index (0,1,...); everything else keeps field order after the
+  // positionals. The factory emits positional args first, in this order, so a
+  // widget whose fields are declared out of ctor order (`Card(this.a, this.b)`
+  // with `b` declared first) still emits `Card(<a>, <b>)`. Named args are
+  // order-independent. Same analyzer-ctor-order view the reconstruction plan
+  // uses for nested positional args.
+  final keyed = <({int key, PropertyEntry prop})>[];
+  var fieldOrder = 0;
   for (final field in cls.fields) {
     final propAnnotation = firstAnnotation(field, 'RestageProperty');
     if (propAnnotation == null) continue;
+    final order = fieldOrder++;
     final p = _readPropertyAnnotation(
       field,
       propAnnotation,
@@ -202,8 +263,16 @@ WidgetEntry? _readWidgetAnnotation(
     );
     // A bad property emits its own issue; keep collecting so a typo on one
     // field doesn't silently drop the entire widget from the catalog.
-    if (p != null) properties.add(p);
+    if (p == null) continue;
+    final positionalIndex = _positionalCtorIndex(field);
+    final key = positionalIndex ?? (_namedSortBase + order);
+    keyed.add((key: key, prop: p));
   }
+  // Every key is distinct (positional ctor indices are small + unique; named
+  // keys are `_namedSortBase + order`, unique + strictly larger), so an
+  // unstable sort is deterministic.
+  keyed.sort((a, b) => a.key.compareTo(b.key));
+  final properties = [for (final entry in keyed) entry.prop];
 
   return WidgetEntry(
     wireId: WireId.unallocatedWidget,
@@ -217,6 +286,34 @@ WidgetEntry? _readWidgetAnnotation(
     properties: properties,
     deprecatedSince: deprecatedSince,
   );
+}
+
+/// The property-ordering key base for NAMED (or non-constructor) properties —
+/// strictly larger than any positional ctor index, so positional properties
+/// sort first (in ctor order) and named properties follow (in field order).
+const int _namedSortBase = 1 << 20;
+
+/// The index of [field]'s parameter in its owning class's default generative
+/// constructor's formal-parameter list WHEN that parameter is POSITIONAL, else
+/// `null` (a named param, or not a constructor param). Positional parameters
+/// precede named ones in `formalParameters`, so the index is the positional
+/// slot — the order the generated factory must emit positional args in.
+int? _positionalCtorIndex(FieldElement field) {
+  final owner = field.enclosingElement;
+  if (owner is! ClassElement) return null;
+  final fieldName = field.name;
+  if (fieldName == null) return null;
+  final ctor = owner.constructors
+      .where((c) => !c.isFactory && const {null, '', 'new'}.contains(c.name))
+      .firstOrNull;
+  if (ctor == null) return null;
+  final params = ctor.formalParameters;
+  for (var i = 0; i < params.length; i++) {
+    if (params[i].name == fieldName) {
+      return params[i].isPositional ? i : null;
+    }
+  }
+  return null;
 }
 
 /// [field]'s parameter on its owning class's default (unnamed) generative

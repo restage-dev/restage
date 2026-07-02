@@ -60,7 +60,9 @@ void main() {
         pageBuilders: const {'pageBuilder'},
         dropped: const {'context'},
         deferred: const {
+          'scrollableBuilder',
           'useNestedNavigation',
+          'settings',
           'topGap',
         },
       );

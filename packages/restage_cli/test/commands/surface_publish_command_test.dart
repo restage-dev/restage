@@ -315,6 +315,64 @@ void main() {
       },
     );
 
+    test('resolves configured organization before save and publish', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+        organization: 'restage',
+      );
+      await seedSurfaceFlow(tempDir);
+
+      Map<String, dynamic>? saveBody;
+      Map<String, dynamic>? publishBody;
+      final client = scriptedHttpClient([
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listMine');
+          return http.Response(
+            jsonEncode([
+              {
+                'organizationId': 7,
+                'slug': 'restage',
+                'name': 'Restage',
+                'role': 'owner',
+              },
+            ]),
+            200,
+          );
+        },
+        (req) {
+          saveBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response('null', 200);
+        },
+        (req) {
+          publishBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response('5', 200);
+        },
+      ]);
+
+      final exitCode = await runArgs([
+        'surface',
+        'publish',
+        'first_run',
+        '--type',
+        'onboarding',
+        '-C',
+        tempDir.path,
+      ], client: client);
+
+      expect(exitCode, 0);
+      expect(saveBody, isNotNull);
+      expect(saveBody!['method'], 'save');
+      expect(saveBody!['organizationId'], 7);
+      expect(publishBody, isNotNull);
+      expect(publishBody!['method'], 'publish');
+      expect(publishBody!['organizationId'], 7);
+    });
+
     test('--path overrides the default resolved flow location', () async {
       await seedCredential(store);
       await seedRestageConfig(

@@ -4,28 +4,34 @@
 
 The build-time code generator for the Restage SDK. It runs under
 [`build_runner`](https://pub.dev/packages/build_runner) and translates
-idiomatic Flutter widget source — annotated source classes and hand-authored
-`.rfwtxt` files — into the `.rfwtxt` / `.rfw` artifacts and catalogs the SDK
+idiomatic Flutter widget source (annotated source classes and hand-authored
+`.rfwtxt` files) into the `.rfwtxt` / `.rfw` artifacts and catalogs the SDK
 runtime consumes.
 
 Restage is server-driven UI for Flutter: a surface is authored in standard
-Flutter syntax (or in the web editor), compiled to a
+Flutter syntax, compiled to a
 [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) blob, and delivered
 to the app at runtime. This package is the source ->
 blob half of that pipeline for surfaces authored as Dart. The same machinery
-serves every surface type — paywalls, onboarding, in-app messages, surveys, or
-any other surface — not one in particular.
+serves every surface type (paywalls, onboarding, in-app messages, surveys, or
+any other surface), not one in particular.
+
+You author in ordinary Flutter idioms, not a helper vocabulary or shim widgets. The generator
+lowers a broad set faithfully (`Text.rich`, `Theme.of(context)`, `Navigator.push`,
+`showModalBottomSheet`, `PageView`, `NumberFormat`, structured style values, the selection controls,
+and pure-composition custom widgets) and fails loudly at build time on anything it can't represent,
+never a silent partial render.
 
 > **Emitting a genui A2UI catalog from your widgets?**
 > The same generator projects a [genui](https://pub.dev/packages/genui) **A2UI**
 > catalog from your `@RestageWidget` source. Follow the **[step-by-step A2UI
-> walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step)**
-> — it covers the dependencies, the `build.yaml` setting, and the build command,
+> walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step)**.
+> It covers the dependencies, the `build.yaml` setting, and the build command,
 > with a worked example.
 
 ## How it's wired
 
-You do not import this package's library API in app code. It is a set of
+You don't import this package's library API in app code. It is a set of
 `build_runner` builders, declared in `build.yaml` and applied automatically to
 dependents (`auto_apply: dependents`). You add it as a `dev_dependency` and run
 `dart run build_runner build`; the builders pick up the right inputs by file
@@ -33,18 +39,18 @@ location and write their outputs alongside them.
 
 The builders are:
 
-- **`restageCodegenBuilder`** — translates a surface authored as Flutter source
+- **`restageCodegenBuilder`** translates a surface authored as Flutter source
   (an annotated class) or as a hand-authored `.rfwtxt` under `lib/paywalls/`
   into the `.rfwtxt` + `.rfw` blob, a capability manifest, and a navigation
   plan.
-- **`paywallFlowBuilder`** — emits the declarative flow document for a
+- **`paywallFlowBuilder`** emits the declarative flow document for a
   surface whose source navigates across more than one screen.
-- **`onboardingScreenBuilder`** — translates an onboarding screen source into
+- **`onboardingScreenBuilder`** translates an onboarding screen source into
   a typed screen descriptor (`.rsscreen.g.dart`) plus its `.rfwtxt` / `.rfw`
   blob and capability manifest.
-- **`onboardingFlowBuilder`** — emits the typed flow descriptor
+- **`onboardingFlowBuilder`** emits the typed flow descriptor
   (`.rsflow.g.dart`) and flow document for a multi-screen flow.
-- **`userCatalogBuilder`** — walks a package for `@RestageWidget`-annotated
+- **`userCatalogBuilder`** walks a package for `@RestageWidget`-annotated
   classes and emits a single aggregated customer catalog.
 
 (Two further internal builders register catalog factory functions and the
@@ -55,14 +61,18 @@ packages.)
 
 From a single surface source, the generator emits:
 
-- **`.rfwtxt`** — the human-readable Remote Flutter Widget text form.
-- **`.rfw`** — the compiled binary blob the SDK runtime decodes and renders.
-- **A capability manifest** (`.capability.json`) — the capability floor the
+- **`.rfwtxt`**: the human-readable Remote Flutter Widget text form.
+- **`.rfw`**: the compiled binary blob the SDK runtime decodes and renders.
+- **A capability manifest** (`.capability.json`): the capability floor the
   blob declares, so an older reader fails closed rather than misrendering.
-- **A flow document / navigation plan** — the declarative multi-screen
+- **A flow document / navigation plan**: the declarative multi-screen
   topology, for surfaces that move between screens.
-- **Generated Dart descriptors** — typed screen/flow accessors for
+- **Generated Dart descriptors**: typed screen/flow accessors for
   onboarding-style flows.
+
+Everything it emits is inert data: references and literal values, never
+executable code. The widget capability set and event handlers ship in your app
+release.
 
 The generator transpiles standard Flutter widget trees, decomposes structured
 Flutter types (`TextStyle`, `ButtonStyle`, `EdgeInsets`, `BoxDecoration`,

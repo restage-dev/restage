@@ -3,7 +3,7 @@ part of 'tally_recap_savings.dart';
 abstract final class TallyRecapSavingsScreenDescriptor {
   const TallyRecapSavingsScreenDescriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: 'tally_recap_savings',
     artifactPath: 'tally_recap_savings.rfw',
     version: 1,

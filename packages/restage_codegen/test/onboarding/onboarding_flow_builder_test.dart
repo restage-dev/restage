@@ -38,7 +38,7 @@ void main() {
         allOf(
           contains("part of 'first_run.dart';"),
           contains('abstract final class FirstRunFlowDescriptor'),
-          contains('OnboardingFlowRef<FirstRunResult>'),
+          contains('SurfaceFlowRef<FirstRunResult>'),
           contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
           contains('final class FirstRunResult'),
           contains('final class FirstRunActions'),
@@ -53,6 +53,67 @@ void main() {
         AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
       );
       expect(jsonBytes, _canonicalFirstRunFlowJson());
+    });
+
+    test('accepts neutral SurfaceEvent transition fields', () async {
+      final sources = _surfaceEventFlowSources();
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+
+      expect(result.succeeded, isTrue);
+      final jsonBytes = result.readerWriter.testing.readBytes(
+        AssetId('apps_examples', 'assets/onboarding/flows/notice.flow.json'),
+      );
+      final document = FlowDocumentCodec.decodeJson(utf8.decode(jsonBytes));
+      final notice = document.states['notice']! as ScreenFlowState;
+      expect(notice.on.keys, contains('dismiss'));
+    });
+
+    test('emits a terminal screen flow without a synthetic end state',
+        () async {
+      final sources = _bareSurfaceFlowSources();
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+
+      expect(result.succeeded, isTrue);
+      final generated = result.readerWriter.testing.readString(
+        AssetId(
+          'apps_examples',
+          'lib/onboarding/flows/bare_surface.rsflow.g.dart',
+        ),
+      );
+      expect(generated, contains('SurfaceFlowRef<BareSurfaceResult>'));
+      final jsonBytes = result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          'assets/onboarding/flows/bare_surface.flow.json',
+        ),
+      );
+      final document = FlowDocumentCodec.decodeJson(utf8.decode(jsonBytes));
+      expect(document.states.keys, ['bare']);
+      expect(document.states.values.whereType<EndFlowState>(), isEmpty);
+      final bare = document.states['bare']! as ScreenFlowState;
+      expect(bare.on, isEmpty);
     });
 
     test('emits a typed FlowSeed builder exposing only host-seedable keys',
@@ -96,8 +157,9 @@ void main() {
         () async {
       // The wire identifier rule admits hyphens and reserved/Object/method
       // names, but a seed key is interpolated into the generated seed builder
-      // as a Dart field name, constructor parameter, and map key. An unsafe key
-      // must fail the build loudly (the dev renames it), never emit broken Dart.
+      // as a Dart field name, constructor parameter, and map key. An unsafe
+      // key must fail the build loudly (the dev renames it), never emit broken
+      // Dart.
       for (final badKey in <String>[
         'ab-test', // hyphen — invalid Dart identifier
         'return', // reserved word
@@ -1471,7 +1533,9 @@ final class NotificationResult {
         expect(result.succeeded, isFalse, reason: entry.key);
         expect(
           logs.map((log) => log.message).join('\n'),
-          contains('exactly one end state'),
+          contains(
+            'Flows must declare one end state unless a reachable screen',
+          ),
           reason: entry.key,
         );
       }
@@ -3460,6 +3524,98 @@ final class BranchingFlow extends RestageFlow {
             .capture('rating')
             .goTo(done),
         end(done, result: {'completed': true}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _surfaceEventFlowSources() => {
+      'apps_examples|lib/onboarding/screens/notice.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'notice.rsscreen.g.dart';
+
+@ScreenSource(id: 'notice')
+final class NoticeScreen extends StatelessWidget {
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  const NoticeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: ElevatedButton(
+          onPressed: surfaceEvent(dismiss),
+          child: const Text('Dismiss'),
+        ),
+      );
+}
+''',
+      'apps_examples|lib/onboarding/flows/notice.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/notice.dart';
+
+part 'notice.rsflow.g.dart';
+
+@FlowSource(id: 'notice', version: 1)
+final class NoticeFlow extends RestageFlow {
+  const NoticeFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: NoticeScreenDescriptor.ref,
+      states: [
+        screen(NoticeScreenDescriptor.ref)
+            .on(NoticeScreen.dismiss)
+            .goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _bareSurfaceFlowSources() => {
+      'apps_examples|lib/onboarding/screens/bare.dart': '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'bare.rsscreen.g.dart';
+
+@ScreenSource(id: 'bare')
+final class BareScreen extends StatelessWidget {
+  const BareScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: Text('Bare surface'),
+      );
+}
+''',
+      'apps_examples|lib/onboarding/flows/bare_surface.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/bare.dart';
+
+part 'bare_surface.rsflow.g.dart';
+
+@FlowSource(id: 'bare_surface', version: 1)
+final class BareSurfaceFlow extends RestageFlow {
+  const BareSurfaceFlow();
+
+  @override
+  FlowDef buildFlow() {
+    return flow(
+      initial: BareScreenDescriptor.ref,
+      states: [
+        screen(BareScreenDescriptor.ref),
       ],
     );
   }

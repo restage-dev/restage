@@ -32,11 +32,21 @@ final class UserFactoryBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    final widgets = await collectRestageWidgetsForPackage(buildStep);
-    if (widgets == null) return;
+    final collection = await collectRestageWidgetsForPackage(buildStep);
+    if (collection == null) return;
 
+    // The admitted customer structured graph is threaded to the inline
+    // reconstructor: a widget carrying a renderable customer structured
+    // property is emitted to the catalog AND reconstructed here (admit + decode
+    // together). An admitted widget the reconstructor can't handle is a
+    // predicate gap (excluded upstream), never a factory skip.
     final source = emitUserFactoriesDart(
-      widgets,
+      collection.widgets,
+      structuredTypes: collection.structuredTypes,
+      slotTargets: collection.slotTargets,
+      nullableStructuredSlots: collection.nullableStructuredSlots,
+      reconstructionPlans: collection.reconstructionPlans,
+      stampedCapabilityVersions: collection.stampedCapabilityVersions,
       onSkip: (skipped) => log.warning(
         '@RestageWidget(name: ${skipped.name}) on ${skipped.flutterType} '
         'declares a shape the factory emitter cannot currently generate '

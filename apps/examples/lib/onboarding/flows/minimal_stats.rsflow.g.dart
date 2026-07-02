@@ -3,8 +3,8 @@ part of 'minimal_stats.dart';
 abstract final class MinimalStatsFlowDescriptor {
   const MinimalStatsFlowDescriptor._();
 
-  static const OnboardingFlowRef<MinimalStatsResult> ref =
-      OnboardingFlowRef<MinimalStatsResult>(
+  static const SurfaceFlowRef<MinimalStatsResult> ref =
+      SurfaceFlowRef<MinimalStatsResult>(
     id: 'minimal_stats',
     version: 1,
     minClient: 1,

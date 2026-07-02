@@ -20,8 +20,10 @@ void main() {
       'onboarding_screen_codegen': onboardingScreenBuilder,
       'onboarding_flow_codegen': onboardingFlowBuilder,
       'user_catalog': userCatalogBuilder,
+      'user_catalog_json': userCatalogJsonBuilder,
       'factory_functions': factoryFunctionBuilder,
       'user_factories': userFactoryBuilder,
+      'user_a2ui_catalog': userA2uiCatalogBuilder,
     };
 
     late Map<String, Map<String, List<String>>> declared;

@@ -624,6 +624,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
             library,
             loadDuration: stopwatch.elapsed,
             cacheHit: true,
+            variantId: variant.variantId,
+            experimentId: variant.experimentId,
           );
           return true;
         } catch (e, st) {

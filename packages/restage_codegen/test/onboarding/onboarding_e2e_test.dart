@@ -84,7 +84,7 @@ void main() {
       generatedFlow,
       allOf([
         contains('abstract final class FirstRunFlowDescriptor'),
-        contains('OnboardingFlowRef<FirstRunResult>'),
+        contains('SurfaceFlowRef<FirstRunResult>'),
         contains("id: 'first_run'"),
         contains('version: 1'),
         contains('minClient: 3'),

@@ -4,17 +4,25 @@ import 'dart:io' as io;
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/commands/audit_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
+import 'package:restage_cli/src/commands/console_command.dart';
 import 'package:restage_cli/src/commands/init_command.dart';
 import 'package:restage_cli/src/commands/login_command.dart';
 import 'package:restage_cli/src/commands/logout_command.dart';
 import 'package:restage_cli/src/commands/paywall_command.dart';
 import 'package:restage_cli/src/commands/preview_command.dart';
+import 'package:restage_cli/src/commands/projects_command.dart';
+import 'package:restage_cli/src/commands/status_command.dart';
 import 'package:restage_cli/src/commands/surface_command.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
+import 'package:restage_cli/src/tui/console_command_executor.dart';
+import 'package:restage_cli/src/tui/console_controller.dart';
+import 'package:restage_cli/src/tui/console_repository.dart';
+import 'package:restage_cli/src/tui/restage_tui.dart';
 
 /// Backend origin baked in at build time via `--define`. Falls back to
 /// localhost for local development; production builds inject the
@@ -55,6 +63,9 @@ class RestageCli {
     Interactive Function(ArgResults globalResults)? interactiveFactory,
     PreviewBinaryLocator? previewBinaryLocator,
     PreviewLauncher? previewLauncher,
+    bool Function()? hasTerminal,
+    ConsoleLauncher? consoleLauncher,
+    ConsoleController Function()? consoleControllerFactory,
   }) : _stdout = stdout ?? StringBuffer(),
        _stderr = stderr ?? StringBuffer(),
        _credentialStore = credentialStore,
@@ -65,7 +76,21 @@ class RestageCli {
        _openBrowser = openBrowser,
        _interactiveFactory = interactiveFactory ?? _defaultInteractiveFactory,
        _previewBinaryLocator = previewBinaryLocator ?? _defaultPreviewLocator,
-       _previewLauncher = previewLauncher ?? _defaultPreviewLauncher;
+       _previewLauncher = previewLauncher ?? _defaultPreviewLauncher,
+       _hasTerminal = hasTerminal ?? stdioHasTerminal,
+       _consoleLauncher = consoleLauncher ?? runRestageConsole,
+       _consoleControllerFactory =
+           consoleControllerFactory ??
+           (() => ConsoleController(
+             repository: DefaultConsoleRepository(
+               credentialStore: credentialStore,
+               httpClient: httpClient,
+             ),
+             operationExecutor: ConsoleCommandExecutor(
+               credentialStore: credentialStore,
+               httpClient: httpClient,
+             ),
+           ));
 
   final StringSink _stdout;
   final StringSink _stderr;
@@ -77,6 +102,9 @@ class RestageCli {
   final Interactive Function(ArgResults globalResults) _interactiveFactory;
   final PreviewBinaryLocator _previewBinaryLocator;
   final PreviewLauncher _previewLauncher;
+  final bool Function() _hasTerminal;
+  final ConsoleLauncher _consoleLauncher;
+  final ConsoleController Function() _consoleControllerFactory;
 
   /// Dispatch [args] through the runner and return the exit code.
   Future<int> run(List<String> args) async {
@@ -144,6 +172,14 @@ class RestageCli {
         ),
       )
       ..addCommand(
+        StatusCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
         PaywallCommand(
           stdout: _stdout,
           stderr: _stderr,
@@ -162,9 +198,57 @@ class RestageCli {
         ),
       )
       ..addCommand(
-        InitCommand(stdout: _stdout, stderr: _stderr, interactive: interactive),
+        ProjectsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        AuditCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        AppsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        EnvsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        InitCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
       )
       ..addCommand(DoctorCommand(stdout: _stdout, stderr: _stderr))
+      ..addCommand(
+        ConsoleCommand(
+          controllerFactory: _consoleControllerFactory,
+          launcher: _consoleLauncher,
+          interactive: interactive,
+        ),
+      )
       ..addCommand(
         PreviewCommand(
           stdout: _stdout,
@@ -174,6 +258,9 @@ class RestageCli {
         ),
       );
     try {
+      if (args.isEmpty && _hasTerminal()) {
+        return _consoleLauncher(_consoleControllerFactory());
+      }
       final result = await runZoned(
         () => runner.run(args),
         zoneSpecification: ZoneSpecification(

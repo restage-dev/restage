@@ -45,6 +45,7 @@ FlowDocument _decodeDocument(Map<String, Object?> json) {
     json,
     const {
       'actions',
+      'deliveryMode',
       'features',
       'flow',
       'flowState',
@@ -75,6 +76,9 @@ FlowDocument _decodeDocument(Map<String, Object?> json) {
 
   final hasFlowState = json.containsKey('flowState');
   final hasOutbound = json.containsKey('outbound');
+  final deliveryMode = json.containsKey('deliveryMode')
+      ? FlowDeliveryMode.fromWireName(_requiredString(json, 'deliveryMode'))
+      : FlowDeliveryMode.typed;
   final document = FlowDocument(
     flow: _requiredString(json, 'flow'),
     version: _requiredInt(json, 'version'),
@@ -96,6 +100,7 @@ FlowDocument _decodeDocument(Map<String, Object?> json) {
       r'$.screenArtifacts',
     ),
     states: _decodeStates(_requiredObject(json, 'states'), r'$.states'),
+    deliveryMode: deliveryMode,
     unsupportedFeatures: unsupportedFeatures,
   );
   _checkDecodedActionInvariants(document);
@@ -854,6 +859,9 @@ Map<String, Object?> _encodeDocument(FlowDocument document) {
   };
   if (document.unsupportedFeatures.isNotEmpty) {
     json['features'] = document.unsupportedFeatures.toList();
+  }
+  if (document.deliveryMode != FlowDeliveryMode.typed) {
+    json['deliveryMode'] = document.deliveryMode.wireName;
   }
   if (document.actions.isNotEmpty) {
     json['actions'] = {

@@ -161,6 +161,61 @@ void main() {
       expect(exitCode, 0);
     });
 
+    test('resolves configured organization before save and publish', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+        organization: 'restage',
+      );
+      await seedRfw(tempDir, 'hello', <int>[1, 2, 3]);
+
+      Map<String, dynamic>? saveBody;
+      Map<String, dynamic>? publishBody;
+      final client = scriptedHttpClient([
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listMine');
+          return http.Response(
+            jsonEncode([
+              {
+                'organizationId': 7,
+                'slug': 'restage',
+                'name': 'Restage',
+                'role': 'owner',
+              },
+            ]),
+            200,
+          );
+        },
+        (req) {
+          saveBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response('null', 200);
+        },
+        (req) {
+          publishBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return http.Response('5', 200);
+        },
+      ]);
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run(['paywall', 'publish', 'hello', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(saveBody, isNotNull);
+      expect(saveBody!['method'], 'save');
+      expect(saveBody!['organizationId'], 7);
+      expect(publishBody, isNotNull);
+      expect(publishBody!['method'], 'publish');
+      expect(publishBody!['organizationId'], 7);
+    });
+
     test('missing .rfw file → exit 1 with the resolved path', () async {
       await seedCredential(store);
       await seedRestageConfig(

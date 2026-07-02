@@ -158,6 +158,37 @@ void main() {
       expect(controller.currentLibrary, isNotNull);
     });
 
+    test('loads and holds a terminal screen without completing or failing',
+        () async {
+      var completions = 0;
+      FlowUnavailableError? unavailable;
+      final resolver = _StaticFlowResolver(
+        _resolvedFlow(
+          document: _document(
+            states: const {
+              'welcome': ScreenFlowState(screen: 'welcome', on: {}),
+            },
+          ),
+        ),
+      );
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: resolver,
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) => completions += 1,
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(controller.currentScreenId, 'welcome');
+      expect(controller.currentLibrary, isNotNull);
+      expect(completions, 0);
+      expect(unavailable, isNull);
+    });
+
     test('transitions only from the current state', () async {
       final resolver = _StaticFlowResolver(_resolvedFlow());
       final controller = RestageFlowController<_FirstRunResult>(
@@ -356,6 +387,80 @@ void main() {
 
       expect(completed, isNull);
       expect(unavailable?.reason, 'result_decode_failed');
+    });
+
+    test(
+        'customEvents (the analytics sink) drops flow-state — allowStateRefs '
+        'false keeps host-supplied flow-state out of analytics', () async {
+      // Analytics-sink invariant: the `customEvents` outbound surface reaches
+      // analytics (onEvent -> Restage.fireEvent -> the analytics pipeline), so
+      // it is filtered with allowStateRefs:FALSE — a flow-state ref is DROPPED;
+      // only event args survive. This keeps app-supplied / host-seeded flow-
+      // state out of analytics.
+      //
+      // TRAP — `surveyAnswers`: a declared-but-not-yet-consumed Tier-1 analytics
+      // surface. Whoever wires it MUST keep it allowStateRefs:false (or gate its
+      // flow-state refs at serve time), mirroring `customEvents` here — NEVER
+      // allowStateRefs:true like the host-facing `terminalResult`, which would
+      // open a live flow-state -> analytics exfil channel a naive proof calls
+      // safe. If a new analytics-reaching surface is added with allowStateRefs
+      // true, extend this guard.
+      final events = <RestageEvent>[];
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            document: _document(
+              flowState: const {
+                'planTier': FlowStateDeclaration(
+                  type: FlowDataType.string,
+                  classification: FlowStateClassification.internal,
+                  hostSeedable: true,
+                ),
+              },
+              outbound: const FlowOutboundDeclarations(
+                customEvents: {
+                  'track': FlowOutboundPayloadDeclaration(
+                    fields: {
+                      // A flow-state ref (host-seeded) — must be dropped.
+                      'tier': FlowOutboundField(
+                        type: FlowDataType.string,
+                        ref: StateFlowOutboundRef(key: 'planTier'),
+                      ),
+                      // An event-arg ref — survives.
+                      'label': FlowOutboundField(
+                        type: FlowDataType.string,
+                        ref: EventFlowOutboundRef(key: 'label'),
+                      ),
+                    },
+                  ),
+                },
+              ),
+            ),
+          ),
+        ),
+        // Seed the host-supplied flow-state so, were the filter allowStateRefs
+        // true, 'planTier' WOULD leak — making the drop non-vacuous.
+        initialState: const _MapSeed({'planTier': 'pro'}),
+        actions: null,
+        onEvent: events.add,
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      controller.handleEvent('track', const <String, Object?>{'label': 'cta'});
+      await Future<void>.delayed(Duration.zero);
+
+      final custom = events
+          .whereType<FlowCustomEvent>()
+          .where((e) => e.eventName == 'track')
+          .single;
+      // The event arg survives; the seeded host flow-state is dropped —
+      // analytics never sees app-supplied data.
+      expect(custom.fields, {'label': 'cta'});
+      expect(custom.fields.containsKey('tier'), isFalse);
     });
 
     test('terminal completion is delivered once', () async {
@@ -2715,6 +2820,123 @@ void main() {
       expect(completed, isNull);
     });
 
+    test(
+        'a general surface sub-flow declaring an uninstalled custom-event name '
+        'fails closed (the signal cap is uniform across a general surface)',
+        () async {
+      FlowUnavailableError? unavailable;
+      // A GENERAL root with a GENERAL sub-flow — the surface is general, so the
+      // signal cap applies to every frame. The child declares a custom-event
+      // name the host did not install; the surface-anchored cap fails it at
+      // sub-flow admission. (Both modes are general, so the mode-consistency
+      // check passes — this isolates the SIGNAL cap.)
+      final childDocument = _document(
+        flow: 'profile_child',
+        deliveryMode: FlowDeliveryMode.general,
+        outbound: const FlowOutboundDeclarations(
+          customEvents: {'unlockPro': FlowOutboundPayloadDeclaration()},
+        ),
+      );
+      final childHash = _documentHash(childDocument);
+      final parentDocument = _document(
+        deliveryMode: FlowDeliveryMode.general,
+        initial: 'profile',
+        states: {
+          'profile': SubFlowState(
+            flow: 'profile_child',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 3,
+            contentHash: childHash,
+            input: const {},
+            onComplete: const [],
+            defaultBranch: const FlowBranchTarget(target: 'done'),
+          ),
+          'done': const EndFlowState(result: {'completed': true}),
+        },
+      );
+      final resolver = _MapFlowResolver({
+        'first_run': _resolvedFlow(document: parentDocument),
+        'profile_child': _resolvedFlow(
+          document: childDocument,
+          contentHash: childHash,
+        ),
+      });
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: resolver,
+        actions: null,
+        installedSignalNames: const {},
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+      await _drainFlowTasks();
+
+      expect(unavailable?.reason, 'sub_flow_unavailable');
+    });
+
+    test(
+        'a TYPED-marked sub-flow inside a general root cannot escape the cap — '
+        'it fails closed (surface-anchored cap + mode-consistency)', () async {
+      // The typed↔general boundary attack: a general OTA root references a
+      // sub-flow served as `deliveryMode: typed` (with a matching content hash)
+      // that declares an uninstalled custom-event name — hoping the per-frame
+      // marker skips the cap. Closed by construction: the cap is anchored to the
+      // SURFACE mode (general) not the child's self-attested marker, AND the
+      // sub-flow admission rejects a delivery-mode mismatch. The child never runs
+      // and its uninstalled name never reaches the host.
+      FlowUnavailableError? unavailable;
+      final childDocument = _document(
+        flow: 'profile_child',
+        deliveryMode: FlowDeliveryMode.typed,
+        outbound: const FlowOutboundDeclarations(
+          customEvents: {'unlockPro': FlowOutboundPayloadDeclaration()},
+        ),
+      );
+      final childHash = _documentHash(childDocument);
+      final parentDocument = _document(
+        deliveryMode: FlowDeliveryMode.general,
+        initial: 'profile',
+        states: {
+          'profile': SubFlowState(
+            flow: 'profile_child',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 3,
+            contentHash: childHash,
+            input: const {},
+            onComplete: const [],
+            defaultBranch: const FlowBranchTarget(target: 'done'),
+          ),
+          'done': const EndFlowState(result: {'completed': true}),
+        },
+      );
+      final resolver = _MapFlowResolver({
+        'first_run': _resolvedFlow(document: parentDocument),
+        'profile_child': _resolvedFlow(
+          document: childDocument,
+          contentHash: childHash,
+        ),
+      });
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: resolver,
+        actions: null,
+        installedSignalNames: const {},
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+
+      await controller.load();
+      await _drainFlowTasks();
+
+      expect(unavailable?.reason, 'sub_flow_unavailable');
+    });
+
     test('sub-flow failure after child frame push resumes parent fallback',
         () async {
       _FirstRunResult? completed;
@@ -4153,6 +4375,7 @@ FlowDocument _document({
   Map<String, FlowStateDeclaration> flowState = const {},
   Map<String, FlowContentHash>? screenHashes,
   Set<String> unsupportedFeatures = const {},
+  FlowDeliveryMode deliveryMode = FlowDeliveryMode.typed,
 }) {
   final hashes = screenHashes ??
       {
@@ -4168,6 +4391,7 @@ FlowDocument _document({
     actions: actions ?? const {},
     flowState: flowState,
     outbound: outbound,
+    deliveryMode: deliveryMode,
     legacyTerminalResultPassthrough: legacyTerminalResultPassthrough,
     screenArtifacts: {
       'welcome': ScreenArtifact(

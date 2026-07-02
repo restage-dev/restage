@@ -391,8 +391,138 @@ void main() {
       expect(fake.lastArgs!['surfaceSlug'], 'pro');
       expect(fake.lastArgs!['environmentSlug'], 'production');
       expect(result.liveVersion, 2);
+      expect(result.deliveryShape, 'blob');
       expect(result.supportsRollback, isTrue);
       expect(result.versions, hasLength(1));
+    });
+  });
+
+  group('SurfaceApi audit reads', () {
+    test(
+      'listSurfaceHistory targets the history RPC and decodes rows',
+      () async {
+        final fake = FakeRestageApi(
+          response: [
+            {
+              'action': 'surfacePublished',
+              'actorType': 'human',
+              'outcome': 'success',
+              'severity': 'notice',
+              'occurredAt': '2026-06-29T18:17:51.000Z',
+              'context': {'surfaceSlug': 'pro'},
+              'chainState': 'chained',
+              'chainVerified': true,
+            },
+          ],
+        );
+
+        final rows = await SurfaceApi(fake).listSurfaceHistory(
+          project: 'p',
+          app: 'a',
+          surfaceType: SurfaceType.paywall,
+          surfaceSlug: 'pro',
+          environment: 'staging',
+          organizationId: 7,
+        );
+
+        expect(fake.lastEndpoint, 'surface');
+        expect(fake.lastMethod, 'listSurfaceHistory');
+        expect(fake.lastArgs!['projectSlug'], 'p');
+        expect(fake.lastArgs!['appSlug'], 'a');
+        expect(fake.lastArgs!['surfaceType'], 'paywall');
+        expect(fake.lastArgs!['surfaceSlug'], 'pro');
+        expect(fake.lastArgs!['environmentSlug'], 'staging');
+        expect(fake.lastArgs!['organizationId'], 7);
+        expect(rows.single.action, 'surfacePublished');
+      },
+    );
+
+    test('listAuditLog targets org-wide audit log', () async {
+      final fake = FakeRestageApi(response: <Map<String, dynamic>>[]);
+
+      final rows = await SurfaceApi(fake).listAuditLog(organizationId: 7);
+
+      expect(rows, isEmpty);
+      expect(fake.lastEndpoint, 'surface');
+      expect(fake.lastMethod, 'listAuditLog');
+      expect(fake.lastArgs, {'organizationId': 7});
+    });
+
+    test('exportComplianceAudit decodes export rows', () async {
+      final fake = FakeRestageApi(
+        response: [
+          {
+            'occurredAt': '2026-06-29T18:17:51.000Z',
+            'action': 'surfaceKilled',
+            'surfaceSlug': 'pro',
+            'surfaceType': 'paywall',
+            'environmentSlug': 'production',
+            'chainState': 'pendingChain',
+            'chainVerified': false,
+          },
+        ],
+      );
+
+      final rows = await SurfaceApi(
+        fake,
+      ).exportComplianceAudit(organizationId: 7);
+
+      expect(fake.lastMethod, 'exportComplianceAudit');
+      expect(fake.lastArgs, {'organizationId': 7});
+      expect(rows.single.action, 'surfaceKilled');
+      expect(rows.single.chainVerified, isFalse);
+    });
+
+    test('surfaceChainVerdict decodes verdict projection', () async {
+      final fake = FakeRestageApi(
+        response: {
+          'status': 'verified',
+          'verifiedThroughEntryId': 99,
+          'lastRunAt': '2026-06-29T18:30:00.000Z',
+        },
+      );
+
+      final verdict = await SurfaceApi(
+        fake,
+      ).surfaceChainVerdict(organizationId: 7);
+
+      expect(fake.lastMethod, 'surfaceChainVerdict');
+      expect(fake.lastArgs, {'organizationId': 7});
+      expect(verdict.status, 'verified');
+      expect(verdict.verifiedThroughEntryId, 99);
+    });
+  });
+
+  group('SurfaceApi.rollbackPreflight', () {
+    test('threads the args + targets rollbackPreflight + decodes', () async {
+      final fake = FakeRestageApi(
+        response: {
+          'surfaceType': 'onboarding',
+          'surfaceSlug': 'welcome',
+          'environmentSlug': 'production',
+          'toVersion': 1,
+          'classification': 'contractChange',
+          'blockingChanges': <dynamic>['minClientRaised'],
+        },
+      );
+      final result = await SurfaceApi(fake).rollbackPreflight(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.onboarding,
+        surfaceSlug: 'welcome',
+        environment: 'production',
+        toVersion: 1,
+      );
+      expect(fake.lastMethod, 'rollbackPreflight');
+      expect(fake.lastArgs!['surfaceType'], 'onboarding');
+      expect(fake.lastArgs!['surfaceSlug'], 'welcome');
+      expect(fake.lastArgs!['environmentSlug'], 'production');
+      expect(fake.lastArgs!['toVersion'], 1);
+      expect(
+        result.classification,
+        RollbackPreflightClassification.contractChange,
+      );
+      expect(result.blockingChanges, ['minClientRaised']);
     });
   });
 }

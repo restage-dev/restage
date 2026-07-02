@@ -3,8 +3,8 @@ part of 'minimal_notice.dart';
 abstract final class MinimalNoticeFlowDescriptor {
   const MinimalNoticeFlowDescriptor._();
 
-  static const OnboardingFlowRef<MinimalNoticeResult> ref =
-      OnboardingFlowRef<MinimalNoticeResult>(
+  static const SurfaceFlowRef<MinimalNoticeResult> ref =
+      SurfaceFlowRef<MinimalNoticeResult>(
     id: 'minimal_notice',
     version: 1,
     minClient: 1,

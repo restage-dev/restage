@@ -19,7 +19,7 @@ void main() {
     expect(readme, isNot(contains("Restage.configure(apiKey: 'rs_pk_...')")));
     expect(readme, isNot(contains('use Restage servers')));
     expect(readme, contains('RestageOnboarding'));
-    expect(readme, contains('OnboardingFlowRef<'));
+    expect(readme, contains('SurfaceFlowRef<'));
     expect(readme, contains('FlowUnavailablePolicy'));
     expect(readme, contains('FlowActionRegistry'));
     expect(readme, contains('onComplete'));
@@ -82,8 +82,8 @@ import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
 abstract final class FirstRunFlowDescriptor {
-  static final OnboardingFlowRef<FirstRunResult> ref =
-      OnboardingFlowRef<FirstRunResult>(
+  static final SurfaceFlowRef<FirstRunResult> ref =
+      SurfaceFlowRef<FirstRunResult>(
     id: 'first_run',
     version: 1,
     minClient: 3,
@@ -432,7 +432,7 @@ final class FirstRunFlow extends RestageFlow {
     expect(
       generated,
       allOf(
-        contains('OnboardingFlowRef<FirstRunResult>'),
+        contains('SurfaceFlowRef<FirstRunResult>'),
         contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
       ),
     );

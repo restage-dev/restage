@@ -1,7 +1,7 @@
 name: restage_mcp
 description: >-
-  The Restage MCP server. Exposes the Restage backend to AI agents and IDEs
-  over the Model Context Protocol, reusing the CLI's authenticated session.
+  The Restage MCP server — manage your Restage surfaces from AI agents and IDEs over
+  the Model Context Protocol. Targets the hosted Restage service, coming soon.
 version: 0.1.0
 # Deferred-publish guard. This package talks to the Restage backend; until that
 # backend is live it is held out of the pub.dev publish (it otherwise defaults
@@ -13,10 +13,10 @@ homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
 # Public-bound from day one.
 topics:
+  - server-driven-ui
   - mcp
   - model-context-protocol
-  - paywall
-  - monetization
+  - flutter
 
 environment:
   sdk: ^3.8.0

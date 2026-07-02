@@ -11,10 +11,13 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_example/widgets/acme_border.dart';
-import 'package:restage_example/widgets/acme_stack.dart';
-import 'package:restage_example/widgets/minimal_custom_widget.dart';
-import 'package:restage_example/widgets/promo_badge.dart';
+import 'package:restage_example/widgets/acme_border.dart' as s0;
+import 'package:restage_example/widgets/acme_stack.dart' as s1;
+import 'package:restage_example/widgets/minimal_custom_widget.dart' as s2;
+import 'package:restage_example/widgets/pricing_card.dart' as s3;
+import 'package:restage_example/widgets/promo_badge.dart' as s4;
+import 'package:restage_example/widgets/pulse_badge.dart' as s5;
+import 'package:restage_example/widgets/streak_badge.dart' as s6;
 
 /// Registers every emittable @RestageWidget-annotated class
 /// in this package with Restage. Call once at the app's
@@ -24,41 +27,85 @@ import 'package:restage_example/widgets/promo_badge.dart';
 void registerRestageCustomerWidgets() {
   Restage.registerWidgetLibrary(
     WidgetLibrary.custom('restage_example.widgets'),
+    capabilityVersion: 1,
     widgets: const <RestageWidgetFactory>[
       RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
       RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
+      RestageWidgetFactory(name: 'PricingCard', builder: _buildPricingCard),
       RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
+      RestageWidgetFactory(name: 'PulseBadge', builder: _buildPulseBadge),
       RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
+      RestageWidgetFactory(name: 'StreakBadge', builder: _buildStreakBadge),
     ],
   );
 }
 
 Widget _buildAcmeBorder(BuildContext context, DataSource source) {
-  return AcmeBorder(
+  return s0.AcmeBorder(
     color: ArgumentDecoders.color(source, <Object>['color']),
     child: source.child(<Object>['child']),
   );
 }
 
 Widget _buildAcmeStack(BuildContext context, DataSource source) {
-  return AcmeStack(
+  return s1.AcmeStack(
     children: source.childList(<Object>['children']),
   );
 }
 
+Widget _buildPricingCard(BuildContext context, DataSource source) {
+  return s3.PricingCard(
+    plan: source.isMap(<Object>['plan'])
+        ? s3.Plan(
+            name: source.v<String>(<Object>['plan', 'name']) ??
+                (throw ArgumentError('Plan.name is required.')),
+            price: source.isMap(<Object>['plan', 'price'])
+                ? s3.Price(
+                    source.v<int>(<Object>['plan', 'price', 'amount']) ??
+                        (throw ArgumentError('Price.amount is required.')),
+                    currency: source
+                            .v<String>(<Object>['plan', 'price', 'currency']) ??
+                        'USD')
+                : (throw ArgumentError('Plan.price is required.')),
+            badge: source.v<String>(<Object>['plan', 'badge']),
+            tier: ArgumentDecoders.enumValue<s3.PlanTier>(
+                    s3.PlanTier.values, source, <Object>['plan', 'tier']) ??
+                s3.PlanTier.starter)
+        : (throw ArgumentError('PricingCard.plan is required.')),
+  );
+}
+
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
-  return PromoBadge(
+  return s4.PromoBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('PromoBadge.label is required.')),
     color: ArgumentDecoders.color(source, <Object>['color']),
   );
 }
 
+Widget _buildPulseBadge(BuildContext context, DataSource source) {
+  return s5.PulseBadge(
+    label: source.v<String>(<Object>['label']) ??
+        (throw ArgumentError('PulseBadge.label is required.')),
+    count: source.v<int>(<Object>['count']) ??
+        (throw ArgumentError('PulseBadge.count is required.')),
+  );
+}
+
 Widget _buildStatBadge(BuildContext context, DataSource source) {
-  return StatBadge(
+  return s2.StatBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('StatBadge.label is required.')),
     value: source.v<String>(<Object>['value']) ??
         (throw ArgumentError('StatBadge.value is required.')),
+  );
+}
+
+Widget _buildStreakBadge(BuildContext context, DataSource source) {
+  return s6.StreakBadge(
+    label: source.v<String>(<Object>['label']) ??
+        (throw ArgumentError('StreakBadge.label is required.')),
+    count: source.v<int>(<Object>['count']) ??
+        (throw ArgumentError('StreakBadge.count is required.')),
   );
 }

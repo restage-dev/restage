@@ -8,6 +8,8 @@ import 'package:rfw/formats.dart';
 class _SwitchableResolver implements VariantResolver {
   Uint8List? next;
   bool throwNext = false;
+  String? experimentId;
+  String? variantId;
 
   @override
   Future<ResolvedVariant> resolve(
@@ -18,7 +20,12 @@ class _SwitchableResolver implements VariantResolver {
     if (throwNext) {
       throw const RestagePaywallError(code: 'fetch_failed', message: 'no');
     }
-    return ResolvedVariant(bytes: next!, paywallId: id);
+    return ResolvedVariant(
+      bytes: next!,
+      paywallId: id,
+      experimentId: experimentId,
+      variantId: variantId,
+    );
   }
 }
 
@@ -32,7 +39,12 @@ void main() {
       import restage.core;
       widget Paywall = Text(text: "First");
     ''')));
-    final resolver = _SwitchableResolver()..next = goodBytes;
+    final resolver = _SwitchableResolver()
+      ..next = goodBytes
+      ..experimentId = 'exp_paywall_copy'
+      ..variantId = 'variant_a';
+    final firstEvents = <RestageEvent>[];
+    final secondEvents = <RestageEvent>[];
 
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
@@ -40,11 +52,15 @@ void main() {
           id: 'cached',
           resolver: resolver,
           cacheLastRender: true,
+          onEvent: firstEvents.add,
         ),
       ),
     ));
     await tester.pumpAndSettle();
     expect(find.text('First'), findsOneWidget);
+    final firstViewed = firstEvents.whereType<PaywallViewed>().single;
+    expect(firstViewed.experimentId, 'exp_paywall_copy');
+    expect(firstViewed.variantId, 'variant_a');
 
     // Force a remount to trigger a second fetch; this time, fail.
     resolver.throwNext = true;
@@ -55,6 +71,7 @@ void main() {
           resolver: resolver,
           cacheLastRender: true,
           key: const ValueKey('round2'),
+          onEvent: secondEvents.add,
         ),
       ),
     ));
@@ -62,5 +79,8 @@ void main() {
 
     // Cache hits → "First" still rendered.
     expect(find.text('First'), findsOneWidget);
+    final secondViewed = secondEvents.whereType<PaywallViewed>().single;
+    expect(secondViewed.experimentId, 'exp_paywall_copy');
+    expect(secondViewed.variantId, 'variant_a');
   });
 }

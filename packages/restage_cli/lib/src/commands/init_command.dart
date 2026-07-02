@@ -3,7 +3,13 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
+import 'package:restage_cli/src/credentials/credential.dart';
+import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/discovery/context_discovery.dart';
 import 'package:restage_cli/src/init/pubspec_editor.dart'
     show
         AddDependenciesPlan,
@@ -48,9 +54,13 @@ class InitCommand extends Command<int> {
     required StringSink stdout,
     required StringSink stderr,
     required Interactive interactive,
+    FileCredentialStore? credentialStore,
+    http.Client? httpClient,
   }) : _stdout = stdout,
        _stderr = stderr,
-       _interactive = interactive {
+       _interactive = interactive,
+       _credentialStore = credentialStore,
+       _httpClient = httpClient {
     argParser
       ..addOption(
         'directory',
@@ -61,6 +71,10 @@ class InitCommand extends Command<int> {
       ..addOption('project', help: 'Project slug (skips the prompt).')
       ..addOption('app', help: 'App slug (skips the prompt).')
       ..addOption('env', help: 'Default environment slug (skips the prompt).')
+      ..addOption(
+        'organization',
+        help: 'Organization slug (skips the organization picker).',
+      )
       ..addFlag(
         'starter',
         help: 'Write a starter paywall to `lib/paywalls/`.',
@@ -83,6 +97,8 @@ class InitCommand extends Command<int> {
   final StringSink _stdout;
   final StringSink _stderr;
   final Interactive _interactive;
+  final FileCredentialStore? _credentialStore;
+  final http.Client? _httpClient;
 
   @override
   String get name => 'init';
@@ -105,29 +121,17 @@ class InitCommand extends Command<int> {
       return 1;
     }
 
-    final String project;
-    final String app;
-    final String environment;
-    try {
-      project = await _resolveSlug(results, 'project', 'Project slug?');
-      app = await _resolveSlug(results, 'app', 'App slug?');
-      environment = await _resolveSlug(
-        results,
-        'env',
-        'Default environment slug?',
-      );
-    } on NonInteractiveDefaultMissing catch (e) {
-      _stderr.writeln(
-        'Required: --${e.flagName ?? "value"} <slug>. Pass the value on '
-        'the command line or drop --non-interactive to use the wizard.',
-      );
+    final context = await _resolveInitContext(results);
+    if (context == null) {
       return 1;
     }
 
     final config = RestageConfig(
-      project: project,
-      app: app,
-      defaultEnvironment: environment,
+      project: context.project,
+      app: context.app,
+      defaultEnvironment: context.environment,
+      organization: context.organization,
+      endpoint: context.endpoint,
     );
 
     final wantsStarter = results['starter'] as bool;
@@ -205,23 +209,181 @@ class InitCommand extends Command<int> {
       ..writeln(
         'Next: run `dart pub get && dart run build_runner build`, then '
         '`restage paywall publish starter` to push the starter to the '
-        '`$environment` environment.',
+        '`${context.environment ?? '<environment>'}` environment.',
       );
     return 0;
   }
 
-  Future<String> _resolveSlug(
-    ArgResults results,
-    String optionName,
-    String prompt,
-  ) async {
-    final flag = results[optionName] as String?;
-    if (flag != null && flag.isNotEmpty) return flag;
+  Future<_InitContext?> _resolveInitContext(ArgResults results) async {
+    final organizationFlag = _flag(results, 'organization');
+    final projectFlag = _flag(results, 'project');
+    final appFlag = _flag(results, 'app');
+    final envFlag = _flag(results, 'env');
+
+    final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
+    final credential = await store.read();
+    if (projectFlag != null && appFlag != null && envFlag != null) {
+      return _InitContext(
+        organization: organizationFlag,
+        project: projectFlag,
+        app: appFlag,
+        environment: envFlag,
+        endpoint: credential?.endpoint,
+      );
+    }
+
+    if (credential != null) {
+      final discovered = await _discoverContext(
+        credential: credential,
+        organizationFlag: organizationFlag,
+        projectFlag: projectFlag,
+        appFlag: appFlag,
+        envFlag: envFlag,
+      );
+      if (discovered != null) return discovered;
+      return null;
+    }
+
+    try {
+      return _InitContext(
+        organization: organizationFlag,
+        project:
+            projectFlag ?? await _resolveManualSlug('project', 'Project slug?'),
+        app: appFlag ?? await _resolveManualSlug('app', 'App slug?'),
+        environment:
+            envFlag ??
+            await _resolveManualSlug('env', 'Default environment slug?'),
+      );
+    } on NonInteractiveDefaultMissing catch (e) {
+      _stderr.writeln(
+        'Required: --${e.flagName ?? "value"} <slug>. Pass the value on '
+        'the command line or run `restage login` to use discovery.',
+      );
+      return null;
+    }
+  }
+
+  Future<_InitContext?> _discoverContext({
+    required Credential credential,
+    required String? organizationFlag,
+    required String? projectFlag,
+    required String? appFlag,
+    required String? envFlag,
+  }) async {
+    final RestageApi api;
+    try {
+      api = RestageApi(
+        endpoint: Uri.parse(credential.endpoint),
+        httpClient: _httpClient,
+        credential: credential,
+      );
+    } on InsecureEndpointException catch (e) {
+      _stderr.writeln(e.toString());
+      return null;
+    }
+
+    try {
+      final discovery = DiscoveryApi(api);
+      final organization = await resolveActiveOrganization(
+        api: discovery,
+        interactive: _interactive,
+        stderr: _stderr,
+        preferredSlug: organizationFlag,
+      );
+      if (organization == null) return null;
+
+      final project = await _pickDiscovered(
+        preferredSlug: projectFlag,
+        options: await discovery.listProjects(organization.organizationId),
+        prompt: 'Which project?',
+        missingFlag: '--project <slug>',
+        slugOf: (project) => project.slug,
+        labelOf: (project) => '${project.name} (${project.slug})',
+      );
+      if (project == null) return null;
+
+      final app = await _pickDiscovered(
+        preferredSlug: appFlag,
+        options: await discovery.listApps(
+          organizationId: organization.organizationId,
+          projectSlug: project.slug,
+        ),
+        prompt: 'Which app?',
+        missingFlag: '--app <slug>',
+        slugOf: (app) => app.slug,
+        labelOf: (app) => '${app.name} (${app.slug})',
+      );
+      if (app == null) return null;
+
+      final environment = await _pickDiscovered(
+        preferredSlug: envFlag,
+        options: await discovery.listEnvironments(
+          organizationId: organization.organizationId,
+          projectSlug: project.slug,
+        ),
+        prompt: 'Which default environment?',
+        missingFlag: '--env <slug>',
+        slugOf: (environment) => environment.slug,
+        labelOf: (environment) => environment.slug,
+        allowEmpty: true,
+      );
+
+      return _InitContext(
+        organization: organization.slug,
+        project: project.slug,
+        app: app.slug,
+        environment: environment?.slug,
+        endpoint: credential.endpoint,
+      );
+    } on RestageApiException catch (e) {
+      _stderr.writeln('Could not discover your Restage context: ${e.body}');
+      return null;
+    } on SocketException catch (e) {
+      _stderr.writeln('Could not contact the backend: $e');
+      return null;
+    } finally {
+      if (_httpClient == null) api.close();
+    }
+  }
+
+  Future<T?> _pickDiscovered<T>({
+    required String? preferredSlug,
+    required List<T> options,
+    required String prompt,
+    required String missingFlag,
+    required String Function(T value) slugOf,
+    required String Function(T value) labelOf,
+    bool allowEmpty = false,
+  }) async {
+    if (preferredSlug != null && preferredSlug.isNotEmpty) {
+      for (final option in options) {
+        if (slugOf(option) == preferredSlug) return option;
+      }
+      _stderr.writeln('No option found for $missingFlag: $preferredSlug.');
+      return null;
+    }
+    return pickOne<T>(
+      interactive: _interactive,
+      stderr: _stderr,
+      prompt: prompt,
+      options: [
+        for (final option in options) (label: labelOf(option), value: option),
+      ],
+      missingFlag: missingFlag,
+      allowEmpty: allowEmpty,
+    );
+  }
+
+  String? _flag(ArgResults results, String optionName) {
+    final value = results[optionName] as String?;
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  Future<String> _resolveManualSlug(String optionName, String prompt) async {
     try {
       return await _interactive.prompt(prompt);
     } on NonInteractiveDefaultMissing catch (e) {
-      // Re-throw with the flag name attached so the caller can render a
-      // precise `required: --<flag>` message.
       throw NonInteractiveDefaultMissing(e.question, flagName: optionName);
     }
   }
@@ -273,4 +435,20 @@ class InitCommand extends Command<int> {
   /// pointer.
   String _renderConstraint(String value) =>
       value == complexConstraintMarker ? '(see pubspec)' : value;
+}
+
+class _InitContext {
+  const _InitContext({
+    required this.project,
+    required this.app,
+    this.environment,
+    this.organization,
+    this.endpoint,
+  });
+
+  final String? organization;
+  final String project;
+  final String app;
+  final String? environment;
+  final String? endpoint;
 }

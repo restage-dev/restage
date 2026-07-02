@@ -277,6 +277,7 @@ final class RestageCodegenBuilder implements Builder {
           widgetDefinitions: standaloneTranslation.widgetDefinitions,
           widgetDefinitionStates: standaloneTranslation.widgetDefinitionStates,
           rootWidgetState: standaloneTranslation.rootWidgetState,
+          customLibraryImports: standaloneTranslation.referencedCustomLibraries,
         );
         final rfwLibrary = _parseTranslatedLibrary(
           paywallText,
@@ -339,6 +340,7 @@ final class RestageCodegenBuilder implements Builder {
           widgetDefinitions: adapterTranslation.widgetDefinitions,
           widgetDefinitionStates: adapterTranslation.widgetDefinitionStates,
           rootWidgetState: adapterTranslation.rootWidgetState,
+          customLibraryImports: adapterTranslation.referencedCustomLibraries,
         );
         final onboardingScreenLibrary = _parseTranslatedLibrary(
           onboardingScreenText,

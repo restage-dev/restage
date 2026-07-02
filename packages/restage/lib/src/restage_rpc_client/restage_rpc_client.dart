@@ -7,6 +7,25 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../secure_transport.dart';
 
+/// Result of a successful hosted surface fetch.
+final class SurfaceFetchResult {
+  /// Creates a hosted surface fetch result.
+  const SurfaceFetchResult({
+    required this.envelopeBytes,
+    this.experimentId,
+    this.variantId,
+  });
+
+  /// Base64-decoded `SurfaceDocument` envelope bytes.
+  final Uint8List envelopeBytes;
+
+  /// Experiment id selected by the server, when the served artifact is an arm.
+  final String? experimentId;
+
+  /// Variant id selected by the server, when the served artifact is an arm.
+  final String? variantId;
+}
+
 /// HTTP/JSON client for the SDK's `/sdk/v1` endpoints.
 ///
 /// The SDK's shared `/sdk/v1` RPC client: it syncs entitlements, reports
@@ -112,14 +131,16 @@ class RestageRpcClient {
   /// `version` key is then left out of the request body, which the serve route
   /// treats as the active-version request for surface types that support it
   /// (paywalls). Returns the base64-decoded envelope bytes, or `null` on any
-  /// failure (network error, non-2xx status, or a missing/invalid `envelope`
-  /// field). A `null` is the caller's signal to treat the surface as
-  /// unavailable. The served version is carried inside the decoded envelope, so
-  /// the active-version caller reads it back after decoding.
-  Future<Uint8List?> fetchSurface({
+  /// failure (network error, non-2xx status, a missing/invalid `envelope`
+  /// field, or malformed assignment metadata). A `null` is the caller's signal
+  /// to treat the surface as unavailable. The served version is carried inside
+  /// the decoded envelope, so the active-version caller reads it back after
+  /// decoding.
+  Future<SurfaceFetchResult?> fetchSurface({
     required String surfaceType,
     required String surfaceSlug,
     int? version,
+    String? assignmentKey,
   }) async {
     final json = await _postJsonObject(
       path: '/sdk/v1/surface',
@@ -127,6 +148,7 @@ class RestageRpcClient {
         'surfaceType': surfaceType,
         'surfaceSlug': surfaceSlug,
         if (version != null) 'version': version,
+        if (assignmentKey != null) 'assignmentKey': assignmentKey,
       },
     );
     if (json == null) return null;
@@ -136,7 +158,16 @@ class RestageRpcClient {
       return null;
     }
     try {
-      return base64Decode(envelope);
+      final assignment = _parseSurfaceAssignmentMetadata(json);
+      if (assignment == null) {
+        debugPrint('[restage] surface assignment metadata was malformed');
+        return null;
+      }
+      return SurfaceFetchResult(
+        envelopeBytes: base64Decode(envelope),
+        experimentId: assignment.experimentId,
+        variantId: assignment.variantId,
+      );
     } on FormatException catch (error) {
       debugPrint('[restage] surface envelope was not valid base64: $error');
       return null;
@@ -239,4 +270,36 @@ class RestageRpcClient {
     }
     return out;
   }
+}
+
+final class _SurfaceAssignmentMetadata {
+  const _SurfaceAssignmentMetadata({this.experimentId, this.variantId});
+
+  final String? experimentId;
+  final String? variantId;
+}
+
+_SurfaceAssignmentMetadata? _parseSurfaceAssignmentMetadata(
+  Map<String, dynamic> json,
+) {
+  final experimentId = json['experimentId'];
+  final variantId = json['variantId'];
+  if (experimentId == null && variantId == null) {
+    return const _SurfaceAssignmentMetadata();
+  }
+  if (experimentId is! String || variantId is! String) {
+    return null;
+  }
+  if (!_isValidSurfaceAssignmentToken(experimentId) ||
+      !_isValidSurfaceAssignmentToken(variantId)) {
+    return null;
+  }
+  return _SurfaceAssignmentMetadata(
+    experimentId: experimentId,
+    variantId: variantId,
+  );
+}
+
+bool _isValidSurfaceAssignmentToken(String value) {
+  return value.isNotEmpty && value.trim() == value && !value.contains('\u0000');
 }

@@ -12,18 +12,20 @@ import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Roll a blob surface back to a previous version by re-pointing the
-/// active-version pointer.
+/// Roll a surface back to a previous version by re-pointing the active-version
+/// pointer.
 ///
 /// Usable two ways via [fixedSurfaceType]:
 ///   - null → generic `surface rollback` group (requires `--type`).
 ///   - non-null → typed-group convenience (e.g. `paywall rollback`; no
 ///     `--type`).
 ///
-/// Flow-shaped surfaces are refused before any mutating call: the
-/// active-version pointer has no effect on a version-pinned flow. The
-/// target version must exist in the published history; the command
-/// validates this before confirming the operation.
+/// Works for paywalls AND flow surfaces (onboarding / message / survey) — the
+/// re-point reaches a flow surface's active-arm clients. The one case still
+/// refused is rolling a paywall back to a flow-shaped version (a lowered
+/// navigation paywall), which the hosted paywall path cannot active-serve yet.
+/// The target version must exist in the published history; the command
+/// validates this and previews the cohort impact before confirming.
 ///
 /// Requires a non-empty `--reason` for the audit trail. A destructive-op
 /// confirmation step guards production: `--yes` is accepted on
@@ -84,8 +86,8 @@ class SurfaceRollbackCommand extends Command<int> {
 
   @override
   String get description =>
-      'Roll a blob surface back to a previous version. '
-      'Flow surfaces are not supported.';
+      'Roll a surface back to a previous version (paywalls and flow surfaces). '
+      'Rolling a paywall back to a flow-shaped version is not yet supported.';
 
   @override
   Future<int> run() async {
@@ -123,6 +125,7 @@ class SurfaceRollbackCommand extends Command<int> {
       interactive: _interactive,
       stderr: _stderr,
       credentialStore: _credentialStore,
+      httpClient: _httpClient,
     );
     if (ctx == null) return 1;
 
@@ -130,7 +133,7 @@ class SurfaceRollbackCommand extends Command<int> {
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: Uri.parse(ctx.credential.endpoint),
+        endpoint: ctx.apiEndpoint,
         httpClient: _httpClient,
         credential: ctx.credential,
       );
@@ -152,23 +155,15 @@ class SurfaceRollbackCommand extends Command<int> {
           surfaceType: surfaceType,
           surfaceSlug: slug,
           environment: ctx.environment,
+          organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);
       }
 
-      // Step 8: FLOW REFUSAL — must precede any rollback call.
-      // Flow surfaces are version-pinned; re-pointing the active-version
-      // pointer has no effect on them. The backend also enforces this, but
-      // refusing here avoids an unnecessary round-trip.
-      if (!status.supportsRollback) {
-        _stderr.writeln(
-          "Rollback isn't supported for ${surfaceType.wireName} surfaces "
-          '(flow surfaces are version-pinned). '
-          'It arrives with active-flow delivery.',
-        );
-        return 1;
-      }
+      // Step 8 (removed): flow surfaces roll back now. The one residual — a
+      // flow-shaped paywall target — is caught by the preflight below (fast,
+      // before the confirm) and, defensively, by the backend gate.
 
       // Step 9: VERSION VALIDATION — the target version must exist in the
       // published history before confirming the operation.
@@ -183,11 +178,36 @@ class SurfaceRollbackCommand extends Command<int> {
         return 1;
       }
 
-      // Step 10: build the impact line.
-      final impactLine =
+      // Step 9.5: PREFLIGHT — an informational cohort-impact preview. A
+      // flow-shaped paywall target is refused here; every other classification
+      // is surfaced in the impact line so the operator sees the cohort risk
+      // before confirming.
+      final RollbackPreflightResult preflight;
+      try {
+        preflight = await SurfaceApi(api).rollbackPreflight(
+          project: ctx.project,
+          app: ctx.app,
+          surfaceType: surfaceType,
+          surfaceSlug: slug,
+          environment: ctx.environment,
+          toVersion: toVersion,
+        );
+      } on RestageApiException catch (e) {
+        return _renderError(e, surfaceType);
+      }
+      if (preflight.classification ==
+          RollbackPreflightClassification.unsupportedTargetShape) {
+        _stderr.writeln(_rollbackUnsupportedMessage(surfaceType));
+        return 1;
+      }
+
+      // Step 10: build the impact line + the cohort-impact note.
+      final base =
           'Roll back "$slug" in ${ctx.environment} '
           'from v${status.liveVersion} to v$toVersion'
           '${freeze ? ' and freeze' : ''}.';
+      final note = _compatibilityNote(preflight);
+      final impactLine = note == null ? base : '$base\n$note';
 
       // Step 11: confirm the destructive operation.
       final confirmed = await confirmDestructive(
@@ -219,6 +239,7 @@ class SurfaceRollbackCommand extends Command<int> {
           toVersion: toVersion,
           lockAfter: freeze,
           reason: reason,
+          organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);
@@ -244,13 +265,9 @@ class SurfaceRollbackCommand extends Command<int> {
   int _renderError(RestageApiException e, SurfaceType surfaceType) {
     final surface = decodeSurfaceTypedException(e.body);
     if (surface is SurfaceRollbackUnsupported) {
-      // Defense-in-depth: the backend also rejects flow surfaces.
-      // Keep rollback-specific wording that names the surface type.
-      _stderr.writeln(
-        "Rollback isn't supported for ${surfaceType.wireName} surfaces "
-        '(flow surfaces are version-pinned). '
-        'It arrives with active-flow delivery.',
-      );
+      // Defense-in-depth: the backend refuses a flow-shaped paywall target even
+      // if the preflight did not catch it first.
+      _stderr.writeln(_rollbackUnsupportedMessage(surfaceType));
       return 1;
     }
     if (surface != null) {
@@ -268,5 +285,44 @@ class SurfaceRollbackCommand extends Command<int> {
     }
     _stderr.writeln(e.toString());
     return 1;
+  }
+
+  /// The honest residual message: rolling a paywall back to a flow-shaped
+  /// version is not yet supported. Shared by the preflight fast-fail and the
+  /// backend-rejection branch of [_renderError] so the wording stays single.
+  String _rollbackUnsupportedMessage(SurfaceType surfaceType) =>
+      "Rolling ${surfaceType.wireName} back to a flow-shaped version isn't "
+      'supported yet: a paywall lowered to a navigation flow has no hosted '
+      'active-serve path. (Flow surfaces — onboarding, message, survey — do '
+      'roll back.)';
+
+  /// A one-line cohort-impact note for the confirm prompt, or null when there
+  /// is nothing useful to add. The compatibility is judged server-side against
+  /// the currently-live version as a proxy; the SDK re-checks per client.
+  String? _compatibilityNote(RollbackPreflightResult preflight) {
+    const caveat =
+        '(Compatibility is judged against the currently-live version; each '
+        'installed client re-checks against its own bundled copy and falls '
+        'back safely.)';
+    switch (preflight.classification) {
+      case RollbackPreflightClassification.compatible:
+        return 'Cohort impact: live clients on the current contract will '
+            'render v${preflight.toVersion}. $caveat';
+      case RollbackPreflightClassification.contractChange:
+        final changes = preflight.blockingChanges.isEmpty
+            ? ''
+            : ' Changes: ${preflight.blockingChanges.join('; ')}.';
+        return 'Cohort impact: v${preflight.toVersion} changes the flow '
+            'contract vs the live version — clients on the current contract '
+            'fall back to their bundled copy.$changes $caveat';
+      case RollbackPreflightClassification.noActiveBaseline:
+        return 'Cohort impact: nothing is currently live (killed or '
+            'never-activated) — this reactivates v${preflight.toVersion}.';
+      case RollbackPreflightClassification.unsupportedTargetShape:
+      case RollbackPreflightClassification.unknown:
+        // unsupportedTargetShape is handled before the confirm; unknown adds
+        // no note (forward-compatibility).
+        return null;
+    }
   }
 }

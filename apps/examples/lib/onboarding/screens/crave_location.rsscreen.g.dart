@@ -3,7 +3,7 @@ part of 'crave_location.dart';
 abstract final class CraveLocationScreenDescriptor {
   const CraveLocationScreenDescriptor._();
 
-  static const OnboardingScreenRef ref = OnboardingScreenRef(
+  static const SurfaceScreenRef ref = SurfaceScreenRef(
     id: 'crave_location',
     artifactPath: 'crave_location.rfw',
     version: 1,

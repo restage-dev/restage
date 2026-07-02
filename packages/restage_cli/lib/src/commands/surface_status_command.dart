@@ -75,13 +75,14 @@ class SurfaceStatusCommand extends Command<int> {
       interactive: _interactive,
       stderr: _stderr,
       credentialStore: _credentialStore,
+      httpClient: _httpClient,
     );
     if (ctx == null) return 1;
 
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: Uri.parse(ctx.credential.endpoint),
+        endpoint: ctx.apiEndpoint,
         httpClient: _httpClient,
         credential: ctx.credential,
       );
@@ -96,6 +97,7 @@ class SurfaceStatusCommand extends Command<int> {
         surfaceType: surfaceType,
         surfaceSlug: slug,
         environment: ctx.environment,
+        organizationId: ctx.organizationId,
       );
       _printStatus(status);
       return 0;

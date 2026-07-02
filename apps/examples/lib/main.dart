@@ -7,6 +7,7 @@ import 'main_draggable_sheet_demo.dart';
 import 'main_hosted_paywall_demo.dart';
 import 'main_modal_sheet_demo.dart';
 import 'onboarding/apex_drop_demo.dart';
+import 'onboarding/bare_surface_demo.dart';
 import 'onboarding/chrome_ladder_demo.dart';
 import 'onboarding/crave_permission_demo.dart';
 import 'onboarding/lumen_onboarding_demo.dart';
@@ -278,6 +279,16 @@ class _GalleryHome extends StatelessWidget {
                 destination: const MinimalOnboardingDemo(),
                 // The host supplies its own flow chrome (a persistent close +
                 // an in-flow back), so no gallery escape button on top.
+                showThemeToggle: true,
+              ),
+              _ExampleTile(
+                title: 'Bare surface',
+                subtitle:
+                    'The lowest flow-backed surface: one delivered screen, '
+                    'no required event, no forced ending.',
+                leading: const Icon(Icons.layers_outlined),
+                destination: const BareSurfaceDemo(),
+                showEscapeButton: true,
                 showThemeToggle: true,
               ),
               _ExampleTile(

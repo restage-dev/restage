@@ -1138,19 +1138,23 @@ void main() {
       expect(issues, _containsIssueCode('unsupportedFeature'));
     });
 
+    test('validation accepts a reachable terminal screen without an end state',
+        () {
+      final terminalScreen = _singleScreenDocument();
+
+      expect(FlowDocumentValidation.validate(terminalScreen), isEmpty);
+    });
+
     test('validation rejects broken Phase 1 graph invariants', () {
       final missingInitial = _firstRunDocument(initial: 'missing');
       final missingScreen = _firstRunDocument(screen: 'missing');
       final missingTarget = _firstRunDocument(target: 'missing');
-      const missingEnd = FlowDocument(
-        flow: 'first_run',
-        version: 1,
-        schemaVersion: 1,
-        minClient: 3,
-        initial: 'welcome',
-        screenArtifacts: {},
-        states: {
-          'welcome': ScreenFlowState(screen: 'welcome', on: {}),
+      final missingEnd = _singleScreenDocument(
+        states: const {
+          'welcome': ScreenFlowState(
+            screen: 'welcome',
+            on: {'again': FlowTransition.goto('welcome')},
+          ),
         },
       );
       final unreachable = _firstRunDocument(
@@ -1402,6 +1406,30 @@ FlowDocument _firstRunDocument({
       ),
       ...extraStates,
     },
+  );
+}
+
+FlowDocument _singleScreenDocument({
+  Map<String, FlowState> states = const {
+    'welcome': ScreenFlowState(screen: 'welcome', on: {}),
+  },
+}) {
+  return FlowDocument(
+    flow: 'first_run',
+    version: 1,
+    schemaVersion: 1,
+    minClient: 3,
+    initial: 'welcome',
+    screenArtifacts: {
+      'welcome': ScreenArtifact(
+        path: 'welcome.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: 1,
+        contentHash: FlowContentHash.parse(_welcomeHash),
+      ),
+    },
+    states: states,
   );
 }
 

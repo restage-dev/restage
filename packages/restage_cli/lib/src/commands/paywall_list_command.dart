@@ -9,6 +9,7 @@ import 'package:restage_cli/src/api/paywall_api.dart';
 import 'package:restage_cli/src/api/paywall_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 
@@ -83,11 +84,21 @@ class PaywallListCommand extends Command<int> {
       );
       return 1;
     }
+    final Uri apiEndpoint;
+    try {
+      apiEndpoint = resolveApiEndpoint(
+        config: loaded?.config,
+        credential: credential,
+      );
+    } on EndpointConfigurationException catch (e) {
+      _stderr.writeln(e.toString());
+      return 1;
+    }
 
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: Uri.parse(credential.endpoint),
+        endpoint: apiEndpoint,
         httpClient: _httpClient,
         credential: credential,
       );
@@ -96,7 +107,17 @@ class PaywallListCommand extends Command<int> {
       return 1;
     }
     try {
-      final summaries = await PaywallApi(api).list(project: project, app: app);
+      final configuredOrganization = await resolveConfiguredOrganization(
+        api: api,
+        config: loaded?.config,
+        stderr: _stderr,
+      );
+      if (configuredOrganization == null) return 1;
+      final summaries = await PaywallApi(api).list(
+        project: project,
+        app: app,
+        organizationId: configuredOrganization.organizationId,
+      );
       if (argResults?['json'] as bool? ?? false) {
         _stdout.writeln(jsonEncode([for (final s in summaries) s.toJson()]));
       } else {
