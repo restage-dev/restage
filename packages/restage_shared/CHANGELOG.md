@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.0
+
+- Additive schema support for upcoming surface work; no breaking changes.
+
 ## 1.0.2
 
 - Add flow predicate sugar: the `FlowPredicateOperator` /

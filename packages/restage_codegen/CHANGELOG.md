@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.0
+
+- Emit the customer widget catalog (`catalog.json`) so registered custom widgets resolve in authored surfaces.
+- Additive codegen support for upcoming surface work; no breaking changes.
+
 ## 1.0.4
 
 - Carry each component's full data schema in the standalone A2UI catalog document, not only the

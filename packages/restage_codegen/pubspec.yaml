@@ -2,7 +2,7 @@ name: restage_codegen
 description: >-
   Write your UI as real Flutter widgets — your own design system, not a dialect —
   and restage_codegen compiles it into the blobs the Restage SDK ships over the air.
-version: 1.0.4
+version: 1.1.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

@@ -1,3 +1,7 @@
+## 0.1.4
+
+- Documentation: README refresh.
+
 ## 0.1.3
 
 - Update the catalog walkthrough to drop the removed `build_runner` `--delete-conflicting-outputs` flag.
