@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- Documentation and build-configuration refresh.
+
 ## 1.0.1
 
 - Add a usage example and shorten the package description.

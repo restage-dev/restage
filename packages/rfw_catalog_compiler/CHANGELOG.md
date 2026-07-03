@@ -1,3 +1,7 @@
+# 1.0.3
+
+- Documentation: README refresh.
+
 # 1.0.2
 
 - Export the element-FQN helpers (`elementFqn`, `interfaceFqn`, `typeFqn`,

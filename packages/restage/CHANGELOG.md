@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- Add a neutral default surface floor.
+- Additive runtime support for upcoming surface work; no breaking changes.
+
 ## 1.1.1
 
 - Republish without stray build artifacts that were accidentally included in
