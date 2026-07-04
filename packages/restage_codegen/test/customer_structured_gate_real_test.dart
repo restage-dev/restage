@@ -49,6 +49,71 @@ void main() {
     });
 
     test(
+        'a non-canonical data class (an OPTIONAL ctor param name-matches no '
+        'field) is EXCLUDED-loud too — optionality does not make a renamed '
+        'param sourceable', () async {
+      // `label` is OPTIONAL (no `required`) and materialises `count`, not a
+      // field named `label`. Reconstructing by name can only ever supply
+      // `count:`, never `label:`, so `count` would silently take whatever
+      // default the reconstruction ctor gives it — never the author's actual
+      // value — unless this shape is excluded at admission like its REQUIRED
+      // analog above.
+      final admission = await _admit({
+        'lib/card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+          class Badge {
+            const Badge({int label = 0}) : count = label;
+            final int count;
+          }
+          @RestageWidget(name: 'BadgeCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration, description: 'c')
+          class BadgeCard {
+            const BadgeCard({required this.badge});
+            @RestageProperty(description: 'b') final Badge badge;
+          }
+        ''',
+      });
+      expect(admission.admitted, isEmpty);
+      expect(admission.excluded, hasLength(1));
+      expect(admission.excluded.single.widget.name, 'BadgeCard');
+      expect(admission.excluded.single.reason, contains('label'));
+    });
+
+    test(
+        'a POSITIONAL optional param that RENAMES a field is EXCLUDED-loud too '
+        '— the positional twin of the named rename (the positional-hole check '
+        'does not catch a rename)', () async {
+      // `label` is an OPTIONAL POSITIONAL param that materialises `count`, not
+      // a field named `label`. The encode sources each field BY NAME (`count`)
+      // but no param is named `count`, so `count` is dropped from the wire;
+      // the reconstructor then supplies `label`'s default, so an authored
+      // `Badge(7)` silently reads back as `count == 0`. The positional-hole
+      // check does NOT catch this (there is no shift — `label` is the only
+      // positional), so the field->param check must exclude it.
+      final admission = await _admit({
+        'lib/card.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+          class Badge {
+            const Badge([int label = 0]) : count = label;
+            final int count;
+          }
+          @RestageWidget(name: 'BadgeCard',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.decoration, description: 'c')
+          class BadgeCard {
+            const BadgeCard({required this.badge});
+            @RestageProperty(description: 'b') final Badge badge;
+          }
+        ''',
+      });
+      expect(admission.admitted, isEmpty);
+      expect(admission.excluded, hasLength(1));
+      expect(admission.excluded.single.widget.name, 'BadgeCard');
+      expect(admission.excluded.single.reason, contains('count'));
+    });
+
+    test(
         'a REDIRECTING unnamed ctor is skipped: the guard inspects the same '
         'variant the reconstruction uses (the enumerator drops redirecting '
         'ctors), so an unsourceable redirect target is EXCLUDED', () async {

@@ -204,7 +204,7 @@ String? _obstruction(
         'it); a cyclic value cannot be reconstructed by inline emission';
   }
   try {
-    final unsourceable = _unsourceableRequiredParam(entry);
+    final unsourceable = _unsourceableParam(entry);
     if (unsourceable != null) {
       return '${entry.name}: ctor parameter $unsourceable has no matching '
           'decodable field (non-canonical shape)';
@@ -260,19 +260,37 @@ void _collectClosure(
   }
 }
 
-/// The label of a reconstruction-variant **required** parameter that the
-/// by-name reconstructor cannot source — one that name-matches no field (a
-/// renamed or positional ctor param), or `'<no constructor variant>'` when the
-/// type has no constructor to reconstruct with. Returns `null` when every
-/// required parameter maps to a same-named field (a canonical data class).
-String? _unsourceableRequiredParam(StructuredEntry entry) {
+/// The label of a reconstruction-variant parameter — required OR optional —
+/// that the by-name reconstructor cannot source — one that name-matches no
+/// field (a renamed or positional ctor param), or `'<no constructor
+/// variant>'` when the type has no constructor to reconstruct with. Returns
+/// `null` when every parameter maps to a same-named field (a canonical data
+/// class). Optionality doesn't make a renamed param sourceable: the
+/// reconstructor would still supply the field under ITS name, so a
+/// genuinely-authored value would silently read back as whatever default the
+/// reconstruction ctor gives that field, never the author's actual value.
+String? _unsourceableParam(StructuredEntry entry) {
   final variant = reconstructionVariant(entry);
   if (variant == null) return '<no constructor variant>';
   final fieldNames = {for (final field in entry.fields) field.name};
+  // This is a BACKSTOP, not the enforcement point: for real customer variants
+  // `variant.parameters` is EMPTY (`enumerateFactoryVariants` never populates
+  // it — only `argMappings`), so this loop is a no-op and only the
+  // `variant == null` guard above is live. The authoritative reconstructor-
+  // soundness checks (BOTH the param->field and the field->param directions)
+  // run upstream in `customer_structured_discovery._reconstructionObstruction`
+  // over the REAL analyzer constructor, and their verdict reaches admission via
+  // `localUnrenderable` (read first in `_obstruction`). Do NOT add the
+  // field->param dual here: iterating `fieldNames` against this empty
+  // `variant.parameters` would report EVERY field unsourceable and exclude all.
   for (final parameter in variant.parameters) {
-    if (!parameter.required) continue;
     final name = parameter.name;
     if (name == null) {
+      // A trailing optional positional with no matching field is a
+      // deliberately admitted shape (mirrors the analyzer-level check in
+      // customer_structured_discovery.dart) — a positional param can only be
+      // unsourceable-by-shift, which the positional-hole check handles.
+      if (!parameter.required) continue;
       return "'<positional ${parameter.position ?? '?'}>'";
     }
     if (!fieldNames.contains(name)) return "'$name'";

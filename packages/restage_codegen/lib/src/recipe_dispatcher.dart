@@ -81,6 +81,28 @@ final class RecipeDispatcher {
   /// Whether a recipe is registered for [key].
   bool hasRecipe(String key) => _recipes.containsKey(key);
 
+  /// Evaluates a caller-derived [fragment] against [args] and returns the RFW
+  /// DSL fragment — the derived-recipe entrypoint used when a recipe is
+  /// synthesised at translate time (e.g. a customer structured value's map,
+  /// derived from its catalog `StructuredEntry.fields`) rather than looked up
+  /// by key. Splits [args] into positional/named exactly as [tryTranslate]
+  /// does, then evaluates the emit tree (so `EmitFragmentArg` recursion,
+  /// `asLength` coercion, and `omitWhenArgUnset` behave identically to a
+  /// registered recipe).
+  String emit(
+    EmitFragment fragment,
+    List<Expression> args,
+    List<Issue> issues,
+    String loc,
+  ) {
+    final positional = args.where((a) => a is! NamedExpression).toList();
+    final named = <String, Expression>{
+      for (final a in args.whereType<NamedExpression>())
+        a.name.label.name: a.expression,
+    };
+    return _emitFragment(fragment, positional, named, issues, loc);
+  }
+
   /// Translates the call described by [args] via the recipe for [key], or
   /// returns null when no recipe is registered — the fall-through signal.
   ///
