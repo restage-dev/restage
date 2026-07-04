@@ -14,7 +14,6 @@ import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
-import 'package:restage_shared/restage_shared.dart';
 import 'package:path/path.dart' as p;
 
 /// Upload a compiled `.rfw` for a paywall and publish it to an
@@ -60,8 +59,9 @@ class PaywallPublishCommand extends Command<int> {
       ..addOption(
         'path',
         help:
-            'Path to the compiled `.rfw` (default: '
-            '<config-dir>/assets/paywalls/<name>.rfw).',
+            'Path to the paywall artifact (default: '
+            '<config-dir>/assets/paywalls/<name>.rfw, or <name>.flow.json '
+            'for a navigation-lowered paywall).',
       )
       ..addOption(
         'directory',
@@ -142,33 +142,28 @@ class PaywallPublishCommand extends Command<int> {
     );
     if (environment == null) return 1;
 
-    final rfwPath = _resolveRfwPath(
-      argResults?['path'] as String?,
-      loaded?.source.parent,
-      paywallName,
-    );
-    final file = File(rfwPath);
-    if (!file.existsSync()) {
-      _stderr.writeln(
-        'Compiled paywall not found at $rfwPath. Generate the `.rfw` '
-        'with `dart run build_runner build` and retry, or override the '
-        'path with --path <file>.',
-      );
-      return 1;
-    }
-    final bytes = await file.readAsBytes();
-
-    final CapabilityManifest manifest;
+    // A paywall publishes either as a single compiled blob
+    // (assets/paywalls/<slug>.rfw) or, when navigation-lowered, as a flow
+    // document (assets/paywalls/<slug>.flow.json) whose screens live under
+    // assets/onboarding/screens/. The shared resolver detects the shape and
+    // assembles the canonical frame the surface store persists as-is.
+    final PaywallPublishPayload resolved;
     try {
-      manifest = await loadCapabilityManifest(rfwPath);
+      resolved = await resolvePaywallPublishBytes(
+        slug: paywallName,
+        assetsRoot: p.join(
+          (loaded?.source.parent ?? Directory.current).path,
+          'assets',
+        ),
+        pathOverride: argResults?['path'] as String?,
+      );
     } on SurfacePayloadException catch (e) {
       _stderr.writeln(e.message);
       return 1;
     }
 
-    final capabilityWarning = publishCapabilityWarning(manifest);
-    if (capabilityWarning != null) {
-      _stderr.writeln(capabilityWarning);
+    if (resolved.capabilityWarning != null) {
+      _stderr.writeln(resolved.capabilityWarning);
     }
 
     return _runPipeline(
@@ -179,9 +174,7 @@ class PaywallPublishCommand extends Command<int> {
       project: project,
       app: app,
       environment: environment,
-      bytes: bytes,
-      minClient: manifest.builtInFloor,
-      requiredLibraries: manifest.requiredLibraries,
+      bytes: resolved.bytes,
     );
   }
 
@@ -200,8 +193,6 @@ class PaywallPublishCommand extends Command<int> {
     required String app,
     required String environment,
     required Uint8List bytes,
-    required int minClient,
-    required List<LibraryRequirement> requiredLibraries,
   }) async {
     final RestageApi api;
     try {
@@ -228,9 +219,7 @@ class PaywallPublishCommand extends Command<int> {
           project: project,
           app: app,
           paywall: paywall,
-          bytes: bytes,
-          minClient: minClient,
-          requiredLibraries: requiredLibraries,
+          canonicalBytes: bytes,
           organizationId: configuredOrganization.organizationId,
         );
       } on RestageApiException catch (e) {
@@ -265,7 +254,7 @@ class PaywallPublishCommand extends Command<int> {
           ..writeln(
             'The draft is on the server. Re-run `restage paywall publish '
             '$paywall --env $environment` to retry (the command re-uploads '
-            'your current local `.rfw` and publishes it).',
+            'your current local paywall artifact and publishes it).',
           );
         return 2;
       }
@@ -294,23 +283,6 @@ class PaywallPublishCommand extends Command<int> {
       'restage_config.yaml or pass --env on the command line.',
     );
     return null;
-  }
-
-  /// Resolve where to read the compiled `.rfw` from.
-  ///
-  /// Explicit `--path` wins. Otherwise: the config's directory (or
-  /// the current directory when no config) joined with
-  /// `assets/paywalls/<name>.rfw`.
-  String _resolveRfwPath(
-    String? fromFlag,
-    Directory? configDir,
-    String paywallName,
-  ) {
-    if (fromFlag != null && fromFlag.isNotEmpty) {
-      return p.absolute(fromFlag);
-    }
-    final root = configDir ?? Directory.current;
-    return p.join(root.path, 'assets', 'paywalls', '$paywallName.rfw');
   }
 
   int _handleApiException(
@@ -387,7 +359,7 @@ class PaywallPublishCommand extends Command<int> {
     final envFragment = environment == null ? '' : ' --env $environment';
     return 'The draft is on the server. Re-run `restage paywall publish '
         '$paywall$envFragment` to retry (the command re-uploads your '
-        'current local `.rfw` and publishes it).';
+        'current local paywall artifact and publishes it).';
   }
 }
 

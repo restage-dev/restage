@@ -197,11 +197,27 @@ VariantResolver _navPaywallResolver() {
   return AssetVariantResolver(bundle: bundle);
 }
 
+/// Same flow, but the plans screen's "Buy" control is rewired from a purchase to
+/// a nav event — modelling a content-OTA (or customer content bug) that routes
+/// the user PAST the charge. Delivery does NOT gate this (blob-OTA parity); the
+/// runtime backstop is what keeps it safe (no charge, no entitlement).
+VariantResolver _rewiredNavPaywallResolver() {
+  final entry = _screenBlob({'See plans': 'restageNav0', 'No thanks': 'skip'});
+  final plans = _screenBlob({'Buy': 'restageNav0'});
+  final bundle = _FlowAssetBundle()
+    ..writeFlow(
+        'pro_upgrade', _navFlowDocument(entryBytes: entry, plansBytes: plans))
+    ..writeScreen('paywall_pro_upgrade.rfw', entry)
+    ..writeScreen('paywall_pro_upgrade_plans.rfw', plans);
+  return AssetVariantResolver(bundle: bundle);
+}
+
 /// A flow-capable resolver that resolves a flow payload once, then fails — to
 /// drive the cache-fallback re-host path on a remount.
 class _SeqFlowResolver implements VariantResolver, FlowCapableVariantResolver {
-  _SeqFlowResolver(this._flow);
+  _SeqFlowResolver(this._flow, {this.resolvedFromActiveArm = false});
   final ResolvedFlow _flow;
+  final bool resolvedFromActiveArm;
   int _calls = 0;
 
   @override
@@ -219,13 +235,48 @@ class _SeqFlowResolver implements VariantResolver, FlowCapableVariantResolver {
     Locale? locale,
   }) async {
     if (_calls++ == 0) {
-      return FlowPaywallPayload(flow: _flow, paywallId: id);
+      return FlowPaywallPayload(
+        flow: _flow,
+        paywallId: id,
+        resolvedFromActiveArm: resolvedFromActiveArm,
+      );
     }
     throw const RestagePaywallError(
       code: RestageErrorCodes.deliveryUnavailable,
       message: 'fresh resolve failed',
     );
   }
+}
+
+/// A flow-capable resolver returning a pre-resolved flow payload carrying an
+/// experiment id + served version (mirroring what the hosted active arm sets),
+/// so the flow-hosted lifecycle attributes the experiment on `PaywallViewed`.
+class _AttributedFlowResolver
+    implements VariantResolver, FlowCapableVariantResolver {
+  _AttributedFlowResolver({this.experimentId, this.publishedVersion});
+  final String? experimentId;
+  final int? publishedVersion;
+
+  @override
+  Future<ResolvedVariant> resolve(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<ResolvedPaywallPayload> resolvePayload(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) async =>
+      FlowPaywallPayload(
+        flow: _navResolvedFlow(),
+        paywallId: id,
+        paywallPublishedVersion: publishedVersion,
+        experimentId: experimentId,
+      );
 }
 
 ResolvedFlow _navResolvedFlow() {
@@ -242,12 +293,13 @@ Future<void> _pumpFlowPaywall(
   WidgetTester tester, {
   String paywallId = 'pro_upgrade',
   void Function(RestageEvent)? onEvent,
+  VariantResolver? resolver,
 }) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: RestagePaywall(
         id: paywallId,
-        resolver: _navPaywallResolver(),
+        resolver: resolver ?? _navPaywallResolver(),
         onEvent: onEvent,
       ),
     ),
@@ -319,6 +371,133 @@ void main() {
 
     // The Buy tap did NOT navigate the graph (still on the pushed screen).
     expect(find.text('Buy'), findsOneWidget);
+  });
+
+  // The entitlement backstop — why the delivery-time money-path gate was dropped.
+  // A hosted active flow-paywall content-OTA (or a customer content bug) can
+  // rewire the Buy control PAST the charge; delivery does not gate that (blob-OTA
+  // parity). It is safe because the runtime grants an entitlement ONLY on a real
+  // purchase success: a rewired control fires a non-charge event, so no
+  // PurchaseInitiated, no gateway call, no entitlement — the user gets nothing.
+  testWidgets(
+      'a rewired Buy control (purchase -> nav) fires NO charge and grants NO '
+      'entitlement (route-past = nothing granted)', (tester) async {
+    final gateway = _FakeGateway(
+      onPurchase: (productId) async => PurchaseOutcome.succeeded(
+        productId: productId,
+        transactionId: 'tx_never',
+        verificationData: null,
+        priceMicros: 9990000,
+        currency: 'USD',
+      ),
+    );
+    Restage.configure(
+      apiKey: 'pk_test',
+      products: const [
+        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
+      ],
+      billingGateway: gateway,
+    );
+
+    final received = <RestageEvent>[];
+    await _pumpFlowPaywall(
+      tester,
+      onEvent: received.add,
+      resolver: _rewiredNavPaywallResolver(),
+    );
+
+    // Navigate to the pushed "plans" screen, then tap the (rewired) "Buy".
+    await tester.tap(find.text('See plans'));
+    await tester.pumpAndSettle();
+    expect(find.text('Buy'), findsOneWidget);
+    await tester.tap(find.text('Buy'));
+    await tester.pumpAndSettle();
+
+    // No charge was initiated, so nothing was granted.
+    expect(gateway.purchaseCalls, isEmpty);
+    final names = received.map((e) => e.name).toList();
+    expect(names, isNot(contains('purchase_initiated')));
+    expect(names, isNot(contains('purchase_succeeded')));
+    expect(Restage.currentEntitlements, isEmpty);
+  });
+
+  testWidgets(
+      'a hosted active flow paywall charges keyed on the SERVED version '
+      '(MAR attribution over OTA)', (tester) async {
+    final gateway = _FakeGateway(
+      onPurchase: (productId) async => PurchaseOutcome.succeeded(
+        productId: productId,
+        transactionId: 'tx_active',
+        verificationData: null,
+        priceMicros: 9990000,
+        currency: 'USD',
+      ),
+    );
+    Restage.configure(
+      apiKey: 'pk_test',
+      products: const [
+        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
+      ],
+      billingGateway: gateway,
+    );
+    final spy = _SpyRestageRpcClient();
+    Restage.debugRestageRpcClient = spy;
+
+    final received = <RestageEvent>[];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: _AttributedFlowResolver(
+              publishedVersion: 9, experimentId: 'exp_x'),
+          onEvent: received.add,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Navigate to the pushed "plans" screen, then buy there.
+    await tester.tap(find.text('See plans'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy'));
+    await tester.pumpAndSettle();
+
+    expect(gateway.purchaseCalls, ['pro_monthly']);
+    // The conversion attributes to the SERVED active version (9), not null.
+    expect(spy.reportAttributionCalls, hasLength(1));
+    expect(spy.reportAttributionCalls.single.paywallId, 'pro_upgrade');
+    expect(spy.reportAttributionCalls.single.paywallPublishedVersion, 9);
+  });
+
+  testWidgets(
+      'a flow-hosted paywall attributes the experiment on PaywallViewed '
+      '(experiment-attribution parity with the blob path)', (tester) async {
+    Restage.configure(
+      apiKey: 'pk_test',
+      products: const [
+        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
+      ],
+    );
+
+    final received = <RestageEvent>[];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: _AttributedFlowResolver(
+            experimentId: 'exp_arm_A',
+            publishedVersion: 7,
+          ),
+          onEvent: received.add,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final viewed = received.whereType<PaywallViewed>().toList();
+    expect(viewed, isNotEmpty,
+        reason: 'a flow paywall must fire PaywallViewed');
+    expect(viewed.first.experimentId, 'exp_arm_A');
   });
 
   testWidgets(
@@ -646,5 +825,45 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('See plans'), findsOneWidget);
     expect(second.whereType<PaywallLoadCompleted>().single.cacheHit, isTrue);
+  });
+
+  testWidgets(
+      'a cacheLastRender ACTIVE-resolved flow is NOT re-hosted un-re-gated from '
+      'the runtime cache — it defers to the resolver hold-last-good (fails '
+      'closed here)', (tester) async {
+    Restage.configure(apiKey: 'pk_test');
+    // The active-resolved flow renders once, then the resolver fails.
+    final resolver =
+        _SeqFlowResolver(_navResolvedFlow(), resolvedFromActiveArm: true);
+
+    Widget paywall(List<RestageEvent> received) => MaterialApp(
+          home: Scaffold(
+            body: RestagePaywall(
+              id: 'pro_upgrade',
+              resolver: resolver,
+              cacheLastRender: true,
+              onEvent: received.add,
+            ),
+          ),
+        );
+
+    // Mount 1: the fresh active flow resolves + renders + caches.
+    final first = <RestageEvent>[];
+    await tester.pumpWidget(paywall(first));
+    await tester.pumpAndSettle();
+    expect(find.text('See plans'), findsOneWidget);
+
+    // Remount: the fresh resolve fails. Unlike a bundled flow, an ACTIVE-resolved
+    // flow must NOT be re-hosted from the runtime cache un-re-gated — the
+    // resolver's own re-gated hold-last-good owns re-serving it. Here (a
+    // stub resolver that just fails) it falls closed to the error path.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    final second = <RestageEvent>[];
+    await tester.pumpWidget(paywall(second));
+    await tester.pumpAndSettle();
+    expect(find.text('See plans'), findsNothing);
+    expect(second.whereType<PaywallLoadCompleted>(), isEmpty);
+    expect(second.whereType<PaywallLoadFailed>(), isNotEmpty);
   });
 }

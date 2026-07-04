@@ -9,6 +9,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/customer_structured_value_emitter.dart';
 import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
@@ -418,6 +419,33 @@ final class ExpressionTranslator {
   /// fragments do not pay native validation unless they exercise recipes.
   late final NativeCatalogIndex _nativeCatalogIndex =
       NativeCatalogIndex(catalog);
+
+  /// Customer structured types keyed by resolved Dart type, derived directly
+  /// from the merged catalog's `structuredTypes` (a plain source-type parse —
+  /// NOT the native-validated [_nativeCatalogIndex], which rejects a catalog
+  /// carrying unallocated sentinel wire IDs). The encode recognition only needs
+  /// the entry's fields, so this avoids paying native validation on every
+  /// non-framework construction — and reads the SAME `StructuredEntry` the
+  /// decoder does, so encode↔decode key symmetry stays by construction.
+  late final Map<DartTypeRef, StructuredEntry> _customerStructuredByDartType = {
+    for (final structured in catalog.structuredTypes)
+      if (dartTypeRefFromSourceType(structured.sourceType) case final ref?)
+        ref: structured,
+  };
+
+  /// Emits the RFW DSL map for a customer STRUCTURED VALUE authored in a
+  /// paywall body — the ENCODE side of the customer-structured render path.
+  /// `late final` so the injected method tear-offs bind to a fully-constructed
+  /// `this`.
+  late final CustomerStructuredValueEmitter _customerStructuredValue =
+      CustomerStructuredValueEmitter(
+    structuredValueFor: (expr) {
+      final ref = _dartTypeRefOfInstanceCreation(expr);
+      return ref == null ? null : _customerStructuredByDartType[ref];
+    },
+    dispatch: _recipeDispatcher.emit,
+    locationOf: _locationOf,
+  );
 
   /// Translates a single Dart [expr] into a DSL fragment.
   ///
@@ -1822,6 +1850,15 @@ final class ExpressionTranslator {
     // constructor, so production always takes the gated path.
     final ctorClass = _classOfInstanceCreation(expr);
     if (ctorClass != null && !_isFrameworkValueType(ctorClass)) {
+      // A resolved customer type is either a `@RestageWidget` (→ widget
+      // construction) or a customer STRUCTURED VALUE used as a property value
+      // (a discovered data class in the merged catalog). Try the structured
+      // value first — a `null` result means it is not a structured type, so it
+      // falls through to widget construction. Scoped to non-framework types, so
+      // a framework value (`Offset`, `EdgeInsets`) never routes here (its
+      // wire bytes are unchanged, emitted by the value-type path below).
+      final structuredValue = _customerStructuredValue.tryEmit(expr, issues);
+      if (structuredValue != null) return structuredValue;
       return _catalogWidgetConstruction(
         widgetName: typeName,
         flutterType: _flutterTypeOfInstanceCreation(expr),

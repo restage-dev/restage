@@ -71,7 +71,8 @@ class SurfacePublishCommand extends Command<int> {
             'Path to the surface artifact. Flow surfaces default to '
             '<config-dir>/assets/<type>/flows/<slug>.flow.json (screen blobs '
             'resolve from the sibling <flow-dir>/../screens/); a paywall '
-            'defaults to <config-dir>/assets/paywalls/<slug>.rfw.',
+            'defaults to <config-dir>/assets/paywalls/<slug>.rfw, or '
+            '<slug>.flow.json for a navigation-lowered paywall.',
       )
       ..addOption(
         'directory',
@@ -156,24 +157,24 @@ class SurfacePublishCommand extends Command<int> {
 
     final Uint8List bytes;
     try {
-      // A paywall is a single compiled blob (assets/paywalls/<slug>.rfw); a
-      // flow surface is a flow document plus its per-screen blobs. Each has its
-      // own default location, both overridable with --path.
+      // A paywall is either a single compiled blob (assets/paywalls/<slug>.rfw)
+      // or, when navigation-lowered, a flow document
+      // (assets/paywalls/<slug>.flow.json) whose screens live under
+      // assets/onboarding/screens/. A flow surface is a flow document plus its
+      // per-screen blobs. Each has its own default location, all overridable
+      // with --path.
       if (surfaceType == SurfaceType.paywall) {
-        final blobPath = _resolvePaywallBlobPath(
-          argResults?['path'] as String?,
-          loaded?.source.parent,
-          slug,
+        final resolved = await resolvePaywallPublishBytes(
+          slug: slug,
+          assetsRoot: p.join(
+            (loaded?.source.parent ?? Directory.current).path,
+            'assets',
+          ),
+          pathOverride: argResults?['path'] as String?,
         );
-        // Assemble first (it validates the .rfw then its sidecar, so a missing
-        // blob is reported as such); the manifest re-read for the warning is
-        // then guaranteed to resolve.
-        bytes = await assembleBlobSurfacePayloadBytes(blobPath);
-        final capabilityWarning = publishCapabilityWarning(
-          await loadCapabilityManifest(blobPath),
-        );
-        if (capabilityWarning != null) {
-          _stderr.writeln(capabilityWarning);
+        bytes = resolved.bytes;
+        if (resolved.capabilityWarning != null) {
+          _stderr.writeln(resolved.capabilityWarning);
         }
       } else {
         final flowPath = _resolveFlowPath(
@@ -372,22 +373,6 @@ class SurfacePublishCommand extends Command<int> {
     );
   }
 
-  /// Resolve where to read the paywall blob from.
-  ///
-  /// Explicit `--path` wins. Otherwise: the config's directory (or the current
-  /// directory when no config) joined with `assets/paywalls/<slug>.rfw`.
-  String _resolvePaywallBlobPath(
-    String? fromFlag,
-    Directory? configDir,
-    String slug,
-  ) {
-    if (fromFlag != null && fromFlag.isNotEmpty) {
-      return p.absolute(fromFlag);
-    }
-    final root = configDir ?? Directory.current;
-    return p.join(root.path, 'assets', 'paywalls', '$slug.rfw');
-  }
-
   int _handleApiException(
     RestageApiException e, {
     required _Stage stage,
@@ -489,9 +474,7 @@ class SurfacePublishCommand extends Command<int> {
     required String? environment,
   }) {
     final envFragment = environment == null ? '' : ' --env $environment';
-    final artifact = surfaceType == SurfaceType.paywall
-        ? 'paywall blob'
-        : 'flow';
+    final artifact = surfaceType == SurfaceType.paywall ? 'paywall' : 'flow';
     return 'The draft is on the server. Re-run `restage surface publish '
         '$slug --type ${surfaceType.wireName}$envFragment` to retry (the '
         'command re-uploads your current local $artifact and publishes it).';

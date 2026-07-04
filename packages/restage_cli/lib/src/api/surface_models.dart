@@ -415,8 +415,9 @@ enum RollbackPreflightClassification {
   /// on the current contract fall back to their bundled copy.
   contractChange,
 
-  /// A flow-shaped paywall target — re-pointing is refused (no hosted paywall
-  /// flow serve path yet).
+  /// RESERVED — no longer emitted. A flow-shaped paywall target used to be
+  /// refused here; it now rolls back and classifies as compatible or
+  /// contractChange. Kept for wire stability + forward-compatibility.
   unsupportedTargetShape,
 
   /// No current-active version (killed / never-activated) — the re-point

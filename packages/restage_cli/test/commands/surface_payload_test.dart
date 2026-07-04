@@ -436,4 +436,122 @@ void main() {
       },
     );
   });
+
+  group('assembleSurfacePayloadBytes screensDir override', () {
+    test(
+      'an explicit sibling screensDir matches the default byte-for-byte',
+      () async {
+        // Guardrail: adding the optional screensDir param must not perturb the
+        // existing (onboarding/message/survey) callers. Passing the same
+        // directory the default derives yields identical canonical bytes.
+        final flowPath = await seedSurfaceFlow(tempDir);
+        final siblingScreens = p.normalize(
+          p.join(p.dirname(flowPath), '..', 'screens'),
+        );
+
+        final byDefault = await assembleSurfacePayloadBytes(flowPath);
+        final byExplicit = await assembleSurfacePayloadBytes(
+          flowPath,
+          screensDir: siblingScreens,
+        );
+
+        expect(byExplicit, orderedEquals(byDefault));
+      },
+    );
+
+    test(
+      'resolves screen blobs from a non-sibling screensDir (paywall layout)',
+      () async {
+        // A paywall flow lives at assets/paywalls/<slug>.flow.json while its
+        // screens live at assets/onboarding/screens/ — NOT a sibling of the flow.
+        // The default sibling resolution cannot find them; the explicit
+        // screensDir must.
+        final flowPath = await seedPaywallFlow(tempDir);
+        final screensDir = p.join(
+          tempDir.path,
+          'assets',
+          'onboarding',
+          'screens',
+        );
+
+        // The default (sibling) resolution fails: assets/paywalls/../screens has
+        // no blobs.
+        await expectLater(
+          () => assembleSurfacePayloadBytes(flowPath),
+          throwsA(isA<SurfacePayloadException>()),
+        );
+
+        // The explicit onboarding screens directory resolves them.
+        final bytes = await assembleSurfacePayloadBytes(
+          flowPath,
+          screensDir: screensDir,
+        );
+        final decoded = SurfacePayload.decode(bytes);
+        expect(decoded, isA<FlowSurfacePayload>());
+        expect(
+          (decoded as FlowSurfacePayload).screenBlobs.keys,
+          containsAll(<String>['paywall_fluent_pro']),
+        );
+      },
+    );
+  });
+
+  group('resolvePaywallPublishBytes', () {
+    test(
+      'a flow-shaped paywall assembles a FlowSurfacePayload frame',
+      () async {
+        await seedPaywallFlow(tempDir);
+        final assetsRoot = p.join(tempDir.path, 'assets');
+
+        final payload = await resolvePaywallPublishBytes(
+          slug: 'fluent_pro',
+          assetsRoot: assetsRoot,
+        );
+
+        final decoded = SurfacePayload.decode(payload.bytes);
+        expect(decoded, isA<FlowSurfacePayload>());
+        expect((decoded as FlowSurfacePayload).flowDocument.flow, 'fluent_pro');
+      },
+    );
+
+    test(
+      'a flow-shaped paywall fails closed loudly on a missing screen sidecar',
+      () async {
+        await seedPaywallFlow(
+          tempDir,
+          dropSidecarFor: 'paywall_fluent_pro_choose_plan.rfw',
+        );
+        final assetsRoot = p.join(tempDir.path, 'assets');
+
+        await expectLater(
+          () => resolvePaywallPublishBytes(
+            slug: 'fluent_pro',
+            assetsRoot: assetsRoot,
+          ),
+          throwsA(
+            isA<SurfacePayloadException>().having(
+              (e) => e.message,
+              'message',
+              contains('capability'),
+            ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'a blob-shaped paywall assembles a BlobSurfacePayload frame',
+      () async {
+        final assetsRoot = p.join(tempDir.path, 'assets');
+        await seedPaywallBlob(tempDir, slug: 'ascend_premium');
+
+        final payload = await resolvePaywallPublishBytes(
+          slug: 'ascend_premium',
+          assetsRoot: assetsRoot,
+        );
+
+        expect(SurfacePayload.decode(payload.bytes), isA<BlobSurfacePayload>());
+      },
+    );
+  });
 }

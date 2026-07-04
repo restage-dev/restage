@@ -83,6 +83,59 @@ void main() {
     });
   });
 
+  group('ResolvedVariant.copyWith (all-fields-preserved drop-class guard)', () {
+    // Every field is a DISTINCT non-default value so a dropped/reset field is
+    // caught field-by-field (the identity `==` deliberately ignores bytes +
+    // cacheHit, so preservation is asserted per-field, NOT via equals).
+    final full = ResolvedVariant(
+      bytes: Uint8List.fromList([7, 8, 9]),
+      paywallId: 'pro_upgrade',
+      variantId: 'variant-a',
+      experimentId: 'exp1',
+      paywallVersion: '0.0.1',
+      paywallPublishedVersion: 7,
+      cacheHit: false,
+    );
+
+    test('copyWith() with no overrides preserves every field', () {
+      final copy = full.copyWith();
+      expect(copy.bytes, full.bytes);
+      expect(copy.paywallId, 'pro_upgrade');
+      expect(copy.variantId, 'variant-a');
+      expect(copy.experimentId, 'exp1');
+      expect(copy.paywallVersion, '0.0.1');
+      expect(copy.paywallPublishedVersion, 7);
+      expect(copy.cacheHit, isFalse);
+    });
+
+    test('copyWith(cacheHit: true) flips only cacheHit, preserves the rest',
+        () {
+      final hit = full.copyWith(cacheHit: true);
+      expect(hit.cacheHit, isTrue);
+      expect(hit.bytes, full.bytes);
+      expect(hit.paywallId, 'pro_upgrade');
+      expect(hit.variantId, 'variant-a');
+      expect(hit.experimentId, 'exp1');
+      expect(hit.paywallVersion, '0.0.1');
+      expect(hit.paywallPublishedVersion, 7);
+    });
+
+    test('each override lands independently', () {
+      expect(full.copyWith(paywallId: 'other').paywallId, 'other');
+      expect(full.copyWith(variantId: 'v2').variantId, 'v2');
+      expect(full.copyWith(experimentId: 'e2').experimentId, 'e2');
+      expect(full.copyWith(paywallVersion: '9').paywallVersion, '9');
+      expect(
+        full.copyWith(paywallPublishedVersion: 42).paywallPublishedVersion,
+        42,
+      );
+      expect(
+        full.copyWith(bytes: Uint8List.fromList([1])).bytes,
+        Uint8List.fromList([1]),
+      );
+    });
+  });
+
   test('RestagePaywallError exposes code + message', () {
     const e = RestagePaywallError(
       code: 'decode_failed',

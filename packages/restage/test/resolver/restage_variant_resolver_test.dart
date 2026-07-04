@@ -14,6 +14,7 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage/src/runtime/library_runtime_registry.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
 /// The resolver's capability ceiling — the installed built-in catalog version.
 const int _supportedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
@@ -522,14 +523,21 @@ void main() {
       expect((payload as BlobPaywallPayload).variant, same(assetVariant));
     });
 
-    test('falls back to bundled flow when hosted flow is rejected', () async {
+    test(
+        'falls back to bundled flow when the hosted flow is rejected by a '
+        'retained check (unsupported minClient floor)', () async {
+      // The active document requires a higher client than installed — a retained
+      // check rejects it and the resolver falls back to the bundled flow. (A
+      // rewired *charge control* is NOT a rejection cause — that's blob-OTA
+      // parity, served ungated; only structural/floor checks fail closed here.)
       final hostedFlowEnvelope = _flowEnvelope(
         surfaceType: SurfaceType.paywall,
         slug: 'pro_upgrade',
         version: 9,
-        screenBytes: Uint8List.fromList([9, 9, 9]),
+        minClient: _supportedVersion + 1,
+        screenBytes: _purchaseScreen('Subscribe now'),
       );
-      final bundledScreen = Uint8List.fromList([1, 2, 3]);
+      final bundledScreen = _purchaseScreen('Subscribe');
       final bundle = _PaywallAssetBundle()
         ..writeFlow(
           'pro_upgrade',
@@ -559,6 +567,86 @@ void main() {
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/onboarding/screens/paywall_pro_upgrade.rfw',
       ]);
+    });
+
+    test(
+        'resolves a compatible hosted flow via the active arm '
+        '(served version + experiment)', () async {
+      final bundledScreen = _purchaseScreen('Subscribe');
+      final hostedScreen = _purchaseScreen('Subscribe now'); // content-only
+      final bundle = _PaywallAssetBundle()
+        ..writeFlow(
+          'pro_upgrade',
+          _flowDocument(flow: 'pro_upgrade', screenBytes: bundledScreen),
+        )
+        ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen);
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _server(
+          _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
+          experimentId: 'exp_flow',
+          variantId: 'variant_a',
+        ),
+        assetFallback: AssetVariantResolver(bundle: bundle),
+      );
+
+      final payload = await resolver.resolvePayload('pro_upgrade');
+
+      expect(payload, isA<FlowPaywallPayload>());
+      final flow = payload as FlowPaywallPayload;
+      expect(
+          flow.paywallPublishedVersion, 9); // the SERVED version, not bundled
+      expect(flow.experimentId, 'exp_flow');
+      expect(flow.variantId, 'variant_a');
+      expect(flow.resolvedFromActiveArm, isTrue);
+      expect(
+          flow.flow.screenBlobs['welcome'], hostedScreen); // the HOSTED screen
+    });
+
+    test('holds the last-good active flow when a later fetch fails, re-gated',
+        () async {
+      final bundledScreen = _purchaseScreen('Subscribe');
+      final hostedScreen = _purchaseScreen('Subscribe now');
+      final bundle = _PaywallAssetBundle()
+        ..writeFlow(
+          'pro_upgrade',
+          _flowDocument(flow: 'pro_upgrade', screenBytes: bundledScreen),
+        )
+        ..writeScreen('paywall_pro_upgrade.rfw', bundledScreen);
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _sequenceServer([
+          http.Response(
+            _surfaceResponseJson(
+              _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
+              experimentId: 'exp_flow',
+              variantId: 'variant_a',
+            ),
+            200,
+          ),
+          http.Response(jsonEncode({'error': 'unavailable'}), 503),
+        ]),
+        assetFallback: AssetVariantResolver(bundle: bundle),
+      );
+
+      final first = await resolver.resolvePayload('pro_upgrade');
+      final second = await resolver.resolvePayload('pro_upgrade');
+
+      // First: the fresh hosted active flow.
+      expect((first as FlowPaywallPayload).paywallPublishedVersion, 9);
+      expect(first.variantId, 'variant_a');
+      // Second (fetch failed): the held-last-good active flow, re-gated + served
+      // as a cache hit (still the served version, not the bundled null).
+      expect(second, isA<FlowPaywallPayload>());
+      final held = second as FlowPaywallPayload;
+      expect(held.paywallPublishedVersion, 9);
+      expect(held.variantId, 'variant_a');
+      expect(held.flow.cacheHit, isTrue);
+      expect(held.flow.screenBlobs['welcome'], hostedScreen);
     });
 
     test('reaches bundled flow through asset fallback when fetch fails',
@@ -668,6 +756,7 @@ Uint8List _flowEnvelope({
   SurfaceType surfaceType = SurfaceType.onboarding,
   String slug = 'pro_upgrade',
   int version = 1,
+  int minClient = 3,
   Uint8List? screenBytes,
 }) {
   final bytes = screenBytes ?? Uint8List.fromList([1, 2, 3]);
@@ -675,7 +764,7 @@ Uint8List _flowEnvelope({
     flow: 'pro_upgrade',
     version: 1,
     schemaVersion: 1,
-    minClient: 3,
+    minClient: minClient,
     initial: 'welcome',
     actions: const {},
     screenArtifacts: {
@@ -683,7 +772,7 @@ Uint8List _flowEnvelope({
         path: 'welcome.rfw',
         version: 1,
         schemaVersion: 1,
-        minClient: 3,
+        minClient: minClient,
         contentHash: FlowContentHash.compute(bytes),
       ),
     },
@@ -739,6 +828,41 @@ FlowDocument _flowDocument({
       'done': EndFlowState(result: {'completed': true}),
     },
   );
+}
+
+/// A valid RFW paywall-flow screen blob whose single control fires a purchase.
+Uint8List _purchaseScreen(String label) {
+  final source = '''
+    import restage.core;
+    widget OnboardingScreen = GestureDetector(
+      onTap: event 'restage.purchase' { slot: "primary" },
+      child: Text(text: "$label"));
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// A hosted paywall-flow surface envelope structurally identical to the bundled
+/// [_flowDocument] (so the render gate sees only a content change), served at
+/// [version] with the given [screenBytes].
+Uint8List _paywallFlowEnvelope({
+  required Uint8List screenBytes,
+  int version = 9,
+  String slug = 'pro_upgrade',
+}) {
+  final document = _flowDocument(flow: slug, screenBytes: screenBytes);
+  final payload = FlowSurfacePayload(
+    flowDocument: document,
+    screenBlobs: {'welcome': screenBytes},
+  );
+  final surface = SurfaceDocument(
+    surfaceType: SurfaceType.paywall,
+    surfaceSlug: slug,
+    version: version,
+    minClient: document.minClient,
+    payload: payload,
+    publishedAt: DateTime.utc(2026),
+  );
+  return SurfaceDocumentCodec.encode(surface);
 }
 
 final class _PaywallAssetBundle extends CachingAssetBundle {

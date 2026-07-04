@@ -20,16 +20,27 @@ class SurfacePayloadException implements Exception {
 }
 
 /// Read the flow document at [flowPath], resolve each referenced screen blob
-/// from the sibling `screens/` directory (`<flow-dir>/../screens/<path>`),
-/// and return the canonical surface payload bytes
-/// ([FlowSurfacePayload.canonicalBytes]) — exactly the frame the backend
+/// from [screensDir] (defaulting to the sibling `screens/` directory,
+/// `<flow-dir>/../screens/<path>`), and return the canonical surface payload
+/// bytes ([FlowSurfacePayload.canonicalBytes]) — exactly the frame the backend
 /// re-decodes at publish time.
+///
+/// The default sibling convention holds for onboarding/message/survey flows,
+/// whose flow document and screens sit under the same `assets/<type>/`
+/// directory. A paywall flow is the exception: its document lives at
+/// `assets/paywalls/<slug>.flow.json` while its screens are emitted under
+/// `assets/onboarding/screens/`, so the paywall publish path passes an explicit
+/// [screensDir]. Passing the directory the default derives yields byte-identical
+/// output, so existing callers are unaffected.
 ///
 /// Throws [SurfacePayloadException] (with a ready-to-print message) when the
 /// flow is missing, unreadable, unparseable, or malformed; a screen blob is
 /// missing or unreadable; or the on-disk blobs are stale relative to the flow
 /// document.
-Future<Uint8List> assembleSurfacePayloadBytes(String flowPath) async {
+Future<Uint8List> assembleSurfacePayloadBytes(
+  String flowPath, {
+  String? screensDir,
+}) async {
   final flowFile = File(flowPath);
   if (!flowFile.existsSync()) {
     throw SurfacePayloadException(
@@ -71,11 +82,12 @@ Future<Uint8List> assembleSurfacePayloadBytes(String flowPath) async {
     );
   }
 
-  final screensDir = p.normalize(p.join(p.dirname(flowPath), '..', 'screens'));
+  final screensRoot =
+      screensDir ?? p.normalize(p.join(p.dirname(flowPath), '..', 'screens'));
   final screenBlobs = <String, Uint8List>{};
   final perScreenRequired = <List<LibraryRequirement>>[];
   for (final entry in flowDocument.screenArtifacts.entries) {
-    final blobPath = p.join(screensDir, entry.value.path);
+    final blobPath = p.join(screensRoot, entry.value.path);
     final blobFile = File(blobPath);
     if (!blobFile.existsSync()) {
       throw SurfacePayloadException(
@@ -184,6 +196,68 @@ Future<Uint8List> assembleBlobSurfacePayloadBytes(String rfwPath) async {
     blob: blob,
     requiredLibraries: sidecar.manifest.requiredLibraries,
   ).canonicalBytes;
+}
+
+/// The canonical surface-payload bytes to publish for a paywall, plus an
+/// optional operator-facing capability warning (blob paywalls only — a flow
+/// paywall's per-screen floors are already enforced by the flow assembler).
+typedef PaywallPublishPayload = ({Uint8List bytes, String? capabilityWarning});
+
+/// Resolve the canonical surface-payload bytes to publish for paywall [slug],
+/// detecting whether the paywall is a single blob or a multi-screen flow.
+///
+/// Shape detection under [assetsRoot] (the app's `assets/` directory):
+///  * a flow document at `paywalls/<slug>.flow.json` → assembled through the
+///    flow assembler, reading screen blobs + per-screen capability sidecars
+///    from `onboarding/screens/` (where codegen emits paywall flow-screens),
+///    yielding `FlowSurfacePayload.canonicalBytes`;
+///  * otherwise a single blob at `paywalls/<slug>.rfw` → the single-blob
+///    assembler, yielding `BlobSurfacePayload.canonicalBytes` plus the
+///    publish-time capability warning.
+///
+/// [pathOverride] (the `--path` flag) forces the artifact location; a
+/// `.flow.json` extension selects the flow shape, anything else the blob shape.
+///
+/// Both branches produce the fully-framed canonical bytes the surface store
+/// persists as-is (the backend derives the payload kind from them), so callers
+/// upload the result without re-wrapping it. Throws [SurfacePayloadException]
+/// (ready to print) when the artifact is missing, unreadable, malformed, or a
+/// flow screen's sidecar is missing/stale — the publish fails closed loudly
+/// rather than shipping a broken paywall.
+Future<PaywallPublishPayload> resolvePaywallPublishBytes({
+  required String slug,
+  required String assetsRoot,
+  String? pathOverride,
+}) async {
+  final override = (pathOverride == null || pathOverride.isEmpty)
+      ? null
+      : p.absolute(pathOverride);
+
+  // The one "which shape" decision: an explicit `.flow.json` override, or the
+  // default flow file when it exists. A null result selects the single-blob
+  // shape (resolved on the blob branch below, which is only reachable then).
+  final String? flowPath;
+  if (override != null) {
+    flowPath = override.endsWith('.flow.json') ? override : null;
+  } else {
+    final defaultFlow = p.join(assetsRoot, 'paywalls', '$slug.flow.json');
+    flowPath = File(defaultFlow).existsSync() ? defaultFlow : null;
+  }
+
+  if (flowPath != null) {
+    final bytes = await assembleSurfacePayloadBytes(
+      flowPath,
+      screensDir: p.join(assetsRoot, 'onboarding', 'screens'),
+    );
+    return (bytes: bytes, capabilityWarning: null);
+  }
+
+  final blobPath = override ?? p.join(assetsRoot, 'paywalls', '$slug.rfw');
+  final bytes = await assembleBlobSurfacePayloadBytes(blobPath);
+  final warning = publishCapabilityWarning(
+    await loadCapabilityManifest(blobPath),
+  );
+  return (bytes: bytes, capabilityWarning: warning);
 }
 
 /// The path of the capability-manifest sidecar emitted next to the compiled

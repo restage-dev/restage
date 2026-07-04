@@ -19,7 +19,7 @@ final class NativeCatalogIndex {
       final widgetKey = (widget.library.namespace, widget.wireId);
       _widgetsByRef[widgetKey] = widget;
       _widgetsByName[(widget.library.namespace, widget.name)] = widget;
-      final widgetType = _dartTypeRefFromSource(widget.flutterType);
+      final widgetType = dartTypeRefFromSourceType(widget.flutterType);
       if (widgetType != null) {
         _widgetsByDartType[widgetType] = widget;
       }
@@ -35,7 +35,7 @@ final class NativeCatalogIndex {
     for (final structured in this.catalog.structuredTypes) {
       final structuredKey = (structured.library.namespace, structured.wireId);
       _structuredByRef[structuredKey] = structured;
-      final structuredType = _dartTypeRefFromSource(structured.sourceType);
+      final structuredType = dartTypeRefFromSourceType(structured.sourceType);
       if (structuredType != null) {
         _structuredByDartType[structuredType] = structured;
       }
@@ -193,7 +193,7 @@ final class NativeCatalogIndex {
   }) {
     switch (receiver) {
       case ResultStructuredTypeReceiver():
-        final ref = _dartTypeRefFromSource(resultStructured.sourceType);
+        final ref = dartTypeRefFromSourceType(resultStructured.sourceType);
         if (ref == null) {
           throw StateError(
             "Structured entry '${resultStructured.name}' has malformed "
@@ -202,7 +202,7 @@ final class NativeCatalogIndex {
         }
         return ref;
       case OwningWidgetTypeReceiver():
-        final ref = _dartTypeRefFromSource(owningWidget.flutterType);
+        final ref = dartTypeRefFromSourceType(owningWidget.flutterType);
         if (ref == null) {
           throw StateError(
             "Widget entry '${owningWidget.name}' has malformed flutterType "
@@ -216,7 +216,12 @@ final class NativeCatalogIndex {
   }
 }
 
-DartTypeRef? _dartTypeRefFromSource(String sourceType) {
+/// Parses a catalog `sourceType` / `flutterType` string
+/// (`&lt;library URI&gt;#&lt;class name&gt;[.&lt;member&gt;]`) into a
+/// [DartTypeRef], or `null` when it is malformed.
+/// A pure string parse — no catalog validation — so it is safe to call on a
+/// catalog before (or without) the native-boundary check.
+DartTypeRef? dartTypeRefFromSourceType(String sourceType) {
   final hash = sourceType.indexOf('#');
   if (hash <= 0 || hash == sourceType.length - 1) return null;
   final libraryUri = sourceType.substring(0, hash);

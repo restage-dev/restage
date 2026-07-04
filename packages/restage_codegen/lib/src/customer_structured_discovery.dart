@@ -386,20 +386,33 @@ Iterable<(String, String)> _structuredFieldTargets(ClassElement element) sync* {
 /// [reconVariant], resolved to the same-named analyzer constructor on
 /// [element] — cannot faithfully reconstruct a value by name, else `null`.
 ///
-/// Two obstructions:
+/// Three obstructions:
 ///  * The ctor is a FACTORY. A factory's body may transform its input (an
 ///    un-curated customer `factory Badge.x({required String label}) =>
 ///    Badge.raw(label: 'x:$label')` doubles on round-trip), and the analyzer
 ///    can't see the body, so a factory reconstruction target is not
 ///    round-trip-safe for a customer type. (Built-in splatting factories like
 ///    `BorderRadius.circular` are curated and travel a different path.)
-///  * A REQUIRED param name-matches no field in [fieldNames], so the by-name
-///    reconstructor could not source it (a non-canonical shape like
-///    `Badge({required int c}) : count = c`).
+///  * A NAMED param — required OR optional — name-matches no field in
+///    [fieldNames], so the by-name reconstructor could not source it (a
+///    non-canonical shape like `Badge({required int c}) : count = c`, or
+///    `Badge({int c = 0}) : count = c` — optionality doesn't make a renamed
+///    param sourceable; the reconstructor would still supply `count:`, so a
+///    genuinely-authored value silently reads back as whatever default the
+///    reconstruction ctor gives `count`, never the author's actual value).
+///    Optional POSITIONAL params are exempted here (a trailing extra is
+///    harmless — the positional-hole check guards their emission order).
+///  * A materialized FIELD in [fieldNames] name-matches no ctor parameter.
+///    This is the field-side dual of the param check and closes the POSITIONAL
+///    rename (`Badge([int label = 0]) : count = label`) the positional
+///    exemption above lets slip: the encode sources each field by name, so a
+///    field with no same-named param is dropped and mis-reconstructed. (It
+///    also over-excludes a constant/derived initializer-list field — a
+///    deliberate fail-safe; see the inline note.)
 ///
 /// Returns `null` when [reconVariant] is null (no constructor variant), the
 /// matching analyzer ctor can't be found, or the ctor is a faithful generative
-/// ctor whose every required param maps to a same-named field.
+/// ctor whose params and materialized fields name-match one-to-one.
 ///
 /// The target ctor is derived from [reconstructionVariant] (over the
 /// enumerator's already-filtered, already-sorted variants) rather than
@@ -424,12 +437,49 @@ String? _reconstructionObstruction(
         'faithfully reconstructed by name)';
   }
   for (final parameter in ctor.formalParameters) {
-    if (!parameter.isRequired) continue;
     final name = parameter.name;
     if (name == null || name.isEmpty) continue;
+    // A trailing OPTIONAL positional with no matching field is a deliberately
+    // admitted shape (the reconstructor simply omits it — see the
+    // positional-hole check below); an UNMAPPED optional positional is only a
+    // problem when it precedes a mapped one (a hole), which that check
+    // catches regardless of required-ness. A NAMED param, by contrast, can be
+    // supplied deliberately by the author regardless of position, so a
+    // name-mismatch is caught here whether it's required or optional — an
+    // optional renamed param (e.g. `Badge({int label = 0}) : count = label`)
+    // would otherwise silently feed `count` from a name the reconstructor
+    // never supplies, reading back as whatever default the ctor gives it.
+    if (parameter.isPositional && !parameter.isRequired) continue;
     if (!fieldNames.contains(name)) {
       return 'ctor parameter "$name" has no matching field '
           '(non-canonical shape)';
+    }
+  }
+  // Field -> param (the encode's exact requirement, checked from the FIELD
+  // side): the encode sources each materialized field BY NAME
+  // (`argRefByField[field.name]` in the value emitter), so every field MUST
+  // have a same-named parameter on the reconstruction ctor to be carried on
+  // the wire. A field with no same-named param is dropped by the encode and
+  // read back as whatever the ctor produces without it. The param loop above
+  // exempts OPTIONAL POSITIONAL params (a trailing extra is harmless), so a
+  // POSITIONAL rename (`Badge([int label = 0]) : count = label`) slips past
+  // it — it is caught here, uniformly with the named rename. This also
+  // excludes a materialized field fed by a constant/derived initializer with
+  // no same-named param (e.g. `: kind = 'default'`), which would in fact
+  // round-trip faithfully — a deliberate fail-safe over-exclusion (the shape
+  // is uncommon for a value object, the exclusion is loud, and the author's
+  // fix is trivial: expose the field as a ctor parameter — `{this.kind =
+  // 'default'}`).
+  final ctorParamNames = {
+    for (final parameter in ctor.formalParameters)
+      if (parameter.name case final paramName? when paramName.isNotEmpty)
+        paramName,
+  };
+  for (final fieldName in fieldNames) {
+    if (fieldName == null || fieldName.isEmpty) continue;
+    if (!ctorParamNames.contains(fieldName)) {
+      return 'materialized field "$fieldName" has no matching reconstruction '
+          'constructor parameter (non-canonical shape)';
     }
   }
   // Positional-hole: the reconstructor omits an UNMAPPED (non-field) positional

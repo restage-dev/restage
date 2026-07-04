@@ -141,9 +141,9 @@ void main() {
   test('the production builder emits all corpus artifacts cleanly', () {
     expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
     expect(result.errors, isEmpty);
-    // 8 sources x 4 artifacts (.rfwtxt + .rfw + .capability.json + onboarding
-    // paywall_<id>.rfw).
-    expect(result.outputs.length, _paywallIds.length * 4);
+    // Each source emits 5 artifacts (.rfwtxt + .rfw + .capability.json +
+    // onboarding paywall_<id>.rfw + its paywall_<id>.capability.json sidecar).
+    expect(result.outputs.length, _paywallIds.length * 5);
   });
 
   group('blob byte-goldens', () {
@@ -160,10 +160,23 @@ void main() {
             'assets/onboarding/screens/paywall_$id.rfw',
           ),
         );
+        // The paywall-as-flow-screen's capability sidecar — a hosted flow
+        // publish reads it to union each screen's required libraries.
+        final onboardingCapability = rw.testing.readString(
+          AssetId(
+            _mountPackage,
+            'assets/onboarding/screens/paywall_$id.capability.json',
+          ),
+        );
 
         _expectStringGolden('$id.rfwtxt', rfwtxt, regen: regen);
         _expectBytesGolden('$id.rfw', rfw, regen: regen);
         _expectBytesGolden('paywall_$id.rfw', onboarding, regen: regen);
+        _expectStringGolden(
+          'paywall_$id.capability.json',
+          onboardingCapability,
+          regen: regen,
+        );
       });
     }
   });
@@ -212,6 +225,20 @@ void main() {
       _expectBytesGolden(
         'paywall_fluent_pro_choose_plan.rfw',
         bytes('assets/onboarding/screens/paywall_fluent_pro_choose_plan.rfw'),
+        regen: regen,
+      );
+      // Each flow screen's capability sidecar — what the hosted flow publish
+      // reads to union the screens' required libraries.
+      _expectStringGolden(
+        'paywall_fluent_pro.capability.json',
+        text('assets/onboarding/screens/paywall_fluent_pro.capability.json'),
+        regen: regen,
+      );
+      _expectStringGolden(
+        'paywall_fluent_pro_choose_plan.capability.json',
+        text(
+          'assets/onboarding/screens/paywall_fluent_pro_choose_plan.capability.json',
+        ),
         regen: regen,
       );
     });
