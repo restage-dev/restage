@@ -121,6 +121,7 @@ final class RestageCodegenBuilder implements Builder {
           '$_kOutputDir/{{name}}.capability.json',
           '$_kOutputDir/{{name}}.navplan.json',
           '$_kOnboardingScreenOutputDir/paywall_{{name}}.rfw',
+          '$_kOnboardingScreenOutputDir/paywall_{{name}}.capability.json',
         ],
         '$_kSourceDir/{{name}}.rfwtxt': [
           '$_kOutputDir/{{name}}.rfw',
@@ -354,33 +355,57 @@ final class RestageCodegenBuilder implements Builder {
             catalog,
           );
           if (validationIssues.isEmpty) {
-            final onboardingScreenBytes =
-                fmt.encodeLibraryBlob(onboardingScreenLibrary);
-            writes.add(
-              buildStep.writeAsBytes(
-                AssetId(
-                  assetId.package,
-                  '$_kOnboardingScreenOutputDir/paywall_$stem.rfw',
-                ),
-                onboardingScreenBytes,
-              ),
-            );
-            // NOTE: no capability sidecar is emitted for a paywall rendered as
-            // a flow screen (`paywall_<stem>.capability.json`). Its only
-            // consumer is a navigation-paywall HOSTED flow publish, which is
-            // deferred (the bundled flow controller reads the blob directly,
-            // not a sidecar). Tracked as a follow-up to land with that.
-            final navigation = adapterTranslation.navigation;
-            if (navigation != null) {
-              writes.add(
-                buildStep.writeAsString(
-                  AssetId(
-                    assetId.package,
-                    '$_kOutputDir/$stem.navplan.json',
+            final derivation =
+                deriveCapabilityManifest(onboardingScreenLibrary, catalog);
+            if (derivation.issues.isNotEmpty) {
+              // A screen referencing a custom library that declares no
+              // capability version fails the build (fail-when-referenced) — the
+              // same posture the standalone paywall path takes above.
+              _addIssues(state.issues, derivation.issues);
+            } else {
+              final onboardingScreenBytes =
+                  fmt.encodeLibraryBlob(onboardingScreenLibrary);
+              writes
+                ..add(
+                  buildStep.writeAsBytes(
+                    AssetId(
+                      assetId.package,
+                      '$_kOnboardingScreenOutputDir/paywall_$stem.rfw',
+                    ),
+                    onboardingScreenBytes,
                   ),
-                  _jsonEncoder.convert(navigation.toJson()),
-                ),
-              );
+                )
+                // The paywall-as-flow-screen carries its own capability sidecar
+                // (`paywall_<stem>.capability.json`), so a hosted flow publish
+                // can union every screen's required libraries via the same
+                // per-screen sidecar the flow assembler reads.
+                ..add(
+                  buildStep.writeAsString(
+                    AssetId(
+                      assetId.package,
+                      '$_kOnboardingScreenOutputDir/paywall_$stem.capability.json',
+                    ),
+                    _jsonEncoder.convert(
+                      CapabilitySidecar(
+                        blobSha256:
+                            CapabilitySidecar.hashBlob(onboardingScreenBytes),
+                        manifest: derivation.manifest!,
+                      ).toJson(),
+                    ),
+                  ),
+                );
+              final navigation = adapterTranslation.navigation;
+              if (navigation != null) {
+                writes.add(
+                  buildStep.writeAsString(
+                    AssetId(
+                      assetId.package,
+                      '$_kOutputDir/$stem.navplan.json',
+                    ),
+                    _jsonEncoder.convert(navigation.toJson()),
+                  ),
+                );
+              }
             }
           } else {
             _addIssues(state.issues, validationIssues);

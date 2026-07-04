@@ -33,6 +33,9 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
     required this.flow,
     required this.paywallId,
     this.paywallPublishedVersion,
+    this.experimentId,
+    this.variantId,
+    this.resolvedFromActiveArm = false,
   });
 
   final ResolvedFlow flow;
@@ -40,6 +43,24 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
 
   /// Server-assigned published version (null for a bundled/custom resolution).
   final int? paywallPublishedVersion;
+
+  /// Server-selected experiment id, when the served artifact is an experiment
+  /// arm (null for a bundled/custom resolution). Threaded onto `PaywallViewed`
+  /// so a hosted flow-paywall conversion attributes to the experiment arm, at
+  /// parity with the blob active path.
+  final String? experimentId;
+
+  /// Server-selected variant id, when the served artifact is an experiment arm
+  /// (null for a bundled/custom resolution). Rides the same assignment metadata
+  /// as [experimentId]; threaded onto `PaywallViewed` for A/B attribution parity
+  /// with the blob active path.
+  final String? variantId;
+
+  /// Whether this payload was resolved from the hosted active arm (vs a bundled
+  /// or custom resolution). The runtime `cacheLastRender` fallback must not
+  /// independently re-host an active-resolved flow un-re-gated — it defers to
+  /// the resolver's own re-gated hold-last-good; a bundled flow re-hosts freely.
+  final bool resolvedFromActiveArm;
 }
 
 /// SDK-internal capability the built-in resolvers expose so the present path

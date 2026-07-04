@@ -512,6 +512,8 @@ class ChoosePlan extends StatelessWidget {
             contains('event "restageNav0" {}'),
           ),
           'apps_examples|assets/paywalls/entry.rfw': isNotEmpty,
+          'apps_examples|assets/onboarding/screens/paywall_entry.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_entry.rfw':
               isNotEmpty,
           'apps_examples|assets/paywalls/entry.navplan.json':
@@ -611,6 +613,8 @@ class EntryPaywall extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
+          'apps_examples|assets/onboarding/screens/paywall_entry.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_entry.rfw':
               const _RfwBlobContainsMatcher('event back {}'),
         },

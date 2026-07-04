@@ -40,6 +40,45 @@ String _blobFrameWire(List<int> blob) {
   return _byteDataWire(canonical);
 }
 
+/// A stored flow-shaped paywall frame (a navigation-lowered paywall): the
+/// canonical [FlowSurfacePayload] bytes for a minimal one-screen flow, in the
+/// ByteData wire form. Used to prove `load` degrades on a flow paywall instead
+/// of crashing on a blob cast.
+String _flowFrameWire() {
+  final blob = Uint8List.fromList(utf8.encode('rfw-screen-blob'));
+  final json = <String, Object?>{
+    'flow': 'demo_flow',
+    'initial': 'a',
+    'minClient': 1,
+    'schemaVersion': 1,
+    'screenArtifacts': {
+      'a': {
+        'contentHash': CapabilitySidecar.hashBlob(blob),
+        'minClient': 1,
+        'path': 'a.rfw',
+        'schemaVersion': 1,
+        'version': 1,
+      },
+    },
+    'states': {
+      'a': {
+        'kind': 'screen',
+        'screen': 'a',
+        'on': {
+          'go': {'target': 'done', 'type': 'goto'},
+        },
+      },
+      'done': {'kind': 'end', 'result': <String, Object?>{}},
+    },
+    'version': 1,
+  };
+  final canonical = FlowSurfacePayload(
+    flowDocument: FlowDocumentCodec.decodeJson(jsonEncode(json)),
+    screenBlobs: {'a': blob},
+  ).canonicalBytes;
+  return _byteDataWire(canonical);
+}
+
 void main() {
   group('PaywallApi.list', () {
     test('sends a surface/list POST (surfaceType: paywall) and adapts the '
@@ -89,21 +128,24 @@ void main() {
   });
 
   group('PaywallApi.save', () {
-    test('wraps the bytes in a BlobSurfacePayload and posts surface/save '
-        '(surfaceType: paywall)', () async {
+    test('uploads the caller-framed canonical bytes verbatim to surface/save '
+        '(surfaceType: paywall) — byte-transparent, no re-framing', () async {
       late Map<String, dynamic> seenBody;
       final client = MockClient((request) async {
         seenBody = jsonDecode(request.body) as Map<String, dynamic>;
         return http.Response('null', 200);
       });
 
-      final bytes = Uint8List.fromList(<int>[1, 2, 3, 4, 5]);
+      final blob = Uint8List.fromList(<int>[1, 2, 3, 4, 5]);
+      final canonical = BlobSurfacePayload(
+        minClient: _testMinClient,
+        blob: blob,
+      ).canonicalBytes;
       await PaywallApi(_apiWithClient(client)).save(
         project: 'demo',
         app: 'mobile',
         paywall: 'hello',
-        bytes: bytes,
-        minClient: _testMinClient,
+        canonicalBytes: canonical,
       );
 
       expect(seenBody['method'], 'save');
@@ -112,15 +154,18 @@ void main() {
       expect(seenBody['appSlug'], 'mobile');
       expect(seenBody['surfaceSlug'], 'hello');
 
-      // The wire `bytes` is the canonical BlobSurfacePayload frame; decode it
-      // back and assert the inner blob round-trips the input.
+      // Byte-transparent: the wire `bytes` are exactly the canonical frame the
+      // caller supplied (a flow frame would pass through identically), so the
+      // paywall save layer can never re-wrap a flow paywall inside a blob.
       final wireBytes = seenBody['bytes'] as String;
       expect(wireBytes, startsWith("decode('"));
       expect(wireBytes, endsWith("', 'base64')"));
       final base64Slice = wireBytes.substring(8, wireBytes.length - 12);
-      final payload = SurfacePayload.decode(base64Decode(base64Slice));
+      final decoded = base64Decode(base64Slice);
+      expect(decoded, orderedEquals(canonical));
+      final payload = SurfacePayload.decode(decoded);
       expect(payload, isA<BlobSurfacePayload>());
-      expect((payload as BlobSurfacePayload).blob, equals(bytes));
+      expect((payload as BlobSurfacePayload).blob, equals(blob));
       expect(payload.minClient, _testMinClient);
     });
   });
@@ -218,6 +263,29 @@ void main() {
       ).load(project: 'd', app: 'm', paywall: 'h');
 
       expect(result, equals(Uint8List.fromList(<int>[0])));
+    });
+
+    test('fails loud with a clear Exception on a flow paywall '
+        '(no blob-cast crash)', () async {
+      // A navigation-lowered paywall is stored as a FlowSurfacePayload; it has
+      // no single inner blob to download. `load` must fail loud with a
+      // catchable Exception, not crash on a raw `as BlobSurfacePayload` cast.
+      final client = MockClient(
+        (_) async => http.Response(jsonEncode(_flowFrameWire()), 200),
+      );
+
+      await expectLater(
+        () => PaywallApi(
+          _apiWithClient(client),
+        ).load(project: 'd', app: 'm', paywall: 'flow-pw'),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString().toLowerCase(),
+            'message',
+            contains('flow'),
+          ),
+        ),
+      );
     });
   });
 

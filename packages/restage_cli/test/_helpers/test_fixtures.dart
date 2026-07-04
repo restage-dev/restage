@@ -166,6 +166,73 @@ Future<String> seedSurfaceFlow(
   return flowPath;
 }
 
+/// Copy the real `fluent_pro` navigation-lowered paywall flow into [dir]
+/// under the codegen on-disk layout — the flow document at
+/// `assets/paywalls/<slug>.flow.json` and its screen blobs (+ capability
+/// sidecars) at `assets/onboarding/screens/`.
+///
+/// Unlike [seedSurfaceFlow], a paywall flow's screens do NOT sit in a sibling
+/// `screens/` directory next to the flow; they share the onboarding screens
+/// directory. This mirrors what codegen emits (`_kPaywallOutputDir` vs
+/// `_kScreenOutputDir`), so a paywall flow publish must point the assembler at
+/// the onboarding screens directory rather than the default sibling.
+///
+/// Returns the resolved flow JSON path. When [dropSidecarFor] is a screen
+/// artifact path, that screen's `.capability.json` sidecar is NOT copied, so
+/// the flow assembler fails closed (the missing-sidecar case).
+Future<String> seedPaywallFlow(
+  Directory dir, {
+  String slug = 'fluent_pro',
+  String? dropSidecarFor,
+}) async {
+  final assetsRoot = locateOnboardingFixtures().parent;
+  final paywallsDst = Directory(p.join(dir.path, 'assets', 'paywalls'));
+  final screensDst = Directory(
+    p.join(dir.path, 'assets', 'onboarding', 'screens'),
+  );
+  await paywallsDst.create(recursive: true);
+  await screensDst.create(recursive: true);
+
+  final flowJson = await File(
+    p.join(assetsRoot.path, 'paywalls', '$slug.flow.json'),
+  ).readAsString();
+  final flowPath = p.join(paywallsDst.path, '$slug.flow.json');
+  await File(flowPath).writeAsString(flowJson);
+
+  final doc = FlowDocumentCodec.decodeJson(flowJson);
+  for (final artifact in doc.screenArtifacts.values) {
+    await File(
+      p.join(assetsRoot.path, 'onboarding', 'screens', artifact.path),
+    ).copy(p.join(screensDst.path, artifact.path));
+    if (artifact.path == dropSidecarFor) continue;
+    final sidecarName =
+        '${p.basenameWithoutExtension(artifact.path)}.capability.json';
+    await File(
+      p.join(assetsRoot.path, 'onboarding', 'screens', sidecarName),
+    ).copy(p.join(screensDst.path, sidecarName));
+  }
+  return flowPath;
+}
+
+/// Copy a real blob-shaped paywall (a single `.rfw` plus its capability
+/// sidecar) into [dir] at `assets/paywalls/<slug>.rfw`. A blob paywall has no
+/// `<slug>.flow.json`, so a publish resolves it through the single-blob
+/// assembler.
+Future<void> seedPaywallBlob(
+  Directory dir, {
+  String slug = 'ascend_premium',
+}) async {
+  final assetsRoot = locateOnboardingFixtures().parent;
+  final paywallsDst = Directory(p.join(dir.path, 'assets', 'paywalls'));
+  await paywallsDst.create(recursive: true);
+  await File(
+    p.join(assetsRoot.path, 'paywalls', '$slug.rfw'),
+  ).copy(p.join(paywallsDst.path, '$slug.rfw'));
+  await File(
+    p.join(assetsRoot.path, 'paywalls', '$slug.capability.json'),
+  ).copy(p.join(paywallsDst.path, '$slug.capability.json'));
+}
+
 /// Build an [http.Client] that returns the same response for every
 /// request, computed by [handler]. Useful when the test only cares
 /// about a single round-trip.

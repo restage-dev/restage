@@ -176,6 +176,101 @@ void main() {
       },
     );
 
+    test('paywall flow: a flow-shaped paywall routes through the flow assembler '
+        'and uploads a FlowSurfacePayload (not a dead-nav blob)', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+      );
+      // A nav-lowered paywall: a flow document at assets/paywalls/<slug>.flow.json
+      // whose screens live under assets/onboarding/screens/.
+      await seedPaywallFlow(tempDir, slug: 'fluent_pro');
+
+      var saveCalls = 0;
+      var publishCalls = 0;
+      final client = scriptedHttpClient([
+        (req) {
+          saveCalls++;
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'save');
+          expect(body['surfaceType'], 'paywall');
+          expect(body['surfaceSlug'], 'fluent_pro');
+          final wire = body['bytes'] as String;
+          final b64 = wire.substring(
+            "decode('".length,
+            wire.length - "', 'base64')".length,
+          );
+          final payload = SurfacePayload.decode(base64Decode(b64));
+          // The whole point: a flow paywall uploads a FlowSurfacePayload,
+          // never the flattened single-entry blob whose nav button fires
+          // restageNav0 into no graph.
+          expect(payload, isA<FlowSurfacePayload>());
+          return http.Response('null', 200);
+        },
+        (req) {
+          publishCalls++;
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'publish');
+          return http.Response('1', 200);
+        },
+      ]);
+
+      final exitCode = await runArgs([
+        'surface',
+        'publish',
+        'fluent_pro',
+        '--type',
+        'paywall',
+        '-C',
+        tempDir.path,
+      ], client: client);
+
+      expect(exitCode, 0);
+      expect(saveCalls, 1);
+      expect(publishCalls, 1);
+    });
+
+    test('paywall flow: fails closed loudly (exit 1) when a screen sidecar is '
+        'missing — never publishes a partial flow', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+      );
+      await seedPaywallFlow(
+        tempDir,
+        slug: 'fluent_pro',
+        dropSidecarFor: 'paywall_fluent_pro_choose_plan.rfw',
+      );
+
+      var saveCalls = 0;
+      final client = scriptedHttpClient([
+        (req) {
+          saveCalls++;
+          return http.Response('null', 200);
+        },
+      ]);
+
+      final exitCode = await runArgs([
+        'surface',
+        'publish',
+        'fluent_pro',
+        '--type',
+        'paywall',
+        '-C',
+        tempDir.path,
+      ], client: client);
+
+      expect(exitCode, 1);
+      expect(saveCalls, 0);
+      expect(stderr.toString(), contains('capability'));
+    });
+
     test('--type paywall is now advertised in the valid-values list', () async {
       await seedCredential(store);
       await seedRestageConfig(

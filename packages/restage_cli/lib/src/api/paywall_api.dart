@@ -50,32 +50,29 @@ class PaywallApi {
     ];
   }
 
-  /// Upload [bytes] as the draft for (project, app, paywall), wrapped in the
-  /// canonical [BlobSurfacePayload] frame the surface store expects, stamping
-  /// the **derived** capability floor [minClient] and [requiredLibraries] the
-  /// codegen recorded for the surface. The backend creates the surface row on
+  /// Upload [canonicalBytes] as the draft for (project, app, paywall).
+  ///
+  /// The bytes are the already-framed canonical surface payload the caller
+  /// assembled — a [BlobSurfacePayload] frame for a single-blob paywall, or a
+  /// [FlowSurfacePayload] frame for a multi-screen (navigation-lowered) paywall.
+  /// They are uploaded verbatim (the surface store persists them as-is and the
+  /// backend derives the payload kind from them), so a flow paywall is never
+  /// re-wrapped inside a blob frame. The backend creates the surface row on
   /// first write; subsequent calls replace the draft with last-write-wins
   /// semantics.
   Future<void> save({
     required String project,
     required String app,
     required String paywall,
-    required Uint8List bytes,
-    required int minClient,
-    List<LibraryRequirement> requiredLibraries = const [],
+    required Uint8List canonicalBytes,
     int? organizationId,
   }) async {
-    final canonical = BlobSurfacePayload(
-      minClient: minClient,
-      blob: bytes,
-      requiredLibraries: requiredLibraries,
-    ).canonicalBytes;
     await _surface.save(
       project: project,
       app: app,
       surfaceType: SurfaceType.paywall,
       surfaceSlug: paywall,
-      bytes: canonical,
+      bytes: canonicalBytes,
       organizationId: organizationId,
     );
   }
@@ -122,6 +119,10 @@ class PaywallApi {
   /// Download the compiled draft blob for (project, app, paywall) — the inner
   /// blob, unwrapped from its [BlobSurfacePayload] frame. A never-saved paywall
   /// returns the backend's 1-byte skeleton unchanged.
+  ///
+  /// Throws an [Exception] for a navigation-lowered paywall (stored as a
+  /// [FlowSurfacePayload]), which has no single inner blob to download — the
+  /// caller surfaces a clear message instead of crashing on a blob cast.
   Future<Uint8List> load({
     required String project,
     required String app,
@@ -140,6 +141,16 @@ class PaywallApi {
     if (frame.length <= 1) {
       return frame;
     }
-    return (SurfacePayload.decode(frame) as BlobSurfacePayload).blob;
+    final payload = SurfacePayload.decode(frame);
+    if (payload is! BlobSurfacePayload) {
+      // A flow-shaped (navigation-lowered) paywall has no single inner blob.
+      // Fail loud with a catchable Exception rather than crashing on a raw
+      // `as BlobSurfacePayload` cast (an uncaught TypeError).
+      throw Exception(
+        'Paywall "$paywall" is a multi-screen flow and cannot be downloaded '
+        'as a single blob. Flow paywalls render on device via the SDK.',
+      );
+    }
+    return payload.blob;
   }
 }

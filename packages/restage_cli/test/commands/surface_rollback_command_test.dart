@@ -382,13 +382,13 @@ void main() {
     );
 
     test(
-      '(i) a flow-shaped paywall target (unsupportedTargetShape) is refused at '
-      'the preflight — exits 1, rollback NOT called',
+      '(i) a flow-shaped paywall target rolls back — the preflight classifies '
+      'it (compatible) and the command proceeds to confirm + execute',
       () async {
         var rollbackCalled = false;
         final client = scriptedHttpClient([
-          (_) => statusResponse(),
-          (_) => preflightResponse(classification: 'unsupportedTargetShape'),
+          (_) => statusResponse(deliveryShape: 'flow'),
+          (_) => preflightResponse(), // compatible
           (req) {
             final body = jsonDecode(req.body) as Map<String, dynamic>;
             if (body['method'] == 'rollbackSurface') rollbackCalled = true;
@@ -403,10 +403,9 @@ void main() {
           httpClient: client,
         ).run(baseArgs());
 
-        expect(code, 1);
-        expect(err.toString(), contains('flow-shaped version'));
-        expect(err.toString(), contains("isn't"));
-        expect(rollbackCalled, isFalse);
+        expect(code, 0);
+        expect(rollbackCalled, isTrue);
+        expect(err.toString(), isNot(contains('flow-shaped')));
       },
     );
 
@@ -441,8 +440,8 @@ void main() {
     );
 
     test(
-      '(k) a backend SurfaceRollbackUnsupportedException (defense-in-depth) '
-      'prints the residual flow-shaped-paywall message and exits 1',
+      '(k) a backend SurfaceRollbackUnsupportedException (an undecodable/corrupt '
+      'target) prints the data-integrity message and exits 1',
       () async {
         final unsupportedBody = jsonEncode({
           'className': 'SurfaceRollbackUnsupportedException',
@@ -453,9 +452,10 @@ void main() {
         });
         final client = scriptedHttpClient([
           (_) => statusResponse(),
-          // The preflight says compatible, but the backend still refuses (a
-          // race / poisoned row) — the error renderer must use the residual
-          // wording, not the retired "active-flow delivery" message.
+          // The preflight classifies the target, but the backend fails closed on
+          // an undecodable/corrupt target version (the data-integrity guard) —
+          // the error renderer must use the corrupt-target wording, not the
+          // retired flow-shaped-paywall "isn't supported yet" message.
           (_) => preflightResponse(),
           (_) => http.Response(unsupportedBody, 400),
         ]);
@@ -468,7 +468,8 @@ void main() {
         ).run(baseArgs());
 
         expect(code, 1);
-        expect(err.toString(), contains('flow-shaped version'));
+        expect(err.toString(), contains('corrupt'));
+        expect(err.toString(), isNot(contains('flow-shaped')));
         expect(err.toString(), isNot(contains('active-flow delivery')));
       },
     );

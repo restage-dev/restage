@@ -69,6 +69,35 @@ class ResolvedVariant {
   /// Whether the bytes came from a local cache rather than a fresh fetch.
   final bool cacheHit;
 
+  /// Returns a copy with the given fields overridden; every un-passed field is
+  /// preserved. Adding a field to [ResolvedVariant] carries it through here
+  /// automatically, so a re-emit (e.g. marking a cache hit) can never silently
+  /// drop a field.
+  ///
+  /// Override-or-preserve: a nullable field cannot be *cleared* to null through
+  /// this method (a passed null reads as "not overridden"). That is not needed —
+  /// the only re-emit in the runtime overrides [cacheHit] and preserves the
+  /// rest.
+  ResolvedVariant copyWith({
+    Uint8List? bytes,
+    String? paywallId,
+    String? variantId,
+    String? experimentId,
+    String? paywallVersion,
+    int? paywallPublishedVersion,
+    bool? cacheHit,
+  }) =>
+      ResolvedVariant(
+        bytes: bytes ?? this.bytes,
+        paywallId: paywallId ?? this.paywallId,
+        variantId: variantId ?? this.variantId,
+        experimentId: experimentId ?? this.experimentId,
+        paywallVersion: paywallVersion ?? this.paywallVersion,
+        paywallPublishedVersion:
+            paywallPublishedVersion ?? this.paywallPublishedVersion,
+        cacheHit: cacheHit ?? this.cacheHit,
+      );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

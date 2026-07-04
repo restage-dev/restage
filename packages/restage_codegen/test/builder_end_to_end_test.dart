@@ -48,6 +48,8 @@ void main() {
             ),
           ),
           'apps_examples|assets/paywalls/hello.rfw': isNotEmpty,
+          'apps_examples|assets/onboarding/screens/paywall_hello.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_hello.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -87,6 +89,16 @@ void main() {
           // A built-in-only paywall derives a baseline floor and no required
           // custom libraries; the sidecar carries the manifest to the publisher.
           'apps_examples|assets/paywalls/cap.capability.json': decodedMatches(
+            allOf(
+              contains('"builtInFloor": 1'),
+              contains('"requiredLibraries": []'),
+            ),
+          ),
+          // The paywall-as-flow-screen carries its OWN sidecar too, so the CLI
+          // flow union declares every library the screen needs when the paywall
+          // is hosted-published as a flow.
+          'apps_examples|assets/onboarding/screens/paywall_cap.capability.json':
+              decodedMatches(
             allOf(
               contains('"builtInFloor": 1'),
               contains('"requiredLibraries": []'),
@@ -188,6 +200,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/clipped_box.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/clipped_box.capability.json': anything,
+          'apps_examples|assets/onboarding/screens/paywall_clipped_box.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_clipped_box.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -253,6 +267,8 @@ widget Paywall = AcmeBanner();
           'apps_examples|assets/paywalls/constrained_box.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/constrained_box.capability.json':
               anything,
+          'apps_examples|assets/onboarding/screens/paywall_constrained_box.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_constrained_box.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -311,6 +327,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/sized_button.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/sized_button.capability.json':
+              anything,
+          'apps_examples|assets/onboarding/screens/paywall_sized_button.capability.json':
               anything,
           'apps_examples|assets/onboarding/screens/paywall_sized_button.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
@@ -373,6 +391,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/sided_button.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/sided_button.capability.json':
+              anything,
+          'apps_examples|assets/onboarding/screens/paywall_sided_button.capability.json':
               anything,
           'apps_examples|assets/onboarding/screens/paywall_sided_button.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
@@ -446,6 +466,8 @@ widget Paywall = AcmeBanner();
           'apps_examples|assets/paywalls/styled_button.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/styled_button.capability.json':
               anything,
+          'apps_examples|assets/onboarding/screens/paywall_styled_button.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_styled_button.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -497,6 +519,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/spaced_stack.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/spaced_stack.capability.json':
+              anything,
+          'apps_examples|assets/onboarding/screens/paywall_spaced_stack.capability.json':
               anything,
           'apps_examples|assets/onboarding/screens/paywall_spaced_stack.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
@@ -557,6 +581,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/tinted_hero.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/tinted_hero.capability.json': anything,
+          'apps_examples|assets/onboarding/screens/paywall_tinted_hero.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_tinted_hero.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -615,6 +641,8 @@ widget Paywall = AcmeBanner();
           'apps_examples|assets/paywalls/clipped_text.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/clipped_text.capability.json':
               anything,
+          'apps_examples|assets/onboarding/screens/paywall_clipped_text.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_clipped_text.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -665,6 +693,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/clipped_card.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/clipped_card.capability.json':
+              anything,
+          'apps_examples|assets/onboarding/screens/paywall_clipped_card.capability.json':
               anything,
           'apps_examples|assets/onboarding/screens/paywall_clipped_card.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
@@ -741,6 +771,8 @@ widget Paywall = AcmeBanner();
               decodedMatches(contains('widget Paywall =')),
           'apps_examples|assets/paywalls/round_trip.rfw':
               const _RoundTripMatcher(),
+          'apps_examples|assets/onboarding/screens/paywall_round_trip.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_round_trip.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -809,6 +841,8 @@ widget Paywall = AcmeBanner();
           // config — the substitution survives the encode/decode round-trip.
           'apps_examples|assets/paywalls/price_tag.rfw':
               const _SubstitutedPriceMatcher(),
+          'apps_examples|assets/onboarding/screens/paywall_price_tag.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_price_tag.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -866,6 +900,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/price_string.rfw':
               const _TextRichPriceStringMatcher(),
+          'apps_examples|assets/onboarding/screens/paywall_price_string.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_price_string.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -918,6 +954,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/carousel.rfw':
               const _PagerMatcher(childCount: 3),
+          'apps_examples|assets/onboarding/screens/paywall_carousel.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_carousel.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -971,6 +1009,8 @@ widget Paywall = AcmeBanner();
             initialPage: 1,
             viewportFraction: 0.85,
           ),
+          'apps_examples|assets/onboarding/screens/paywall_carousel_ctrl.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_carousel_ctrl.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1077,6 +1117,8 @@ widget Paywall = AcmeBanner();
             ],
             selected: 'annual',
           ),
+          'apps_examples|assets/onboarding/screens/paywall_plan_radio.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_plan_radio.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1147,8 +1189,9 @@ widget Paywall = AcmeBanner();
             ],
             selected: 'usd',
           ),
-          'apps_examples|'
-                  'assets/onboarding/screens/paywall_currency_dropdown.rfw':
+          'apps_examples|assets/onboarding/screens/paywall_currency_dropdown.capability.json':
+              anything,
+          'apps_examples|assets/onboarding/screens/paywall_currency_dropdown.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
       );
@@ -1255,6 +1298,8 @@ widget Paywall = AcmeBanner();
             ]),
           ),
           'apps_examples|assets/paywalls/view_segments.rfw': anything,
+          'apps_examples|assets/onboarding/screens/paywall_view_segments.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_view_segments.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1359,6 +1404,8 @@ widget Paywall = AcmeBanner();
           // the .rfwtxt above).
           'apps_examples|assets/paywalls/drag_sheet.rfw':
               const _RootWidgetMatcher('Paywall'),
+          'apps_examples|assets/onboarding/screens/paywall_drag_sheet.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_drag_sheet.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1455,6 +1502,8 @@ widget Paywall = AcmeBanner();
             ),
           ),
           'apps_examples|assets/paywalls/icon_canary.rfw': isNotEmpty,
+          'apps_examples|assets/onboarding/screens/paywall_icon_canary.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_icon_canary.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1551,6 +1600,8 @@ widget Paywall = AcmeBanner();
             ),
           ),
           'apps_examples|assets/paywalls/mixed_shapes.rfw': isNotEmpty,
+          'apps_examples|assets/onboarding/screens/paywall_mixed_shapes.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_mixed_shapes.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1603,6 +1654,8 @@ widget Paywall = AcmeBanner();
             ),
           ),
           'apps_examples|assets/paywalls/const_local.rfw': isNotEmpty,
+          'apps_examples|assets/onboarding/screens/paywall_const_local.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_const_local.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1691,6 +1744,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/stateful_toggle.rfw':
               const _StatefulRootMatcher('Paywall', {'annual': false}),
+          'apps_examples|assets/onboarding/screens/paywall_stateful_toggle.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_stateful_toggle.rfw':
               const _StatefulRootMatcher('OnboardingScreen', {
             'annual': false,
@@ -1763,6 +1818,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/state_price_string.rfw':
               const _TextRichStateStringMatcher(),
+          'apps_examples|assets/onboarding/screens/paywall_state_price_string.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_state_price_string.rfw':
               const _StatefulRootMatcher('OnboardingScreen', {
             'trialLabel': '7 days free',
@@ -1879,6 +1936,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/hero_image.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/hero_image.capability.json': anything,
+          'apps_examples|assets/onboarding/screens/paywall_hero_image.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_hero_image.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },
@@ -1940,6 +1999,8 @@ widget Paywall = AcmeBanner();
           ),
           'apps_examples|assets/paywalls/anim_hero.rfw': isNotEmpty,
           'apps_examples|assets/paywalls/anim_hero.capability.json': anything,
+          'apps_examples|assets/onboarding/screens/paywall_anim_hero.capability.json':
+              anything,
           'apps_examples|assets/onboarding/screens/paywall_anim_hero.rfw':
               const _RootWidgetMatcher('OnboardingScreen'),
         },

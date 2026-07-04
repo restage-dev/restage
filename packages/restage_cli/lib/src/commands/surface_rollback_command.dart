@@ -178,10 +178,11 @@ class SurfaceRollbackCommand extends Command<int> {
         return 1;
       }
 
-      // Step 9.5: PREFLIGHT — an informational cohort-impact preview. A
-      // flow-shaped paywall target is refused here; every other classification
-      // is surfaced in the impact line so the operator sees the cohort risk
-      // before confirming.
+      // Step 9.5: PREFLIGHT — an informational cohort-impact preview folded into
+      // the confirm prompt so the operator sees the cohort risk before
+      // confirming. Every surface shape rolls back now (a flow-shaped paywall
+      // target reaches the hosted paywall flow active arm); the preflight
+      // classifies but never blocks.
       final RollbackPreflightResult preflight;
       try {
         preflight = await SurfaceApi(api).rollbackPreflight(
@@ -194,11 +195,6 @@ class SurfaceRollbackCommand extends Command<int> {
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);
-      }
-      if (preflight.classification ==
-          RollbackPreflightClassification.unsupportedTargetShape) {
-        _stderr.writeln(_rollbackUnsupportedMessage(surfaceType));
-        return 1;
       }
 
       // Step 10: build the impact line + the cohort-impact note.
@@ -265,9 +261,9 @@ class SurfaceRollbackCommand extends Command<int> {
   int _renderError(RestageApiException e, SurfaceType surfaceType) {
     final surface = decodeSurfaceTypedException(e.body);
     if (surface is SurfaceRollbackUnsupported) {
-      // Defense-in-depth: the backend refuses a flow-shaped paywall target even
-      // if the preflight did not catch it first.
-      _stderr.writeln(_rollbackUnsupportedMessage(surfaceType));
+      // The backend fails closed on an undecodable/corrupt target version (a
+      // data-integrity guard) — re-pointing into it would reach no clients.
+      _stderr.writeln(_undecodableTargetMessage(surfaceType));
       return 1;
     }
     if (surface != null) {
@@ -287,14 +283,13 @@ class SurfaceRollbackCommand extends Command<int> {
     return 1;
   }
 
-  /// The honest residual message: rolling a paywall back to a flow-shaped
-  /// version is not yet supported. Shared by the preflight fast-fail and the
-  /// backend-rejection branch of [_renderError] so the wording stays single.
-  String _rollbackUnsupportedMessage(SurfaceType surfaceType) =>
-      "Rolling ${surfaceType.wireName} back to a flow-shaped version isn't "
-      'supported yet: a paywall lowered to a navigation flow has no hosted '
-      'active-serve path. (Flow surfaces — onboarding, message, survey — do '
-      'roll back.)';
+  /// The data-integrity refusal: the target version's stored payload can't be
+  /// decoded (corrupt), so re-pointing to it would reach no clients. Rendered
+  /// for the backend [SurfaceRollbackUnsupported] rejection.
+  String _undecodableTargetMessage(SurfaceType surfaceType) =>
+      "Can't roll ${surfaceType.wireName} back to that version — its stored "
+      "payload can't be decoded (corrupt), so re-pointing to it would reach no "
+      'clients. Roll back to a different version.';
 
   /// A one-line cohort-impact note for the confirm prompt, or null when there
   /// is nothing useful to add. The compatibility is judged server-side against
@@ -320,8 +315,9 @@ class SurfaceRollbackCommand extends Command<int> {
             'never-activated) — this reactivates v${preflight.toVersion}.';
       case RollbackPreflightClassification.unsupportedTargetShape:
       case RollbackPreflightClassification.unknown:
-        // unsupportedTargetShape is handled before the confirm; unknown adds
-        // no note (forward-compatibility).
+        // unsupportedTargetShape is reserved and no longer emitted by the
+        // backend (flow-shaped paywall targets roll back now); unknown is
+        // forward-compat. The arms stay for exhaustiveness and add no note.
         return null;
     }
   }

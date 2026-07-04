@@ -474,13 +474,26 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (widget.cacheLastRender) {
       _lastSuccessfulPayloads[widget.id] = payload;
     }
-    _announceFlowLoaded(stopwatch.elapsed, fromCache || payload.flow.cacheHit);
+    _announceFlowLoaded(
+      stopwatch.elapsed,
+      fromCache || payload.flow.cacheHit,
+      experimentId: payload.experimentId,
+      variantId: payload.variantId,
+    );
   }
 
   /// Announces the paywall-shaped load lifecycle for a flow-hosted paywall
   /// exactly once: `PaywallLoadCompleted` now + `PaywallViewed` after the first
   /// frame. Mirrors [_applyDecodedLibrary]'s blob lifecycle, keyed on paywallId.
-  void _announceFlowLoaded(Duration loadDuration, bool cacheHit) {
+  /// [experimentId] / [variantId] are the server-selected experiment arm for a
+  /// hosted active flow (null for a bundled/custom resolution) — threaded onto
+  /// `PaywallViewed` at parity with the blob active path.
+  void _announceFlowLoaded(
+    Duration loadDuration,
+    bool cacheHit, {
+    String? experimentId,
+    String? variantId,
+  }) {
     if (_flowLoadAnnounced || !mounted) return;
     _flowLoadAnnounced = true;
     _fireEvent(PaywallLoadCompleted(
@@ -488,7 +501,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       loadDuration: loadDuration,
       cacheHit: cacheHit,
     ));
-    _schedulePaywallViewed();
+    _schedulePaywallViewed(experimentId: experimentId, variantId: variantId);
   }
 
   /// Fires `PaywallViewed` exactly once in a post-frame callback after the first
@@ -604,10 +617,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final cached = _lastSuccessfulPayloads[widget.id];
     if (cached == null) return false;
     switch (cached) {
-      case FlowPaywallPayload():
-        // A cached flow re-hosts directly: its document + screen blobs are
-        // already validated, so the flow runtime renders the entry screen. This
-        // is a cache hit (consistent with the blob fallback below).
+      case FlowPaywallPayload(:final resolvedFromActiveArm):
+        // An ACTIVE-resolved flow must NOT be re-hosted here un-re-gated: a
+        // server-resolved active document whose contract no longer subsets the
+        // (app-updated) bundled contract, or whose required libraries were
+        // unregistered, would be re-served unchecked. Defer to the resolver's
+        // own re-gated hold-last-good (it re-runs the render gate + retained
+        // checks against the CURRENT bundled contract). A
+        // BUNDLED flow re-hosts directly — its document + screen blobs are
+        // app-bundle-trusted, so there is no active contract to drift.
+        if (resolvedFromActiveArm) return false;
         if (!mounted) return false;
         _startFlow(cached, stopwatch, fromCache: true);
         return true;

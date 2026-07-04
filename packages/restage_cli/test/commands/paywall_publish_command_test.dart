@@ -116,6 +116,54 @@ void main() {
       expect(out, contains('5'));
     });
 
+    test('flow paywall: uploads a FlowSurfacePayload frame — byte-transparent, '
+        'never re-wrapped inside a blob', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+      );
+      await seedPaywallFlow(tempDir, slug: 'fluent_pro');
+
+      var saveCalls = 0;
+      var publishCalls = 0;
+      final client = scriptedHttpClient([
+        (req) {
+          saveCalls++;
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'save');
+          expect(body['surfaceSlug'], 'fluent_pro');
+          final wire = body['bytes'] as String;
+          final payload = SurfacePayload.decode(
+            base64Decode(wire.substring(8, wire.length - 12)),
+          );
+          // HQ-2 guardrail: the convenience command uploads the flow's
+          // canonical frame; it must NOT re-wrap the flow bytes inside a
+          // BlobSurfacePayload (which would re-create the dead-nav trap at the
+          // save layer).
+          expect(payload, isA<FlowSurfacePayload>());
+          return http.Response('null', 200);
+        },
+        (req) {
+          publishCalls++;
+          return http.Response('3', 200);
+        },
+      ]);
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run(['paywall', 'publish', 'fluent_pro', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(saveCalls, 1);
+      expect(publishCalls, 1);
+    });
+
     test('--path overrides the default resolved location', () async {
       await seedCredential(store);
       await seedRestageConfig(
