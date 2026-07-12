@@ -7,6 +7,11 @@ analyzer:
     strict-raw-types: true
   errors:
     todo: ignore
+    # Packages in this workspace depend on their siblings by path. The publish
+    # pipeline rewrites those to hosted version constraints before upload, and
+    # `pub publish` refuses a path dependency outright, so a path dep can never
+    # reach pub.dev — this warning's failure mode is unreachable here.
+    invalid_dependency: ignore
   exclude:
     # Generated build outputs (e.g. a static-site build tree) that are
     # .gitignored but may exist locally after a build. CI never sees these

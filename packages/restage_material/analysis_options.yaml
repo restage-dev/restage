@@ -8,3 +8,9 @@ analyzer:
     # non_const_argument_for_const_parameter. Its correctness is covered by the
     # wire-format golden tests, so it is excluded from lint.
     - lib/src/registration.g.dart
+  errors:
+    # Sibling packages are depended on by path in this workspace. The publish
+    # pipeline rewrites them to hosted version constraints before upload, and
+    # `pub publish` rejects a path dependency outright, so one can never reach
+    # pub.dev — this warning's failure mode is unreachable here.
+    invalid_dependency: ignore
