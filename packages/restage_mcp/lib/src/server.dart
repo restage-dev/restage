@@ -62,8 +62,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
            version: restageMcpVersion,
          ),
          instructions:
-             'Manage Restage paywalls and configuration. Sign in with '
-             'restage_login (or reuse an existing `restage login` session).',
+             'Manage Restage surfaces (paywalls, onboarding, messages, '
+             'surveys) and configuration. Sign in with restage_login (or '
+             'reuse an existing `restage login` session).',
        ) {
     // Every handler is wrapped in _scrubbed: the by-construction value funnel
     // that removes the secrets this server holds (the session token + the
@@ -79,6 +80,12 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       _getPublishedVersionTool,
       _scrubbed(_handleGetPublishedVersion),
     );
+    registerTool(_listSurfacesTool, _scrubbed(_handleListSurfaces));
+    registerTool(_surfaceStatusTool, _scrubbed(_handleSurfaceStatus));
+    registerTool(_surfaceHistoryTool, _scrubbed(_handleSurfaceHistory));
+    registerTool(_publishSurfaceTool, _scrubbed(_handlePublishSurface));
+    registerTool(_rollbackPreflightTool, _scrubbed(_handleRollbackPreflight));
+    registerTool(_rollbackSurfaceTool, _scrubbed(_handleRollbackSurface));
     registerTool(_listOrganizationsTool, _scrubbed(_handleListOrganizations));
     registerTool(_listProjectsTool, _scrubbed(_handleListProjects));
     registerTool(_listAppsTool, _scrubbed(_handleListApps));
@@ -228,6 +235,200 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     ),
   );
 
+  /// The valid surface-type wire names, owned by the [SurfaceType] enum so a
+  /// new type flows into the schema, its description, and the error message
+  /// from one place.
+  static final _surfaceTypeWireNames = [
+    for (final type in SurfaceType.values) type.wireName,
+  ];
+
+  static final _surfaceTypeProperty = UntitledSingleSelectEnumSchema(
+    description:
+        'The surface type: one of '
+        '${_surfaceTypeWireNames.map((n) => '"$n"').join(', ')}.',
+    values: _surfaceTypeWireNames,
+  );
+
+  static final _listSurfacesTool = Tool(
+    name: 'restage_list_surfaces',
+    description:
+        'List the surfaces of one type (onboarding, message, survey, or '
+        "paywall) under a Restage project and app. Returns each surface's "
+        'slug, name, last-draft timestamp, and per-environment published '
+        'versions.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(
+          description: 'The app slug under the project.',
+        ),
+        'surfaceType': _surfaceTypeProperty,
+        'organizationId': _organizationIdProperty,
+      },
+      required: ['projectSlug', 'appSlug', 'surfaceType'],
+    ),
+  );
+
+  static final _surfaceStatusTool = Tool(
+    name: 'restage_surface_status',
+    description:
+        'Show the live lifecycle state of a surface in an environment: the '
+        'active version, lock state, delivery shape (blob or flow), and the '
+        "published version history. Each flow version carries its delivery "
+        "mode ('typed' or 'general'); a general version's flow structure can "
+        'be recomposed over the air within the installed vocabulary.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'surfaceType': _surfaceTypeProperty,
+        'surfaceSlug': Schema.string(description: 'The surface slug.'),
+        'environmentSlug': Schema.string(
+          description: 'The environment slug (e.g. production).',
+        ),
+        'organizationId': _organizationIdProperty,
+      },
+      required: [
+        'projectSlug',
+        'appSlug',
+        'surfaceType',
+        'surfaceSlug',
+        'environmentSlug',
+      ],
+    ),
+  );
+
+  static final _surfaceHistoryTool = Tool(
+    name: 'restage_surface_history',
+    description:
+        'The audit timeline for one surface in an environment: publishes, '
+        'rollbacks, kills, locks — newest first, each with its actor, '
+        'outcome, and reason.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'surfaceType': _surfaceTypeProperty,
+        'surfaceSlug': Schema.string(description: 'The surface slug.'),
+        'environmentSlug': Schema.string(
+          description: 'The environment slug (e.g. production).',
+        ),
+        'organizationId': _organizationIdProperty,
+      },
+      required: [
+        'projectSlug',
+        'appSlug',
+        'surfaceType',
+        'surfaceSlug',
+        'environmentSlug',
+      ],
+    ),
+  );
+
+  static final _publishSurfaceTool = Tool(
+    name: 'restage_publish_surface',
+    description:
+        "Publish a surface's current draft to an environment. Returns the "
+        'new published version number (monotonic per surface + '
+        'environment). Requires an admin role on the organization.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'surfaceType': _surfaceTypeProperty,
+        'surfaceSlug': Schema.string(description: 'The surface slug.'),
+        'environmentSlug': Schema.string(
+          description: 'The target environment slug (e.g. production).',
+        ),
+        'organizationId': _organizationIdProperty,
+      },
+      required: [
+        'projectSlug',
+        'appSlug',
+        'surfaceType',
+        'surfaceSlug',
+        'environmentSlug',
+      ],
+    ),
+  );
+
+  static final _rollbackPreflightTool = Tool(
+    name: 'restage_rollback_preflight',
+    description:
+        'Read-only preview of how rolling a surface back to a version is '
+        'expected to affect live clients: a classification (compatible / '
+        'contractChange / noActiveBaseline) plus any blocking contract '
+        'changes. Never mutates anything, and the rollback itself is never '
+        'gated on it — it is purely informational. Call it before '
+        'restage_rollback_surface to see the expected cohort impact. '
+        'Requires an admin role (it previews an admin operation).',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'surfaceType': _surfaceTypeProperty,
+        'surfaceSlug': Schema.string(description: 'The surface slug.'),
+        'environmentSlug': Schema.string(
+          description: 'The environment slug (e.g. production).',
+        ),
+        'toVersion': Schema.int(
+          description: 'The published version the rollback would target.',
+        ),
+        'organizationId': _organizationIdProperty,
+      },
+      required: [
+        'projectSlug',
+        'appSlug',
+        'surfaceType',
+        'surfaceSlug',
+        'environmentSlug',
+        'toVersion',
+      ],
+    ),
+  );
+
+  static final _rollbackSurfaceTool = Tool(
+    name: 'restage_rollback_surface',
+    description:
+        'Roll a surface back to a previous published version by re-pointing '
+        'its active-version pointer. Requires an admin role and a reason for '
+        'the audit trail. Call restage_rollback_preflight first to see the '
+        'expected cohort impact. Set freeze to also lock the surface against '
+        'future publishes after the re-point.',
+    inputSchema: Schema.object(
+      properties: {
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'surfaceType': _surfaceTypeProperty,
+        'surfaceSlug': Schema.string(description: 'The surface slug.'),
+        'environmentSlug': Schema.string(
+          description: 'The environment slug (e.g. production).',
+        ),
+        'toVersion': Schema.int(
+          description: 'The published version to roll back to.',
+        ),
+        'reason': Schema.string(
+          description: 'The reason recorded in the audit trail.',
+        ),
+        'freeze': Schema.bool(
+          description:
+              'Also lock the surface against future publishes after '
+              'rolling back (default false).',
+        ),
+        'organizationId': _organizationIdProperty,
+      },
+      required: [
+        'projectSlug',
+        'appSlug',
+        'surfaceType',
+        'surfaceSlug',
+        'environmentSlug',
+        'toVersion',
+        'reason',
+      ],
+    ),
+  );
+
   static final _listOrganizationsTool = Tool(
     name: 'restage_list_organizations',
     description:
@@ -294,11 +495,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       properties: {
         'projectSlug': Schema.string(description: 'The project slug.'),
         'appSlug': Schema.string(description: 'The app slug.'),
-        'store': Schema.string(
+        'store': UntitledSingleSelectEnumSchema(
           description:
               'Optional store filter: "appStore" (Apple) or "playStore" '
               '(Google). Omit to list both stores.',
-          enumValues: _storeVendorValues,
+          values: _storeVendorValues,
         ),
         'organizationId': _organizationIdProperty,
       },
@@ -317,11 +518,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       properties: {
         'projectSlug': Schema.string(description: 'The project slug.'),
         'appSlug': Schema.string(description: 'The app slug.'),
-        'store': Schema.string(
+        'store': UntitledSingleSelectEnumSchema(
           description:
               'Which store catalog to import: "appStore" (Apple) or '
               '"playStore" (Google).',
-          enumValues: _storeVendorValues,
+          values: _storeVendorValues,
         ),
         'organizationId': _organizationIdProperty,
       },
@@ -538,12 +739,14 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   /// Resolves the cached credential, runs [body], maps errors, and closes.
   Future<CallToolResult> _withApi(
     String action,
-    Future<CallToolResult> Function(RestageApi api) body,
-  ) => withApi(
+    Future<CallToolResult> Function(RestageApi api) body, {
+    required String surfaceNoun,
+  }) => withApi(
     store: _store,
     httpClient: _httpClient,
     action: action,
     body: body,
+    surfaceNoun: surfaceNoun,
   );
 
   /// Build a [RestageApi] against [endpoint] (optionally authed with
@@ -576,7 +779,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     final projectSlug = request.str('projectSlug');
     final appSlug = request.str('appSlug');
     final organizationId = request.optInt('organizationId');
-    return _withApi('listing paywalls', (api) async {
+    return _withApi('listing paywalls', surfaceNoun: 'paywall', (api) async {
       final summaries = await PaywallApi(api).list(
         project: projectSlug,
         app: appSlug,
@@ -594,7 +797,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     final appSlug = request.str('appSlug');
     final paywallSlug = request.str('paywallSlug');
     final organizationId = request.optInt('organizationId');
-    return _withApi('downloading the paywall', (api) async {
+    return _withApi('downloading the paywall', surfaceNoun: 'paywall', (
+      api,
+    ) async {
       final bytes = await PaywallApi(api).load(
         project: projectSlug,
         app: appSlug,
@@ -618,7 +823,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     final paywallSlug = request.str('paywallSlug');
     final environmentSlug = request.str('environmentSlug');
     final organizationId = request.optInt('organizationId');
-    return _withApi('publishing the paywall', (api) async {
+    return _withApi('publishing the paywall', surfaceNoun: 'paywall', (
+      api,
+    ) async {
       final version = await PaywallApi(api).publish(
         project: projectSlug,
         app: appSlug,
@@ -637,7 +844,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     final paywallSlug = request.str('paywallSlug');
     final environmentSlug = request.str('environmentSlug');
     final organizationId = request.optInt('organizationId');
-    return _withApi('reading the published version', (api) async {
+    return _withApi('reading the published version', surfaceNoun: 'paywall', (
+      api,
+    ) async {
       final version = await PaywallApi(api).getPublishedVersion(
         project: projectSlug,
         app: appSlug,
@@ -646,6 +855,176 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         organizationId: organizationId,
       );
       return jsonResult(<String, Object?>{'version': version});
+    });
+  }
+
+  /// Resolve the `surfaceType` argument and run [body] through the
+  /// authenticated [_withApi] seam.
+  ///
+  /// The input schema constrains `surfaceType` to the enum's wire names, so
+  /// the framework rejects invalid values before a handler runs; the parse
+  /// here is defense-in-depth for a host that skips schema validation, and it
+  /// turns an unrecognized value into a clean tool error (never a throw)
+  /// before any backend call is made.
+  Future<CallToolResult> _withSurfaceApi(
+    CallToolRequest request,
+    String action,
+    Future<CallToolResult> Function(RestageApi api, SurfaceType surfaceType)
+    body,
+  ) {
+    final raw = request.str('surfaceType');
+    final SurfaceType surfaceType;
+    try {
+      surfaceType = SurfaceType.fromWireName(raw);
+    } on FormatException {
+      return Future.value(
+        mcpError(
+          'Unknown surfaceType "$raw". Valid values: '
+          '${_surfaceTypeWireNames.join(', ')}.',
+        ),
+      );
+    }
+    return _withApi(
+      action,
+      surfaceNoun: surfaceType.wireName,
+      (api) => body(api, surfaceType),
+    );
+  }
+
+  /// Handle `restage_list_surfaces` — list one surface type under an app.
+  Future<CallToolResult> _handleListSurfaces(CallToolRequest request) {
+    return _withSurfaceApi(request, 'listing surfaces', (
+      api,
+      surfaceType,
+    ) async {
+      final summaries = await SurfaceApi(api).list(
+        project: request.str('projectSlug'),
+        app: request.str('appSlug'),
+        surfaceType: surfaceType,
+        organizationId: request.optInt('organizationId'),
+      );
+      return jsonResult(<String, Object?>{
+        'surfaces': [for (final summary in summaries) summary.toJson()],
+      });
+    });
+  }
+
+  /// Handle `restage_surface_status` — the live lifecycle snapshot, including
+  /// each version's flow delivery mode when the wire carries one.
+  Future<CallToolResult> _handleSurfaceStatus(CallToolRequest request) {
+    return _withSurfaceApi(request, 'reading the surface status', (
+      api,
+      surfaceType,
+    ) async {
+      final status = await SurfaceApi(api).surfaceStatus(
+        project: request.str('projectSlug'),
+        app: request.str('appSlug'),
+        surfaceType: surfaceType,
+        surfaceSlug: request.str('surfaceSlug'),
+        environment: request.str('environmentSlug'),
+        organizationId: request.optInt('organizationId'),
+      );
+      return jsonResult(status.toJson());
+    });
+  }
+
+  /// Handle `restage_surface_history` — the audit timeline for one surface.
+  Future<CallToolResult> _handleSurfaceHistory(CallToolRequest request) {
+    return _withSurfaceApi(request, 'reading the surface history', (
+      api,
+      surfaceType,
+    ) async {
+      final entries = await SurfaceApi(api).listSurfaceHistory(
+        project: request.str('projectSlug'),
+        app: request.str('appSlug'),
+        surfaceType: surfaceType,
+        surfaceSlug: request.str('surfaceSlug'),
+        environment: request.str('environmentSlug'),
+        organizationId: request.optInt('organizationId'),
+      );
+      return jsonResult(<String, Object?>{
+        'events': [for (final entry in entries) entry.toJson()],
+      });
+    });
+  }
+
+  /// Handle `restage_publish_surface` — publish a draft to an environment.
+  Future<CallToolResult> _handlePublishSurface(CallToolRequest request) {
+    return _withSurfaceApi(request, 'publishing the surface', (
+      api,
+      surfaceType,
+    ) async {
+      final version = await SurfaceApi(api).publish(
+        project: request.str('projectSlug'),
+        app: request.str('appSlug'),
+        surfaceType: surfaceType,
+        surfaceSlug: request.str('surfaceSlug'),
+        environment: request.str('environmentSlug'),
+        organizationId: request.optInt('organizationId'),
+      );
+      return jsonResult(<String, Object?>{'version': version});
+    });
+  }
+
+  /// Handle `restage_rollback_preflight` — the read-only cohort-impact
+  /// preview. Informational only: it never mutates and never gates the
+  /// rollback mutation.
+  Future<CallToolResult> _handleRollbackPreflight(CallToolRequest request) {
+    return _withSurfaceApi(request, 'previewing the rollback', (
+      api,
+      surfaceType,
+    ) async {
+      final preflight = await SurfaceApi(api).rollbackPreflight(
+        project: request.str('projectSlug'),
+        app: request.str('appSlug'),
+        surfaceType: surfaceType,
+        surfaceSlug: request.str('surfaceSlug'),
+        environment: request.str('environmentSlug'),
+        toVersion: request.reqInt('toVersion'),
+        organizationId: request.optInt('organizationId'),
+      );
+      return jsonResult(preflight.toJson());
+    });
+  }
+
+  /// Handle `restage_rollback_surface` — the rollback mutation. Admin-scoped
+  /// by the backend; the reason is recorded in the audit trail.
+  Future<CallToolResult> _handleRollbackSurface(CallToolRequest request) {
+    // The reason IS the audit record for this admin mutation. The schema can
+    // only require the key, not forbid blank content, so reject an empty or
+    // whitespace-only reason rather than landing a rollback with a blank
+    // audit entry. Deliberately checked before _withSurfaceApi: invalid
+    // input should fail before any auth resolution or backend work.
+    final reason = (request.optStr('reason') ?? '').trim();
+    if (reason.isEmpty) {
+      return Future.value(
+        mcpError(
+          'A non-empty reason is required — it is recorded in the surface '
+          'audit trail.',
+        ),
+      );
+    }
+    return _withSurfaceApi(request, 'rolling back the surface', (
+      api,
+      surfaceType,
+    ) async {
+      final toVersion = request.reqInt('toVersion');
+      final freeze = request.optBool('freeze') ?? false;
+      await SurfaceApi(api).rollback(
+        project: request.str('projectSlug'),
+        app: request.str('appSlug'),
+        surfaceType: surfaceType,
+        surfaceSlug: request.str('surfaceSlug'),
+        environment: request.str('environmentSlug'),
+        toVersion: toVersion,
+        lockAfter: freeze,
+        reason: reason,
+        organizationId: request.optInt('organizationId'),
+      );
+      return jsonResult(<String, Object?>{
+        'rolledBackTo': toVersion,
+        'frozen': freeze,
+      });
     });
   }
 
@@ -661,7 +1040,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     required String action,
     Map<String, dynamic> args = const {},
   }) {
-    return _withApi(action, (api) async {
+    return _withApi(action, surfaceNoun: 'paywall', (api) async {
       final raw = await api.call(endpoint, method, compactArgs(args));
       return jsonResult(<String, Object?>{resultKey: raw as List<dynamic>});
     });
@@ -678,7 +1057,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     required String action,
     Map<String, dynamic> args = const {},
   }) {
-    return _withApi(action, (api) async {
+    return _withApi(action, surfaceNoun: 'paywall', (api) async {
       final raw = await api.call(endpoint, method, compactArgs(args));
       return jsonResult(<String, Object?>{resultKey: raw});
     });
@@ -833,7 +1212,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     final organizationId = request.reqInt('organizationId');
     final projectSlug = request.str('projectSlug');
     final appSlug = request.str('appSlug');
-    return _withApi('reading the app configuration', (api) async {
+    return _withApi('reading the app configuration', surfaceNoun: 'paywall', (
+      api,
+    ) async {
       final raw = await api.call(
         'app',
         'listApps',
@@ -904,7 +1285,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   /// backend returns void; report a structured confirmation.
   Future<CallToolResult> _handleRevokeApiKey(CallToolRequest request) {
     final apiKeyId = request.reqInt('apiKeyId');
-    return _withApi('revoking the API key', (api) async {
+    return _withApi('revoking the API key', surfaceNoun: 'paywall', (
+      api,
+    ) async {
       await api.call(
         'apiKey',
         'revokeKey',
@@ -930,7 +1313,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   /// (no attempt, an expired attempt, or already signed in) it short-circuits
   /// or starts fresh. The device-code secret never leaves this process.
   Future<CallToolResult> _handleLogin(CallToolRequest request) {
-    return guardErrors('signing in', () async {
+    return guardErrors('signing in', surfaceNoun: 'paywall', () async {
       final pending = _pendingLogin;
       if (pending != null && _now().isBefore(pending.expiresAt)) {
         return _pollPendingLogin(pending);
@@ -1171,31 +1554,35 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
 
   /// Handle `restage_whoami`.
   Future<CallToolResult> _handleWhoami(CallToolRequest request) {
-    return guardErrors('checking the session', () async {
-      final credential = await _store.read();
-      if (credential == null) {
-        return jsonResult(<String, Object?>{'signedIn': false});
-      }
-      return _withRawApi(
-        Uri.parse(credential.endpoint),
-        credential: credential,
-        body: (api) async {
-          final user = await AuthApi(api).whoami();
-          return user == null
-              ? jsonResult(<String, Object?>{'signedIn': false})
-              : jsonResult(<String, Object?>{
-                  'signedIn': true,
-                  'id': user.id,
-                  'email': user.email,
-                });
-        },
-      );
-    });
+    return guardErrors(
+      'checking the session',
+      surfaceNoun: 'paywall',
+      () async {
+        final credential = await _store.read();
+        if (credential == null) {
+          return jsonResult(<String, Object?>{'signedIn': false});
+        }
+        return _withRawApi(
+          Uri.parse(credential.endpoint),
+          credential: credential,
+          body: (api) async {
+            final user = await AuthApi(api).whoami();
+            return user == null
+                ? jsonResult(<String, Object?>{'signedIn': false})
+                : jsonResult(<String, Object?>{
+                    'signedIn': true,
+                    'id': user.id,
+                    'email': user.email,
+                  });
+          },
+        );
+      },
+    );
   }
 
   /// Handle `restage_logout` — best-effort server revoke, always remove local.
   Future<CallToolResult> _handleLogout(CallToolRequest request) {
-    return guardErrors('signing out', () async {
+    return guardErrors('signing out', surfaceNoun: 'paywall', () async {
       final credential = await _store.read();
       if (credential == null) {
         return jsonResult(<String, Object?>{'signedOut': true});

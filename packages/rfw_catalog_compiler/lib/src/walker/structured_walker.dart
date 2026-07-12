@@ -239,42 +239,14 @@ StructuredWalkResult _walkConcrete({
           ),
         );
         if (descendant != null && descendantFqn != null) {
-          if (descendantFqns.add(descendantFqn)) {
-            // The descendant is materialized as a shallow stub — its own
-            // fields are not re-walked here. A later allocator pass resolves
-            // the stub's wire ID, but the shallow walk never follows the
-            // descendant's *own* abstract-base / union references. When the
-            // descendant declares such a field, attach an informational
-            // diagnostic to the stub so the unfollowed reference is visible
-            // (rather than silently dropped). No current built-in catalog
-            // reaches a registered union past the direct walk path, so this
-            // guard fires only on deeper customer type graphs.
-            final stubDiagnostics = _descendantCarriesUnionReference(
-              descendant,
-              policy,
-            )
-                ? <DiagnosticIR>[
-                    DiagnosticIR(
-                      code: issue_codes.descendantUnionReferenceUndiscovered,
-                      message: 'Structured descendant '
-                          '${descendant.name ?? '<unnamed>'} carries '
-                          'abstract-base / union fields that the shallow '
-                          'descendant walk does not resolve.',
-                      location: location,
-                      severity: DiagnosticSeverity.info,
-                      target: descendant.name,
-                    ),
-                  ]
-                : const <DiagnosticIR>[];
-            descendants.add(
-              _structuredIr(
-                element: descendant,
-                library: library,
-                location: location,
-                diagnostics: stubDiagnostics,
-              ),
-            );
-          }
+          _addDescendantStub(
+            descendant,
+            descendantFqns: descendantFqns,
+            descendants: descendants,
+            library: library,
+            location: location,
+            policy: policy,
+          );
         }
       case StructuredKind.abstractBase:
         // Consult the shared abstract-base fallback map (same one the
@@ -346,12 +318,46 @@ StructuredWalkResult _walkConcrete({
         // never keeps a union result, so it must not contribute an FQN to the
         // type's referenced-union set (the resolver's union path no-ops the
         // null add).
-        final resolved = resolveValueShape(
-          field.type,
-          library: library,
-          policy: policy,
-        );
-        if (resolved != null && !valueShapeNeedsLinking(resolved)) {
+        final itemType = listItemType(field.type);
+        final listDescendant = itemType == null
+            ? null
+            : concreteStructuredItemType(itemType, policy);
+        final useOpaqueStructuredList =
+            listDescendant != null && listDescendant.name != 'BoxShadow';
+        final resolved = useOpaqueStructuredList
+            ? ListShape.opaqueStructured(
+                WireIdRef(
+                  library: library.namespace,
+                  wireId: WireId.unallocatedStructured,
+                ),
+              )
+            : resolveValueShape(
+                field.type,
+                library: library,
+                policy: policy,
+              );
+        if (resolved is ListShape &&
+            resolved.isOpaqueStructuredList &&
+            listDescendant != null) {
+          final descendantFqn = elementFqn(listDescendant);
+          fields.add(
+            _structuredField(
+              field,
+              ownerSourceType: fqn,
+              kind: ResolvedTypeKind.listOfStructured,
+              structuredRefFqn: descendantFqn,
+              valueShape: resolved,
+            ),
+          );
+          _addDescendantStub(
+            listDescendant,
+            descendantFqns: descendantFqns,
+            descendants: descendants,
+            library: library,
+            location: location,
+            policy: policy,
+          );
+        } else if (resolved != null && !valueShapeNeedsLinking(resolved)) {
           fields.add(
             _structuredField(
               field,
@@ -428,6 +434,43 @@ StructuredIR _structuredIr({
     ),
     policyTrace: policyTrace,
     referencedUnionFqns: Set<String>.unmodifiable(referencedUnionFqns),
+  );
+}
+
+void _addDescendantStub(
+  ClassElement descendant, {
+  required Set<String> descendantFqns,
+  required List<StructuredIR> descendants,
+  required WidgetLibrary library,
+  required String location,
+  required PolicyLedger policy,
+}) {
+  final descendantFqn = elementFqn(descendant);
+  if (!descendantFqns.add(descendantFqn)) return;
+  // The descendant is materialized as a shallow stub. Its own fields are not
+  // re-walked here. Attach an informational diagnostic when that shallow walk
+  // leaves an abstract-base / union reference unfollowed.
+  final stubDiagnostics = _descendantCarriesUnionReference(descendant, policy)
+      ? <DiagnosticIR>[
+          DiagnosticIR(
+            code: issue_codes.descendantUnionReferenceUndiscovered,
+            message: 'Structured descendant '
+                '${descendant.name ?? '<unnamed>'} carries abstract-base / '
+                'union fields that the shallow descendant walk does not '
+                'resolve.',
+            location: location,
+            severity: DiagnosticSeverity.info,
+            target: descendant.name,
+          ),
+        ]
+      : const <DiagnosticIR>[];
+  descendants.add(
+    _structuredIr(
+      element: descendant,
+      library: library,
+      location: location,
+      diagnostics: stubDiagnostics,
+    ),
   );
 }
 

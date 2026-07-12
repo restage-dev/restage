@@ -34,6 +34,7 @@ final class RestageWidget {
     required this.library,
     required this.category,
     required this.description,
+    this.usage,
     this.fires = const [],
     this.childrenSlot = ChildrenSlot.none,
     @Deprecated(
@@ -59,6 +60,12 @@ final class RestageWidget {
   /// codegen for diagnostic messages, doc-comment generation pulls
   /// from here.
   final String description;
+
+  /// Optional producer-facing guidance — when/how a producer should use this
+  /// widget. Emitted (falling back to [description]) as this widget's line in
+  /// the generated A2UI catalog's system-prompt fragments. Developer-authored;
+  /// never inferred.
+  final String? usage;
 
   /// Event names this widget can fire (e.g.
   /// `[WidgetEventName.onPressed]`).

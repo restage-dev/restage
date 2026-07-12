@@ -21,7 +21,13 @@ export 'src/walker/default_value_resolver.dart'
         resolveThemeBindingDefault,
         staticConstMemberName;
 export 'src/walker/element_fqn.dart'
-    show classElementFor, elementFqn, interfaceFqn, interfaceFqnOrNull, typeFqn;
+    show
+        classElementFor,
+        elementFqn,
+        interfaceFqn,
+        interfaceFqnOrNull,
+        listItemType,
+        typeFqn;
 export 'src/walker/library_walker.dart'
     show LibraryWalkResult, RestageLibraryDeclaration, walkRestageLibrary;
 export 'src/walker/structured_type_predicate.dart'

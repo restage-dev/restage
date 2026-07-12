@@ -436,6 +436,32 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
   );
 }
 
+/// Composes the genui `systemPromptFragments` for [plan]'s widgets, in the
+/// plan's widget order (the production builder pre-sorts by library, then
+/// name — this function itself does not sort).
+///
+/// For each widget, the fragment text is its [usageByWidget] entry when
+/// non-empty, falling back to its catalog `description` when that is
+/// non-empty; a widget with neither is skipped entirely (never an empty or
+/// blank fragment line). Each surviving fragment is `"<name>: <text>"`.
+///
+/// This is the single source of the fragment list: both the generated
+/// `.g.dart` (`emitA2uiCatalogDart`) and the standalone catalog document
+/// (`emitA2uiCatalog`) call this same function, so they cannot drift.
+List<String> composeSystemPromptFragments(
+  A2uiDartCatalogPlan plan,
+  Map<String, String> usageByWidget,
+) {
+  final fragments = <String>[];
+  for (final widget in plan.widgets) {
+    final name = widget.entry.name;
+    final text = _normalizedDescription(usageByWidget[name]) ??
+        _normalizedDescription(widget.entry.description);
+    if (text != null) fragments.add('$name: $text');
+  }
+  return fragments;
+}
+
 /// Emits Dart source defining genui `CatalogItem`s for [catalog].
 String emitA2uiCatalogDart(
   Catalog catalog, {
@@ -443,6 +469,7 @@ String emitA2uiCatalogDart(
   A2uiRichShapes? richShapes,
   A2uiEventSeam? eventSeam,
   A2uiPairingSeam? pairingSeam,
+  Map<String, String> usageByWidget = const {},
 }) {
   final plan = classifyA2uiCatalogDart(
     catalog,
@@ -493,9 +520,27 @@ String emitA2uiCatalogDart(
     _writeCatalogItem(buf, widget, dataBuilder, prefixes);
   }
 
+  final fragments = composeSystemPromptFragments(plan, usageByWidget);
   buf
     ..writeln('  ];')
     ..writeln('}')
+    ..writeln()
+    ..writeln(
+      'const List<String> _restageA2uiSystemPromptFragments = <String>[',
+    );
+  for (final fragment in fragments) {
+    buf.writeln('  ${_dartStringLiteral(fragment)},');
+  }
+  buf
+    ..writeln('];')
+    ..writeln()
+    ..writeln('/// The fully-assembled genui catalog: the generated items')
+    ..writeln('/// plus the system-prompt fragments composed from each')
+    ..writeln("/// widget's usage note (falling back to its description).")
+    ..writeln('Catalog buildRestageCatalog() => Catalog(')
+    ..writeln('      buildRestageCatalogItems(),')
+    ..writeln('      systemPromptFragments: _restageA2uiSystemPromptFragments,')
+    ..writeln('    );')
     ..writeln()
     ..writeln(
       'Widget? _restageA2uiBuildChild(CatalogItemContext itemContext, '
@@ -662,15 +707,38 @@ void _writeCatalogItem(
     ..writeln('    ),');
 }
 
-String _schemaExpression(A2uiDartWidgetPlan widget) =>
-    a2uiWidgetDataSchemaExpression([
+String _schemaExpression(A2uiDartWidgetPlan widget) {
+  final descriptions = _fieldDescriptions(widget.fields);
+  return a2uiWidgetDataSchemaExpression(
+    [
       for (final field in widget.fields)
         (
           name: field.property.name,
           required: field.property.required,
           emission: field.emission,
         ),
-    ]);
+    ],
+    widgetDescription: _normalizedDescription(widget.entry.description),
+    fieldDescription: (name) => descriptions[name],
+  );
+}
+
+/// A developer-authored annotation text (a `@RestageProperty`/`@RestageWidget`
+/// description or usage note) with an absent/blank value normalized to `null`
+/// — an omitted description never emits an empty `description:` key, and an
+/// omitted usage note falls through to the description.
+String? _normalizedDescription(String? description) {
+  final trimmed = description?.trim();
+  return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+}
+
+/// Maps each field's property name to its normalized description, omitting
+/// fields with no (or blank) description.
+Map<String, String> _fieldDescriptions(List<A2uiDartFieldPlan> fields) => {
+      for (final field in fields)
+        if (_normalizedDescription(field.property.description) case final desc?)
+          field.property.name: desc,
+    };
 
 /// One field in a widget's data schema: its property name, whether it is
 /// required (present), and how it is emitted.
@@ -690,7 +758,16 @@ typedef A2uiWidgetField = ({
 ///
 /// With no recursive field this is the bare widget `S.object` (byte-neutral
 /// with the catalog-fed path, which never mints a [RefNode]).
-String a2uiWidgetDataSchemaExpression(List<A2uiWidgetField> fields) {
+///
+/// [widgetDescription] and [fieldDescription] carry the developer-authored
+/// `@RestageWidget`/`@RestageProperty` descriptions (already normalized —
+/// blank/absent means no description); when both are absent the output is
+/// unchanged from before descriptions existed.
+String a2uiWidgetDataSchemaExpression(
+  List<A2uiWidgetField> fields, {
+  String? widgetDescription,
+  String? Function(String fieldName)? fieldDescription,
+}) {
   final refTargets = <String>{};
   for (final field in fields) {
     final emission = field.emission;
@@ -699,12 +776,18 @@ String a2uiWidgetDataSchemaExpression(List<A2uiWidgetField> fields) {
     }
   }
   if (refTargets.isEmpty) {
-    return _widgetObjectSchema(fields);
+    return _widgetObjectSchema(
+      fields,
+      widgetDescription: widgetDescription,
+      fieldDescription: fieldDescription,
+    );
   }
 
   // A recursive type is present somewhere: hoist the whole widget body into
   // `$defs` under a synthetic root key and emit a root `$ref` (the widget
-  // object always exists, so the root itself is never nullable).
+  // object always exists, so the root itself is never nullable). The widget
+  // description lands on the hoisted root object — the actual widget shape —
+  // not on the `$ref` wrapper.
   final defIds = <String>{_syntheticRootDefId, ...refTargets};
   final safeKeys = _assignSafeDefKeys(defIds);
   final ctx = _DefsContext(refTargets: refTargets, safeKeys: safeKeys);
@@ -718,7 +801,12 @@ String a2uiWidgetDataSchemaExpression(List<A2uiWidgetField> fields) {
   final defEntries = <String>[];
   for (final id in orderedIds) {
     final schema = id == _syntheticRootDefId
-        ? _widgetObjectSchema(fields, ctx: ctx)
+        ? _widgetObjectSchema(
+            fields,
+            ctx: ctx,
+            widgetDescription: widgetDescription,
+            fieldDescription: fieldDescription,
+          )
         : _projectNode(nodeForDef[id]!, ctx, atDefRoot: true);
     defEntries.add('${_dartStringLiteral(safeKeys[id]!)}: $schema');
   }
@@ -768,18 +856,28 @@ A2uiSchemaNode _findFieldNodeWithDefId(
 /// The data-schema map for [plan] — the document-side twin of
 /// [_schemaExpression]. Consumes the SAME field projection, so the document's
 /// component schema and the generated `CatalogItem` schema agree.
-Map<String, Object?> a2uiWidgetDataSchemaMapForPlan(A2uiDartWidgetPlan plan) =>
-    _widgetDataSchemaMap([
+Map<String, Object?> a2uiWidgetDataSchemaMapForPlan(A2uiDartWidgetPlan plan) {
+  final descriptions = _fieldDescriptions(plan.fields);
+  return _widgetDataSchemaMap(
+    [
       for (final field in plan.fields)
         (
           name: field.property.name,
           required: field.property.required,
           emission: field.emission,
         ),
-    ]);
+    ],
+    widgetDescription: _normalizedDescription(plan.entry.description),
+    fieldDescription: (name) => descriptions[name],
+  );
+}
 
 /// Map mirror of [a2uiWidgetDataSchemaExpression].
-Map<String, Object?> _widgetDataSchemaMap(List<A2uiWidgetField> fields) {
+Map<String, Object?> _widgetDataSchemaMap(
+  List<A2uiWidgetField> fields, {
+  String? widgetDescription,
+  String? Function(String fieldName)? fieldDescription,
+}) {
   final refTargets = <String>{};
   for (final field in fields) {
     final emission = field.emission;
@@ -788,7 +886,11 @@ Map<String, Object?> _widgetDataSchemaMap(List<A2uiWidgetField> fields) {
     }
   }
   if (refTargets.isEmpty) {
-    return _widgetObjectSchemaMap(fields);
+    return _widgetObjectSchemaMap(
+      fields,
+      widgetDescription: widgetDescription,
+      fieldDescription: fieldDescription,
+    );
   }
 
   final defIds = <String>{_syntheticRootDefId, ...refTargets};
@@ -804,7 +906,12 @@ Map<String, Object?> _widgetDataSchemaMap(List<A2uiWidgetField> fields) {
   final defs = <String, Object?>{};
   for (final id in orderedIds) {
     defs[safeKeys[id]!] = id == _syntheticRootDefId
-        ? _widgetObjectSchemaMap(fields, ctx: ctx)
+        ? _widgetObjectSchemaMap(
+            fields,
+            ctx: ctx,
+            widgetDescription: widgetDescription,
+            fieldDescription: fieldDescription,
+          )
         : _projectNodeMap(nodeForDef[id]!, ctx, atDefRoot: true);
   }
   // `$defs` before `$ref` matches json_schema_builder's `S.combined` map order
@@ -820,16 +927,48 @@ Map<String, Object?> _widgetDataSchemaMap(List<A2uiWidgetField> fields) {
 Map<String, Object?> _widgetObjectSchemaMap(
   List<A2uiWidgetField> fields, {
   _DefsContext? ctx,
+  String? widgetDescription,
+  String? Function(String fieldName)? fieldDescription,
 }) {
   final properties = <String, Object?>{
     for (final field in fields)
-      field.name: _fieldSchemaMap(field.emission, ctx),
+      field.name: _withMapDescription(
+        _fieldSchemaMap(field.emission, ctx),
+        fieldDescription?.call(field.name),
+      ),
   };
   final required = <String>[
     for (final field in fields)
       if (field.required) field.name,
   ];
-  return {'type': 'object', 'properties': properties, 'required': required};
+  final base = {
+    'type': 'object',
+    'properties': properties,
+    'required': required,
+  };
+  return _withMapDescription(base, widgetDescription);
+}
+
+/// Inserts a `'description'` key into [schema] at the same position genui's
+/// own `json_schema_builder` factories place it — immediately after `'type'`
+/// (or first, for a `type`-less combined/`oneOf` schema) — so the emitted
+/// `.a2ui.json` component schema matches what the generated `.g.dart`'s
+/// `S.*(description: …)` call serializes to. A `null` [description] returns
+/// [schema] unchanged (no empty `description` key).
+Map<String, Object?> _withMapDescription(
+  Map<String, Object?> schema,
+  String? description,
+) {
+  if (description == null) return schema;
+  if (!schema.containsKey('type')) {
+    return {'description': description, ...schema};
+  }
+  final described = <String, Object?>{};
+  for (final entry in schema.entries) {
+    described[entry.key] = entry.value;
+    if (entry.key == 'type') described['description'] = description;
+  }
+  return described;
 }
 
 /// Map mirror of [_fieldSchema].
@@ -1012,18 +1151,54 @@ String _refPointer(String key) => '#/\$defs/$key';
 /// The widget `S.object` body for [fields]. With a [ctx] each data field is
 /// projected cycle-aware (recursive occurrences become `$ref`s, the `$defs`
 /// living at the document root); without one each is the bare projection.
-String _widgetObjectSchema(List<A2uiWidgetField> fields, {_DefsContext? ctx}) {
+///
+/// [widgetDescription] and [fieldDescription] carry the developer-authored
+/// descriptions (already normalized to absent when blank); each non-null
+/// description is inserted as a `description:` argument on the corresponding
+/// `S.*(...)` call via [_withSchemaDescription].
+String _widgetObjectSchema(
+  List<A2uiWidgetField> fields, {
+  _DefsContext? ctx,
+  String? widgetDescription,
+  String? Function(String fieldName)? fieldDescription,
+}) {
   final props = <String>[];
   for (final field in fields) {
-    final schema = _fieldSchema(field.emission, ctx);
+    final schema = _withSchemaDescription(
+      _fieldSchema(field.emission, ctx),
+      fieldDescription?.call(field.name),
+    );
     props.add('${_dartStringLiteral(field.name)}: $schema');
   }
   final required = [
     for (final field in fields)
       if (field.required) _dartStringLiteral(field.name),
   ];
-  return 'S.object(properties: {${props.join(', ')}}, '
+  final base = 'S.object(properties: {${props.join(', ')}}, '
       'required: <String>[${required.join(', ')}],)';
+  return _withSchemaDescription(base, widgetDescription);
+}
+
+/// Inserts a `description: <literal>,` named argument right after the
+/// opening parenthesis of the outermost `S.*(...)` call in [schemaExpr] —
+/// every genui `S.*` schema builder accepts `description`, so this works
+/// uniformly whether [schemaExpr] is a scalar/enum/list/object/combined
+/// schema. Named-argument order is immaterial to Dart, so inserting first is
+/// always valid regardless of what other arguments follow. A `null`
+/// [description] returns [schemaExpr] unchanged — the same rule as
+/// [_withMapDescription], its document-side twin.
+String _withSchemaDescription(String schemaExpr, String? description) {
+  if (description == null) return schemaExpr;
+  final openParen = schemaExpr.indexOf('(');
+  if (openParen < 0) {
+    throw StateError(
+      'A2UI schema expression missing a call to describe: $schemaExpr',
+    );
+  }
+  final before = schemaExpr.substring(0, openParen + 1);
+  final after = schemaExpr.substring(openParen + 1);
+  return '$before'
+      'description: ${_dartStringLiteral(description)}, $after';
 }
 
 /// The schema for one field's [emission]: a bound data value (cycle-aware via
@@ -1407,8 +1582,8 @@ String _objectSchema(
 /// the catalog-fed path never produces them, so reaching here is a bug and
 /// fails loud rather than emitting a schema/builder that silently drops data.
 String _richNodeUnsupportedMessage(A2uiSchemaNode node) =>
-    'A2UI emission for ${node.runtimeType} is not implemented in this '
-    'milestone; the catalog-fed path never produces it.';
+    'A2UI emission for ${node.runtimeType} is not implemented; '
+    'the catalog-fed path never produces it.';
 
 /// The statements that reconstruct each rich field's typed value into a local
 /// at the top of the widget builder. A REQUIRED, non-null reconstruction that
@@ -1655,8 +1830,8 @@ String _dataArgumentExpression(
       // than silently coercing a non-String list through `whereType<String>`.
       if (element is! ScalarNode || element.type != A2uiScalarType.string) {
         throw StateError(
-          'A2UI list construction supports only String elements in this '
-          'milestone; got ${element.runtimeType}. The catalog-fed path never '
+          'A2UI list construction supports only String elements; '
+          'got ${element.runtimeType}. The catalog-fed path never '
           'produces a non-String list.',
         );
       }
@@ -2588,6 +2763,14 @@ bool _isReservedBuilderIdentifier(String propertyName) {
       identifier.startsWith('_restageA2ui');
 }
 
+/// Whether [propertyName]'s generated identifier collides with the generated
+/// builder scaffolding namespace (`data` / `context` / `itemContext`, or the
+/// reserved `_restageA2ui` local prefix). Exposed so build-time coverage
+/// diagnostics can name the actual cause — a reserved property name — rather
+/// than reporting a generic unsupported property type.
+bool isReservedA2uiBuilderIdentifier(String propertyName) =>
+    _isReservedBuilderIdentifier(propertyName);
+
 /// The reserved-prefixed local a rich field's reconstructed value is bound to,
 /// so a customer property named `data`/`context`/`itemContext` can never
 /// collide with the generated scaffolding.
@@ -2595,9 +2778,14 @@ String _richLocalName(PropertyEntry property) =>
     '_restageA2uiArg_${_identifierFor(property.name)}';
 
 String _dartStringLiteral(String value) {
+  // Backslash MUST be escaped first — every other replacement below inserts a
+  // literal backslash into the output, and re-running this pass over that
+  // output would double-escape it.
   final escaped = value
       .replaceAll(r'\', r'\\')
       .replaceAll("'", r"\'")
+      .replaceAll(r'$', r'\$')
+      .replaceAll('\r', r'\r')
       .replaceAll('\n', r'\n');
   return "'$escaped'";
 }

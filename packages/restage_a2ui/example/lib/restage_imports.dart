@@ -10,8 +10,8 @@ export 'widgets/rating_picker.dart';
 
 /// Declares the `acme.widgets` custom library at capability version 2. Increment
 /// `capabilityVersion` whenever you add a widget or make a render-affecting
-/// change so the delivery layer can reason about which client builds can render
-/// a given surface.
+/// change so the pre-render check can verify a payload's required capability
+/// against what your build provides.
 @RestageLibrary(
   library: WidgetLibrary.custom('acme.widgets'),
   capabilityVersion: 2,

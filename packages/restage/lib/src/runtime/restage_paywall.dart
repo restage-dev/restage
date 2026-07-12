@@ -18,7 +18,11 @@ import '../flow/flow_controller.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
+import '../refresh/surface_refresh_registry.dart';
+import '../refresh/surface_refresh_trigger.dart';
+import '../refresh/surface_update_channel.dart';
 import '../resolver/resolved_paywall_payload.dart';
+import '../resolver/resolved_variant.dart';
 import '../resolver/variant_resolver.dart';
 import 'error_boundary.dart';
 import 'event_demux.dart';
@@ -93,6 +97,7 @@ class RestagePaywall extends StatefulWidget {
     this.errorBuilder,
     this.locale,
     this.priceQueries = const {},
+    this.liveRefresh,
   });
 
   /// Stable paywall identifier (e.g. `'pro_upgrade'`).
@@ -131,6 +136,11 @@ class RestagePaywall extends StatefulWidget {
   /// populating product data.
   final Map<String, PriceInfo> priceQueries;
 
+  /// Per-widget live-refresh override. Null inherits the app-level
+  /// configuration (`Restage.configure`); a provided set replaces it wholesale
+  /// (an empty set opts this surface out entirely).
+  final Set<SurfaceRefreshTrigger>? liveRefresh;
+
   @override
   State<RestagePaywall> createState() => _RestagePaywallState();
 }
@@ -152,12 +162,41 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// the exact served version (MAR). Null for bundled / custom resolutions.
   int? _resolvedPaywallPublishedVersion;
 
+  /// This surface's live-refresh participation handle, registered at mount and
+  /// unregistered at dispose. Null until [initState] registers it.
+  SurfaceRefreshHandle? _refreshHandle;
+
+  /// True once any authored event has been dispatched from the rendered
+  /// content (a tap, an input, a purchase). Deliberately broad: any interaction
+  /// makes the surface dirty for the rest of this mount so a live swap never
+  /// pulls the rug from under a user who has started engaging.
+  bool _userInteracted = false;
+
+  /// The experiment id of the currently-rendered resolution, when it was
+  /// served under an A/B arm. Non-null locks the surface out of live swaps so
+  /// exposure accounting stays clean (a remount re-resolves fresh).
+  String? _renderedExperimentId;
+
+  /// Content hash of the currently-rendered blob, used to skip an unchanged
+  /// re-apply when the resolution carries no published version (bundled /
+  /// custom). The canonical SHA-256 the rest of the delivery path uses; only
+  /// populated for versionless resolutions (the version compare covers the
+  /// rest). Null until a versionless blob has rendered.
+  FlowContentHash? _renderedContentHash;
+
   /// The hosted flow controller when the resolved payload is flow-shaped (a
   /// lowered navigation paywall); null for a single-blob paywall. The paywall
   /// intercepts this controller's purchase/restore events out-of-band so they
   /// bill instead of driving a graph transition (see
   /// [_interceptFlowScreenEvent]).
   RestageFlowController<void>? _flowController;
+
+  /// A flow controller loading a freshly-resolved flow during a live refresh,
+  /// held here (never rendered) until it proves it can render its first screen.
+  /// On success it is promoted to [_flowController]; on failure it is discarded
+  /// silently, leaving the current render untouched (a failed refresh never
+  /// tears down what is on screen).
+  RestageFlowController<void>? _pendingFlowController;
 
   /// Guards a native purchase/restore so a double-tap cannot start a second
   /// billing call while one is already in flight. Shared by the blob and flow
@@ -214,6 +253,45 @@ class _RestagePaywallState extends State<RestagePaywall> {
       },
     );
     _load();
+    // Join the live-refresh registry so producers (an explicit reload, the
+    // app-resume sweep, an update-channel signal) can re-resolve this surface
+    // in place. Registration is inert when the surface has no triggers and
+    // nothing calls reload — it just carries the gate + refresh callback.
+    final handle = SurfaceRefreshHandle(
+      surface: SurfaceRef(
+        surfaceType: SurfaceType.paywall.wireName,
+        slug: widget.id,
+      ),
+      triggers: Restage.effectiveLiveRefreshTriggers(
+        widget.id,
+        widgetOverride: widget.liveRefresh,
+      ),
+      canSwap: _canSwap,
+      refresh: _refresh,
+      renderedVersion: () => _resolvedPaywallPublishedVersion,
+      stampable: widget.resolver == null && Restage.activeRpcClient != null,
+    );
+    _refreshHandle = handle;
+    SurfaceRefreshRegistry.instance.register(handle);
+  }
+
+  /// The swap-safety gate. A surface is safe to live-swap only when no store
+  /// operation is in flight, the user has not interacted, the render is not
+  /// experiment-assigned, and any hosted flow is pristine and idle.
+  bool _canSwap() =>
+      !_billingInFlight &&
+      !_userInteracted &&
+      _renderedExperimentId == null &&
+      !(_flowController?.hasUserContributedState ?? false) &&
+      !(_flowController?.isBusy ?? false);
+
+  /// Re-resolve this surface in place. Never throws into the widget — a failed
+  /// refresh keeps the current render (staleness is never an error state).
+  Future<void> _refresh() async {
+    // Nothing has rendered yet: the in-flight mount fetch is already
+    // fresh-first, so a refresh would be redundant (and could race it).
+    if (_decoded == null && _flowController == null) return;
+    await _load(isRefresh: true);
   }
 
   @override
@@ -271,8 +349,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ));
   }
 
-  Future<void> _load() async {
-    _fireEvent(PaywallLoadStarted(paywallId: widget.id));
+  Future<void> _load({bool isRefresh = false}) async {
+    // A refresh is a silent, in-place re-resolve: no load-started lifecycle,
+    // no error state on failure. A fresh mount announces its lifecycle as
+    // before.
+    if (!isRefresh) _fireEvent(PaywallLoadStarted(paywallId: widget.id));
     final stopwatch = Stopwatch()..start();
     final resolver = widget.resolver ?? Restage.defaultResolver;
     try {
@@ -283,6 +364,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
       // unchanged — the sealed demux only adds the flow branch.
       if (payload is FlowPaywallPayload) {
         if (!mounted) return;
+        if (isRefresh) {
+          _refreshFlow(payload, stopwatch);
+          return;
+        }
         // The flow is cached only AFTER its first screen renders (in
         // _handleFlowLifecycleEvent), mirroring the blob path which caches a
         // decoded blob — so an unrenderable flow is never cached.
@@ -301,11 +386,32 @@ class _RestagePaywallState extends State<RestagePaywall> {
           stackTrace: st,
         );
       }
+      if (!mounted) return;
+      if (isRefresh) {
+        // Identical served content re-renders nothing.
+        if (_isUnchangedBlob(variant)) return;
+        // Never live-swap a surface INTO a new experiment arm: enrolling a live
+        // view would count an exposure the user never freshly saw. Defer to
+        // remount (symmetric to the current-render experiment lockout in the
+        // gate).
+        if (variant.experimentId != null) return;
+        // A user interaction or store op that began during the async resolve
+        // makes the surface dirty; abort the swap (defer = drop — the next
+        // remount is fresh-first anyway).
+        if (!_canSwap()) return;
+      }
       // Decode succeeded — this blob is what renders. Capture its served
       // published version (AFTER decode, so a failed fresh blob never records
       // its version) so a subsequent purchase attributes to the version the
-      // user actually saw.
+      // user actually saw, plus the experiment arm + content hash that gate a
+      // later live refresh.
       _resolvedPaywallPublishedVersion = variant.paywallPublishedVersion;
+      _renderedExperimentId = variant.experimentId;
+      // Only versionless resolutions need a content hash for skip-if-unchanged;
+      // versioned ones compare the published version and never hash the blob.
+      _renderedContentHash = variant.paywallPublishedVersion == null
+          ? FlowContentHash.compute(variant.bytes)
+          : null;
       // Populate the cache before the !mounted bail so a remount of the
       // same paywall id can use the freshly resolved payload — the cache is a
       // global side effect, not a widget-lifecycle event, and should not
@@ -315,7 +421,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       if (widget.cacheLastRender) {
         _lastSuccessfulPayloads[widget.id] = payload;
       }
-      if (!mounted) return;
       _applyDecodedLibrary(
         library,
         loadDuration: stopwatch.elapsed,
@@ -324,7 +429,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
         experimentId: variant.experimentId,
       );
     } on RestagePaywallError catch (e) {
-      if (!mounted) return;
+      // A failed refresh keeps the current render and stays silent.
+      if (isRefresh || !mounted) return;
       if (_tryFallbackToCache(stopwatch)) return;
       setState(() => _error = e);
       _fireEvent(PaywallLoadFailed(
@@ -334,6 +440,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
         retryable: e.retryable,
       ));
     } catch (e, st) {
+      // A failed refresh keeps the current render and stays silent.
+      if (isRefresh) return;
       // Surface the original exception + stack to the developer console so
       // a buggy custom resolver doesn't get hidden behind a generic
       // "unknown" error code in their crash reports.
@@ -359,6 +467,140 @@ class _RestagePaywallState extends State<RestagePaywall> {
         retryable: false,
       ));
     }
+  }
+
+  /// Whether a freshly-resolved [variant] carries the same content as what is
+  /// currently rendered, so a live refresh should skip the swap. Prefers the
+  /// server-assigned published version; falls back to the blob content hash for
+  /// versionless (bundled / custom) resolutions.
+  bool _isUnchangedBlob(ResolvedVariant variant) {
+    final freshVersion = variant.paywallPublishedVersion;
+    final renderedVersion = _resolvedPaywallPublishedVersion;
+    // When either side carries a published version, that is the identity: equal
+    // versions are unchanged; a mixed null/non-null pair means the delivery
+    // mode itself moved, so it counts as changed.
+    if (freshVersion != null || renderedVersion != null) {
+      return freshVersion == renderedVersion;
+    }
+    // Both versionless (bundled / custom): fall back to the content hash.
+    final rendered = _renderedContentHash;
+    return rendered != null &&
+        rendered.value == FlowContentHash.compute(variant.bytes).value;
+  }
+
+  /// Re-host a flow-shaped paywall from a freshly-resolved [payload]. Reached
+  /// only when the gate already passed (the flow is pristine + idle), so the
+  /// old controller can be torn down cleanly. Disposing a flow controller fires
+  /// no lifecycle side effects, so this raises no spurious dismiss/complete.
+  void _refreshFlow(FlowPaywallPayload payload, Stopwatch stopwatch) {
+    final freshVersion = payload.paywallPublishedVersion;
+    final renderedVersion = _resolvedPaywallPublishedVersion;
+    if (freshVersion != null &&
+        renderedVersion != null &&
+        freshVersion == renderedVersion) {
+      return; // unchanged — nothing to re-host
+    }
+    // Never live-swap INTO a new experiment arm (symmetric to the blob path +
+    // the current-render lockout); defer enrolling a live view to remount.
+    if (payload.experimentId != null) return;
+    // Re-check the gate after the async resolve (an interaction could have
+    // landed during it); defer = drop if the surface went dirty.
+    if (!_canSwap()) return;
+    // Resolve-then-swap: load the fresh flow in a PENDING controller without
+    // touching the live one. Promote only once it renders its first screen;
+    // discard it silently on failure so a failed refresh keeps the current
+    // render (staleness is never an error state).
+    _pendingFlowController
+        ?.dispose(); // supersede any in-flight pending (loser)
+    late final RestageFlowController<void> pending;
+    pending = _buildFlowController(
+      payload,
+      onEvent: (event) =>
+          _handleRefreshFlowEvent(pending, event, stopwatch, payload),
+      onComplete: (_) => _handleRefreshFlowComplete(pending),
+      onUnavailable: (error) => _handleRefreshFlowUnavailable(pending, error),
+    );
+    _pendingFlowController = pending;
+    unawaited(pending.load());
+  }
+
+  /// Routes a lifecycle event from a controller that started life as a refresh
+  /// pending controller. While it is still pending, a [FlowStarted] promotes it;
+  /// once promoted (it is now [_flowController]) events flow to the steady-state
+  /// paywall lifecycle. Identity (pending vs promoted) is decided at call time so
+  /// the same controller's later events route correctly after promotion.
+  void _handleRefreshFlowEvent(
+    RestageFlowController<void> controller,
+    RestageEvent event,
+    Stopwatch stopwatch,
+    FlowPaywallPayload payload,
+  ) {
+    if (identical(_pendingFlowController, controller)) {
+      if (event is FlowStarted) _promotePendingFlow(controller, payload);
+      return; // pending lifecycle is suppressed until promotion
+    }
+    _handleFlowLifecycleEvent(event, stopwatch, payload, false);
+  }
+
+  void _handleRefreshFlowComplete(RestageFlowController<void> controller) {
+    if (identical(_pendingFlowController, controller)) {
+      _discardPendingFlow(
+          controller); // completed before rendering — keep current
+      return;
+    }
+    _handleFlowComplete();
+  }
+
+  void _handleRefreshFlowUnavailable(
+    RestageFlowController<void> controller,
+    FlowUnavailableError error,
+  ) {
+    if (identical(_pendingFlowController, controller)) {
+      // Silent: keep the current render. No _error, no PaywallLoadFailed, and no
+      // cache eviction — the pending flow was never what the user saw.
+      _discardPendingFlow(controller);
+      return;
+    }
+    _handleFlowUnavailable(error);
+  }
+
+  /// Promotes the pending flow to the live controller once its first screen is
+  /// ready: tears down the old controller, swaps, and only NOW records the
+  /// served identity (version / experiment) so a failed refresh could never have
+  /// corrupted what the current render owns.
+  void _promotePendingFlow(
+    RestageFlowController<void> pending,
+    FlowPaywallPayload payload,
+  ) {
+    if (!identical(_pendingFlowController, pending) || !mounted) return;
+    // Re-check the gate at promotion — an interaction may have landed while the
+    // fresh flow loaded; defer = drop if the surface went dirty.
+    if (!_canSwap()) {
+      _discardPendingFlow(pending);
+      return;
+    }
+    _pendingFlowController = null;
+    final old = _flowController;
+    _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
+    _renderedExperimentId = payload.experimentId;
+    if (widget.cacheLastRender) {
+      _lastSuccessfulPayloads[widget.id] = payload;
+    }
+    setState(() {
+      _flowController = pending;
+      // A delivery-mode change on refresh (blob -> flow) leaves the old decoded
+      // blob behind; clear it so no stale blob lingers under the flow.
+      _decoded = null;
+      _error = null;
+    });
+    old?.dispose();
+  }
+
+  void _discardPendingFlow(RestageFlowController<void> pending) {
+    // Already superseded by a newer pending (which disposed this one).
+    if (!identical(_pendingFlowController, pending)) return;
+    _pendingFlowController = null;
+    pending.dispose();
   }
 
   /// Resolves [RestagePaywall.id] into a sealed payload. The built-in resolvers
@@ -395,17 +637,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     Stopwatch stopwatch, {
     bool fromCache = false,
   }) {
+    // A fresh mount (or cache fallback) renders immediately: identity is set
+    // eagerly and a load failure fails closed to the error UI, exactly as the
+    // blob mount path does. The live-refresh path (`_refreshFlow`) instead loads
+    // into a pending controller and fails silently.
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
-    final document = payload.flow.document;
-    final controller = RestageFlowController<void>(
-      flow: OnboardingFlowRef<void>(
-        id: document.flow,
-        version: document.version,
-        minClient: document.minClient,
-        decodeResult: (_) {},
-      ),
-      resolver: _PreResolvedFlowResolver(payload.flow),
-      actions: null,
+    _renderedExperimentId = payload.experimentId;
+    final controller = _buildFlowController(
+      payload,
       onEvent: (event) =>
           _handleFlowLifecycleEvent(event, stopwatch, payload, fromCache),
       onComplete: (_) => _handleFlowComplete(),
@@ -416,6 +655,31 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _error = null;
     });
     unawaited(controller.load());
+  }
+
+  /// Builds a flow controller over an already-resolved [payload]. Construction
+  /// is shared by the mount path ([_startFlow]) and the refresh path
+  /// ([_refreshFlow]); only the lifecycle callbacks differ.
+  RestageFlowController<void> _buildFlowController(
+    FlowPaywallPayload payload, {
+    required void Function(RestageEvent) onEvent,
+    required void Function(void) onComplete,
+    required void Function(FlowUnavailableError) onUnavailable,
+  }) {
+    final document = payload.flow.document;
+    return RestageFlowController<void>(
+      flow: OnboardingFlowRef<void>(
+        id: document.flow,
+        version: document.version,
+        minClient: document.minClient,
+        decodeResult: (_) {},
+      ),
+      resolver: _PreResolvedFlowResolver(payload.flow),
+      actions: null,
+      onEvent: onEvent,
+      onComplete: onComplete,
+      onUnavailable: onUnavailable,
+    );
   }
 
   /// Routes a screen-fired event for a flow-hosted paywall. Navigation events
@@ -518,6 +782,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
             Restage.configuredProducts.map((p) => p.id).toList(growable: false),
         variantId: variantId,
         experimentId: experimentId,
+        publishedVersion: _resolvedPaywallPublishedVersion,
       ));
     });
   }
@@ -591,15 +856,27 @@ class _RestagePaywallState extends State<RestagePaywall> {
         platform: currentDevicePlatform(),
       );
     }
+    // Applying a blob makes the blob the rendered surface. If a flow was hosting
+    // (a delivery-mode change on refresh: flow -> blob), tear it down in the same
+    // frame — build() prefers `_flowController`, so leaving it set would keep the
+    // stale flow on screen while blob state/events/attribution applied underneath.
+    final priorFlow = _flowController;
     setState(() {
+      _flowController = null;
       _decoded = library;
       _error = null;
     });
+    priorFlow?.dispose();
     _fireEvent(PaywallLoadCompleted(
       paywallId: widget.id,
       loadDuration: loadDuration,
       cacheHit: cacheHit,
     ));
+    // A live swap that applies NEW content re-arms the one-shot impression so a
+    // fresh PaywallViewed fires for the content now on screen (carrying the new
+    // publishedVersion). On the initial load and cache-fallback paths the guard
+    // is already false, so this reset is a no-op there.
+    _viewedFired = false;
     _schedulePaywallViewed(variantId: variantId, experimentId: experimentId);
   }
 
@@ -637,8 +914,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
           // The reported version must match the RENDERED blob: this fallback
           // shows the cached blob, so attribute to the cached blob's version
           // (null if the cached resolution had none), not whatever the failed
-          // fresh resolve was.
+          // fresh resolve was. Same for the live-refresh gate identity.
           _resolvedPaywallPublishedVersion = variant.paywallPublishedVersion;
+          _renderedExperimentId = variant.experimentId;
+          _renderedContentHash = variant.paywallPublishedVersion == null
+              ? FlowContentHash.compute(variant.bytes)
+              : null;
           _applyDecodedLibrary(
             library,
             loadDuration: stopwatch.elapsed,
@@ -673,6 +954,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   @override
   void dispose() {
+    if (_refreshHandle case final handle?) {
+      SurfaceRefreshRegistry.instance.unregister(handle);
+    }
+    _refreshHandle = null;
     widget.controller?.detachInternal();
     // Fire dismissed FIRST (it binds the current surfaceSessionId synchronously),
     // then end the surface session.
@@ -680,6 +965,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // Dispose the hosted flow controller (a no-op for a blob paywall). Done
     // after the dismiss so the dismiss is keyed to the still-open session.
     _flowController?.dispose();
+    // Drop any in-flight refresh pending controller (never rendered).
+    _pendingFlowController?.dispose();
     Restage.endSurfaceSession();
     super.dispose();
   }
@@ -694,6 +981,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// SDK also invokes [Restage.billingGateway] and fires the resulting
   /// follow-up event (`PurchaseSucceeded`, `PurchasePending`, etc.).
   void _handleRfwEvent(String name, Object? args) {
+    // Any authored event from the rendered content marks the surface dirty for
+    // the swap-safety gate. Deliberately broad — taps, inputs, purchases — so a
+    // live swap never lands under an engaged user. Only reached for authored
+    // content events (theme/system changes flow through didChangeDependencies).
+    _userInteracted = true;
     final argsMap = args is Map<String, Object?>
         ? args
         : (args is Map ? args.cast<String, Object?>() : <String, Object?>{});

@@ -107,6 +107,16 @@ List<CatalogItem> buildRestageCatalogItems() {
   ];
 }
 
+const List<String> _restageA2uiSystemPromptFragments = <String>[];
+
+/// The fully-assembled genui catalog: the generated items
+/// plus the system-prompt fragments composed from each
+/// widget's usage note (falling back to its description).
+Catalog buildRestageCatalog() => Catalog(
+      buildRestageCatalogItems(),
+      systemPromptFragments: _restageA2uiSystemPromptFragments,
+    );
+
 Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;

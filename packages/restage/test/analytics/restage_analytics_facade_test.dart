@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -52,6 +53,85 @@ void main() {
     // Server-stamped fields are never on the client wire.
     expect(envelope.containsKey('tier'), isFalse);
     expect(envelope.containsKey('source'), isFalse);
+  });
+
+  test('paywall_viewed posts immediately without waiting for batch size',
+      () async {
+    http.Request? captured;
+    Restage.debugAnalyticsHttpClient = MockClient((req) async {
+      captured = req;
+      return http.Response('', 200);
+    });
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+
+    Restage.fireEvent(
+      const PaywallViewed(paywallId: 'pw-1', productIds: []),
+    );
+    await pumpEventQueue();
+
+    expect(captured, isNotNull);
+  });
+
+  test(
+      'onboarding_step_viewed posts immediately without waiting for batch size',
+      () async {
+    http.Request? captured;
+    Restage.debugAnalyticsHttpClient = MockClient((req) async {
+      captured = req;
+      return http.Response('', 200);
+    });
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+
+    Restage.fireEvent(
+      const OnboardingStepViewed(
+        flowId: 'first_run',
+        flowVersion: 1,
+        flowSessionId: 'flow-session-1',
+        screenId: 'welcome',
+        stepIndex: 0,
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(captured, isNotNull);
+  });
+
+  test('transient exposure flush failure keeps the event retryable', () async {
+    var calls = 0;
+    Restage.debugAnalyticsHttpClient = MockClient((req) async {
+      calls += 1;
+      return http.Response('', calls == 1 ? 500 : 200);
+    });
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+
+    Restage.fireEvent(
+      const PaywallViewed(paywallId: 'pw-1', productIds: []),
+    );
+    await pumpEventQueue();
+
+    expect(calls, 1);
+    await Restage.debugFlushAnalytics();
+    expect(calls, 2);
+  });
+
+  test('app pause flushes pending analytics below the batch size', () async {
+    var calls = 0;
+    Restage.debugAnalyticsHttpClient = MockClient((req) async {
+      calls += 1;
+      return http.Response('', 200);
+    });
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+
+    Restage.track('button_clicked');
+    await pumpEventQueue();
+    expect(calls, 0);
+
+    WidgetsBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.paused,
+    );
+    await pumpEventQueue();
+
+    expect(calls, 1);
   });
 
   test('track posts a custom event with reserved keys scrubbed', () async {

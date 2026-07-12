@@ -238,7 +238,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final structuredAdmittingLibraries = <String>{};
   for (final widget in admittedWidgets) {
     for (final prop in widget.properties) {
-      if (prop.type != PropertyType.structured) continue;
+      if (!isCustomerStructuredPropertySlot(prop)) continue;
       final target =
           slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
       if (target != null && structuredSourceTypes.contains(target)) {

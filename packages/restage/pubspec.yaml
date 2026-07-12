@@ -63,6 +63,7 @@ dependencies:
   # raise this ceiling only after re-vendoring and re-running that parity gate.
   rfw: ">=1.1.3 <1.2.0"
   shared_preferences: ^2.5.0
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_lints: ^6.0.0

@@ -219,8 +219,21 @@ final class ListShape extends CatalogValueShape {
           'ListShape must carry a list-category PropertyType (or unknown)',
         );
 
+  /// Creates the opaque list-of-structured wire shape.
+  factory ListShape.opaqueStructured(WireIdRef structuredRef) => ListShape(
+        propertyType: PropertyType.unknown,
+        itemShape: StructuredShape(
+          propertyType: PropertyType.structured,
+          structuredRef: structuredRef,
+        ),
+      );
+
   /// Item value shape.
   final CatalogValueShape itemShape;
+
+  /// Whether this list uses the opaque list-of-structured contract.
+  bool get isOpaqueStructuredList =>
+      propertyType == PropertyType.unknown && itemShape is StructuredShape;
 
   @override
   bool operator ==(Object other) =>

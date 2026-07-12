@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/commands/lifecycle_support.dart'
+    show kProductionEnvironmentSlug;
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 
@@ -31,7 +33,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   final TextEditingController _promptController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   _PromptKind? _prompt;
-  _PendingProductionOperation? _pendingProduction;
+  _PendingConfirmOperation? _pendingConfirm;
+  bool _previewInFlight = false;
+  int _previewGeneration = 0;
   _ConsoleView _activeView = _ConsoleView.overview;
   _SurfaceFilter _surfaceFilter = _SurfaceFilter.all;
   _SurfaceFocus _surfaceFocus = _SurfaceFocus.rows;
@@ -264,10 +268,21 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       panel == ConsolePanel.detail || panel == ConsolePanel.actions;
 
   bool _handleKeyEvent(KeyboardEvent event) {
+    if (_previewInFlight) {
+      if (event.logicalKey == LogicalKey.escape) {
+        setState(() {
+          _previewInFlight = false;
+          _previewGeneration++;
+        });
+      }
+      return true;
+    }
+
     if (_prompt != null) {
       if (event.logicalKey == LogicalKey.escape) {
         setState(() {
           _prompt = null;
+          _pendingConfirm = null;
           _promptController.clear();
         });
         return true;
@@ -426,8 +441,13 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     switch (prompt) {
       case _PromptKind.kill:
         if (_needsProductionConfirmation) {
-          _openProductionConfirmation(
-            _PendingProductionOperation.kill(reason: input),
+          final target = _confirmTarget();
+          if (target == null) {
+            _reportNothingSelected();
+            return;
+          }
+          _openOperationConfirmation(
+            _PendingKill(reason: input, target: target),
           );
           return;
         }
@@ -438,14 +458,16 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         await component.controller.unfreezeSelected(reason: input);
       case _PromptKind.rollback:
         await _submitRollback(input);
-      case _PromptKind.productionConfirm:
-        await _submitProductionConfirmation(input);
+      case _PromptKind.operationConfirm:
+        await _submitOperationConfirmation(input);
     }
     if (!mounted) return;
     setState(() {});
   }
 
   Future<void> _submitRollback(String input) async {
+    if (_previewInFlight) return;
+
     final parts = input.split(RegExp(r'\s+'));
     final version = parts.isEmpty ? null : int.tryParse(parts.first);
     final reason = parts.length <= 1 ? '' : parts.skip(1).join(' ').trim();
@@ -456,44 +478,109 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       });
       return;
     }
-    if (_needsProductionConfirmation) {
-      _openProductionConfirmation(
-        _PendingProductionOperation.rollback(
-          reason: reason,
-          toVersion: version,
-        ),
-      );
+    // Rollback is always preview-then-confirm: the read-only preview's
+    // cohort-impact note is the only signal for how the re-point lands
+    // across the installed cohort, so it is shown before the mutation in
+    // every environment (production additionally keeps its guardrail
+    // semantics on the executor side). The preflight classification never
+    // blocks a rollback server-side, but a FAILED preview does abort this
+    // console flow (fail-visible; the raw CLI can still roll back without
+    // a preview).
+    //
+    // The target is read BEFORE the await so a selection that moves during
+    // the preview is detected. A null target (nothing selected) needs no
+    // message of its own: previewRollback's guard reports it and returns
+    // null, landing in the note == null arm below.
+    final target = _confirmTarget();
+    late final String? note;
+    final previewGeneration = ++_previewGeneration;
+    setState(() {
+      _previewInFlight = true;
+    });
+    try {
+      note = await component.controller.previewRollback(toVersion: version);
+    } finally {
+      if (mounted && previewGeneration == _previewGeneration) {
+        setState(() {
+          _previewInFlight = false;
+        });
+      }
+    }
+    if (!mounted || previewGeneration != _previewGeneration) return;
+    if (note == null) {
+      // Preview failed or refused; the operation message carries the cause.
       return;
     }
-    await component.controller.rollbackSelected(
-      reason: reason,
-      toVersion: version,
-      freeze: false,
+    // The preview awaited — abort if the selection moved meanwhile, so the
+    // note can never be presented against a different surface. (A null
+    // target cannot reach here — the preview's own guard already returned —
+    // but the check also promotes the type.)
+    if (target == null || _confirmTarget() != target) {
+      component.controller.reportOperationMessage(
+        'Selection changed during the preview — nothing was rolled back.',
+      );
+      if (mounted) setState(() {});
+      return;
+    }
+    _openOperationConfirmation(
+      _PendingRollback(
+        reason: reason,
+        toVersion: version,
+        target: target,
+        impactNote: note.isEmpty ? null : note,
+      ),
     );
   }
 
-  Future<void> _submitProductionConfirmation(String input) async {
-    final pending = _pendingProduction;
+  /// The (surface type, slug, environment) triple a parked confirm is pinned
+  /// to, or null when nothing is selected.
+  _ConfirmTarget? _confirmTarget() {
+    final state = component.controller.state;
+    final surface = state.selectedSurface;
+    final environment = state.context?.environment;
+    if (surface == null || environment == null) return null;
+    return _ConfirmTarget(
+      surfaceType: surface.surfaceType,
+      surfaceSlug: surface.slug,
+      environment: environment,
+    );
+  }
+
+  Future<void> _submitOperationConfirmation(String input) async {
+    final pending = _pendingConfirm;
     if (pending == null) return;
     if (input.toLowerCase() != 'confirm') {
       setState(() {
-        _prompt = _PromptKind.productionConfirm;
+        _prompt = _PromptKind.operationConfirm;
         _promptController.text = input;
       });
       return;
     }
-    _pendingProduction = null;
-    switch (pending.kind) {
-      case _PendingProductionKind.kill:
+    _pendingConfirm = null;
+    // The operation executes against the CURRENT selection, so a confirm is
+    // only honored while the selection still matches the target it was
+    // opened (and previewed) for — otherwise it could mutate a different
+    // surface or environment than the one the operator saw.
+    if (_confirmTarget() != pending.target) {
+      component.controller.reportOperationMessage(
+        'Selection changed since the confirmation opened — nothing was '
+        'changed. Re-run the operation on the selected surface.',
+      );
+      return;
+    }
+    switch (pending) {
+      case _PendingKill():
         await component.controller.killSelected(
           reason: pending.reason,
           frozen: false,
           confirmedProduction: true,
         );
-      case _PendingProductionKind.rollback:
+      case _PendingRollback(:final toVersion):
+        // "The operator typed confirm" — the executor scopes the flag to
+        // production itself, so both arms pass it unconditionally.
         await component.controller.rollbackSelected(
           reason: pending.reason,
-          toVersion: pending.toVersion!,
+          toVersion: toVersion,
           freeze: false,
           confirmedProduction: true,
         );
@@ -501,12 +588,25 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   }
 
   bool get _needsProductionConfirmation =>
-      component.controller.state.context?.environment == 'production';
+      component.controller.state.context?.environment ==
+      kProductionEnvironmentSlug;
 
-  void _openProductionConfirmation(_PendingProductionOperation pending) {
+  /// Surface a visible refusal when a production kill was submitted with no
+  /// usable selection (e.g. a background refresh emptied the surface list
+  /// while the prompt was open). The prompt input is already consumed at
+  /// this point, so dropping it silently would leave the operator unable to
+  /// tell whether the operation ran. Uses the controller's guard wording so
+  /// the refusal reads the same on every path. The setState is load-bearing:
+  /// this path early-returns before _submitPrompt's trailing repaint.
+  void _reportNothingSelected() {
+    component.controller.reportOperationMessage('No surface selected.');
+    if (mounted) setState(() {});
+  }
+
+  void _openOperationConfirmation(_PendingConfirmOperation pending) {
     setState(() {
-      _pendingProduction = pending;
-      _prompt = _PromptKind.productionConfirm;
+      _pendingConfirm = pending;
+      _prompt = _PromptKind.operationConfirm;
       _promptController.clear();
     });
   }
@@ -696,10 +796,23 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             _searchBand(state),
             const SizedBox(height: 1),
             Expanded(child: _body(state)),
-            if (_prompt != null) ...[
+            if (_previewInFlight) ...[
+              _previewIndicator(),
+              const SizedBox(height: 1),
+            ] else if (_prompt != null) ...[
               _promptBox(_prompt!),
               const SizedBox(height: 1),
             ],
+            // The single operation-message slot. It renders in every view
+            // and selection state, so a refused or failed operation is never
+            // silently dropped (the surface detail panel is only on screen
+            // in the surfaces view, and can early-return before its body).
+            if (state.operationMessage != null)
+              Text(
+                state.operationMessage!,
+                maxLines: 1,
+                style: const TextStyle(color: _ConsoleTheme.warning),
+              ),
             const Text(
               '/ search | tab panels | arrows move | enter/space select | drag resize | q quit',
               maxLines: 1,
@@ -1497,18 +1610,27 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     final surface = state.selectedSurface;
     if (surface == null) return const Text('No surface selected');
     final status = state.status;
-    final message = state.operationMessage;
     final liveVersion = status?.liveVersion;
     final lockedText = status?.locked == true ? 'locked' : 'unlocked';
     final liveText = liveVersion == null ? '-' : 'v$liveVersion';
     final latestHash = status?.versions.isNotEmpty == true
         ? status!.versions.first.contentHash
         : null;
+    // The active version's flow delivery mode ('typed'/'general'), when the
+    // server supplies one — general means the flow structure itself can be
+    // recomposed over the air.
+    final activeMode = status?.versions
+        .where((v) => v.isActive)
+        .firstOrNull
+        ?.deliveryMode;
+    final shapeText =
+        '${status?.deliveryShape ?? '-'}'
+        '${activeMode != null ? ' ($activeMode)' : ''}';
     final deliveryText = status?.supportsRollback == false
-        ? 'delivery ${status?.deliveryShape ?? '-'} version-pinned'
+        ? 'delivery $shapeText version-pinned'
         : latestHash == null
-        ? 'delivery ${status?.deliveryShape ?? '-'} / $lockedText'
-        : '$latestHash delivery ${status?.deliveryShape ?? '-'} / $lockedText';
+        ? 'delivery $shapeText / $lockedText'
+        : '$latestHash delivery $shapeText / $lockedText';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1545,12 +1667,6 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
           ),
         ),
         for (final action in _DetailAction.values) _actionChip(action),
-        if (message != null)
-          Text(
-            message,
-            maxLines: 1,
-            style: const TextStyle(color: _ConsoleTheme.warning),
-          ),
         const Text(
           'Status-backed history',
           style: TextStyle(
@@ -1592,7 +1708,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
   String _versionHistoryLabel(SurfaceVersionResult version) {
     final active = version.isActive ? ' active' : '';
-    return 'v${version.version}$active  ${version.contentHash}';
+    final mode = version.deliveryMode != null
+        ? '  ${version.deliveryMode}'
+        : '';
+    return 'v${version.version}$active  ${version.contentHash}$mode';
   }
 
   String _commandPreview(ConsoleState state, _DetailAction action) {
@@ -1691,6 +1810,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   }
 
   Component _promptBox(_PromptKind prompt) {
+    final impactNote = switch (_pendingConfirm) {
+      _PendingRollback(:final impactNote) => impactNote,
+      _ => null,
+    };
     return Container(
       padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
@@ -1700,6 +1823,11 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (prompt == _PromptKind.operationConfirm && impactNote != null)
+            Text(
+              impactNote,
+              style: const TextStyle(color: _ConsoleTheme.accentBlue),
+            ),
           Text(
             prompt.label,
             maxLines: 1,
@@ -1712,6 +1840,21 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             onSubmitted: (value) => unawaited(_submitPrompt(value)),
           ),
         ],
+      ),
+    );
+  }
+
+  Component _previewIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(1),
+      decoration: BoxDecoration(
+        color: _ConsoleTheme.recessed,
+        border: BoxBorder.all(color: _ConsoleTheme.warning),
+      ),
+      child: const Text(
+        'Previewing rollback…',
+        maxLines: 1,
+        style: TextStyle(color: _ConsoleTheme.warning),
       ),
     );
   }
@@ -1789,7 +1932,7 @@ enum _PromptKind {
   rollback('Rollback target and reason', '2 bad release'),
   freeze('Reason for freeze', 'pause publishes'),
   unfreeze('Reason for unfreeze', 'resume publishes'),
-  productionConfirm('Type confirm for production', 'confirm');
+  operationConfirm('Type confirm to proceed', 'confirm');
 
   const _PromptKind(this.label, this.placeholder);
 
@@ -1797,19 +1940,53 @@ enum _PromptKind {
   final String placeholder;
 }
 
-enum _PendingProductionKind { kill, rollback }
+/// A destructive operation parked behind the type-confirm prompt: kill on
+/// production, and rollback in every environment (its confirm carries the
+/// preview's cohort-impact note). Pinned to the [target] it was opened for —
+/// the confirm is refused if the selection moves before it is typed.
+sealed class _PendingConfirmOperation {
+  const _PendingConfirmOperation({required this.reason, required this.target});
 
-class _PendingProductionOperation {
-  const _PendingProductionOperation.kill({required this.reason})
-    : kind = _PendingProductionKind.kill,
-      toVersion = null;
-
-  const _PendingProductionOperation.rollback({
-    required this.reason,
-    required this.toVersion,
-  }) : kind = _PendingProductionKind.rollback;
-
-  final _PendingProductionKind kind;
   final String reason;
-  final int? toVersion;
+  final _ConfirmTarget target;
+}
+
+final class _PendingKill extends _PendingConfirmOperation {
+  const _PendingKill({required super.reason, required super.target});
+}
+
+final class _PendingRollback extends _PendingConfirmOperation {
+  const _PendingRollback({
+    required super.reason,
+    required this.toVersion,
+    required super.target,
+    required this.impactNote,
+  });
+
+  final int toVersion;
+  final String? impactNote;
+}
+
+/// The (surface type, slug, environment) triple a parked confirm is pinned
+/// to. Value-comparable so a selection change is detectable by equality.
+class _ConfirmTarget {
+  const _ConfirmTarget({
+    required this.surfaceType,
+    required this.surfaceSlug,
+    required this.environment,
+  });
+
+  final String surfaceType;
+  final String surfaceSlug;
+  final String environment;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ConfirmTarget &&
+      other.surfaceType == surfaceType &&
+      other.surfaceSlug == surfaceSlug &&
+      other.environment == environment;
+
+  @override
+  int get hashCode => Object.hash(surfaceType, surfaceSlug, environment);
 }

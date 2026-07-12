@@ -15,9 +15,11 @@ import 'package:restage_example/widgets/acme_border.dart' as s0;
 import 'package:restage_example/widgets/acme_stack.dart' as s1;
 import 'package:restage_example/widgets/minimal_custom_widget.dart' as s2;
 import 'package:restage_example/widgets/pricing_card.dart' as s3;
-import 'package:restage_example/widgets/promo_badge.dart' as s4;
-import 'package:restage_example/widgets/pulse_badge.dart' as s5;
-import 'package:restage_example/widgets/streak_badge.dart' as s6;
+import 'package:restage_example/widgets/pricing_table.dart' as s4;
+import 'package:restage_example/widgets/promo_badge.dart' as s5;
+import 'package:restage_example/widgets/pulse_badge.dart' as s6;
+import 'package:restage_example/widgets/streak_badge.dart' as s7;
+import 'package:restage_example/widgets/tier_board.dart' as s8;
 
 /// Registers every emittable @RestageWidget-annotated class
 /// in this package with Restage. Call once at the app's
@@ -32,10 +34,12 @@ void registerRestageCustomerWidgets() {
       RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
       RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
       RestageWidgetFactory(name: 'PricingCard', builder: _buildPricingCard),
+      RestageWidgetFactory(name: 'PricingTable', builder: _buildPricingTable),
       RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
       RestageWidgetFactory(name: 'PulseBadge', builder: _buildPulseBadge),
       RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
       RestageWidgetFactory(name: 'StreakBadge', builder: _buildStreakBadge),
+      RestageWidgetFactory(name: 'TierBoard', builder: _buildTierBoard),
     ],
   );
 }
@@ -75,8 +79,36 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
   );
 }
 
+Widget _buildPricingTable(BuildContext context, DataSource source) {
+  return s4.PricingTable(
+    plans: source.isList(<Object>['plans'])
+        ? [
+            for (var i0 = 0; i0 < source.length(<Object>['plans']); i0++)
+              source.isMap(<Object>['plans', i0])
+                  ? s3.Plan(
+                      name: source.v<String>(<Object>['plans', i0, 'name']) ??
+                          (throw ArgumentError('Plan.name is required.')),
+                      price: source.isMap(<Object>['plans', i0, 'price'])
+                          ? s3.Price(
+                              source.v<int>(<Object>['plans', i0, 'price', 'amount']) ??
+                                  (throw ArgumentError(
+                                      'Price.amount is required.')),
+                              currency: source.v<String>(
+                                      <Object>['plans', i0, 'price', 'currency']) ??
+                                  'USD')
+                          : (throw ArgumentError('Plan.price is required.')),
+                      badge: source.v<String>(<Object>['plans', i0, 'badge']),
+                      tier: ArgumentDecoders.enumValue<s3.PlanTier>(
+                              s3.PlanTier.values, source, <Object>['plans', i0, 'tier']) ??
+                          s3.PlanTier.starter)
+                  : (throw ArgumentError('PricingTable.plans element must be an object.'))
+          ]
+        : (throw ArgumentError('PricingTable.plans is required.')),
+  );
+}
+
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
-  return s4.PromoBadge(
+  return s5.PromoBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('PromoBadge.label is required.')),
     color: ArgumentDecoders.color(source, <Object>['color']),
@@ -84,7 +116,7 @@ Widget _buildPromoBadge(BuildContext context, DataSource source) {
 }
 
 Widget _buildPulseBadge(BuildContext context, DataSource source) {
-  return s5.PulseBadge(
+  return s6.PulseBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('PulseBadge.label is required.')),
     count: source.v<int>(<Object>['count']) ??
@@ -102,10 +134,92 @@ Widget _buildStatBadge(BuildContext context, DataSource source) {
 }
 
 Widget _buildStreakBadge(BuildContext context, DataSource source) {
-  return s6.StreakBadge(
+  return s7.StreakBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('StreakBadge.label is required.')),
     count: source.v<int>(<Object>['count']) ??
         (throw ArgumentError('StreakBadge.count is required.')),
+  );
+}
+
+Widget _buildTierBoard(BuildContext context, DataSource source) {
+  return s8.TierBoard(
+    tiers: source.isList(<Object>['tiers'])
+        ? [
+            for (var i0 = 0; i0 < source.length(<Object>['tiers']); i0++)
+              source.isMap(<Object>['tiers', i0])
+                  ? s8.Tier(
+                      name: source.v<String>(<Object>['tiers', i0, 'name']) ??
+                          (throw ArgumentError('Tier.name is required.')),
+                      features: source.isList(<Object>['tiers', i0, 'features'])
+                          ? [
+                              for (var i1 = 0;
+                                  i1 <
+                                      source.length(
+                                          <Object>['tiers', i0, 'features']);
+                                  i1++)
+                                source.isMap(
+                                        <Object>['tiers', i0, 'features', i1])
+                                    ? s8.Feature(
+                                        label: source.v<String>(<Object>[
+                                              'tiers',
+                                              i0,
+                                              'features',
+                                              i1,
+                                              'label'
+                                            ]) ??
+                                            (throw ArgumentError(
+                                                'Feature.label is required.')))
+                                    : (throw ArgumentError(
+                                        'Tier.features element must be an object.'))
+                            ]
+                          : (throw ArgumentError('Tier.features is required.')))
+                  : (throw ArgumentError(
+                      'TierBoard.tiers element must be an object.'))
+          ]
+        : (throw ArgumentError('TierBoard.tiers is required.')),
+    bonusTiers: source.isList(<Object>['bonusTiers'])
+        ? [
+            for (var i0 = 0; i0 < source.length(<Object>['bonusTiers']); i0++)
+              source.isMap(<Object>['bonusTiers', i0])
+                  ? s8.Tier(
+                      name: source
+                              .v<String>(<Object>['bonusTiers', i0, 'name']) ??
+                          (throw ArgumentError('Tier.name is required.')),
+                      features: source
+                              .isList(<Object>['bonusTiers', i0, 'features'])
+                          ? [
+                              for (var i1 = 0;
+                                  i1 <
+                                      source.length(<Object>[
+                                        'bonusTiers',
+                                        i0,
+                                        'features'
+                                      ]);
+                                  i1++)
+                                source.isMap(<Object>[
+                                  'bonusTiers',
+                                  i0,
+                                  'features',
+                                  i1
+                                ])
+                                    ? s8.Feature(
+                                        label: source.v<String>(<Object>[
+                                              'bonusTiers',
+                                              i0,
+                                              'features',
+                                              i1,
+                                              'label'
+                                            ]) ??
+                                            (throw ArgumentError(
+                                                'Feature.label is required.')))
+                                    : (throw ArgumentError(
+                                        'Tier.features element must be an object.'))
+                            ]
+                          : (throw ArgumentError('Tier.features is required.')))
+                  : (throw ArgumentError(
+                      'TierBoard.bonusTiers element must be an object.'))
+          ]
+        : null,
   );
 }

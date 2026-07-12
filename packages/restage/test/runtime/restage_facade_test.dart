@@ -8,6 +8,7 @@ import 'package:restage/restage.dart';
 // Direct path import — the registry is internal; the test reaches in to
 // verify the public facade routes registrations into it.
 // ignore: implementation_imports
+import 'package:restage/src/refresh/restage_hosted_update_channel.dart';
 import 'package:restage/src/runtime/library_runtime_registry.dart';
 // Direct path import — the assignment-key provider is internal; these tests pin
 // configure/debugReset lifecycle rather than exposing a host-facing API.
@@ -69,6 +70,34 @@ void main() {
       resolver: const AssetVariantResolver(),
     );
     expect(Restage.debugDefaultResolver, isA<AssetVariantResolver>());
+  });
+
+  test('configure installs the hosted update channel when fully configured',
+      () {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.com',
+      liveRefreshEdgeUrl: Uri.parse('https://edge.example.com'),
+    );
+    _installNoopRpcClient();
+
+    expect(
+      Restage.configuredUpdateChannel,
+      isA<RestageHostedUpdateChannel>(),
+    );
+  });
+
+  test('a custom update channel wins over the hosted channel', () {
+    final channel = _FacadeUpdateChannel();
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://api.example.com',
+      liveRefreshEdgeUrl: Uri.parse('https://edge.example.com'),
+      updateChannel: channel,
+    );
+    _installNoopRpcClient();
+
+    expect(Restage.configuredUpdateChannel, same(channel));
   });
 
   test('events is a broadcast stream', () async {
@@ -201,6 +230,11 @@ void main() {
 
     expect(await SurfaceAssignmentKeyProvider.resolve(), isNull);
   });
+}
+
+final class _FacadeUpdateChannel implements SurfaceUpdateChannel {
+  @override
+  Stream<SurfaceUpdate> watch(SurfaceRef surface) => const Stream.empty();
 }
 
 void _installNoopRpcClient() {

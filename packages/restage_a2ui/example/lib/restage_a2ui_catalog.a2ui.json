@@ -3,29 +3,88 @@
     "catalogContentVersion": 1,
     "availableLibraries": [
       {
+        "namespace": "acme.lessons",
+        "version": 1
+      },
+      {
         "namespace": "acme.widgets",
         "version": 2
       }
     ],
     "perItemSinceVersion": {
+      "Callout": 1,
+      "ComparisonPanel": 1,
       "CtaButton": 1,
       "ProductCard": 1,
-      "RatingPicker": 1
+      "QuizCheck": 1,
+      "RatingPicker": 1,
+      "SectionHeader": 1
     }
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/1+acme.widgets@2",
+    "$id": "restage:catalog/1+acme.lessons@1_acme.widgets@2",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/1+acme.widgets@2",
+    "catalogId": "restage:catalog/1+acme.lessons@1_acme.widgets@2",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
+      "Callout": {
+        "type": "object",
+        "description": "A message callout that wraps an optional child.",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "The callout message."
+          },
+          "child": {
+            "type": "string",
+            "description": "The wrapped child content."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "Callout"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "ComparisonPanel": {
+        "type": "object",
+        "description": "A headed panel that lays out a list of child widgets.",
+        "properties": {
+          "heading": {
+            "type": "string",
+            "description": "The panel heading."
+          },
+          "children": {
+            "type": "array",
+            "description": "The compared child widgets.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "ComparisonPanel"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
       "CtaButton": {
         "type": "object",
+        "description": "A call-to-action button that dispatches a tap event.",
         "properties": {
           "label": {
-            "type": "string"
+            "type": "string",
+            "description": "The button caption."
           },
           "component": {
             "type": "string",
@@ -40,9 +99,11 @@
       },
       "ProductCard": {
         "type": "object",
+        "description": "Renders a structured product (nested price, tags, features, attributes, size).",
         "properties": {
           "product": {
             "type": "object",
+            "description": "The product to display.",
             "properties": {
               "name": {
                 "type": "string"
@@ -129,10 +190,65 @@
           "product"
         ]
       },
+      "QuizCheck": {
+        "type": "object",
+        "description": "A prompt with a checkable answer bound to a boolean value.",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "The quiz prompt."
+          },
+          "selected": {
+            "description": "Whether the answer is selected.",
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "QuizCheck"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
       "RatingPicker": {
         "type": "object",
+        "description": "A 1–5 star rating control bound to an integer value.",
         "properties": {
           "rating": {
+            "description": "The selected rating, 1 through 5.",
             "oneOf": [
               {
                 "type": "number"
@@ -175,8 +291,36 @@
         "required": [
           "component"
         ]
+      },
+      "SectionHeader": {
+        "type": "object",
+        "description": "A titled section header.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "The header title."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "SectionHeader"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
       }
     },
-    "functions": {}
+    "functions": {},
+    "systemPromptFragments": [
+      "Callout: Use for a short highlighted aside around optional content.",
+      "ComparisonPanel: A headed panel that lays out a list of child widgets.",
+      "QuizCheck: A prompt with a checkable answer bound to a boolean value.",
+      "SectionHeader: A titled section header.",
+      "CtaButton: A call-to-action button that dispatches a tap event.",
+      "ProductCard: Renders a structured product (nested price, tags, features, attributes, size).",
+      "RatingPicker: A 1–5 star rating control bound to an integer value."
+    ]
   }
 }

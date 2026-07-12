@@ -1,4 +1,6 @@
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/commands/lifecycle_support.dart'
+    show kCohortImpactNotePrefix;
 import 'package:restage_cli/src/tui/console_models.dart';
 
 abstract interface class ConsoleRepository {
@@ -180,6 +182,45 @@ class ConsoleController {
       ),
       operation: 'rollback',
     );
+  }
+
+  /// Run the read-only rollback preview for the selected surface and return
+  /// its cohort-impact note, or null when the preview could not run (the
+  /// failure is surfaced through the operation message). A pure read: no
+  /// activity entry, no status refresh, never gates the rollback.
+  Future<String?> previewRollback({required int toVersion}) async {
+    final executor = _operationExecutor;
+    final context = _state.context;
+    final surface = _state.selectedSurface;
+    if (executor == null) {
+      _state = _state.copyWith(operationMessage: 'Operations unavailable.');
+      return null;
+    }
+    if (context == null || surface == null) {
+      _state = _state.copyWith(operationMessage: 'No surface selected.');
+      return null;
+    }
+    final result = await executor.rollbackPreview(
+      context: context,
+      surface: surface,
+      toVersion: toVersion,
+    );
+    if (!result.succeeded) {
+      _state = _state.copyWith(operationMessage: _operationMessage(result));
+      return null;
+    }
+    final note = result.stdout
+        .trim()
+        .split('\n')
+        .where((line) => line.startsWith(kCohortImpactNotePrefix))
+        .join('\n');
+    return note;
+  }
+
+  /// Surface a message in the operation-message slot without running an
+  /// operation (e.g. a confirm refused because the selection changed).
+  void reportOperationMessage(String message) {
+    _state = _state.copyWith(operationMessage: message);
   }
 
   Future<void> freezeSelected({required String reason}) async {

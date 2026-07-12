@@ -6,9 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/analytics/analytics_event_mapper.dart';
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+import 'flow_test_support.dart';
 
 /// The installed built-in catalog version this SDK build ships. The active arm's
 /// retained installed-floor backstop rejects a document above it.
@@ -52,6 +55,59 @@ void main() {
     // The newer, content-compatible active version renders — the OTA capability.
     expect(resolved.document.version, 2);
     expect(resolved.screenBlobs['welcome'], activeBytes);
+  });
+
+  test(
+      'active onboarding response metadata is not stamped onto flow analytics '
+      'events', () async {
+    final bundledBytes = screenBlob('Bundled', 'next');
+    final activeBytes = screenBlob('Active', 'next');
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      active: true,
+      bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
+      httpClient: _server(
+        _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
+        experimentId: 'exp_onboarding_copy',
+        variantId: 'variant_a',
+      ),
+    );
+    final events = <RestageEvent>[];
+    final controller = RestageFlowController<Map<String, Object?>>(
+      flow: flowRef,
+      resolver: resolver,
+      actions: null,
+      onEvent: events.add,
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+    );
+    addTearDown(controller.dispose);
+
+    await controller.load();
+    await drainFlowTasks();
+
+    final started = events.whereType<FlowStarted>().single;
+    expect(started.resolvedVersion, 2);
+    expect(started.toMap().containsKey('experimentId'), isFalse);
+    expect(started.toMap().containsKey('variantId'), isFalse);
+
+    final envelope = mapRestageEventToEnvelope(
+      started,
+      eventId: 'evt-1',
+      anonymousId: 'anon-1',
+      sessionId: 'sess-1',
+      appContext: const AnalyticsAppContext(
+        platform: 'ios',
+        locale: 'en_US',
+        sdkVersion: '1.0.0',
+      ),
+      now: DateTime.utc(2026, 6, 13, 12),
+    );
+    expect(envelope.surface, AnalyticsSurface.onboarding);
+    expect(envelope.surfaceId, 'first_run');
+    expect(envelope.experimentId, isNull);
+    expect(envelope.variantId, isNull);
   });
 
   test('new client → breaking active: fails closed to the BUNDLED doc',
@@ -331,11 +387,20 @@ AssetBundle _emptyBundle() => _TestBundle(const {});
 /// A `MockClient` serving [envelope] (base64-wrapped) on every request.
 MockClient _server(
   Uint8List envelope, {
+  String? experimentId,
+  String? variantId,
   void Function(http.Request request)? onRequest,
 }) {
   return MockClient((request) async {
     onRequest?.call(request);
-    return http.Response(jsonEncode({'envelope': base64Encode(envelope)}), 200);
+    return http.Response(
+      jsonEncode({
+        'envelope': base64Encode(envelope),
+        if (experimentId != null) 'experimentId': experimentId,
+        if (variantId != null) 'variantId': variantId,
+      }),
+      200,
+    );
   });
 }
 

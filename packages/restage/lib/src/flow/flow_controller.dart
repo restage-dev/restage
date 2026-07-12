@@ -88,6 +88,22 @@ final class RestageFlowController<R> extends ChangeNotifier {
   final String _operationSessionId = _mintOperationSessionId();
   final List<_FlowFrame> _frames = <_FlowFrame>[];
 
+  /// Signal names contributed by the action registry when it implements
+  /// [FlowSignalRegistry]; unioned with the host-passed [installedSignalNames].
+  late final Set<String> _registrySignalNames = _computeRegistrySignalNames();
+
+  Set<String> _computeRegistrySignalNames() {
+    final registry = actions;
+    if (registry is FlowSignalRegistry) {
+      return (registry as FlowSignalRegistry).installedSignalNames;
+    }
+    return const <String>{};
+  }
+
+  bool _isSignalInstalled(String name) =>
+      installedSignalNames.contains(name) ||
+      _registrySignalNames.contains(name);
+
   /// The SURFACE's delivery mode, established once from the ROOT document at
   /// [load]. The custom-event-name cap and the outbound-filter posture are
   /// anchored to THIS, never to a per-frame document's self-attested marker — a
@@ -163,6 +179,21 @@ final class RestageFlowController<R> extends ChangeNotifier {
       !_isUnavailable &&
       !_isComplete &&
       (_currentFrame?.screenHistory.length ?? 0) > 1;
+
+  bool _userContributedState = false;
+
+  /// Whether the user has invested state into this flow — navigated past the
+  /// first screen, or recorded any answer/selection via a state-writing
+  /// transition. Used as a swap-safety signal: a flow with user-contributed
+  /// state is never live-replaced in place. Once set by a state write it stays
+  /// set for the life of the controller (a back-navigation does not un-invest
+  /// the answer already recorded).
+  bool get hasUserContributedState =>
+      _userContributedState || ((_currentFrame?.screenHistory.length ?? 0) > 1);
+
+  /// The active published version currently resolved for the flow, or `null`
+  /// when the flow is unresolved or uses its bundled version.
+  int? get resolvedVersion => _currentFrame?.resolvedVersion;
 
   /// The entry ids of every screen still reachable by back navigation, across
   /// all live frames (a parent frame's screens stay reachable once a sub-flow
@@ -584,11 +615,14 @@ final class RestageFlowController<R> extends ChangeNotifier {
   void _validateGeneralSignalNames(FlowDocument document) {
     if (!_signalCapApplies) return;
     for (final name in document.outbound.customEvents.keys) {
-      if (!installedSignalNames.contains(name)) {
+      if (!_isSignalInstalled(name)) {
         throw _error(
           'signal_not_installed',
           'General surface declares custom-event/host-signal name "$name" with '
-              'no installed handler; a new signal type requires an app release.',
+              'no installed handler. A generated flow registry installs its own '
+              "flow's custom-event names; a name declared by a sub-flow (or a "
+              'hand-rolled registry) must be passed in installedSignalNames. An '
+              'entirely new signal type still requires an app release.',
         );
       }
     }
@@ -1302,7 +1336,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // single emission chokepoint every custom event (any frame) passes through,
     // guaranteeing an uninstalled name can never reach the host as a behavior
     // trigger even if an admission path is ever missed.
-    if (_signalCapApplies && !installedSignalNames.contains(eventName)) {
+    if (_signalCapApplies && !_isSignalInstalled(eventName)) {
       return false;
     }
     final fields = _filterOutboundFields(
@@ -1688,6 +1722,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
       ...frame.flowState,
       ...resolvedWrites,
     });
+    // The user contributed state (an answer/selection recorded via this write).
+    // Reached only past the `stateWrites.isEmpty` guard above, so it is always
+    // a non-empty write. Marks the flow dirty for the swap-safety gate.
+    _userContributedState = true;
   }
 
   bool _matchesBranch(

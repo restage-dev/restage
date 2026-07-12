@@ -63,13 +63,14 @@ WidgetEntry entry({
   List<DecompositionRecipe> decomposes = const [],
   int sinceVersion = kBaselineCatalogVersion,
   String? deprecatedSince,
+  String description = '',
 }) =>
     WidgetEntry(
       wireId: WireId.unallocatedWidget,
       name: name,
       library: library,
       category: category,
-      description: '',
+      description: description,
       flutterType: flutterType ?? 'package:test_fixture/$name.dart#$name',
       childrenSlot: childrenSlot,
       fires: fires,
@@ -80,18 +81,20 @@ WidgetEntry entry({
     );
 
 /// Builds a [PropertyEntry] with the always-required `description`
-/// stubbed empty.
+/// stubbed empty by default (pass [description] to exercise a described
+/// property).
 PropertyEntry prop(
   String name,
   PropertyType type, {
   bool required = false,
   bool positional = false,
+  String description = '',
 }) =>
     PropertyEntry(
       wireId: WireId.unallocatedProperty,
       name: name,
       type: type,
-      description: '',
+      description: description,
       required: required,
       positional: positional,
     );

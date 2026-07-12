@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/commands/lifecycle_support.dart'
+    show kCohortImpactNotePrefix;
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
@@ -210,6 +212,65 @@ void main() {
       expect(calls.single['surfaceType'], 'paywall');
     },
   );
+
+  test('rollbackPreview drives the real rollback --preview: no reason needed, '
+      'no mutation, and the cohort-impact line survives extraction', () async {
+    final dir = await Directory.systemTemp.createTemp('restage-console-');
+    addTearDown(() => dir.delete(recursive: true));
+    final store = FileCredentialStore(p.join(dir.path, 'credential.json'));
+    await seedCredential(store);
+    await seedRestageConfig(
+      dir,
+      'default',
+      'default',
+      defaultEnvironment: 'staging',
+      organization: 'restage',
+      endpoint: 'http://localhost:8080/',
+    );
+
+    var mutated = false;
+    final client = scriptedHttpClient([
+      _okListOrgs,
+      _okStatus,
+      (request) {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        if (body['method'] == 'rollbackSurface') mutated = true;
+        expect(body['method'], 'rollbackPreflight');
+        return _okRollbackPreflight();
+      },
+    ]);
+
+    final executor = ConsoleCommandExecutor(
+      credentialStore: store,
+      httpClient: client,
+      directory: dir,
+    );
+
+    final result = await executor.rollbackPreview(
+      context: const ConsoleContext(
+        organizationSlug: 'restage',
+        project: 'default',
+        app: 'default',
+        environment: 'staging',
+      ),
+      surface: const ConsoleSurface(
+        surfaceType: 'paywall',
+        slug: 'pro',
+        name: 'Pro',
+      ),
+      toVersion: 2,
+    );
+
+    expect(result.exitCode, 0);
+    expect(mutated, isFalse);
+    // Pins the REAL command's output shape against the console's
+    // extraction: the note line must start with the shared prefix.
+    final noteLines = result.stdout
+        .trim()
+        .split('\n')
+        .where((line) => line.startsWith(kCohortImpactNotePrefix));
+    expect(noteLines, isNotEmpty);
+  });
 
   test('freeze and unfreeze route through surface lock commands', () async {
     final fixture = await _seedExecutorFixture(environment: 'staging');

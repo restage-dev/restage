@@ -1,8 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:restage_shared/restage_shared.dart' show SurfaceType;
 
 import '../authoring/onboarding_event_dispatcher.dart';
+import '../events/restage_event.dart' show FlowStarted, RestageEvent;
+import '../refresh/surface_refresh_registry.dart';
+import '../refresh/surface_refresh_trigger.dart';
+import '../refresh/surface_update_channel.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart';
 import 'flow_chrome.dart';
@@ -81,6 +86,7 @@ final class RestageOnboarding<R> extends StatefulWidget {
     this.chromeBuilder,
     this.persistentChromeBuilder,
     this.priceQueries = const {},
+    this.liveRefresh,
   });
 
   /// Generated flow descriptor to load.
@@ -102,10 +108,15 @@ final class RestageOnboarding<R> extends StatefulWidget {
   final FlowActionRegistry? actions;
 
   /// The installed custom-event / host-signal names the host has a reviewed
-  /// handler for. On a GENERAL (editor-authored) surface this caps the
-  /// custom-event channel alongside [actions]: a signal name the document did
-  /// not ship a handler for fails closed. Ignored on typed surfaces. Empty by
-  /// default.
+  /// handler for. On a GENERAL surface this caps the custom-event channel
+  /// alongside [actions]: a signal name the document did not ship a handler for
+  /// fails closed. Ignored on typed surfaces. Empty by default.
+  ///
+  /// A generated flow registry passed as [actions] installs its own flow's
+  /// custom-event names automatically, so this set is usually left empty. It is
+  /// still needed for names a generated registry does not enumerate — a
+  /// sub-flow's own custom events (the parent registry covers only the parent
+  /// flow) or a hand-rolled registry — which the runtime unions with this set.
   final Set<String> installedSignalNames;
 
   /// Optional resolver used to load the flow descriptor.
@@ -163,18 +174,122 @@ final class RestageOnboarding<R> extends StatefulWidget {
   /// screens.
   final Map<String, PriceInfo> priceQueries;
 
+  /// Per-widget live-refresh override. Null inherits the app-level
+  /// configuration (`Restage.configure`); a provided set replaces it wholesale
+  /// (an empty set opts this surface out entirely).
+  final Set<SurfaceRefreshTrigger>? liveRefresh;
+
   @override
   State<RestageOnboarding<R>> createState() => _RestageOnboardingState<R>();
 }
 
 class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   RestageFlowController<R>? _controller;
+
+  /// A controller re-resolving the flow during a live refresh, held here (never
+  /// rendered) until its first screen is ready. Promoted to [_controller] on
+  /// success; discarded silently on failure so a failed refresh keeps the
+  /// current render.
+  RestageFlowController<R>? _pendingController;
   FlowUnavailableError? _unavailableError;
+  SurfaceRefreshHandle? _refreshHandle;
 
   @override
   void initState() {
     super.initState();
     _start();
+    // Join the live-refresh registry so a reload / resume sweep / update
+    // signal can re-resolve the flow in place while it is pristine.
+    final handle = SurfaceRefreshHandle(
+      surface: SurfaceRef(
+        surfaceType: SurfaceType.onboarding.wireName,
+        slug: widget.flow.id,
+      ),
+      triggers: Restage.effectiveLiveRefreshTriggers(
+        widget.flow.id,
+        widgetOverride: widget.liveRefresh,
+      ),
+      canSwap: _canSwap,
+      refresh: _refresh,
+      renderedVersion: () => _controller?.resolvedVersion,
+      stampable: widget.resolver == null && Restage.activeRpcClient != null,
+    );
+    _refreshHandle = handle;
+    SurfaceRefreshRegistry.instance.register(handle);
+  }
+
+  /// The swap-safety gate: a flow is safe to re-host only while it is pristine
+  /// (no user-contributed state), idle (no transition/action in flight), and
+  /// not yet complete.
+  bool _canSwap() =>
+      !(_controller?.hasUserContributedState ?? false) &&
+      !(_controller?.isBusy ?? false) &&
+      !(_controller?.isComplete ?? false);
+
+  /// Re-resolve the flow in place. Reached only when the gate passed. Resolves
+  /// into a PENDING controller without tearing down the current one: promotes
+  /// it once its first screen is ready, and discards it silently on failure so
+  /// a failed refresh keeps the current render (staleness is never an error
+  /// state, and there is no loading flash on a successful re-host).
+  Future<void> _refresh() async {
+    if (!mounted || _controller == null) return;
+    _pendingController
+        ?.dispose(); // supersede any in-flight pending (the loser)
+    late final RestageFlowController<R> pending;
+    pending = _buildController(
+      onEvent: (event) {
+        if (identical(_pendingController, pending)) {
+          // Suppress the pending flow's lifecycle until promotion.
+          if (event is FlowStarted) _promotePending(pending);
+          return;
+        }
+        if (!mounted || !identical(_controller, pending)) return;
+        Restage.fireEvent(event);
+      },
+      onComplete: (result) {
+        if (identical(_pendingController, pending)) {
+          _discardPending(pending); // completed before rendering — keep current
+          return;
+        }
+        if (!mounted || !identical(_controller, pending)) return;
+        widget.onComplete?.call(result);
+      },
+      onUnavailable: (error) {
+        if (identical(_pendingController, pending)) {
+          // Silent: keep the current render. No fallback UI, no host callback.
+          _discardPending(pending);
+          return;
+        }
+        if (!mounted || !identical(_controller, pending)) return;
+        setState(() => _unavailableError = error);
+        widget.onFlowUnavailable?.call(error);
+      },
+    );
+    _pendingController = pending;
+    unawaited(pending.load());
+  }
+
+  void _promotePending(RestageFlowController<R> pending) {
+    if (!identical(_pendingController, pending) || !mounted) return;
+    // Re-check the gate at promotion — the re-resolve runs the full ladder
+    // (possibly a network fetch), so the user may have advanced meanwhile.
+    if (!_canSwap()) {
+      _discardPending(pending);
+      return;
+    }
+    _pendingController = null;
+    final old = _controller;
+    setState(() {
+      _controller = pending;
+      _unavailableError = null;
+    });
+    old?.dispose();
+  }
+
+  void _discardPending(RestageFlowController<R> pending) {
+    if (!identical(_pendingController, pending)) return; // already superseded
+    _pendingController = null;
+    pending.dispose();
   }
 
   @override
@@ -192,15 +307,14 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   }
 
   void _start() {
+    // A hard (re)start renders immediately and fails closed to the fallback,
+    // exactly as the first mount does. Any in-flight refresh pending controller
+    // is abandoned — a config-identity change supersedes a live refresh.
+    _disposePending();
     _disposeController();
     _unavailableError = null;
     late final RestageFlowController<R> controller;
-    controller = RestageFlowController<R>(
-      flow: widget.flow,
-      resolver: widget.resolver ?? Restage.defaultFlowResolver,
-      initialState: widget.initialState,
-      actions: widget.actions,
-      installedSignalNames: widget.installedSignalNames,
+    controller = _buildController(
       onEvent: (event) {
         if (!mounted || !identical(_controller, controller)) return;
         Restage.fireEvent(event);
@@ -219,6 +333,25 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
     unawaited(controller.load());
   }
 
+  /// Constructs a flow controller from the widget's configuration. Shared by the
+  /// mount/restart path ([_start]) and the live-refresh path ([_refresh]); only
+  /// the lifecycle callbacks differ.
+  RestageFlowController<R> _buildController({
+    required void Function(RestageEvent) onEvent,
+    required void Function(R result) onComplete,
+    required void Function(FlowUnavailableError error) onUnavailable,
+  }) =>
+      RestageFlowController<R>(
+        flow: widget.flow,
+        resolver: widget.resolver ?? Restage.defaultFlowResolver,
+        initialState: widget.initialState,
+        actions: widget.actions,
+        installedSignalNames: widget.installedSignalNames,
+        onEvent: onEvent,
+        onComplete: onComplete,
+        onUnavailable: onUnavailable,
+      );
+
   void _disposeController() {
     final controller = _controller;
     if (controller == null) return;
@@ -226,6 +359,11 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
     if (identical(_controller, controller)) {
       _controller = null;
     }
+  }
+
+  void _disposePending() {
+    _pendingController?.dispose();
+    _pendingController = null;
   }
 
   void _handleAuthoredEvent(String eventId, Object? value) {
@@ -237,6 +375,11 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
 
   @override
   void dispose() {
+    if (_refreshHandle case final handle?) {
+      SurfaceRefreshRegistry.instance.unregister(handle);
+    }
+    _refreshHandle = null;
+    _disposePending();
     _disposeController();
     super.dispose();
   }

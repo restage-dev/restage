@@ -71,6 +71,14 @@ class SurfaceRollbackCommand extends Command<int> {
         negatable: false,
         help:
             'Skip the confirmation prompt (non-production environments only).',
+      )
+      ..addFlag(
+        'preview',
+        negatable: false,
+        help:
+            'Preview only: print how the rollback is expected to affect live '
+            'clients (the cohort-impact classification) and exit without '
+            'confirming or rolling back.',
       );
   }
 
@@ -111,13 +119,21 @@ class SurfaceRollbackCommand extends Command<int> {
       return 1;
     }
 
-    // Step 4: require a non-empty audit reason.
-    final reason = await requireReason(
-      argResults: argResults,
-      interactive: _interactive,
-      stderr: _stderr,
-    );
-    if (reason == null) return 1;
+    // Step 3.5: --preview runs only the read path (status validation +
+    // preflight) — no audit reason, no confirm, no mutation.
+    final preview = argResults!['preview'] as bool;
+
+    // Step 4: require a non-empty audit reason (not for a preview — nothing
+    // is mutated, so there is nothing to audit).
+    String? reason;
+    if (!preview) {
+      reason = await requireReason(
+        argResults: argResults,
+        interactive: _interactive,
+        stderr: _stderr,
+      );
+      if (reason == null) return 1;
+    }
 
     // Step 5: resolve credential + project/app/env.
     final ctx = await loadLifecycleContext(
@@ -192,18 +208,32 @@ class SurfaceRollbackCommand extends Command<int> {
           surfaceSlug: slug,
           environment: ctx.environment,
           toVersion: toVersion,
+          organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);
       }
 
-      // Step 10: build the impact line + the cohort-impact note.
-      final base =
+      // Step 10: print the cohort-impact note unconditionally — it is the
+      // only operator-visible signal for how the rollback lands across the
+      // installed cohort, and the most automatable paths (--yes, --preview,
+      // no tty) must not be the least informative ones. Informational only:
+      // it never gates the rollback.
+      _stdout.writeln(_compatibilityNote(preflight));
+
+      // Step 10.5: a preview stops here — nothing to confirm or mutate.
+      if (preview) {
+        _stdout.writeln(
+          'Preview only — nothing was rolled back. Re-run without --preview '
+          'to roll back.',
+        );
+        return 0;
+      }
+
+      final impactLine =
           'Roll back "$slug" in ${ctx.environment} '
           'from v${status.liveVersion} to v$toVersion'
           '${freeze ? ' and freeze' : ''}.';
-      final note = _compatibilityNote(preflight);
-      final impactLine = note == null ? base : '$base\n$note';
 
       // Step 11: confirm the destructive operation.
       final confirmed = await confirmDestructive(
@@ -234,7 +264,7 @@ class SurfaceRollbackCommand extends Command<int> {
           environment: ctx.environment,
           toVersion: toVersion,
           lockAfter: freeze,
-          reason: reason,
+          reason: reason!,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
@@ -283,42 +313,51 @@ class SurfaceRollbackCommand extends Command<int> {
     return 1;
   }
 
-  /// The data-integrity refusal: the target version's stored payload can't be
-  /// decoded (corrupt), so re-pointing to it would reach no clients. Rendered
-  /// for the backend [SurfaceRollbackUnsupported] rejection.
+  /// The server-side refusal rendered for the backend
+  /// [SurfaceRollbackUnsupported] rejection. Usually the data-integrity
+  /// guard — the target version's stored payload can't be decoded (corrupt),
+  /// so re-pointing to it would reach no clients — but an older server that
+  /// predates flow-surface rollback refuses with the same wire error, so the
+  /// message must not present corruption as the only possible cause.
   String _undecodableTargetMessage(SurfaceType surfaceType) =>
-      "Can't roll ${surfaceType.wireName} back to that version — its stored "
-      "payload can't be decoded (corrupt), so re-pointing to it would reach no "
-      'clients. Roll back to a different version.';
+      "The server refused to roll ${surfaceType.wireName} back to that "
+      "version. Usually the version's stored payload can't be decoded "
+      '(corrupt), so re-pointing to it would reach no clients — but an '
+      'older server that predates flow-surface rollback refuses the same '
+      'way. Roll back to a different version, or upgrade the server.';
 
-  /// A one-line cohort-impact note for the confirm prompt, or null when there
-  /// is nothing useful to add. The compatibility is judged server-side against
-  /// the currently-live version as a proxy; the SDK re-checks per client.
-  String? _compatibilityNote(RollbackPreflightResult preflight) {
+  /// A one-line cohort-impact note for the confirm prompt. Total by
+  /// construction — every classification, including one this CLI does not
+  /// recognize, renders at least the raw classification, so no path can
+  /// print nothing. The compatibility is judged server-side against the
+  /// currently-live version as a proxy; the SDK re-checks per client.
+  String _compatibilityNote(RollbackPreflightResult preflight) {
     const caveat =
         '(Compatibility is judged against the currently-live version; each '
         'installed client re-checks against its own bundled copy and falls '
         'back safely.)';
     switch (preflight.classification) {
       case RollbackPreflightClassification.compatible:
-        return 'Cohort impact: live clients on the current contract will '
+        return '$kCohortImpactNotePrefix: live clients on the current contract will '
             'render v${preflight.toVersion}. $caveat';
       case RollbackPreflightClassification.contractChange:
         final changes = preflight.blockingChanges.isEmpty
             ? ''
             : ' Changes: ${preflight.blockingChanges.join('; ')}.';
-        return 'Cohort impact: v${preflight.toVersion} changes the flow '
+        return '$kCohortImpactNotePrefix: v${preflight.toVersion} changes the flow '
             'contract vs the live version — clients on the current contract '
             'fall back to their bundled copy.$changes $caveat';
       case RollbackPreflightClassification.noActiveBaseline:
-        return 'Cohort impact: nothing is currently live (killed or '
+        return '$kCohortImpactNotePrefix: nothing is currently live (killed or '
             'never-activated) — this reactivates v${preflight.toVersion}.';
       case RollbackPreflightClassification.unsupportedTargetShape:
       case RollbackPreflightClassification.unknown:
         // unsupportedTargetShape is reserved and no longer emitted by the
         // backend (flow-shaped paywall targets roll back now); unknown is
-        // forward-compat. The arms stay for exhaustiveness and add no note.
-        return null;
+        // forward-compat. Render the raw classification the server sent so
+        // even an unrecognized answer stays legible.
+        return '$kCohortImpactNotePrefix: classification '
+            '"${preflight.classificationWireName}".';
     }
   }
 }

@@ -1,0 +1,5 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget OnboardingScreen = Scaffold(backgroundColor: 0xFF241024, body: SafeArea(child: Padding(padding: [28.0, 24.0, 28.0, 28.0], child: Column(children: [Expanded(child: Column(mainAxisAlignment: "center", children: [Container(width: 96.0, height: 96.0, gradient: {type: "linear", begin: {x: -1.0, y: -1.0}, end: {x: 1.0, y: 1.0}, colors: [0xFFFF6F5B, 0xFFFF9E7D]}, shape: "circle", child: Icon(iconCodepoint: 63160, size: 48.0, color: 0xFF241024)), SizedBox(height: 32.0), Text(text: "Welcome to Stride", textAlign: "center", color: 0xFFFBEFE9, fontSize: 30.0, fontWeight: "w600", letterSpacing: -0.3), SizedBox(height: 14.0), Text(text: "Build a running habit that sticks — one short run at a time.", textAlign: "center", color: 0xFFC6A9BC, fontSize: 16.0, height: 1.5)])), Row(children: [Expanded(child: FilledButton(backgroundColor: 0xFFFF6F5B, foregroundColor: 0xFF241024, padding: [0.0, 18.0, 0.0, 18.0], shape: {type: "rounded", borderRadius: 28.0}, onPressed: event "start" {}, child: Text(text: "Get started", fontSize: 17.0, fontWeight: "w600")))])]))));

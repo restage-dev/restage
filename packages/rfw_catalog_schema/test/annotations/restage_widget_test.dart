@@ -32,4 +32,25 @@ void main() {
     expect(annotation.fires, isEmpty);
     expect(annotation.childrenSlot, ChildrenSlot.none);
   });
+
+  test('RestageWidget carries an optional usage note (default null)', () {
+    const withUsage = RestageWidget(
+      name: 'Callout',
+      library: WidgetLibrary.custom('acme.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'A message callout.',
+      usage: 'Use for a short inline notice around optional content.',
+    );
+    const withoutUsage = RestageWidget(
+      name: 'Callout',
+      library: WidgetLibrary.custom('acme.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'A message callout.',
+    );
+    expect(
+      withUsage.usage,
+      'Use for a short inline notice around optional content.',
+    );
+    expect(withoutUsage.usage, isNull);
+  });
 }
