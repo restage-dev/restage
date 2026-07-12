@@ -4,7 +4,10 @@ import 'dart:isolate';
 import 'package:build/build.dart';
 import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart'
-    show structuredSlotKey;
+    show
+        isCustomerStructuredFieldSlot,
+        isCustomerStructuredPropertySlot,
+        structuredSlotKey;
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/user_catalog_emitter.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
@@ -597,7 +600,7 @@ WidgetEntry _resolveWidgetRefs(
 }) {
   final properties = [
     for (final property in widget.properties)
-      if (property.type == PropertyType.structured)
+      if (isCustomerStructuredPropertySlot(property))
         _resolveStructuredSlot(
           property,
           slotKey: structuredSlotKey(widget.flutterType, property.name),
@@ -641,7 +644,7 @@ StructuredEntry _resolveStructuredRefs(
   };
   final fields = [
     for (final field in structured.fields)
-      if (field.type == PropertyType.structured)
+      if (isCustomerStructuredFieldSlot(field))
         _resolveStructuredField(
           structured,
           field,

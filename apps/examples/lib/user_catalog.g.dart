@@ -84,6 +84,34 @@ final Catalog kUserCatalog = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0013'),
+      name: 'PricingTable',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description:
+          'Renders a list of subscription plans (a list-of-data-class property).',
+      flutterType:
+          'package:restage_example/widgets/pricing_table.dart#PricingTable',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0035'),
+          name: 'plans',
+          type: PropertyType.unknown,
+          description: 'The plans to render, in order.',
+          required: true,
+          valueShape: ListShape(
+              propertyType: PropertyType.unknown,
+              itemShape: StructuredShape(
+                  propertyType: PropertyType.structured,
+                  structuredRef: WireIdRef(
+                      library: 'restage_example.widgets',
+                      wireId: WireId('s0001')))),
+        ),
+      ],
+    ),
+    WidgetEntry(
       wireId: WireId('w0003'),
       name: 'PromoBadge',
       library: WidgetLibrary.custom('restage_example.widgets'),
@@ -188,6 +216,46 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.integer,
           description: 'Streak count.',
           required: true,
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0014'),
+      name: 'TierBoard',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description:
+          'Renders a list of pricing tiers, each with a nested feature list.',
+      flutterType: 'package:restage_example/widgets/tier_board.dart#TierBoard',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0036'),
+          name: 'tiers',
+          type: PropertyType.unknown,
+          description: 'The tiers to render.',
+          required: true,
+          valueShape: ListShape(
+              propertyType: PropertyType.unknown,
+              itemShape: StructuredShape(
+                  propertyType: PropertyType.structured,
+                  structuredRef: WireIdRef(
+                      library: 'restage_example.widgets',
+                      wireId: WireId('s0003')))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0037'),
+          name: 'bonusTiers',
+          type: PropertyType.unknown,
+          description: 'Optional bonus tiers.',
+          valueShape: ListShape(
+              propertyType: PropertyType.unknown,
+              itemShape: StructuredShape(
+                  propertyType: PropertyType.structured,
+                  structuredRef: WireIdRef(
+                      library: 'restage_example.widgets',
+                      wireId: WireId('s0003')))),
         ),
       ],
     ),
@@ -301,6 +369,78 @@ final Catalog kUserCatalog = Catalog(
             'currency': ArgMapping(targetFields: [WireId('p0030')]),
           },
           description: 'Creates a price.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0003'),
+      name: 'Tier',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      description:
+          'A pricing tier: a name plus a list of the features it includes — a customer data class that itself carries a `List<Feature>`, so a `List<Tier>` is a two-level nested list of objects.',
+      sourceType: 'package:restage_example/widgets/tier_board.dart#Tier',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0038'),
+          name: 'name',
+          type: PropertyType.string,
+          description: 'The tier\'s display name.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        StructuredField(
+          wireId: WireId('p0039'),
+          name: 'features',
+          type: PropertyType.unknown,
+          description:
+              'The features this tier includes (a nested list of data classes).',
+          valueShape: ListShape(
+              propertyType: PropertyType.unknown,
+              itemShape: StructuredShape(
+                  propertyType: PropertyType.structured,
+                  structuredRef: WireIdRef(
+                      library: 'restage_example.widgets',
+                      wireId: WireId('s0004')))),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0003'),
+          argMappings: {
+            'features': ArgMapping(targetFields: [WireId('p0039')]),
+            'name': ArgMapping(targetFields: [WireId('p0038')]),
+          },
+          description: 'Creates a tier.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0004'),
+      name: 'Feature',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      description: 'A single feature line within a [Tier].',
+      sourceType: 'package:restage_example/widgets/tier_board.dart#Feature',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0040'),
+          name: 'label',
+          type: PropertyType.string,
+          description: 'The feature\'s display label.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0004'),
+          argMappings: {
+            'label': ArgMapping(targetFields: [WireId('p0040')]),
+          },
+          description: 'Creates a feature.',
         ),
       ],
     ),

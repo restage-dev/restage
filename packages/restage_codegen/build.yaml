@@ -47,6 +47,50 @@ builders:
     auto_apply: dependents
     build_to: source
     runs_before: []
+  message_screen_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['messageScreenBuilder']
+    build_extensions:
+      "lib/message/screens/{{name}}.dart":
+        - "lib/message/screens/{{name}}.rsscreen.g.dart"
+        - "assets/message/screens/{{name}}.rfwtxt"
+        - "assets/message/screens/{{name}}.rfw"
+        - "assets/message/screens/{{name}}.capability.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: ['restage_codegen:message_flow_codegen']
+  message_flow_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['messageFlowBuilder']
+    build_extensions:
+      "lib/message/flows/{{name}}.dart":
+        - "lib/message/flows/{{name}}.rsflow.g.dart"
+        - "assets/message/flows/{{name}}.flow.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []
+  survey_screen_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['surveyScreenBuilder']
+    build_extensions:
+      "lib/survey/screens/{{name}}.dart":
+        - "lib/survey/screens/{{name}}.rsscreen.g.dart"
+        - "assets/survey/screens/{{name}}.rfwtxt"
+        - "assets/survey/screens/{{name}}.rfw"
+        - "assets/survey/screens/{{name}}.capability.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: ['restage_codegen:survey_flow_codegen']
+  survey_flow_codegen:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['surveyFlowBuilder']
+    build_extensions:
+      "lib/survey/flows/{{name}}.dart":
+        - "lib/survey/flows/{{name}}.rsflow.g.dart"
+        - "assets/survey/flows/{{name}}.flow.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before: []
   user_catalog:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userCatalogBuilder']
@@ -69,6 +113,8 @@ builders:
     runs_before:
       - 'restage_codegen:paywall_codegen'
       - 'restage_codegen:onboarding_screen_codegen'
+      - 'restage_codegen:message_screen_codegen'
+      - 'restage_codegen:survey_screen_codegen'
       - 'restage_codegen:factory_functions'
   factory_functions:
     import: 'package:restage_codegen/builder.dart'

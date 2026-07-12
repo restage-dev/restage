@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show kBaselineCatalogVersion;
+    show FlowDeliveryMode, kBaselineCatalogVersion;
 
 /// Marks a class as a flow screen source for `restage_codegen`.
 ///
@@ -81,6 +81,7 @@ final class FlowSource {
     required this.id,
     this.version = 1,
     this.minClient = kBaselineCatalogVersion,
+    this.delivery = FlowDeliveryMode.typed,
   });
 
   /// Stable flow graph identifier.
@@ -91,4 +92,16 @@ final class FlowSource {
 
   /// Minimum client descriptor version that can load this flow.
   final int minClient;
+
+  /// Delivery mode stamped on the emitted flow document.
+  ///
+  /// `typed` (the default) preserves today's behavior exactly. `general`
+  /// emits a document whose structure may change over-the-air within the
+  /// installed action/signal vocabulary; the host receives the
+  /// outbound-filtered result as an untyped `Map<String, Object?>`.
+  ///
+  /// Switching a published flow from `typed` to `general` (or back) is a
+  /// contract change: installed clients fail closed to their bundled copy
+  /// until an app update ships the new mode.
+  final FlowDeliveryMode delivery;
 }

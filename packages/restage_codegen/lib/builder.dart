@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:restage_codegen/src/visitors/paywall_source_visitor.dart';
+import 'package:restage_shared/restage_shared.dart' show SurfaceType;
 
 /// build_runner factory entry point for the per-paywall codegen builder.
 ///
@@ -29,6 +30,28 @@ Builder onboardingScreenBuilder(BuilderOptions options) =>
 /// build_runner factory entry point for onboarding flow codegen.
 Builder onboardingFlowBuilder(BuilderOptions options) =>
     OnboardingFlowBuilder(options);
+
+/// build_runner factory entry point for message screen codegen. Same machinery
+/// as the onboarding screen builder, scoped to the `lib/message/screens/`
+/// source root by the surface parameter.
+Builder messageScreenBuilder(BuilderOptions options) =>
+    OnboardingScreenBuilder(options, surface: SurfaceType.message);
+
+/// build_runner factory entry point for message flow codegen. Same machinery as
+/// the onboarding flow builder, scoped to `lib/message/flows/` by the surface.
+Builder messageFlowBuilder(BuilderOptions options) =>
+    OnboardingFlowBuilder(options, surface: SurfaceType.message);
+
+/// build_runner factory entry point for survey screen codegen. Same machinery
+/// as the onboarding screen builder, scoped to `lib/survey/screens/` by the
+/// surface parameter.
+Builder surveyScreenBuilder(BuilderOptions options) =>
+    OnboardingScreenBuilder(options, surface: SurfaceType.survey);
+
+/// build_runner factory entry point for survey flow codegen. Same machinery as
+/// the onboarding flow builder, scoped to `lib/survey/flows/` by the surface.
+Builder surveyFlowBuilder(BuilderOptions options) =>
+    OnboardingFlowBuilder(options, surface: SurfaceType.survey);
 
 /// build_runner factory entry point for paywall navigation flow codegen.
 Builder paywallFlowBuilder(BuilderOptions options) =>

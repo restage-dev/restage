@@ -120,6 +120,27 @@ String _fixtureUri(A2uiRichShapes shapes) {
   return (node.construction! as A2uiClassConstruction).libraryUri!;
 }
 
+/// Developer-authored descriptions for a subset of the proof widgets' data
+/// properties, so the described-schema path (`description:` on an `S.*(...)`
+/// call) is exercised by the SAME real-genui document-tie test that pins
+/// every other rich shape — not just the plain (undescribed) case. `PlanCard`
+/// covers a described object field; `CommentThread` covers a described
+/// recursive (self-referential, `$ref`-cycle-adjacent) field.
+const _propertyDescriptions = <String, String>{
+  'PlanCard': 'The plan tier this card presents.',
+  'CommentThread': 'The root comment of a recursive reply thread.',
+};
+
+/// Developer-authored widget-root description for a single proof widget, so
+/// a component-root `S.object(description:)` (from `@RestageWidget(...)`'s
+/// own `description`, distinct from a property-level description) is ALSO
+/// exercised by the real-genui document tie — not just property-level
+/// descriptions. Kept on a widget without its own `_propertyDescriptions`
+/// entry so the two description kinds are independently observable.
+const _widgetRootDescription = <String, String>{
+  'FeatureGrid': 'A grid of plan features with inclusion flags.',
+};
+
 /// A test-built catalog whose entries name the fixture widget classes (the
 /// emitter constructs them) and carry the single required data property each.
 Catalog _proofCatalog(String fixtureUri) => catalogWith([
@@ -127,7 +148,15 @@ Catalog _proofCatalog(String fixtureUri) => catalogWith([
         entry(
           name: w.catalogName,
           flutterType: '$fixtureUri#${w.widgetClass}',
-          properties: [prop(w.param, PropertyType.structured, required: true)],
+          description: _widgetRootDescription[w.catalogName] ?? '',
+          properties: [
+            prop(
+              w.param,
+              PropertyType.structured,
+              required: true,
+              description: _propertyDescriptions[w.catalogName] ?? '',
+            ),
+          ],
         ),
     ]);
 

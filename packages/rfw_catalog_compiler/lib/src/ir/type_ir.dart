@@ -76,11 +76,11 @@ final class ResolvedType {
       ResolvedTypeKind.shapeBorder => PropertyType.shapeBorder,
       ResolvedTypeKind.boxShadowList => PropertyType.boxShadowList,
       ResolvedTypeKind.structured => PropertyType.structured,
+      ResolvedTypeKind.listOfStructured => PropertyType.unknown,
       ResolvedTypeKind.inlineSpan => PropertyType.inlineSpan,
       ResolvedTypeKind.decorationImage => PropertyType.decorationImage,
       ResolvedTypeKind.selectionOptionList => PropertyType.selectionOptionList,
       ResolvedTypeKind.union ||
-      ResolvedTypeKind.listOfStructured ||
       ResolvedTypeKind.listOfPrimitive ||
       ResolvedTypeKind.generic =>
         throw UnsupportedError(

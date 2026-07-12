@@ -47,6 +47,16 @@ ClassElement? classElementFor(DartType type) {
   return element is ClassElement ? element : null;
 }
 
+/// The item type of a `List<T>` value, or null for non-list values.
+DartType? listItemType(DartType type) {
+  if (type is! InterfaceType ||
+      type.element.name != 'List' ||
+      type.typeArguments.length != 1) {
+    return null;
+  }
+  return type.typeArguments.single;
+}
+
 /// The `<library-identifier>#<ClassName>` identity for [type], or null when
 /// [type] is not an interface type with a resolvable [ClassElement].
 ///

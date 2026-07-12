@@ -154,7 +154,20 @@ void main() {
               name: w.catalogName,
               flutterType: '$fixtureUri#${w.widgetClass}',
               properties: [
-                for (final v in w.valueProps) prop(v.$1, v.$2, required: true),
+                // Mirrors the regen proof's `_valuePropDescription` on
+                // QuickCheck's write-back value property — the committed
+                // golden carries this description, so byte-parity requires it
+                // here too.
+                for (final v in w.valueProps)
+                  prop(
+                    v.$1,
+                    v.$2,
+                    required: true,
+                    description:
+                        w.catalogName == 'QuickCheck' && v.$1 == 'selected'
+                            ? 'The currently selected option index.'
+                            : '',
+                  ),
                 for (final c in w.callbacks)
                   prop(c, PropertyType.event, required: true),
               ],
@@ -191,14 +204,33 @@ void main() {
         _richShapeWidgets.first.widgetClass,
       ).library.identifier;
 
+      // Mirrors the regen proof's `_propertyDescriptions` — the committed
+      // golden carries these descriptions, so byte-parity requires them here
+      // too.
+      const propertyDescriptions = <String, String>{
+        'PlanCard': 'The plan tier this card presents.',
+        'CommentThread': 'The root comment of a recursive reply thread.',
+      };
+      // Mirrors the regen proof's `_widgetRootDescription` — a component-root
+      // `@RestageWidget(...)` description on a widget that has no property
+      // description, so both description kinds are byte-pinned here too.
+      const widgetRootDescriptions = <String, String>{
+        'FeatureGrid': 'A grid of plan features with inclusion flags.',
+      };
       final widgets = <({WidgetEntry entry, ClassElement element})>[
         for (final w in _richShapeWidgets)
           (
             entry: entry(
               name: w.catalogName,
               flutterType: '$fixtureUri#${w.widgetClass}',
+              description: widgetRootDescriptions[w.catalogName] ?? '',
               properties: [
-                prop(w.param, PropertyType.structured, required: true),
+                prop(
+                  w.param,
+                  PropertyType.structured,
+                  required: true,
+                  description: propertyDescriptions[w.catalogName] ?? '',
+                ),
               ],
             ),
             element: _classFor(library, w.widgetClass),

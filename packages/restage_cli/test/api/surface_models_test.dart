@@ -91,6 +91,27 @@ void main() {
       );
     });
 
+    test('an unrecognized classification keeps the raw wire value through '
+        'toJson instead of laundering it to "unknown"', () {
+      final result = decode('somethingNew');
+      expect(result.classificationWireName, 'somethingNew');
+      expect(result.toJson()['classification'], 'somethingNew');
+    });
+
+    test('a directly-constructed result (no raw wire value) serializes the '
+        'enum name', () {
+      const result = RollbackPreflightResult(
+        surfaceType: 'onboarding',
+        surfaceSlug: 'welcome',
+        environmentSlug: 'production',
+        toVersion: 1,
+        classification: RollbackPreflightClassification.contractChange,
+        blockingChanges: [],
+      );
+      expect(result.classificationWireName, 'contractChange');
+      expect(result.toJson()['classification'], 'contractChange');
+    });
+
     test('blockingChanges + scalars decode', () {
       final result = decode(
         'contractChange',

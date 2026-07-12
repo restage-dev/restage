@@ -122,6 +122,17 @@ class SurfaceStatusResult {
       ],
     );
   }
+
+  /// Encode for JSON-shaped consumer output (CLI `--json`, tool results).
+  Map<String, dynamic> toJson() => {
+    'surfaceType': surfaceType,
+    'surfaceSlug': surfaceSlug,
+    'environmentSlug': environmentSlug,
+    'liveVersion': liveVersion,
+    'locked': locked,
+    'deliveryShape': deliveryShape,
+    'versions': [for (final v in versions) v.toJson()],
+  };
 }
 
 /// One immutable published version in [SurfaceStatusResult.versions].
@@ -134,6 +145,7 @@ class SurfaceVersionResult {
     required this.publishedAt,
     required this.contentHash,
     required this.isActive,
+    this.deliveryMode,
   });
 
   /// Monotonically increasing version number.
@@ -148,6 +160,11 @@ class SurfaceVersionResult {
   /// Whether this version is the current active-serve version.
   final bool isActive;
 
+  /// Flow delivery mode of this version's payload (`typed` / `general`), or
+  /// null for a blob payload, an undecodable payload, or a server that
+  /// predates the field.
+  final String? deliveryMode;
+
   /// Decode from the backend's JSON-shaped wire payload.
   factory SurfaceVersionResult.fromJson(Map<String, dynamic> json) =>
       SurfaceVersionResult(
@@ -155,7 +172,17 @@ class SurfaceVersionResult {
         publishedAt: DateTime.parse(json['publishedAt']! as String),
         contentHash: json['contentHash']! as String,
         isActive: json['isActive']! as bool,
+        deliveryMode: json['deliveryMode'] as String?,
       );
+
+  /// Encode for JSON-shaped consumer output (CLI `--json`, tool results).
+  Map<String, dynamic> toJson() => {
+    'version': version,
+    'publishedAt': publishedAt.toUtc().toIso8601String(),
+    'contentHash': contentHash,
+    'isActive': isActive,
+    if (deliveryMode != null) 'deliveryMode': deliveryMode,
+  };
 }
 
 /// One rendered server-side audit event for a surface/governance timeline.
@@ -448,6 +475,7 @@ class RollbackPreflightResult {
     required this.toVersion,
     required this.classification,
     required this.blockingChanges,
+    this.rawClassification,
   });
 
   /// Surface type wire name (`paywall` / `onboarding` / `message` / `survey`).
@@ -469,20 +497,45 @@ class RollbackPreflightResult {
   /// offending contract differences; empty otherwise.
   final List<String> blockingChanges;
 
+  /// The classification exactly as the backend sent it, before the
+  /// forward-compat fold to [RollbackPreflightClassification.unknown]. Null
+  /// when constructed directly rather than decoded from the wire.
+  final String? rawClassification;
+
+  /// The classification's wire name for output: the raw backend value when
+  /// one was decoded, else the enum name. Keeps a classification this client
+  /// does not recognize legible instead of laundering it to `"unknown"`.
+  String get classificationWireName => rawClassification ?? classification.name;
+
   /// Decode from the backend's JSON-shaped wire payload.
   factory RollbackPreflightResult.fromJson(Map<String, dynamic> json) {
     final rawChanges = json['blockingChanges'] as List<dynamic>? ?? const [];
+    final rawClassification = json['classification']?.toString();
     return RollbackPreflightResult(
       surfaceType: json['surfaceType']?.toString() ?? '',
       surfaceSlug: json['surfaceSlug']! as String,
       environmentSlug: json['environmentSlug']! as String,
       toVersion: json['toVersion']! as int,
       classification: RollbackPreflightClassification.fromWire(
-        json['classification']?.toString() ?? '',
+        rawClassification ?? '',
       ),
       blockingChanges: [for (final c in rawChanges) c.toString()],
+      rawClassification: rawClassification,
     );
   }
+
+  /// Encode for JSON-shaped consumer output (CLI `--json`, tool results).
+  /// The classification is written by wire name — the raw backend value when
+  /// one was decoded — matching the convention
+  /// [RollbackPreflightClassification.fromWire] parses.
+  Map<String, dynamic> toJson() => {
+    'surfaceType': surfaceType,
+    'surfaceSlug': surfaceSlug,
+    'environmentSlug': environmentSlug,
+    'toVersion': toVersion,
+    'classification': classificationWireName,
+    'blockingChanges': blockingChanges,
+  };
 }
 
 /// Sealed hierarchy for typed errors returned by surface endpoints. The

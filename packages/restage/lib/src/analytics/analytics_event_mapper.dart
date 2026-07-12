@@ -36,6 +36,7 @@ const Set<String> _promotedKeys = <String>{
   'variantId',
   'experimentId',
   'surfaceVersion',
+  'publishedVersion',
 };
 
 /// Maps an SDK [RestageEvent] to the wire [AnalyticsEvent] envelope, attaching
@@ -92,7 +93,9 @@ AnalyticsEvent mapRestageEventToEnvelope(
     occurredAt: (event.firedAt ?? now).toUtc(),
     surface: surface,
     surfaceId: surfaceId,
-    surfaceVersion: (map['flowVersion'] ?? map['surfaceVersion'])?.toString(),
+    surfaceVersion:
+        (map['flowVersion'] ?? map['surfaceVersion'] ?? map['publishedVersion'])
+            ?.toString(),
     surfaceSessionId: effectiveSurfaceSessionId,
     anonymousId: anonymousId,
     sessionId: sessionId,

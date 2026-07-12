@@ -42,6 +42,24 @@ void main() {
     expect(e.toMap()['variantId'], 'variant-b');
   });
 
+  test('PaywallViewed carries publishedVersion when set; omits it when null',
+      () {
+    const withVersion = PaywallViewed(
+      paywallId: 'pro_upgrade',
+      productIds: ['pro_monthly'],
+      publishedVersion: 5,
+    );
+    expect(withVersion.publishedVersion, 5);
+    expect(withVersion.toMap()['publishedVersion'], 5);
+
+    const withoutVersion = PaywallViewed(
+      paywallId: 'pro_upgrade',
+      productIds: ['pro_monthly'],
+    );
+    expect(withoutVersion.publishedVersion, isNull);
+    expect(withoutVersion.toMap().containsKey('publishedVersion'), isFalse);
+  });
+
   test('PaywallDismissed includes reason + timeOnPaywall', () {
     const e = PaywallDismissed(
       paywallId: 'pro_upgrade',

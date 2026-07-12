@@ -75,6 +75,20 @@ void main() {
     expect(envelope.surfaceSessionId, 'flow-sess-1');
   });
 
+  test('PaywallViewed.publishedVersion promotes to envelope surfaceVersion',
+      () {
+    final envelope = map(
+      const PaywallViewed(
+        paywallId: 'pw-1',
+        productIds: ['p1'],
+        publishedVersion: 9,
+      ),
+    );
+    expect(envelope.surfaceVersion, '9');
+    // Promoted → typed field only, never duplicated into properties.
+    expect(envelope.properties.containsKey('publishedVersion'), isFalse);
+  });
+
   test('promoted conversion dims land on envelope fields, not properties', () {
     final envelope = map(
       const PurchaseSucceeded(

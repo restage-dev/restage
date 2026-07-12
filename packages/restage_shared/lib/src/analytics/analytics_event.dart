@@ -149,7 +149,7 @@ final class AnalyticsEvent {
   /// `client_occurred_at`; the server derives the clamped event time).
   final DateTime occurredAt;
 
-  /// Stable-per-install anonymous actor id (required for `source=client`).
+  /// Stable-per-install pseudonymous actor id (required for `source=client`).
   final String? anonymousId;
 
   /// App-session id (required for `source=client`).

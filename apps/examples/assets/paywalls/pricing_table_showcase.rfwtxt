@@ -1,0 +1,6 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+import restage_example.widgets;
+
+widget Paywall = Scaffold(body: SafeArea(child: Padding(padding: [24.0, 24.0, 24.0, 24.0], child: Column(crossAxisAlignment: "stretch", children: [Row(children: [GestureDetector(onTap: event "close" {}, child: Icon(iconCodepoint: 63047, color: data.theme.colorScheme.onSurfaceVariant))]), SizedBox(height: 16.0), Text(text: "Compare plans", textAlign: "center", color: data.theme.colorScheme.onSurface, fontSize: 28.0, fontWeight: "w800"), SizedBox(height: 24.0), PricingTable(plans: [{name: "Pro", price: {amount: 1999, currency: "USD"}, badge: "Most popular", tier: "pro"}, {name: "Starter", price: {amount: 999}}]), Spacer(), GestureDetector(onTap: event "restage.purchase" { slot: "annual" }, child: Container(padding: [0.0, 16.0, 0.0, 16.0], color: data.theme.colorScheme.primary, borderRadius: 14.0, child: Text(text: "Continue", textAlign: "center", color: data.theme.colorScheme.onPrimary, fontSize: 16.0, fontWeight: "w700")))]))));

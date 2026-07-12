@@ -90,6 +90,7 @@
         "type": "object",
         "properties": {
           "selected": {
+            "description": "The currently selected option index.",
             "oneOf": [
               {
                 "type": "number"

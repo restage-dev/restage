@@ -25,8 +25,8 @@ void main() {
     expect(readme, contains('onComplete'));
     expect(readme, contains('AssetFlowResolver'));
     expect(readme, contains('AssetVariantResolver'));
-    expect(readme, contains('missing, extra, or mistyped result'));
-    expect(readme, contains('fields so bad terminal results fail closed'));
+    expect(readme, contains('missing, extra, or mistyped fields'));
+    expect(readme, contains('a bad terminal result fails closed'));
     expect(readme, isNot(contains('?? false')));
   });
 
@@ -192,6 +192,34 @@ final class PublicOnboardingUsage extends StatelessWidget {
     );
   }
 }
+''';
+
+    await _assertSourcesAnalyze({
+      'apps_examples|lib/onboarding/public_usage.dart': source,
+    });
+  });
+
+  test('flow delivery mode is authorable through SDK exports', () async {
+    const source = '''
+import 'package:restage/restage.dart';
+
+@FlowSource(id: 'general_first_run', delivery: FlowDeliveryMode.general)
+final class GeneralFirstRunFlow extends RestageFlow {
+  const GeneralFirstRunFlow();
+
+  @override
+  FlowDef buildFlow() => throw UnimplementedError();
+}
+
+@FlowSource(id: 'typed_first_run')
+final class TypedFirstRunFlow extends RestageFlow {
+  const TypedFirstRunFlow();
+
+  @override
+  FlowDef buildFlow() => throw UnimplementedError();
+}
+
+FlowDeliveryMode readModes() => FlowDeliveryMode.typed;
 ''';
 
     await _assertSourcesAnalyze({

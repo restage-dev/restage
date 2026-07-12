@@ -35,3 +35,5 @@ dev_dependencies:
   # pairing from the annotation metadata (the production-read leg).
   rfw_catalog_schema:
     path: ../rfw_catalog_schema
+  # Test-only: the genui version-pin tripwire parses pubspec.lock (YAML).
+  yaml: ^3.1.3

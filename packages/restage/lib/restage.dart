@@ -48,6 +48,7 @@ export 'package:restage_shared/restage_shared.dart'
         FlowBranchPredicate,
         FlowContentHash,
         FlowDataType,
+        FlowDeliveryMode,
         FlowPredicateCondition,
         FlowOutboundDeclarations,
         FlowOutboundField,
@@ -75,6 +76,8 @@ export 'package:restage_shared/restage_shared.dart'
         WidgetCategory,
         WidgetLibrary;
 
+export 'src/refresh/surface_refresh_trigger.dart';
+export 'src/refresh/surface_update_channel.dart';
 export 'src/resolver/asset_variant_resolver.dart';
 export 'src/resolver/restage_variant_resolver.dart';
 // The exception thrown when a configured origin would transmit credentials or

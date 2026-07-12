@@ -14,6 +14,7 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         properties: {
           'plan': S.object(
+            description: 'The plan tier this card presents.',
             properties: {
               'name': S.string(),
               'price': S.number(),
@@ -41,6 +42,7 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'FeatureGrid',
       dataSchema: S.object(
+        description: 'A grid of plan features with inclusion flags.',
         properties: {
           'features': S.list(
               items: S.object(
@@ -145,7 +147,11 @@ List<CatalogItem> buildRestageCatalogItems() {
           required: <String>['text'],
         ),
         '__a2ui_root__': S.object(
-          properties: {'root': S.combined($ref: '#/\$defs/Comment')},
+          properties: {
+            'root': S.combined(
+                description: 'The root comment of a recursive reply thread.',
+                $ref: '#/\$defs/Comment')
+          },
           required: <String>['root'],
         )
       }),
@@ -160,6 +166,18 @@ List<CatalogItem> buildRestageCatalogItems() {
     ),
   ];
 }
+
+const List<String> _restageA2uiSystemPromptFragments = <String>[
+  'FeatureGrid: A grid of plan features with inclusion flags.',
+];
+
+/// The fully-assembled genui catalog: the generated items
+/// plus the system-prompt fragments composed from each
+/// widget's usage note (falling back to its description).
+Catalog buildRestageCatalog() => Catalog(
+      buildRestageCatalogItems(),
+      systemPromptFragments: _restageA2uiSystemPromptFragments,
+    );
 
 Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:nocterm/nocterm.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_app.dart';
@@ -365,20 +367,369 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      await tester.sendArrowDown();
-      await tester.pump();
-      await tester.sendKey(LogicalKey.tab);
-      await tester.sendKey(LogicalKey.tab);
-      await tester.pump();
-      await tester.sendArrowDown();
-      await tester.sendArrowDown();
-      await tester.sendArrowDown();
-      await tester.pump();
-      await tester.sendKey(LogicalKey.enter);
-      await tester.pump();
+      await openRollbackPrompt(tester);
 
       expect(tester.terminalState, containsText('Rollback target and reason'));
     });
+  });
+
+  test('rollback prompt previews cohort impact and requires confirm', () async {
+    await testNocterm('rollback preview confirm flow', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      // Open the rollback prompt on the selected surface (pro, staging).
+      await openRollbackPrompt(tester);
+      expect(tester.terminalState, containsText('Rollback target and reason'));
+
+      // Submitting target+reason runs ONLY the preview and shows the
+      // cohort-impact note with a confirm step — nothing mutated yet.
+      await submitRollbackTarget(tester);
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+      expect(tester.terminalState, containsText('Cohort impact'));
+
+      // Confirming executes the rollback.
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, [
+        'rollbackPreview:pro:staging',
+        'rollback:pro:staging',
+      ]);
+      expect(tester.terminalState, containsText('rolled back pro'));
+    }, size: const Size(120, 32));
+  });
+
+  test('rollback preview blocks other prompts until it completes', () async {
+    await testNocterm('rollback preview blocks prompts', (tester) async {
+      final executor = SlowPreviewExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await openRollbackPrompt(tester);
+      await submitRollbackTarget(tester);
+
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+      expect(tester.terminalState, containsText('Previewing rollback'));
+
+      await tester.sendKey(LogicalKey.keyK);
+      await tester.sendKey(LogicalKey.keyR);
+      await tester.pump();
+
+      expect(tester.terminalState, containsText('Previewing rollback'));
+      expect(tester.terminalState, isNot(containsText('Reason for kill')));
+      expect(
+        tester.terminalState,
+        isNot(containsText('Rollback target and reason')),
+      );
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+
+      executor.completePreview();
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.terminalState, containsText('Type confirm to proceed'));
+      expect(tester.terminalState, containsText('Cohort impact'));
+    }, size: const Size(120, 32));
+  });
+
+  test('escape cancels an in-flight rollback preview', () async {
+    await testNocterm('escape cancels rollback preview', (tester) async {
+      final executor = SlowPreviewExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await openRollbackPrompt(tester);
+      await submitRollbackTarget(tester);
+      expect(tester.terminalState, containsText('Previewing rollback'));
+
+      await tester.sendKey(LogicalKey.escape);
+      await tester.pump();
+      executor.completePreview();
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        tester.terminalState,
+        isNot(containsText('Type confirm to proceed')),
+      );
+      expect(tester.terminalState, isNot(containsText('Cohort impact')));
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+    }, size: const Size(120, 32));
+  });
+
+  test('confirm aborts when the selection changed since the preview', () async {
+    await testNocterm('confirm aborts on changed selection', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      // Open the rollback prompt on pro and submit target+reason so the
+      // preview runs and the confirm prompt opens.
+      await openRollbackPrompt(tester);
+      await submitRollbackTarget(tester);
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+
+      // The selection moves to a different surface while the confirm is
+      // parked (a mouse tap reaches the same controller method).
+      await controller.selectSurface(1);
+      await tester.pump();
+
+      // Confirming must NOT roll back the newly selected surface.
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+      expect(tester.terminalState, containsText('changed'));
+    }, size: const Size(120, 32));
+  });
+
+  test(
+    'a failed preview shows the error and never opens the confirm',
+    () async {
+      await testNocterm('failed preview aborts rollback flow', (tester) async {
+        final executor = FailingPreviewExecutor();
+        final controller = ConsoleController(
+          repository: FakeConsoleRepository(),
+          operationExecutor: executor,
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+
+        await tester.sendArrowDown();
+        await tester.pump();
+        await tester.sendKey(LogicalKey.tab);
+        await tester.sendKey(LogicalKey.tab);
+        await tester.pump();
+        await tester.sendArrowDown();
+        await tester.sendArrowDown();
+        await tester.sendArrowDown();
+        await tester.pump();
+        await tester.sendKey(LogicalKey.enter);
+        await tester.pump();
+        await tester.enterText('1 bad build');
+        await tester.sendEnter();
+        await tester.pump();
+        await tester.pump();
+
+        // The failure is visible, the confirm never opens, nothing mutates.
+        expect(executor.calls, ['rollbackPreview:pro:staging']);
+        expect(tester.terminalState, containsText('preview exploded'));
+        expect(
+          tester.terminalState,
+          isNot(containsText('Type confirm to proceed')),
+        );
+
+        // A stray "confirm" afterwards must not resurrect anything.
+        await tester.enterText('confirm');
+        await tester.sendEnter();
+        await tester.pump();
+        await tester.pump();
+        expect(executor.calls, ['rollbackPreview:pro:staging']);
+      }, size: const Size(120, 32));
+    },
+  );
+
+  test('typing anything but confirm re-prompts and never mutates', () async {
+    await testNocterm('non-confirm input does not mutate', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await openRollbackPrompt(tester);
+      await submitRollbackTarget(tester);
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+
+      // "yes" is not "confirm" — the gate re-prompts and nothing mutates.
+      await tester.enterText('yes');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+      expect(tester.terminalState, containsText('Type confirm to proceed'));
+    }, size: const Size(120, 32));
+  });
+
+  test('escape discards the parked confirm and its impact note', () async {
+    await testNocterm('escape clears parked confirm', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await openRollbackPrompt(tester);
+      await submitRollbackTarget(tester);
+      expect(tester.terminalState, containsText('Cohort impact'));
+
+      // Escape closes the confirm and discards the parked operation + note.
+      await tester.sendKey(LogicalKey.escape);
+      await tester.pump();
+      expect(
+        tester.terminalState,
+        isNot(containsText('Type confirm to proceed')),
+      );
+      expect(tester.terminalState, isNot(containsText('Cohort impact')));
+
+      // Re-opening the rollback prompt shows no stale note, and a stray
+      // "confirm" is just an invalid target line — nothing mutates.
+      await tester.sendKey(LogicalKey.keyR);
+      await tester.pump();
+      expect(tester.terminalState, isNot(containsText('Cohort impact')));
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, ['rollbackPreview:pro:staging']);
+    }, size: const Size(120, 32));
+  });
+
+  test('production kill requires confirm and aborts when the selection '
+      'changed', () async {
+    await testNocterm('production kill confirm pinning', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      // Switch to production, then select the pro surface.
+      await selectProSurfaceInProduction(tester, controller);
+
+      // Open the kill prompt and submit a reason — production parks a
+      // type-confirm instead of killing directly.
+      await tester.sendKey(LogicalKey.keyK);
+      await tester.pump();
+      await tester.enterText('sev1 bad price');
+      await tester.sendEnter();
+      await tester.pump();
+      expect(executor.calls, <String>[]);
+      expect(tester.terminalState, containsText('Type confirm to proceed'));
+
+      // The selection moves while the confirm is parked.
+      await controller.selectSurface(1);
+      await tester.pump();
+
+      // Confirming must NOT kill the newly selected surface.
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, <String>[]);
+      expect(tester.terminalState, containsText('changed'));
+    }, size: const Size(120, 32));
+  });
+
+  test('production kill executes after typing confirm', () async {
+    await testNocterm('production kill confirm executes', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: FakeConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await selectProSurfaceInProduction(tester, controller);
+
+      await tester.sendKey(LogicalKey.keyK);
+      await tester.pump();
+      await tester.enterText('sev1 bad price');
+      await tester.sendEnter();
+      await tester.pump();
+      expect(executor.calls, <String>[]);
+
+      await tester.enterText('confirm');
+      await tester.sendEnter();
+      await tester.pump();
+      await tester.pump();
+      expect(executor.calls, ['kill:pro:production']);
+    }, size: const Size(120, 32));
+  });
+
+  test('submitting an operation with nothing selected reports a visible '
+      'message instead of silently dropping the input', () async {
+    await testNocterm('no-selection operation is visible', (tester) async {
+      final executor = RecordingConsoleOperationExecutor();
+      final controller = ConsoleController(
+        repository: EmptyConsoleRepository(),
+        operationExecutor: executor,
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      // No surfaces exist; open the rollback prompt anyway and submit.
+      await tester.sendKey(LogicalKey.keyR);
+      await tester.pump();
+      await submitRollbackTarget(tester);
+
+      // The refusal renders in the always-visible message slot (the surface
+      // detail panel is not on screen in this state). The trailing period
+      // distinguishes the controller's guard message from the detail
+      // panel's own "No surface selected" placeholder.
+      expect(executor.calls, <String>[]);
+      expect(tester.terminalState, containsText('No surface selected.'));
+    }, size: const Size(120, 32));
+  });
+
+  test('detail panel shows a flow version delivery mode', () async {
+    await testNocterm('detail shows delivery mode', (tester) async {
+      final controller = ConsoleController(repository: FakeConsoleRepository());
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.sendArrowDown();
+      await tester.pump();
+      await tester.sendKey(LogicalKey.tab);
+      await tester.pump();
+      await tester.sendArrowDown();
+      await tester.pump();
+      await tester.pump();
+
+      // The welcome onboarding surface is general-delivery on its active v3.
+      expect(tester.terminalState, containsText('flow (general)'));
+      expect(tester.terminalState, containsText('v3 active'));
+      expect(tester.terminalState, containsText('sha-3'));
+      expect(tester.terminalState, containsText('general'));
+    }, size: const Size(160, 32));
   });
 
   test('audit view renders server audit and local session activity', () async {
@@ -781,8 +1132,12 @@ void main() {
       await tester.pump();
 
       expect(tester.terminalState, containsText('Rollback unsupported'));
-      expect(tester.terminalState, containsText('flow version-pinned'));
-    });
+      // The shape line now carries the active version's delivery mode.
+      expect(
+        tester.terminalState,
+        containsText('flow (general) version-pinned'),
+      );
+    }, size: const Size(160, 32));
   });
 
   test(
@@ -1067,7 +1422,11 @@ class FakeConsoleRepository implements ConsoleRepository {
     surfaceType: surface.surfaceType,
     surfaceSlug: surface.slug,
     environmentSlug: context.environment,
-    liveVersion: surface.slug == 'pro' ? 2 : null,
+    liveVersion: surface.slug == 'pro'
+        ? 2
+        : surface.slug == 'welcome'
+        ? 3
+        : null,
     locked: false,
     deliveryShape: surface.surfaceType == 'paywall' ? 'blob' : 'flow',
     versions: surface.slug == 'pro'
@@ -1083,6 +1442,23 @@ class FakeConsoleRepository implements ConsoleRepository {
               publishedAt: DateTime.parse('2026-05-31T00:00:00.000Z'),
               contentHash: 'sha-1',
               isActive: false,
+            ),
+          ]
+        : surface.slug == 'welcome'
+        ? [
+            SurfaceVersionResult(
+              version: 3,
+              publishedAt: DateTime.parse('2026-06-02T00:00:00.000Z'),
+              contentHash: 'sha-3',
+              isActive: true,
+              deliveryMode: 'general',
+            ),
+            SurfaceVersionResult(
+              version: 2,
+              publishedAt: DateTime.parse('2026-06-01T00:00:00.000Z'),
+              contentHash: 'sha-2b',
+              isActive: false,
+              deliveryMode: 'typed',
             ),
           ]
         : const [],
@@ -1126,6 +1502,111 @@ class FakeConsoleRepository implements ConsoleRepository {
   );
 }
 
+/// Navigate from the initial console state to the rollback prompt on the
+/// selected `pro` surface (surfaces panel, rollback action, enter).
+Future<void> openRollbackPrompt(NoctermTester tester) async {
+  await tester.sendArrowDown();
+  await tester.pump();
+  await tester.sendKey(LogicalKey.tab);
+  await tester.sendKey(LogicalKey.tab);
+  await tester.pump();
+  await tester.sendArrowDown();
+  await tester.sendArrowDown();
+  await tester.sendArrowDown();
+  await tester.pump();
+  await tester.sendKey(LogicalKey.enter);
+  await tester.pump();
+}
+
+/// Submit the standard rollback target + reason into the open prompt.
+Future<void> submitRollbackTarget(NoctermTester tester) async {
+  await tester.enterText('1 bad build');
+  await tester.sendEnter();
+  await tester.pump();
+  await tester.pump();
+}
+
+/// Switch to production and focus the surfaces panel on the `pro` surface.
+Future<void> selectProSurfaceInProduction(
+  NoctermTester tester,
+  ConsoleController controller,
+) async {
+  await controller.selectEnvironment(0);
+  await tester.pump();
+  await tester.sendArrowDown();
+  await tester.pump();
+  await tester.sendKey(LogicalKey.tab);
+  await tester.sendKey(LogicalKey.tab);
+  await tester.pump();
+}
+
+/// A repository with no surfaces: exercises the operation paths when nothing
+/// is (or can be) selected.
+class EmptyConsoleRepository extends FakeConsoleRepository {
+  @override
+  Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
+    context: ConsoleContext(
+      organizationSlug: 'restage',
+      project: 'default',
+      app: 'default',
+      environment: 'staging',
+    ),
+    projects: [ConsoleProject(slug: 'default', name: 'Default')],
+    apps: [ConsoleAppTarget(slug: 'default', name: 'Default')],
+    environments: [
+      ConsoleEnvironmentTarget(slug: 'production'),
+      ConsoleEnvironmentTarget(slug: 'staging'),
+    ],
+    surfaces: [],
+  );
+}
+
+/// An executor whose preview fails: exercises the abort path between the
+/// rollback prompt and the confirm.
+class FailingPreviewExecutor extends RecordingConsoleOperationExecutor {
+  @override
+  Future<ConsoleOperationResult> rollbackPreview({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required int toVersion,
+  }) async {
+    calls.add('rollbackPreview:${surface.slug}:${context.environment}');
+    return const ConsoleOperationResult(
+      exitCode: 1,
+      stdout: '',
+      stderr: 'preview exploded\n',
+    );
+  }
+}
+
+class SlowPreviewExecutor extends RecordingConsoleOperationExecutor {
+  final _previewCompleter = Completer<ConsoleOperationResult>();
+
+  void completePreview() {
+    _previewCompleter.complete(
+      const ConsoleOperationResult(
+        exitCode: 0,
+        stdout:
+            'Cohort impact: live clients on the current contract will render '
+            'v1.\n'
+            'Preview only — nothing was rolled back. Re-run without --preview '
+            'to roll back.\n',
+        stderr: '',
+      ),
+    );
+  }
+
+  @override
+  Future<ConsoleOperationResult> rollbackPreview({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required int toVersion,
+  }) {
+    calls.add('rollbackPreview:${surface.slug}:${context.environment}');
+    return _previewCompleter.future;
+  }
+}
+
 class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   final calls = <String>[];
 
@@ -1158,6 +1639,24 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
     return ConsoleOperationResult(
       exitCode: 0,
       stdout: 'rolled back ${surface.slug}\n',
+      stderr: '',
+    );
+  }
+
+  @override
+  Future<ConsoleOperationResult> rollbackPreview({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required int toVersion,
+  }) async {
+    calls.add('rollbackPreview:${surface.slug}:${context.environment}');
+    return ConsoleOperationResult(
+      exitCode: 0,
+      stdout:
+          'Cohort impact: live clients on the current contract will render '
+          'v$toVersion.\n'
+          'Preview only — nothing was rolled back. Re-run without --preview '
+          'to roll back.\n',
       stderr: '',
     );
   }

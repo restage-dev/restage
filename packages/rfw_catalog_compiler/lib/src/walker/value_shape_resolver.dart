@@ -3,6 +3,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:rfw_catalog_compiler/src/policy/policy_ledger.dart';
 import 'package:rfw_catalog_compiler/src/walker/abstract_type_fallback.dart';
 import 'package:rfw_catalog_compiler/src/walker/element_fqn.dart';
+import 'package:rfw_catalog_compiler/src/walker/structured_type_predicate.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Resolves the semantic [CatalogValueShape] of a Dart [type].
@@ -28,7 +29,9 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///    `ShapeBorder`) lowers to a [UnionShape] and records its FQN into
 ///    [referencedUnionFqns] for the union back-pass.
 /// 5. A `List<T>` of a recognized scalar item lowers to a [ListShape]; a
-///    `List<BoxShadow>` lowers to the boxed box-shadow list shape.
+///    `List<BoxShadow>` lowers to the boxed box-shadow list shape; a
+///    `List<T>` whose item is a concrete structured type in the walk policy
+///    lowers to an opaque list shape with a structured item shape.
 /// 6. A known recipe structured type ([knownRecipeStructuredTypes]) lowers to
 ///    a [StructuredShape] whose `structuredRef` is resolved by a later pass.
 ///
@@ -92,6 +95,13 @@ CatalogValueShape? resolveValueShape(
       wireCodec: CatalogWireCodec.rfwBoxShadowList,
     );
   }
+
+  final structuredListShape = _structuredListValueShapeForDartType(
+    type,
+    library: library,
+    policy: policy,
+  );
+  if (structuredListShape != null) return structuredListShape;
 
   final structuredElement = classElementFor(type);
   if (structuredElement != null &&
@@ -220,11 +230,8 @@ CatalogValueShape? _scalarShapeForDartType(DartType type) {
 }
 
 CatalogValueShape? _listValueShapeForDartType(DartType type) {
-  if (type is! InterfaceType) return null;
-  final displayName = _typeDisplayName(type);
-  if (displayName != 'List' && !displayName.startsWith('List<')) return null;
-  if (type.typeArguments.length != 1) return null;
-  final itemType = type.typeArguments.single;
+  final itemType = listItemType(type);
+  if (itemType == null) return null;
   final itemDisplayName = _typeDisplayName(itemType);
   final propertyType = switch (itemDisplayName) {
     'String' => PropertyType.stringList,
@@ -245,13 +252,37 @@ CatalogValueShape? _listValueShapeForDartType(DartType type) {
 }
 
 ClassElement? _structuredListElement(DartType type) {
-  final displayName = _typeDisplayName(type);
-  if (type is! InterfaceType ||
-      (displayName != 'List' && !displayName.startsWith('List<'))) {
+  final itemType = listItemType(type);
+  return itemType == null ? null : classElementFor(itemType);
+}
+
+CatalogValueShape? _structuredListValueShapeForDartType(
+  DartType type, {
+  WidgetLibrary? library,
+  PolicyLedger? policy,
+}) {
+  if (library == null || policy == null) return null;
+  final itemType = listItemType(type);
+  if (itemType == null) return null;
+  final itemElement = concreteStructuredItemType(itemType, policy);
+  if (itemElement == null) return null;
+  return ListShape.opaqueStructured(
+    WireIdRef(
+      library: library.namespace,
+      wireId: WireId.unallocatedStructured,
+    ),
+  );
+}
+
+/// The concrete structured element for a list item type, or null otherwise.
+ClassElement? concreteStructuredItemType(
+  DartType itemType,
+  PolicyLedger policy,
+) {
+  if (classifyStructured(itemType, policy) != StructuredKind.concrete) {
     return null;
   }
-  if (type.typeArguments.length != 1) return null;
-  return classElementFor(type.typeArguments.single);
+  return classElementFor(itemType);
 }
 
 DartTypeRef? _dartTypeRef(DartType type) {

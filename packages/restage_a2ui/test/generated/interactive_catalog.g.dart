@@ -13,17 +13,20 @@ List<CatalogItem> buildRestageCatalogItems() {
       name: 'QuickCheck',
       dataSchema: S.object(
         properties: {
-          'selected': S.combined(oneOf: [
-            S.number(),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ])
+          'selected': S.combined(
+              description: 'The currently selected option index.',
+              oneOf: [
+                S.number(),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ])
         },
         required: <String>['selected'],
       ),
@@ -163,6 +166,16 @@ List<CatalogItem> buildRestageCatalogItems() {
     ),
   ];
 }
+
+const List<String> _restageA2uiSystemPromptFragments = <String>[];
+
+/// The fully-assembled genui catalog: the generated items
+/// plus the system-prompt fragments composed from each
+/// widget's usage note (falling back to its description).
+Catalog buildRestageCatalog() => Catalog(
+      buildRestageCatalogItems(),
+      systemPromptFragments: _restageA2uiSystemPromptFragments,
+    );
 
 Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {

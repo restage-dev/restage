@@ -848,14 +848,16 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
       if (w.deprecated != null) 'deprecated': _deprecationToJson(w.deprecated!),
     };
 
-// Local builds never emit `PropertyType.unknown` — the sentinel only
-// arises on the decode side when reading a payload from a newer
-// schema that introduced a new enum member. The encoder treats the
-// enum's `.name` opaquely.
+// `PropertyType.unknown` is normally a decoder sentinel. The opaque
+// list-of-structured contract is the one local construction that keeps the
+// legacy wire type while the value shape carries the structured item.
 Map<String, dynamic> _propertyToJson(PropertyEntry p) {
   assert(
-    p.type != PropertyType.unknown,
-    'PropertyType.unknown is decoder-only; local builds never construct it.',
+    p.type != PropertyType.unknown ||
+        (p.valueShape is ListShape &&
+            (p.valueShape! as ListShape).isOpaqueStructuredList),
+    'PropertyType.unknown is only locally encodable for opaque structured '
+    'lists.',
   );
   return {
     'wireId': p.wireId.value,
@@ -917,10 +919,13 @@ Map<String, dynamic> _structuredToJson(StructuredEntry s) => {
     };
 
 Map<String, dynamic> _structuredFieldToJson(StructuredField f) {
-  // PropertyType.unknown is decoder-only — see the assert below.
+  // Unknown is only locally emitted for the opaque list-of-structured shape.
   assert(
-    f.type != PropertyType.unknown,
-    'PropertyType.unknown is decoder-only; local builds never construct it.',
+    f.type != PropertyType.unknown ||
+        (f.valueShape is ListShape &&
+            (f.valueShape! as ListShape).isOpaqueStructuredList),
+    'PropertyType.unknown is only locally encodable for opaque structured '
+    'lists.',
   );
   return {
     'wireId': f.wireId.value,

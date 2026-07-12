@@ -21,6 +21,23 @@ typedef CustomerStructuredAdmission = ({
 String structuredSlotKey(String ownerFqn, String slotName) =>
     '$ownerFqn.$slotName';
 
+/// Whether [shape] is the customer list value contract: an opaque list whose
+/// items point at a structured entry.
+bool isCustomerStructuredListShape(CatalogValueShape? shape) =>
+    shape is ListShape && shape.isOpaqueStructuredList;
+
+/// Whether [prop] is a customer structured slot whose target is resolved
+/// through [structuredSlotKey].
+bool isCustomerStructuredPropertySlot(PropertyEntry prop) =>
+    prop.type == PropertyType.structured ||
+    isCustomerStructuredListShape(prop.valueShape);
+
+/// Whether [field] is a customer structured slot whose target is resolved
+/// through [structuredSlotKey].
+bool isCustomerStructuredFieldSlot(StructuredField field) =>
+    field.type == PropertyType.structured ||
+    isCustomerStructuredListShape(field.valueShape);
+
 /// Whether [entry]'s full transitive structured closure renders on the RFW
 /// path. A thin wrapper over [_obstruction]: renderable IFF there is no
 /// obstruction anywhere in the closure.
@@ -96,7 +113,7 @@ CustomerStructuredAdmission computeAdmission({
     // not fully factory-emittable is excluded here, not admitted-then-skipped.
     if (reason == null &&
         isWholeWidgetEmittable != null &&
-        widget.properties.any((p) => p.type == PropertyType.structured) &&
+        widget.properties.any(isCustomerStructuredPropertySlot) &&
         !isWholeWidgetEmittable(widget)) {
       reason = 'the widget has a property the factory cannot emit — admitted '
           'for its structured property but not whole-widget emittable (an '
@@ -112,7 +129,7 @@ CustomerStructuredAdmission computeAdmission({
   final admittedSourceTypes = <String>{};
   for (final widget in admitted) {
     for (final prop in widget.properties) {
-      if (prop.type != PropertyType.structured) continue;
+      if (!isCustomerStructuredPropertySlot(prop)) continue;
       final targetFqn =
           slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
       if (targetFqn == null) continue;
@@ -141,7 +158,7 @@ String? _widgetExclusionReason(
   required Map<String, String> localUnrenderable,
 }) {
   for (final prop in widget.properties) {
-    if (prop.type != PropertyType.structured) continue;
+    if (!isCustomerStructuredPropertySlot(prop)) continue;
     final targetFqn =
         slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
     if (targetFqn == null) {
@@ -210,7 +227,7 @@ String? _obstruction(
           'decodable field (non-canonical shape)';
     }
     for (final field in entry.fields) {
-      if (field.type != PropertyType.structured) continue;
+      if (!isCustomerStructuredFieldSlot(field)) continue;
       final targetFqn =
           slotTargets[structuredSlotKey(entry.sourceType, field.name)];
       if (targetFqn == null) {
@@ -247,7 +264,7 @@ void _collectClosure(
   final entry = bySourceType[sourceType];
   if (entry == null) return;
   for (final field in entry.fields) {
-    if (field.type != PropertyType.structured) continue;
+    if (!isCustomerStructuredFieldSlot(field)) continue;
     final targetFqn =
         slotTargets[structuredSlotKey(entry.sourceType, field.name)];
     if (targetFqn == null) continue;

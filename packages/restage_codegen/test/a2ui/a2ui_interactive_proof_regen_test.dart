@@ -188,6 +188,13 @@ A2uiPairingSeam _pairingSeam(ResolvedLibraryResult library) {
   return seam;
 }
 
+/// A developer-authored description for `QuickCheck`'s write-back value
+/// property, so the described-schema path is exercised over a write-back
+/// (value-reference `oneOf`) field, not just plain scalar/object fields — the
+/// same real-genui document-tie test pins this against
+/// `CatalogItem.dataSchema`.
+const _valuePropDescription = 'The currently selected option index.';
+
 /// A test-built catalog whose entries name the fixture widget classes (the
 /// emitter constructs them) and carry each value property + each callback (as a
 /// required event property the seams then lower).
@@ -197,7 +204,15 @@ Catalog _proofCatalog(String fixtureUri) => catalogWith([
           name: w.catalogName,
           flutterType: '$fixtureUri#${w.widgetClass}',
           properties: [
-            for (final v in w.valueProps) prop(v.$1, v.$2, required: true),
+            for (final v in w.valueProps)
+              prop(
+                v.$1,
+                v.$2,
+                required: true,
+                description: w.catalogName == 'QuickCheck' && v.$1 == 'selected'
+                    ? _valuePropDescription
+                    : '',
+              ),
             for (final c in w.callbacks)
               prop(c, PropertyType.event, required: true),
           ],

@@ -246,6 +246,15 @@ abstract interface class ConsoleOperationExecutor {
     bool confirmedProduction = false,
   });
 
+  /// Read-only rollback preview: how rolling back to [toVersion] is expected
+  /// to affect live clients (the cohort-impact classification). Never mutates
+  /// and never gates the rollback.
+  Future<ConsoleOperationResult> rollbackPreview({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required int toVersion,
+  });
+
   Future<ConsoleOperationResult> freeze({
     required ConsoleContext context,
     required ConsoleSurface surface,

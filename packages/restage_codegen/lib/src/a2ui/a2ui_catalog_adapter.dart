@@ -4,7 +4,8 @@ import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
         A2uiDartWidgetPlan,
         A2uiRichShapes,
         a2uiWidgetDataSchemaMapForPlan,
-        classifyA2uiCatalogDart;
+        classifyA2uiCatalogDart,
+        composeSystemPromptFragments;
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -78,6 +79,7 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
   A2uiEventSeam? eventSeam,
   A2uiRichShapes? richShapes,
   A2uiPairingSeam? pairingSeam,
+  Map<String, String> usageByWidget = const {},
 }) {
   // Emit over the A2UI-emittable widget set ONLY (the same set the Dart
   // CatalogItem emitter produces), so the manifest component list and the Dart
@@ -85,13 +87,14 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
   // The interactivity seam + rich shapes + the pairing seam are threaded
   // through so an interactive widget the Dart emitter keeps (a lowered
   // callback) is kept here too.
-  final plans = classifyA2uiCatalogDart(
+  final catalogPlan = classifyA2uiCatalogDart(
     catalog,
     nativeIndex: nativeIndex,
     eventSeam: eventSeam,
     richShapes: richShapes,
     pairingSeam: pairingSeam,
-  ).widgets;
+  );
+  final plans = catalogPlan.widgets;
   final emittable = [for (final plan in plans) plan.entry];
 
   // De-duplicate by name; ANY duplicate name fails loud (the catalog map is
@@ -161,6 +164,8 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
       perItemSinceVersion: perItemSinceVersion,
     ),
     components: components,
+    systemPromptFragments:
+        composeSystemPromptFragments(catalogPlan, usageByWidget),
   );
 }
 

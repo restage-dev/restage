@@ -4,17 +4,147 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:restage_a2ui_example/widgets/cta_button.dart' as p0;
-import 'package:restage_a2ui_example/widgets/product_card.dart' as p1;
-import 'package:restage_a2ui_example/widgets/rating_picker.dart' as p2;
+import 'package:restage_a2ui_example/widgets/lessons/callout.dart' as p1;
+import 'package:restage_a2ui_example/widgets/lessons/comparison_panel.dart'
+    as p2;
+import 'package:restage_a2ui_example/widgets/lessons/quiz_check.dart' as p3;
+import 'package:restage_a2ui_example/widgets/lessons/section_header.dart' as p4;
+import 'package:restage_a2ui_example/widgets/product_card.dart' as p5;
+import 'package:restage_a2ui_example/widgets/rating_picker.dart' as p6;
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
 List<CatalogItem> buildRestageCatalogItems() {
   return <CatalogItem>[
     CatalogItem(
+      name: 'Callout',
+      dataSchema: S.object(
+        description: 'A message callout that wraps an optional child.',
+        properties: {
+          'message': S.string(
+            description: 'The callout message.',
+          ),
+          'child': S.string(
+            description: 'The wrapped child content.',
+          )
+        },
+        required: <String>[],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        return BoundString(
+          dataContext: itemContext.dataContext,
+          value: data['message'],
+          builder: (context, message) => p1.Callout(
+            message: message ?? '',
+            child: _restageA2uiBuildChild(itemContext, data['child']),
+          ),
+        );
+      },
+    ),
+    CatalogItem(
+      name: 'ComparisonPanel',
+      dataSchema: S.object(
+        description: 'A headed panel that lays out a list of child widgets.',
+        properties: {
+          'heading': S.string(
+            description: 'The panel heading.',
+          ),
+          'children': S.list(
+              description: 'The compared child widgets.', items: S.string())
+        },
+        required: <String>[],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        return BoundString(
+          dataContext: itemContext.dataContext,
+          value: data['heading'],
+          builder: (context, heading) => p2.ComparisonPanel(
+            heading: heading ?? '',
+            children: _restageA2uiBuildChildren(itemContext, data['children']),
+          ),
+        );
+      },
+    ),
+    CatalogItem(
+      name: 'QuizCheck',
+      dataSchema: S.object(
+        description:
+            'A prompt with a checkable answer bound to a boolean value.',
+        properties: {
+          'prompt': S.string(
+            description: 'The quiz prompt.',
+          ),
+          'selected': S
+              .combined(description: 'Whether the answer is selected.', oneOf: [
+            S.boolean(),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ])
+        },
+        required: <String>[],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        final _restageA2uiRef_selected = data['selected'];
+        final _restageA2uiPath_selected = (_restageA2uiRef_selected is Map &&
+                _restageA2uiRef_selected.containsKey('path'))
+            ? _restageA2uiRef_selected['path'] as String
+            : '${itemContext.id}.selected';
+        return BoundString(
+          dataContext: itemContext.dataContext,
+          value: data['prompt'],
+          builder: (context, prompt) => BoundBool(
+            dataContext: itemContext.dataContext,
+            value: {'path': _restageA2uiPath_selected},
+            builder: (context, selected) => p3.QuizCheck(
+              prompt: prompt ?? '',
+              selected: selected ?? false,
+              onSelected: (_restageA2uiNext) => itemContext.dataContext.update(
+                  DataPath(_restageA2uiPath_selected), _restageA2uiNext),
+            ),
+          ),
+        );
+      },
+    ),
+    CatalogItem(
+      name: 'SectionHeader',
+      dataSchema: S.object(
+        description: 'A titled section header.',
+        properties: {
+          'title': S.string(
+            description: 'The header title.',
+          )
+        },
+        required: <String>[],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        return BoundString(
+          dataContext: itemContext.dataContext,
+          value: data['title'],
+          builder: (context, title) => p4.SectionHeader(
+            title: title ?? '',
+          ),
+        );
+      },
+    ),
+    CatalogItem(
       name: 'CtaButton',
       dataSchema: S.object(
-        properties: {'label': S.string()},
+        description: 'A call-to-action button that dispatches a tap event.',
+        properties: {
+          'label': S.string(
+            description: 'The button caption.',
+          )
+        },
         required: <String>[],
       ),
       widgetBuilder: (itemContext) {
@@ -33,8 +163,11 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'ProductCard',
       dataSchema: S.object(
+        description:
+            'Renders a structured product (nested price, tags, features, attributes, size).',
         properties: {
           'product': S.object(
+            description: 'The product to display.',
             properties: {
               'name': S.string(),
               'price': S.object(
@@ -70,7 +203,7 @@ List<CatalogItem> buildRestageCatalogItems() {
         final _restageA2uiArg_product =
             _restageA2uiBuild_Product(data['product'], 0);
         if (_restageA2uiArg_product == null) return const SizedBox.shrink();
-        return p1.ProductCard(
+        return p5.ProductCard(
           product: _restageA2uiArg_product,
         );
       },
@@ -78,18 +211,22 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'RatingPicker',
       dataSchema: S.object(
+        description: 'A 1–5 star rating control bound to an integer value.',
         properties: {
-          'rating': S.combined(oneOf: [
-            S.number(),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ])
+          'rating': S.combined(
+              description: 'The selected rating, 1 through 5.',
+              oneOf: [
+                S.number(),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ])
         },
         required: <String>[],
       ),
@@ -103,7 +240,7 @@ List<CatalogItem> buildRestageCatalogItems() {
         return BoundNumber(
           dataContext: itemContext.dataContext,
           value: {'path': _restageA2uiPath_rating},
-          builder: (context, rating) => p2.RatingPicker(
+          builder: (context, rating) => p6.RatingPicker(
             rating: (rating ?? 0).toInt(),
             onRatingChanged: (_restageA2uiNext) => itemContext.dataContext
                 .update(DataPath(_restageA2uiPath_rating), _restageA2uiNext),
@@ -113,6 +250,24 @@ List<CatalogItem> buildRestageCatalogItems() {
     ),
   ];
 }
+
+const List<String> _restageA2uiSystemPromptFragments = <String>[
+  'Callout: Use for a short highlighted aside around optional content.',
+  'ComparisonPanel: A headed panel that lays out a list of child widgets.',
+  'QuizCheck: A prompt with a checkable answer bound to a boolean value.',
+  'SectionHeader: A titled section header.',
+  'CtaButton: A call-to-action button that dispatches a tap event.',
+  'ProductCard: Renders a structured product (nested price, tags, features, attributes, size).',
+  'RatingPicker: A 1–5 star rating control bound to an integer value.',
+];
+
+/// The fully-assembled genui catalog: the generated items
+/// plus the system-prompt fragments composed from each
+/// widget's usage note (falling back to its description).
+Catalog buildRestageCatalog() => Catalog(
+      buildRestageCatalogItems(),
+      systemPromptFragments: _restageA2uiSystemPromptFragments,
+    );
 
 Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
@@ -174,27 +329,27 @@ Map<String, V>? _restageA2uiMap<V>(Object? raw, V? Function(Object?) coerce) {
 
 const int _kA2uiMaxBuildDepth = 64;
 
-p1.Feature? _restageA2uiBuild_Feature(Object? _raw, int _depth) {
+p5.Feature? _restageA2uiBuild_Feature(Object? _raw, int _depth) {
   if (_depth > _kA2uiMaxBuildDepth) return null;
   if (_raw is! Map<String, Object?>) return null;
   final label = _restageA2uiAs<String>(_raw['label']);
   if (label == null) return null;
   final included = _restageA2uiAs<bool>(_raw['included']);
   if (included == null) return null;
-  return p1.Feature(label: label, included: included);
+  return p5.Feature(label: label, included: included);
 }
 
-p1.Money? _restageA2uiBuild_Money(Object? _raw, int _depth) {
+p5.Money? _restageA2uiBuild_Money(Object? _raw, int _depth) {
   if (_depth > _kA2uiMaxBuildDepth) return null;
   if (_raw is! Map<String, Object?>) return null;
   final amount = _restageA2uiAs<num>(_raw['amount'])?.toDouble();
   if (amount == null) return null;
   final currency = _restageA2uiAs<String>(_raw['currency']);
   if (currency == null) return null;
-  return p1.Money(amount: amount, currency: currency);
+  return p5.Money(amount: amount, currency: currency);
 }
 
-p1.Product? _restageA2uiBuild_Product(Object? _raw, int _depth) {
+p5.Product? _restageA2uiBuild_Product(Object? _raw, int _depth) {
   if (_depth > _kA2uiMaxBuildDepth) return null;
   if (_raw is! Map<String, Object?>) return null;
   final name = _restageA2uiAs<String>(_raw['name']);
@@ -208,7 +363,7 @@ p1.Product? _restageA2uiBuild_Product(Object? _raw, int _depth) {
   if (tags == null) return null;
   final features = _restageA2uiAs<List<Object?>>(_raw['features'])
       ?.map((e) => _restageA2uiBuild_Feature(e, _depth + 1))
-      .whereType<p1.Feature>()
+      .whereType<p5.Feature>()
       .toList();
   if (features == null) return null;
   final attributes = _restageA2uiMap<String>(
@@ -227,7 +382,7 @@ p1.Product? _restageA2uiBuild_Product(Object? _raw, int _depth) {
               0.0
         );
   if (size == null) return null;
-  return p1.Product(
+  return p5.Product(
       name: name,
       price: price,
       tags: tags,

@@ -46,6 +46,7 @@
             "type": "object",
             "properties": {
               "root": {
+                "description": "The root comment of a recursive reply thread.",
                 "$ref": "#/$defs/Comment"
               }
             },
@@ -69,6 +70,7 @@
       },
       "FeatureGrid": {
         "type": "object",
+        "description": "A grid of plan features with inclusion flags.",
         "properties": {
           "features": {
             "type": "array",
@@ -186,6 +188,7 @@
         "properties": {
           "plan": {
             "type": "object",
+            "description": "The plan tier this card presents.",
             "properties": {
               "name": {
                 "type": "string"
@@ -237,6 +240,9 @@
         ]
       }
     },
-    "functions": {}
+    "functions": {},
+    "systemPromptFragments": [
+      "FeatureGrid: A grid of plan features with inclusion flags."
+    ]
   }
 }

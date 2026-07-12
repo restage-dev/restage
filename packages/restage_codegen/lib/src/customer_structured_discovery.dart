@@ -115,10 +115,12 @@ final class CustomerStructuredDiscovery {
   /// is not a discovered structured value (the caller falls back to scalar /
   /// enum / widget / event inference).
   StructuredPropertyShape? shapeFor(DartType fieldType) {
-    if (classifyStructured(fieldType, _policy) != StructuredKind.concrete) {
+    final itemType = listItemType(fieldType);
+    final targetType = itemType ?? fieldType;
+    if (classifyStructured(targetType, _policy) != StructuredKind.concrete) {
       return null;
     }
-    final fqn = typeFqn(fieldType);
+    final fqn = typeFqn(targetType);
     if (fqn == null) return null;
     final libraryNamespace = _libraryNamespaceByFqn[fqn];
     if (libraryNamespace == null) return null;
@@ -126,6 +128,12 @@ final class CustomerStructuredDiscovery {
       library: libraryNamespace,
       wireId: WireId.unallocatedStructured,
     );
+    if (itemType != null) {
+      return StructuredPropertyShape(
+        type: PropertyType.unknown,
+        valueShape: ListShape.opaqueStructured(ref),
+      );
+    }
     return StructuredPropertyShape(
       type: PropertyType.structured,
       structuredRef: ref,
@@ -171,7 +179,7 @@ CustomerStructuredDiscovery discoverCustomerStructured({
   // returns the resolved element (or `null` when [type] is not a customer data
   // class) so the caller can reuse it without re-resolving.
   ClassElement? addDataClass(DartType type, String libraryNamespace) {
-    final element = classElementFor(type);
+    final element = classElementFor(listItemType(type) ?? type);
     if (element == null || !_isCustomerDataClass(element)) return null;
     final fqn = elementFqn(element);
     if (!closure.containsKey(fqn)) {
@@ -376,7 +384,8 @@ Iterable<({String name, DartType type})> _structuredFields(
 /// resolve nested structured `structuredRef`s from their bare sentinels.
 Iterable<(String, String)> _structuredFieldTargets(ClassElement element) sync* {
   for (final field in _structuredFields(element)) {
-    final targetElement = classElementFor(field.type);
+    final targetElement =
+        classElementFor(listItemType(field.type) ?? field.type);
     if (targetElement == null || !_isCustomerDataClass(targetElement)) continue;
     yield (field.name, elementFqn(targetElement));
   }

@@ -198,6 +198,13 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   }) async => _result();
 
   @override
+  Future<ConsoleOperationResult> rollbackPreview({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required int toVersion,
+  }) async => _result();
+
+  @override
   Future<ConsoleOperationResult> freeze({
     required ConsoleContext context,
     required ConsoleSurface surface,

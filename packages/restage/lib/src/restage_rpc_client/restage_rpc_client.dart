@@ -26,6 +26,18 @@ final class SurfaceFetchResult {
   final String? variantId;
 }
 
+/// The active-version stamp for a surface.
+final class SurfaceStamp {
+  /// Creates a surface stamp.
+  const SurfaceStamp({required this.version, this.watchChannel});
+
+  /// The surface's current active published version.
+  final int version;
+
+  /// An opaque realtime-channel token, when one is available.
+  final String? watchChannel;
+}
+
 /// HTTP/JSON client for the SDK's `/sdk/v1` endpoints.
 ///
 /// The SDK's shared `/sdk/v1` RPC client: it syncs entitlements, reports
@@ -172,6 +184,32 @@ class RestageRpcClient {
       debugPrint('[restage] surface envelope was not valid base64: $error');
       return null;
     }
+  }
+
+  /// Fetches the active-version stamp for a surface without downloading its
+  /// content envelope.
+  ///
+  /// Returns `null` on any failure so callers can keep their current render.
+  Future<SurfaceStamp?> fetchSurfaceStamp({
+    required String surfaceType,
+    required String surfaceSlug,
+  }) async {
+    final json = await _postJsonObject(
+      path: '/sdk/v1/surface-stamp',
+      body: {
+        'surfaceType': surfaceType,
+        'surfaceSlug': surfaceSlug,
+      },
+    );
+    final version = json?['version'];
+    if (version is! int) return null;
+    // A malformed watchChannel degrades to a null field, never discards the
+    // valid version stamp (a hard cast would throw and lose the whole stamp).
+    final rawWatchChannel = json?['watchChannel'];
+    return SurfaceStamp(
+      version: version,
+      watchChannel: rawWatchChannel is String ? rawWatchChannel : null,
+    );
   }
 
   /// Mints a native promotional-offer signature for [request]. Returns the

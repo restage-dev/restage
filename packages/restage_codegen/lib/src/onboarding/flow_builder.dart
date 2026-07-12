@@ -14,14 +14,40 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-const String _kFlowSourceDir = 'lib/onboarding/flows';
-const String _kScreenSourceDir = 'lib/onboarding/screens';
-const String _kFlowOutputDir = 'assets/onboarding/flows';
-const String _kScreenOutputDir = 'assets/onboarding/screens';
 const String _kSdkLibraryOrigin = 'package:restage';
+
+// The product surface (`onboarding` / `message` / `survey`) is carried by the
+// source directory: a flow lives at `lib/<surface>/flows/<stem>.dart` and its
+// screens at `lib/<surface>/screens/`. These derive the four source/output
+// roots from the surface segment. `buildExtensions` and the output writes in
+// `build` (which must match the declared extensions) read the segment from
+// the builder's configured `surface`; the top-level helper functions, which
+// have no builder instance in scope, derive it from the input path via
+// `_surfaceSegmentOf`. The two agree by construction: build_runner only
+// routes inputs under `lib/<surface>/flows/` to the builder configured with
+// that surface.
+String _flowSourceDir(String surface) => 'lib/$surface/flows';
+String _screenSourceDir(String surface) => 'lib/$surface/screens';
+String _flowOutputDir(String surface) => 'assets/$surface/flows';
+String _screenOutputDir(String surface) => 'assets/$surface/screens';
+
+/// The surface segment carried by a `lib/<surface>/{flows,screens}/...` path.
+///
+/// Only meaningful for asset ids build_runner routed through a surface
+/// builder's glob; the assert is a misuse tripwire for any future caller
+/// handing it a non-routed path.
+String _surfaceSegmentOf(AssetId assetId) {
+  final segments = p.split(assetId.path);
+  assert(
+    segments.length > 2 && segments.first == 'lib',
+    'Expected a lib/<surface>/... asset path, got "${assetId.path}".',
+  );
+  return segments[1];
+}
 
 final Object _invalidJsonValue = Object();
 final RegExp _identifierPattern = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
@@ -105,17 +131,43 @@ const Set<String> _objectInstanceMemberNames = {
 };
 
 final class OnboardingFlowBuilder implements Builder {
-  OnboardingFlowBuilder(this.options);
+  OnboardingFlowBuilder(this.options, {this.surface = SurfaceType.onboarding}) {
+    if (!_flowSurfaces.contains(surface)) {
+      throw ArgumentError.value(
+        surface,
+        'surface',
+        'must be a flow surface (onboarding / message / survey); paywalls '
+            'have dedicated builders',
+      );
+    }
+  }
+
+  /// The surfaces this builder may codegen for. Paywalls have dedicated
+  /// builders; a new surface type must be added here deliberately.
+  static const Set<SurfaceType> _flowSurfaces = {
+    SurfaceType.onboarding,
+    SurfaceType.message,
+    SurfaceType.survey,
+  };
 
   final BuilderOptions options;
 
+  /// The flow surface (`onboarding` / `message` / `survey`) this builder
+  /// instance codegens for. Defaults to [SurfaceType.onboarding], the surface
+  /// this builder originally served.
+  final SurfaceType surface;
+
   @override
-  Map<String, List<String>> get buildExtensions => const {
-        '$_kFlowSourceDir/{{name}}.dart': [
-          '$_kFlowSourceDir/{{name}}.rsflow.g.dart',
-          '$_kFlowOutputDir/{{name}}.flow.json',
-        ],
-      };
+  Map<String, List<String>> get buildExtensions {
+    final flowSource = _flowSourceDir(surface.wireName);
+    final flowOutput = _flowOutputDir(surface.wireName);
+    return {
+      '$flowSource/{{name}}.dart': [
+        '$flowSource/{{name}}.rsflow.g.dart',
+        '$flowOutput/{{name}}.flow.json',
+      ],
+    };
+  }
 
   @override
   Future<void> build(BuildStep buildStep) async {
@@ -222,9 +274,13 @@ final class OnboardingFlowBuilder implements Builder {
     if (issues.isNotEmpty) _surfaceIssues(issues);
     if (lowered == null) return;
 
+    final surfaceSeg = surface.wireName;
     await Future.wait<void>([
       buildStep.writeAsString(
-        AssetId(assetId.package, '$_kFlowSourceDir/$stem.rsflow.g.dart'),
+        AssetId(
+          assetId.package,
+          '${_flowSourceDir(surfaceSeg)}/$stem.rsflow.g.dart',
+        ),
         // Format the emitted descriptor so a committed `.rsflow.g.dart` is both
         // format-clean AND build_runner-byte-stable (the screen builder's
         // simpler template is already format-clean; the flow builder's richer
@@ -232,7 +288,10 @@ final class OnboardingFlowBuilder implements Builder {
         formatGeneratedDart(_emitFlowDescriptor(stem, flow, lowered)),
       ),
       buildStep.writeAsBytes(
-        AssetId(assetId.package, '$_kFlowOutputDir/$stem.flow.json'),
+        AssetId(
+          assetId.package,
+          '${_flowOutputDir(surfaceSeg)}/$stem.flow.json',
+        ),
         FlowDocumentCodec.encodeCanonicalJson(lowered.document),
       ),
     ]);
@@ -255,11 +314,24 @@ _FlowSource? _findFlow(LibraryElement library, AssetId assetId) {
     if (id == null) {
       return _FlowSource.invalid(cls);
     }
+    final deliveryName =
+        value.getField('delivery')?.getField('_name')?.toStringValue();
+    FlowDeliveryMode? delivery;
+    for (final mode in FlowDeliveryMode.values) {
+      if (mode.name == deliveryName) {
+        delivery = mode;
+        break;
+      }
+    }
+    if (delivery == null) {
+      return _FlowSource.invalid(cls);
+    }
     final className = cls.name ?? '<unnamed>';
     return _FlowSource(
       id: id,
       version: value.getField('version')?.toIntValue() ?? 1,
       minClient: value.getField('minClient')?.toIntValue() ?? 3,
+      delivery: delivery,
       className: className,
       element: cls,
       actions: _collectActions(cls),
@@ -385,17 +457,18 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
   List<Issue> issues,
 ) async {
   final source = await buildStep.readAsString(flowAssetId);
+  final screenSourceDir = _screenSourceDir(_surfaceSegmentOf(flowAssetId));
   final importPattern = RegExp(r'''import\s+['"]([^'"]+)['"]\s*;''');
   final descriptors = <String, _ScreenDescriptor>{};
   for (final match in importPattern.allMatches(source)) {
     final uri = match.group(1)!;
     if (!uri.startsWith('../screens/')) continue;
     final screenPath = p.normalize(p.join(p.dirname(flowAssetId.path), uri));
-    if (!screenPath.startsWith(_kScreenSourceDir)) continue;
+    if (!screenPath.startsWith(screenSourceDir)) continue;
     final stem = p.basenameWithoutExtension(screenPath);
     final generatedId = AssetId(
       flowAssetId.package,
-      '$_kScreenSourceDir/$stem.rsscreen.g.dart',
+      '$screenSourceDir/$stem.rsscreen.g.dart',
     );
     if (!await buildStep.canRead(generatedId)) {
       issues.add(
@@ -531,6 +604,16 @@ Future<_LoweredFlow?> _lowerFlow(
       ? const FlowOutboundDeclarations()
       : _outboundDeclarations(outboundExpr, issues, assetId);
   if (flowState == null || outbound == null) return null;
+
+  if (flow.delivery == FlowDeliveryMode.general) {
+    issues.addAll(
+      validateGeneralDiscipline(
+        outbound: outbound,
+        flowState: flowState,
+        location: '${assetId.path}#${flow.className}.buildFlow',
+      ),
+    );
+  }
 
   final screenArtifacts = <String, ScreenArtifact>{};
   final states = <String, FlowState>{};
@@ -679,6 +762,7 @@ Future<_LoweredFlow?> _lowerFlow(
     version: flow.version,
     schemaVersion: 1,
     minClient: flow.minClient,
+    deliveryMode: flow.delivery,
     initial: initial.id,
     actions: usedActionContracts,
     flowState: flowState,
@@ -712,7 +796,8 @@ Future<ScreenArtifact> _artifactFor(
 ) async {
   final rfwId = AssetId(
     flowAssetId.package,
-    '$_kScreenOutputDir/${descriptor.artifactPath}',
+    '${_screenOutputDir(_surfaceSegmentOf(flowAssetId))}/'
+    '${descriptor.artifactPath}',
   );
   if (!await buildStep.canRead(rfwId)) {
     issues.add(
@@ -2808,7 +2893,7 @@ Future<_ChildFlowArtifact?> _childFlowArtifact(
 ) async {
   final asset = AssetId(
     flowAssetId.package,
-    '$_kFlowOutputDir/${ref.id}.flow.json',
+    '${_flowOutputDir(_surfaceSegmentOf(flowAssetId))}/${ref.id}.flow.json',
   );
   if (!await buildStep.canRead(asset)) {
     _unsupportedGraphDeclaration(
@@ -3259,14 +3344,56 @@ String _emitFlowDescriptor(
   _LoweredFlow lowered,
 ) {
   final baseName = _flowBaseName(flow.className);
-  final resultClass = '${baseName}Result';
   final descriptorClass = '${flow.className}Descriptor';
   final actionsClass = _actionsClassName(flow.className);
   final actionsInterface =
       flow.actions.isEmpty ? '' : ' implements FlowActionRegistry';
-  final result = _firstEndResult(lowered.document);
   final seedClass =
       _emitSeedClass('${baseName}Seed', lowered.document.flowState);
+  if (flow.delivery == FlowDeliveryMode.general) {
+    final signalNames = lowered.document.outbound.customEvents.keys.toList()
+      ..sort();
+    final signalSet = signalNames.isEmpty
+        ? 'const <String>{}'
+        : 'const {${signalNames.map(_dartStringLiteral).join(', ')}}';
+    final generalActionsBody = flow.actions.isEmpty
+        ? '  const $actionsClass();\n\n'
+            '  @override\n'
+            '  Map<String, FlowActionBinding<dynamic, dynamic>> get '
+            'flowActionBindings => const {};\n'
+        : '${_emitActionsConstructor(actionsClass, flow.actions)}'
+            '${_emitActionFields(
+            flow.actions,
+            flow.minClient,
+            lowered.actionContracts,
+          )}';
+    return '''
+part of '$stem.dart';
+
+abstract final class $descriptorClass {
+  const $descriptorClass._();
+
+  static const SurfaceFlowRef<Map<String, Object?>> ref =
+      SurfaceFlowRef<Map<String, Object?>>(
+    id: '${flow.id}',
+    version: ${flow.version},
+    minClient: ${flow.minClient},
+    decodeResult: $descriptorClass._decodeResult,
+  );
+
+  static Map<String, Object?> _decodeResult(Map<String, Object?> result) =>
+      result;
+}
+
+class $actionsClass implements FlowActionRegistry, FlowSignalRegistry {
+$generalActionsBody
+  @override
+  Set<String> get installedSignalNames => $signalSet;
+}
+$seedClass''';
+  }
+  final resultClass = '${baseName}Result';
+  final result = _firstEndResult(lowered.document);
   return '''
 part of '$stem.dart';
 
@@ -3711,6 +3838,7 @@ final class _FlowSource {
     required this.id,
     required this.version,
     required this.minClient,
+    required this.delivery,
     required this.className,
     required this.element,
     required this.actions,
@@ -3722,6 +3850,7 @@ final class _FlowSource {
           id: '',
           version: 1,
           minClient: kBaselineCatalogVersion,
+          delivery: FlowDeliveryMode.typed,
           className: element.name ?? '<unnamed>',
           element: element,
           actions: const [],
@@ -3731,6 +3860,7 @@ final class _FlowSource {
   final String id;
   final int version;
   final int minClient;
+  final FlowDeliveryMode delivery;
   final String className;
   final ClassElement element;
   final List<_FlowAction> actions;

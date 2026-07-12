@@ -110,23 +110,32 @@ class SurfaceStatusCommand extends Command<int> {
 
   /// Print a human-readable summary of [status] to stdout.
   ///
-  /// Format:
+  /// Format (`mode` segments appear only when the wire carries a flow
+  /// delivery mode — flow versions on a current server):
   /// ```
-  ///   live: vN  locked: bool  shape: blob|flow
-  ///     vN (active)  ISO-8601  contentHash
-  ///     vM           ISO-8601  contentHash
+  ///   live: vN  locked: bool  shape: blob|flow  mode: typed|general
+  ///     vN (active)  ISO-8601  contentHash  typed|general
+  ///     vM           ISO-8601  contentHash  typed|general
   /// ```
   void _printStatus(SurfaceStatusResult status) {
     final liveLabel = status.liveVersion != null
         ? 'v${status.liveVersion}'
         : '— (none)';
+    final activeMode = status.versions
+        .where((v) => v.isActive)
+        .firstOrNull
+        ?.deliveryMode;
+    final modeSegment = activeMode != null ? '  mode: $activeMode' : '';
     _stdout.writeln(
-      'live: $liveLabel  locked: ${status.locked}  shape: ${status.deliveryShape}',
+      'live: $liveLabel  locked: ${status.locked}  '
+      'shape: ${status.deliveryShape}$modeSegment',
     );
     for (final v in status.versions) {
       final activeMarker = v.isActive ? ' (active)' : '';
+      final mode = v.deliveryMode != null ? '  ${v.deliveryMode}' : '';
       _stdout.writeln(
-        '  v${v.version}$activeMarker  ${v.publishedAt.toIso8601String()}  ${v.contentHash}',
+        '  v${v.version}$activeMarker  '
+        '${v.publishedAt.toIso8601String()}  ${v.contentHash}$mode',
       );
     }
   }

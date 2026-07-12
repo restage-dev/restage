@@ -298,6 +298,16 @@ abstract interface class FlowActionRegistry {
   Map<String, FlowActionBinding<dynamic, dynamic>> get flowActionBindings;
 }
 
+/// Signal names installed by a generated flow action registry.
+///
+/// Generated registries implement this alongside [FlowActionRegistry]; the
+/// flow runtime unions these names with the host-passed set. Hand-rolled
+/// registries that do not implement it contribute no names (fail-closed).
+abstract interface class FlowSignalRegistry {
+  /// Custom-event / host-signal names installed by this registry.
+  Set<String> get installedSignalNames;
+}
+
 /// Base class for authored flow graphs.
 abstract base class RestageFlow {
   /// Creates an authored flow.

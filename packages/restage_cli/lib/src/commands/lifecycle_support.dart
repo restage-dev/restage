@@ -16,6 +16,12 @@ import 'package:restage_shared/restage_shared.dart';
 /// per-environment `isProduction` flag can replace this convention.
 const kProductionEnvironmentSlug = 'production';
 
+/// The stable line prefix of the rollback cohort-impact note. Shared between
+/// the rollback command (which writes the note) and consumers that pick it
+/// out of command output (the interactive console), so a rewording cannot
+/// silently blank a consumer's display.
+const kCohortImpactNotePrefix = 'Cohort impact';
+
 /// Resolved (credential, project, app, environment) for a lifecycle command.
 class LifecycleContext {
   /// Construct a [LifecycleContext].

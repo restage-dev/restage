@@ -28,13 +28,16 @@ import 'auth.dart';
 ///
 /// [action] is a gerund phrase naming the operation (e.g. `listing paywalls`)
 /// used in the generic messages.
+/// [surfaceNoun] defaults to `paywall` for legacy paywall tools only;
+/// surface-typed tools must use the surface combinator or pass the wire name.
 Future<CallToolResult> withApi({
   required FileCredentialStore store,
   http.Client? httpClient,
   required String action,
   required Future<CallToolResult> Function(RestageApi api) body,
+  String surfaceNoun = 'paywall',
 }) {
-  return guardErrors(action, () async {
+  return guardErrors(action, surfaceNoun: surfaceNoun, () async {
     RestageApi? api;
     try {
       api = await resolveAuthenticatedApi(store: store, httpClient: httpClient);
@@ -105,8 +108,9 @@ CallToolResult scrubValues(CallToolResult result, Set<String> secrets) {
 /// stderr, which is not the protocol channel.
 Future<CallToolResult> guardErrors(
   String action,
-  Future<CallToolResult> Function() body,
-) async {
+  Future<CallToolResult> Function() body, {
+  required String surfaceNoun,
+}) async {
   try {
     try {
       return await body();
@@ -122,7 +126,7 @@ Future<CallToolResult> guardErrors(
         '(https or loopback http) URL. Sign in again with restage_login.',
       );
     } on RestageApiException catch (e) {
-      return mcpError(legibleApiError(e, action));
+      return mcpError(legibleApiError(e, action, surfaceNoun: surfaceNoun));
     } on SocketException catch (e) {
       // Don't forward e.message — for a DNS failure Dart embeds the host in the
       // message, and a crafted credentials file could carry secret material in
@@ -154,7 +158,11 @@ Future<CallToolResult> guardErrors(
 /// carries only domain identifiers (slugs, a resource name) — never secret
 /// material — so surfacing them is safe and far more useful to an agent than a
 /// bare status code. Falls back to the status code for anything else.
-String legibleApiError(RestageApiException e, String action) {
+String legibleApiError(
+  RestageApiException e,
+  String action, {
+  required String surfaceNoun,
+}) {
   // Decode defensively. A recognized className with a wrong-typed `data` field
   // makes a decoder's unchecked cast throw. That throw would occur inside
   // guardErrors' `on RestageApiException` clause and ESCAPE the enclosing try —
@@ -197,10 +205,12 @@ String legibleApiError(RestageApiException e, String action) {
     case null:
       break;
   }
-  // Paywalls publish/list through the generic surface endpoint, so its typed
-  // exceptions surface here. Decode them defensively (same unchecked-cast
-  // hazard as above) and present the same paywall-facing phrasing — otherwise
-  // a missing paywall / publish conflict would degrade to a bare status code.
+  // Every surface family (paywalls included) publishes/lists through the
+  // generic surface endpoint, so its typed exceptions surface here. Decode
+  // them defensively (same unchecked-cast hazard as above) and phrase them
+  // with [surfaceNoun] — 'paywall' for the paywall tools, the surface type's
+  // wire name for the surface-family tools — otherwise a missing surface /
+  // publish conflict would degrade to a bare status code.
   SurfaceException? surfaceTyped;
   try {
     surfaceTyped = decodeSurfaceTypedException(e.body);
@@ -209,16 +219,16 @@ String legibleApiError(RestageApiException e, String action) {
   }
   switch (surfaceTyped) {
     case SurfaceNotFound(:final surfaceSlug):
-      return "No paywall '$surfaceSlug' was found.";
+      return "No $surfaceNoun '$surfaceSlug' was found.";
     case SurfacePublishConflict(:final surfaceSlug, :final environmentSlug):
-      return "A concurrent publish conflicted for paywall '$surfaceSlug' in "
-          "environment '$environmentSlug'. Please try again.";
+      return "A concurrent publish conflicted for $surfaceNoun '$surfaceSlug' "
+          "in environment '$environmentSlug'. Please try again.";
     case SurfaceEnvironmentNotFound(:final environmentSlug):
       return "No environment '$environmentSlug' was found.";
     case SurfaceRollbackUnsupported(:final surfaceSlug):
-      return "Rollback isn't supported for paywall '$surfaceSlug'.";
+      return "Rollback isn't supported for $surfaceNoun '$surfaceSlug'.";
     case SurfaceVersionNotFound(:final surfaceSlug, :final toVersion):
-      return "No version $toVersion was found for paywall '$surfaceSlug'.";
+      return "No version $toVersion was found for $surfaceNoun '$surfaceSlug'.";
     case null:
       return 'The Restage backend returned an error (status ${e.statusCode}).';
   }
@@ -307,4 +317,7 @@ extension ToolArgs on CallToolRequest {
 
   /// An optional string argument (null when absent or explicitly null).
   String? optStr(String key) => _args[key] as String?;
+
+  /// An optional boolean argument (null when absent).
+  bool? optBool(String key) => _args[key] as bool?;
 }

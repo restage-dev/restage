@@ -32,3 +32,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
+  # Tests build a capability sidecar (CapabilityManifest / LibraryRequirement).
+  restage_shared:
+    path: ../../restage_shared
+  # The fail-closed test reads genui's not-found log records.
+  logging: ^1.3.0

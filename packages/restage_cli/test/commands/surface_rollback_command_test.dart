@@ -199,6 +199,67 @@ void main() {
       expect(out.toString(), contains('(frozen)'));
     });
 
+    test('preflight and rollback use the configured organization', () async {
+      await seedRestageConfig(
+        tempDir,
+        'p',
+        'a',
+        defaultEnvironment: 'staging',
+        organization: 'restage',
+      );
+      Map<String, dynamic>? preflightBody;
+      Map<String, dynamic>? rollbackBody;
+      final client = scriptedHttpClient([
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listMine');
+          return http.Response(
+            jsonEncode([
+              {
+                'organizationId': 7,
+                'slug': 'restage',
+                'name': 'Restage',
+                'role': 'owner',
+              },
+            ]),
+            200,
+          );
+        },
+        (_) => statusResponse(),
+        (req) {
+          preflightBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return preflightResponse();
+        },
+        (req) {
+          rollbackBody = jsonDecode(req.body) as Map<String, dynamic>;
+          return rollbackOkResponse();
+        },
+      ]);
+
+      final code =
+          await makeRunner(
+            stdout: StringBuffer(),
+            stderr: StringBuffer(),
+            httpClient: client,
+          ).run([
+            'rollback',
+            'pro',
+            '--to-version',
+            '1',
+            '--reason',
+            'x',
+            '--yes',
+            '-C',
+            tempDir.path,
+          ]);
+
+      expect(code, 0);
+      expect(preflightBody!['method'], 'rollbackPreflight');
+      expect(rollbackBody!['method'], 'rollbackSurface');
+      expect(preflightBody!['organizationId'], 7);
+      expect(preflightBody!['organizationId'], rollbackBody!['organizationId']);
+    });
+
     test('(c) a flow surface rolls back now (gate-1 relaxed) — preflight + '
         'rollback are called, exits 0', () async {
       var rollbackCalled = false;
@@ -471,8 +532,192 @@ void main() {
         expect(err.toString(), contains('corrupt'));
         expect(err.toString(), isNot(contains('flow-shaped')));
         expect(err.toString(), isNot(contains('active-flow delivery')));
+        // The same wire refusal also comes from an older server that predates
+        // flow-surface rollback — the message must not present corruption as
+        // the only possible cause.
+        expect(err.toString(), contains('older server'));
       },
     );
+  });
+
+  group('preflight observability', () {
+    test('--preview prints the classification + blocking changes, exits 0, and '
+        'mutates nothing (no --reason required, no confirm)', () async {
+      final calledMethods = <String>[];
+      final client = mockHttpClient((req) {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        calledMethods.add(body['method'] as String);
+        return switch (body['method']) {
+          'surfaceStatus' => statusResponse(deliveryShape: 'flow'),
+          'rollbackPreflight' => preflightResponse(
+            classification: 'contractChange',
+            blockingChanges: const [r'minClientRaised @ $.minClient: floor up'],
+          ),
+          _ => http.Response('', 500),
+        };
+      });
+
+      final out = StringBuffer();
+      final code =
+          await makeRunner(
+            stdout: out,
+            stderr: StringBuffer(),
+            httpClient: client,
+          ).run([
+            'rollback',
+            'pro',
+            '--to-version', '1',
+            '--preview',
+            // intentionally no --reason and no --yes
+            '--env', 'staging',
+            '--project', 'p',
+            '--app', 'a',
+          ]);
+
+      expect(code, 0);
+      final shown = out.toString();
+      expect(shown, contains('Cohort impact'));
+      expect(shown, contains('minClientRaised'));
+      expect(shown, contains('Preview only'));
+      expect(calledMethods, contains('rollbackPreflight'));
+      expect(calledMethods, isNot(contains('rollbackSurface')));
+    });
+
+    test('--yes still prints the cohort-impact note before mutating', () async {
+      var rollbackCalled = false;
+      final client = scriptedHttpClient([
+        (_) => statusResponse(),
+        (_) => preflightResponse(),
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          if (body['method'] == 'rollbackSurface') rollbackCalled = true;
+          return rollbackOkResponse();
+        },
+      ]);
+
+      final out = StringBuffer();
+      final code = await makeRunner(
+        stdout: out,
+        stderr: StringBuffer(),
+        httpClient: client,
+      ).run(baseArgs()); // --yes, staging
+
+      expect(code, 0);
+      expect(rollbackCalled, isTrue);
+      expect(out.toString(), contains('Cohort impact'));
+    });
+
+    test('--preview still surfaces the classification when the server '
+        'returns one this CLI does not recognize', () async {
+      final client = mockHttpClient((req) {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        return switch (body['method']) {
+          'surfaceStatus' => statusResponse(),
+          'rollbackPreflight' => preflightResponse(
+            classification: 'someFutureClassification',
+          ),
+          _ => http.Response('', 500),
+        };
+      });
+
+      final out = StringBuffer();
+      final code =
+          await makeRunner(
+            stdout: out,
+            stderr: StringBuffer(),
+            httpClient: client,
+          ).run([
+            'rollback',
+            'pro',
+            '--to-version',
+            '1',
+            '--preview',
+            '--env',
+            'staging',
+            '--project',
+            'p',
+            '--app',
+            'a',
+          ]);
+
+      expect(code, 0);
+      // The classification line must carry the server's RAW value — an agent
+      // or operator reading "unknown" cannot tell a genuinely-unknown server
+      // answer from a newer classification this CLI merely doesn't recognize.
+      expect(out.toString(), contains('someFutureClassification'));
+      expect(out.toString(), contains('Preview only'));
+    });
+
+    test('--yes with an unrecognized classification still prints a '
+        'cohort-impact line before mutating (the mutation path must not be '
+        'less informative than the preview)', () async {
+      var rollbackCalled = false;
+      final client = mockHttpClient((req) {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        switch (body['method']) {
+          case 'surfaceStatus':
+            return statusResponse();
+          case 'rollbackPreflight':
+            return preflightResponse(
+              classification: 'someFutureClassification',
+            );
+          case 'rollbackSurface':
+            rollbackCalled = true;
+            return rollbackOkResponse();
+        }
+        return http.Response('', 500);
+      });
+
+      final out = StringBuffer();
+      final code = await makeRunner(
+        stdout: out,
+        stderr: StringBuffer(),
+        httpClient: client,
+      ).run(baseArgs()); // --yes, staging
+
+      expect(code, 0);
+      expect(rollbackCalled, isTrue);
+      expect(out.toString(), contains('Cohort impact'));
+      expect(out.toString(), contains('someFutureClassification'));
+    });
+
+    test('--preview works against production without --yes (a read, not a '
+        'destructive op)', () async {
+      final calledMethods = <String>[];
+      final client = mockHttpClient((req) {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        calledMethods.add(body['method'] as String);
+        return switch (body['method']) {
+          'surfaceStatus' => statusResponse(),
+          'rollbackPreflight' => preflightResponse(),
+          _ => http.Response('', 500),
+        };
+      });
+
+      final out = StringBuffer();
+      final code =
+          await makeRunner(
+            stdout: out,
+            stderr: StringBuffer(),
+            httpClient: client,
+          ).run([
+            'rollback',
+            'pro',
+            '--to-version',
+            '1',
+            '--preview',
+            '--env',
+            'production',
+            '--project',
+            'p',
+            '--app',
+            'a',
+          ]);
+
+      expect(code, 0);
+      expect(out.toString(), contains('Cohort impact'));
+      expect(calledMethods, isNot(contains('rollbackSurface')));
+    });
   });
 }
 

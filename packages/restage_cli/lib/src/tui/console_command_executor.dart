@@ -34,15 +34,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
       args: [
         'surface',
         'kill',
-        surface.slug,
-        '--type',
-        surface.surfaceType,
-        '--project',
-        context.project,
-        '--app',
-        context.app,
-        '--env',
-        context.environment,
+        ..._surfaceArgs(context, surface),
         '--reason',
         reason,
         if (frozen) '--frozen',
@@ -66,15 +58,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
       args: [
         'surface',
         'rollback',
-        surface.slug,
-        '--type',
-        surface.surfaceType,
-        '--project',
-        context.project,
-        '--app',
-        context.app,
-        '--env',
-        context.environment,
+        ..._surfaceArgs(context, surface),
         '--reason',
         reason,
         '--to-version',
@@ -86,6 +70,23 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }
 
   @override
+  Future<ConsoleOperationResult> rollbackPreview({
+    required ConsoleContext context,
+    required ConsoleSurface surface,
+    required int toVersion,
+  }) {
+    // A pure read — no reason, no confirmation bypass, works on production.
+    return _run([
+      'surface',
+      'rollback',
+      ..._surfaceArgs(context, surface),
+      '--to-version',
+      '$toVersion',
+      '--preview',
+    ]);
+  }
+
+  @override
   Future<ConsoleOperationResult> freeze({
     required ConsoleContext context,
     required ConsoleSurface surface,
@@ -94,15 +95,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     return _run([
       'surface',
       'freeze',
-      surface.slug,
-      '--type',
-      surface.surfaceType,
-      '--project',
-      context.project,
-      '--app',
-      context.app,
-      '--env',
-      context.environment,
+      ..._surfaceArgs(context, surface),
       '--reason',
       reason,
     ]);
@@ -117,15 +110,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     return _run([
       'surface',
       'unfreeze',
-      surface.slug,
-      '--type',
-      surface.surfaceType,
-      '--project',
-      context.project,
-      '--app',
-      context.app,
-      '--env',
-      context.environment,
+      ..._surfaceArgs(context, surface),
       '--reason',
       reason,
     ]);
@@ -136,20 +121,22 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     required ConsoleContext context,
     required ConsoleSurface surface,
   }) {
-    return _run([
-      'surface',
-      'publish',
-      surface.slug,
-      '--type',
-      surface.surfaceType,
-      '--project',
-      context.project,
-      '--app',
-      context.app,
-      '--env',
-      context.environment,
-    ]);
+    return _run(['surface', 'publish', ..._surfaceArgs(context, surface)]);
   }
+
+  /// The shared target-selection arguments every surface lifecycle command
+  /// takes: slug, type, project, app, environment.
+  List<String> _surfaceArgs(ConsoleContext context, ConsoleSurface surface) => [
+    surface.slug,
+    '--type',
+    surface.surfaceType,
+    '--project',
+    context.project,
+    '--app',
+    context.app,
+    '--env',
+    context.environment,
+  ];
 
   Future<ConsoleOperationResult> _runLifecycle({
     required ConsoleContext context,

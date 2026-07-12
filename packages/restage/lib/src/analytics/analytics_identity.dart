@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// The SDK-owned four-level analytics identity.
 ///
 /// - [anonymousId] — stable per install, resettable via [reset]; the
-///   cross-session retention/cohort actor (anonymous, no IDFA/GAID join).
+///   cross-session retention/cohort actor (pseudonymous, no IDFA/GAID join).
 /// - [sessionId] — per app-session, rotated on [rotateSession] (a new launch /
 ///   idle window).
 /// - [surfaceSessionId] — per surface presentation (mount→dismiss); set by the
@@ -23,8 +23,8 @@ class AnalyticsIdentity {
   })  : _prefsProvider = prefsProvider ?? SharedPreferences.getInstance,
         _newId = newId ?? AnonymousTokenStore.generateUuidV4;
 
-  /// `shared_preferences` key for the persisted anonymous id. Distinct from the
-  /// billing anonymous-token key — this is the analytics cohort actor.
+  /// `shared_preferences` key for the persisted pseudonymous id. Distinct from
+  /// the billing anonymous-token key — this is the analytics cohort actor.
   static const _anonymousIdKey = 'restage.analytics.anonymous_id';
 
   final Future<SharedPreferences> Function() _prefsProvider;
@@ -38,7 +38,7 @@ class AnalyticsIdentity {
   /// presented. Set by the surface host on mount, cleared on dismiss.
   String? surfaceSessionId;
 
-  /// Returns the persisted anonymous id, minting + persisting one on first run.
+  /// Returns the persisted pseudonymous id, minting + persisting one on first run.
   Future<String> anonymousId() async {
     final cached = _anonymousIdCache;
     if (cached != null) return cached;
@@ -58,7 +58,7 @@ class AnalyticsIdentity {
     return fresh;
   }
 
-  /// The resolved anonymous id if [anonymousId] has completed at least once,
+  /// The resolved pseudonymous id if [anonymousId] has completed at least once,
   /// else null. Synchronous — for the hot event-fire path, which captures a
   /// snapshot without awaiting.
   String? get cachedAnonymousId => _anonymousIdCache;
@@ -75,7 +75,7 @@ class AnalyticsIdentity {
   /// Attaches the customer's [userId] to subsequent events.
   void identify(String userId) => _userId = userId;
 
-  /// Resets the anonymous actor: mints a fresh [anonymousId], clears [userId],
+  /// Resets the pseudonymous actor: mints a fresh [anonymousId], clears [userId],
   /// and rotates the session — the privacy "forget me" primitive.
   Future<void> reset() async {
     final prefs = await _prefsProvider();

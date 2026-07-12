@@ -422,7 +422,15 @@ enum IssueCode {
   missingScreenDescriptor,
 
   /// The author used a flow DSL feature unsupported by the current runtime.
-  unsupportedFlowRuntimeFeature;
+  unsupportedFlowRuntimeFeature,
+
+  /// A general-mode flow routes flow-state into an analytics-reaching outbound
+  /// surface, which must read only event args.
+  generalAnalyticsSinkStateRef,
+
+  /// A general-mode flow egresses a host-seeded flow-state key through
+  /// `terminalResult`; host-supplied state is branch-only.
+  generalHostSeededResultRef;
 
   /// Whether this code is a **build notice** — an annotation emitted *alongside
   /// a complete, correct translation*, never a signal that something failed to
@@ -538,6 +546,8 @@ enum IssueCode {
         IssueCode.generatedSymbolCollision ||
         IssueCode.missingScreenDescriptor ||
         IssueCode.unsupportedFlowRuntimeFeature ||
+        IssueCode.generalAnalyticsSinkStateRef ||
+        IssueCode.generalHostSeededResultRef ||
         // A custom widget that cannot be expressed, could not be classified,
         // would emit an ambiguous name, or fails translator-side reconciliation
         // — all real failures the author must resolve.

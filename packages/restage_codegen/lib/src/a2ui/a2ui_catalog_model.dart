@@ -146,6 +146,7 @@ final class RestageStampedA2uiCatalog {
   const RestageStampedA2uiCatalog({
     required this.stamp,
     required this.components,
+    this.systemPromptFragments = const [],
   });
 
   /// The capability stamp travelling with the catalog.
@@ -153,6 +154,12 @@ final class RestageStampedA2uiCatalog {
 
   /// The catalog's components. Encoded in sorted-name order by [toJson].
   final List<A2uiComponent> components;
+
+  /// Per-widget system-prompt guidance fragments, in the same order and with
+  /// the same usage-then-description fallback rule the generated `.g.dart`
+  /// catalog's `systemPromptFragments` carries — see
+  /// `composeSystemPromptFragments`.
+  final List<String> systemPromptFragments;
 
   /// The catalog document identifier (the A2UI `$id` / `catalogId`).
   ///
@@ -189,6 +196,13 @@ final class RestageStampedA2uiCatalog {
         'a2uiProtocolVersion': kA2uiProtocolVersion,
         'components': {for (final c in sorted) c.name: c.dataSchema},
         'functions': <String, Object?>{},
+        // Omitted-when-empty is a COMPATIBILITY rule, not a schema
+        // principle: it keeps a pre-metadata (fragment-free) stamp
+        // byte-identical to before this field existed. Don't "normalize"
+        // this to always-emit (an empty list) or to drop the field — either
+        // change would perturb every already-committed fragment-free golden.
+        if (systemPromptFragments.isNotEmpty)
+          'systemPromptFragments': List<String>.of(systemPromptFragments),
       },
     };
   }

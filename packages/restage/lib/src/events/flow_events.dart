@@ -125,6 +125,11 @@ final class FlowStarted extends RestageEvent {
   /// The server-resolved active version, when the active arm served a version
   /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
   /// exact resolve or an active-arm fallback to the bundled document.
+  ///
+  /// A live in-place refresh does not re-enter the funnel: a swapped surface
+  /// emits no second `FlowStarted`, so this reflects the version the session
+  /// STARTED on. A session that live-swapped mid-run finishes on the version it
+  /// ended on — see [FlowCompleted.resolvedVersion].
   final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.
@@ -174,6 +179,11 @@ final class FlowCompleted extends RestageEvent {
   /// The server-resolved active version, when the active arm served a version
   /// DIFFERENT from the contract [flowVersion] (a content OTA); null for an
   /// exact resolve or an active-arm fallback to the bundled document.
+  ///
+  /// On a live in-place refresh the session finishes on the promoted (freshly
+  /// served) content, so this carries the version the user actually completed
+  /// on — which may differ from [FlowStarted.resolvedVersion] when the surface
+  /// live-swapped mid-run. Completion attribution rides this version.
   final int? resolvedVersion;
 
   /// SDK-minted flow session id for this runtime frame.

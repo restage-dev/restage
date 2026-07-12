@@ -18,6 +18,10 @@ import '../restage_rpc_client/restage_rpc_client.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_resolver.dart';
+import '../refresh/surface_refresh_registry.dart';
+import '../refresh/surface_refresh_trigger.dart';
+import '../refresh/restage_hosted_update_channel.dart';
+import '../refresh/surface_update_channel.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/restage_variant_resolver.dart';
 import '../resolver/surface_assignment_key_provider.dart';
@@ -43,6 +47,15 @@ abstract final class Restage {
   static List<RestageProduct> _products = const [];
   static Map<String, RestageProduct> _productsBySlot = const {};
   static Map<String, RestageProduct> _productsById = const {};
+
+  // App-global live-refresh configuration. `_liveRefresh` is the fallback
+  // trigger set; `_liveRefreshOverrides` pins a per-surface set by id; both are
+  // resolved by [effectiveLiveRefreshTriggers]. `_updateChannel` is the
+  // optional change-signal source for the updateChannel trigger.
+  static Set<SurfaceRefreshTrigger> _liveRefresh = const {};
+  static Map<String, Set<SurfaceRefreshTrigger>> _liveRefreshOverrides =
+      const {};
+  static SurfaceUpdateChannel? _updateChannel;
 
   static StreamController<RestageEvent>? _events;
 
@@ -102,6 +115,11 @@ abstract final class Restage {
   /// analytics. With no [baseUrl] analytics is already inactive regardless of
   /// this flag.
   ///
+  /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
+  /// update signals. A custom [updateChannel] takes precedence when both are
+  /// provided. If the hosted lane is unavailable, mounted surfaces continue
+  /// without realtime refresh.
+  ///
   /// [identity] is an **experimental, not-yet-active** hook (see
   /// [RestageIdentity]). The callback is accepted but is not currently invoked,
   /// and the identity it would return is not yet attached to resolver requests
@@ -118,6 +136,10 @@ abstract final class Restage {
     Locale? locale,
     Future<RestageIdentity?> Function()? identity,
     BillingGateway? billingGateway,
+    Set<SurfaceRefreshTrigger> liveRefresh = const {},
+    Map<String, Set<SurfaceRefreshTrigger>> liveRefreshOverrides = const {},
+    SurfaceUpdateChannel? updateChannel,
+    Uri? liveRefreshEdgeUrl,
   }) {
     assert(
       products.map((p) => p.slot).toSet().length == products.length,
@@ -140,6 +162,28 @@ abstract final class Restage {
     _products = List.unmodifiable(products);
     _productsBySlot = Map.unmodifiable({for (final p in products) p.slot: p});
     _productsById = Map.unmodifiable({for (final p in products) p.id: p});
+    _liveRefresh = Set.unmodifiable(liveRefresh);
+    _liveRefreshOverrides = Map.unmodifiable({
+      for (final entry in liveRefreshOverrides.entries)
+        entry.key: Set<SurfaceRefreshTrigger>.unmodifiable(entry.value),
+    });
+    _updateChannel = updateChannel;
+    if (_updateChannel == null &&
+        liveRefreshEdgeUrl != null &&
+        baseUrl != null) {
+      try {
+        final client = _requireRpcClient();
+        if (client != null) {
+          _updateChannel = RestageHostedUpdateChannel(
+            rpcClient: client,
+            edgeUrl: liveRefreshEdgeUrl,
+          );
+        }
+      } catch (_) {
+        // Live refresh is optional. Invalid or unavailable hosted
+        // configuration leaves the rest of the SDK operational.
+      }
+    }
     // The current bundled asset resolvers do not read `locale` or `identity`.
     if (billingGateway != null) {
       _billingGateway = billingGateway;
@@ -161,7 +205,7 @@ abstract final class Restage {
       // `configure` re-schedule — supporting hosts that switch
       // environment / base-URL at runtime.
       scheduleMicrotask(() async {
-        // Warm the persisted anonymous id so events firing during cold start
+        // Warm the persisted pseudonymous id so events firing during cold start
         // carry it synchronously rather than racing the prefs read. Best-effort
         // — the bridge resolves it lazily, so a prefs fault never breaks boot.
         try {
@@ -171,6 +215,31 @@ abstract final class Restage {
       });
     }
   }
+
+  /// Resolves the effective live-refresh trigger set for [surfaceSlug].
+  ///
+  /// Most-specific-wins, used verbatim (never merged): the per-widget
+  /// [widgetOverride] if provided, else the per-surface override configured on
+  /// [configure], else the app-global set, else empty (off).
+  static Set<SurfaceRefreshTrigger> effectiveLiveRefreshTriggers(
+    String surfaceSlug, {
+    Set<SurfaceRefreshTrigger>? widgetOverride,
+  }) =>
+      widgetOverride ?? _liveRefreshOverrides[surfaceSlug] ?? _liveRefresh;
+
+  /// The app-global change-signal source, if one was configured. Internal:
+  /// the refresh registry reads it to open update subscriptions.
+  @internal
+  static SurfaceUpdateChannel? get configuredUpdateChannel => _updateChannel;
+
+  /// Re-resolves mounted Restage surfaces in place, applying new published
+  /// content where the surface is safely swappable (no user-contributed
+  /// state, no store operation in flight, not experiment-assigned). Restricts
+  /// to surfaces whose id equals [surfaceId] when provided. Explicit calls run
+  /// regardless of the configured live-refresh triggers — an explicit call is
+  /// its own consent — but still pass through the swap-safety gate.
+  static Future<void> reloadSurfaces({String? surfaceId}) =>
+      SurfaceRefreshRegistry.instance.reload(slug: surfaceId);
 
   /// Configures the analytics transport from [apiKey] + [baseUrl]. With no
   /// [baseUrl], or when [enabled] is false, the transport is disabled (no
@@ -280,7 +349,7 @@ abstract final class Restage {
     _analyticsIdentity?.identify(userId);
   }
 
-  /// Resets the anonymous analytics actor (the privacy "forget me" primitive):
+  /// Resets the pseudonymous analytics actor (the privacy "forget me" primitive):
   /// mints a fresh `anonymousId`, clears any identified `userId`, and rotates
   /// the session. Inert until [configure] is given a `baseUrl`.
   static void reset() {
@@ -320,7 +389,7 @@ abstract final class Restage {
     );
   }
 
-  /// Resolves the anonymous id (cached, else awaited) and enqueues the event
+  /// Resolves the pseudonymous id (cached, else awaited) and enqueues the event
   /// built by [build]. The shared fail-safe enqueue path for both the custom
   /// `track` call and the `fireEvent` bridge — never throws into host code.
   static Future<void> _enqueue(
@@ -328,11 +397,15 @@ abstract final class Restage {
     AnalyticsIdentity identity,
     AnalyticsEvent Function(String anonymousId) build, {
     required String label,
+    bool flushAfterEnqueue = false,
   }) async {
     try {
       final anonymousId =
           identity.cachedAnonymousId ?? await identity.anonymousId();
       transport.enqueue(build(anonymousId));
+      if (flushAfterEnqueue) {
+        unawaited(transport.flush());
+      }
     } on Object catch (error) {
       debugPrint('[restage][analytics] $label dropped: $error');
     }
@@ -427,9 +500,13 @@ abstract final class Restage {
           now: DateTime.now().toUtc(),
         ),
         label: event.name,
+        flushAfterEnqueue: _isMeteredExposureEvent(event),
       ),
     );
   }
+
+  static bool _isMeteredExposureEvent(RestageEvent event) =>
+      event.name == 'paywall_viewed' || event.name == 'onboarding_step_viewed';
 
   /// Records [e] as granted and fires an [EntitlementGranted] on [events].
   ///
@@ -945,6 +1022,10 @@ abstract final class Restage {
     return RestageRpcClient(baseUrl: baseUrl, apiKey: apiKey);
   }
 
+  /// The active RPC client, or `null` when no service is configured.
+  @internal
+  static RestageRpcClient? get activeRpcClient => _requireRpcClient();
+
   static String _resolvePlatformStore() =>
       _isApplePlatform ? 'appStore' : 'playStore';
 
@@ -1071,6 +1152,9 @@ abstract final class Restage {
     _products = const [];
     _productsBySlot = const {};
     _productsById = const {};
+    _liveRefresh = const {};
+    _liveRefreshOverrides = const {};
+    _updateChannel = null;
     _events?.close();
     _events = null;
     _entitlementsById.clear();
@@ -1089,6 +1173,7 @@ abstract final class Restage {
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();
     resetRestagePaywallCache();
+    SurfaceRefreshRegistry.instance.debugReset();
   }
 
   /// Test-only — injects the [http.Client] the analytics transport uses, so a
@@ -1101,18 +1186,39 @@ abstract final class Restage {
   @internal
   static Future<void> debugFlushAnalytics() =>
       _analyticsTransport?.flush() ?? Future<void>.value();
+
+  static void _handleLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        scheduleMicrotask(Restage.syncEntitlements);
+        scheduleMicrotask(
+          () => SurfaceRefreshRegistry.instance.onAppResumed(),
+        );
+        return;
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // Every non-resumed state flushes analytics; only a true background
+        // (paused/hidden) pauses the update-channel subscriptions — a
+        // transient inactive (e.g. the app switcher) must not tear them down.
+        if (state == AppLifecycleState.hidden ||
+            state == AppLifecycleState.paused) {
+          SurfaceRefreshRegistry.instance.onAppBackgrounded();
+        }
+        unawaited(_analyticsTransport?.flush() ?? Future<void>.value());
+    }
+  }
 }
 
 /// Lifecycle observer that triggers a server reconciliation whenever
 /// the app foregrounds. Registered on [Restage.configure] and removed
 /// on [Restage.debugReset]. The observer itself is stateless — the
-/// reconciliation is driven through [Restage.syncEntitlements].
+/// reconciliation and analytics flushes are driven through [Restage].
 class _RestageLifecycleObserver with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      scheduleMicrotask(Restage.syncEntitlements);
-    }
+    Restage._handleLifecycleState(state);
   }
 }
 

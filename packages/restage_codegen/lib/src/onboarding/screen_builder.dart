@@ -20,25 +20,53 @@ import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
-import 'package:restage_shared/restage_shared.dart' show CapabilitySidecar;
+import 'package:restage_shared/restage_shared.dart'
+    show CapabilitySidecar, SurfaceType;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 
-const String _kSourceDir = 'lib/onboarding/screens';
-const String _kOutputDir = 'assets/onboarding/screens';
 const JsonEncoder _jsonEncoder = JsonEncoder.withIndent('  ');
 
 final class OnboardingScreenBuilder implements Builder {
-  OnboardingScreenBuilder(this.options);
+  OnboardingScreenBuilder(
+    this.options, {
+    this.surface = SurfaceType.onboarding,
+  }) {
+    if (!_flowSurfaces.contains(surface)) {
+      throw ArgumentError.value(
+        surface,
+        'surface',
+        'must be a flow surface (onboarding / message / survey); paywalls '
+            'have dedicated builders',
+      );
+    }
+  }
+
+  /// The surfaces this builder may codegen for. Paywalls have dedicated
+  /// builders; a new surface type must be added here deliberately.
+  static const Set<SurfaceType> _flowSurfaces = {
+    SurfaceType.onboarding,
+    SurfaceType.message,
+    SurfaceType.survey,
+  };
 
   final BuilderOptions options;
 
+  /// The flow surface (`onboarding` / `message` / `survey`) this builder
+  /// instance codegens for. Defaults to [SurfaceType.onboarding], the surface
+  /// this builder originally served. The surface is carried by the source
+  /// directory (`lib/<surface>/screens/...`).
+  final SurfaceType surface;
+
+  String get _sourceDir => 'lib/${surface.wireName}/screens';
+  String get _outputDir => 'assets/${surface.wireName}/screens';
+
   @override
-  Map<String, List<String>> get buildExtensions => const {
-        '$_kSourceDir/{{name}}.dart': [
-          '$_kSourceDir/{{name}}.rsscreen.g.dart',
-          '$_kOutputDir/{{name}}.rfwtxt',
-          '$_kOutputDir/{{name}}.rfw',
-          '$_kOutputDir/{{name}}.capability.json',
+  Map<String, List<String>> get buildExtensions => {
+        '$_sourceDir/{{name}}.dart': [
+          '$_sourceDir/{{name}}.rsscreen.g.dart',
+          '$_outputDir/{{name}}.rfwtxt',
+          '$_outputDir/{{name}}.rfw',
+          '$_outputDir/{{name}}.capability.json',
         ],
       };
 
@@ -167,19 +195,19 @@ final class OnboardingScreenBuilder implements Builder {
         final bytes = fmt.encodeLibraryBlob(rfwLibrary);
         await Future.wait<void>([
           buildStep.writeAsString(
-            AssetId(assetId.package, '$_kSourceDir/$stem.rsscreen.g.dart'),
+            AssetId(assetId.package, '$_sourceDir/$stem.rsscreen.g.dart'),
             _emitDescriptor(stem, src),
           ),
           buildStep.writeAsString(
-            AssetId(assetId.package, '$_kOutputDir/$stem.rfwtxt'),
+            AssetId(assetId.package, '$_outputDir/$stem.rfwtxt'),
             text,
           ),
           buildStep.writeAsBytes(
-            AssetId(assetId.package, '$_kOutputDir/$stem.rfw'),
+            AssetId(assetId.package, '$_outputDir/$stem.rfw'),
             bytes,
           ),
           buildStep.writeAsString(
-            AssetId(assetId.package, '$_kOutputDir/$stem.capability.json'),
+            AssetId(assetId.package, '$_outputDir/$stem.capability.json'),
             _jsonEncoder.convert(
               CapabilitySidecar(
                 blobSha256: CapabilitySidecar.hashBlob(bytes),

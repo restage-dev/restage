@@ -1,6 +1,9 @@
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart'
-    show structuredSlotKey;
+    show
+        isCustomerStructuredListShape,
+        isCustomerStructuredPropertySlot,
+        structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
@@ -1107,6 +1110,8 @@ bool _isMechanicallyEmittable(
     //      not-emittable path and gets silently excluded.
     //   2. A resolvable ref whose structured type has no registered decoder
     //      — the registered-table gap. Throw the same way.
+    if (_customerReconstructableProp(prop, entry, customer)) continue;
+
     if (prop.type == PropertyType.structured) {
       // A CUSTOMER structured slot has no registered runtime decoder (the table
       // is built-in only); it renders through the inline reconstructor instead.
@@ -1114,7 +1119,6 @@ bool _isMechanicallyEmittable(
       // renderable + has a reconstruction plan, so an admitted customer slot is
       // emittable here. (No 'admitted-but-skip' path: an admitted slot the
       // reconstructor can't handle is a predicate gap, excluded upstream.)
-      if (_customerReconstructableProp(prop, entry, customer)) continue;
       if (_structuredRefOf(prop) == null) {
         throw StateError(
           "Catalog entry '${entry.name}' property '${prop.name}' is a "
@@ -1134,7 +1138,9 @@ bool _isMechanicallyEmittable(
         );
       }
     }
-    if (!_isEmittableProperty(prop, nativeIndex)) return false;
+    if (!_isEmittableProperty(prop, nativeIndex)) {
+      return false;
+    }
   }
   return true;
 }
@@ -1436,7 +1442,10 @@ PropertyEntry? _canonicalChildPropertyOf(WidgetEntry entry) {
   }
 }
 
-bool _isEmittableProperty(PropertyEntry prop, NativeCatalogIndex? index) {
+bool _isEmittableProperty(
+  PropertyEntry prop,
+  NativeCatalogIndex? index,
+) {
   switch (prop.type) {
     case PropertyType.boolean:
     case PropertyType.integer:
@@ -1802,7 +1811,9 @@ String? _customerPropSourceType(
   WidgetEntry entry,
   CustomerReconstruction? customer,
 ) {
-  if (customer == null || prop.type != PropertyType.structured) return null;
+  if (customer == null || !isCustomerStructuredPropertySlot(prop)) {
+    return null;
+  }
   final sourceType =
       customer.slotTargets[structuredSlotKey(entry.flutterType, prop.name)];
   return _canReconstructCustomer(customer, sourceType) ? sourceType : null;
@@ -1815,6 +1826,20 @@ bool _customerReconstructableProp(
   CustomerReconstruction? customer,
 ) =>
     _customerPropSourceType(prop, entry, customer) != null;
+
+final class _PathIndex {
+  const _PathIndex(this.expression);
+
+  final String expression;
+}
+
+String _pathLiteral(List<Object> path) =>
+    "<Object>[${path.map(_pathSegmentLiteral).join(', ')}]";
+
+String _pathSegmentLiteral(Object segment) {
+  if (segment is _PathIndex) return segment.expression;
+  return "'$segment'";
+}
 
 /// The argument VALUE expression for a customer structured WIDGET property [p]
 /// on [entry] targeting [sourceType] — the LEVEL-0 reconstruction entry, shared
@@ -1838,9 +1863,23 @@ String _customerStructuredPropValue(
   CustomerReconstruction customer,
   NativeCatalogIndex? nativeIndex,
 ) {
+  if (isCustomerStructuredListShape(p.valueShape)) {
+    final slotKey = structuredSlotKey(entry.flutterType, p.name);
+    return _customerStructuredListValue(
+      sourceType,
+      [p.name],
+      ctx: customer,
+      nativeIndex: nativeIndex,
+      elementMessage: "'${entry.name}.${p.name} element must be an object.'",
+      requiredMessage: "'${entry.name}.${p.name} is required.'",
+      isRequired: p.required,
+      isNullable: customer.nullableStructuredSlots.contains(slotKey),
+      defaultCode: _defaultExpressionFor(p, aliases: customer.aliases),
+    );
+  }
   final reconstruction =
       _emitCustomerReconstruction(sourceType, [p.name], customer, nativeIndex);
-  final pathLiteral = "<Object>['${p.name}']";
+  final pathLiteral = _pathLiteral([p.name]);
   if (p.required) {
     final message = "'${entry.name}.${p.name} is required.'";
     return 'source.isMap($pathLiteral) ? $reconstruction '
@@ -1853,6 +1892,46 @@ String _customerStructuredPropValue(
   return reconstruction;
 }
 
+String _customerStructuredListValue(
+  String itemSourceType,
+  List<Object> path, {
+  required CustomerReconstruction ctx,
+  required NativeCatalogIndex? nativeIndex,
+  required String elementMessage,
+  required String requiredMessage,
+  required bool isRequired,
+  required bool isNullable,
+  required String? defaultCode,
+  int listDepth = 0,
+}) {
+  final listPath = _pathLiteral(path);
+  final indexName = 'i$listDepth';
+  final itemPath = <Object>[...path, _PathIndex(indexName)];
+  final itemPathLiteral = _pathLiteral(itemPath);
+  final item = _emitCustomerReconstruction(
+    itemSourceType,
+    itemPath,
+    ctx,
+    nativeIndex,
+    listDepth: listDepth + 1,
+  );
+  final list = '[for (var $indexName = 0; '
+      '$indexName < source.length($listPath); $indexName++) '
+      'source.isMap($itemPathLiteral) ? $item '
+      ': (throw ArgumentError($elementMessage))]';
+  if (isRequired) {
+    return 'source.isList($listPath) ? $list '
+        ': (throw ArgumentError($requiredMessage))';
+  }
+  if (isNullable) {
+    return 'source.isList($listPath) ? $list : null';
+  }
+  if (defaultCode != null) {
+    return 'source.isList($listPath) ? $list : $defaultCode';
+  }
+  return list;
+}
+
 /// Emits the inline reconstruction expression for the customer structured type
 /// [sourceType], reading each field from the wire map at [path] + the field
 /// name.
@@ -1862,10 +1941,11 @@ String _customerStructuredPropValue(
 /// scalar field.
 String _emitCustomerReconstruction(
   String sourceType,
-  List<String> path,
+  List<Object> path,
   CustomerReconstruction ctx,
-  NativeCatalogIndex? nativeIndex,
-) {
+  NativeCatalogIndex? nativeIndex, {
+  int listDepth = 0,
+}) {
   final structured = ctx.structuredBySourceType[sourceType]!;
   final plan = ctx.plansBySourceType[sourceType]!;
   // Qualify the type through its import alias so two same-name structured
@@ -1893,6 +1973,7 @@ String _emitCustomerReconstruction(
       isRequired: arg.isRequired,
       defaultCode: arg.defaultCode,
       defaultEnumValue: arg.defaultEnumValue,
+      listDepth: listDepth,
     );
     args.add(arg.isNamed ? '${arg.fieldName}: $value' : value);
   }
@@ -1915,20 +1996,26 @@ String _emitCustomerReconstruction(
 String _customerFieldDecode(
   StructuredField field,
   String ownerSourceType,
-  List<String> path,
+  List<Object> path,
   CustomerReconstruction ctx,
   NativeCatalogIndex? nativeIndex, {
   required bool isRequired,
   required String? defaultCode,
   required String? defaultEnumValue,
+  required int listDepth,
 }) {
-  final pathLiteral = "<Object>[${path.map((p) => "'$p'").join(', ')}]";
+  final pathLiteral = _pathLiteral(path);
   if (field.type == PropertyType.structured) {
     final nested =
         ctx.slotTargets[structuredSlotKey(ownerSourceType, field.name)];
     if (_canReconstructCustomer(ctx, nested)) {
-      final reconstruction =
-          _emitCustomerReconstruction(nested!, path, ctx, nativeIndex);
+      final reconstruction = _emitCustomerReconstruction(
+        nested!,
+        path,
+        ctx,
+        nativeIndex,
+        listDepth: listDepth,
+      );
       if (isRequired) {
         // A required nested object: its own fields may all be optional, so the
         // recursion's leaf fail-closes would not fire — presence-check the
@@ -1945,6 +2032,25 @@ String _customerFieldDecode(
       // nested field). Never fabricate a nested object from missing values.
       final absent = defaultCode ?? 'null';
       return 'source.isMap($pathLiteral) ? $reconstruction : $absent';
+    }
+  }
+  if (isCustomerStructuredListShape(field.valueShape)) {
+    final itemSourceType =
+        ctx.slotTargets[structuredSlotKey(ownerSourceType, field.name)];
+    if (_canReconstructCustomer(ctx, itemSourceType)) {
+      final owner = _typeNameForSourceType(ownerSourceType);
+      return _customerStructuredListValue(
+        itemSourceType!,
+        path,
+        ctx: ctx,
+        nativeIndex: nativeIndex,
+        elementMessage: "'$owner.${field.name} element must be an object.'",
+        requiredMessage: "'$owner.${field.name} is required.'",
+        isRequired: isRequired,
+        isNullable: !isRequired && defaultCode == null,
+        defaultCode: defaultCode,
+        listDepth: listDepth,
+      );
     }
   }
   final synthetic = PropertyEntry(
@@ -2156,6 +2262,13 @@ String _decoderCallFor(
         'emitter. Property: $path',
       );
     case PropertyType.unknown:
+      if (isCustomerStructuredListShape(prop.valueShape)) {
+        throw StateError(
+          'Customer structured list slot reached the generic decoder path; '
+          'it must be emitted through the customer reconstruction path. '
+          'Property: $path',
+        );
+      }
       // Local builds construct PropertyEntry from annotations, never
       // from decoded JSON, so PropertyType.unknown should never reach
       // codegen. Surface loudly if it does.

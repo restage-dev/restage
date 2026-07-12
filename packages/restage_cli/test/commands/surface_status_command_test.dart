@@ -296,4 +296,105 @@ void main() {
       expect(err.toString(), contains('restage login'));
     });
   });
+
+  group('delivery mode rendering', () {
+    http.Client flowStatusClient() => mockHttpClient((req) {
+      return http.Response(
+        jsonEncode({
+          '__className__': 'SurfaceStatusResult',
+          'surfaceType': 'onboarding',
+          'surfaceSlug': 'first-run',
+          'environmentSlug': 'production',
+          'liveVersion': 2,
+          'locked': false,
+          'deliveryShape': 'flow',
+          'versions': [
+            {
+              '__className__': 'SurfaceVersionResult',
+              'version': 2,
+              'publishedAt': '2026-06-01T10:00:00.000Z',
+              'contentHash': 'abc123def456',
+              'isActive': true,
+              'deliveryMode': 'general',
+            },
+            {
+              '__className__': 'SurfaceVersionResult',
+              'version': 1,
+              'publishedAt': '2026-05-01T08:00:00.000Z',
+              'contentHash': 'aaa111bbb222',
+              'isActive': false,
+              'deliveryMode': 'typed',
+            },
+          ],
+        }),
+        200,
+      );
+    });
+
+    test('prints per-version delivery mode and the live mode', () async {
+      final out = StringBuffer();
+      final runner = CommandRunner<int>('restage', '')
+        ..addCommand(
+          SurfaceStatusCommand(
+            stdout: out,
+            stderr: StringBuffer(),
+            interactive: const NonInteractive(),
+            fixedSurfaceType: SurfaceType.onboarding,
+            credentialStore: fakeStore,
+            httpClient: flowStatusClient(),
+          ),
+        );
+      final code = await runner.run([
+        'status',
+        'first-run',
+        '--project',
+        'p',
+        '--app',
+        'a',
+        '--env',
+        'production',
+      ]);
+      expect(code, 0);
+      final output = out.toString();
+      // Header carries the active version's mode.
+      expect(output, contains('mode: general'));
+      // Version rows each carry their own mode.
+      final v2Row = output
+          .split('\n')
+          .firstWhere((l) => l.contains('v2 (active)'));
+      expect(v2Row, contains('general'));
+      final v1Row = output.split('\n').firstWhere((l) => l.contains('v1 '));
+      expect(v1Row, contains('typed'));
+    });
+
+    test(
+      'omits mode when the wire carries none (blob / older server)',
+      () async {
+        final out = StringBuffer();
+        final runner = CommandRunner<int>('restage', '')
+          ..addCommand(
+            SurfaceStatusCommand(
+              stdout: out,
+              stderr: StringBuffer(),
+              interactive: const NonInteractive(),
+              fixedSurfaceType: SurfaceType.paywall,
+              credentialStore: fakeStore,
+              httpClient: fakeStatusClient,
+            ),
+          );
+        final code = await runner.run([
+          'status',
+          'pro',
+          '--project',
+          'p',
+          '--app',
+          'a',
+          '--env',
+          'production',
+        ]);
+        expect(code, 0);
+        expect(out.toString(), isNot(contains('mode:')));
+      },
+    );
+  });
 }
