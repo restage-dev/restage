@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+- Add the optional `usage` parameter to `@RestageWidget`: producer-facing
+  guidance for when and how to use a widget. It emits into the generated A2UI
+  catalog's system-prompt fragments, falling back to the widget description.
+- Add the opaque list-of-structured wire shape (`ListShape.opaqueStructured`
+  and `ListShape.isOpaqueStructuredList`) for a property typed as a list of
+  structured values, where the item shape carries the structured reference.
+
 ## 1.0.3
 
 - Documentation: README refresh.
