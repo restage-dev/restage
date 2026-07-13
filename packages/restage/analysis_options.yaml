@@ -10,3 +10,8 @@ analyzer:
     strict-raw-types: true
   errors:
     todo: ignore
+    # Sibling packages are depended on by path in this workspace. The publish
+    # pipeline rewrites them to hosted version constraints before upload, and
+    # `pub publish` rejects a path dependency outright, so one can never reach
+    # pub.dev — this warning's failure mode is unreachable here.
+    invalid_dependency: ignore
