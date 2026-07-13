@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0
+
+- Compile customer `@RestageWidget` code into a standalone A2UI catalog: the
+  customer-only builder emits an A2UI document + generated Dart for the app's
+  own widgets, alongside the built-in catalog.
+- Carry producer-facing metadata into generated A2UI catalogs: widget and
+  property descriptions, plus the new optional `usage` steering text, emit
+  into the document's system-prompt fragments.
+- Support general-delivery flows:
+  `@FlowSource(delivery: FlowDeliveryMode.general)` generates flows with
+  untyped `Map` results, checked by build-time validators.
+- Add message and survey screen/flow builders: flow and screen codegen is now
+  surface-parameterized, so message and survey surfaces reuse the onboarding
+  builders.
+- Encode opaque lists of structured values in the customer catalog (pairs
+  with `rfw_catalog_schema` 1.1.0 / `rfw_catalog_compiler` 1.1.0).
+
 ## 1.1.0
 
 - Emit the customer widget catalog (`catalog.json`) so registered custom widgets resolve in authored surfaces.

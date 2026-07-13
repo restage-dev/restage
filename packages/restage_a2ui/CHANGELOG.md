@@ -1,3 +1,14 @@
+## 0.1.5
+
+- Document the producer-facing catalog metadata: widget and property
+  descriptions, plus the new optional `usage` steering text, now emit into the
+  generated catalog's system-prompt fragments, so a model reading the catalog
+  on its own knows when to reach for each widget (see `restage_codegen` 1.2.0).
+- Expand the bundled example with a second catalog (callout, comparison panel,
+  quiz check, section header) and add render-proof tests that build every
+  component against the real SDK.
+- This package is unchanged at runtime.
+
 ## 0.1.4
 
 - Documentation: README refresh.

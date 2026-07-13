@@ -3,7 +3,7 @@ description: >-
   Server-driven UI for Flutter. Build any surface — onboarding, messages, surveys,
   paywalls — in your own Flutter widgets and ship updates over the air.
   Content, not code.
-version: 1.2.0
+version: 1.3.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues

@@ -1,3 +1,10 @@
+# 1.1.0
+
+- Resolve a property typed as a list of structured values to the opaque
+  list-of-structured shape added in `rfw_catalog_schema` 1.1.0, so the item
+  shape survives the walk instead of degrading to an unknown list.
+- Require `rfw_catalog_schema` ^1.1.0.
+
 # 1.0.3
 
 - Documentation: README refresh.
