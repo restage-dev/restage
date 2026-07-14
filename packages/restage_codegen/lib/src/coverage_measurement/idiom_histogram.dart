@@ -78,10 +78,10 @@ class IdiomRow {
   ///   * **in-package sub-widgets** (e.g. `_RawGap`) — the classifier only
   ///     recurses into `@RestageWidget` widgets, so a non-instrumented
   ///     package's own sub-widgets land here. This UNDER-states inlinability
-  ///     (false-4b, the safe direction) and is a measurement artifact, NOT a
-  ///     catalog gap;
+  ///     (a false non-inlineable result, the safe direction) and is a
+  ///     measurement artifact, NOT a catalog gap;
   ///   * **framework / third-party widgets not in our catalog** (e.g.
-  ///     `LayoutBuilder`) — a genuine catalog / 4b gap.
+  ///     `LayoutBuilder`) — a genuine catalog or inlineability gap.
   ///
   /// The detail-head (the type name) is the discriminator: `_`-prefixed /
   /// obviously-internal names are typically the former; framework names the

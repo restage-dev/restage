@@ -336,7 +336,7 @@ final class ExpressionTranslator {
   /// diagnostic — instead of erroring it as an unknown widget.
   final Map<String, WidgetClassification> customWidgetClassifications;
 
-  /// Emission blueprints for the class-4a custom widgets referenced this
+  /// Emission blueprints for the inlineable custom widgets referenced this
   /// build pass, keyed by `'<library URI>#<ClassName>'` ([customWidgetKey]).
   /// The translator inlines an inlinable-now widget from its blueprint —
   /// emitting an RFW remote-widget definition — rather than deferring it.
@@ -2089,7 +2089,7 @@ final class ExpressionTranslator {
     }
     final valueExpr = fmtArgs.single;
 
-    // G4b — the value must render identically through the substitute's
+    // Numeric-substitution gate: the value must render identically through the substitute's
     // `double` value slot. `NumberFormat.format` accepts `num`, so the original
     // idiom formats an `int` fine; the catalog slot decodes with
     // `source.v<double>`, which yields null for a runtime `int` (an empty
@@ -4455,9 +4455,9 @@ final class ExpressionTranslator {
       final candidates = findWidgetsByName(catalog, widgetName);
       entry = candidates.isEmpty ? null : candidates.first;
     }
-    // A REGISTERED customer widget that CAN inline (class 4a) still inlines —
+    // A registered customer widget that can inline still inlines —
     // its composition travels in the blob and renders with no runtime factory.
-    // One that CANNOT inline (class 4b, or a not-yet-inlinable 4a) falls
+    // One that cannot inline (imperative or not yet supported) falls
     // through to the catalog reference below, resolved by the runtime-
     // registered factory. Built-in catalog widgets are never customer widgets,
     // so they always reference (unchanged). Without this, emitting a customer
@@ -4473,7 +4473,7 @@ final class ExpressionTranslator {
         final inlined =
             _tryInlineCustomWidget(classification, key, args, anchor, issues);
         if (inlined != null && inlined.isNotEmpty) return inlined;
-        // Not inlined (4b, a not-yet-inlinable 4a, or an inline-attempt
+        // Not inlined (imperative, not yet supported, or an inline-attempt
         // diagnostic): discard any inline-specific diagnostics and reference
         // the registered catalog entry below.
         issues.removeRange(issueMark, issues.length);
@@ -4600,8 +4600,8 @@ final class ExpressionTranslator {
       // self-recursion) or to the other widget (a silent wrong render), never
       // to this customer widget. Fail loud rather than emit an
       // admitted-but-wrong reference. (The inline path raises the same class of
-      // diagnostic; a widget that reaches the reference path — 4b, or a
-      // not-yet-inlinable 4a whose inline diagnostic was rolled back — needs
+      // diagnostic; a widget that reaches the reference path — imperative, or
+      // not yet inlineable with a rolled-back diagnostic — needs
       // its own guard here. Locals capture the promoted `entry` so the closure
       // below can read them.)
       final refName = entry.name;
@@ -4938,11 +4938,11 @@ final class ExpressionTranslator {
     }
   }
 
-  /// Inlines a class-4a custom widget when it is inlinable in this codegen
+  /// Inlines a composable custom widget when it is inlinable in this codegen
   /// increment — registering its RFW remote-widget definition (translating
   /// the blueprint's `build()` expression) and returning the call-site
   /// reference. Returns `null` when [classification] is not an inlinable-now
-  /// [ComposableWidget] — a `4b`, a deferred-mechanism, or an unclassifiable
+  /// [ComposableWidget] — an imperative, deferred-mechanism, or unclassifiable
   /// widget — so the caller emits the classified diagnostic instead.
   ///
   /// "Inlinable now" means every required inlining mechanism is one this
@@ -5294,7 +5294,7 @@ final class ExpressionTranslator {
       }
     }
     // An unrecognised event-handler verdict means the classifier accepted
-    // the widget as 4a (any primitive State field qualifies), but the
+    // the widget as composable (any primitive State field qualifies), but the
     // recogniser found a method body the translator cannot emit. Surface
     // the diagnostic before any body translation so the failure points at
     // the specific method shape rather than at a fallback identifier

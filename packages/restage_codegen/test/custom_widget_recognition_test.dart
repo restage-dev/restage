@@ -25,7 +25,7 @@ void main() {
         'a composable widget needing a deferred mechanism emits '
         'customWidgetInliningDeferred', () async {
       // An inlinable-now composable widget is inlined (see
-      // custom_widget_inlining_test.dart). A class-4a widget that still
+      // custom_widget_inlining_test.dart). An inlineable widget that still
       // needs an unimplemented mechanism — here declarative state, which
       // a later codegen increment will deliver — is recognised but
       // deferred rather than emitted.

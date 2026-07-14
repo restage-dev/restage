@@ -187,7 +187,7 @@ const Set<String> _kLifecycleMethods = {
 enum _WidgetKind { stateless, stateful }
 
 /// Walks a resolved `@RestageWidget` custom widget and classifies it as
-/// pure-composition (class 4a — transpilable) or imperative (class 4b), or
+/// inlineable pure composition or imperative app-backed behavior, or
 /// reports it unclassifiable when this codegen increment cannot reach a
 /// verdict.
 ///
@@ -239,7 +239,7 @@ final class WidgetClassifier {
   Map<String, WidgetClassification> get results => Map.unmodifiable(_results);
 
   /// Emission blueprints for every widget that classified [ComposableWidget]
-  /// this pass, keyed by [WidgetClassification.classKey]. A `4b` /
+  /// this pass, keyed by [WidgetClassification.classKey]. An imperative or
   /// unclassifiable widget contributes no blueprint.
   Map<String, CustomWidgetBlueprint> get blueprints =>
       Map.unmodifiable(_blueprints);
@@ -334,7 +334,7 @@ final class WidgetClassifier {
     final classification = walk.toClassification(key);
     if (classification is! ComposableWidget) return classification;
 
-    // A class-4a widget is a candidate for inlining. Capture the emission
+    // An inlineable widget is a candidate for inlining. Capture the emission
     // material now, while the resolved build() expression is in hand —
     // re-resolving its source in a later pass would be wasted work.
     final constructors = widgetClass.constructors;
@@ -1107,8 +1107,8 @@ class _Walk {
   /// — i.e. it is not a provable build-time constant.
   ///
   /// Conservative by design: anything not provably a literal or a constant
-  /// reads as runtime data. A false 4b (rejecting a foldable expression) is
-  /// safe; a false 4a (folding a runtime value) would wrongly place the
+  /// reads as runtime data. Falsely rejecting a foldable expression is safe;
+  /// falsely accepting a runtime value would wrongly place the
   /// widget in the inlinable set, so the doubt resolves toward runtime.
   bool _referencesRuntimeData(Expression expr) {
     if (expr is BinaryExpression) {
@@ -1612,7 +1612,7 @@ class _OwnArgsStateFinder extends RecursiveAstVisitor<void> {
 /// Returns a [ClassificationResult] — the per-widget verdicts (keyed by
 /// [WidgetClassification.classKey], the map the translator consults to
 /// recognise a custom widget instead of erroring it) plus the emission
-/// blueprints for the class-4a widgets. This is the build pass's
+/// blueprints for the inlineable widgets. This is the build pass's
 /// classification pre-pass: it runs before translation because reaching a
 /// widget's source AST is asynchronous, whereas the translator's dispatch is
 /// synchronous.

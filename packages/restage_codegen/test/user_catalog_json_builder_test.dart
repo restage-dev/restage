@@ -9,7 +9,7 @@ import 'helpers.dart';
 
 void main() {
   // A scalar-prop custom widget (no data-class props). Whether a widget is
-  // inlinable (4a) or not (4b) is irrelevant to catalog emission — every
+  // inlineable or app-backed is irrelevant to catalog emission — every
   // @RestageWidget lands in the catalog.
   const source = '''
     import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

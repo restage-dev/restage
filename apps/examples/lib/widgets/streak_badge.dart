@@ -6,7 +6,7 @@ import 'package:restage/restage.dart';
 ///
 /// Its `build` derives the fill alpha with a runtime computation (`clamp` +
 /// `withValues`), which the codegen cannot fold into a delivered blob — so
-/// StreakBadge is a non-inlinable ("4b") custom widget: a paywall references it
+/// StreakBadge is a non-inlineable custom widget: a paywall references it
 /// by name and the SDK resolves it through the registered runtime factory
 /// (`registerRestageCustomerWidgets()`), rather than inlining its composition.
 /// Contrast `StatBadge`, whose pure-composition `build` inlines into the blob.

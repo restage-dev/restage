@@ -29,7 +29,7 @@ void main() {
   testWidgets(
       'the codegen-generated pulse_paywall blob references the '
       'AnimationController-driven PulseBadge and the runtime resolves + renders '
-      'it — a categorical (never-inlinable) 4b, end to end via public codegen',
+      'it — categorically app-backed, end to end via public codegen',
       (tester) async {
     // The committed rfwtxt is the canonical public-codegen output; encode it
     // exactly as the runtime decodes a delivered blob.

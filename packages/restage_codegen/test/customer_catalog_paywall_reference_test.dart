@@ -7,12 +7,12 @@ import 'package:test/test.dart';
 import 'helpers.dart';
 
 /// The end-to-end chain the fix restores: a Dart `@PaywallSource` referencing a
-/// non-inlinable ("4b") custom widget. WITHOUT the emitted `catalog.json` the
-/// paywall build tries to inline the widget and fails (the current bug); once
-/// the package builder emits `catalog.json`, the merged catalog resolves the
-/// widget as a reference and the paywall emits a blob.
+/// app-backed, non-inlineable custom widget. WITHOUT the emitted `catalog.json`
+/// the paywall build tries to inline the widget and fails; once the package
+/// builder emits `catalog.json`, the merged catalog resolves the widget as a
+/// reference and the paywall emits a blob.
 void main() {
-  // A 4b (imperative) custom widget — its `build` uses a CustomPainter, which
+  // An imperative custom widget — its `build` uses a CustomPainter, which
   // is not blob-expressible — plus a Dart paywall that references it. Scalar
   // props only (String / int).
   const source = '''
@@ -38,7 +38,7 @@ class StreakBadge extends StatelessWidget {
   const StreakBadge({super.key, this.label, this.count});
   @RestageProperty(description: 'l') final String? label;
   @RestageProperty(description: 'c') final int? count;
-  // A CustomPainter is imperative — not blob-expressible -> class 4b.
+  // A CustomPainter is imperative and not blob-expressible.
   @override
   Widget build(BuildContext context) => CustomPaint(painter: StreakPainter());
 }
@@ -63,7 +63,8 @@ class Streak extends StatelessWidget {
   const catalogAsset = 'apps_examples|lib/src/widget_catalog/catalog.json';
 
   test(
-      'WITHOUT catalog.json the paywall build cannot resolve the 4b widget '
+      'WITHOUT catalog.json the paywall build cannot resolve the app-backed '
+      'widget '
       '(the bug: inline attempt fails, no blob)', () async {
     final rw = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -84,7 +85,8 @@ class Streak extends StatelessWidget {
   });
 
   test(
-      'WITH the package-emitted catalog.json the paywall REFERENCES the 4b '
+      'WITH the package-emitted catalog.json the paywall REFERENCES the '
+      'app-backed '
       'widget and emits a blob + capability manifest', () async {
     final rw = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -131,6 +133,8 @@ class Streak extends StatelessWidget {
         'apps_examples|assets/paywalls/streak.capability.json':
             decodedMatches(contains('acme.ds')),
         'apps_examples|assets/onboarding/screens/paywall_streak.rfw': anything,
+        'apps_examples|assets/onboarding/screens/paywall_streak.capability.json':
+            anything,
       },
     );
   });

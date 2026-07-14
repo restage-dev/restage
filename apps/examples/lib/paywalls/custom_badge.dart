@@ -5,7 +5,7 @@ import '../widgets/streak_badge.dart';
 
 /// A minimal paywall that references the customer's non-inlinable [StreakBadge].
 ///
-/// It proves a registered 4b `@RestageWidget` is *referenced* (not inlined) in
+/// It proves an app-backed `@RestageWidget` is *referenced* (not inlined) in
 /// a Dart-authored surface and rendered from the delivered blob: the codegen
 /// resolves `StreakBadge` against the package's generated catalog and emits a
 /// reference, which the SDK resolves at runtime through the registered factory.

@@ -4,7 +4,7 @@ import 'package:restage/restage.dart';
 import '../widgets/pulse_badge.dart';
 
 /// A minimal paywall referencing the customer's [PulseBadge] — a *categorical*
-/// (AnimationController-driven) non-inlinable 4b widget.
+/// (AnimationController-driven) app-backed widget.
 ///
 /// It proves the package-emitted widget catalog lets an irreducibly imperative
 /// custom widget be *referenced* (never inlined) in a Dart-authored surface and
