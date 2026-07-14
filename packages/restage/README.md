@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="doc/brand/restage-wordmark-oscillate-4.0s-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="doc/brand/restage-wordmark-oscillate-4.0s-light.svg">
-    <img alt="restage" src="doc/brand/restage-wordmark-oscillate-4.0s-light.webp" width="300">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-oscillate-4.0s-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-oscillate-4.0s-light.svg">
+    <img alt="restage" src="https://raw.githubusercontent.com/restage-dev/restage/main/brand/restage-wordmark-oscillate-4.0s-light.webp" width="300">
   </picture>
 </p>
 
@@ -17,7 +17,7 @@
 <!--
   Logo — animated overprint wordmark. GitHub renders the light/dark SVG (vector,
   theme-adaptive, animated); pub.dev and other viewers that strip SVG fall back to
-  the WebP <img>. A mark+wordmark lockup variant ships alongside in doc/brand/.
+  the WebP <img>. A mark+wordmark lockup variant ships alongside in /brand/.
 -->
 
 **Server-driven UI for Flutter.** Restage is the runtime SDK. It renders server-driven surfaces as *real* Flutter widgets in your own widget tree, via [Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw). One runtime drives every surface: paywalls, onboarding, in-app messages, surveys, and whole screens. Nothing executable is loaded from a surface.

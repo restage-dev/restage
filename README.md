@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="packages/restage/doc/brand/restage-wordmark-oscillate-4.0s-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="packages/restage/doc/brand/restage-wordmark-oscillate-4.0s-light.svg">
-    <img alt="Restage" src="packages/restage/doc/brand/restage-wordmark-oscillate-4.0s-light.webp" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="brand/restage-wordmark-oscillate-4.0s-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="brand/restage-wordmark-oscillate-4.0s-light.svg">
+    <img alt="Restage" src="brand/restage-wordmark-oscillate-4.0s-light.webp" width="320">
   </picture>
 </p>
 
