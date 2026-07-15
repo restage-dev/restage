@@ -773,8 +773,8 @@ void main() {
     });
 
     test(
-        'a REQUIRED private constructor parameter → loud scope-out (the '
-        'object is unconstructable)', () async {
+        'a REQUIRED private field-formal named parameter resolves — the '
+        'language gives it a public wire name', () async {
       const source = '''
         class Inner {
           final String _secret;
@@ -787,10 +787,18 @@ void main() {
           Data(this.item);
         }
       ''';
-      // `secret` is public-named here (it resolves); the genuinely-private
-      // REQUIRED case below is a private field-formal.
+      // `secret` is public-named here (it resolves); the private-named
+      // field-formal case below resolves too, under its public wire name.
       expect(await reflectField(source, 'item'), isA<ObjectNode>());
 
+      // Private named parameters (`required this._token`) are valid Dart as
+      // of the private-named-parameter language feature: callers construct
+      // with the public name (`Inner(token: …)`), so the object IS
+      // constructable and the construction info must carry the public wire
+      // name. (On resolvers predating the feature this source does not
+      // resolve at all and the reflector fails closed — the unrepresentable-
+      // required-parameter gate still guards names the resolver reports as
+      // private/unnameable.)
       const privateRequired = '''
         class Inner {
           final String _token;
@@ -801,7 +809,9 @@ void main() {
           Data(this.item);
         }
       ''';
-      expect(await reflect(privateRequired, 'item'), scopedOutUnsupported());
+      final node = await reflectField(privateRequired, 'item') as ObjectNode;
+      final ctor = node.construction! as A2uiClassConstruction;
+      expect(ctor.parameters.map((p) => p.name).toList(), ['token']);
     });
   });
 

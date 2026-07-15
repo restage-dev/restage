@@ -460,8 +460,9 @@ class _FakeAlias implements InstantiatedTypeAliasElement {
   @override
   List<DartType> get typeArguments => const [];
 
-  // Not an @override: InstantiatedTypeAliasElement does not declare a
-  // nullabilitySuffix getter, so this is a fake-local convenience member.
+  // InstantiatedTypeAliasElement declares a nullabilitySuffix getter as of
+  // analyzer 12 (earlier majors did not, where this was fake-local only).
+  @override
   NullabilitySuffix get nullabilitySuffix => NullabilitySuffix.none;
 }
 
