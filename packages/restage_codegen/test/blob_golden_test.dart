@@ -157,7 +157,7 @@ void main() {
         final onboarding = rw.testing.readBytes(
           AssetId(
             _mountPackage,
-            'assets/onboarding/screens/paywall_$id.rfw',
+            'assets/paywalls/screens/paywall_$id.rfw',
           ),
         );
         // The paywall-as-flow-screen's capability sidecar — a hosted flow
@@ -165,7 +165,7 @@ void main() {
         final onboardingCapability = rw.testing.readString(
           AssetId(
             _mountPackage,
-            'assets/onboarding/screens/paywall_$id.capability.json',
+            'assets/paywalls/screens/paywall_$id.capability.json',
           ),
         );
 
@@ -219,25 +219,25 @@ void main() {
       );
       _expectBytesGolden(
         'paywall_fluent_pro.rfw',
-        bytes('assets/onboarding/screens/paywall_fluent_pro.rfw'),
+        bytes('assets/paywalls/screens/paywall_fluent_pro.rfw'),
         regen: regen,
       );
       _expectBytesGolden(
         'paywall_fluent_pro_choose_plan.rfw',
-        bytes('assets/onboarding/screens/paywall_fluent_pro_choose_plan.rfw'),
+        bytes('assets/paywalls/screens/paywall_fluent_pro_choose_plan.rfw'),
         regen: regen,
       );
       // Each flow screen's capability sidecar — what the hosted flow publish
       // reads to union the screens' required libraries.
       _expectStringGolden(
         'paywall_fluent_pro.capability.json',
-        text('assets/onboarding/screens/paywall_fluent_pro.capability.json'),
+        text('assets/paywalls/screens/paywall_fluent_pro.capability.json'),
         regen: regen,
       );
       _expectStringGolden(
         'paywall_fluent_pro_choose_plan.capability.json',
         text(
-          'assets/onboarding/screens/paywall_fluent_pro_choose_plan.capability.json',
+          'assets/paywalls/screens/paywall_fluent_pro_choose_plan.capability.json',
         ),
         regen: regen,
       );
@@ -260,7 +260,7 @@ void main() {
       expect(
         navFlowResult.outputs,
         contains(
-          asset('assets/onboarding/screens/paywall_fluent_pro_choose_plan.rfw'),
+          asset('assets/paywalls/screens/paywall_fluent_pro_choose_plan.rfw'),
         ),
       );
     });

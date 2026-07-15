@@ -253,7 +253,7 @@ return flow(
 
 For a Dart-authored `@PaywallSource(id: 'serene')`, codegen emits the normal
 paywall artifacts and a flow-screen adapter at
-`assets/onboarding/screens/paywall_serene.rfw`. If the embedded paywall reads
+`assets/paywalls/screens/paywall_serene.rfw`. If the embedded paywall reads
 live prices, pass the same `priceQueries` map to `RestageOnboarding` /
 `RestageFlowView` / `RestageScreenView` that you would pass to
 `RestagePaywall`.

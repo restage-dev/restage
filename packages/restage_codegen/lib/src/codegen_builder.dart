@@ -17,7 +17,8 @@ import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
-import 'package:restage_shared/restage_shared.dart' show CapabilitySidecar;
+import 'package:restage_shared/restage_shared.dart'
+    show CapabilitySidecar, kPaywallScreensAssetDir;
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -78,7 +79,7 @@ final Resource<CatalogPerBuildCache> _catalogResource =
 
 const String _kSourceDir = 'lib/paywalls';
 const String _kOutputDir = 'assets/paywalls';
-const String _kOnboardingScreenOutputDir = 'assets/onboarding/screens';
+const String _kPaywallScreenOutputDir = kPaywallScreensAssetDir;
 const JsonEncoder _jsonEncoder = JsonEncoder.withIndent('  ');
 
 /// Orchestrates the codegen build pass.
@@ -120,8 +121,8 @@ final class RestageCodegenBuilder implements Builder {
           '$_kOutputDir/{{name}}.rfw',
           '$_kOutputDir/{{name}}.capability.json',
           '$_kOutputDir/{{name}}.navplan.json',
-          '$_kOnboardingScreenOutputDir/paywall_{{name}}.rfw',
-          '$_kOnboardingScreenOutputDir/paywall_{{name}}.capability.json',
+          '$_kPaywallScreenOutputDir/paywall_{{name}}.rfw',
+          '$_kPaywallScreenOutputDir/paywall_{{name}}.capability.json',
         ],
         '$_kSourceDir/{{name}}.rfwtxt': [
           '$_kOutputDir/{{name}}.rfw',
@@ -335,7 +336,7 @@ final class RestageCodegenBuilder implements Builder {
       }
 
       if (!adapterBlocked) {
-        final onboardingScreenText = emitRemoteWidgetLibrary(
+        final flowScreenText = emitRemoteWidgetLibrary(
           adapterTranslation.dsl,
           rootWidgetName: onboardingScreenRootWidgetName,
           widgetDefinitions: adapterTranslation.widgetDefinitions,
@@ -343,36 +344,37 @@ final class RestageCodegenBuilder implements Builder {
           rootWidgetState: adapterTranslation.rootWidgetState,
           customLibraryImports: adapterTranslation.referencedCustomLibraries,
         );
-        final onboardingScreenLibrary = _parseTranslatedLibrary(
-          onboardingScreenText,
+        final flowScreenLibrary = _parseTranslatedLibrary(
+          flowScreenText,
           sourceIdentifier: 'paywall_${src.id}',
           src: src,
           state: state,
         );
-        if (onboardingScreenLibrary != null) {
+        if (flowScreenLibrary != null) {
           final validationIssues = validateModelAgainstCatalog(
-            onboardingScreenLibrary,
+            flowScreenLibrary,
             catalog,
           );
           if (validationIssues.isEmpty) {
-            final derivation =
-                deriveCapabilityManifest(onboardingScreenLibrary, catalog);
+            final derivation = deriveCapabilityManifest(
+              flowScreenLibrary,
+              catalog,
+            );
             if (derivation.issues.isNotEmpty) {
               // A screen referencing a custom library that declares no
               // capability version fails the build (fail-when-referenced) — the
               // same posture the standalone paywall path takes above.
               _addIssues(state.issues, derivation.issues);
             } else {
-              final onboardingScreenBytes =
-                  fmt.encodeLibraryBlob(onboardingScreenLibrary);
+              final flowScreenBytes = fmt.encodeLibraryBlob(flowScreenLibrary);
               writes
                 ..add(
                   buildStep.writeAsBytes(
                     AssetId(
                       assetId.package,
-                      '$_kOnboardingScreenOutputDir/paywall_$stem.rfw',
+                      '$_kPaywallScreenOutputDir/paywall_$stem.rfw',
                     ),
-                    onboardingScreenBytes,
+                    flowScreenBytes,
                   ),
                 )
                 // The paywall-as-flow-screen carries its own capability sidecar
@@ -383,12 +385,11 @@ final class RestageCodegenBuilder implements Builder {
                   buildStep.writeAsString(
                     AssetId(
                       assetId.package,
-                      '$_kOnboardingScreenOutputDir/paywall_$stem.capability.json',
+                      '$_kPaywallScreenOutputDir/paywall_$stem.capability.json',
                     ),
                     _jsonEncoder.convert(
                       CapabilitySidecar(
-                        blobSha256:
-                            CapabilitySidecar.hashBlob(onboardingScreenBytes),
+                        blobSha256: CapabilitySidecar.hashBlob(flowScreenBytes),
                         manifest: derivation.manifest!,
                       ).toJson(),
                     ),

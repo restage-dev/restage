@@ -10,7 +10,7 @@ import 'package:restage_example/stub_products.dart';
 ///
 /// This drives the REAL committed bundled assets
 /// (`assets/paywalls/fluent_pro.flow.json` + the two
-/// `assets/onboarding/screens/paywall_fluent_pro*.rfw` blobs) through the
+/// `assets/paywalls/screens/paywall_fluent_pro*.rfw` blobs) through the
 /// production present path — `RestagePaywall(id:)` + the default
 /// `AssetVariantResolver` flow arm — exactly as a shipped app would.
 ///

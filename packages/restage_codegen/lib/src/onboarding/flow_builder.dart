@@ -794,11 +794,30 @@ Future<ScreenArtifact> _artifactFor(
   _ScreenDescriptor descriptor,
   List<Issue> issues,
 ) async {
-  final rfwId = AssetId(
-    flowAssetId.package,
-    '${_screenOutputDir(_surfaceSegmentOf(flowAssetId))}/'
-    '${descriptor.artifactPath}',
-  );
+  final AssetId rfwId;
+  if (isPaywallScreenArtifact(descriptor.artifactPath)) {
+    final canonicalId = AssetId(
+      flowAssetId.package,
+      '$kPaywallScreensAssetDir/${descriptor.artifactPath}',
+    );
+    final legacyId = AssetId(
+      flowAssetId.package,
+      '$kLegacyPaywallScreensAssetDir/${descriptor.artifactPath}',
+    );
+    if (await buildStep.canRead(canonicalId)) {
+      rfwId = canonicalId;
+    } else if (await buildStep.canRead(legacyId)) {
+      rfwId = legacyId;
+    } else {
+      rfwId = canonicalId;
+    }
+  } else {
+    rfwId = AssetId(
+      flowAssetId.package,
+      '${_screenOutputDir(_surfaceSegmentOf(flowAssetId))}/'
+      '${descriptor.artifactPath}',
+    );
+  }
   if (!await buildStep.canRead(rfwId)) {
     issues.add(
       Issue(

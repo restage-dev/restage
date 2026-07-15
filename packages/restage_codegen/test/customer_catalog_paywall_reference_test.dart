@@ -132,8 +132,8 @@ class Streak extends StatelessWidget {
         'apps_examples|assets/paywalls/streak.rfw': isNotEmpty,
         'apps_examples|assets/paywalls/streak.capability.json':
             decodedMatches(contains('acme.ds')),
-        'apps_examples|assets/onboarding/screens/paywall_streak.rfw': anything,
-        'apps_examples|assets/onboarding/screens/paywall_streak.capability.json':
+        'apps_examples|assets/paywalls/screens/paywall_streak.rfw': anything,
+        'apps_examples|assets/paywalls/screens/paywall_streak.capability.json':
             anything,
       },
     );

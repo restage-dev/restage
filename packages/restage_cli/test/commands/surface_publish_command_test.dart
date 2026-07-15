@@ -186,7 +186,7 @@ void main() {
         defaultEnvironment: 'dev',
       );
       // A nav-lowered paywall: a flow document at assets/paywalls/<slug>.flow.json
-      // whose screens live under assets/onboarding/screens/.
+      // whose screens live under assets/paywalls/screens/.
       await seedPaywallFlow(tempDir, slug: 'fluent_pro');
 
       var saveCalls = 0;

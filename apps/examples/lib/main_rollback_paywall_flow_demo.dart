@@ -259,7 +259,7 @@ final class _FlowAssetBundle extends CachingAssetBundle {
   }
 
   void writeScreen(String path, Uint8List bytes) {
-    _assets['assets/onboarding/screens/$path'] = bytes;
+    _assets['assets/paywalls/screens/$path'] = bytes;
   }
 
   @override

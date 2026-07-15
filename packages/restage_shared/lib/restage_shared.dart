@@ -38,6 +38,7 @@ export 'src/flow_document/flow_document_hash.dart';
 export 'src/flow_document/flow_document_validation.dart';
 export 'src/flow_document/flow_predicate_sugar.dart';
 export 'src/flow_document/general_render_gate.dart';
+export 'src/flow_document/paywall_screen_assets.dart';
 export 'src/offers/offers.dart';
 export 'src/products/restage_entitlement.dart';
 export 'src/products/restage_product.dart';

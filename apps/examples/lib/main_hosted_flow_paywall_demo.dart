@@ -16,7 +16,7 @@ import 'stub_products.dart';
 /// the backend; it fetches the active published version of `fluent_pro`. When
 /// that active version is flow-shaped, the paywall flow active arm resolves +
 /// renders it, gated against the app's bundled `fluent_pro` flow contract
-/// (bundled from `assets/paywalls/` + `assets/onboarding/screens/`).
+/// (bundled from `assets/paywalls/` + `assets/paywalls/screens/`).
 ///
 /// A load failure prints its reason to the console (see [_onEvent]) so a
 /// failed hosted fetch is self-diagnosing rather than only visible on-screen.

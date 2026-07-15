@@ -205,9 +205,11 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   }
 
   /// Loads the client's bundled flow document + screen blobs by convention
-  /// (`assets/onboarding/flows/<id>.flow.json`). Returns null when no bundled
-  /// asset is present or it fails to load — the "no contract ⇒ fail closed"
-  /// signal for the active arm.
+  /// (`assets/onboarding/flows/<id>.flow.json`). Genuine onboarding screens
+  /// load from the onboarding screen directory; embedded paywall-owned screens
+  /// load from the paywall screen directory. Returns null when no bundled asset
+  /// is present or it fails to load — the "no contract ⇒ fail closed" signal
+  /// for the active arm.
   Future<BundledFlowArtifacts?> _loadBundledContract<R>(
     OnboardingFlowRef<R> flow,
   ) async {

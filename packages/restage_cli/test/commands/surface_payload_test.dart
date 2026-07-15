@@ -463,16 +463,11 @@ void main() {
       'resolves screen blobs from a non-sibling screensDir (paywall layout)',
       () async {
         // A paywall flow lives at assets/paywalls/<slug>.flow.json while its
-        // screens live at assets/onboarding/screens/ — NOT a sibling of the flow.
+        // screens live at assets/paywalls/screens/ — NOT a sibling of the flow.
         // The default sibling resolution cannot find them; the explicit
         // screensDir must.
         final flowPath = await seedPaywallFlow(tempDir);
-        final screensDir = p.join(
-          tempDir.path,
-          'assets',
-          'onboarding',
-          'screens',
-        );
+        final screensDir = p.join(tempDir.path, kPaywallScreensAssetDir);
 
         // The default (sibling) resolution fails: assets/paywalls/../screens has
         // no blobs.
@@ -481,7 +476,7 @@ void main() {
           throwsA(isA<SurfacePayloadException>()),
         );
 
-        // The explicit onboarding screens directory resolves them.
+        // The explicit paywall screens directory resolves them.
         final bytes = await assembleSurfacePayloadBytes(
           flowPath,
           screensDir: screensDir,

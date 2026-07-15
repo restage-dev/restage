@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show FlutterError;
+import 'package:flutter/foundation.dart' show FlutterError, debugPrint;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -63,16 +63,50 @@ Future<BundledFlowArtifacts> loadBundledFlowArtifacts({
   _checkValidation(document, buildError);
 
   final screenBlobs = <String, Uint8List>{};
+  var legacyNoticeShown = false;
   for (final entry in document.screenArtifacts.entries) {
     final screenId = entry.key;
     final artifact = entry.value;
-    final path = '$screenAssetPathPrefix/${artifact.path}';
-    final bytes = await _loadBytes(
-      bundle,
-      path,
-      missingReason: 'missing_screen_blob',
-      buildError: buildError,
-    );
+    final candidates = isPaywallScreenArtifact(artifact.path)
+        ? <String>[
+            '$kPaywallScreensAssetDir/${artifact.path}',
+            '$kLegacyPaywallScreensAssetDir/${artifact.path}',
+          ]
+        : <String>['$screenAssetPathPrefix/${artifact.path}'];
+    late Uint8List bytes;
+    late String path;
+    Object? missingCause;
+    var loaded = false;
+    for (var index = 0; index < candidates.length; index++) {
+      path = candidates[index];
+      try {
+        bytes = await _loadScreenCandidate(bundle, path, buildError);
+        loaded = true;
+        if (index > 0 && !legacyNoticeShown) {
+          assert(() {
+            debugPrint(
+              '[restage] flow "$flowId" loaded paywall screen '
+              '"${artifact.path}" from the legacy bundle path '
+              '"$kLegacyPaywallScreensAssetDir". Regenerate assets '
+              '(`dart run build_runner build`) to adopt '
+              '"$kPaywallScreensAssetDir".',
+            );
+            legacyNoticeShown = true;
+            return true;
+          }());
+        }
+        break;
+      } on FlutterError catch (error) {
+        missingCause = error;
+      }
+    }
+    if (!loaded) {
+      throw buildError(
+        'missing_screen_blob',
+        'Missing flow asset "${candidates.first}".',
+        missingCause,
+      );
+    }
     final actualHash = FlowContentHash.compute(bytes);
     if (actualHash != artifact.contentHash) {
       throw buildError(
@@ -92,6 +126,27 @@ Future<BundledFlowArtifacts> loadBundledFlowArtifacts({
     document: document,
     screenBlobs: screenBlobs,
   );
+}
+
+Future<Uint8List> _loadScreenCandidate(
+  AssetBundle bundle,
+  String path,
+  BundledFlowErrorFactory buildError,
+) async {
+  try {
+    final data = await bundle.load(path);
+    return Uint8List.fromList(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    );
+  } on FlutterError {
+    rethrow;
+  } on Object catch (error) {
+    throw buildError(
+      'load_failed',
+      'Failed to load "$path": $error.',
+      error,
+    );
+  }
 }
 
 Future<Uint8List> _loadBytes(
