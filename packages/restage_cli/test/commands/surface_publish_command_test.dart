@@ -29,6 +29,14 @@ void main() {
     if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
+  Future<void> seedCatalog(String catalogJson) async {
+    final file = File(
+      p.join(tempDir.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
+    );
+    await file.parent.create(recursive: true);
+    await file.writeAsString(catalogJson);
+  }
+
   Future<int> runArgs(List<String> args, {http.Client? client}) {
     return RestageCli(
       stdout: stdout,
@@ -725,6 +733,52 @@ void main() {
       expect(err, contains('race'));
       expect(err, contains('retry'));
     });
+
+    test(
+      'uploads the widget catalog after a successful publish when present',
+      () async {
+        await seedCredential(store);
+        await seedRestageConfig(
+          tempDir,
+          'demo',
+          'mobile',
+          defaultEnvironment: 'dev',
+        );
+        await seedSurfaceFlow(tempDir);
+        const catalogJson = '{"schemaVersion":1,"widgets":[]}';
+        await seedCatalog(catalogJson);
+
+        var catalogCalls = 0;
+        final client = scriptedHttpClient([
+          (req) => http.Response('null', 200),
+          (req) => http.Response('2', 200),
+          (req) {
+            catalogCalls++;
+            final body = jsonDecode(req.body) as Map<String, dynamic>;
+            expect(body['method'], 'push');
+            expect(body['projectSlug'], 'demo');
+            expect(body['appSlug'], 'mobile');
+            expect(body['catalogJson'], catalogJson);
+            return http.Response('9', 200);
+          },
+        ]);
+
+        final exitCode = await runArgs([
+          'surface',
+          'publish',
+          'first_run',
+          '--type',
+          'onboarding',
+          '-C',
+          tempDir.path,
+        ], client: client);
+
+        expect(exitCode, 0);
+        expect(catalogCalls, 1);
+        expect(stdout.toString(), contains('Published first_run'));
+        expect(stderr.toString(), isEmpty);
+      },
+    );
 
     test('surfaces SurfaceNotFound on the publish call', () async {
       await seedCredential(store);

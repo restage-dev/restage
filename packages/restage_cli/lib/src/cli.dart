@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/audit_command.dart';
+import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
 import 'package:restage_cli/src/commands/init_command.dart';
@@ -193,6 +194,14 @@ class RestageCli {
           stdout: _stdout,
           stderr: _stderr,
           interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        CatalogCommand(
+          stdout: _stdout,
+          stderr: _stderr,
           credentialStore: _credentialStore,
           httpClient: _httpClient,
         ),

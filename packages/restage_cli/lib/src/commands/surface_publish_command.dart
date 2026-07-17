@@ -11,6 +11,7 @@ import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_payload.dart';
+import 'package:restage_cli/src/commands/upload_catalog_if_present.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -125,9 +126,9 @@ class SurfacePublishCommand extends Command<int> {
       return 1;
     }
 
-    final loaded = await loadRestageConfig(
-      from: Directory(argResults?['directory'] as String? ?? '.'),
-    );
+    final directory = Directory(argResults?['directory'] as String? ?? '.');
+    final loaded = await loadRestageConfig(from: directory);
+    final projectRoot = loaded?.source.parent ?? directory.absolute;
     final project =
         (argResults?['project'] as String?) ?? loaded?.config.project;
     final app = (argResults?['app'] as String?) ?? loaded?.config.app;
@@ -163,10 +164,7 @@ class SurfacePublishCommand extends Command<int> {
       // surface is a flow document plus its per-screen blobs and may embed a
       // paywall-owned screen. Each has its own default location, all
       // overridable with --path.
-      final assetsRoot = p.join(
-        (loaded?.source.parent ?? Directory.current).path,
-        'assets',
-      );
+      final assetsRoot = p.join(projectRoot.path, 'assets');
       if (surfaceType == SurfaceType.paywall) {
         final resolved = await resolvePaywallPublishBytes(
           slug: slug,
@@ -180,7 +178,7 @@ class SurfacePublishCommand extends Command<int> {
       } else {
         final flowPath = _resolveFlowPath(
           argResults?['path'] as String?,
-          loaded?.source.parent,
+          projectRoot,
           surfaceType,
           slug,
         );
@@ -205,6 +203,7 @@ class SurfacePublishCommand extends Command<int> {
       app: app,
       environment: environment,
       bytes: bytes,
+      projectRoot: projectRoot,
     );
   }
 
@@ -253,6 +252,7 @@ class SurfacePublishCommand extends Command<int> {
     required String app,
     required String environment,
     required Uint8List bytes,
+    required Directory projectRoot,
   }) async {
     final RestageApi api;
     try {
@@ -307,6 +307,14 @@ class SurfacePublishCommand extends Command<int> {
         _stdout.writeln(
           'Published $slug (${surfaceType.wireName}) to $environment as '
           'version $version.',
+        );
+        await uploadCatalogIfPresent(
+          api: api,
+          project: project,
+          app: app,
+          organizationId: configuredOrganization.organizationId,
+          projectRoot: projectRoot,
+          stderr: _stderr,
         );
         return 0;
       } on RestageApiException catch (e) {
