@@ -71,6 +71,7 @@ void main() {
         _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
         experimentId: 'exp_onboarding_copy',
         variantId: 'variant_a',
+        experimentEpoch: 3,
       ),
     );
     final events = <RestageEvent>[];
@@ -91,6 +92,7 @@ void main() {
     expect(started.resolvedVersion, 2);
     expect(started.toMap().containsKey('experimentId'), isFalse);
     expect(started.toMap().containsKey('variantId'), isFalse);
+    expect(started.toMap().containsKey('experimentEpoch'), isFalse);
 
     final envelope = mapRestageEventToEnvelope(
       started,
@@ -108,6 +110,7 @@ void main() {
     expect(envelope.surfaceId, 'first_run');
     expect(envelope.experimentId, isNull);
     expect(envelope.variantId, isNull);
+    expect(envelope.experimentEpoch, isNull);
   });
 
   test('new client → breaking active: fails closed to the BUNDLED doc',
@@ -389,6 +392,7 @@ MockClient _server(
   Uint8List envelope, {
   String? experimentId,
   String? variantId,
+  int? experimentEpoch,
   void Function(http.Request request)? onRequest,
 }) {
   return MockClient((request) async {
@@ -398,6 +402,7 @@ MockClient _server(
         'envelope': base64Encode(envelope),
         if (experimentId != null) 'experimentId': experimentId,
         if (variantId != null) 'variantId': variantId,
+        if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
       }),
       200,
     );

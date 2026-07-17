@@ -174,6 +174,7 @@ final class RestageVariantResolver
         activeVersion: fresh.version,
         experimentId: fresh.experimentId,
         variantId: fresh.variantId,
+        experimentEpoch: fresh.experimentEpoch,
       );
       if (arm is FlowPaywallActiveAccepted) {
         _cache[id] = _CachedFlow(
@@ -181,6 +182,7 @@ final class RestageVariantResolver
           version: fresh.version,
           experimentId: fresh.experimentId,
           variantId: fresh.variantId,
+          experimentEpoch: fresh.experimentEpoch,
         );
         return arm.payload;
       }
@@ -289,6 +291,7 @@ final class RestageVariantResolver
         paywallId: id,
         variantId: result.variantId,
         experimentId: result.experimentId,
+        experimentEpoch: result.experimentEpoch,
         paywallPublishedVersion: document.version,
       );
       return _FreshBlob(
@@ -309,6 +312,7 @@ final class RestageVariantResolver
         document.version,
         result.experimentId,
         result.variantId,
+        result.experimentEpoch,
       );
     }
 
@@ -363,6 +367,7 @@ final class RestageVariantResolver
         activeVersion: cached.version,
         experimentId: cached.experimentId,
         variantId: cached.variantId,
+        experimentEpoch: cached.experimentEpoch,
         cacheHit: true,
       );
       if (arm is FlowPaywallActiveAccepted) return arm.payload;
@@ -429,12 +434,14 @@ final class _FreshFlow extends _FreshOutcome {
     this.version,
     this.experimentId,
     this.variantId,
+    this.experimentEpoch,
   );
 
   final FlowSurfacePayload activePayload;
   final int version;
   final String? experimentId;
   final String? variantId;
+  final int? experimentEpoch;
 }
 
 final class _FreshRejected extends _FreshOutcome {
@@ -472,6 +479,7 @@ final class _CachedFlow extends _CachedPayload {
     required this.version,
     required this.experimentId,
     required this.variantId,
+    required this.experimentEpoch,
   });
 
   /// The served active flow payload, retained so a cache hit can re-run the
@@ -482,6 +490,7 @@ final class _CachedFlow extends _CachedPayload {
   final int version;
   final String? experimentId;
   final String? variantId;
+  final int? experimentEpoch;
 }
 
 /// Environment hint passed to `Restage.configure` and [RestageVariantResolver].

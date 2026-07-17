@@ -99,6 +99,8 @@ FlowPaywallActiveResolution _resolve(
   BundledFlowArtifacts bundled, {
   int activeVersion = 5,
   String? experimentId = 'exp_1',
+  String? variantId = 'variant_a',
+  int? experimentEpoch = 3,
 }) {
   return resolveFlowActiveArm(
     activePayload: active,
@@ -106,6 +108,8 @@ FlowPaywallActiveResolution _resolve(
     paywallId: _paywallId,
     activeVersion: activeVersion,
     experimentId: experimentId,
+    variantId: variantId,
+    experimentEpoch: experimentEpoch,
   );
 }
 
@@ -120,6 +124,8 @@ void main() {
     expect(payload.paywallId, _paywallId);
     expect(payload.paywallPublishedVersion, 5);
     expect(payload.experimentId, 'exp_1');
+    expect(payload.variantId, 'variant_a');
+    expect(payload.experimentEpoch, 3);
     expect(payload.resolvedFromActiveArm, isTrue);
     expect(payload.flow.document.flow, _paywallId);
   });

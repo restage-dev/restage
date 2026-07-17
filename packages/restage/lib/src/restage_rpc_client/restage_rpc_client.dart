@@ -12,18 +12,30 @@ final class SurfaceFetchResult {
   /// Creates a hosted surface fetch result.
   const SurfaceFetchResult({
     required this.envelopeBytes,
+    this.decision,
     this.experimentId,
     this.variantId,
+    this.experimentEpoch,
   });
 
   /// Base64-decoded `SurfaceDocument` envelope bytes.
   final Uint8List envelopeBytes;
+
+  /// The server's serve decision for this fetch, when present. Carried
+  /// verbatim as an opaque string — an unrecognised value is preserved as-is,
+  /// never rejected — so a newer server can introduce new decision values
+  /// without breaking this client.
+  final String? decision;
 
   /// Experiment id selected by the server, when the served artifact is an arm.
   final String? experimentId;
 
   /// Variant id selected by the server, when the served artifact is an arm.
   final String? variantId;
+
+  /// Experiment epoch selected by the server, when the served artifact is an
+  /// arm.
+  final int? experimentEpoch;
 }
 
 /// The active-version stamp for a surface.
@@ -175,10 +187,14 @@ class RestageRpcClient {
         debugPrint('[restage] surface assignment metadata was malformed');
         return null;
       }
+      final rawDecision = json['decision'];
+      final decision = rawDecision is String ? rawDecision : null;
       return SurfaceFetchResult(
         envelopeBytes: base64Decode(envelope),
+        decision: decision,
         experimentId: assignment.experimentId,
         variantId: assignment.variantId,
+        experimentEpoch: assignment.experimentEpoch,
       );
     } on FormatException catch (error) {
       debugPrint('[restage] surface envelope was not valid base64: $error');
@@ -311,10 +327,15 @@ class RestageRpcClient {
 }
 
 final class _SurfaceAssignmentMetadata {
-  const _SurfaceAssignmentMetadata({this.experimentId, this.variantId});
+  const _SurfaceAssignmentMetadata({
+    this.experimentId,
+    this.variantId,
+    this.experimentEpoch,
+  });
 
   final String? experimentId;
   final String? variantId;
+  final int? experimentEpoch;
 }
 
 _SurfaceAssignmentMetadata? _parseSurfaceAssignmentMetadata(
@@ -322,10 +343,14 @@ _SurfaceAssignmentMetadata? _parseSurfaceAssignmentMetadata(
 ) {
   final experimentId = json['experimentId'];
   final variantId = json['variantId'];
-  if (experimentId == null && variantId == null) {
+  final experimentEpoch = json['experimentEpoch'];
+  if (experimentId == null && variantId == null && experimentEpoch == null) {
     return const _SurfaceAssignmentMetadata();
   }
-  if (experimentId is! String || variantId is! String) {
+  if (experimentId is! String ||
+      variantId is! String ||
+      experimentEpoch is! int ||
+      experimentEpoch < 1) {
     return null;
   }
   if (!_isValidSurfaceAssignmentToken(experimentId) ||
@@ -335,6 +360,7 @@ _SurfaceAssignmentMetadata? _parseSurfaceAssignmentMetadata(
   return _SurfaceAssignmentMetadata(
     experimentId: experimentId,
     variantId: variantId,
+    experimentEpoch: experimentEpoch,
   );
 }
 

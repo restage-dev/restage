@@ -32,6 +32,7 @@ final class AnalyticsEvent {
     this.appContext,
     this.variantId,
     this.experimentId,
+    this.experimentEpoch,
     this.productId,
     this.offerId,
     Map<String, Object?> properties = const <String, Object?>{},
@@ -118,6 +119,7 @@ final class AnalyticsEvent {
       appContext: appContext,
       variantId: _optionalString(json, 'variantId'),
       experimentId: _optionalString(json, 'experimentId'),
+      experimentEpoch: _optionalInt(json, 'experimentEpoch'),
       productId: _optionalString(json, 'productId'),
       offerId: _optionalString(json, 'offerId'),
       properties: properties,
@@ -170,6 +172,9 @@ final class AnalyticsEvent {
   /// Promoted cohort dim.
   final String? experimentId;
 
+  /// Promoted cohort dim.
+  final int? experimentEpoch;
+
   /// Promoted conversion dim.
   final String? productId;
 
@@ -204,6 +209,7 @@ final class AnalyticsEvent {
         if (appContext != null) 'appContext': appContext!.toJson(),
         if (variantId != null) 'variantId': variantId,
         if (experimentId != null) 'experimentId': experimentId,
+        if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
         if (productId != null) 'productId': productId,
         if (offerId != null) 'offerId': offerId,
         if (properties.isNotEmpty) 'properties': properties,
@@ -227,6 +233,7 @@ final class AnalyticsEvent {
       other.appContext == appContext &&
       other.variantId == variantId &&
       other.experimentId == experimentId &&
+      other.experimentEpoch == experimentEpoch &&
       other.productId == productId &&
       other.offerId == offerId &&
       _deepEquals(other.properties, properties);
@@ -249,6 +256,7 @@ final class AnalyticsEvent {
           appContext,
           variantId,
           experimentId,
+          experimentEpoch,
           productId,
           offerId,
         ),
@@ -270,6 +278,15 @@ String? _optionalString(Map<String, Object?> json, String key) {
   if (value is String) return value;
   throw FormatException(
     'AnalyticsEvent.$key must be a string when present, got: $value',
+  );
+}
+
+int? _optionalInt(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value == null) return null;
+  if (value is int) return value;
+  throw FormatException(
+    'AnalyticsEvent.$key must be an int when present, got: $value',
   );
 }
 

@@ -87,6 +87,7 @@ final class PaywallViewed extends RestageEvent {
     required this.productIds,
     this.variantId,
     this.experimentId,
+    this.experimentEpoch,
     this.publishedVersion,
     super.firedAt,
   });
@@ -100,15 +101,18 @@ final class PaywallViewed extends RestageEvent {
   /// Experiment identifier; null if not part of an experiment.
   final String? experimentId;
 
+  /// Experiment epoch; null if not part of an experiment.
+  final int? experimentEpoch;
+
   /// The server-assigned published version of the rendered paywall content;
   /// null for a bundled or custom (versionless) resolution. On a live in-place
   /// refresh this carries the version of the content the user is now seeing.
   ///
   /// Exactly one `PaywallViewed` fires per SETTLED applied swap. If two applies
   /// land within a single frame (no frame drawn between them), they coalesce
-  /// into one impression describing the settled content — its version, with null
-  /// experiment identifiers on the refresh path (a live refresh never applies an
-  /// experiment arm; enrollment is deferred to remount).
+  /// into one impression describing the settled content — its version, with
+  /// null experiment assignment metadata on the refresh path (a live refresh
+  /// never applies an experiment arm; enrollment is deferred to remount).
   final int? publishedVersion;
 
   @override
@@ -121,6 +125,7 @@ final class PaywallViewed extends RestageEvent {
         'productIds': productIds,
         if (variantId != null) 'variantId': variantId,
         if (experimentId != null) 'experimentId': experimentId,
+        if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
         if (publishedVersion != null) 'publishedVersion': publishedVersion,
       };
 }

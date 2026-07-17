@@ -9,7 +9,8 @@ import 'package:meta/meta.dart';
 /// attribution (which paywall, which variant, which experiment, which version).
 ///
 /// Equality is defined over the **identity tuple** — [paywallId], [variantId],
-/// [experimentId], [paywallVersion], and [paywallPublishedVersion] — so two
+/// [experimentId], [experimentEpoch], [paywallVersion], and
+/// [paywallPublishedVersion] — so two
 /// resolutions of the same variant compare equal, and a host caching layer can
 /// use `==` for a "same variant, skip re-render" check. Two fields are
 /// deliberately **excluded** from equality:
@@ -35,6 +36,7 @@ class ResolvedVariant {
     required this.paywallId,
     this.variantId,
     this.experimentId,
+    this.experimentEpoch,
     this.paywallVersion,
     this.paywallPublishedVersion,
     this.cacheHit = false,
@@ -51,6 +53,9 @@ class ResolvedVariant {
 
   /// Experiment identifier when this variant came from an A/B test.
   final String? experimentId;
+
+  /// Experiment epoch when this variant came from an A/B test.
+  final int? experimentEpoch;
 
   /// Authoring version of the paywall blob — an author-facing label (e.g. a
   /// semver or editor revision string). This is distinct from
@@ -83,6 +88,7 @@ class ResolvedVariant {
     String? paywallId,
     String? variantId,
     String? experimentId,
+    int? experimentEpoch,
     String? paywallVersion,
     int? paywallPublishedVersion,
     bool? cacheHit,
@@ -92,6 +98,7 @@ class ResolvedVariant {
         paywallId: paywallId ?? this.paywallId,
         variantId: variantId ?? this.variantId,
         experimentId: experimentId ?? this.experimentId,
+        experimentEpoch: experimentEpoch ?? this.experimentEpoch,
         paywallVersion: paywallVersion ?? this.paywallVersion,
         paywallPublishedVersion:
             paywallPublishedVersion ?? this.paywallPublishedVersion,
@@ -105,6 +112,7 @@ class ResolvedVariant {
           other.paywallId == paywallId &&
           other.variantId == variantId &&
           other.experimentId == experimentId &&
+          other.experimentEpoch == experimentEpoch &&
           other.paywallVersion == paywallVersion &&
           other.paywallPublishedVersion == paywallPublishedVersion;
 
@@ -113,6 +121,7 @@ class ResolvedVariant {
         paywallId,
         variantId,
         experimentId,
+        experimentEpoch,
         paywallVersion,
         paywallPublishedVersion,
       );

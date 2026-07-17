@@ -268,8 +268,15 @@ class _SeqFlowResolver implements VariantResolver, FlowCapableVariantResolver {
 /// so the flow-hosted lifecycle attributes the experiment on `PaywallViewed`.
 class _AttributedFlowResolver
     implements VariantResolver, FlowCapableVariantResolver {
-  _AttributedFlowResolver({this.experimentId, this.publishedVersion});
+  _AttributedFlowResolver({
+    this.experimentId,
+    this.variantId,
+    this.experimentEpoch,
+    this.publishedVersion,
+  });
   final String? experimentId;
+  final String? variantId;
+  final int? experimentEpoch;
   final int? publishedVersion;
 
   @override
@@ -291,6 +298,8 @@ class _AttributedFlowResolver
         paywallId: id,
         paywallPublishedVersion: publishedVersion,
         experimentId: experimentId,
+        variantId: variantId,
+        experimentEpoch: experimentEpoch,
       );
 }
 
@@ -477,7 +486,11 @@ void main() {
         body: RestagePaywall(
           id: 'pro_upgrade',
           resolver: _AttributedFlowResolver(
-              publishedVersion: 9, experimentId: 'exp_x'),
+            publishedVersion: 9,
+            experimentId: 'exp_x',
+            variantId: 'variant_a',
+            experimentEpoch: 3,
+          ),
           onEvent: received.add,
         ),
       ),
@@ -514,6 +527,8 @@ void main() {
           id: 'pro_upgrade',
           resolver: _AttributedFlowResolver(
             experimentId: 'exp_arm_A',
+            variantId: 'variant_a',
+            experimentEpoch: 3,
             publishedVersion: 7,
           ),
           onEvent: received.add,
@@ -526,6 +541,8 @@ void main() {
     expect(viewed, isNotEmpty,
         reason: 'a flow paywall must fire PaywallViewed');
     expect(viewed.first.experimentId, 'exp_arm_A');
+    expect(viewed.first.variantId, 'variant_a');
+    expect(viewed.first.experimentEpoch, 3);
   });
 
   testWidgets(

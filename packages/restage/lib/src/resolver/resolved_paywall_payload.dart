@@ -35,6 +35,7 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
     this.paywallPublishedVersion,
     this.experimentId,
     this.variantId,
+    this.experimentEpoch,
     this.resolvedFromActiveArm = false,
   });
 
@@ -55,6 +56,10 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
   /// as [experimentId]; threaded onto `PaywallViewed` for A/B attribution parity
   /// with the blob active path.
   final String? variantId;
+
+  /// Server-selected experiment epoch, when the served artifact is an
+  /// experiment arm (null for a bundled/custom resolution).
+  final int? experimentEpoch;
 
   /// Whether this payload was resolved from the hosted active arm (vs a bundled
   /// or custom resolution). The runtime `cacheLastRender` fallback must not

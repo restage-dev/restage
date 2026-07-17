@@ -427,6 +427,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         cacheHit: variant.cacheHit,
         variantId: variant.variantId,
         experimentId: variant.experimentId,
+        experimentEpoch: variant.experimentEpoch,
       );
     } on RestagePaywallError catch (e) {
       // A failed refresh keeps the current render and stays silent.
@@ -743,20 +744,22 @@ class _RestagePaywallState extends State<RestagePaywall> {
       fromCache || payload.flow.cacheHit,
       experimentId: payload.experimentId,
       variantId: payload.variantId,
+      experimentEpoch: payload.experimentEpoch,
     );
   }
 
   /// Announces the paywall-shaped load lifecycle for a flow-hosted paywall
   /// exactly once: `PaywallLoadCompleted` now + `PaywallViewed` after the first
   /// frame. Mirrors [_applyDecodedLibrary]'s blob lifecycle, keyed on paywallId.
-  /// [experimentId] / [variantId] are the server-selected experiment arm for a
-  /// hosted active flow (null for a bundled/custom resolution) — threaded onto
-  /// `PaywallViewed` at parity with the blob active path.
+  /// [experimentId], [variantId], and [experimentEpoch] are the server-selected
+  /// experiment assignment for a hosted active flow (null for a bundled/custom
+  /// resolution) — threaded onto `PaywallViewed` at parity with the blob path.
   void _announceFlowLoaded(
     Duration loadDuration,
     bool cacheHit, {
     String? experimentId,
     String? variantId,
+    int? experimentEpoch,
   }) {
     if (_flowLoadAnnounced || !mounted) return;
     _flowLoadAnnounced = true;
@@ -765,14 +768,22 @@ class _RestagePaywallState extends State<RestagePaywall> {
       loadDuration: loadDuration,
       cacheHit: cacheHit,
     ));
-    _schedulePaywallViewed(experimentId: experimentId, variantId: variantId);
+    _schedulePaywallViewed(
+      experimentId: experimentId,
+      variantId: variantId,
+      experimentEpoch: experimentEpoch,
+    );
   }
 
   /// Fires `PaywallViewed` exactly once in a post-frame callback after the first
   /// render. Shared by the blob lifecycle ([_applyDecodedLibrary]) and the
-  /// flow-hosted lifecycle ([_announceFlowLoaded]); the flow path carries no
-  /// A/B identifiers, so [variantId] / [experimentId] default to null there.
-  void _schedulePaywallViewed({String? variantId, String? experimentId}) {
+  /// flow-hosted lifecycle ([_announceFlowLoaded]); assignment fields default
+  /// to null for resolutions that are not part of an experiment.
+  void _schedulePaywallViewed({
+    String? variantId,
+    String? experimentId,
+    int? experimentEpoch,
+  }) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _viewedFired) return;
       _viewedFired = true;
@@ -782,6 +793,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
             Restage.configuredProducts.map((p) => p.id).toList(growable: false),
         variantId: variantId,
         experimentId: experimentId,
+        experimentEpoch: experimentEpoch,
         publishedVersion: _resolvedPaywallPublishedVersion,
       ));
     });
@@ -840,6 +852,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required bool cacheHit,
     String? variantId,
     String? experimentId,
+    int? experimentEpoch,
   }) {
     _runtime.update(_paywallLibrary, library);
     populateProductData(
@@ -877,7 +890,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // publishedVersion). On the initial load and cache-fallback paths the guard
     // is already false, so this reset is a no-op there.
     _viewedFired = false;
-    _schedulePaywallViewed(variantId: variantId, experimentId: experimentId);
+    _schedulePaywallViewed(
+      variantId: variantId,
+      experimentId: experimentId,
+      experimentEpoch: experimentEpoch,
+    );
   }
 
   /// Attempt to render from the SDK-internal cache. Returns `true` if a cached
@@ -926,6 +943,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
             cacheHit: true,
             variantId: variant.variantId,
             experimentId: variant.experimentId,
+            experimentEpoch: variant.experimentEpoch,
           );
           return true;
         } catch (e, st) {

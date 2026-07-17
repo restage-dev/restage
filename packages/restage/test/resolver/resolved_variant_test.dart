@@ -10,6 +10,7 @@ void main() {
       paywallId: 'pro_upgrade',
       variantId: 'variant-a',
       experimentId: 'exp1',
+      experimentEpoch: 3,
       paywallVersion: '0.0.1',
       paywallPublishedVersion: 7,
       cacheHit: false,
@@ -17,6 +18,8 @@ void main() {
     expect(v.bytes.length, 3);
     expect(v.paywallId, 'pro_upgrade');
     expect(v.variantId, 'variant-a');
+    expect(v.experimentId, 'exp1');
+    expect(v.experimentEpoch, 3);
     expect(v.paywallPublishedVersion, 7);
     expect(v.cacheHit, isFalse);
   });
@@ -27,6 +30,7 @@ void main() {
       String paywallId = 'pro_upgrade',
       String? variantId = 'variant-a',
       String? experimentId = 'exp1',
+      int? experimentEpoch = 3,
       String? paywallVersion = '0.0.1',
       int? paywallPublishedVersion = 7,
       bool cacheHit = false,
@@ -36,6 +40,7 @@ void main() {
           paywallId: paywallId,
           variantId: variantId,
           experimentId: experimentId,
+          experimentEpoch: experimentEpoch,
           paywallVersion: paywallVersion,
           paywallPublishedVersion: paywallPublishedVersion,
           cacheHit: cacheHit,
@@ -56,6 +61,10 @@ void main() {
       expect(make(paywallId: 'a'), isNot(equals(make(paywallId: 'b'))));
       expect(make(variantId: 'a'), isNot(equals(make(variantId: 'b'))));
       expect(make(experimentId: 'a'), isNot(equals(make(experimentId: 'b'))));
+      expect(
+        make(experimentEpoch: 3),
+        isNot(equals(make(experimentEpoch: 4))),
+      );
       expect(
         make(paywallVersion: '1'),
         isNot(equals(make(paywallVersion: '2'))),
@@ -92,6 +101,7 @@ void main() {
       paywallId: 'pro_upgrade',
       variantId: 'variant-a',
       experimentId: 'exp1',
+      experimentEpoch: 3,
       paywallVersion: '0.0.1',
       paywallPublishedVersion: 7,
       cacheHit: false,
@@ -103,6 +113,7 @@ void main() {
       expect(copy.paywallId, 'pro_upgrade');
       expect(copy.variantId, 'variant-a');
       expect(copy.experimentId, 'exp1');
+      expect(copy.experimentEpoch, 3);
       expect(copy.paywallVersion, '0.0.1');
       expect(copy.paywallPublishedVersion, 7);
       expect(copy.cacheHit, isFalse);
@@ -116,6 +127,7 @@ void main() {
       expect(hit.paywallId, 'pro_upgrade');
       expect(hit.variantId, 'variant-a');
       expect(hit.experimentId, 'exp1');
+      expect(hit.experimentEpoch, 3);
       expect(hit.paywallVersion, '0.0.1');
       expect(hit.paywallPublishedVersion, 7);
     });
@@ -124,6 +136,7 @@ void main() {
       expect(full.copyWith(paywallId: 'other').paywallId, 'other');
       expect(full.copyWith(variantId: 'v2').variantId, 'v2');
       expect(full.copyWith(experimentId: 'e2').experimentId, 'e2');
+      expect(full.copyWith(experimentEpoch: 4).experimentEpoch, 4);
       expect(full.copyWith(paywallVersion: '9').paywallVersion, '9');
       expect(
         full.copyWith(paywallPublishedVersion: 42).paywallPublishedVersion,

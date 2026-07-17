@@ -6,10 +6,16 @@ import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart';
 
 class _StaticResolver implements VariantResolver {
-  _StaticResolver(this.bytes, {this.experimentId, this.variantId});
+  _StaticResolver(
+    this.bytes, {
+    this.experimentId,
+    this.variantId,
+    this.experimentEpoch,
+  });
   final Uint8List bytes;
   final String? experimentId;
   final String? variantId;
+  final int? experimentEpoch;
 
   @override
   Future<ResolvedVariant> resolve(
@@ -22,6 +28,7 @@ class _StaticResolver implements VariantResolver {
         paywallId: id,
         experimentId: experimentId,
         variantId: variantId,
+        experimentEpoch: experimentEpoch,
       );
 }
 
@@ -67,6 +74,7 @@ void main() {
             bytes,
             experimentId: 'exp_paywall_copy',
             variantId: 'variant_a',
+            experimentEpoch: 3,
           ),
           onEvent: received.add,
         ),
@@ -85,5 +93,6 @@ void main() {
     final viewed = received.whereType<PaywallViewed>().single;
     expect(viewed.experimentId, 'exp_paywall_copy');
     expect(viewed.variantId, 'variant_a');
+    expect(viewed.experimentEpoch, 3);
   });
 }

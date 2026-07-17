@@ -47,6 +47,7 @@ void main() {
           envelope,
           experimentId: 'exp_paywall_copy',
           variantId: 'variant_a',
+          experimentEpoch: 3,
           onRequest: requests.add,
         ),
       );
@@ -70,6 +71,7 @@ void main() {
       expect(variant.paywallId, 'pro_upgrade');
       expect(variant.experimentId, 'exp_paywall_copy');
       expect(variant.variantId, 'variant_a');
+      expect(variant.experimentEpoch, 3);
       expect(variant.paywallPublishedVersion, 5);
       expect(variant.cacheHit, isFalse);
     });
@@ -332,6 +334,7 @@ void main() {
               envelope,
               experimentId: 'exp_paywall_copy',
               variantId: 'variant_a',
+              experimentEpoch: 3,
             ),
             200,
           ),
@@ -343,6 +346,7 @@ void main() {
       expect(first.cacheHit, isFalse);
       expect(first.experimentId, 'exp_paywall_copy');
       expect(first.variantId, 'variant_a');
+      expect(first.experimentEpoch, 3);
       expect(first.paywallPublishedVersion, 5);
 
       final second = await resolver.resolve('pro_upgrade');
@@ -351,6 +355,7 @@ void main() {
       expect(second.bytes, blob);
       expect(second.experimentId, 'exp_paywall_copy');
       expect(second.variantId, 'variant_a');
+      expect(second.experimentEpoch, 3);
       expect(second.paywallPublishedVersion, 5);
     });
 
@@ -479,6 +484,7 @@ void main() {
               envelope,
               experimentId: 'exp_paywall_copy',
               variantId: 'variant_a',
+              experimentEpoch: 3,
             ),
             200,
           ),
@@ -492,12 +498,14 @@ void main() {
       expect((first as BlobPaywallPayload).variant.cacheHit, isFalse);
       expect(first.variant.experimentId, 'exp_paywall_copy');
       expect(first.variant.variantId, 'variant_a');
+      expect(first.variant.experimentEpoch, 3);
       expect(second, isA<BlobPaywallPayload>());
       final secondBlob = second as BlobPaywallPayload;
       expect(secondBlob.variant.cacheHit, isTrue);
       expect(secondBlob.variant.bytes, blob);
       expect(secondBlob.variant.experimentId, 'exp_paywall_copy');
       expect(secondBlob.variant.variantId, 'variant_a');
+      expect(secondBlob.variant.experimentEpoch, 3);
       expect(secondBlob.variant.paywallPublishedVersion, 5);
     });
 
@@ -588,6 +596,7 @@ void main() {
           _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
           experimentId: 'exp_flow',
           variantId: 'variant_a',
+          experimentEpoch: 3,
         ),
         assetFallback: AssetVariantResolver(bundle: bundle),
       );
@@ -600,6 +609,7 @@ void main() {
           flow.paywallPublishedVersion, 9); // the SERVED version, not bundled
       expect(flow.experimentId, 'exp_flow');
       expect(flow.variantId, 'variant_a');
+      expect(flow.experimentEpoch, 3);
       expect(flow.resolvedFromActiveArm, isTrue);
       expect(
           flow.flow.screenBlobs['welcome'], hostedScreen); // the HOSTED screen
@@ -625,6 +635,7 @@ void main() {
               _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
               experimentId: 'exp_flow',
               variantId: 'variant_a',
+              experimentEpoch: 3,
             ),
             200,
           ),
@@ -639,12 +650,14 @@ void main() {
       // First: the fresh hosted active flow.
       expect((first as FlowPaywallPayload).paywallPublishedVersion, 9);
       expect(first.variantId, 'variant_a');
+      expect(first.experimentEpoch, 3);
       // Second (fetch failed): the held-last-good active flow, re-gated + served
       // as a cache hit (still the served version, not the bundled null).
       expect(second, isA<FlowPaywallPayload>());
       final held = second as FlowPaywallPayload;
       expect(held.paywallPublishedVersion, 9);
       expect(held.variantId, 'variant_a');
+      expect(held.experimentEpoch, 3);
       expect(held.flow.cacheHit, isTrue);
       expect(held.flow.screenBlobs['welcome'], hostedScreen);
     });
@@ -684,6 +697,7 @@ MockClient _server(
   Uint8List envelope, {
   String? experimentId,
   String? variantId,
+  int? experimentEpoch,
   void Function(http.Request request)? onRequest,
 }) {
   return MockClient((request) async {
@@ -693,6 +707,7 @@ MockClient _server(
         envelope,
         experimentId: experimentId,
         variantId: variantId,
+        experimentEpoch: experimentEpoch,
       ),
       200,
     );
@@ -703,11 +718,13 @@ String _surfaceResponseJson(
   Uint8List envelope, {
   String? experimentId,
   String? variantId,
+  int? experimentEpoch,
 }) {
   return jsonEncode({
     'envelope': base64Encode(envelope),
     if (experimentId != null) 'experimentId': experimentId,
     if (variantId != null) 'variantId': variantId,
+    if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
   });
 }
 

@@ -10,6 +10,7 @@ class _SwitchableResolver implements VariantResolver {
   bool throwNext = false;
   String? experimentId;
   String? variantId;
+  int? experimentEpoch;
 
   @override
   Future<ResolvedVariant> resolve(
@@ -25,6 +26,7 @@ class _SwitchableResolver implements VariantResolver {
       paywallId: id,
       experimentId: experimentId,
       variantId: variantId,
+      experimentEpoch: experimentEpoch,
     );
   }
 }
@@ -42,7 +44,8 @@ void main() {
     final resolver = _SwitchableResolver()
       ..next = goodBytes
       ..experimentId = 'exp_paywall_copy'
-      ..variantId = 'variant_a';
+      ..variantId = 'variant_a'
+      ..experimentEpoch = 3;
     final firstEvents = <RestageEvent>[];
     final secondEvents = <RestageEvent>[];
 
@@ -61,6 +64,7 @@ void main() {
     final firstViewed = firstEvents.whereType<PaywallViewed>().single;
     expect(firstViewed.experimentId, 'exp_paywall_copy');
     expect(firstViewed.variantId, 'variant_a');
+    expect(firstViewed.experimentEpoch, 3);
 
     // Force a remount to trigger a second fetch; this time, fail.
     resolver.throwNext = true;
@@ -82,5 +86,6 @@ void main() {
     final secondViewed = secondEvents.whereType<PaywallViewed>().single;
     expect(secondViewed.experimentId, 'exp_paywall_copy');
     expect(secondViewed.variantId, 'variant_a');
+    expect(secondViewed.experimentEpoch, 3);
   });
 }
