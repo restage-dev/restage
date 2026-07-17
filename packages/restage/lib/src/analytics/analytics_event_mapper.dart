@@ -35,6 +35,7 @@ const Set<String> _promotedKeys = <String>{
   'offerId',
   'variantId',
   'experimentId',
+  'experimentEpoch',
   'surfaceVersion',
   'publishedVersion',
 };
@@ -46,10 +47,10 @@ const Set<String> _promotedKeys = <String>{
 /// `surface=onboarding` / `surfaceId=flowId`; otherwise a non-null `paywallId`
 /// ⇒ `surface=paywall`; otherwise the event is app-wide (`surface=null`).
 /// Promoted conversion/cohort dims (`productId`/`offerId`/`variantId`/
-/// `experimentId`) land on typed envelope fields; every other residual field
-/// goes to `properties` **after the reserved-key scrub** (so a custom event can
-/// never smuggle render context). `tier`/`source` are NOT set here — the server
-/// stamps them.
+/// `experimentId`/`experimentEpoch`) land on typed envelope fields; every other
+/// residual field goes to `properties` **after the reserved-key scrub** (so a
+/// custom event can never smuggle render context). `tier`/`source` are NOT set
+/// here — the server stamps them.
 AnalyticsEvent mapRestageEventToEnvelope(
   RestageEvent event, {
   required String eventId,
@@ -105,6 +106,7 @@ AnalyticsEvent mapRestageEventToEnvelope(
     offerId: map['offerId'] as String?,
     variantId: map['variantId'] as String?,
     experimentId: map['experimentId'] as String?,
+    experimentEpoch: map['experimentEpoch'] as int?,
     properties: properties,
   );
 }

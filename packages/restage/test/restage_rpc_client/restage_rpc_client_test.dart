@@ -291,6 +291,7 @@ void main() {
             'envelope': base64Encode([1, 2, 3]),
             'experimentId': 'exp_paywall_copy',
             'variantId': 'variant_a',
+            'experimentEpoch': 3,
           }),
           200,
         );
@@ -310,6 +311,119 @@ void main() {
       expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
       expect(result.experimentId, 'exp_paywall_copy');
       expect(result.variantId, 'variant_a');
+      expect(result.experimentEpoch, 3);
+    });
+
+    test('parses the serve decision when present', () async {
+      final mock = MockClient((req) async {
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode([1, 2, 3]),
+            'decision': 'assigned',
+            'experimentId': 'exp_paywall_copy',
+            'variantId': 'variant_a',
+            'experimentEpoch': 3,
+          }),
+          200,
+        );
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(result!.decision, 'assigned');
+    });
+
+    test('preserves current behaviour when the decision is absent', () async {
+      final mock = MockClient((req) async {
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode([1, 2, 3]),
+          }),
+          200,
+        );
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(result!.decision, isNull);
+      expect(result.envelopeBytes, orderedEquals([1, 2, 3]));
+    });
+
+    test(
+        'degrades gracefully on an UNRECOGNISED decision string: it is '
+        'carried as an opaque value and never throws (forward-compat with a '
+        'newer server)', () async {
+      final mock = MockClient((req) async {
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode([1, 2, 3]),
+            // A value a future server (e.g. a later phase's clientIncompatible)
+            // may emit that this client build does not recognise.
+            'decision': 'someFutureDecisionValue',
+          }),
+          200,
+        );
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      // The surface still resolves (the unknown decision does not fail the
+      // fetch); the value is carried opaquely for the caller to interpret.
+      expect(result, isNotNull);
+      expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(result.decision, 'someFutureDecisionValue');
+    });
+
+    test('ignores a non-string decision without failing the fetch', () async {
+      final mock = MockClient((req) async {
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode([1, 2, 3]),
+            'decision': 42,
+          }),
+          200,
+        );
+      });
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: mock,
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(result!.decision, isNull);
+      expect(result.envelopeBytes, orderedEquals([1, 2, 3]));
     });
 
     test('treats null assignment metadata as no assignment metadata', () async {
@@ -319,6 +433,7 @@ void main() {
             'envelope': base64Encode([1, 2, 3]),
             'experimentId': null,
             'variantId': null,
+            'experimentEpoch': null,
           }),
           200,
         );
@@ -338,6 +453,7 @@ void main() {
       expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
       expect(result.experimentId, isNull);
       expect(result.variantId, isNull);
+      expect(result.experimentEpoch, isNull);
     });
 
     test('fails closed on malformed assignment metadata', () async {
@@ -354,21 +470,42 @@ void main() {
           'envelope': base64Encode([1]),
           'experimentId': '',
           'variantId': 'variant_a',
+          'experimentEpoch': 3,
         },
         {
           'envelope': base64Encode([1]),
           'experimentId': ' exp ',
           'variantId': 'variant_a',
+          'experimentEpoch': 3,
         },
         {
           'envelope': base64Encode([1]),
           'experimentId': 'exp',
           'variantId': 'variant\u0000a',
+          'experimentEpoch': 3,
         },
         {
           'envelope': base64Encode([1]),
           'experimentId': 'exp',
           'variantId': 1,
+          'experimentEpoch': 3,
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': 'exp',
+          'variantId': 'variant_a',
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': 'exp',
+          'variantId': 'variant_a',
+          'experimentEpoch': 0,
+        },
+        {
+          'envelope': base64Encode([1]),
+          'experimentId': 'exp',
+          'variantId': 'variant_a',
+          'experimentEpoch': '3',
         },
       ];
 

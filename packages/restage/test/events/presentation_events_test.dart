@@ -32,14 +32,24 @@ void main() {
     expect(e.toMap()['retryable'], false);
   });
 
-  test('PaywallViewed includes productIds and variantId', () {
+  test('PaywallViewed includes assignment metadata when present', () {
     const e = PaywallViewed(
       paywallId: 'pro_upgrade',
       productIds: ['pro_monthly', 'pro_yearly'],
       variantId: 'variant-b',
+      experimentId: 'exp1',
+      experimentEpoch: 3,
     );
     expect(e.toMap()['productIds'], ['pro_monthly', 'pro_yearly']);
     expect(e.toMap()['variantId'], 'variant-b');
+    expect(e.toMap()['experimentId'], 'exp1');
+    expect(e.toMap()['experimentEpoch'], 3);
+
+    const withoutAssignment = PaywallViewed(
+      paywallId: 'pro_upgrade',
+      productIds: [],
+    );
+    expect(withoutAssignment.toMap().containsKey('experimentEpoch'), isFalse);
   });
 
   test('PaywallViewed carries publishedVersion when set; omits it when null',

@@ -63,6 +63,7 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
   required int activeVersion,
   String? experimentId,
   String? variantId,
+  int? experimentEpoch,
   bool cacheHit = false,
 }) {
   final active = activePayload.flowDocument;
@@ -103,6 +104,7 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
       paywallPublishedVersion: activeVersion,
       experimentId: experimentId,
       variantId: variantId,
+      experimentEpoch: experimentEpoch,
       resolvedFromActiveArm: true,
     ),
   );

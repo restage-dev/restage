@@ -35,6 +35,8 @@ void main() {
         paywallId: 'pw-1',
         productIds: const ['p1'],
         variantId: 'variant-A',
+        experimentId: 'exp-1',
+        experimentEpoch: 3,
         firedAt: firedAt,
       ),
       surfaceSessionId: 'surf-9',
@@ -52,7 +54,11 @@ void main() {
     expect(envelope.occurredAt, firedAt);
     // variantId is a promoted cohort dim → typed envelope field, not properties.
     expect(envelope.variantId, 'variant-A');
+    expect(envelope.experimentId, 'exp-1');
+    expect(envelope.experimentEpoch, 3);
     expect(envelope.properties.containsKey('variantId'), isFalse);
+    expect(envelope.properties.containsKey('experimentId'), isFalse);
+    expect(envelope.properties.containsKey('experimentEpoch'), isFalse);
   });
 
   test('firedAt absent falls back to now', () {

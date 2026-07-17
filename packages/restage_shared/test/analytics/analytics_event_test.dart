@@ -9,7 +9,7 @@ void main() {
   );
   final occurred = DateTime.utc(2026, 6, 13, 12, 30);
 
-  AnalyticsEvent clientEvent() => AnalyticsEvent(
+  AnalyticsEvent clientEvent({int? experimentEpoch}) => AnalyticsEvent(
         eventId: 'e-1',
         name: 'paywall_viewed',
         occurredAt: occurred,
@@ -18,6 +18,7 @@ void main() {
         sessionId: 'sess-1',
         surfaceSessionId: 'surf-1',
         appContext: ctx,
+        experimentEpoch: experimentEpoch,
         properties: const {'plan': 'pro'},
       );
 
@@ -39,15 +40,29 @@ void main() {
       );
       expect(clientEvent().hashCode, clientEvent().hashCode);
     });
+
+    test('experiment epoch participates in equality and hashCode', () {
+      final first = clientEvent(experimentEpoch: 3);
+      final second = clientEvent(experimentEpoch: 4);
+
+      expect(first, isNot(equals(second)));
+      expect(first.hashCode, isNot(second.hashCode));
+    });
   });
 
   group('toJson/fromJson', () {
     test('client event round-trips', () {
-      final json = clientEvent().toJson();
+      final event = clientEvent(experimentEpoch: 3);
+      final json = event.toJson();
+      expect(json['experimentEpoch'], 3);
       expect(
         AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
-        clientEvent(),
+        event,
       );
+    });
+
+    test('experiment epoch is omitted when absent', () {
+      expect(clientEvent().toJson().containsKey('experimentEpoch'), isFalse);
     });
 
     test('schemaVersion defaults to 1 and survives the round-trip', () {
@@ -238,6 +253,14 @@ void main() {
 
     test('schemaVersion present but not an int → FormatException', () {
       final json = base()..['schemaVersion'] = 'one';
+      expect(
+        () => AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
+        throwsFormatException,
+      );
+    });
+
+    test('experimentEpoch present but not an int → FormatException', () {
+      final json = base()..['experimentEpoch'] = 'three';
       expect(
         () => AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
         throwsFormatException,
