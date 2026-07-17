@@ -150,6 +150,21 @@ app: my-app
     });
   });
 
+  group('examples smoke config', () {
+    test('uses public example slugs and no baked endpoint', () async {
+      final examples = _locateExamplesApp();
+      final configFile = File(p.join(examples.path, 'restage_config.yaml'));
+
+      expect(configFile.existsSync(), isTrue);
+      final config = RestageConfig.fromYaml(await configFile.readAsString());
+
+      expect(config.project, 'examples');
+      expect(config.app, 'examples');
+      expect(config.defaultEnvironment, 'dev');
+      expect(config.endpoint, isNull);
+    });
+  });
+
   group('resolveApiEndpoint', () {
     test('uses the credential endpoint when no config is loaded', () {
       final endpoint = resolveApiEndpoint(
@@ -256,3 +271,19 @@ Credential _credential({required String endpoint}) => Credential(
   kind: CredentialKind.authKey,
   authToken: 'kid:secret',
 );
+
+Directory _locateExamplesApp() {
+  var dir = Directory.current;
+  for (var i = 0; i < 8; i++) {
+    final candidate = Directory(p.join(dir.path, 'apps', 'examples'));
+    if (File(
+      p.join(candidate.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
+    ).existsSync()) {
+      return candidate;
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  throw StateError('Could not locate apps/examples from ${Directory.current}');
+}

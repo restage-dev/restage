@@ -10,6 +10,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_payload.dart';
+import 'package:restage_cli/src/commands/upload_catalog_if_present.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -112,9 +113,9 @@ class PaywallPublishCommand extends Command<int> {
       return 1;
     }
 
-    final loaded = await loadRestageConfig(
-      from: Directory(argResults?['directory'] as String? ?? '.'),
-    );
+    final directory = Directory(argResults?['directory'] as String? ?? '.');
+    final loaded = await loadRestageConfig(from: directory);
+    final projectRoot = loaded?.source.parent ?? directory.absolute;
     final project =
         (argResults?['project'] as String?) ?? loaded?.config.project;
     final app = (argResults?['app'] as String?) ?? loaded?.config.app;
@@ -151,10 +152,7 @@ class PaywallPublishCommand extends Command<int> {
     try {
       resolved = await resolvePaywallPublishBytes(
         slug: paywallName,
-        assetsRoot: p.join(
-          (loaded?.source.parent ?? Directory.current).path,
-          'assets',
-        ),
+        assetsRoot: p.join(projectRoot.path, 'assets'),
         pathOverride: argResults?['path'] as String?,
       );
     } on SurfacePayloadException catch (e) {
@@ -175,6 +173,7 @@ class PaywallPublishCommand extends Command<int> {
       app: app,
       environment: environment,
       bytes: resolved.bytes,
+      projectRoot: projectRoot,
     );
   }
 
@@ -193,6 +192,7 @@ class PaywallPublishCommand extends Command<int> {
     required String app,
     required String environment,
     required Uint8List bytes,
+    required Directory projectRoot,
   }) async {
     final RestageApi api;
     try {
@@ -239,6 +239,14 @@ class PaywallPublishCommand extends Command<int> {
         );
         _stdout.writeln(
           'Published $paywall to $environment as version $version.',
+        );
+        await uploadCatalogIfPresent(
+          api: api,
+          project: project,
+          app: app,
+          organizationId: configuredOrganization.organizationId,
+          projectRoot: projectRoot,
+          stderr: _stderr,
         );
         return 0;
       } on RestageApiException catch (e) {

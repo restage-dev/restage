@@ -40,6 +40,14 @@ void main() {
     }
   });
 
+  Future<void> seedCatalog(String catalogJson) async {
+    final file = File(
+      p.join(tempDir.path, 'lib', 'src', 'widget_catalog', 'catalog.json'),
+    );
+    await file.parent.create(recursive: true);
+    await file.writeAsString(catalogJson);
+  }
+
   group('restage paywall publish', () {
     test('missing positional name exits 1 with a usage hint', () async {
       await seedCredential(store);
@@ -291,7 +299,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
 
       late Map<String, dynamic> publishBody;
       final client = scriptedHttpClient([
@@ -330,7 +338,7 @@ void main() {
         'demo',
         'mobile',
       ); // no defaultEnvironment
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
 
       final exitCode =
           await RestageCli(
@@ -453,6 +461,111 @@ void main() {
       expect(err, contains('draft is on the server'));
       expect(err, contains('re-uploads'));
       expect(err, contains('restage paywall publish'));
+    });
+
+    test(
+      'uploads the widget catalog after a successful publish when present',
+      () async {
+        await seedCredential(store);
+        await seedRestageConfig(
+          tempDir,
+          'demo',
+          'mobile',
+          defaultEnvironment: 'dev',
+        );
+        await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
+        const catalogJson = '{"schemaVersion":1,"widgets":[]}';
+        await seedCatalog(catalogJson);
+
+        var catalogCalls = 0;
+        final client = scriptedHttpClient([
+          (req) => http.Response('null', 200),
+          (req) => http.Response('2', 200),
+          (req) {
+            catalogCalls++;
+            final body = jsonDecode(req.body) as Map<String, dynamic>;
+            expect(body['method'], 'push');
+            expect(body['projectSlug'], 'demo');
+            expect(body['appSlug'], 'mobile');
+            expect(body['catalogJson'], catalogJson);
+            return http.Response('8', 200);
+          },
+        ]);
+
+        final exitCode = await RestageCli(
+          stdout: stdout,
+          stderr: stderr,
+          credentialStore: store,
+          httpClient: client,
+        ).run(['paywall', 'publish', 'hello', '-C', tempDir.path]);
+
+        expect(exitCode, 0);
+        expect(catalogCalls, 1);
+        expect(stdout.toString(), contains('Published hello'));
+        expect(stderr.toString(), isEmpty);
+      },
+    );
+
+    test('skips the widget catalog silently when it is absent', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+      );
+      await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
+
+      final client = scriptedHttpClient([
+        (req) => http.Response('null', 200),
+        (req) => http.Response('2', 200),
+      ]);
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run(['paywall', 'publish', 'hello', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(stdout.toString(), contains('Published hello'));
+      expect(stderr.toString(), isEmpty);
+    });
+
+    test('catalog push failure warns but does not fail the publish', () async {
+      await seedCredential(store);
+      await seedRestageConfig(
+        tempDir,
+        'demo',
+        'mobile',
+        defaultEnvironment: 'dev',
+      );
+      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedCatalog('{"schemaVersion":1,"widgets":[]}');
+
+      var catalogCalls = 0;
+      final client = scriptedHttpClient([
+        (req) => http.Response('null', 200),
+        (req) => http.Response('2', 200),
+        (req) {
+          catalogCalls++;
+          return http.Response('temporary error', 500);
+        },
+      ]);
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: client,
+      ).run(['paywall', 'publish', 'hello', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(catalogCalls, 1);
+      expect(stdout.toString(), contains('Published hello'));
+      expect(stderr.toString().toLowerCase(), contains('warning'));
+      expect(stderr.toString().toLowerCase(), contains('widget catalog'));
     });
 
     test('surfaces PaywallNotFound on the publish call', () async {
