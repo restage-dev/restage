@@ -54,17 +54,30 @@ sealed class A2uiSchemaNode {
 @immutable
 final class ScalarNode extends A2uiSchemaNode {
   /// Creates a scalar node of [type].
-  const ScalarNode(this.type, {super.nullable});
+  const ScalarNode(
+    this.type, {
+    this.preserveNumericRuntimeType = false,
+    super.nullable,
+  });
 
   /// The JSON primitive category.
   final A2uiScalarType type;
 
-  @override
-  bool operator ==(Object other) =>
-      other is ScalarNode && other.type == type && other.nullable == nullable;
+  /// Whether a Dart `num` preserves delivered `int` versus `double` values.
+  ///
+  /// This affects Dart reconstruction only. Both `num` and `double` continue
+  /// to project to the JSON Schema `number` family.
+  final bool preserveNumericRuntimeType;
 
   @override
-  int get hashCode => Object.hash(type, nullable);
+  bool operator ==(Object other) =>
+      other is ScalarNode &&
+      other.type == type &&
+      other.preserveNumericRuntimeType == preserveNumericRuntimeType &&
+      other.nullable == nullable;
+
+  @override
+  int get hashCode => Object.hash(type, preserveNumericRuntimeType, nullable);
 }
 
 /// A closed set of string-valued members, resolved from a Dart enum.

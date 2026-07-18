@@ -29,7 +29,11 @@ void main() {
     expect(
       names,
       equals(<String>{
-        'CtaButton', 'ProductCard', 'RatingPicker', // acme.widgets
+        'CtaButton',
+        'IntegerListPicker',
+        'ProductCard',
+        'RatingPicker',
+        'ScalarListPanel', // acme.widgets
         'SectionHeader', 'Callout', 'ComparisonPanel', 'QuizCheck', // lessons
       }),
     );
@@ -45,7 +49,7 @@ void main() {
               as List))
         (l as Map)['namespace'] as String: l['version'],
     };
-    expect(libs, containsPair('acme.widgets', 2));
+    expect(libs, containsPair('acme.widgets', 3));
     expect(libs, containsPair('acme.lessons', 1));
     final components = ((stamp['a2uiCatalog'] as Map)['components'] as Map).keys
         .toSet();
@@ -55,8 +59,10 @@ void main() {
       components,
       equals(<String>{
         'CtaButton',
+        'IntegerListPicker',
         'ProductCard',
         'RatingPicker',
+        'ScalarListPanel',
         'SectionHeader',
         'Callout',
         'ComparisonPanel',

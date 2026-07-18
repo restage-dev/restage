@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -77,7 +79,7 @@ void main() {
       expect(source, contains("value: data['height'],"));
       expect(source, contains('builder: (context, height) => BoundString('));
       expect(source, contains("value: data['title'],"));
-      expect(source, contains('builder: (context, title) => BoundList('));
+      expect(source, contains('builder: (context, title) => BoundObject('));
       expect(source, contains("value: data['tags'],"));
       expect(source, contains('enabled: enabled ?? false,'));
       expect(source, contains('count: (count ?? 0).toInt(),'));
@@ -86,7 +88,7 @@ void main() {
       expect(source, contains("title: title ?? '',"));
       expect(
         source,
-        contains('tags: (tags ?? const <Object?>[])'),
+        contains('tags: ((tags is List ? tags.cast<Object?>() : null) ??'),
       );
       expect(
         source,
@@ -95,6 +97,279 @@ void main() {
       expect(
         source,
         contains('.toList(growable: false),'),
+      );
+    });
+
+    test('analyzer-fed scalar lists stay reactive and construct type-safely',
+        () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'ScalarLists',
+          properties: [
+            a2uiProp('labels', PropertyType.structured, required: true),
+            a2uiProp('counts', PropertyType.structured, required: true),
+            a2uiProp('weights', PropertyType.structured, required: true),
+            a2uiProp('measurements', PropertyType.structured, required: true),
+            a2uiProp('flags', PropertyType.structured, required: true),
+            a2uiProp('maybeCounts', PropertyType.structured),
+            a2uiProp('defaultCounts', PropertyType.structured),
+            a2uiProp(
+              'fallbackLabels',
+              PropertyType.structured,
+              required: true,
+              literalDefault: ['a', "b's"],
+            ),
+            a2uiProp(
+              'fallbackFlags',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [true, false],
+            ),
+            a2uiProp(
+              'fallbackCounts',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [1, 2],
+            ),
+            a2uiProp(
+              'fallbackWeights',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [1.5, 2.0],
+            ),
+            a2uiProp(
+              'fallbackMeasurements',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [1, 2.5],
+            ),
+            a2uiProp(
+              'fallbackMaybeCounts',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [1, null, 2],
+            ),
+            a2uiProp(
+              'fallbackNullableList',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [3],
+            ),
+          ],
+        ),
+      ]);
+      const richShapes = <(String, String), A2uiSchemaNode>{
+        ('ScalarLists', 'labels'):
+            ListNode(element: ScalarNode(A2uiScalarType.string)),
+        ('ScalarLists', 'counts'):
+            ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        ('ScalarLists', 'weights'):
+            ListNode(element: ScalarNode(A2uiScalarType.number)),
+        ('ScalarLists', 'measurements'): ListNode(
+          element: ScalarNode(
+            A2uiScalarType.number,
+            preserveNumericRuntimeType: true,
+          ),
+        ),
+        ('ScalarLists', 'flags'):
+            ListNode(element: ScalarNode(A2uiScalarType.boolean)),
+        ('ScalarLists', 'maybeCounts'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer),
+          nullable: true,
+        ),
+        ('ScalarLists', 'defaultCounts'):
+            ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        ('ScalarLists', 'fallbackLabels'):
+            ListNode(element: ScalarNode(A2uiScalarType.string)),
+        ('ScalarLists', 'fallbackFlags'):
+            ListNode(element: ScalarNode(A2uiScalarType.boolean)),
+        ('ScalarLists', 'fallbackCounts'):
+            ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        ('ScalarLists', 'fallbackWeights'):
+            ListNode(element: ScalarNode(A2uiScalarType.number)),
+        ('ScalarLists', 'fallbackMeasurements'): ListNode(
+          element: ScalarNode(
+            A2uiScalarType.number,
+            preserveNumericRuntimeType: true,
+          ),
+        ),
+        ('ScalarLists', 'fallbackMaybeCounts'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer, nullable: true),
+        ),
+        ('ScalarLists', 'fallbackNullableList'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer),
+          nullable: true,
+        ),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: richShapes);
+      final compactSource = source.replaceAll(RegExp(r'\s+'), ' ');
+
+      expect('BoundObject('.allMatches(source), hasLength(13));
+      expect(source, contains("value: data['labels']"));
+      expect(source, contains("value: data['counts']"));
+      expect(source, contains("value: data['weights']"));
+      expect(source, contains("value: data['measurements']"));
+      expect(source, contains("value: data['flags']"));
+      expect(source, isNot(contains("value: data['defaultCounts']")));
+      expect(source, isNot(contains('defaultCounts:')));
+      expect(source, contains('.whereType<String>()'));
+      expect(source, contains('.whereType<bool>()'));
+      expect(compactSource, contains('value is num ? value.toInt() : null'));
+      expect(compactSource, contains('value is num ? value.toDouble() : null'));
+      expect(compactSource, contains('value is num ? value : null'));
+      expect(source, contains('.whereType<num>()'));
+      expect(source, contains('?.map((value)'));
+      expect(
+        compactSource,
+        contains(
+          'fallbackLabels is List ? '
+          'fallbackLabels.cast<Object?>() : null',
+        ),
+      );
+      expect(
+        compactSource,
+        contains(r"const <String>['a', 'b\'s']"),
+      );
+      expect(
+        compactSource,
+        contains('const <bool>[true, false]'),
+      );
+      expect(
+        compactSource,
+        contains('const <int>[1, 2]'),
+      );
+      expect(
+        compactSource,
+        contains('const <double>[1.5, 2.0]'),
+      );
+      expect(
+        compactSource,
+        contains('const <num>[1, 2.5]'),
+      );
+      expect(
+        compactSource,
+        contains('const <int?>[1, null, 2]'),
+      );
+      expect(compactSource, contains('const <int>[3]'));
+      expect(
+        compactSource,
+        contains('counts is List ? counts.cast<Object?>() : null'),
+      );
+      expect(
+        compactSource,
+        contains('maybeCounts is List ? maybeCounts.cast<Object?>() : null'),
+      );
+
+      expect('S.combined(oneOf:'.allMatches(source), hasLength(13));
+      expect(source, contains("'path': S.string()"));
+      expect(source, contains("'call': S.string("));
+      expect(source, contains('additionalProperties: true'));
+      expect(
+        compactSource,
+        contains(
+          "'maybeCounts': S.combined(oneOf: [ S.combined(anyOf: "
+          '[S.list(items: S.integer()), S.nil()])',
+        ),
+      );
+
+      final stamp = emitA2uiCatalog(catalog, richShapes: richShapes).toJson();
+      final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
+      final components = a2uiCatalog['components']! as Map<String, Object?>;
+      final scalarLists = components['ScalarLists']! as Map<String, Object?>;
+      final properties = scalarLists['properties']! as Map<String, Object?>;
+
+      final labels = properties['labels']! as Map<String, Object?>;
+      final labelAlternatives = labels['oneOf']! as List<Object?>;
+      expect(labelAlternatives, hasLength(3));
+      expect(labelAlternatives[0], {
+        'type': 'array',
+        'items': {'type': 'string'},
+      });
+      expect(labelAlternatives[1], {
+        'type': 'object',
+        'properties': {
+          'path': {'type': 'string'},
+        },
+        'required': ['path'],
+      });
+      expect(labelAlternatives[2], {
+        'type': 'object',
+        'properties': {
+          'call': {'type': 'string'},
+          'args': {'type': 'object', 'additionalProperties': true},
+        },
+        'required': ['call'],
+      });
+
+      final maybeCounts = properties['maybeCounts']! as Map<String, Object?>;
+      final maybeAlternatives = maybeCounts['oneOf']! as List<Object?>;
+      expect(maybeAlternatives[0], {
+        'anyOf': [
+          {
+            'type': 'array',
+            'items': {'type': 'integer'},
+          },
+          {'type': 'null'},
+        ],
+      });
+    });
+
+    test('invalid scalar-list literal defaults fail generation loudly', () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'InvalidDefault',
+          properties: [
+            a2uiProp(
+              'counts',
+              PropertyType.structured,
+              required: true,
+              literalDefault: [1.5],
+            ),
+          ],
+        ),
+      ]);
+
+      expect(
+        () => emitA2uiCatalogDart(
+          catalog,
+          richShapes: const {
+            ('InvalidDefault', 'counts'):
+                ListNode(element: ScalarNode(A2uiScalarType.integer)),
+          },
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('counts'), contains('index 0'), contains('int')),
+          ),
+        ),
+      );
+    });
+
+    test('catalog-fed booleanList remains outside the A2UI leaf vocabulary',
+        () {
+      final plan = classifyA2uiCatalogDart(
+        catalogWith([
+          a2uiEntry(
+            name: 'BooleanSelections',
+            properties: [
+              a2uiProp(
+                'selected',
+                PropertyType.booleanList,
+                required: true,
+              ),
+            ],
+          ),
+        ]),
+      );
+
+      expect(plan.widgets, isEmpty);
+      expect(plan.coverage.droppedWidgets, hasLength(1));
+      expect(
+        plan.coverage.droppedWidgets.single.reason,
+        A2uiDartCoverageReason.requiredUnsupportedPropertyType,
       );
     });
 

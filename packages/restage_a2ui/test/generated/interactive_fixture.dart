@@ -86,6 +86,19 @@ class MultiSelectFixture extends StatelessWidget {
   }
 }
 
+/// A list-valued callback whose reflected signature carries both levels of
+/// nullability and preserves Dart `num` runtime values.
+class NullableNumListFixture {
+  /// Creates a fixture with [values] and its matching [onChanged] callback.
+  const NullableNumListFixture({required this.values, required this.onChanged});
+
+  /// The nullable list value, including nullable elements.
+  final List<num?>? values;
+
+  /// Reports the complete nullable list value.
+  final ValueChanged<List<num?>?> onChanged;
+}
+
 /// An action button — the dispatch shape.
 ///
 /// A `String label` value + a `VoidCallback onPressed` that dispatches an

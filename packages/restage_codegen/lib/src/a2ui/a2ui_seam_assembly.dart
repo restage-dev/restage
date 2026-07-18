@@ -34,7 +34,8 @@ typedef A2uiSeams = ({
 ///    field's `@RestageProperty(writeBackValue:)` annotation into the PAIRING
 ///    seam when present (auto-pair / dispatch callbacks carry none);
 ///  * a `structured` property reflects its constructor parameter into the
-///    RICH-SHAPE seam;
+///    analyzer-fed shape seam. This includes A2UI-targeted direct scalar lists,
+///    which use `structured` only as a target-local carrier;
 ///  * every other property type (scalar / enum / list / widget / theme value
 ///    props) is carried by the catalog property type itself — no analyzer-fed
 ///    seam.
@@ -80,7 +81,7 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
           }
         }
       } else {
-        // A structured property is reflected into the RICH-SHAPE seam.
+        // A structured property is reflected into the analyzer-fed shape seam.
         // Exhaustive over the reflector result so a non-Resolved shape can
         // NEVER be silently dropped — the governing fail-closed-LOUD invariant
         // carried into the seam. A scoped-out shape (a data class with an

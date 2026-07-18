@@ -134,6 +134,120 @@ void main() {
       expect(result.widgets.single.properties, isEmpty);
     });
 
+    test('A2UI mode admits every reflected scalar-list family', () async {
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/scalar_lists.dart': '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+            @RestageWidget(
+              name: 'ScalarLists',
+              library: WidgetLibrary.custom('acme.design_system'),
+              category: WidgetCategory.layout,
+              description: 'Scalar list proof.',
+            )
+            class ScalarLists {
+              const ScalarLists({
+                required this.labels,
+                required this.counts,
+                required this.weights,
+                required this.measurements,
+                required this.flags,
+                this.maybeCounts,
+              });
+
+              @RestageProperty(description: 'Labels.')
+              final List<String> labels;
+              @RestageProperty(description: 'Counts.')
+              final List<int> counts;
+              @RestageProperty(description: 'Weights.')
+              final List<double> weights;
+              @RestageProperty(description: 'Measurements.')
+              final List<num> measurements;
+              @RestageProperty(description: 'Flags.')
+              final List<bool> flags;
+              @RestageProperty(description: 'Optional counts.')
+              final List<int>? maybeCounts;
+            }
+          ''',
+        },
+        includeA2uiScalarLists: true,
+      );
+
+      expect(result.issues, isEmpty);
+      final properties = result.widgets.single.properties;
+      expect(
+        properties.map((property) => property.name),
+        [
+          'labels',
+          'counts',
+          'weights',
+          'measurements',
+          'flags',
+          'maybeCounts',
+        ],
+      );
+      expect(
+        properties.map((property) => property.type),
+        everyElement(PropertyType.structured),
+      );
+      expect(
+        properties
+            .where((property) => property.name != 'maybeCounts')
+            .map((property) => property.required),
+        everyElement(isTrue),
+      );
+      expect(
+        properties
+            .singleWhere((property) => property.name == 'maybeCounts')
+            .required,
+        isFalse,
+      );
+    });
+
+    test('A2UI mode still rejects a list whose element is not a scalar',
+        () async {
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/unsupported_list.dart': '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+            @RestageWidget(
+              name: 'UnsupportedList',
+              library: WidgetLibrary.custom('acme.design_system'),
+              category: WidgetCategory.layout,
+              description: 'Unsupported list proof.',
+            )
+            class UnsupportedList {
+              const UnsupportedList({required this.timestamps});
+
+              @RestageProperty(description: 'Timestamps.')
+              final List<DateTime> timestamps;
+            }
+          ''',
+        },
+        includeA2uiScalarLists: true,
+      );
+
+      expect(result.widgets.single.properties, isEmpty);
+      expect(
+        result.issues,
+        contains(
+          isA<Issue>()
+              .having(
+                (issue) => issue.code,
+                'code',
+                IssueCode.unsupportedPropertyType,
+              )
+              .having(
+                (issue) => issue.message,
+                'message',
+                allOf(contains('List<DateTime>'), contains('List<scalar>')),
+              ),
+        ),
+      );
+    });
+
     test('synthesizes flutterType from the class library URI + class name',
         () async {
       final result = await runWidgetVisitorOn({

@@ -133,6 +133,47 @@ void main() {
       );
     });
 
+    test('RFW builder fails loud for an A2UI-only scalar-list field', () async {
+      const widgetSource = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        @RestageWidget(
+          name: 'IntegerListPanel',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.layout,
+          description: 'Integer list panel.',
+        )
+        class IntegerListPanel {
+          const IntegerListPanel({required this.values});
+
+          @RestageProperty(description: 'Integer values.')
+          final List<int> values;
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'restage_codegen',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets/integer_list_panel.dart'),
+        widgetSource,
+      );
+
+      final logs = <String>[];
+      final result = await testBuilder(
+        const UserCatalogBuilder(BuilderOptions.empty),
+        {
+          'apps_examples|lib/widgets/integer_list_panel.dart': widgetSource,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add(record.message),
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(logs.join('\n'), contains('Unsupported property type List<int>'));
+    });
+
     test('emits an issue when two files declare the same (library, name)',
         () async {
       const fileA = '''

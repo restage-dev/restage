@@ -46,6 +46,8 @@ final class A2uiCallbackWriteBack extends A2uiCallbackSignature {
     this.valueType, {
     required this.nullable,
     required this.isList,
+    this.elementNullable = false,
+    this.preserveNumericRuntimeType = false,
   });
 
   /// The JSON scalar category of the written-back value — the scalar itself for
@@ -61,19 +63,40 @@ final class A2uiCallbackWriteBack extends A2uiCallbackSignature {
   /// than a bare scalar.
   final bool isList;
 
+  /// Whether a list callback's scalar element accepts null.
+  ///
+  /// False for scalar callbacks and non-nullable list elements.
+  final bool elementNullable;
+
+  /// Whether a list callback carrying Dart `num` must preserve delivered
+  /// `int` versus `double` runtime values.
+  ///
+  /// False for scalar callbacks and every non-`num` list element.
+  final bool preserveNumericRuntimeType;
+
   @override
   bool operator ==(Object other) =>
       other is A2uiCallbackWriteBack &&
       other.valueType == valueType &&
       other.nullable == nullable &&
-      other.isList == isList;
+      other.isList == isList &&
+      other.elementNullable == elementNullable &&
+      other.preserveNumericRuntimeType == preserveNumericRuntimeType;
 
   @override
-  int get hashCode => Object.hash(valueType, nullable, isList);
+  int get hashCode => Object.hash(
+        valueType,
+        nullable,
+        isList,
+        elementNullable,
+        preserveNumericRuntimeType,
+      );
 
   @override
-  String toString() =>
-      'A2uiCallbackWriteBack($valueType, nullable: $nullable, isList: $isList)';
+  String toString() => 'A2uiCallbackWriteBack($valueType, '
+      'nullable: $nullable, isList: $isList, '
+      'elementNullable: $elementNullable, '
+      'preserveNumericRuntimeType: $preserveNumericRuntimeType)';
 }
 
 /// A callback whose shape cannot be lowered to a declarative action — a

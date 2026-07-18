@@ -13,5 +13,7 @@ targets:
         enabled: true
       restage_codegen:user_catalog:
         enabled: false
+      restage_codegen:user_catalog_json:
+        enabled: false
       restage_codegen:user_factories:
         enabled: false

@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/analysis/utilities.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
@@ -35,10 +36,11 @@ A2uiEventSeam _writeBackSeam(
   String widget = 'Toggle',
   String callback = 'onChanged',
   bool nullable = false,
+  bool isList = false,
 }) =>
     <(String, String), A2uiCallbackSignature>{
       (widget, callback):
-          A2uiCallbackWriteBack(type, nullable: nullable, isList: false),
+          A2uiCallbackWriteBack(type, nullable: nullable, isList: isList),
     };
 
 void main() {
@@ -200,7 +202,7 @@ void main() {
     test('a ValueChanged<List<String>> + stringList value pair lowers', () {
       final source = emitA2uiCatalogDart(chipsCatalog(), eventSeam: listSeam());
 
-      // The list value prop's `BoundList` READ is rewritten to the data path
+      // The list value prop's safe object-binding READ is rewritten to the path
       // (not the raw value) — the genui controlled-component pattern.
       expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
       expect(source, isNot(contains("value: data['selected']")));
@@ -247,6 +249,221 @@ void main() {
       expect(source, contains("required: <String>['path']"));
       expect(source, contains("'call': S.string("));
       expect(source, contains('additionalProperties: true'));
+    });
+
+    test(
+        'a matched nullable list write-back accepts null in its literal branch',
+        () {
+      final catalog = catalogWith([
+        entry(
+          name: 'NullableChoices',
+          flutterType: 'package:fixture/fixture.dart#NullableChoices',
+          properties: [
+            prop('selected', PropertyType.structured, required: true),
+            prop('onSelected', PropertyType.event, required: true),
+          ],
+        ),
+      ]);
+      const richShapes = <(String, String), A2uiSchemaNode>{
+        ('NullableChoices', 'selected'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer),
+          nullable: true,
+        ),
+      };
+      const eventSeam = <(String, String), A2uiCallbackSignature>{
+        ('NullableChoices', 'onSelected'): A2uiCallbackWriteBack(
+          A2uiScalarType.integer,
+          nullable: true,
+          isList: true,
+        ),
+      };
+
+      final source = emitA2uiCatalogDart(
+        catalog,
+        richShapes: richShapes,
+        eventSeam: eventSeam,
+      );
+      final compactSource = source.replaceAll(RegExp(r'\s+'), ' ');
+
+      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
+      expect(
+        compactSource,
+        contains(
+          "'selected': S.combined(oneOf: [ S.combined(anyOf: "
+          '[S.list(items: S.integer()), S.nil()])',
+        ),
+      );
+
+      final stamp = emitA2uiCatalog(
+        catalog,
+        richShapes: richShapes,
+        eventSeam: eventSeam,
+      ).toJson();
+      final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
+      final components = a2uiCatalog['components']! as Map<String, Object?>;
+      final component = components['NullableChoices']! as Map<String, Object?>;
+      final properties = component['properties']! as Map<String, Object?>;
+      final selected = properties['selected']! as Map<String, Object?>;
+      final alternatives = selected['oneOf']! as List<Object?>;
+
+      expect(alternatives, hasLength(3));
+      expect(alternatives.first, {
+        'anyOf': [
+          {
+            'type': 'array',
+            'items': {'type': 'integer'},
+          },
+          {'type': 'null'},
+        ],
+      });
+    });
+
+    test('an analyzer-fed integer list remains a bindable write-back leaf', () {
+      final catalog = catalogWith([
+        entry(
+          name: 'IntegerChoices',
+          flutterType: 'package:fixture/fixture.dart#IntegerChoices',
+          properties: [
+            prop('selected', PropertyType.structured, required: true),
+            prop('onSelected', PropertyType.event, required: true),
+          ],
+        ),
+      ]);
+      const richShapes = <(String, String), A2uiSchemaNode>{
+        ('IntegerChoices', 'selected'):
+            ListNode(element: ScalarNode(A2uiScalarType.integer)),
+      };
+      const eventSeam = <(String, String), A2uiCallbackSignature>{
+        ('IntegerChoices', 'onSelected'): A2uiCallbackWriteBack(
+          A2uiScalarType.integer,
+          nullable: false,
+          isList: true,
+        ),
+      };
+
+      final source = emitA2uiCatalogDart(
+        catalog,
+        richShapes: richShapes,
+        eventSeam: eventSeam,
+      );
+
+      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
+      expect(source, contains('value is num ? value.toInt() : null'));
+      expect(source, contains('onSelected: (_restageA2uiNext) =>'));
+      expect(
+        source,
+        contains(
+          'update(DataPath(_restageA2uiPath_selected), _restageA2uiNext)',
+        ),
+      );
+      final plan = classifyA2uiCatalogDart(
+        catalog,
+        richShapes: richShapes,
+        eventSeam: eventSeam,
+      );
+      expect(plan.widgets, hasLength(1));
+      expect(plan.coverage.droppedWidgets, isEmpty);
+      expect(plan.coverage.omittedFields, isEmpty);
+    });
+
+    A2uiDartCatalogPlan listPairPlan({
+      required ListNode valueNode,
+      required A2uiCallbackWriteBack callback,
+    }) {
+      final catalog = catalogWith([
+        entry(
+          name: 'ScalarChoices',
+          flutterType: 'package:fixture/fixture.dart#ScalarChoices',
+          properties: [
+            prop('selected', PropertyType.structured, required: true),
+            prop('onSelected', PropertyType.event),
+          ],
+        ),
+      ]);
+      return classifyA2uiCatalogDart(
+        catalog,
+        richShapes: {('ScalarChoices', 'selected'): valueNode},
+        eventSeam: {('ScalarChoices', 'onSelected'): callback},
+      );
+    }
+
+    void expectListPairFailsClosed(
+      ListNode valueNode,
+      A2uiCallbackWriteBack callback,
+    ) {
+      final plan = listPairPlan(valueNode: valueNode, callback: callback);
+      expect(plan.widgets.single.writeBacks, isEmpty);
+      expect(
+        plan.coverage.omittedFields.single.reason,
+        A2uiDartCoverageReason.uncontrolledInteractiveWidget,
+      );
+    }
+
+    test('List<int> does not pair with ValueChanged<List<double>>', () {
+      expectListPairFailsClosed(
+        const ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.number,
+          nullable: false,
+          isList: true,
+        ),
+      );
+    });
+
+    test('List<int> does not pair with ValueChanged<List<int>?>', () {
+      expectListPairFailsClosed(
+        const ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.integer,
+          nullable: true,
+          isList: true,
+        ),
+      );
+    });
+
+    test('List<int> does not pair with ValueChanged<List<int?>>', () {
+      expectListPairFailsClosed(
+        const ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.integer,
+          nullable: false,
+          isList: true,
+          elementNullable: true,
+        ),
+      );
+    });
+
+    test('List<double> does not pair with ValueChanged<List<num>>', () {
+      expectListPairFailsClosed(
+        const ListNode(element: ScalarNode(A2uiScalarType.number)),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.number,
+          nullable: false,
+          isList: true,
+          preserveNumericRuntimeType: true,
+        ),
+      );
+    });
+
+    test('List<num> pairs only with its matching callback shape', () {
+      final plan = listPairPlan(
+        valueNode: const ListNode(
+          element: ScalarNode(
+            A2uiScalarType.number,
+            preserveNumericRuntimeType: true,
+          ),
+        ),
+        callback: const A2uiCallbackWriteBack(
+          A2uiScalarType.number,
+          nullable: false,
+          isList: true,
+          preserveNumericRuntimeType: true,
+        ),
+      );
+
+      expect(plan.widgets.single.writeBacks, hasLength(1));
+      expect(plan.coverage.omittedFields, isEmpty);
+      expect(plan.coverage.droppedWidgets, isEmpty);
     });
   });
 
@@ -513,14 +730,11 @@ void main() {
       expect(plan.widgets.single.writeBacks, isEmpty);
     });
 
-    test('#lit — a write-back value prop in richShapes is not a bindable leaf',
-        () {
-      // A value prop that is analyzer-fed-rich (in richShapes) is reconstructed
-      // raw in the prelude, NOT `Bound*`-wrapped — so the `{path:P}`
-      // read-rewrite (rich:false-only) could never apply and the write-back
-      // could not round-trip. Fail closed: a richShapes value prop is not a
-      // catalog-fed bindable leaf. (Mutually exclusive by construction: a
-      // write-back value is a scalar/List<scalar>, never a richShapes entry.)
+    test('#lit — a non-list richShapes value is not a bindable leaf', () {
+      // Analyzer-fed scalar lists are the deliberate bindable-leaf exception:
+      // their reflected element node preserves safe reconstruction. This value
+      // is an unsupported non-list rich shape, so it reconstructs raw in the
+      // prelude and cannot round-trip through a `{path:P}` read rewrite.
       final plan = classifyA2uiCatalogDart(
         _toggleCatalog(callbackRequired: false),
         eventSeam: _writeBackSeam(A2uiScalarType.boolean),
@@ -531,6 +745,36 @@ void main() {
       expect(plan.widgets.single.writeBacks, isEmpty);
       expect(
         reasonFor(plan, 'Toggle', 'onChanged'),
+        A2uiDartCoverageReason.writeBackValueNotBound,
+      );
+    });
+
+    test('#lit — an omitted defaulted scalar list is not bindable', () {
+      final plan = classifyA2uiCatalogDart(
+        catalogWith([
+          entry(
+            name: 'Picker',
+            flutterType: 'package:fixture/fixture.dart#Picker',
+            properties: [
+              prop('values', PropertyType.structured),
+              prop('onChanged', PropertyType.event),
+            ],
+          ),
+        ]),
+        eventSeam: _writeBackSeam(
+          A2uiScalarType.integer,
+          widget: 'Picker',
+          isList: true,
+        ),
+        richShapes: <(String, String), A2uiSchemaNode>{
+          ('Picker', 'values'):
+              const ListNode(element: ScalarNode(A2uiScalarType.integer)),
+        },
+      );
+
+      expect(plan.widgets.single.writeBacks, isEmpty);
+      expect(
+        reasonFor(plan, 'Picker', 'onChanged'),
         A2uiDartCoverageReason.writeBackValueNotBound,
       );
     });

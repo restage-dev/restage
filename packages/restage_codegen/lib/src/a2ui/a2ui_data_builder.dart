@@ -233,8 +233,8 @@ class A2uiDataBuilder {
     String depth = '0',
   }) {
     switch (node) {
-      case ScalarNode(:final type):
-        return _scalarExpression(type, raw);
+      case final ScalarNode scalar:
+        return _scalarExpression(scalar, raw);
       case EnumNode(:final dartTypeName, :final libraryUri):
         // Fail-safe: an unknown / absent member name resolves to null (the
         // map lookup), never a thrown cast.
@@ -339,17 +339,14 @@ class A2uiDataBuilder {
   /// The NON-null Dart type name for [node] (the caller adds nullability).
   String _dartTypeBase(A2uiSchemaNode node) {
     switch (node) {
-      case ScalarNode(:final type):
-        switch (type) {
+      case final ScalarNode scalar:
+        switch (scalar.type) {
           case A2uiScalarType.string:
             return 'String';
           case A2uiScalarType.integer:
             return 'int';
-          // A `double` and a (rare) `num` field both project as `number`;
-          // `double` is the safe common type (`double <: num`, so it satisfies
-          // both — a `num` field's int values widen to double, fail-safe).
           case A2uiScalarType.number:
-            return 'double';
+            return scalar.preserveNumericRuntimeType ? 'num' : 'double';
           case A2uiScalarType.boolean:
             return 'bool';
         }
@@ -401,14 +398,14 @@ class A2uiDataBuilder {
   /// (no synthesizable default), so those arms are unreachable.
   String _genericFallback(A2uiSchemaNode node) {
     switch (node) {
-      case ScalarNode(:final type):
-        switch (type) {
+      case final ScalarNode scalar:
+        switch (scalar.type) {
           case A2uiScalarType.string:
             return "''";
           case A2uiScalarType.integer:
             return '0';
           case A2uiScalarType.number:
-            return '0.0';
+            return scalar.preserveNumericRuntimeType ? '0' : '0.0';
           case A2uiScalarType.boolean:
             return 'false';
         }
@@ -427,10 +424,14 @@ class A2uiDataBuilder {
     }
   }
 
-  /// The fail-safe coercion for a scalar [type] reading from [raw]: a single
+  /// The fail-safe coercion for a scalar [node] reading from [raw]: a single
   /// typed cast that yields null (never throws) on a type mismatch.
-  String _scalarExpression(A2uiScalarType type, String raw) {
-    switch (type) {
+  ///
+  /// Keep this numeric policy aligned with the reactive scalar-list lowering
+  /// in `a2ui_dart_emitter.dart`: `int` normalizes to `int`, `double` to
+  /// `double`, and Dart `num` preserves the delivered numeric runtime type.
+  String _scalarExpression(ScalarNode node, String raw) {
+    switch (node.type) {
       case A2uiScalarType.string:
         return '_restageA2uiAs<String>($raw)';
       case A2uiScalarType.boolean:
@@ -438,7 +439,9 @@ class A2uiDataBuilder {
       case A2uiScalarType.integer:
         return '_restageA2uiAs<num>($raw)?.toInt()';
       case A2uiScalarType.number:
-        return '_restageA2uiAs<num>($raw)?.toDouble()';
+        return node.preserveNumericRuntimeType
+            ? '_restageA2uiAs<num>($raw)'
+            : '_restageA2uiAs<num>($raw)?.toDouble()';
     }
   }
 

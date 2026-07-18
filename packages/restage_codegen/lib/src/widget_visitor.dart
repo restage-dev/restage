@@ -8,6 +8,7 @@ import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/customer_structured_discovery.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/json_scalar_type.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -82,12 +83,18 @@ final class WidgetVisitorResult {
 /// - Walks `@RestageProperty`-annotated fields, infers each property type
 ///   from the field's static Dart type, and decodes literal defaults.
 ///
+/// When [includeA2uiScalarLists] is true, direct `List<String>`, `List<int>`,
+/// `List<double>`, `List<num>`, and `List<bool>` properties are admitted
+/// through the A2UI analyzer seam. The default remains false so the shared RFW
+/// catalog vocabulary and its callers are unchanged.
+///
 /// At end-of-pass, detects within-library duplicate widget names (same
 /// `(library namespace, name)`) and emits [IssueCode.duplicateWidgetName].
 WidgetVisitorResult visitRestageWidgets(
   LibraryElement library,
-  AssetId assetId,
-) {
+  AssetId assetId, {
+  bool includeA2uiScalarLists = false,
+}) {
   final widgets = <WidgetEntry>[];
   final issues = <Issue>[];
 
@@ -109,8 +116,14 @@ WidgetVisitorResult visitRestageWidgets(
   final widgetUnrenderable = <String, String>{};
   for (final cls in widgetClasses) {
     final annotation = firstAnnotation(cls, 'RestageWidget')!;
-    final entry =
-        _readWidgetAnnotation(cls, annotation, assetId, issues, structured);
+    final entry = _readWidgetAnnotation(
+      cls,
+      annotation,
+      assetId,
+      issues,
+      structured,
+      includeA2uiScalarLists: includeA2uiScalarLists,
+    );
     if (entry == null) continue;
     widgets.add(entry);
     // A positional ctor param NOT bound to an annotated `@RestageProperty`
@@ -169,8 +182,9 @@ WidgetEntry? _readWidgetAnnotation(
   ElementAnnotation annotation,
   AssetId assetId,
   List<Issue> issues,
-  CustomerStructuredDiscovery structured,
-) {
+  CustomerStructuredDiscovery structured, {
+  required bool includeA2uiScalarLists,
+}) {
   final value = annotation.computeConstantValue();
   final className = cls.name ?? '<unnamed>';
   final widgetLocation = '${assetId.path}#$className';
@@ -260,6 +274,7 @@ WidgetEntry? _readWidgetAnnotation(
       assetId,
       issues,
       structured,
+      includeA2uiScalarLists: includeA2uiScalarLists,
     );
     // A bad property emits its own issue; keep collecting so a typo on one
     // field doesn't silently drop the entire widget from the catalog.
@@ -351,8 +366,9 @@ PropertyEntry? _readPropertyAnnotation(
   ElementAnnotation annotation,
   AssetId assetId,
   List<Issue> issues,
-  CustomerStructuredDiscovery structured,
-) {
+  CustomerStructuredDiscovery structured, {
+  required bool includeA2uiScalarLists,
+}) {
   final value = annotation.computeConstantValue();
   final fieldName = field.name ?? '<unnamed>';
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
@@ -416,8 +432,26 @@ PropertyEntry? _readPropertyAnnotation(
   // one, or a sealed union) is resolved by the structured pre-pass; a scalar /
   // enum / widget / event falls through to the legacy type inference.
   final structuredShape = structured.shapeFor(field.type);
-  final type = structuredShape?.type ??
-      _inferPropertyType(field.type, field, assetId, issues);
+  final a2uiScalarList =
+      includeA2uiScalarLists && _isA2uiScalarList(field.type);
+  // The A2UI target preserves each scalar-list element type through its
+  // analyzer seam without widening the shared RFW catalog taxonomy.
+  // `structured` is the target-local carrier; seam assembly reflects the real
+  // ListNode before emission.
+  final PropertyType? type;
+  if (structuredShape != null) {
+    type = structuredShape.type;
+  } else if (a2uiScalarList) {
+    type = PropertyType.structured;
+  } else {
+    type = _inferPropertyType(
+      field.type,
+      field,
+      assetId,
+      issues,
+      includeA2uiScalarLists: includeA2uiScalarLists,
+    );
+  }
   if (type == null) return null;
 
   // The default generative constructor binds this field — the source of truth
@@ -432,7 +466,7 @@ PropertyEntry? _readPropertyAnnotation(
   // constructor default applies — the documented fail-safe). Scoped to
   // structured so it never forces a required event (which would drop the
   // widget) or perturb a scalar/built-in catalog.
-  final required = structuredShape != null
+  final required = structuredShape != null || a2uiScalarList
       ? (annotationRequired || (ctorFormal?.isRequired ?? false))
       : annotationRequired;
 
@@ -467,12 +501,16 @@ PropertyType? _inferPropertyType(
   DartType t,
   FieldElement field,
   AssetId assetId,
-  List<Issue> issues,
-) {
+  List<Issue> issues, {
+  required bool includeA2uiScalarLists,
+}) {
   final inferred = type_inference.inferPropertyType(t);
   if (inferred != null) return inferred;
   final fieldName = field.name ?? '<unnamed>';
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
+  final a2uiListHint = includeA2uiScalarLists
+      ? ', and List<scalar> (String, int, double, num, or bool)'
+      : '';
   issues.add(
     Issue(
       code: IssueCode.unsupportedPropertyType,
@@ -481,11 +519,23 @@ PropertyType? _inferPropertyType(
           'Color, EdgeInsets(Geometry|Directional), '
           'Alignment(Geometry|Directional), FontWeight, bool, int, double, '
           'String, VoidCallback (and similar function types), and any Dart '
-          'enum.',
+          'enum$a2uiListHint.',
       location: '${assetId.path}#$ownerName.$fieldName',
     ),
   );
   return null;
+}
+
+/// Whether [type] is a `List<T>` whose element is one of A2UI's JSON scalar
+/// families. Nullability on the list or element is carried by the reflector.
+bool _isA2uiScalarList(DartType type) {
+  if (type is! InterfaceType ||
+      !type.isDartCoreList ||
+      type.typeArguments.length != 1) {
+    return false;
+  }
+  final element = type.typeArguments.single;
+  return classifyJsonScalarType(element) != null;
 }
 
 ChildrenSlot _childrenSlotFromAnnotation(

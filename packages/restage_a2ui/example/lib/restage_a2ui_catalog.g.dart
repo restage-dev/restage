@@ -11,6 +11,7 @@ import 'package:restage_a2ui_example/widgets/lessons/quiz_check.dart' as p3;
 import 'package:restage_a2ui_example/widgets/lessons/section_header.dart' as p4;
 import 'package:restage_a2ui_example/widgets/product_card.dart' as p5;
 import 'package:restage_a2ui_example/widgets/rating_picker.dart' as p6;
+import 'package:restage_a2ui_example/widgets/scalar_list_panel.dart' as p7;
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
@@ -161,6 +162,48 @@ List<CatalogItem> buildRestageCatalogItems() {
       },
     ),
     CatalogItem(
+      name: 'IntegerListPicker',
+      dataSchema: S.object(
+        description: 'Adds values to a bound integer list.',
+        properties: {
+          'selected':
+              S.combined(description: 'The selected integer values.', oneOf: [
+            S.list(items: S.integer()),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ])
+        },
+        required: <String>['selected'],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        final _restageA2uiRef_selected = data['selected'];
+        final _restageA2uiPath_selected = (_restageA2uiRef_selected is Map &&
+                _restageA2uiRef_selected.containsKey('path'))
+            ? _restageA2uiRef_selected['path'] as String
+            : '${itemContext.id}.selected';
+        return BoundObject(
+          dataContext: itemContext.dataContext,
+          value: {'path': _restageA2uiPath_selected},
+          builder: (context, selected) => p7.IntegerListPicker(
+            selected: ((selected is List ? selected.cast<Object?>() : null) ??
+                    const <Object?>[])
+                .map((value) => value is num ? value.toInt() : null)
+                .whereType<int>()
+                .toList(growable: false),
+            onSelected: (_restageA2uiNext) => itemContext.dataContext
+                .update(DataPath(_restageA2uiPath_selected), _restageA2uiNext),
+          ),
+        );
+      },
+    ),
+    CatalogItem(
       name: 'ProductCard',
       dataSchema: S.object(
         description:
@@ -248,6 +291,182 @@ List<CatalogItem> buildRestageCatalogItems() {
         );
       },
     ),
+    CatalogItem(
+      name: 'ScalarListPanel',
+      dataSchema: S.object(
+        description: 'Renders string, integer, number, and boolean lists.',
+        properties: {
+          'labels': S.combined(description: 'String list values.', oneOf: [
+            S.list(items: S.string()),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ]),
+          'counts': S.combined(description: 'Integer list values.', oneOf: [
+            S.list(items: S.integer()),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ]),
+          'weights': S.combined(description: 'Number list values.', oneOf: [
+            S.list(items: S.number()),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ]),
+          'measurements':
+              S.combined(description: 'Dart num list values.', oneOf: [
+            S.list(items: S.number()),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ]),
+          'flags': S.combined(description: 'Boolean list values.', oneOf: [
+            S.list(items: S.boolean()),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ]),
+          'maybeCounts':
+              S.combined(description: 'Optional integer list values.', oneOf: [
+            S.combined(anyOf: [S.list(items: S.integer()), S.nil()]),
+            S.object(
+                properties: {'path': S.string()}, required: <String>['path']),
+            S.object(properties: {
+              'call': S.string(),
+              'args': S.object(additionalProperties: true)
+            }, required: <String>[
+              'call'
+            ])
+          ]),
+          'fallbackCounts': S.combined(
+              description: 'Integer list values with a fallback.',
+              oneOf: [
+                S.combined(anyOf: [S.list(items: S.integer()), S.nil()]),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ])
+        },
+        required: <String>[
+          'labels',
+          'counts',
+          'weights',
+          'measurements',
+          'flags'
+        ],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        return BoundObject(
+          dataContext: itemContext.dataContext,
+          value: data['labels'],
+          builder: (context, labels) => BoundObject(
+            dataContext: itemContext.dataContext,
+            value: data['counts'],
+            builder: (context, counts) => BoundObject(
+              dataContext: itemContext.dataContext,
+              value: data['weights'],
+              builder: (context, weights) => BoundObject(
+                dataContext: itemContext.dataContext,
+                value: data['measurements'],
+                builder: (context, measurements) => BoundObject(
+                  dataContext: itemContext.dataContext,
+                  value: data['flags'],
+                  builder: (context, flags) => BoundObject(
+                    dataContext: itemContext.dataContext,
+                    value: data['maybeCounts'],
+                    builder: (context, maybeCounts) => BoundObject(
+                      dataContext: itemContext.dataContext,
+                      value: data['fallbackCounts'],
+                      builder: (context, fallbackCounts) => p7.ScalarListPanel(
+                        labels:
+                            ((labels is List ? labels.cast<Object?>() : null) ??
+                                    const <Object?>[])
+                                .whereType<String>()
+                                .toList(growable: false),
+                        counts: ((counts is List
+                                    ? counts.cast<Object?>()
+                                    : null) ??
+                                const <Object?>[])
+                            .map((value) => value is num ? value.toInt() : null)
+                            .whereType<int>()
+                            .toList(growable: false),
+                        weights: ((weights is List
+                                    ? weights.cast<Object?>()
+                                    : null) ??
+                                const <Object?>[])
+                            .map((value) =>
+                                value is num ? value.toDouble() : null)
+                            .whereType<double>()
+                            .toList(growable: false),
+                        measurements: ((measurements is List
+                                    ? measurements.cast<Object?>()
+                                    : null) ??
+                                const <Object?>[])
+                            .map((value) => value is num ? value : null)
+                            .whereType<num>()
+                            .toList(growable: false),
+                        flags:
+                            ((flags is List ? flags.cast<Object?>() : null) ??
+                                    const <Object?>[])
+                                .whereType<bool>()
+                                .toList(growable: false),
+                        maybeCounts: (maybeCounts is List
+                                ? maybeCounts.cast<Object?>()
+                                : null)
+                            ?.map(
+                                (value) => value is num ? value.toInt() : null)
+                            .whereType<int>()
+                            .toList(growable: false),
+                        fallbackCounts: ((fallbackCounts is List
+                                    ? fallbackCounts.cast<Object?>()
+                                    : null) ??
+                                const <int>[7, 8])
+                            .map((value) => value is num ? value.toInt() : null)
+                            .whereType<int>()
+                            .toList(growable: false),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ),
   ];
 }
 
@@ -257,8 +476,10 @@ const List<String> _restageA2uiSystemPromptFragments = <String>[
   'QuizCheck: A prompt with a checkable answer bound to a boolean value.',
   'SectionHeader: A titled section header.',
   'CtaButton: A call-to-action button that dispatches a tap event.',
+  'IntegerListPicker: Adds values to a bound integer list.',
   'ProductCard: Renders a structured product (nested price, tags, features, attributes, size).',
   'RatingPicker: A 1–5 star rating control bound to an integer value.',
+  'ScalarListPanel: Renders string, integer, number, and boolean lists.',
 ];
 
 /// The fully-assembled genui catalog: the generated items

@@ -23,6 +23,17 @@ void main() {
         const ScalarNode(A2uiScalarType.string),
         isNot(equals(const ScalarNode(A2uiScalarType.string, nullable: true))),
       );
+      expect(
+        const ScalarNode(A2uiScalarType.number),
+        isNot(
+          equals(
+            const ScalarNode(
+              A2uiScalarType.number,
+              preserveNumericRuntimeType: true,
+            ),
+          ),
+        ),
+      );
     });
 
     test('EnumNode carries its member set + Dart type identity', () {

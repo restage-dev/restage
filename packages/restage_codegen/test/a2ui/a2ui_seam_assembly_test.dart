@@ -111,6 +111,26 @@ void main() {
       expect(seams.pairingSeam, isEmpty);
     });
 
+    test('a list callback retains nullability and numeric reconstruction', () {
+      final seams = assembleA2uiSeams([
+        _widget(library, 'NullableNums', 'NullableNumListFixture', [
+          prop('values', PropertyType.structured),
+          prop('onChanged', PropertyType.event, required: true),
+        ]),
+      ]);
+
+      expect(
+        seams.eventSeam[('NullableNums', 'onChanged')],
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.number,
+          nullable: true,
+          isList: true,
+          elementNullable: true,
+          preserveNumericRuntimeType: true,
+        ),
+      );
+    });
+
     test('a void callback reflects as a dispatch', () {
       final seams = assembleA2uiSeams([
         _widget(library, 'ActionButton', 'ActionButtonFixture', [
