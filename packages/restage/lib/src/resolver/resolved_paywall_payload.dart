@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 
 import '../flow/flow_resolver.dart' show ResolvedFlow;
 import 'resolved_variant.dart';
+import 'surface_assignment_key_provider.dart';
 
 /// SDK-internal result of resolving a paywall surface to either a single blob
 /// or a lowered multi-screen flow. The public [VariantResolver.resolve] SPI
@@ -12,13 +13,35 @@ import 'resolved_variant.dart';
 /// [FlowCapableVariantResolver.resolvePayload].
 @immutable
 sealed class ResolvedPaywallPayload {
-  const ResolvedPaywallPayload();
+  const ResolvedPaywallPayload({
+    this.assignmentLease,
+    HostedPayloadPublication? hostedPublication,
+  }) : _hostedPublication = hostedPublication;
+
+  /// The internal actor generation that selected a hosted artifact.
+  /// Bundled and custom payloads carry no lease.
+  final SurfaceAssignmentResolutionLease? assignmentLease;
+
+  final HostedPayloadPublication? _hostedPublication;
+
+  /// Publishes a fresh hosted payload to resolver hold-last-good at the exact
+  /// host render commit. Cached and bundled payloads carry no publication.
+  @internal
+  void publishHostedLastGood() => _hostedPublication?.commit();
+
+  /// Abandons a fresh hosted candidate that never reached render commitment.
+  @internal
+  void abandonHostedLastGood() => _hostedPublication?.abandon();
 }
 
 /// A single-blob paywall: the existing path.
 @immutable
 final class BlobPaywallPayload extends ResolvedPaywallPayload {
-  const BlobPaywallPayload(this.variant);
+  const BlobPaywallPayload(
+    this.variant, {
+    super.assignmentLease,
+    super.hostedPublication,
+  });
 
   final ResolvedVariant variant;
 }
@@ -37,6 +60,8 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
     this.variantId,
     this.experimentEpoch,
     this.resolvedFromActiveArm = false,
+    super.assignmentLease,
+    super.hostedPublication,
   });
 
   final ResolvedFlow flow;
@@ -81,4 +106,41 @@ abstract interface class FlowCapableVariantResolver {
     String? placementId,
     Locale? locale,
   });
+}
+
+/// Presentation-only resolver seam used by the built-in paywall host.
+///
+/// Unlike [FlowCapableVariantResolver.resolvePayload], a fresh hosted result
+/// remains provisional until the host reports actual render commitment. This
+/// keeps ordinary resolver callers' eager hold-last-good behavior unchanged.
+@internal
+abstract interface class PresentationPaywallResolver {
+  Future<ResolvedPaywallPayload> resolvePayloadForPresentation(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  });
+}
+
+/// One-shot publication carried only by fresh hosted presentation payloads.
+///
+/// The resolver owns the callback; the runtime can only commit or abandon it.
+/// Clearing both callbacks on the first terminal action avoids retaining the
+/// resolver through a payload cached by the widget runtime.
+@internal
+final class HostedPayloadPublication {
+  HostedPayloadPublication({required void Function() onCommit})
+      : _onCommit = onCommit;
+
+  void Function()? _onCommit;
+
+  void commit() {
+    final callback = _onCommit;
+    _onCommit = null;
+    callback?.call();
+  }
+
+  void abandon() {
+    _onCommit = null;
+  }
 }

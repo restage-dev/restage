@@ -15,6 +15,9 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../flow/flow_test_support.dart'
+    show registerThrowingWidget, throwingResolvedFlow;
+
 /// A delivered baseline paywall is at or below the installed built-in catalog
 /// version; using it keeps these fixtures renderable on this build (the
 /// resolvers reject anything above the installed ceiling).
@@ -303,6 +306,100 @@ class _AttributedFlowResolver
       );
 }
 
+/// A flow-capable resolver whose every payload response stays under explicit
+/// test control.
+final class _ControlledFlowPayloadResolver
+    implements VariantResolver, FlowCapableVariantResolver {
+  final List<Completer<ResolvedPaywallPayload>> responses = [];
+
+  @override
+  Future<ResolvedVariant> resolve(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<ResolvedPaywallPayload> resolvePayload(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) {
+    final response = Completer<ResolvedPaywallPayload>();
+    responses.add(response);
+    return response.future;
+  }
+}
+
+/// A root flow whose initial state enters a child before any screen exists.
+///
+/// Paywall payloads are re-hosted through the already-resolved root artifact,
+/// so the child lookup deterministically fails its flow-id contract. This
+/// exercises the early root [FlowStarted] emitted before child resolution has
+/// installed renderable content.
+ResolvedFlow _initialSubFlowThatFailsBeforeScreen() {
+  final childHash = FlowContentHash.compute(Uint8List.fromList(const [1]));
+  final document = FlowDocument(
+    flow: 'pro_upgrade',
+    version: 1,
+    schemaVersion: 1,
+    minClient: _renderableMinClient,
+    initial: 'child',
+    actions: const {},
+    screenArtifacts: const {},
+    states: {
+      'child': SubFlowState(
+        flow: 'child_flow',
+        version: 1,
+        schemaVersion: 1,
+        minClient: _renderableMinClient,
+        contentHash: childHash,
+        input: const {},
+        onComplete: const [],
+        defaultBranch: const FlowBranchTarget(target: 'done'),
+      ),
+      'done': const EndFlowState(result: {}),
+    },
+  );
+  return ResolvedFlow(
+    document: document,
+    screenBlobs: const {},
+    contentHash: FlowContentHash.compute(
+      Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
+    ),
+    cacheHit: false,
+  );
+}
+
+ResolvedFlow _singleScreenResolvedFlow(String text) {
+  final screen = _screenBlob({text: 'noop'});
+  return ResolvedFlow(
+    document: FlowDocument(
+      flow: 'pro_upgrade',
+      version: 1,
+      schemaVersion: 1,
+      minClient: _renderableMinClient,
+      initial: 'entry',
+      actions: const {},
+      screenArtifacts: {
+        'entry': ScreenArtifact(
+          path: 'entry.rfw',
+          version: 1,
+          schemaVersion: 1,
+          minClient: _renderableMinClient,
+          contentHash: FlowContentHash.compute(screen),
+        ),
+      },
+      states: const {
+        'entry': ScreenFlowState(screen: 'entry', on: {}),
+      },
+    ),
+    screenBlobs: {'entry': screen},
+    cacheHit: false,
+  );
+}
+
 ResolvedFlow _navResolvedFlow() {
   final entry = _screenBlob({'See plans': 'restageNav0', 'No thanks': 'skip'});
   final plans = _screenBlob({'Buy': 'restage.purchase'});
@@ -335,6 +432,340 @@ void main() {
   setUp(() {
     Restage.debugReset();
     SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  testWidgets(
+      'an initial root SubFlow does not commit paywall lifecycle before a '
+      'child installs the first screen', (tester) async {
+    Restage.configure(apiKey: 'pk_test');
+    final resolver = _ControlledFlowPayloadResolver();
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          loadingBuilder: (_) => const Text('Loading child'),
+          errorBuilder: (_, __) => const Text('Child unavailable'),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(resolver.responses, hasLength(1));
+    expect(events.whereType<PaywallLoadCompleted>(), isEmpty);
+    expect(events.whereType<PaywallViewed>(), isEmpty);
+
+    resolver.responses.single.complete(FlowPaywallPayload(
+      flow: _initialSubFlowThatFailsBeforeScreen(),
+      paywallId: 'pro_upgrade',
+      paywallPublishedVersion: 2,
+    ));
+    await tester.pumpAndSettle();
+
+    final observed = (
+      completed: events.whereType<PaywallLoadCompleted>().length,
+      viewed: events.whereType<PaywallViewed>().length,
+      failed: events.whereType<PaywallLoadFailed>().length,
+      unavailable: find.text('Child unavailable').evaluate().length,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(
+      observed,
+      (completed: 0, viewed: 0, failed: 1, unavailable: 1),
+    );
+  });
+
+  testWidgets(
+      'a refresh root SubFlow that fails before its child screen preserves the '
+      'old rendered controller and published identity', (tester) async {
+    Restage.configure(apiKey: 'pk_test');
+    final resolver = _ControlledFlowPayloadResolver();
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('Refresh failed visibly'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(resolver.responses, hasLength(1));
+    resolver.responses[0].complete(FlowPaywallPayload(
+      flow: _singleScreenResolvedFlow('Old rendered paywall'),
+      paywallId: 'pro_upgrade',
+      paywallPublishedVersion: 1,
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Old rendered paywall'), findsOneWidget);
+    events.clear();
+
+    final failedRefresh = Restage.reloadSurfaces();
+    await tester.pump();
+    expect(resolver.responses, hasLength(2));
+    resolver.responses[1].complete(FlowPaywallPayload(
+      flow: _initialSubFlowThatFailsBeforeScreen(),
+      paywallId: 'pro_upgrade',
+      paywallPublishedVersion: 2,
+    ));
+    await failedRefresh;
+    await tester.pumpAndSettle();
+
+    final currentOld = find.text('Old rendered paywall').evaluate().length;
+    final currentError = find.text('Refresh failed visibly').evaluate().length;
+
+    // A remount whose fresh resolution fails must re-host the cached OLD
+    // payload. This probes both that the failed candidate did not evict the
+    // rendered controller's cache and that version 1 remains the render owner.
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('No cached old paywall'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(resolver.responses, hasLength(3));
+    resolver.responses[2].completeError(const RestagePaywallError(
+      code: RestageErrorCodes.deliveryUnavailable,
+      message: 'fresh remount failed',
+    ));
+    await tester.pumpAndSettle();
+
+    final cachedViews = events.whereType<PaywallViewed>().toList();
+    final cachedLoads = events.whereType<PaywallLoadCompleted>().toList();
+    final observed = (
+      currentOld: currentOld,
+      currentError: currentError,
+      cachedOld: find.text('Old rendered paywall').evaluate().length,
+      remountError: find.text('No cached old paywall').evaluate().length,
+      failures: events.whereType<PaywallLoadFailed>().length,
+      cachedViews: cachedViews.length,
+      cachedVersion:
+          cachedViews.isEmpty ? null : cachedViews.last.publishedVersion,
+      cacheHit: cachedLoads.isEmpty ? null : cachedLoads.last.cacheHit,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(
+      observed,
+      (
+        currentOld: 1,
+        currentError: 0,
+        cachedOld: 1,
+        remountError: 0,
+        failures: 0,
+        cachedViews: 1,
+        cachedVersion: 1,
+        cacheHit: true,
+      ),
+    );
+  });
+
+  testWidgets(
+      'an initial flow screen that throws on first build stamps no identity, '
+      'cache, or paywall lifecycle', (tester) async {
+    Restage.configure(apiKey: 'pk_test');
+    registerThrowingWidget();
+    final resolver = _ControlledFlowPayloadResolver();
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('Initial render unavailable'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses.single.complete(FlowPaywallPayload(
+      flow: throwingResolvedFlow(),
+      paywallId: 'pro_upgrade',
+      paywallPublishedVersion: 2,
+    ));
+    await tester.pumpAndSettle();
+
+    final firstObserved = (
+      error: find.text('Initial render unavailable').evaluate().length,
+      completed: events.whereType<PaywallLoadCompleted>().length,
+      viewed: events.whereType<PaywallViewed>().length,
+      failed: events.whereType<PaywallLoadFailed>().length,
+      dismissed: events.whereType<PaywallDismissed>().length,
+      escaped: tester.takeException(),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    final dismissedAfterUnmount = events.whereType<PaywallDismissed>().length;
+
+    // A resolver failure on remount must surface its own delivery error. If the
+    // throwing first render had been cached, the fallback would re-host it and
+    // surface render_error instead.
+    events.clear();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('Fresh delivery unavailable'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses[1].completeError(const RestagePaywallError(
+      code: RestageErrorCodes.deliveryUnavailable,
+      message: 'fresh remount failed',
+    ));
+    await tester.pumpAndSettle();
+    final remountFailure = events.whereType<PaywallLoadFailed>().single;
+    final remountObserved = (
+      error: find.text('Fresh delivery unavailable').evaluate().length,
+      code: remountFailure.errorCode,
+      completed: events.whereType<PaywallLoadCompleted>().length,
+      viewed: events.whereType<PaywallViewed>().length,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(
+      firstObserved,
+      (
+        error: 1,
+        completed: 0,
+        viewed: 0,
+        failed: 1,
+        dismissed: 0,
+        escaped: null,
+      ),
+    );
+    expect(dismissedAfterUnmount, 0);
+    expect(
+      remountObserved,
+      (
+        error: 1,
+        code: RestageErrorCodes.deliveryUnavailable,
+        completed: 0,
+        viewed: 0,
+      ),
+    );
+  });
+
+  testWidgets(
+      'a refresh flow screen that throws on first build preserves last-good '
+      'render, identity, cache, and lifecycle', (tester) async {
+    Restage.configure(apiKey: 'pk_test');
+    registerThrowingWidget();
+    final resolver = _ControlledFlowPayloadResolver();
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('Refresh failed visibly'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses.single.complete(FlowPaywallPayload(
+      flow: _singleScreenResolvedFlow('Old rendered paywall'),
+      paywallId: 'pro_upgrade',
+      paywallPublishedVersion: 1,
+    ));
+    await tester.pumpAndSettle();
+    events.clear();
+
+    final refresh = Restage.reloadSurfaces();
+    await tester.pump();
+    resolver.responses[1].complete(FlowPaywallPayload(
+      flow: throwingResolvedFlow(),
+      paywallId: 'pro_upgrade',
+      paywallPublishedVersion: 2,
+    ));
+    await refresh;
+    await tester.pumpAndSettle();
+
+    final currentObserved = (
+      old: find.text('Old rendered paywall').evaluate().length,
+      error: find.text('Refresh failed visibly').evaluate().length,
+      completed: events.whereType<PaywallLoadCompleted>().length,
+      viewed: events.whereType<PaywallViewed>().length,
+      failed: events.whereType<PaywallLoadFailed>().length,
+      dismissed: events.whereType<PaywallDismissed>().length,
+      escaped: tester.takeException(),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    events.clear();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('No cached old paywall'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses[2].completeError(const RestagePaywallError(
+      code: RestageErrorCodes.deliveryUnavailable,
+      message: 'fresh remount failed',
+    ));
+    await tester.pumpAndSettle();
+    final viewed = events.whereType<PaywallViewed>().single;
+    final cachedObserved = (
+      old: find.text('Old rendered paywall').evaluate().length,
+      error: find.text('No cached old paywall').evaluate().length,
+      version: viewed.publishedVersion,
+      cacheHit: events.whereType<PaywallLoadCompleted>().single.cacheHit,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(
+      currentObserved,
+      (
+        old: 1,
+        error: 0,
+        completed: 0,
+        viewed: 0,
+        failed: 0,
+        dismissed: 0,
+        escaped: null,
+      ),
+    );
+    expect(
+      cachedObserved,
+      (old: 1, error: 0, version: 1, cacheHit: true),
+    );
   });
 
   testWidgets(

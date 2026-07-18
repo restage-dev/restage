@@ -27,6 +27,7 @@ import '../resolver/restage_variant_resolver.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
+import 'first_paint_lease_guard.dart';
 import 'restage_identity.dart';
 import 'restage_paywall.dart';
 import 'restage_widget_factory.dart';
@@ -279,7 +280,10 @@ abstract final class Restage {
       SurfaceAssignmentKeyProvider.clear();
       return;
     }
-    SurfaceAssignmentKeyProvider.current = identity.anonymousId;
+    SurfaceAssignmentKeyProvider.install(
+      key: identity.anonymousId,
+      identityGeneration: () => identity.generation,
+    );
   }
 
   static String _analyticsEndpoint(String baseUrl) {
@@ -351,10 +355,19 @@ abstract final class Restage {
 
   /// Resets the pseudonymous analytics actor (the privacy "forget me" primitive):
   /// mints a fresh `anonymousId`, clears any identified `userId`, and rotates
-  /// the session. Inert until [configure] is given a `baseUrl`.
+  /// the session. Subsequent activity is treated as a new user, so experiment
+  /// assignment may change on the next surface presentation. The current
+  /// surface-session identity is cleared rather than carried across users; the
+  /// next real mount creates a fresh one. Inert until [configure] is given a
+  /// `baseUrl`.
   static void reset() {
     final identity = _analyticsIdentity;
-    if (identity != null) unawaited(identity.reset());
+    if (identity == null) return;
+    // reset() advances the in-memory generation synchronously before its first
+    // persistence await. Reject pending hosted paint work against that new
+    // generation now; accepted presentations remain pinned.
+    unawaited(identity.reset());
+    FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
   }
 
   /// Records a custom analytics event named [eventName] with optional [args].

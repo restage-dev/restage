@@ -155,6 +155,45 @@ void main() {
     expect(unavailableCalls, 0); // no host callback
   });
 
+  testWidgets(
+      'a refresh screen that throws on its first build leaves last-good '
+      'rendered and stays silent', (tester) async {
+    registerThrowingWidget();
+    addTearDown(Restage.debugReset);
+    var unavailableCalls = 0;
+    final resolver = _MutableFlowResolver(resolvedFlow(welcomeText: 'First'));
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageOnboarding<FirstRunResult>(
+        flow: firstRunFlowRef,
+        resolver: resolver,
+        unavailable: FlowUnavailablePolicy.fallback(
+          builder: (_, __) => const Text('FALLBACK'),
+        ),
+        onFlowUnavailable: (_) => unavailableCalls++,
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    resolver.flow = throwingResolvedFlow();
+    await Restage.reloadSurfaces();
+    await tester.pumpAndSettle();
+
+    final observed = (
+      old: find.text('First').evaluate().length,
+      fallback: find.text('FALLBACK').evaluate().length,
+      unavailableCalls: unavailableCalls,
+      escaped: tester.takeException(),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(
+      observed,
+      (old: 1, fallback: 0, unavailableCalls: 0, escaped: null),
+    );
+  });
+
   testWidgets('a successful onboarding refresh shows no loading flash',
       (tester) async {
     final resolver = _MutableFlowResolver(resolvedFlow(welcomeText: 'First'));

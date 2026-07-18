@@ -6,6 +6,7 @@ import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
 import '../events/restage_event.dart';
+import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
@@ -214,6 +215,37 @@ final class RestageFlowController<R> extends ChangeNotifier {
     return _frames.isEmpty ? null : _frames.last;
   }
 
+  bool _hasRenderedContent = false;
+
+  /// Whether this controller's first actual screen has built successfully.
+  ///
+  /// Package-internal: hosts use this to distinguish an unassigned rendered
+  /// artifact from a controller that has installed a screen but whose Flutter
+  /// subtree has not yet completed its first build.
+  @internal
+  bool get hasRenderedContent => _hasRenderedContent;
+
+  /// The root artifact assignment for an installed current screen, before its
+  /// Flutter subtree has necessarily committed a successful first build.
+  ///
+  /// Package-internal pre-staging gate. Hosts use this only to reject an
+  /// experiment-assigned live-refresh candidate before making it visible;
+  /// [renderedAssignment] remains the identity of content actually rendered.
+  @internal
+  FlowAssignment? get installedArtifactAssignment =>
+      _currentScreenEntryId == null || _frames.isEmpty
+          ? null
+          : _frames.first.resolved.assignment;
+
+  FlowAssignment? _renderedAssignment;
+
+  /// The assignment carried by the rendered root artifact, or null when the
+  /// artifact is unassigned or has not rendered successfully.
+  ///
+  /// Once set, this survives the flow becoming unavailable so the host retains
+  /// the identity of the content the user actually saw.
+  FlowAssignment? get renderedAssignment => _renderedAssignment;
+
   /// Loads and decodes the initial flow screen.
   Future<void> load() async {
     try {
@@ -376,6 +408,31 @@ final class RestageFlowController<R> extends ChangeNotifier {
     ));
   }
 
+  /// Acknowledges that the exact current screen entry built successfully.
+  ///
+  /// Package-internal render-commit handshake. Installing and decoding a screen
+  /// is not proof that its Flutter subtree can build. The rendering surface
+  /// calls this only after its error boundary completes the first frame without
+  /// a synchronous descendant failure. A stale entry, closed controller, or
+  /// repeated acknowledgement is a no-op.
+  @internal
+  void acknowledgeRenderedEntry(int entryId) {
+    if (_isDisposed ||
+        _isUnavailable ||
+        _isComplete ||
+        _hasRenderedContent ||
+        _currentScreenEntryId != entryId ||
+        _frames.isEmpty) {
+      return;
+    }
+    // Commit the root artifact's identity and readiness atomically. A first
+    // screen may belong to a child flow, but the presentation is still owned by
+    // the resolved root artifact.
+    _renderedAssignment = _frames.first.resolved.assignment;
+    _hasRenderedContent = true;
+    notifyListeners();
+  }
+
   /// Returns to the previous screen in the current sub-flow, if any.
   ///
   /// Pops to the prior screen *visit*, restoring its original entry id so a
@@ -446,6 +503,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_isDisposed) return;
     _isDisposed = true;
     _activeActionToken = null;
     _currentScreenEntryId = null;

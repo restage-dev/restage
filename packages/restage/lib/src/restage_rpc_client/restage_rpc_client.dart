@@ -16,6 +16,7 @@ final class SurfaceFetchResult {
     this.experimentId,
     this.variantId,
     this.experimentEpoch,
+    this.contractRequired = false,
   });
 
   /// Base64-decoded `SurfaceDocument` envelope bytes.
@@ -36,6 +37,11 @@ final class SurfaceFetchResult {
   /// Experiment epoch selected by the server, when the served artifact is an
   /// arm.
   final int? experimentEpoch;
+
+  /// Whether the server needs the full client contract uploaded to resolve
+  /// eligibility (a content-hash cache miss). The caller retries the fetch
+  /// once with the contract attached.
+  final bool contractRequired;
 }
 
 /// The active-version stamp for a surface.
@@ -165,6 +171,8 @@ class RestageRpcClient {
     required String surfaceSlug,
     int? version,
     String? assignmentKey,
+    String? contractHash,
+    InstalledCapability? contract,
   }) async {
     final json = await _postJsonObject(
       path: '/sdk/v1/surface',
@@ -173,6 +181,8 @@ class RestageRpcClient {
         'surfaceSlug': surfaceSlug,
         if (version != null) 'version': version,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
+        if (contractHash != null) 'contractHash': contractHash,
+        if (contract != null) 'contract': contract.toJson(),
       },
     );
     if (json == null) return null;
@@ -189,12 +199,16 @@ class RestageRpcClient {
       }
       final rawDecision = json['decision'];
       final decision = rawDecision is String ? rawDecision : null;
+      final rawContractRequired = json['contractRequired'];
+      final contractRequired =
+          rawContractRequired is bool ? rawContractRequired : false;
       return SurfaceFetchResult(
         envelopeBytes: base64Decode(envelope),
         decision: decision,
         experimentId: assignment.experimentId,
         variantId: assignment.variantId,
         experimentEpoch: assignment.experimentEpoch,
+        contractRequired: contractRequired,
       );
     } on FormatException catch (error) {
       debugPrint('[restage] surface envelope was not valid base64: $error');

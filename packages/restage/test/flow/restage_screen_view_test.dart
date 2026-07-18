@@ -34,6 +34,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Welcome'), findsOneWidget);
+    expect(controller.hasRenderedContent, isTrue);
   });
 
   testWidgets('publishes price data to flow-screen render data',
@@ -143,5 +144,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(controller.isUnavailable, isTrue);
     expect(captured?.reason, 'render_failed');
+    expect(controller.hasRenderedContent, isFalse);
+    expect(controller.renderedAssignment, isNull);
   });
 }

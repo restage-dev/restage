@@ -149,6 +149,41 @@ void main() {
     expect(find.text('Profile'), findsOneWidget);
   });
 
+  testWidgets('a controller swap commits both controllers', (tester) async {
+    final first = loadedController();
+    final second = loadedController();
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageFlowView(controller: first),
+    ));
+    unawaited(first.load());
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageFlowView(controller: second),
+    ));
+    unawaited(second.load());
+    await tester.pumpAndSettle();
+
+    final observed = (
+      firstCommitted: first.hasRenderedContent,
+      secondCommitted: second.hasRenderedContent,
+    );
+    await unmountView(tester);
+
+    expect(
+      observed,
+      (
+        firstCommitted: true,
+        secondCommitted: true,
+      ),
+    );
+  });
+
   testWidgets('forward navigation keeps the prior screen mounted offstage',
       (tester) async {
     final controller = loadedController();
@@ -1584,6 +1619,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(unavailable?.reason, 'render_failed');
     expect(controller.currentScreenEntryId, isNull);
+    expect(controller.hasRenderedContent, isFalse);
+    expect(controller.renderedAssignment, isNull);
     // onRuntimeError fired as a notification (not the safety mechanism).
     expect(notified, 1);
   });

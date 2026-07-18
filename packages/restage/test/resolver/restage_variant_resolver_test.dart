@@ -60,11 +60,14 @@ void main() {
       expect(request.method, 'POST');
       expect(request.url.toString(), '$baseUrl/sdk/v1/surface');
       expect(request.headers['Authorization'], 'Bearer $apiKey');
-      expect(jsonDecode(request.body), {
-        'surfaceType': 'paywall',
-        'surfaceSlug': 'pro_upgrade',
-      });
-      expect((jsonDecode(request.body) as Map).containsKey('version'), isFalse);
+      final activeBody = jsonDecode(request.body) as Map<String, dynamic>;
+      expect(activeBody['surfaceType'], 'paywall');
+      expect(activeBody['surfaceSlug'], 'pro_upgrade');
+      expect(activeBody.containsKey('version'), isFalse);
+      // The client contract hash rides every hosted fetch (the hot path); the
+      // full contract is uploaded only if the server asks (contractRequired).
+      expect(activeBody['contractHash'], startsWith('sha256:'));
+      expect(activeBody.containsKey('contract'), isFalse);
 
       // The resolved variant carries the blob, the id, and the SERVED version.
       expect(variant.bytes, blob);
@@ -92,11 +95,131 @@ void main() {
 
       await resolver.resolve('pro_upgrade');
 
-      expect(jsonDecode(requests.single.body), {
-        'surfaceType': 'paywall',
-        'surfaceSlug': 'pro_upgrade',
-        'assignmentKey': 'anon-assignment-1',
-      });
+      final keyedBody =
+          jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(keyedBody['surfaceType'], 'paywall');
+      expect(keyedBody['surfaceSlug'], 'pro_upgrade');
+      expect(keyedBody['assignmentKey'], 'anon-assignment-1');
+      expect(keyedBody['contractHash'], startsWith('sha256:'));
+    });
+
+    test(
+        'a contractRequired response triggers a single upload-on-miss retry '
+        'with the full contract, then renders the served arm', () async {
+      final envelope =
+          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          final uploaded =
+              (jsonDecode(request.body) as Map).containsKey('contract');
+          // First fetch (hash only): no cached contract → ask for upload.
+          // Second fetch (contract attached): serve the arm.
+          if (!uploaded) {
+            return http.Response(
+              jsonEncode({
+                'envelope': base64Encode(envelope),
+                'decision': 'clientIncompatible',
+                'contractRequired': true,
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'envelope': base64Encode(envelope),
+              'decision': 'assigned',
+              'experimentId': 'exp_paywall_copy',
+              'variantId': 'variant_a',
+              'experimentEpoch': 3,
+            }),
+            200,
+          );
+        }),
+      );
+
+      final variant = await resolver.resolve('pro_upgrade');
+
+      // Exactly two fetches: hash-only, then the retry carrying the contract.
+      expect(requests, hasLength(2));
+      final first = jsonDecode(requests[0].body) as Map<String, dynamic>;
+      final second = jsonDecode(requests[1].body) as Map<String, dynamic>;
+      expect(first['contractHash'], startsWith('sha256:'));
+      expect(first.containsKey('contract'), isFalse);
+      expect(second['contractHash'], startsWith('sha256:'));
+      expect(second['contract'], isA<Map<String, dynamic>>());
+      // The retried (assigned) arm renders with its attribution.
+      expect(variant.bytes, blob);
+      expect(variant.experimentId, 'exp_paywall_copy');
+      expect(variant.variantId, 'variant_a');
+    });
+
+    test(
+        'two consecutive contractRequired responses fail closed to '
+        'unavailable — the upload-on-miss retry never loops', () async {
+      final envelope =
+          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
+      final requests = <http.Request>[];
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode({
+              'envelope': base64Encode(envelope),
+              'decision': 'clientIncompatible',
+              'contractRequired': true,
+            }),
+            200,
+          );
+        }),
+      );
+
+      await expectLater(
+        resolver.resolve('pro_upgrade'),
+        throwsA(isA<RestagePaywallError>()),
+      );
+      // The hot-path fetch + exactly one upload retry — never more.
+      expect(requests, hasLength(2));
+    });
+
+    test(
+        'a clientIncompatible response (no contractRequired) renders the '
+        'pinned active version with NO experiment attribution', () async {
+      final envelope =
+          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
+      final resolver = RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: MockClient((request) async {
+          // The client cannot render every arm: it sits out the experiment and
+          // is served the pinned active version — no assignment metadata, no
+          // contractRequired.
+          return http.Response(
+            jsonEncode({
+              'envelope': base64Encode(envelope),
+              'decision': 'clientIncompatible',
+            }),
+            200,
+          );
+        }),
+      );
+
+      final variant = await resolver.resolve('pro_upgrade');
+
+      // The pinned active version renders...
+      expect(variant.bytes, blob);
+      expect(variant.paywallPublishedVersion, 5);
+      // ...with NO experiment attribution (it did not join an arm).
+      expect(variant.experimentId, isNull);
+      expect(variant.variantId, isNull);
     });
   });
 

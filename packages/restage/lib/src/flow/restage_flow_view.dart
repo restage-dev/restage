@@ -778,6 +778,10 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     // never to a controller the view was later swapped to.
     final controller = widget.controller;
     final child = RuntimeErrorBoundary(
+      key: ValueKey<int>(screen.entryId),
+      onFirstBuildSuccess: () {
+        controller.acknowledgeRenderedEntry(screen.entryId);
+      },
       onError: (error, stack) {
         if (screen.entryId == controller.currentScreenEntryId) {
           controller.reportRenderFailure(error);

@@ -48,6 +48,189 @@ final class StaticFlowResolver implements FlowResolver {
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async => this.flow;
 }
 
+/// Resolver whose root artifact can change while child resolution stays under
+/// explicit test control.
+final class ControlledInitialSubFlowResolver implements FlowResolver {
+  ControlledInitialSubFlowResolver({
+    required this.root,
+    required this.child,
+  });
+
+  ResolvedFlow root;
+  Completer<ResolvedFlow> child;
+  int rootCalls = 0;
+  int childCalls = 0;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) {
+    if (flow.id == firstRunFlowRef.id) {
+      rootCalls += 1;
+      return Future<ResolvedFlow>.value(root);
+    }
+    if (flow.id == 'child_flow') {
+      childCalls += 1;
+      return child.future;
+    }
+    throw FlowUnavailableError(
+      flowId: flow.id,
+      flowVersion: flow.version,
+      reason: 'missing_flow_json',
+      message: 'Missing flow ${flow.id}.',
+    );
+  }
+}
+
+/// Builds a root artifact whose initial state enters [child].
+ResolvedFlow initialSubFlowRoot({
+  required ResolvedFlow child,
+  FlowAssignment? assignment,
+}) {
+  return ResolvedFlow(
+    document: FlowDocument(
+      flow: firstRunFlowRef.id,
+      version: firstRunFlowRef.version,
+      schemaVersion: 1,
+      minClient: firstRunFlowRef.minClient,
+      initial: 'child',
+      actions: const {},
+      legacyTerminalResultPassthrough: true,
+      screenArtifacts: const {},
+      states: {
+        'child': SubFlowState(
+          flow: 'child_flow',
+          version: 1,
+          schemaVersion: 1,
+          minClient: firstRunFlowRef.minClient,
+          contentHash: child.contentHash!,
+          input: const {},
+          onComplete: const [],
+          defaultBranch: const FlowBranchTarget(target: 'done'),
+        ),
+        'done': const EndFlowState(result: {'completed': true}),
+      },
+    ),
+    screenBlobs: const {},
+    cacheHit: false,
+    assignment: assignment,
+  );
+}
+
+/// Builds a root whose initial child completes without a screen before the
+/// root installs its own first screen.
+ResolvedFlow initialSubFlowThenScreenRoot({
+  required ResolvedFlow child,
+  String text = 'Root after child',
+  FlowAssignment? assignment,
+}) {
+  final welcome = screenBlob(text, 'finish');
+  return ResolvedFlow(
+    document: FlowDocument(
+      flow: firstRunFlowRef.id,
+      version: firstRunFlowRef.version,
+      schemaVersion: 1,
+      minClient: firstRunFlowRef.minClient,
+      initial: 'child',
+      actions: const {},
+      legacyTerminalResultPassthrough: true,
+      screenArtifacts: {
+        'welcome': ScreenArtifact(
+          path: 'welcome.rfw',
+          version: 1,
+          schemaVersion: 1,
+          minClient: firstRunFlowRef.minClient,
+          contentHash: FlowContentHash.compute(welcome),
+        ),
+      },
+      states: {
+        'child': SubFlowState(
+          flow: 'child_flow',
+          version: 1,
+          schemaVersion: 1,
+          minClient: firstRunFlowRef.minClient,
+          contentHash: child.contentHash!,
+          input: const {},
+          onComplete: const [],
+          defaultBranch: const FlowBranchTarget(target: 'welcome'),
+        ),
+        'welcome': const ScreenFlowState(
+          screen: 'welcome',
+          on: {'finish': FlowTransition.goto('done')},
+        ),
+        'done': const EndFlowState(result: {'completed': true}),
+      },
+    ),
+    screenBlobs: {'welcome': welcome},
+    cacheHit: false,
+    assignment: assignment,
+  );
+}
+
+/// Builds a child artifact whose first state installs a real screen.
+ResolvedFlow childScreenFlow({
+  String text = 'Child',
+  FlowAssignment? assignment,
+}) {
+  final welcome = screenBlob(text, 'finish');
+  final document = FlowDocument(
+    flow: 'child_flow',
+    version: 1,
+    schemaVersion: 1,
+    minClient: firstRunFlowRef.minClient,
+    initial: 'welcome',
+    actions: const {},
+    screenArtifacts: {
+      'welcome': ScreenArtifact(
+        path: 'welcome.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: firstRunFlowRef.minClient,
+        contentHash: FlowContentHash.compute(welcome),
+      ),
+    },
+    states: const {
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {'finish': FlowTransition.goto('done')},
+      ),
+      'done': EndFlowState(result: <String, Object?>{}),
+    },
+  );
+  return ResolvedFlow(
+    document: document,
+    screenBlobs: {'welcome': welcome},
+    contentHash: FlowContentHash.compute(
+      Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
+    ),
+    cacheHit: false,
+    assignment: assignment,
+  );
+}
+
+/// Builds a child that completes without installing a screen.
+ResolvedFlow screenlessChildFlow({FlowAssignment? assignment}) {
+  final document = FlowDocument(
+    flow: 'child_flow',
+    version: 1,
+    schemaVersion: 1,
+    minClient: firstRunFlowRef.minClient,
+    initial: 'done',
+    actions: const {},
+    screenArtifacts: const {},
+    states: const {
+      'done': EndFlowState(result: <String, Object?>{}),
+    },
+  );
+  return ResolvedFlow(
+    document: document,
+    screenBlobs: const {},
+    contentHash: FlowContentHash.compute(
+      Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
+    ),
+    cacheHit: false,
+    assignment: assignment,
+  );
+}
+
 /// Encodes a one-screen RFW library whose root taps fire [event] and render
 /// [text]. The blob imports `restage.core` (GestureDetector + Text).
 Uint8List screenBlob(String text, String event) {

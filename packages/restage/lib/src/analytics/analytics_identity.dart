@@ -30,7 +30,10 @@ class AnalyticsIdentity {
   final Future<SharedPreferences> Function() _prefsProvider;
   final String Function() _newId;
 
+  int _generation = 0;
   String? _anonymousIdCache;
+  int? _anonymousIdResolutionGeneration;
+  Future<String>? _anonymousIdResolution;
   String? _sessionId;
   String? _userId;
 
@@ -39,29 +42,70 @@ class AnalyticsIdentity {
   String? surfaceSessionId;
 
   /// Returns the persisted pseudonymous id, minting + persisting one on first run.
-  Future<String> anonymousId() async {
+  Future<String> anonymousId() {
     final cached = _anonymousIdCache;
-    if (cached != null) return cached;
+    if (cached != null) return Future<String>.value(cached);
+
+    final generation = _generation;
+    final resolution = _anonymousIdResolution;
+    if (resolution != null && _anonymousIdResolutionGeneration == generation) {
+      return resolution;
+    }
+
+    late final Future<String> newResolution;
+    newResolution = _resolveAnonymousId(generation).whenComplete(() {
+      if (_anonymousIdResolutionGeneration == generation &&
+          identical(_anonymousIdResolution, newResolution)) {
+        _anonymousIdResolutionGeneration = null;
+        _anonymousIdResolution = null;
+      }
+    });
+    _anonymousIdResolutionGeneration = generation;
+    _anonymousIdResolution = newResolution;
+    return newResolution;
+  }
+
+  Future<String> _resolveAnonymousId(int generation) async {
     final prefs = await _prefsProvider();
     final persisted = prefs.getString(_anonymousIdKey);
     if (persisted != null && persisted.isNotEmpty) {
-      _anonymousIdCache = persisted;
+      if (_generation == generation) _anonymousIdCache = persisted;
       return persisted;
     }
-    return _mintAnonymousId(prefs);
+
+    final fresh = _newId();
+    if (_generation != generation) return fresh;
+
+    await prefs.setString(_anonymousIdKey, fresh);
+    if (_generation == generation) {
+      _anonymousIdCache = fresh;
+    } else {
+      await _repairCurrentAnonymousIdPersistence();
+    }
+    return fresh;
   }
 
-  Future<String> _mintAnonymousId(SharedPreferences prefs) async {
-    final fresh = _newId();
-    await prefs.setString(_anonymousIdKey, fresh);
-    _anonymousIdCache = fresh;
-    return fresh;
+  Future<void> _repairCurrentAnonymousIdPersistence() async {
+    while (true) {
+      final generation = _generation;
+      final current = _anonymousIdCache;
+      if (current == null) return;
+
+      final prefs = await _prefsProvider();
+      if (_generation != generation || _anonymousIdCache != current) continue;
+
+      await prefs.setString(_anonymousIdKey, current);
+      if (_generation == generation && _anonymousIdCache == current) return;
+    }
   }
 
   /// The resolved pseudonymous id if [anonymousId] has completed at least once,
   /// else null. Synchronous — for the hot event-fire path, which captures a
   /// snapshot without awaiting.
   String? get cachedAnonymousId => _anonymousIdCache;
+
+  /// Monotonic actor generation for internal SDK race fences.
+  int get generation => _generation;
 
   /// The current app-session id (minted lazily on first read).
   String get sessionId => _sessionId ??= _newId();
@@ -75,13 +119,26 @@ class AnalyticsIdentity {
   /// Attaches the customer's [userId] to subsequent events.
   void identify(String userId) => _userId = userId;
 
-  /// Resets the pseudonymous actor: mints a fresh [anonymousId], clears [userId],
-  /// and rotates the session — the privacy "forget me" primitive.
+  /// Resets the pseudonymous actor immediately: mints a fresh [anonymousId],
+  /// clears [userId] and the current surface presentation, and rotates the app
+  /// session. Persistence completes asynchronously after the in-memory privacy
+  /// boundary has taken effect.
   Future<void> reset() async {
-    final prefs = await _prefsProvider();
-    await _mintAnonymousId(prefs);
+    final generation = ++_generation;
+    _anonymousIdResolutionGeneration = null;
+    _anonymousIdResolution = null;
+    final fresh = _newId();
+    _anonymousIdCache = fresh;
     _userId = null;
     rotateSession();
+    surfaceSessionId = null;
+
+    final prefs = await _prefsProvider();
+    if (_generation != generation) return;
+    await prefs.setString(_anonymousIdKey, fresh);
+    if (_generation != generation) {
+      await _repairCurrentAnonymousIdPersistence();
+    }
   }
 
   /// Mints a fresh per-event idempotency id (UUIDv4).
