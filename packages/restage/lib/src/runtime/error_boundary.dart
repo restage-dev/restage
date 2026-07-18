@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'first_paint_lease_guard.dart';
+
 /// Catches exceptions thrown by [child]'s subtree and routes them to [onError].
 ///
 /// Scoped build-error shim. [ErrorWidget.builder] and [FlutterError.onError]
@@ -19,6 +21,7 @@ class RuntimeErrorBoundary extends StatefulWidget {
     required this.child,
     required this.onError,
     required this.errorReplacement,
+    this.onFirstBuildSuccess,
   });
 
   /// The subtree to guard.
@@ -32,6 +35,14 @@ class RuntimeErrorBoundary extends StatefulWidget {
   final Widget Function(
           BuildContext context, Object exception, StackTrace stack)
       errorReplacement;
+
+  /// Reports the first frame whose descendant build completed without this
+  /// boundary catching an error.
+  ///
+  /// The callback is post-frame so descendant build failures have already
+  /// reached the boundary trap. When nested in a first-paint transaction, it is
+  /// suppressed unless that transaction committed synchronously during paint.
+  final VoidCallback? onFirstBuildSuccess;
 
   @override
   State<RuntimeErrorBoundary> createState() => _RuntimeErrorBoundaryState();
@@ -55,6 +66,9 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
 
   Object? _caught;
   StackTrace? _stack;
+  bool _failurePending = false;
+  bool _successScheduled = false;
+  bool _successReported = false;
 
   @override
   void initState() {
@@ -71,6 +85,7 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
     _previousOnError = FlutterError.onError;
 
     _installedOnError = (FlutterErrorDetails details) {
+      FirstPaintLeaseTransaction.reportFrameworkPaintError();
       final report = _PendingFlutterErrorReport(
         details: details,
         previousOnError: _previousOnError,
@@ -152,6 +167,10 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
   }
 
   void _captureFirst(Object exception, StackTrace? stack) {
+    // This runs from the descendant's ErrorWidget during the same build frame.
+    // Mark failure synchronously so the success callback already queued by the
+    // ancestor boundary cannot win the post-frame race.
+    _failurePending = true;
     final resolvedStack = stack ?? StackTrace.current;
     // Defer setState until after the current build/frame so we don't
     // recurse into ourselves.
@@ -181,10 +200,37 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
         _stack ?? StackTrace.current,
       );
     }
+    _scheduleFirstBuildSuccess();
     return _RuntimeErrorBoundaryScope(
       boundary: this,
       child: widget.child,
     );
+  }
+
+  void _scheduleFirstBuildSuccess() {
+    if (widget.onFirstBuildSuccess == null ||
+        _successScheduled ||
+        _successReported ||
+        _failurePending ||
+        _caught != null) {
+      return;
+    }
+    _successScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _successScheduled = false;
+      if (!mounted || _successReported || _failurePending || _caught != null) {
+        return;
+      }
+      // A hosted candidate can finish descendant build even though its outer
+      // lease guard rejected the frame before paint. Do not turn that unpainted
+      // build into controller readiness. A committed transaction is already
+      // pinned synchronously before descendant paint; an unscoped boundary
+      // retains the existing success behavior.
+      final transaction = FirstPaintLeaseScope.maybeOf(context);
+      if (transaction != null && !transaction.isCommitted) return;
+      _successReported = true;
+      widget.onFirstBuildSuccess?.call();
+    });
   }
 }
 
@@ -225,6 +271,7 @@ class _RuntimeErrorBoundaryTrap extends StatelessWidget {
     final boundary = scope?.boundary;
     if (boundary != null && boundary.mounted) {
       _RuntimeErrorBoundaryState._claim(details);
+      FirstPaintLeaseScope.maybeOf(context)?.recordBuildFailure();
       boundary._captureFirst(details.exception, details.stack);
       return const SizedBox.shrink();
     }

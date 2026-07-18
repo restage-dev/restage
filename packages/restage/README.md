@@ -179,6 +179,8 @@ Host actions are typed, app-owned capability boundaries. A flow can select among
 
 Flow-originated custom events, terminal results, child-flow results, and action arguments are filtered through explicit declarations before they leave the flow runtime. Do not put secrets, credentials, private tokens, or unreleased business logic in flow documents, generated Dart, or bundled RFW assets.
 
+**The experiment eligibility contract.** Every hosted fetch carries a small rendering-capability contract hash — the built-in catalog version this build ships plus the custom widget libraries it has registered (the full list is uploaded only when the server hasn't seen that hash before). The server uses it only for experiment eligibility: a client is enrolled only in experiments whose every arm this build can render; a client that can't render an arm sits out the experiment and is served the active version, never a broken one. The contract describes what this build can draw. It carries no user, device, or host-supplied render data.
+
 ## Live refresh
 
 Every surface picks up new content the next time it is shown. That is the default, and it covers most changes: publish a new version, and the next onboarding run, paywall view, or survey render uses it.
@@ -256,7 +258,7 @@ Restage includes a conversion-analytics layer. It powers your dashboard, A/B res
 
 - **It's off until you connect a backend.** Analytics activates only when you pass `baseUrl` to `Restage.configure(...)`. In local mode (no `baseUrl`) the SDK renders everything on-device and calls no backend.
 - **No endpoint is baked in.** Events go to *your* configured `baseUrl` (`<baseUrl>/analytics/events`), authenticated with your public key (`rs_pk_…`). Point it at Restage Cloud and your events power your dashboard and usage-based billing. Point it at your own backend and they go there. There is no hidden Restage host in the SDK. Grep for it.
-- **The identity is pseudonymous.** Each install gets a random UUID that carries no personal data and resets on uninstall or `Restage.reset()`. The SDK never collects a user identity unless *you* attach your own via `Restage.identify(...)`.
+- **The identity is pseudonymous.** Each install gets a random UUID that carries no personal data and resets on uninstall or `Restage.reset()`. After a reset, future activity is treated as a new user, so experiment assignment may change on the next surface presentation. The SDK never collects a user identity unless *you* attach your own via `Restage.identify(...)`.
 
 **What each event contains:** a dedup id; the event name and a UTC timestamp; which surface it was, with its id, version, and session; the pseudonymous install id and an app-session id; an app context of `platform`, `locale`, SDK version, and optional app version or build; conversion dimensions (product, offer, variant, experiment) where they apply; and the event's own typed fields, after a scrub that keeps render and host context out of analytics.
 

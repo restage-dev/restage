@@ -22,6 +22,7 @@ import '../restage_rpc_client/restage_rpc_client.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'bundled_flow_loader.dart';
+import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 
@@ -140,6 +141,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
       document,
       screenBlobs,
       surfaceDocument.requiredLibraries,
+      assignment: _assignmentOf(result),
     );
     _cache[cacheKey] = cachedFlow;
     return cachedFlow.toResolvedFlow(cacheHit: false);
@@ -248,9 +250,9 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     );
     if (result == null) return null;
 
-    // A flow surface carries no experiment metadata (server-owned experiment
-    // selection is hosted-paywall-only); the active arm reads only the envelope
-    // bytes, mirroring the exact-version path above.
+    // Flow requests intentionally omit an assignment key. Any valid assignment
+    // metadata on the response remains passive and is attached only after the
+    // artifact passes the validation checks below.
     final SurfaceDocument surfaceDocument;
     try {
       surfaceDocument = SurfaceDocumentCodec.decode(result.envelopeBytes);
@@ -280,9 +282,12 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     }
 
     return _CachedServerFlow.from(
+      // Assignment metadata is stored only with an accepted artifact so
+      // attribution describes what rendered.
       document,
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
+      assignment: _assignmentOf(result),
     );
   }
 
@@ -536,11 +541,14 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
 }
 
 final class _CachedServerFlow {
+  final FlowAssignment? assignment;
+
   const _CachedServerFlow(
     this.document,
     this.screenBlobs,
     this.contentHash,
     this.requiredLibraries,
+    this.assignment,
   );
 
   /// Builds a cache entry, computing the canonical-document content hash (the
@@ -548,13 +556,15 @@ final class _CachedServerFlow {
   factory _CachedServerFlow.from(
     FlowDocument document,
     Map<String, Uint8List> screenBlobs,
-    List<LibraryRequirement> requiredLibraries,
-  ) {
+    List<LibraryRequirement> requiredLibraries, {
+    required FlowAssignment? assignment,
+  }) {
     return _CachedServerFlow(
       document,
       screenBlobs,
       FlowContentHash.compute(FlowDocumentCodec.encodeCanonicalJson(document)),
       requiredLibraries,
+      assignment,
     );
   }
 
@@ -572,6 +582,22 @@ final class _CachedServerFlow {
       screenBlobs: screenBlobs,
       contentHash: contentHash,
       cacheHit: cacheHit,
+      assignment: assignment,
     );
   }
+}
+
+FlowAssignment? _assignmentOf(SurfaceFetchResult result) {
+  final experimentId = result.experimentId;
+  final variantId = result.variantId;
+  final experimentEpoch = result.experimentEpoch;
+  if (experimentId == null || variantId == null || experimentEpoch == null) {
+    return null;
+  }
+
+  return FlowAssignment(
+    experimentId: experimentId,
+    variantId: variantId,
+    experimentEpoch: experimentEpoch,
+  );
 }

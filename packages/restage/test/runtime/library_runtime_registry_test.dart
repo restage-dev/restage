@@ -75,21 +75,33 @@ void main() {
     );
   });
 
-  test('register rejects reserved built-in namespaces (typed singleton)', () {
-    expect(
-      () => LibraryRuntimeRegistry.register(
-        WidgetLibrary.core,
-        [RestageWidgetFactory(name: 'X', builder: _stubBuilder)],
-      ),
-      throwsAssertionError,
-    );
+  test('reserved built-in namespaces assert without being registered', () {
+    for (final namespace in <String>[
+      'restage.core',
+      'restage.material',
+      'restage.cupertino',
+    ]) {
+      expect(
+        () => LibraryRuntimeRegistry.register(
+          WidgetLibrary.custom(namespace),
+          const <RestageWidgetFactory>[],
+          capabilityVersion: 1,
+        ),
+        throwsA(isA<AssertionError>()),
+      );
+      expect(LibraryRuntimeRegistry.isRegistered(namespace), isFalse);
+    }
   });
 
-  test('register rejects reserved built-in namespaces (custom string)', () {
-    expect(
-      () => _registerOne('restage.material', 'X'),
-      throwsAssertionError,
+  test('normal custom-namespace registration is unchanged', () {
+    LibraryRuntimeRegistry.register(
+      const WidgetLibrary.custom('acme.widgets'),
+      [RestageWidgetFactory(name: 'AcmeWidget', builder: _stubBuilder)],
+      capabilityVersion: 2,
     );
+
+    expect(LibraryRuntimeRegistry.isRegistered('acme.widgets'), isTrue);
+    expect(LibraryRuntimeRegistry.registeredVersion('acme.widgets'), 2);
   });
 
   test('register rejects duplicate widget names within one library', () {

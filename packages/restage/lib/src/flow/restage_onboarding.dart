@@ -4,7 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_shared/restage_shared.dart' show SurfaceType;
 
 import '../authoring/onboarding_event_dispatcher.dart';
-import '../events/restage_event.dart' show FlowStarted, RestageEvent;
+import '../events/restage_event.dart' show RestageEvent;
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -186,11 +186,14 @@ final class RestageOnboarding<R> extends StatefulWidget {
 class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   RestageFlowController<R>? _controller;
 
-  /// A controller re-resolving the flow during a live refresh, held here (never
-  /// rendered) until its first screen is ready. Promoted to [_controller] on
-  /// success; discarded silently on failure so a failed refresh keeps the
-  /// current render.
+  /// A controller re-resolving the flow during a live refresh. Once it installs
+  /// a screen it is staged visibly above the retained current controller, but
+  /// stays noninteractive and semantics-hidden until that screen's boundary
+  /// acknowledges a successful first build.
   RestageFlowController<R>? _pendingController;
+  VoidCallback? _pendingReadinessListener;
+  bool _pendingIsStaged = false;
+  bool _pendingPromotionScheduled = false;
   FlowUnavailableError? _unavailableError;
   SurfaceRefreshHandle? _refreshHandle;
 
@@ -219,9 +222,11 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   }
 
   /// The swap-safety gate: a flow is safe to re-host only while it is pristine
-  /// (no user-contributed state), idle (no transition/action in flight), and
-  /// not yet complete.
+  /// (no user-contributed state), idle (no transition/action in flight), not
+  /// yet complete, and not experiment-assigned. An assigned presentation stays
+  /// pinned until remount so a live refresh cannot move it out of its arm.
   bool _canSwap() =>
+      _controller?.renderedAssignment == null &&
       !(_controller?.hasUserContributedState ?? false) &&
       !(_controller?.isBusy ?? false) &&
       !(_controller?.isComplete ?? false);
@@ -233,14 +238,12 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   /// state, and there is no loading flash on a successful re-host).
   Future<void> _refresh() async {
     if (!mounted || _controller == null) return;
-    _pendingController
-        ?.dispose(); // supersede any in-flight pending (the loser)
+    _disposePending(); // supersede any in-flight pending (the loser)
     late final RestageFlowController<R> pending;
     pending = _buildController(
       onEvent: (event) {
         if (identical(_pendingController, pending)) {
           // Suppress the pending flow's lifecycle until promotion.
-          if (event is FlowStarted) _promotePending(pending);
           return;
         }
         if (!mounted || !identical(_controller, pending)) return;
@@ -248,7 +251,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       },
       onComplete: (result) {
         if (identical(_pendingController, pending)) {
-          _discardPending(pending); // completed before rendering — keep current
+          _scheduleDiscardPending(pending);
           return;
         }
         if (!mounted || !identical(_controller, pending)) return;
@@ -257,7 +260,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       onUnavailable: (error) {
         if (identical(_pendingController, pending)) {
           // Silent: keep the current render. No fallback UI, no host callback.
-          _discardPending(pending);
+          _scheduleDiscardPending(pending);
           return;
         }
         if (!mounted || !identical(_controller, pending)) return;
@@ -266,30 +269,76 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       },
     );
     _pendingController = pending;
+    late final VoidCallback readinessListener;
+    readinessListener = () {
+      if (!identical(_pendingController, pending) || !mounted) return;
+      if (pending.currentScreenEntryId != null && !_pendingIsStaged) {
+        // Re-check before the candidate becomes visible. The user may have
+        // interacted while resolution was in flight, and an assigned artifact
+        // must never be live-staged even for a single frame.
+        if (pending.installedArtifactAssignment != null || !_canSwap()) {
+          _scheduleDiscardPending(pending);
+          return;
+        }
+        setState(() => _pendingIsStaged = true);
+      }
+      if (!pending.hasRenderedContent || _pendingPromotionScheduled) return;
+      // Never dispose or promote a notifier from inside its own notification.
+      _pendingPromotionScheduled = true;
+      scheduleMicrotask(() => _promotePending(pending));
+    };
+    _pendingReadinessListener = readinessListener;
+    pending.addListener(readinessListener);
     unawaited(pending.load());
   }
 
   void _promotePending(RestageFlowController<R> pending) {
+    _pendingPromotionScheduled = false;
     if (!identical(_pendingController, pending) || !mounted) return;
-    // Re-check the gate at promotion — the re-resolve runs the full ladder
-    // (possibly a network fetch), so the user may have advanced meanwhile.
-    if (!_canSwap()) {
+    if (!pending.hasRenderedContent) return;
+    // Never live-swap into an experiment arm. The pending controller exposes
+    // the assignment only after its first screen rendered successfully, so a
+    // rejected or unavailable candidate can never change the current render's
+    // identity. Re-check the current gate as well: the re-resolve runs the full
+    // ladder (possibly a network fetch), so the user may have advanced while it
+    // was in flight.
+    if (pending.renderedAssignment != null || !_canSwap()) {
       _discardPending(pending);
       return;
     }
+    _removePendingReadinessListener(pending);
     _pendingController = null;
     final old = _controller;
     setState(() {
       _controller = pending;
+      _pendingIsStaged = false;
       _unavailableError = null;
     });
     old?.dispose();
   }
 
+  void _scheduleDiscardPending(RestageFlowController<R> pending) {
+    scheduleMicrotask(() => _discardPending(pending));
+  }
+
   void _discardPending(RestageFlowController<R> pending) {
     if (!identical(_pendingController, pending)) return; // already superseded
+    _removePendingReadinessListener(pending);
     _pendingController = null;
+    _pendingIsStaged = false;
+    _pendingPromotionScheduled = false;
+    if (mounted) setState(() {});
     pending.dispose();
+  }
+
+  void _removePendingReadinessListener(
+    RestageFlowController<R> pending,
+  ) {
+    if (!identical(_pendingController, pending)) return;
+    final listener = _pendingReadinessListener;
+    if (listener == null) return;
+    _pendingReadinessListener = null;
+    pending.removeListener(listener);
   }
 
   @override
@@ -309,7 +358,9 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   void _start() {
     // A hard (re)start renders immediately and fails closed to the fallback,
     // exactly as the first mount does. Any in-flight refresh pending controller
-    // is abandoned — a config-identity change supersedes a live refresh.
+    // is abandoned — a config-identity change supersedes a live refresh. This
+    // is a new presentation, not an in-place swap, so an assigned artifact may
+    // mount here; the live-refresh lockout applies after it renders.
     _disposePending();
     _disposeController();
     _unavailableError = null;
@@ -362,8 +413,18 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   }
 
   void _disposePending() {
-    _pendingController?.dispose();
+    final pending = _pendingController;
+    if (pending == null) {
+      _pendingReadinessListener = null;
+      _pendingIsStaged = false;
+      _pendingPromotionScheduled = false;
+      return;
+    }
+    _removePendingReadinessListener(pending);
     _pendingController = null;
+    _pendingIsStaged = false;
+    _pendingPromotionScheduled = false;
+    pending.dispose();
   }
 
   void _handleAuthoredEvent(String eventId, Object? value) {
@@ -403,21 +464,44 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
     // controller's public `handleEvent`. Render failures fail closed in the
     // controller (its `onUnavailable` drives the fallback above), so there is
     // no private back-channel here that an advanced composition could not use.
-    return RestageOnboardingEventDispatcher(
-      onEvent: _handleAuthoredEvent,
-      child: RestageFlowView<R>(
-        controller: controller,
-        transition: widget.transition,
-        loadingBuilder: widget.loadingBuilder,
-        systemBack: widget.systemBack,
-        enableSkip: widget.enableSkip,
-        chromeTheme: widget.chromeTheme,
-        persistentChrome: widget.persistentChrome,
-        backBuilder: widget.backBuilder,
-        skipBuilder: widget.skipBuilder,
-        chromeBuilder: widget.chromeBuilder,
-        persistentChromeBuilder: widget.persistentChromeBuilder,
-        priceQueries: widget.priceQueries,
+    final pending = _pendingIsStaged ? _pendingController : null;
+    return Stack(
+      fit: StackFit.passthrough,
+      children: <Widget>[
+        _buildFlowLayer(controller, staged: false),
+        if (pending != null) _buildFlowLayer(pending, staged: true),
+      ],
+    );
+  }
+
+  Widget _buildFlowLayer(
+    RestageFlowController<R> controller, {
+    required bool staged,
+  }) {
+    return KeyedSubtree(
+      key: ObjectKey(controller),
+      child: ExcludeSemantics(
+        excluding: staged,
+        child: AbsorbPointer(
+          absorbing: staged,
+          child: RestageOnboardingEventDispatcher(
+            onEvent: _handleAuthoredEvent,
+            child: RestageFlowView<R>(
+              controller: controller,
+              transition: widget.transition,
+              loadingBuilder: widget.loadingBuilder,
+              systemBack: widget.systemBack,
+              enableSkip: widget.enableSkip,
+              chromeTheme: widget.chromeTheme,
+              persistentChrome: widget.persistentChrome,
+              backBuilder: widget.backBuilder,
+              skipBuilder: widget.skipBuilder,
+              chromeBuilder: widget.chromeBuilder,
+              persistentChromeBuilder: widget.persistentChromeBuilder,
+              priceQueries: widget.priceQueries,
+            ),
+          ),
+        ),
       ),
     );
   }

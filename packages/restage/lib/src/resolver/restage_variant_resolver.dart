@@ -5,8 +5,12 @@ import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
+        BlobRenderCapabilityGate,
+        BlobRenderRejected,
         BlobSurfacePayload,
+        CapabilityManifest,
         FlowSurfacePayload,
+        InstalledCapability,
         LibraryRequirement,
         SurfaceDocument,
         SurfaceDocumentCodec,
@@ -52,7 +56,10 @@ import 'variant_resolver.dart';
 /// as the default resolver, threading the configured `baseUrl`. A bundled-only
 /// app can supply an [AssetVariantResolver] instead.
 final class RestageVariantResolver
-    implements VariantResolver, FlowCapableVariantResolver {
+    implements
+        VariantResolver,
+        FlowCapableVariantResolver,
+        PresentationPaywallResolver {
   /// Creates a [RestageVariantResolver] targeting [apiKey] / [environment].
   ///
   /// [baseUrl] is the delivery service origin (config-supplied, never baked in).
@@ -100,12 +107,31 @@ final class RestageVariantResolver
     String? placementId,
     Locale? locale,
   }) async {
+    while (true) {
+      try {
+        return await _resolveBlobOnce(
+          id,
+          placementId: placementId,
+          locale: locale,
+        );
+      } on StaleSurfaceAssignmentResolution {
+        // Public callers have no host commit boundary to perform the retry.
+      }
+    }
+  }
+
+  Future<ResolvedVariant> _resolveBlobOnce(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) async {
     // Tier 1 — fetch fresh (active arm). A fresh blob that fails to fetch OR is
     // rejected (non-blob / decode-fail / minClient-above-floor) funnels into the
     // SAME ladder below — a rejected blob NEVER renders. The public SPI is
     // blob-only, so a hosted flow falls through here exactly as before.
     final fresh = await _resolveFresh(id);
     if (fresh is _FreshBlob) {
+      _requireCurrent(fresh.cacheEntry.assignmentLease);
       _cache[id] = fresh.cacheEntry;
       return fresh.cacheEntry.variant;
     }
@@ -114,7 +140,9 @@ final class RestageVariantResolver
     // capability gate: a custom library may have been unregistered/downgraded
     // since caching, so a stale cached blob is not served without re-affirming.
     final cached = _cache[id];
-    if (cached is _CachedBlob && _cacheStillRenderable(cached)) {
+    if (cached is _CachedBlob &&
+        _cacheLeaseIsCurrent(id, cached) &&
+        _cacheStillRenderable(cached)) {
       return _asCacheHit(cached.variant);
     }
 
@@ -145,11 +173,52 @@ final class RestageVariantResolver
     String? placementId,
     Locale? locale,
   }) async {
+    while (true) {
+      try {
+        return await _resolvePayloadOnce(
+          id,
+          placementId: placementId,
+          locale: locale,
+          deferFreshPublication: false,
+        );
+      } on StaleSurfaceAssignmentResolution {
+        // Ordinary callers have no host transaction to perform the retry.
+      }
+    }
+  }
+
+  @internal
+  @override
+  Future<ResolvedPaywallPayload> resolvePayloadForPresentation(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) =>
+      _resolvePayloadOnce(
+        id,
+        placementId: placementId,
+        locale: locale,
+        deferFreshPublication: true,
+      );
+
+  Future<ResolvedPaywallPayload> _resolvePayloadOnce(
+    String id, {
+    String? placementId,
+    Locale? locale,
+    required bool deferFreshPublication,
+  }) async {
     // Tier 1 — hosted fresh (blob).
     final fresh = await _resolveFresh(id);
     if (fresh is _FreshBlob) {
-      _cache[id] = fresh.cacheEntry;
-      return fresh.payload;
+      _requireCurrent(fresh.cacheEntry.assignmentLease);
+      if (!deferFreshPublication) {
+        _cache[id] = fresh.cacheEntry;
+      }
+      return fresh.payload(
+        hostedPublication: deferFreshPublication
+            ? _provisionalPublication(id, fresh.cacheEntry)
+            : null,
+      );
     }
 
     // A flow — fresh OR held-last-good — is gated against the client's bundled
@@ -167,6 +236,7 @@ final class RestageVariantResolver
     // or a render-gate rejection funnels into the SAME ladder; a rejected active
     // flow is NEVER rendered.
     if (fresh is _FreshFlow && bundled != null) {
+      _requireCurrent(fresh.assignmentLease);
       final arm = resolveFlowActiveArm(
         activePayload: fresh.activePayload,
         bundledDocument: bundled.flow.document,
@@ -177,14 +247,25 @@ final class RestageVariantResolver
         experimentEpoch: fresh.experimentEpoch,
       );
       if (arm is FlowPaywallActiveAccepted) {
-        _cache[id] = _CachedFlow(
+        _requireCurrent(fresh.assignmentLease);
+        final cacheEntry = _CachedFlow(
           activePayload: fresh.activePayload,
           version: fresh.version,
           experimentId: fresh.experimentId,
           variantId: fresh.variantId,
           experimentEpoch: fresh.experimentEpoch,
+          assignmentLease: fresh.assignmentLease,
         );
-        return arm.payload;
+        if (!deferFreshPublication) {
+          _cache[id] = cacheEntry;
+        }
+        return _stampFlowPayload(
+          arm.payload,
+          fresh.assignmentLease,
+          hostedPublication: deferFreshPublication
+              ? _provisionalPublication(id, cacheEntry)
+              : null,
+        );
       }
     }
 
@@ -200,11 +281,13 @@ final class RestageVariantResolver
     try {
       final fallback = _assetFallback;
       if (fallback is FlowCapableVariantResolver) {
-        return await (fallback as FlowCapableVariantResolver).resolvePayload(
+        final payload =
+            await (fallback as FlowCapableVariantResolver).resolvePayload(
           id,
           placementId: placementId,
           locale: locale,
         );
+        return _withoutAssignmentLease(payload);
       }
       final variant = await fallback.resolve(
         id,
@@ -220,6 +303,18 @@ final class RestageVariantResolver
     }
   }
 
+  HostedPayloadPublication _provisionalPublication(
+    String id,
+    _CachedPayload cacheEntry,
+  ) =>
+      HostedPayloadPublication(onCommit: () {
+        // Paint-time host validation already checked the same lease. Re-affirm
+        // here so a token can never publish after an identity boundary even if
+        // it is invoked independently or more than once.
+        if (!cacheEntry.assignmentLease.isCurrent) return;
+        _cache[id] = cacheEntry;
+      });
+
   /// Fetches + validates the active hosted version. Returns the fresh outcome:
   /// a renderable blob (with the manifest needed to re-gate a cache hit), a
   /// flow-shaped payload pending the active-arm gate, or a rejection — all
@@ -230,14 +325,42 @@ final class RestageVariantResolver
       return const _FreshRejected(); // no hosted tier (no baseUrl)
     }
 
-    final result = await client.fetchSurface(
+    // The client contract (built-in catalog version + installed libraries) the
+    // server resolves eligibility against; its content hash is byte-identical
+    // to the server's, so a verdict is identity by construction.
+    final installed = InstalledCapability(
+      builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
+      installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
+    );
+    final assignmentLease = await SurfaceAssignmentKeyProvider.captureLease();
+    _requireCurrent(assignmentLease);
+
+    var result = await client.fetchSurface(
       surfaceType: SurfaceType.paywall.wireName,
       surfaceSlug: id,
-      assignmentKey: await SurfaceAssignmentKeyProvider.resolve(),
+      assignmentKey: assignmentLease.assignmentKey,
+      contractHash: installed.contentHash,
       // version omitted → the delivery service's active-version arm.
     );
+    _requireCurrent(assignmentLease);
     if (result == null) {
       return const _FreshRejected(); // transport failure
+    }
+    if (result.contractRequired) {
+      // Upload-on-miss: the server has no cached contract for this hash. Retry
+      // ONCE with the full contract attached. A second consecutive
+      // contractRequired is treated as a fetch failure — never loop.
+      result = await client.fetchSurface(
+        surfaceType: SurfaceType.paywall.wireName,
+        surfaceSlug: id,
+        assignmentKey: assignmentLease.assignmentKey,
+        contractHash: installed.contentHash,
+        contract: installed,
+      );
+      _requireCurrent(assignmentLease);
+      if (result == null || result.contractRequired) {
+        return const _FreshRejected();
+      }
     }
 
     final SurfaceDocument document;
@@ -269,21 +392,16 @@ final class RestageVariantResolver
       // surface this build cannot faithfully render is rejected before render
       // and falls through the ladder, never rendered, with a diagnostic naming
       // the gap.
-      final installedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
-      if (document.minClient > installedVersion) {
-        final gap = 'requires built-in catalog version ${document.minClient}, '
-            'above the installed $installedVersion';
-        debugPrint('[restage] hosted paywall "$id" $gap');
-        return _FreshRejected(capabilityGap: gap);
-      }
-      for (final requirement in document.requiredLibraries) {
-        if (!LibraryRuntimeRegistry.satisfies(requirement)) {
-          final gap = 'requires library "${requirement.namespace}" '
-              '>= v${requirement.minVersion} '
-              '(${LibraryRuntimeRegistry.describeGap(requirement)})';
-          debugPrint('[restage] hosted paywall "$id" $gap');
-          return _FreshRejected(capabilityGap: gap);
-        }
+      final gateVerdict = BlobRenderCapabilityGate.evaluate(
+        required: CapabilityManifest(
+          builtInFloor: document.minClient,
+          requiredLibraries: document.requiredLibraries,
+        ),
+        installed: installed,
+      );
+      if (gateVerdict is BlobRenderRejected) {
+        debugPrint('[restage] hosted paywall "$id" ${gateVerdict.message}');
+        return _FreshRejected(capabilityGap: gateVerdict.message);
       }
 
       final variant = ResolvedVariant(
@@ -299,6 +417,7 @@ final class RestageVariantResolver
           variant: variant,
           minClient: document.minClient,
           requiredLibraries: document.requiredLibraries,
+          assignmentLease: assignmentLease,
         ),
       );
     }
@@ -313,6 +432,7 @@ final class RestageVariantResolver
         result.experimentId,
         result.variantId,
         result.experimentEpoch,
+        assignmentLease,
       );
     }
 
@@ -354,9 +474,13 @@ final class RestageVariantResolver
     FlowPaywallPayload? bundledFlow,
   ) {
     final cached = _cache[id];
+    if (cached != null && !_cacheLeaseIsCurrent(id, cached)) return null;
     if (cached is _CachedBlob) {
       return _cacheStillRenderable(cached)
-          ? BlobPaywallPayload(_asCacheHit(cached.variant))
+          ? BlobPaywallPayload(
+              _asCacheHit(cached.variant),
+              assignmentLease: cached.assignmentLease,
+            )
           : null;
     }
     if (cached is _CachedFlow && bundledFlow != null) {
@@ -370,7 +494,9 @@ final class RestageVariantResolver
         experimentEpoch: cached.experimentEpoch,
         cacheHit: true,
       );
-      if (arm is FlowPaywallActiveAccepted) return arm.payload;
+      if (arm is FlowPaywallActiveAccepted) {
+        return _stampFlowPayload(arm.payload, cached.assignmentLease);
+      }
     }
     return null;
   }
@@ -390,6 +516,16 @@ final class RestageVariantResolver
       }
     }
     return true;
+  }
+
+  bool _cacheLeaseIsCurrent(String id, _CachedPayload cached) {
+    if (cached.assignmentLease.isCurrent) return true;
+    if (identical(_cache[id], cached)) _cache.remove(id);
+    return false;
+  }
+
+  static void _requireCurrent(SurfaceAssignmentResolutionLease lease) {
+    if (!lease.isCurrent) throw const StaleSurfaceAssignmentResolution();
   }
 
   // Re-emit [variant] as a cache hit. copyWith carries every field through, so
@@ -425,7 +561,12 @@ final class _FreshBlob extends _FreshOutcome {
 
   /// Derived from [cacheEntry] so the returned payload and the cache entry can
   /// never disagree (they carry the same variant).
-  BlobPaywallPayload get payload => BlobPaywallPayload(cacheEntry.variant);
+  BlobPaywallPayload payload({HostedPayloadPublication? hostedPublication}) =>
+      BlobPaywallPayload(
+        cacheEntry.variant,
+        assignmentLease: cacheEntry.assignmentLease,
+        hostedPublication: hostedPublication,
+      );
 }
 
 final class _FreshFlow extends _FreshOutcome {
@@ -435,6 +576,7 @@ final class _FreshFlow extends _FreshOutcome {
     this.experimentId,
     this.variantId,
     this.experimentEpoch,
+    this.assignmentLease,
   );
 
   final FlowSurfacePayload activePayload;
@@ -442,6 +584,7 @@ final class _FreshFlow extends _FreshOutcome {
   final String? experimentId;
   final String? variantId;
   final int? experimentEpoch;
+  final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
 final class _FreshRejected extends _FreshOutcome {
@@ -458,7 +601,9 @@ final class _FreshRejected extends _FreshOutcome {
 /// manifest it passed) or a gate-accepted active flow (+ the metadata needed to
 /// re-gate it against the current bundled contract).
 sealed class _CachedPayload {
-  const _CachedPayload();
+  const _CachedPayload({required this.assignmentLease});
+
+  final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
 final class _CachedBlob extends _CachedPayload {
@@ -466,6 +611,7 @@ final class _CachedBlob extends _CachedPayload {
     required this.variant,
     required this.minClient,
     required this.requiredLibraries,
+    required super.assignmentLease,
   });
 
   final ResolvedVariant variant;
@@ -480,6 +626,7 @@ final class _CachedFlow extends _CachedPayload {
     required this.experimentId,
     required this.variantId,
     required this.experimentEpoch,
+    required super.assignmentLease,
   });
 
   /// The served active flow payload, retained so a cache hit can re-run the
@@ -492,6 +639,39 @@ final class _CachedFlow extends _CachedPayload {
   final String? variantId;
   final int? experimentEpoch;
 }
+
+FlowPaywallPayload _stampFlowPayload(
+  FlowPaywallPayload payload,
+  SurfaceAssignmentResolutionLease assignmentLease, {
+  HostedPayloadPublication? hostedPublication,
+}) =>
+    FlowPaywallPayload(
+      flow: payload.flow,
+      paywallId: payload.paywallId,
+      paywallPublishedVersion: payload.paywallPublishedVersion,
+      experimentId: payload.experimentId,
+      variantId: payload.variantId,
+      experimentEpoch: payload.experimentEpoch,
+      resolvedFromActiveArm: payload.resolvedFromActiveArm,
+      assignmentLease: assignmentLease,
+      hostedPublication: hostedPublication,
+    );
+
+ResolvedPaywallPayload _withoutAssignmentLease(
+  ResolvedPaywallPayload payload,
+) =>
+    switch (payload) {
+      BlobPaywallPayload(:final variant) => BlobPaywallPayload(variant),
+      FlowPaywallPayload() => FlowPaywallPayload(
+          flow: payload.flow,
+          paywallId: payload.paywallId,
+          paywallPublishedVersion: payload.paywallPublishedVersion,
+          experimentId: payload.experimentId,
+          variantId: payload.variantId,
+          experimentEpoch: payload.experimentEpoch,
+          resolvedFromActiveArm: payload.resolvedFromActiveArm,
+        ),
+    };
 
 /// Environment hint passed to `Restage.configure` and [RestageVariantResolver].
 enum RestageEnvironment {

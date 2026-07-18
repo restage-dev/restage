@@ -167,8 +167,12 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     // Capture the controller + entry so a stale event or render failure routes
     // to the owner gated to the owner's current entry.
     final controller = widget.controller;
-    final entryId = _entryId;
+    final entryId = _entryId!;
     return RuntimeErrorBoundary(
+      key: ValueKey<int>(entryId),
+      onFirstBuildSuccess: () {
+        controller.acknowledgeRenderedEntry(entryId);
+      },
       onError: (error, stack) {
         if (entryId == controller.currentScreenEntryId) {
           controller.reportRenderFailure(error);

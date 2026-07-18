@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/runtime/error_boundary.dart';
 import 'package:rfw/formats.dart';
 
 class _BadLayoutResolver implements VariantResolver {
@@ -61,6 +62,13 @@ class _ReportOnDisposeState extends State<_ReportOnDispose> {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+class _ThrowOnBuild extends StatelessWidget {
+  const _ThrowOnBuild();
+
+  @override
+  Widget build(BuildContext context) => throw StateError('same-frame boom');
+}
+
 class _FlutterErrorRecorder {
   _FlutterErrorRecorder() : _originalOnError = FlutterError.onError {
     FlutterError.onError = reports.add;
@@ -96,6 +104,32 @@ Future<void> _pumpReadyPaywall(WidgetTester tester) async {
 
 void main() {
   setUp(() => Restage.debugReset());
+
+  testWidgets(
+      'a same-frame descendant throw reports once and never acknowledges '
+      'first-build success', (tester) async {
+    var successes = 0;
+    var errors = 0;
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RuntimeErrorBoundary(
+        onFirstBuildSuccess: () => successes += 1,
+        onError: (_, __) => errors += 1,
+        errorReplacement: (_, __, ___) => const SizedBox.shrink(),
+        child: const _ThrowOnBuild(),
+      ),
+    ));
+    await tester.pump();
+
+    final escaped = tester.takeException();
+    final observed = (successes: successes, errors: errors);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(escaped, isNull);
+    expect(observed, (successes: 0, errors: 1));
+  });
 
   testWidgets('subtree exceptions are caught; errorBuilder is invoked',
       (tester) async {

@@ -9,7 +9,8 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/refresh/surface_refresh_registry.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
-import 'package:rfw/formats.dart';
+import 'package:restage_shared/restage_shared.dart';
+import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import '../flow/flow_test_support.dart';
 
@@ -17,6 +18,14 @@ Uint8List _blob(String text) {
   final source = '''
     import restage.core;
     widget Paywall = Text(text: "$text");
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+Uint8List _throwingBlob() {
+  const source = '''
+    import acme.throwing;
+    widget Paywall = ThrowingWidget();
   ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
@@ -65,6 +74,21 @@ class _MutableResolver implements VariantResolver {
       experimentId: experimentId,
       paywallPublishedVersion: version,
     );
+  }
+}
+
+final class _ControlledBlobResolver implements VariantResolver {
+  final List<Completer<ResolvedVariant>> responses = [];
+
+  @override
+  Future<ResolvedVariant> resolve(
+    String id, {
+    String? placementId,
+    Locale? locale,
+  }) {
+    final response = Completer<ResolvedVariant>();
+    responses.add(response);
+    return response.future;
   }
 }
 
@@ -338,6 +362,110 @@ void main() {
   });
 
   testWidgets(
+      'a blob refresh that throws on first build preserves last-good render, '
+      'identity, cache, and lifecycle', (tester) async {
+    registerThrowingWidget();
+    final resolver = _ControlledBlobResolver();
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'p',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('Refresh failed visibly'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses.single.complete(ResolvedVariant(
+      bytes: _blob('Last good blob'),
+      paywallId: 'p',
+      paywallPublishedVersion: 1,
+    ));
+    await tester.pumpAndSettle();
+    events.clear();
+
+    final refresh = Restage.reloadSurfaces();
+    await tester.pump();
+    resolver.responses[1].complete(ResolvedVariant(
+      bytes: _throwingBlob(),
+      paywallId: 'p',
+      paywallPublishedVersion: 2,
+    ));
+    await refresh;
+    await tester.pumpAndSettle();
+
+    final currentObserved = (
+      old: find.text('Last good blob').evaluate().length,
+      error: find.text('Refresh failed visibly').evaluate().length,
+      completed: events.whereType<PaywallLoadCompleted>().length,
+      viewedVersions: events
+          .whereType<PaywallViewed>()
+          .map((event) => event.publishedVersion)
+          .toList(),
+      failed: events.whereType<PaywallLoadFailed>().length,
+      escaped: tester.takeException(),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    events.clear();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'p',
+          resolver: resolver,
+          cacheLastRender: true,
+          onEvent: events.add,
+          errorBuilder: (_, __) => const Text('No cached last-good blob'),
+        ),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses[2].completeError(const RestagePaywallError(
+      code: RestageErrorCodes.deliveryUnavailable,
+      message: 'fresh remount failed',
+    ));
+    await tester.pumpAndSettle();
+    final cachedObserved = (
+      old: find.text('Last good blob').evaluate().length,
+      error: find.text('No cached last-good blob').evaluate().length,
+      viewedVersions: events
+          .whereType<PaywallViewed>()
+          .map((event) => event.publishedVersion)
+          .toList(),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(
+      (
+        currentOld: currentObserved.old,
+        currentError: currentObserved.error,
+        currentCompleted: currentObserved.completed,
+        currentFailed: currentObserved.failed,
+        currentEscaped: currentObserved.escaped,
+        cachedOld: cachedObserved.old,
+        cachedError: cachedObserved.error,
+      ),
+      (
+        currentOld: 1,
+        currentError: 0,
+        currentCompleted: 0,
+        currentFailed: 0,
+        currentEscaped: null,
+        cachedOld: 1,
+        cachedError: 0,
+      ),
+    );
+    expect(currentObserved.viewedVersions, isEmpty);
+    expect(cachedObserved.viewedVersions, orderedEquals(<int?>[1]));
+  });
+
+  testWidgets(
       'a flow-shaped paywall re-hosts on reload without a spurious dismiss',
       (tester) async {
     final resolver = _FlowResolver(resolvedFlow(welcomeText: 'FlowA'), 1);
@@ -469,6 +597,83 @@ void main() {
   });
 
   testWidgets(
+      'a refresh arriving after B paint commit but before deferred promotion '
+      'does not dispose B when C fails', (tester) async {
+    _registerReloadOnPaintProbe();
+    final resolver = _FlowResolver(resolvedFlow(welcomeText: 'Flow A'), 1);
+    await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
+
+    final nestedRefreshDone = Completer<void>();
+    _ReloadOnPaintProbe.onFirstPaint = () {
+      resolver
+        ..flow = _brokenFlow('Flow C')
+        ..version = 3;
+      unawaited(Restage.reloadSurfaces().whenComplete(() {
+        if (!nestedRefreshDone.isCompleted) nestedRefreshDone.complete();
+      }));
+    };
+    resolver
+      ..flow = _reloadOnPaintFlow()
+      ..version = 2;
+
+    await Restage.reloadSurfaces();
+    Object? escaped;
+    for (var pump = 0; pump < 100 && !nestedRefreshDone.isCompleted; pump++) {
+      await tester.pump(const Duration(milliseconds: 1));
+      escaped ??= tester.takeException();
+    }
+    if (nestedRefreshDone.isCompleted) await nestedRefreshDone.future;
+    await tester.pumpAndSettle();
+
+    final flowB = find.text('Flow B').evaluate().length;
+    if (flowB == 1) {
+      await tester.tap(find.text('Flow B'));
+      await tester.pumpAndSettle();
+    }
+    final flowViews = tester
+        .widgetList<RestageFlowView<void>>(find.byType(RestageFlowView<void>))
+        .toList();
+    final observed = (
+      nestedRefreshDone: nestedRefreshDone.isCompleted,
+      flowB: flowB,
+      profile: find.text('Profile after B').evaluate().length,
+      flowViews: flowViews.length,
+      currentEntry: flowViews.isEmpty
+          ? null
+          : flowViews.single.controller.currentScreenEntryId,
+      unavailable:
+          flowViews.isEmpty ? null : flowViews.single.controller.isUnavailable,
+      complete:
+          flowViews.isEmpty ? null : flowViews.single.controller.isComplete,
+      escaped: escaped ?? tester.takeException(),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+
+    expect(
+      (
+        nestedRefreshDone: observed.nestedRefreshDone,
+        flowB: observed.flowB,
+        profile: observed.profile,
+        flowViews: observed.flowViews,
+        unavailable: observed.unavailable,
+        complete: observed.complete,
+        escaped: observed.escaped,
+      ),
+      (
+        nestedRefreshDone: true,
+        flowB: 1,
+        profile: 1,
+        flowViews: 1,
+        unavailable: false,
+        complete: false,
+        escaped: null,
+      ),
+    );
+    expect(observed.currentEntry, isNotNull);
+  });
+
+  testWidgets(
       'a second reload while a flow refresh is in flight is a no-op '
       '(the registry guard holds through the resolve; the held refresh wins)',
       (tester) async {
@@ -523,6 +728,42 @@ void main() {
     // The blob is what renders — the stale flow must not keep showing.
     expect(find.text('BlobB'), findsOneWidget);
     expect(find.text('FlowA'), findsNothing);
+  });
+
+  testWidgets(
+      'a flow to build-throwing blob refresh preserves the live flow '
+      'controller and its navigation', (tester) async {
+    registerThrowingWidget();
+    final events = <RestageEvent>[];
+    final resolver = _ShapeResolver.flow(
+      _navigablePaywallFlow(
+        welcomeText: 'Flow before throwing blob',
+        profileText: 'Profile',
+      ),
+      1,
+    );
+    await _pump(
+      tester,
+      RestagePaywall(
+        id: 'p',
+        cacheLastRender: true,
+        resolver: resolver,
+        onEvent: events.add,
+        errorBuilder: (_, __) => const Text('Throwing blob escaped'),
+      ),
+    );
+    events.clear();
+
+    resolver.serveBlob(_throwingBlob(), 2);
+    await Restage.reloadSurfaces();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Flow before throwing blob'), findsOneWidget);
+    expect(find.text('Throwing blob escaped'), findsNothing);
+    expect(events.whereType<PaywallLoadFailed>(), isEmpty);
+    await tester.tap(find.text('Flow before throwing blob'));
+    await tester.pumpAndSettle();
+    expect(find.text('Profile'), findsOneWidget);
   });
 
   testWidgets('a blob->flow refresh renders the flow and leaves no stale blob',
@@ -736,6 +977,114 @@ ResolvedFlow _brokenFlow(String welcomeText) {
     cacheHit: false,
   );
 }
+
+const _reloadOnPaintLibrary = WidgetLibrary.custom('acme.reload_on_paint');
+
+final class _ReloadOnPaintProbe extends StatelessWidget {
+  const _ReloadOnPaintProbe();
+
+  static VoidCallback? onFirstPaint;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+        width: 120,
+        height: 48,
+        child: Stack(
+          children: <Widget>[
+            Text('Flow B', textDirection: TextDirection.ltr),
+            Positioned.fill(child: _ReloadOnPaintLeaf()),
+          ],
+        ),
+      );
+}
+
+final class _ReloadOnPaintLeaf extends LeafRenderObjectWidget {
+  const _ReloadOnPaintLeaf();
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _ReloadOnPaintRenderBox();
+}
+
+final class _ReloadOnPaintRenderBox extends RenderBox {
+  bool _fired = false;
+
+  @override
+  void performLayout() {
+    size = constraints.constrain(Size.zero);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (_fired) return;
+    _fired = true;
+    _ReloadOnPaintProbe.onFirstPaint?.call();
+  }
+}
+
+void _registerReloadOnPaintProbe() {
+  _ReloadOnPaintProbe.onFirstPaint = null;
+  Restage.registerWidgetLibrary(
+    _reloadOnPaintLibrary,
+    widgets: <RestageWidgetFactory>[
+      RestageWidgetFactory(
+        name: 'ReloadOnPaintProbe',
+        builder: (_, __) => const _ReloadOnPaintProbe(),
+      ),
+    ],
+  );
+}
+
+ResolvedFlow _reloadOnPaintFlow() {
+  final welcome = _reloadOnPaintScreenBlob();
+  return resolvedFlow(
+    welcomeText: 'Flow B',
+    profileText: 'Profile after B',
+    screenBlobs: <String, Uint8List>{
+      'welcome': welcome,
+      'profile': screenBlob('Profile after B', 'finish'),
+    },
+    states: _paywallNavigationStates,
+  );
+}
+
+Uint8List _reloadOnPaintScreenBlob() {
+  const source = '''
+    import acme.reload_on_paint;
+    import restage.core;
+    widget OnboardingScreen = GestureDetector(
+      onTap: event "restageNav0" { },
+      child: ReloadOnPaintProbe(),
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+ResolvedFlow _navigablePaywallFlow({
+  required String welcomeText,
+  required String profileText,
+}) =>
+    resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': screenBlob(welcomeText, 'restageNav0'),
+        'profile': screenBlob(profileText, 'skip'),
+      },
+      states: _paywallNavigationStates,
+    );
+
+const Map<String, FlowState> _paywallNavigationStates = <String, FlowState>{
+  'welcome': ScreenFlowState(
+    screen: 'welcome',
+    on: <String, FlowTransition>{
+      'restageNav0': FlowTransition.goto('profile'),
+    },
+  ),
+  'profile': ScreenFlowState(
+    screen: 'profile',
+    on: <String, FlowTransition>{'skip': FlowTransition.goto('done')},
+  ),
+  'done': EndFlowState(result: <String, Object?>{'completed': true}),
+};
 
 /// A flow-capable resolver serving a mutable flow-shaped paywall payload. When
 /// [hold] is set, [resolvePayload] parks on it — letting a test keep one refresh

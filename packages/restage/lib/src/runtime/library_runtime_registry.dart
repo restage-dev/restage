@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
 
@@ -21,20 +22,38 @@ abstract final class LibraryRuntimeRegistry {
   /// surface requiring `acme.widgets >= 2` needs a registration declaring a
   /// capability version at or above 2.
   ///
-  /// Asserts that [library] is not a reserved built-in namespace (registering
-  /// `restage.core` etc. would silently shadow the built-in library on every
-  /// paywall mount) and that [widgets] contains no duplicate names.
+  /// A reserved built-in namespace (`restage.core` etc.) is rejected so it can
+  /// never shadow the genuine built-in library on a mount: the debug assert is
+  /// a hard stop in development, and release ignores the registration and logs
+  /// (never throws). Asserts that [widgets] contains no duplicate names.
   static void register(
     WidgetLibrary library,
     List<RestageWidgetFactory> widgets, {
     int? capabilityVersion,
   }) {
-    assert(
-      WidgetLibrary.builtInByNamespace(library.namespace) == null,
-      'Restage.registerWidgetLibrary: "${library.namespace}" is a reserved '
-      'Restage namespace and cannot be overridden. Use a customer-scoped '
-      'namespace such as "acme.design_system".',
-    );
+    if (WidgetLibrary.builtInByNamespace(library.namespace) != null) {
+      // Registering a reserved built-in namespace (restage.core / .material /
+      // .cupertino) would shadow the genuine built-in library on every mount
+      // while the capability contract still declares the built-in floor —
+      // which could enrol the client into content it cannot render. Ignore it:
+      // the app keeps its real built-ins and the declared floor stays honest.
+      // The debug assert is a hard stop during development; release IGNORES and
+      // logs rather than throwing, because a field app that does this already
+      // "works" (shadowed) and a startup throw on SDK update would turn silent
+      // misbehaviour into a crash.
+      assert(
+        false,
+        'Restage.registerWidgetLibrary: "${library.namespace}" is a reserved '
+        'Restage namespace and cannot be overridden. Use a customer-scoped '
+        'namespace such as "acme.design_system".',
+      );
+      debugPrint(
+        '[restage] registerWidgetLibrary: "${library.namespace}" is a reserved '
+        'Restage namespace and cannot be overridden — registration ignored. '
+        'Use a customer-scoped namespace such as "acme.design_system".',
+      );
+      return;
+    }
     assert(
       capabilityVersion == null || capabilityVersion >= 1,
       'Restage.registerWidgetLibrary: capabilityVersion must be a positive '
@@ -66,6 +85,16 @@ abstract final class LibraryRuntimeRegistry {
   /// diagnostic).
   static int? registeredVersion(String namespace) =>
       _entries[namespace]?.capabilityVersion;
+
+  /// Captures the currently registered libraries and their declared capability
+  /// versions.
+  static List<InstalledLibrary> installedSnapshot() => [
+        for (final entry in _entries.entries)
+          InstalledLibrary(
+            namespace: entry.key,
+            version: entry.value.capabilityVersion,
+          ),
+      ];
 
   /// Whether the installed registry satisfies [requirement]: the namespace is
   /// registered AND was registered with a capability version at or above the
