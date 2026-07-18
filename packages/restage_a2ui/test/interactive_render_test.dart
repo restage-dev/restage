@@ -125,7 +125,7 @@ void main() {
   testWidgets('list write-back: tap -> write-back -> re-render', (
     tester,
   ) async {
-    dataContext.update(DataPath('picks'), <String>['a']);
+    dataContext.update(DataPath('picks'), 'not-a-list');
     await _pumpInteractive(
       tester,
       catalog: catalog,
@@ -138,15 +138,15 @@ void main() {
       dispatchEvent: dispatched.add,
     );
     expect(find.byType(MultiSelectFixture), findsOneWidget);
-    expect(find.text('multiselect-chosen:a'), findsOneWidget);
+    expect(find.text('multiselect-chosen:'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('multiselect-add-b')));
     await tester.pump();
 
-    // The settled list was written back -> the BoundList re-renders.
-    expect(find.text('multiselect-chosen:a,b'), findsOneWidget);
+    // The settled list replaces the wrong-type value at the same path and the
+    // safe object binding re-renders from the newly valid list.
+    expect(find.text('multiselect-chosen:b'), findsOneWidget);
     expect(dataContext.getValue<List<Object?>>(DataPath('picks')), <String>[
-      'a',
       'b',
     ]);
   });

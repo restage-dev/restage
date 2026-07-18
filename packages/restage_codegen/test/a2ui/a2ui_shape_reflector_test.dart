@@ -59,7 +59,10 @@ void main() {
     test('num → ScalarNode(number)', () async {
       expect(
         await reflectField(source, 'amount'),
-        const ScalarNode(A2uiScalarType.number),
+        const ScalarNode(
+          A2uiScalarType.number,
+          preserveNumericRuntimeType: true,
+        ),
       );
     });
 
@@ -124,8 +127,16 @@ void main() {
       class Data {
         final List<String> tags;
         final List<int> counts;
+        final List<double> weights;
+        final List<num> measurements;
         final List<String>? maybeTags;
-        Data(this.tags, this.counts, this.maybeTags);
+        Data(
+          this.tags,
+          this.counts,
+          this.weights,
+          this.measurements,
+          this.maybeTags,
+        );
       }
     ''';
 
@@ -140,6 +151,23 @@ void main() {
       expect(
         await reflectField(source, 'counts'),
         const ListNode(element: ScalarNode(A2uiScalarType.integer)),
+      );
+    });
+
+    test('List<double> and List<num> retain distinct Dart reconstruction',
+        () async {
+      expect(
+        await reflectField(source, 'weights'),
+        const ListNode(element: ScalarNode(A2uiScalarType.number)),
+      );
+      expect(
+        await reflectField(source, 'measurements'),
+        const ListNode(
+          element: ScalarNode(
+            A2uiScalarType.number,
+            preserveNumericRuntimeType: true,
+          ),
+        ),
       );
     });
 
@@ -1214,6 +1242,26 @@ void main() {
           A2uiScalarType.string,
           nullable: false,
           isList: true,
+        ),
+      );
+    });
+
+    test('ValueChanged<List<num?>?> preserves the complete list shape',
+        () async {
+      const source = '''
+        class Data {
+          final void Function(List<num?>?) onChanged;
+          Data(this.onChanged);
+        }
+      ''';
+      expect(
+        await signatureOf(source, 'onChanged'),
+        const A2uiCallbackWriteBack(
+          A2uiScalarType.number,
+          nullable: true,
+          isList: true,
+          elementNullable: true,
+          preserveNumericRuntimeType: true,
         ),
       );
     });

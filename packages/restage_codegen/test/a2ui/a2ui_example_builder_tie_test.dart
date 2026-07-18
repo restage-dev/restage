@@ -95,7 +95,11 @@ Future<_ExampleSources> _discoverExampleSources() async {
     if (resolved is! ResolvedLibraryResult) continue;
     final assetId =
         AssetId('restage_a2ui_example', 'lib/${abs.split('/').last}');
-    final entries = visitRestageWidgets(resolved.element, assetId).widgets;
+    final entries = visitRestageWidgets(
+      resolved.element,
+      assetId,
+      includeA2uiScalarLists: true,
+    ).widgets;
     for (final entry in entries) {
       final element = resolved.element.classes.firstWhere(
         (c) => c.name == entry.flutterType.split('#').last,

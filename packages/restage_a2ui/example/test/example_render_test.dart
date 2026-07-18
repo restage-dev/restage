@@ -76,8 +76,167 @@ void main() {
   test('the generated catalog exposes the example widgets', () {
     expect(
       items.map((i) => i.name),
-      containsAll(<String>['RatingPicker', 'CtaButton', 'ProductCard']),
+      containsAll(<String>[
+        'RatingPicker',
+        'CtaButton',
+        'ProductCard',
+        'ScalarListPanel',
+        'IntegerListPicker',
+      ]),
     );
+  });
+
+  testWidgets('direct scalar-list properties compile and render every family', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'ScalarListPanel',
+      data: _asDelivered(const {
+        'labels': ['alpha', 'beta'],
+        'counts': [1, 2],
+        'weights': [1, 2.5],
+        'measurements': [1, 2.5],
+        'flags': [true, false],
+        'maybeCounts': [3, 4],
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+
+    expect(find.byType(ScalarListPanel), findsOneWidget);
+    expect(find.text('labels:alpha,beta'), findsOneWidget);
+    expect(find.text('counts:1,2'), findsOneWidget);
+    expect(find.text('weights:1.0,2.5'), findsOneWidget);
+    expect(find.text('measurements:1,2.5'), findsOneWidget);
+    expect(find.text('measurement-types:int,double'), findsOneWidget);
+    expect(find.text('flags:true,false'), findsOneWidget);
+    expect(find.text('maybe-counts:3,4'), findsOneWidget);
+    expect(find.text('fallback-counts:7,8'), findsOneWidget);
+  });
+
+  testWidgets('a required scalar list uses its empty fallback for a '
+      'wrong-type path', (tester) async {
+    dataContext.update(DataPath('counts'), 'not-a-list');
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'ScalarListPanel',
+      data: _asDelivered(const {
+        'labels': <String>[],
+        'counts': {'path': 'counts'},
+        'weights': <double>[],
+        'measurements': <num>[],
+        'flags': <bool>[],
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+
+    expect(find.byType(ScalarListPanel), findsOneWidget);
+    expect(find.text('counts:'), findsOneWidget);
+  });
+
+  testWidgets('a nullable scalar list remains null for a wrong-type path', (
+    tester,
+  ) async {
+    dataContext.update(DataPath('maybeCounts'), false);
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'ScalarListPanel',
+      data: _asDelivered(const {
+        'labels': <String>[],
+        'counts': <int>[],
+        'weights': <double>[],
+        'measurements': <num>[],
+        'flags': <bool>[],
+        'maybeCounts': {'path': 'maybeCounts'},
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+
+    expect(find.byType(ScalarListPanel), findsOneWidget);
+    expect(find.text('maybe-counts:none'), findsOneWidget);
+  });
+
+  testWidgets(
+    'a scalar list uses its declared fallback for a wrong-type path',
+    (tester) async {
+      dataContext.update(DataPath('fallbackCounts'), 'not-a-list');
+      await _pump(
+        tester,
+        catalog: catalog,
+        type: 'ScalarListPanel',
+        data: _asDelivered(const {
+          'labels': <String>[],
+          'counts': <int>[],
+          'weights': <double>[],
+          'measurements': <num>[],
+          'flags': <bool>[],
+          'fallbackCounts': {'path': 'fallbackCounts'},
+        }),
+        dataContext: dataContext,
+        dispatchEvent: dispatched.add,
+      );
+
+      expect(find.byType(ScalarListPanel), findsOneWidget);
+      expect(find.text('fallback-counts:7,8'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a nullable scalar list remains null when absent', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'ScalarListPanel',
+      data: _asDelivered(const {
+        'labels': <String>[],
+        'counts': <int>[],
+        'weights': <double>[],
+        'measurements': <num>[],
+        'flags': <bool>[],
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+
+    expect(find.byType(ScalarListPanel), findsOneWidget);
+    expect(find.text('maybe-counts:none'), findsOneWidget);
+    expect(find.text('fallback-counts:7,8'), findsOneWidget);
+  });
+
+  testWidgets('integer-list write-back updates its bound path and re-renders', (
+    tester,
+  ) async {
+    dataContext.update(DataPath('selected'), <Object?>[1, 2]);
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'IntegerListPicker',
+      data: _asDelivered(const {
+        'selected': {'path': 'selected'},
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+
+    expect(find.byType(IntegerListPicker), findsOneWidget);
+    expect(find.text('selected:1,2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('integer-list-add')));
+    await tester.pump();
+
+    expect(find.text('selected:1,2,3'), findsOneWidget);
+    expect(dataContext.getValue<List<Object?>>(DataPath('selected')), <Object?>[
+      1,
+      2,
+      3,
+    ]);
   });
 
   testWidgets('rich data: a structured Product (nested object + scalar list + '

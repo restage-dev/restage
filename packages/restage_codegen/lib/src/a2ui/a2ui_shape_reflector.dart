@@ -5,6 +5,7 @@ import 'package:meta/meta.dart';
 
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
+import 'package:restage_codegen/src/json_scalar_type.dart';
 
 /// Why the reflector could not carry a Dart type as an A2UI data shape.
 ///
@@ -190,9 +191,9 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
 
   // Scalars and enums must match before the dart:-library catch-all in the
   // class gate (they ARE dart:core / customer enums).
-  final scalar = _scalarTypeOf(type);
+  final scalar = _scalarNodeOf(type, nullable: nullable);
   if (scalar != null) {
-    return A2uiShapeResolved(ScalarNode(scalar, nullable: nullable));
+    return A2uiShapeResolved(scalar);
   }
 
   final enumNode = _enumNodeOf(type, nullable: nullable);
@@ -600,16 +601,27 @@ A2uiCallbackSignature _classifyCallback(FunctionType type) {
   }
   final value = parameters.single.type;
   final nullable = value.nullabilitySuffix == NullabilitySuffix.question;
-  final scalar = _scalarTypeOf(value);
+  final scalar = classifyJsonScalarType(value);
   if (scalar != null) {
-    return A2uiCallbackWriteBack(scalar, nullable: nullable, isList: false);
+    return A2uiCallbackWriteBack(
+      _a2uiScalarType(scalar.family),
+      nullable: nullable,
+      isList: false,
+    );
   }
   if (value is InterfaceType &&
       value.isDartCoreList &&
       value.typeArguments.length == 1) {
-    final element = _scalarTypeOf(value.typeArguments.single);
+    final element = classifyJsonScalarType(value.typeArguments.single);
     if (element != null) {
-      return A2uiCallbackWriteBack(element, nullable: nullable, isList: true);
+      return A2uiCallbackWriteBack(
+        _a2uiScalarType(element.family),
+        nullable: nullable,
+        isList: true,
+        elementNullable: value.typeArguments.single.nullabilitySuffix ==
+            NullabilitySuffix.question,
+        preserveNumericRuntimeType: element.preserveNumericRuntimeType,
+      );
     }
   }
   return A2uiCallbackUnsupported(
@@ -618,14 +630,24 @@ A2uiCallbackSignature _classifyCallback(FunctionType type) {
   );
 }
 
-/// The JSON scalar category for a core scalar [type], or null.
-A2uiScalarType? _scalarTypeOf(DartType type) {
-  if (type.isDartCoreBool) return A2uiScalarType.boolean;
-  if (type.isDartCoreInt) return A2uiScalarType.integer;
-  if (type.isDartCoreDouble || type.isDartCoreNum) return A2uiScalarType.number;
-  if (type.isDartCoreString) return A2uiScalarType.string;
-  return null;
+/// The A2UI scalar node for a supported core Dart scalar [type].
+ScalarNode? _scalarNodeOf(DartType type, {required bool nullable}) {
+  final classification = classifyJsonScalarType(type);
+  if (classification == null) return null;
+  return ScalarNode(
+    _a2uiScalarType(classification.family),
+    preserveNumericRuntimeType: classification.preserveNumericRuntimeType,
+    nullable: nullable,
+  );
 }
+
+/// Maps the shared analyzer classification to its A2UI schema family.
+A2uiScalarType _a2uiScalarType(JsonScalarFamily family) => switch (family) {
+      JsonScalarFamily.string => A2uiScalarType.string,
+      JsonScalarFamily.number => A2uiScalarType.number,
+      JsonScalarFamily.integer => A2uiScalarType.integer,
+      JsonScalarFamily.boolean => A2uiScalarType.boolean,
+    };
 
 /// An [EnumNode] for an enum [type], or null when [type] is not an enum.
 EnumNode? _enumNodeOf(DartType type, {required bool nullable}) {

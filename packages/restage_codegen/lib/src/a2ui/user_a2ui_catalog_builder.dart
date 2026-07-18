@@ -164,7 +164,11 @@ final class UserA2uiCatalogBuilder implements Builder {
         continue;
       }
 
-      final result = visitRestageWidgets(library, assetId);
+      final result = visitRestageWidgets(
+        library,
+        assetId,
+        includeA2uiScalarLists: true,
+      );
       issues.addAll(result.issues);
       for (final entry in result.widgets) {
         // A customer `@RestageWidget` must not claim a built-in namespace — it

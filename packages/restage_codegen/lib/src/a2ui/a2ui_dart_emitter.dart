@@ -279,11 +279,11 @@ final class A2uiChildField extends A2uiFieldEmission {
   int get hashCode => slot.hashCode;
 }
 
-/// A map from `(widgetName, propertyName)` to the analyzer-fed rich data shape
-/// for that property — the reflector's output, threaded into the emitter
-/// alongside the serialized catalog (which has no analyzer access). A property
-/// present here is emitted as a rich data field; everything else takes the
-/// catalog-fed leaf path.
+/// A map from `(widgetName, propertyName)` to the analyzer-fed data shape for
+/// that property — the reflector's output, threaded into the emitter alongside
+/// the serialized catalog (which has no analyzer access). Structured object
+/// shapes take the rich-data path; scalar-list shapes remain reactive leaf
+/// fields while using the reflected element type for reconstruction.
 typedef A2uiRichShapes = Map<(String, String), A2uiSchemaNode>;
 
 /// Classifies [catalog] for A2UI Dart emission.
@@ -978,8 +978,8 @@ Map<String, Object?> _fieldSchemaMap(
 ) {
   switch (emission) {
     case A2uiDataField(:final node, :final writeBack):
-      if (writeBack && (node is ScalarNode || node is ListNode)) {
-        return _writeBackReferenceMap(node);
+      if (_usesValueReferenceSchema(node, writeBack: writeBack)) {
+        return _valueReferenceMap(node);
       }
       return ctx == null
           ? _schemaForNodeMap(node)
@@ -997,11 +997,11 @@ Map<String, Object?> _fieldSchemaMap(
   }
 }
 
-/// Map mirror of [_writeBackReferenceSchema] — the genui value-reference shape
+/// Map mirror of [_valueReferenceSchema] — the genui value-reference shape
 /// (a literal OR a `{path}` binding OR a `{call}` function-call source).
-Map<String, Object?> _writeBackReferenceMap(A2uiSchemaNode node) => {
+Map<String, Object?> _valueReferenceMap(A2uiSchemaNode node) => {
       'oneOf': <Object?>[
-        _schemaForNodeBaseMap(node),
+        _schemaForNodeMap(node),
         {
           'type': 'object',
           'properties': {
@@ -1206,13 +1206,11 @@ String _withSchemaDescription(String schemaExpr, String? description) {
 String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
   switch (emission) {
     case A2uiDataField(:final node, :final writeBack):
-      // A write-back value property is a data binding (the producer supplies a
-      // `{path}` / literal / `{call}` value source) — emit genui's value-
-      // reference shape so the generated catalog matches genui-native
-      // semantics. Always a scalar OR a `List<scalar>` leaf (no recursion /
-      // `$defs`).
-      if (writeBack && (node is ScalarNode || node is ListNode)) {
-        return _writeBackReferenceSchema(node);
+      // Scalar-list bindings accept literal, `{path}`, and `{call}` values.
+      // Scalar fields use that reference shape only when they participate in
+      // write-back.
+      if (_usesValueReferenceSchema(node, writeBack: writeBack)) {
+        return _valueReferenceSchema(node);
       }
       return ctx == null
           ? _schemaForNode(node)
@@ -1227,9 +1225,20 @@ String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
   }
 }
 
-/// The genui value-reference schema for a write-back value property — a literal
-/// OR a `{path}` data binding OR a `{call}` function-call value source. For a
-/// scalar [node] this replicates `A2uiSchemas.{boolean,number,string}Reference`
+/// Whether a bound field accepts genui's value-reference input shape.
+///
+/// Every scalar list is reconstructed from a reactive value binding that
+/// accepts a literal list, `{path}`, or `{call}`. Scalar fields advertise
+/// references only when their value is paired with write-back.
+bool _usesValueReferenceSchema(
+  A2uiSchemaNode node, {
+  required bool writeBack,
+}) =>
+    _isScalarListNode(node) || (writeBack && node is ScalarNode);
+
+/// The genui value-reference schema for a bound value — a literal OR a `{path}`
+/// data binding OR a `{call}` function-call value source. For a scalar [node]
+/// this replicates `A2uiSchemas.{boolean,number,string}Reference`
 /// (a2ui_schemas.dart:299-343); for a `List<scalar>` [node] it replicates
 /// `A2uiSchemas.listOrReference(items:)` / `stringArrayReference()`
 /// (a2ui_schemas.dart:418-428, 522-531) — the same `oneOf` with
@@ -1243,8 +1252,8 @@ String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
 /// the churn-robust track-genui posture, and the producer-facing shape is
 /// identical. (The toolchain emits source text and never imports genui either
 /// way.) Re-ground the shape + those file:lines on a genui version bump.
-String _writeBackReferenceSchema(A2uiSchemaNode node) {
-  final literal = _schemaForNodeBase(node);
+String _valueReferenceSchema(A2uiSchemaNode node) {
+  final literal = _schemaForNode(node);
   const binding = "S.object(properties: {'path': S.string()}, "
       "required: <String>['path'])";
   const functionCall = "S.object(properties: {'call': S.string(), "
@@ -1694,7 +1703,7 @@ String _boundWrapperExpression(A2uiDartFieldPlan field, String child) {
         A2uiScalarType.string => 'BoundString',
       },
     EnumNode() => 'BoundString',
-    ListNode() => 'BoundList',
+    ListNode() => 'BoundObject',
     ObjectNode() ||
     MapNode() ||
     UnionNode() ||
@@ -1824,27 +1833,140 @@ String _dataArgumentExpression(
       // member (via _defaultFor), never a throw; an optional enum keeps the
       // nullable lookup so the widget's own default applies.
       return fallback == 'null' ? lookup : '$lookup ?? $fallback';
-    case ListNode(:final element):
-      // The catalog-fed path only produces String-element lists; the schema
-      // side advertises the element type, so construct loud-or-nothing rather
-      // than silently coercing a non-String list through `whereType<String>`.
-      if (element is! ScalarNode || element.type != A2uiScalarType.string) {
-        throw StateError(
-          'A2UI list construction supports only String elements; '
-          'got ${element.runtimeType}. The catalog-fed path never '
-          'produces a non-String list.',
-        );
-      }
-      return [
-        '($variable ?? const <Object?>[]).whereType<String>().toList(',
-        'growable: false)',
-      ].join();
+    case final ListNode list:
+      return _scalarListArgumentExpression(list, property, variable);
     case ObjectNode():
     case MapNode():
     case UnionNode():
     case RefNode():
       throw StateError(_richNodeUnsupportedMessage(node));
   }
+}
+
+/// Reconstructs a reactive bound value as the exact Dart scalar-list type the
+/// reflected constructor accepts. A non-list value resolves to null before the
+/// existing property fallback policy runs. Non-null elements drop malformed
+/// values; nullable elements preserve their position as null. Numeric JSON
+/// values normalize to `int` / `double`; Dart `num` preserves the delivered
+/// numeric runtime type. Keep this policy aligned with [A2uiDataBuilder].
+String _scalarListArgumentExpression(
+  ListNode list,
+  PropertyEntry property,
+  String variable,
+) {
+  final element = list.element;
+  if (element is! ScalarNode) {
+    throw StateError(
+      'A2UI scalar-list construction requires a scalar element; got '
+      '${element.runtimeType}. Use a supported List<scalar> field or wrap '
+      'the value in a structured data object.',
+    );
+  }
+
+  final literalFallback = _scalarListLiteralDefault(property, list);
+  final normalized = '($variable is List '
+      '? $variable.cast<Object?>() '
+      ': null)';
+  final source = switch ((list.nullable, literalFallback)) {
+    (_, final String fallback) => '($normalized ?? $fallback)',
+    (true, null) => normalized,
+    (false, null) => '($normalized ?? const <Object?>[])',
+  };
+  final nullAware = list.nullable && literalFallback == null ? '?' : '';
+  final mapped = switch (element.type) {
+    A2uiScalarType.string => element.nullable
+        ? '.map((value) => value is String ? value : null)'
+        : '.whereType<String>()',
+    A2uiScalarType.boolean => element.nullable
+        ? '.map((value) => value is bool ? value : null)'
+        : '.whereType<bool>()',
+    A2uiScalarType.integer =>
+      '.map((value) => value is num ? value.toInt() : null)'
+          '${element.nullable ? '' : '.whereType<int>()'}',
+    A2uiScalarType.number => element.preserveNumericRuntimeType
+        ? '.map((value) => value is num ? value : null)'
+            '${element.nullable ? '' : '.whereType<num>()'}'
+        : '.map((value) => value is num ? value.toDouble() : null)'
+            '${element.nullable ? '' : '.whereType<double>()'}',
+  };
+  return '$source$nullAware$mapped.toList(growable: false)';
+}
+
+/// Emits a type-checked literal fallback for a scalar list, or null when the
+/// property declares no literal default.
+///
+/// Invalid declared defaults fail at generation time. Runtime-bound values
+/// still use the conversion/filter policy in [_scalarListArgumentExpression].
+String? _scalarListLiteralDefault(PropertyEntry property, ListNode list) {
+  final source = property.defaultSource;
+  if (source is! LiteralDefault) return null;
+  final value = source.value;
+  if (value is! List) {
+    throw StateError(
+      'A2UI scalar-list default for "${property.name}" must be a list; '
+      'got ${value.runtimeType}.',
+    );
+  }
+  final element = list.element;
+  if (element is! ScalarNode) {
+    throw StateError(
+      'A2UI scalar-list default for "${property.name}" requires a scalar '
+      'element; got ${element.runtimeType}.',
+    );
+  }
+
+  final typeName = switch (element.type) {
+    A2uiScalarType.string => 'String',
+    A2uiScalarType.boolean => 'bool',
+    A2uiScalarType.integer => 'int',
+    A2uiScalarType.number =>
+      element.preserveNumericRuntimeType ? 'num' : 'double',
+  };
+  final nullableTypeName = '$typeName${element.nullable ? '?' : ''}';
+  final values = <String>[];
+  for (var index = 0; index < value.length; index++) {
+    final item = value[index];
+    if (item == null) {
+      if (!element.nullable) {
+        throw StateError(
+          'A2UI scalar-list default for "${property.name}" has null at '
+          'index $index, but its element type is $typeName.',
+        );
+      }
+      values.add('null');
+      continue;
+    }
+
+    final literal = switch (element.type) {
+      A2uiScalarType.string => item is String ? _dartStringLiteral(item) : null,
+      A2uiScalarType.boolean => item is bool ? item.toString() : null,
+      A2uiScalarType.integer => item is int ? item.toString() : null,
+      A2uiScalarType.number => _numericListDefaultLiteral(
+          item,
+          preserveNumericRuntimeType: element.preserveNumericRuntimeType,
+        ),
+    };
+    if (literal == null) {
+      throw StateError(
+        'A2UI scalar-list default for "${property.name}" has '
+        '${item.runtimeType} at index $index; expected $nullableTypeName.',
+      );
+    }
+    values.add(literal);
+  }
+  return 'const <$nullableTypeName>[${values.join(', ')}]';
+}
+
+String? _numericListDefaultLiteral(
+  Object? value, {
+  required bool preserveNumericRuntimeType,
+}) {
+  if (preserveNumericRuntimeType) {
+    if (value is int) return value.toString();
+    if (value is double && value.isFinite) return value.toString();
+    return null;
+  }
+  return value is double && value.isFinite ? value.toString() : null;
 }
 
 String _numberArgumentExpression(
@@ -2189,7 +2311,12 @@ A2uiDartCoverageReason? _validateExplicitPairing(
   final valueProp =
       entry.properties.firstWhereOrNull((p) => p.name == valuePropertyName);
   if (valueProp == null ||
-      !_valuePropMatchesSignature(signature, valueProp) ||
+      !_valuePropMatchesSignature(
+        signature,
+        entry.name,
+        valueProp,
+        richShapes,
+      ) ||
       !_isBindableLeaf(entry.name, valueProp, richShapes)) {
     return A2uiDartCoverageReason.invalidExplicitWritePairing;
   }
@@ -2211,7 +2338,13 @@ A2uiDartCoverageReason? _validateExplicitPairing(
   final matching = [
     for (final property in entry.properties)
       if (property.type != PropertyType.event)
-        if (_valuePropMatchesSignature(callback.signature, property)) property,
+        if (_valuePropMatchesSignature(
+          callback.signature,
+          entry.name,
+          property,
+          richShapes,
+        ))
+          property,
   ];
   final reason = switch (matching.length) {
     // No value property to control → an uncontrolled widget whose state would
@@ -2262,24 +2395,40 @@ bool _scalarFamilyMatches(
     (_isNumericScalar(callbackType) && _isNumericScalar(valueType)) ||
     callbackType == valueType;
 
+/// Whether [node] is the analyzer/catalog leaf admitted as `List<scalar>`.
+bool _isScalarListNode(A2uiSchemaNode? node) =>
+    node is ListNode && node.element is ScalarNode;
+
 /// Whether [property] is the controlled value for write-back [signature]. A
-/// scalar callback pairs a `ScalarNode` value prop of the same scalar family; a
-/// `List<scalar>` callback pairs a `ListNode(ScalarNode)` value prop whose
-/// element is the same scalar family. (The catalog only mints a `ListNode` for
-/// `stringList`, so a list pairing is `List<String>`; a list callback over any
-/// other element type finds no matching value prop and fails closed.)
+/// scalar callback pairs a `ScalarNode` value prop of the same scalar family;
+/// a `List<scalar>` callback pairs only a list with the exact same outer
+/// nullability, element nullability, scalar type, and numeric reconstruction
+/// behavior. Analyzer-fed scalar-list leaves use their reflected node, so the
+/// complete Dart list shape remains available at this round-trip boundary.
 bool _valuePropMatchesSignature(
   A2uiCallbackWriteBack signature,
+  String widgetName,
   PropertyEntry property,
+  A2uiRichShapes? richShapes,
 ) {
-  final node = _dataNode(property);
+  final reflected = richShapes?[(widgetName, property.name)];
+  final node = _isScalarListNode(reflected) ? reflected : _dataNode(property);
   if (signature.isList) {
-    return node is ListNode &&
-        node.element is ScalarNode &&
-        _scalarFamilyMatches(
-          signature.valueType,
-          (node.element as ScalarNode).type,
-        );
+    return switch (node) {
+      ListNode(
+        nullable: final nullable,
+        element: ScalarNode(
+          :final type,
+          nullable: final elementNullable,
+          :final preserveNumericRuntimeType,
+        ),
+      ) =>
+        signature.nullable == nullable &&
+            signature.elementNullable == elementNullable &&
+            signature.valueType == type &&
+            signature.preserveNumericRuntimeType == preserveNumericRuntimeType,
+      _ => false,
+    };
   }
   return node is ScalarNode &&
       _scalarFamilyMatches(signature.valueType, node.type);
@@ -2291,11 +2440,12 @@ bool _valuePropMatchesSignature(
 /// property that passes here is wrapped in a `Bound*` whose read can be
 /// rewritten to the write-back path.
 ///
-/// A property present in [richShapes] is NOT a bindable leaf: an analyzer-fed
-/// rich field is reconstructed raw in the prelude (not `Bound*`-wrapped), so
-/// its read cannot be rewritten to the write-back path — a write-back over it
-/// could not round-trip. Excluding it makes the two states (rich-reconstruct vs
-/// `{path:P}`-bind) mutually exclusive by construction for a write-back value.
+/// An analyzer-fed scalar list IS a bindable leaf: classification keeps it in a
+/// safe object binding, using its reflected element node for type-safe list
+/// construction.
+/// Other analyzer-fed shapes reconstruct raw in the prelude and remain
+/// non-bindable, keeping rich reconstruction and `{path:P}` binding mutually
+/// exclusive.
 bool _isBindableLeaf(
   String widgetName,
   PropertyEntry property,
@@ -2306,9 +2456,24 @@ bool _isBindableLeaf(
   if (property.defaultSource is ThemeBindingDefault) return false;
   if (property.synthetic != null) return false;
   if (_isReservedBuilderIdentifier(property.name)) return false;
-  if (richShapes?[(widgetName, property.name)] != null) return false;
-  final node = _dataNode(property);
-  return node is ScalarNode || (node is ListNode && node.element is ScalarNode);
+  final node = _bindableLeafNode(widgetName, property, richShapes);
+  return node is ScalarNode || _isScalarListNode(node);
+}
+
+/// The effective leaf node for [property], preferring an analyzer-fed scalar
+/// list over the coarser catalog type. Any other analyzer-fed shape is rich and
+/// therefore not bindable.
+A2uiSchemaNode? _bindableLeafNode(
+  String widgetName,
+  PropertyEntry property,
+  A2uiRichShapes? richShapes,
+) {
+  final reflected = richShapes?[(widgetName, property.name)];
+  if (reflected != null) {
+    if (!property.required && !reflected.nullable) return null;
+    return _isScalarListNode(reflected) ? reflected : null;
+  }
+  return _dataNode(property);
 }
 
 /// The prelude local naming the resolved write-back data path for a value
@@ -2441,13 +2606,15 @@ _FieldClassification _classifyField(
   );
 }
 
-/// Classifies a property the reflector resolved to a rich data [node].
+/// Classifies a property the reflector resolved to an analyzer-fed data [node].
 ///
 /// An OPTIONAL, NON-null argument has no synthesizable default, so it is
 /// omitted (loud) — the widget's own constructor default applies, the correct
 /// optional fail-safe (mirroring the reflector's optional-object scope-out, one
 /// level up at the argument site). A REQUIRED argument (fail-safe-guarded) or a
-/// NULLABLE argument (pass-through) is emitted as a rich data field.
+/// NULLABLE argument (pass-through) is emitted as a rich data field. A scalar
+/// list is instead emitted as a reactive leaf for literal/path/write-back
+/// parity.
 _FieldClassification _classifyRichField(
   WidgetEntry entry,
   PropertyEntry property,
@@ -2477,7 +2644,14 @@ _FieldClassification _classifyRichField(
   return _EmitField(
     A2uiDartFieldPlan._(
       property: property,
-      emission: A2uiDataField(node, rich: true),
+      // Analyzer-fed List<scalar> fields remain reactive object-bound leaves.
+      // Their element node preserves the type information the shared catalog
+      // taxonomy does not, while leaf classification preserves literal/path
+      // bindings and makes the value eligible for list write-back.
+      emission: A2uiDataField(
+        node,
+        rich: !_isScalarListNode(node),
+      ),
     ),
   );
 }

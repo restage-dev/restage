@@ -73,11 +73,12 @@ List<CatalogItem> buildRestageCatalogItems() {
                 _restageA2uiRef_chosen.containsKey('path'))
             ? _restageA2uiRef_chosen['path'] as String
             : '${itemContext.id}.chosen';
-        return BoundList(
+        return BoundObject(
           dataContext: itemContext.dataContext,
           value: {'path': _restageA2uiPath_chosen},
           builder: (context, chosen) => p0.MultiSelectFixture(
-            chosen: (chosen ?? const <Object?>[])
+            chosen: ((chosen is List ? chosen.cast<Object?>() : null) ??
+                    const <Object?>[])
                 .whereType<String>()
                 .toList(growable: false),
             onChosen: (_restageA2uiNext) => itemContext.dataContext

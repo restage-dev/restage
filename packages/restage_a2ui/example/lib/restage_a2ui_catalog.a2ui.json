@@ -8,25 +8,27 @@
       },
       {
         "namespace": "acme.widgets",
-        "version": 2
+        "version": 3
       }
     ],
     "perItemSinceVersion": {
       "Callout": 1,
       "ComparisonPanel": 1,
       "CtaButton": 1,
+      "IntegerListPicker": 1,
       "ProductCard": 1,
       "QuizCheck": 1,
       "RatingPicker": 1,
+      "ScalarListPanel": 1,
       "SectionHeader": 1
     }
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/1+acme.lessons@1_acme.widgets@2",
+    "$id": "restage:catalog/1+acme.lessons@1_acme.widgets@3",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/1+acme.lessons@1_acme.widgets@2",
+    "catalogId": "restage:catalog/1+acme.lessons@1_acme.widgets@3",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "Callout": {
@@ -95,6 +97,59 @@
         },
         "required": [
           "component"
+        ]
+      },
+      "IntegerListPicker": {
+        "type": "object",
+        "description": "Adds values to a bound integer list.",
+        "properties": {
+          "selected": {
+            "description": "The selected integer values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "IntegerListPicker"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "selected"
         ]
       },
       "ProductCard": {
@@ -292,6 +347,299 @@
           "component"
         ]
       },
+      "ScalarListPanel": {
+        "type": "object",
+        "description": "Renders string, integer, number, and boolean lists.",
+        "properties": {
+          "labels": {
+            "description": "String list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "counts": {
+            "description": "Integer list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "weights": {
+            "description": "Number list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "measurements": {
+            "description": "Dart num list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "flags": {
+            "description": "Boolean list values.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "boolean"
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "maybeCounts": {
+            "description": "Optional integer list values.",
+            "oneOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "fallbackCounts": {
+            "description": "Integer list values with a fallback.",
+            "oneOf": [
+              {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "ScalarListPanel"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "labels",
+          "counts",
+          "weights",
+          "measurements",
+          "flags"
+        ]
+      },
       "SectionHeader": {
         "type": "object",
         "description": "A titled section header.",
@@ -319,8 +667,10 @@
       "QuizCheck: A prompt with a checkable answer bound to a boolean value.",
       "SectionHeader: A titled section header.",
       "CtaButton: A call-to-action button that dispatches a tap event.",
+      "IntegerListPicker: Adds values to a bound integer list.",
       "ProductCard: Renders a structured product (nested price, tags, features, attributes, size).",
-      "RatingPicker: A 1–5 star rating control bound to an integer value."
+      "RatingPicker: A 1–5 star rating control bound to an integer value.",
+      "ScalarListPanel: Renders string, integer, number, and boolean lists."
     ]
   }
 }

@@ -42,6 +42,19 @@ void main() {
       );
     });
 
+    test('Dart num → preserves integer and fractional runtime types', () {
+      expect(
+        builder.valueExpression(
+          const ScalarNode(
+            A2uiScalarType.number,
+            preserveNumericRuntimeType: true,
+          ),
+          'raw',
+        ),
+        '_restageA2uiAs<num>(raw)',
+      );
+    });
+
     test('boolean → bool cast', () {
       expect(
         builder.valueExpression(
@@ -105,6 +118,22 @@ void main() {
         ),
         '_restageA2uiAs<List<Object?>>(raw)?.map((e) => '
         '_restageA2uiAs<num>(e)?.toInt()).whereType<int>().toList()',
+      );
+    });
+
+    test('list of Dart num → preserves int/double runtime types', () {
+      expect(
+        builder.valueExpression(
+          const ListNode(
+            element: ScalarNode(
+              A2uiScalarType.number,
+              preserveNumericRuntimeType: true,
+            ),
+          ),
+          'raw',
+        ),
+        '_restageA2uiAs<List<Object?>>(raw)?.map((e) => '
+        '_restageA2uiAs<num>(e)).whereType<num>().toList()',
       );
     });
   });
