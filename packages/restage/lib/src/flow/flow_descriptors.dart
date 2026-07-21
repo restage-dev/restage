@@ -77,6 +77,7 @@ final class OnboardingFlowRef<R> {
     required this.version,
     required this.minClient,
     required this.decodeResult,
+    this.surfaceType = SurfaceType.onboarding,
   });
 
   /// Stable onboarding flow identifier.
@@ -87,6 +88,13 @@ final class OnboardingFlowRef<R> {
 
   /// Minimum client descriptor version that can load this flow.
   final int minClient;
+
+  /// Authored surface family that owns this flow.
+  ///
+  /// Defaults to onboarding so descriptors generated before surface-general
+  /// flow support retain their existing onboarding behavior and request/cache
+  /// identity.
+  final SurfaceType surfaceType;
 
   /// Converts a filtered end-state result map into the generated result type.
   final FlowResultDecoder<R> decodeResult;

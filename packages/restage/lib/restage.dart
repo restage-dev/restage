@@ -43,6 +43,7 @@ export 'package:restage_shared/restage_shared.dart'
         RestageProduct,
         RestageProperty,
         RestageWidget,
+        SurfaceType,
         WidgetEventName,
         FlowActionSchema,
         FlowActionSchemaField,

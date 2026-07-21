@@ -44,6 +44,10 @@ void main() {
 
   setUp(Restage.debugReset);
 
+  test('legacy flow descriptors default to onboarding', () {
+    expect(flowRef.surfaceType, SurfaceType.onboarding);
+  });
+
   test(
       'fetches the exact-version flow and returns immutable exact screen bytes',
       () async {
@@ -88,6 +92,167 @@ void main() {
     expect(
       () => resolved.screenBlobs['extra'] = Uint8List(0),
       throwsUnsupportedError,
+    );
+  });
+
+  test(
+      'hostedSurfaceFlowRef preserves dynamic identity and resolves at the '
+      'installed capability floor', () async {
+    final ref = hostedSurfaceFlowRef<Map<String, Object?>>(
+      id: 'first_run',
+      version: 1,
+      surfaceType: SurfaceType.message,
+      decodeResult: _decodeMapResult,
+    );
+    expect(ref.id, 'first_run');
+    expect(ref.version, 1);
+    expect(ref.minClient, _renderableMinClient);
+    expect(ref.surfaceType, SurfaceType.message);
+    expect(ref.decodeResult({'complete': true}), {'complete': true});
+
+    final screenBytes = Uint8List.fromList([1, 2, 3]);
+    final envelope = _envelope(
+      _validDocument(
+        minClient: _renderableMinClient,
+        artifactMinClient: _renderableMinClient,
+        screenBytes: screenBytes,
+      ),
+      screenBytes,
+      surfaceType: SurfaceType.message,
+    );
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      httpClient: _server(envelope),
+    );
+
+    final resolved = await resolver.resolve(ref);
+    expect(resolved.document.flow, ref.id);
+    expect(resolved.document.version, ref.version);
+  });
+
+  for (final testCase in const <({
+    SurfaceType surfaceType,
+    String wireName,
+  })>[
+    (
+      surfaceType: SurfaceType.message,
+      wireName: 'message',
+    ),
+    (
+      surfaceType: SurfaceType.survey,
+      wireName: 'survey',
+    ),
+  ]) {
+    test('fetches and accepts an exact-version ${testCase.wireName} flow',
+        () async {
+      final screenBytes = Uint8List.fromList([1, 2, 3]);
+      final envelope = _envelope(
+        _validDocument(screenBytes: screenBytes),
+        screenBytes,
+        surfaceType: testCase.surfaceType,
+      );
+      final requests = <http.Request>[];
+      final resolver = ServerFlowResolver(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        httpClient: _server(envelope, onRequest: requests.add),
+      );
+      final typedRef = OnboardingFlowRef<Map<String, Object?>>(
+        id: flowRef.id,
+        version: flowRef.version,
+        minClient: flowRef.minClient,
+        surfaceType: testCase.surfaceType,
+        decodeResult: flowRef.decodeResult,
+      );
+
+      final resolved = await resolver.resolve(typedRef);
+
+      expect(requests, hasLength(1));
+      expect(requests.single.url.toString(), '$baseUrl/sdk/v1/surface');
+      expect(jsonDecode(requests.single.body), {
+        'surfaceType': testCase.wireName,
+        'surfaceSlug': 'first_run',
+        'version': 1,
+      });
+      expect(resolved.document.flow, flowRef.id);
+    });
+  }
+
+  test('rejects a cross-type exact-version envelope', () async {
+    final screenBytes = Uint8List.fromList([1, 2, 3]);
+    final envelope = _envelope(
+      _validDocument(screenBytes: screenBytes),
+      screenBytes,
+      surfaceType: SurfaceType.survey,
+    );
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      httpClient: _server(envelope),
+    );
+    const messageRef = OnboardingFlowRef<Map<String, Object?>>(
+      id: 'first_run',
+      version: 1,
+      minClient: _refFloorMinClient,
+      surfaceType: SurfaceType.message,
+      decodeResult: _decodeMapResult,
+    );
+
+    await expectLater(
+      resolver.resolve(messageRef),
+      throwsA(_flowUnavailable('surface_mismatch')),
+    );
+  });
+
+  test('exact cache separates identical slug/version across surface types',
+      () async {
+    final screenBytes = Uint8List.fromList([1, 2, 3]);
+    final requests = <http.Request>[];
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        final surfaceType = SurfaceType.values.byName(
+          body['surfaceType']! as String,
+        );
+        return http.Response(
+          jsonEncode({
+            'envelope': base64Encode(
+              _envelope(
+                _validDocument(screenBytes: screenBytes),
+                screenBytes,
+                surfaceType: surfaceType,
+              ),
+            ),
+          }),
+          200,
+        );
+      }),
+    );
+    OnboardingFlowRef<Map<String, Object?>> ref(SurfaceType surfaceType) =>
+        OnboardingFlowRef<Map<String, Object?>>(
+          id: flowRef.id,
+          version: flowRef.version,
+          minClient: flowRef.minClient,
+          surfaceType: surfaceType,
+          decodeResult: flowRef.decodeResult,
+        );
+
+    final messageFirst = await resolver.resolve(ref(SurfaceType.message));
+    final surveyFirst = await resolver.resolve(ref(SurfaceType.survey));
+    final messageSecond = await resolver.resolve(ref(SurfaceType.message));
+    final surveySecond = await resolver.resolve(ref(SurfaceType.survey));
+
+    expect(messageFirst.cacheHit, isFalse);
+    expect(surveyFirst.cacheHit, isFalse);
+    expect(messageSecond.cacheHit, isTrue);
+    expect(surveySecond.cacheHit, isTrue);
+    expect(
+      requests.map((request) => jsonDecode(request.body)['surfaceType']),
+      ['message', 'survey'],
     );
   });
 
@@ -609,6 +774,7 @@ Uint8List _envelope(
   FlowDocument document,
   Uint8List screenBytes, {
   List<LibraryRequirement> requiredLibraries = const [],
+  SurfaceType surfaceType = SurfaceType.onboarding,
 }) {
   final payload = FlowSurfacePayload(
     flowDocument: document,
@@ -616,7 +782,7 @@ Uint8List _envelope(
     requiredLibraries: requiredLibraries,
   );
   final surface = SurfaceDocument(
-    surfaceType: SurfaceType.onboarding,
+    surfaceType: surfaceType,
     surfaceSlug: document.flow,
     version: document.version,
     minClient: document.minClient,

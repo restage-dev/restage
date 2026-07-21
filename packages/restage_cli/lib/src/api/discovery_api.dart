@@ -19,6 +19,19 @@ class DiscoveryApi {
     ];
   }
 
+  /// Server-derived workspace status for every organization in the account.
+  Future<List<WorkspaceExperienceSummary>> listWorkspaceExperiences() async {
+    final raw = await _api.call(
+      'organization',
+      'listWorkspaceExperiences',
+      const {},
+    );
+    return [
+      for (final item in raw as List<dynamic>)
+        WorkspaceExperienceSummary.fromJson(item as Map<String, dynamic>),
+    ];
+  }
+
   /// Projects under [organizationId].
   Future<List<ProjectSummary>> listProjects(int organizationId) async {
     final raw = await _api.call('project', 'listProjects', <String, dynamic>{

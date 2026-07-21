@@ -2527,6 +2527,39 @@ void main() {
       ]);
     });
 
+    test('sub-flow descriptors inherit the root surface type', () async {
+      final resolver = _subFlowResolver();
+      const messageFlowRef = OnboardingFlowRef<_FirstRunResult>(
+        id: 'first_run',
+        version: 1,
+        minClient: 3,
+        surfaceType: SurfaceType.message,
+        decodeResult: _FirstRunResult.decode,
+      );
+      final controller = RestageFlowController<_FirstRunResult>(
+        flow: messageFlowRef,
+        resolver: resolver,
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      controller.handleEvent('next', const <String, Object?>{});
+      await _drainFlowTasks();
+
+      expect(resolver.requested.map((flow) => flow.id), [
+        'first_run',
+        'child_flow',
+      ]);
+      expect(
+        resolver.requested.map((flow) => flow.surfaceType),
+        everyElement(SurfaceType.message),
+      );
+    });
+
     test('sub-flow unavailable branch completes parent without raw child error',
         () async {
       _FirstRunResult? completed;
@@ -4081,12 +4114,14 @@ final class _BuilderShapedSeed implements FlowSeed {
 }
 
 final class _MapFlowResolver implements FlowResolver {
-  const _MapFlowResolver(this.flows);
+  _MapFlowResolver(this.flows);
 
   final Map<String, ResolvedFlow> flows;
+  final requested = <OnboardingFlowRef<dynamic>>[];
 
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    requested.add(flow);
     final resolved = flows[flow.id];
     if (resolved == null) {
       throw FlowUnavailableError(
