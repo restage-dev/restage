@@ -42,7 +42,26 @@ endpoint: https://api.example.com/
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
-      httpClient: _whoamiClient(),
+      httpClient: _statusClient(
+        organizations: const <Map<String, dynamic>>[
+          {'organizationId': 7, 'slug': 'default', 'name': 'Default'},
+          {'organizationId': 8, 'slug': 'sample', 'name': 'Sample'},
+        ],
+        workspaces: const <Map<String, dynamic>>[
+          {
+            'organizationId': 8,
+            'provenance': 'customer',
+            'hostedAccessState': 'productionEnabled',
+            'productionAllowed': true,
+          },
+          {
+            'organizationId': 7,
+            'provenance': 'sample',
+            'hostedAccessState': 'sandbox',
+            'productionAllowed': false,
+          },
+        ],
+      ),
     ).run(['status', '-C', tempDir.path]);
 
     expect(exitCode, 0);
@@ -53,7 +72,89 @@ endpoint: https://api.example.com/
     expect(out, contains('project: alpha'));
     expect(out, contains('app: mobile'));
     expect(out, contains('environment: staging'));
+    expect(out, contains('workspace provenance: sample'));
+    expect(out, contains('hosted access: sandbox'));
+    expect(out, contains('production allowed: no'));
+    expect(out, isNot(contains('workspace provenance: customer')));
   });
+
+  test(
+    'reports an absent workspace projection without inventing state',
+    () async {
+      await seedCredential(store, endpoint: 'https://api.example.com/');
+      await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString('''
+project: alpha
+app: mobile
+organization: default
+endpoint: https://api.example.com/
+''');
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _statusClient(
+          organizations: const <Map<String, dynamic>>[
+            {'organizationId': 7, 'slug': 'default', 'name': 'Default'},
+          ],
+          workspaces: const <Map<String, dynamic>>[],
+        ),
+      ).run(['status', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(stdout.toString(), contains('workspace: unavailable'));
+      expect(stdout.toString(), isNot(contains('workspace provenance:')));
+      expect(stdout.toString(), isNot(contains('production allowed:')));
+    },
+  );
+
+  test(
+    'reports ambiguous workspace state when config omits organization',
+    () async {
+      await seedCredential(store, endpoint: 'https://api.example.com/');
+      await File(p.join(tempDir.path, 'restage_config.yaml')).writeAsString('''
+project: alpha
+app: mobile
+endpoint: https://api.example.com/
+''');
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _statusClient(
+          organizations: const <Map<String, dynamic>>[
+            {'organizationId': 7, 'slug': 'default', 'name': 'Default'},
+            {'organizationId': 8, 'slug': 'sample', 'name': 'Sample'},
+          ],
+          workspaces: const <Map<String, dynamic>>[
+            {
+              'organizationId': 7,
+              'provenance': 'sample',
+              'hostedAccessState': 'sandbox',
+              'productionAllowed': false,
+            },
+            {
+              'organizationId': 8,
+              'provenance': 'customer',
+              'hostedAccessState': 'productionEnabled',
+              'productionAllowed': true,
+            },
+          ],
+        ),
+      ).run(['status', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(
+        stdout.toString(),
+        contains(
+          'workspace: ambiguous (set organization in restage_config.yaml)',
+        ),
+      );
+      expect(stdout.toString(), isNot(contains('workspace provenance:')));
+      expect(stdout.toString(), isNot(contains('production allowed:')));
+    },
+  );
 
   test('not signed in exits 1', () async {
     final exitCode = await RestageCli(
@@ -122,13 +223,20 @@ endpoint: https://[bad
   });
 }
 
-http.Client _whoamiClient() {
+http.Client _statusClient({
+  List<Map<String, dynamic>> organizations = const <Map<String, dynamic>>[],
+  required List<Map<String, dynamic>> workspaces,
+}) {
   return mockHttpClient((request) {
     final body = jsonDecode(request.body) as Map<String, dynamic>;
-    expect(body['method'], 'whoami');
-    return http.Response(
-      jsonEncode({'id': 42, 'email': 'dev@example.com'}),
-      200,
-    );
+    return switch (body['method']) {
+      'whoami' => http.Response(
+        jsonEncode({'id': 42, 'email': 'dev@example.com'}),
+        200,
+      ),
+      'listMine' => http.Response(jsonEncode(organizations), 200),
+      'listWorkspaceExperiences' => http.Response(jsonEncode(workspaces), 200),
+      final method => throw StateError('Unexpected method: $method'),
+    };
   });
 }

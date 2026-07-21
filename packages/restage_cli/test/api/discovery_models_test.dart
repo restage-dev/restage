@@ -24,4 +24,25 @@ void main() {
       expect(EnvironmentSummary.fromJson({'slug': 'staging'}).slug, 'staging');
     },
   );
+
+  test('WorkspaceExperienceSummary decodes only status-safe fields', () {
+    final workspace = WorkspaceExperienceSummary.fromJson({
+      'organizationId': 7,
+      'provenance': 'sample',
+      'sampleGeneration': 3,
+      'seedVersion': 'northwind-v1',
+      'hostedAccessState': 'sandbox',
+      'productionAllowed': false,
+      'canRequestProduction': false,
+      'canResetSample': true,
+      'canDeleteSample': true,
+      'pairedOrganizationId': 8,
+      'futureServerField': 'ignored',
+    });
+
+    expect(workspace.organizationId, 7);
+    expect(workspace.provenance, 'sample');
+    expect(workspace.hostedAccessState, 'sandbox');
+    expect(workspace.productionAllowed, isFalse);
+  });
 }

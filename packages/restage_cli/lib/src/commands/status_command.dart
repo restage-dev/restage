@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/auth_api.dart';
+import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -36,7 +38,8 @@ class StatusCommand extends Command<int> {
   String get name => 'status';
 
   @override
-  String get description => 'Print sign-in and active project context.';
+  String get description =>
+      'Print sign-in plus active workspace and project context.';
 
   @override
   Future<int> run() async {
@@ -88,6 +91,7 @@ class StatusCommand extends Command<int> {
 
       if (loaded == null) {
         _stdout.writeln('no restage_config.yaml - run `restage init`.');
+        await _writeWorkspaceStatus(api, null);
         return 0;
       }
 
@@ -100,6 +104,7 @@ class StatusCommand extends Command<int> {
       if (config.defaultEnvironment != null) {
         _stdout.writeln('environment: ${config.defaultEnvironment}');
       }
+      await _writeWorkspaceStatus(api, config);
       return 0;
     } on RestageApiException catch (e) {
       if (e.statusCode == 401 || e.statusCode == 403) {
@@ -117,5 +122,67 @@ class StatusCommand extends Command<int> {
     } finally {
       if (_httpClient == null) api.close();
     }
+  }
+
+  Future<void> _writeWorkspaceStatus(
+    RestageApi api,
+    RestageConfig? config,
+  ) async {
+    final discovery = DiscoveryApi(api);
+    final organizations = await discovery.listOrganizations();
+    if (organizations.isEmpty) {
+      _stdout.writeln('workspace: unavailable');
+      return;
+    }
+
+    final configuredSlug = config?.organization;
+    OrganizationSummary organization;
+    if (configuredSlug == null || configuredSlug.isEmpty) {
+      if (organizations.length != 1) {
+        _stdout.writeln(
+          'workspace: ambiguous (set organization in restage_config.yaml)',
+        );
+        return;
+      }
+      organization = organizations.single;
+    } else {
+      final matchingOrganizations = organizations
+          .where((organization) => organization.slug == configuredSlug)
+          .toList(growable: false);
+      if (matchingOrganizations.length != 1) {
+        _stdout.writeln(
+          matchingOrganizations.isEmpty
+              ? 'workspace: unavailable'
+              : 'workspace: ambiguous',
+        );
+        return;
+      }
+      organization = matchingOrganizations.single;
+    }
+
+    final workspaces = await discovery.listWorkspaceExperiences();
+    final matchingWorkspaces = workspaces
+        .where(
+          (workspace) =>
+              workspace.organizationId == organization.organizationId,
+        )
+        .toList(growable: false);
+    if (matchingWorkspaces.length != 1) {
+      _stdout.writeln(
+        matchingWorkspaces.isEmpty
+            ? 'workspace: unavailable'
+            : 'workspace: ambiguous',
+      );
+      return;
+    }
+    _renderWorkspace(matchingWorkspaces.single);
+  }
+
+  void _renderWorkspace(WorkspaceExperienceSummary workspace) {
+    _stdout.writeln('workspace provenance: ${workspace.provenance}');
+    _stdout.writeln('hosted access: ${workspace.hostedAccessState}');
+    _stdout.writeln(
+      'production allowed: ${workspace.productionAllowed ? 'yes' : 'no'}',
+    );
   }
 }

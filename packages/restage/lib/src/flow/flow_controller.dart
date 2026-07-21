@@ -894,6 +894,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       id: state.flow,
       version: state.version,
       minClient: state.minClient,
+      surfaceType: flow.surfaceType,
       decodeResult: _decodeSubFlowResult,
     );
 

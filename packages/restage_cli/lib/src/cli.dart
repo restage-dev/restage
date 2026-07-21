@@ -111,8 +111,8 @@ class RestageCli {
   Future<int> run(List<String> args) async {
     final runner = CommandRunner<int>(
       'restage',
-      'Restage — the developer surface for building, previewing, '
-          'and publishing paywalls.',
+      'Restage — tools for building, previewing, and publishing Flutter '
+          'surfaces.',
     );
     // Global flag: switches every interactive prompt to its
     // non-interactive form. `--yes` is the conventional alias.

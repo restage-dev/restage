@@ -14,7 +14,7 @@ class OrganizationSummary {
     required this.name,
   });
 
-  /// Stable backend id for the organization.
+  /// Stable organization id.
   final int organizationId;
 
   /// Human-readable organization slug.
@@ -29,6 +29,44 @@ class OrganizationSummary {
         organizationId: json['organizationId']! as int,
         slug: json['slug']! as String,
         name: json['name']! as String,
+      );
+}
+
+/// Status-safe workspace fields returned by organization discovery.
+///
+/// The CLI intentionally keeps only the server-owned presentation fields it
+/// renders. Capability flags and sample-generation details remain on the
+/// server response and are ignored here.
+@experimental
+@immutable
+class WorkspaceExperienceSummary {
+  /// Construct a workspace experience summary.
+  const WorkspaceExperienceSummary({
+    required this.organizationId,
+    required this.provenance,
+    required this.hostedAccessState,
+    required this.productionAllowed,
+  });
+
+  /// Stable organization id.
+  final int organizationId;
+
+  /// Server-derived workspace provenance (`sample` or `customer`).
+  final String provenance;
+
+  /// Server-derived hosted-access state.
+  final String hostedAccessState;
+
+  /// Whether production-class hosted operations are currently allowed.
+  final bool productionAllowed;
+
+  /// Decode the existing workspace-experience projection.
+  factory WorkspaceExperienceSummary.fromJson(Map<String, dynamic> json) =>
+      WorkspaceExperienceSummary(
+        organizationId: json['organizationId']! as int,
+        provenance: json['provenance']! as String,
+        hostedAccessState: json['hostedAccessState']! as String,
+        productionAllowed: json['productionAllowed']! as bool,
       );
 }
 

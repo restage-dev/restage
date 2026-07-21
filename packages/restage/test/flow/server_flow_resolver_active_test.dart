@@ -201,6 +201,40 @@ void main() {
     );
   });
 
+  test('active arm fails closed for a non-onboarding descriptor before fetch',
+      () async {
+    final requests = <http.Request>[];
+    const messageRef = OnboardingFlowRef<Map<String, Object?>>(
+      id: 'first_run',
+      version: 1,
+      minClient: _refFloor,
+      surfaceType: SurfaceType.message,
+      decodeResult: _decodeMapResult,
+    );
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      active: true,
+      bundle: _emptyBundle(),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        return http.Response('not found', 404);
+      }),
+    );
+
+    await expectLater(
+      resolver.resolveActiveRoot(messageRef),
+      throwsA(
+        isA<FlowUnavailableError>().having(
+          (error) => error.reason,
+          'reason',
+          'unsupported_surface_type',
+        ),
+      ),
+    );
+    expect(requests, isEmpty);
+  });
+
   test(
       'backstop (resolver): a gate-accepted active above the installed catalog '
       'floor is rejected → BUNDLED', () async {

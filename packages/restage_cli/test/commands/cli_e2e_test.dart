@@ -378,6 +378,10 @@ void main() {
       final exit = await cli.run(const ['--help']);
       expect(exit, 0, reason: stderr.toString());
       final out = stdout.toString();
+      expect(
+        out,
+        contains('building, previewing, and publishing Flutter surfaces'),
+      );
       expect(out, contains('projects'));
       expect(out, contains('apps'));
       expect(out, contains('envs'));

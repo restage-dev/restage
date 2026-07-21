@@ -26,7 +26,27 @@ import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 
-/// Resolves onboarding flows from exact-version surface documents.
+/// Creates a dynamic exact-version hosted flow reference.
+///
+/// The reference uses the built-in catalog capability installed by this SDK as
+/// its client floor. The resolver still applies its authoritative document and
+/// per-artifact capability gates before returning a flow.
+SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
+  required String id,
+  required int version,
+  required SurfaceType surfaceType,
+  required FlowResultDecoder<R> decodeResult,
+}) {
+  return SurfaceFlowRef<R>(
+    id: id,
+    version: version,
+    minClient: RestageBuiltInCatalogCapabilities.currentVersion,
+    surfaceType: surfaceType,
+    decodeResult: decodeResult,
+  );
+}
+
+/// Resolves flows from exact-version surface documents.
 ///
 /// A server-resolved flow is fetched by flow id and version, then decoded,
 /// compatibility-checked, validated, and returned with its pinned screen blobs.
@@ -44,7 +64,9 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   /// [active] opts into the active arm (default false → exact-only, byte
   /// unchanged). [bundle] supplies the bundled flow assets the active arm reads
   /// as the client contract + bundled fallback (defaults to the app's
-  /// `rootBundle`); it is unused on the exact path.
+  /// `rootBundle`); it is unused on the exact path. Exact requests derive their
+  /// surface namespace solely from the resolved flow descriptor. The active arm
+  /// currently supports onboarding descriptors only.
   ServerFlowResolver({
     required String baseUrl,
     required String apiKey,
@@ -63,14 +85,15 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   final bool _active;
   final AssetBundle? _bundle;
 
-  /// The version-pinned exact cache, keyed by (slug, version).
+  /// The version-pinned exact cache, keyed by (surface type, slug, version).
   final Map<String, _CachedServerFlow> _cache = {};
 
-  /// The active-arm hold-last-good cache, keyed by flow id (NOT version): it
-  /// holds the last gate-accepted active document for a flow, re-gated against
-  /// the current bundled contract on every hit so a stale-but-incompatible
-  /// active is never served. Separate from [_cache] so contract-version (the
-  /// exact key) never collides with resolved-active-version.
+  /// The active-arm hold-last-good cache, keyed by (surface type, flow id), not
+  /// version: it holds the last gate-accepted active document for a flow,
+  /// re-gated against the current bundled contract on every hit so a
+  /// stale-but-incompatible active is never served. Separate from [_cache] so
+  /// contract-version (the exact key) never collides with resolved-active-
+  /// version.
   final Map<String, _CachedServerFlow> _activeCache = {};
 
   AssetBundle get _effectiveBundle => _bundle ?? rootBundle;
@@ -104,7 +127,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     }
 
     final result = await _client.fetchSurface(
-      surfaceType: SurfaceType.onboarding.wireName,
+      surfaceType: flow.surfaceType.wireName,
       surfaceSlug: flow.id,
       version: flow.version,
     );
@@ -157,6 +180,18 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     // resolver fails safe to the exact path rather than going active off-flag.
     if (!_active) return resolve(flow);
 
+    // The active delivery contract and bundled asset conventions remain
+    // onboarding-only. The descriptor owns identity, so reject any other
+    // surface before bundle access, cache access, or network work.
+    if (flow.surfaceType != SurfaceType.onboarding) {
+      throw _error(
+        flow,
+        'unsupported_surface_type',
+        'The active flow arm supports onboarding descriptors only.',
+      );
+    }
+    final activeCacheKey = _activeCacheKey(flow);
+
     // Load the client's bundled contract: it is BOTH the render gate's `client`
     // argument AND the Tier-3 fallback. If it is not loadable (no bundled asset
     // / hash mismatch) there is no contract to gate against, so the active
@@ -174,7 +209,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
             client: bundled.document,
             active: active.document,
           )) {
-        _activeCache[flow.id] = active;
+        _activeCache[activeCacheKey] = active;
         return active.toResolvedFlow(cacheHit: false);
       }
 
@@ -182,7 +217,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
       // AND the capability floor/library checks against the CURRENT bundled
       // contract + runtime registry: a stale active that no longer renders
       // safely is not served.
-      final cached = _activeCache[flow.id];
+      final cached = _activeCache[activeCacheKey];
       if (cached != null &&
           _renderGateAccepts(
             client: bundled.document,
@@ -244,7 +279,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   /// active never renders; it funnels into the fallback ladder.
   Future<_CachedServerFlow?> _fetchActive<R>(OnboardingFlowRef<R> flow) async {
     final result = await _client.fetchSurface(
-      surfaceType: SurfaceType.onboarding.wireName,
+      surfaceType: flow.surfaceType.wireName,
       surfaceSlug: flow.id,
       // version omitted → the delivery service's active-version arm.
     );
@@ -264,7 +299,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     // match (a substituted/mis-routed surface fails closed), but the version is
     // the server's active version — the ONE identity dimension the active arm
     // does not pin.
-    if (surfaceDocument.surfaceType != SurfaceType.onboarding ||
+    if (surfaceDocument.surfaceType != flow.surfaceType ||
         surfaceDocument.surfaceSlug != flow.id) {
       return null;
     }
@@ -359,7 +394,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     OnboardingFlowRef<R> flow,
     SurfaceDocument surfaceDocument,
   ) {
-    if (surfaceDocument.surfaceType != SurfaceType.onboarding ||
+    if (surfaceDocument.surfaceType != flow.surfaceType ||
         surfaceDocument.surfaceSlug != flow.id ||
         surfaceDocument.version != flow.version) {
       throw _error(
@@ -522,8 +557,11 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   }
 
   String _cacheKey<R>(OnboardingFlowRef<R> flow) {
-    return '${flow.id}\u0000${flow.version}';
+    return '${flow.surfaceType.wireName}\u0000${flow.id}\u0000${flow.version}';
   }
+
+  String _activeCacheKey<R>(OnboardingFlowRef<R> flow) =>
+      '${flow.surfaceType.wireName}\u0000${flow.id}';
 
   FlowUnavailableError _error<R>(
     OnboardingFlowRef<R> flow,

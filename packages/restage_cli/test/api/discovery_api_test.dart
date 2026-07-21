@@ -49,6 +49,38 @@ void main() {
       expect(organizations.single.slug, 'default');
     });
 
+    test(
+      'listWorkspaceExperiences maps the existing organization projection',
+      () async {
+        final fake = FakeRestageApi(
+          response: <dynamic>[
+            {
+              'organizationId': 7,
+              'provenance': 'sample',
+              'sampleGeneration': 3,
+              'seedVersion': 'northwind-v1',
+              'hostedAccessState': 'sandbox',
+              'productionAllowed': false,
+              'canRequestProduction': false,
+              'canResetSample': true,
+              'canDeleteSample': true,
+              'pairedOrganizationId': 8,
+            },
+          ],
+        );
+
+        final workspaces = await DiscoveryApi(fake).listWorkspaceExperiences();
+
+        expect(fake.lastEndpoint, 'organization');
+        expect(fake.lastMethod, 'listWorkspaceExperiences');
+        expect(fake.lastArgs, isEmpty);
+        expect(workspaces.single.organizationId, 7);
+        expect(workspaces.single.provenance, 'sample');
+        expect(workspaces.single.hostedAccessState, 'sandbox');
+        expect(workspaces.single.productionAllowed, isFalse);
+      },
+    );
+
     test('listProjects posts project/listProjects with the org id', () async {
       final fake = FakeRestageApi(
         response: <dynamic>[
