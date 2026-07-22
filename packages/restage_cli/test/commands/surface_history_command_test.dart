@@ -42,6 +42,12 @@ void main() {
       Map<String, dynamic>? historyBody;
       final client = scriptedHttpClient([
         _listOrganizations,
+        (request) => activeAppDiscoveryResponse(
+          request,
+          appSlug: 'mobile',
+          projectSlug: 'alpha',
+        ),
+        _listStagingTarget,
         (request) {
           historyBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
@@ -71,7 +77,7 @@ void main() {
             200,
           );
         },
-      ]);
+      ], withDefaultTargetDiscovery: false);
 
       final out = StringBuffer();
       final runner = CommandRunner<int>('restage', '')
@@ -115,6 +121,26 @@ http.Response _listOrganizations(http.Request request) {
         'slug': 'restage',
         'name': 'Restage',
         'role': 'owner',
+      },
+    ]),
+    200,
+  );
+}
+
+http.Response _listStagingTarget(http.Request request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'listEnvironmentTargets');
+  expect(body['organizationId'], 7);
+  expect(body['projectSlug'], 'alpha');
+  expect(body['appSlug'], 'mobile');
+  expect(body, isNot(contains('runtimePlane')));
+  return http.Response(
+    jsonEncode([
+      {
+        'environmentTargetId': 12,
+        'namedEnvironmentId': 22,
+        'environmentSlug': 'staging',
+        'runtimePlane': 'sandbox',
       },
     ]),
     200,

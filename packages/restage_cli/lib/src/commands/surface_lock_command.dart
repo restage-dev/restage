@@ -123,6 +123,8 @@ class SurfaceLockCommand extends Command<int> {
           environment: ctx.environment,
           locked: _lock,
           reason: reason,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {

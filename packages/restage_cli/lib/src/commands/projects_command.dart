@@ -7,6 +7,7 @@ import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
@@ -136,6 +137,81 @@ class EnvsCommand extends Command<int> {
     );
     for (final environment in environments) {
       ctx.stdout.writeln(environment.slug);
+    }
+    return 0;
+  });
+}
+
+/// List concrete environment targets under an app.
+class TargetsCommand extends Command<int> {
+  /// Construct a targets command.
+  TargetsCommand({
+    required StringSink stdout,
+    required StringSink stderr,
+    required Interactive interactive,
+    FileCredentialStore? credentialStore,
+    http.Client? httpClient,
+  }) : _delegate = _DiscoveryCommandDelegate(
+         stdout: stdout,
+         stderr: stderr,
+         interactive: interactive,
+         credentialStore: credentialStore,
+         httpClient: httpClient,
+       ) {
+    _addSharedOptions(argParser);
+    argParser
+      ..addOption(
+        'project',
+        help: 'Project slug (overrides restage_config.yaml).',
+      )
+      ..addOption('app', help: 'App slug (overrides restage_config.yaml).');
+    addRuntimePlaneOption(argParser);
+  }
+
+  final _DiscoveryCommandDelegate _delegate;
+
+  @override
+  String get name => 'targets';
+
+  @override
+  String get description => 'List environment targets in an app.';
+
+  @override
+  Future<int> run() => _delegate.run(argResults, (ctx) async {
+    final projectSlug = await ctx.resolveProjectSlug(argResults);
+    if (projectSlug == null) return 1;
+    final appSlug = await ctx.resolveAppSlug(argResults, projectSlug);
+    if (appSlug == null) return 1;
+    final apps = await ctx.discovery.listApps(
+      organizationId: ctx.organizationId,
+      projectSlug: projectSlug,
+    );
+    final matchingApps = [
+      for (final app in apps)
+        if (app.slug == appSlug) app,
+    ];
+    if (matchingApps.length != 1 || matchingApps.single.appId == null) {
+      ctx.stderr.writeln(
+        'No active numeric App found for $projectSlug/$appSlug.',
+      );
+      return 1;
+    }
+    final targets = await ctx.discovery.listEnvironmentTargets(
+      organizationId: ctx.organizationId,
+      projectSlug: projectSlug,
+      appSlug: appSlug,
+      appId: matchingApps.single.appId!,
+      runtimePlane: runtimePlaneFromArgs(argResults),
+    );
+    targets.sort(
+      (left, right) =>
+          left.environmentTargetId.compareTo(right.environmentTargetId),
+    );
+    for (final target in targets) {
+      ctx.stdout.writeln(
+        '${target.environmentTargetId}\t${target.environmentSlug}\t'
+        '${target.runtimePlane.wireName}',
+      );
     }
     return 0;
   });
@@ -277,6 +353,35 @@ class _DiscoveryContext {
       projects: projects,
     );
     return project?.slug;
+  }
+
+  Future<String?> resolveAppSlug(
+    ArgResults? argResults,
+    String projectSlug,
+  ) async {
+    final preferred = (argResults?['app'] as String?) ?? loadedConfig?.app;
+    final apps = await discovery.listApps(
+      organizationId: organizationId,
+      projectSlug: projectSlug,
+    );
+    if (preferred != null && preferred.isNotEmpty) {
+      for (final app in apps) {
+        if (app.slug == preferred) return app.slug;
+      }
+      stderr.writeln('No option found for --app <slug>: $preferred.');
+      return null;
+    }
+    final app = await pickOne<AppSummary>(
+      interactive: interactive,
+      stderr: stderr,
+      prompt: 'Which app?',
+      options: [
+        for (final app in apps)
+          (label: '${app.name} (${app.slug})', value: app),
+      ],
+      missingFlag: '--app <slug>',
+    );
+    return app?.slug;
   }
 
   Future<ProjectSummary?> _pickProject({

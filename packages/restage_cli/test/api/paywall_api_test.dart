@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/paywall_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -177,6 +178,8 @@ void main() {
         expect(body['method'], 'publish');
         expect(body['surfaceType'], 'paywall');
         expect(body['surfaceSlug'], 'hello');
+        expect(body['environmentTargetId'], 42);
+        expect(body['runtimePlane'], 'live');
         return http.Response('7', 200);
       });
 
@@ -185,6 +188,8 @@ void main() {
         app: 'mobile',
         paywall: 'hello',
         environment: 'dev',
+        environmentTargetId: 42,
+        runtimePlane: RuntimePlane.live,
       );
 
       expect(version, 7);

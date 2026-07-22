@@ -4,12 +4,14 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/paywall_api.dart';
 import 'package:restage_cli/src/api/paywall_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 
@@ -107,16 +109,25 @@ class PaywallListCommand extends Command<int> {
       return 1;
     }
     try {
-      final configuredOrganization = await resolveConfiguredOrganization(
+      final organizationId = await resolveRequiredOrganizationId(
         api: api,
         config: loaded?.config,
         stderr: _stderr,
       );
-      if (configuredOrganization == null) return 1;
+      if (organizationId == null) return 1;
+      final appId = await resolveActiveAppId(
+        discovery: DiscoveryApi(api),
+        stderr: _stderr,
+        organizationId: organizationId,
+        projectSlug: project,
+        appSlug: app,
+      );
+      if (appId == null) return 1;
       final summaries = await PaywallApi(api).list(
         project: project,
         app: app,
-        organizationId: configuredOrganization.organizationId,
+        organizationId: organizationId,
+        appId: appId,
       );
       if (argResults?['json'] as bool? ?? false) {
         _stdout.writeln(jsonEncode([for (final s in summaries) s.toJson()]));

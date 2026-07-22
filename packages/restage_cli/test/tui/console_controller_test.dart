@@ -1,3 +1,4 @@
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
@@ -61,6 +62,21 @@ void main() {
     expect(repo.statusEnvironments, ['staging', 'production']);
   });
 
+  test('same-slug cross-plane selection keeps exact target identity', () async {
+    final repo = SameSlugConsoleRepository();
+    final controller = ConsoleController(repository: repo);
+
+    await controller.load();
+    await controller.selectEnvironment(1);
+
+    expect(controller.state.environmentIndex, 1);
+    expect(controller.state.context?.environment, 'prod');
+    expect(controller.state.context?.environmentTargetId, 32);
+    expect(controller.state.context?.namedEnvironmentId, 41);
+    expect(controller.state.context?.runtimePlane, RuntimePlane.live);
+    expect(repo.statusTargetIds, [31, 32]);
+  });
+
   test('tab cycles panels', () async {
     final controller = ConsoleController(repository: FakeConsoleRepository());
     await controller.load();
@@ -99,20 +115,35 @@ void main() {
 
 class FakeConsoleRepository implements ConsoleRepository {
   final statusEnvironments = <String>[];
+  final statusTargetIds = <int>[];
 
   @override
   Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
     context: ConsoleContext(
       organizationSlug: 'restage',
       project: 'default',
+      appId: 5,
       app: 'default',
+      environmentTargetId: 12,
+      namedEnvironmentId: 22,
       environment: 'staging',
+      runtimePlane: RuntimePlane.live,
     ),
     projects: [ConsoleProject(slug: 'default', name: 'Default')],
-    apps: [ConsoleAppTarget(slug: 'default', name: 'Default')],
+    apps: [ConsoleAppTarget(appId: 5, slug: 'default', name: 'Default')],
     environments: [
-      ConsoleEnvironmentTarget(slug: 'production'),
-      ConsoleEnvironmentTarget(slug: 'staging'),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 13,
+        namedEnvironmentId: 23,
+        slug: 'production',
+        runtimePlane: RuntimePlane.live,
+      ),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 12,
+        namedEnvironmentId: 22,
+        slug: 'staging',
+        runtimePlane: RuntimePlane.live,
+      ),
     ],
     surfaces: [
       ConsoleSurface(surfaceType: 'paywall', slug: 'pro', name: 'Pro'),
@@ -130,6 +161,7 @@ class FakeConsoleRepository implements ConsoleRepository {
     required ConsoleContext context,
   }) async {
     statusEnvironments.add(context.environment);
+    statusTargetIds.add(context.environmentTargetId);
     return SurfaceStatusResult(
       surfaceType: surface.surfaceType,
       surfaceSlug: surface.slug,
@@ -172,6 +204,41 @@ class FakeConsoleRepository implements ConsoleRepository {
     failedEntryId: null,
     failedCheck: null,
     lastRunAt: DateTime.parse('2026-06-29T18:30:00.000Z'),
+  );
+}
+
+class SameSlugConsoleRepository extends FakeConsoleRepository {
+  @override
+  Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
+    context: ConsoleContext(
+      organizationSlug: 'restage',
+      project: 'default',
+      appId: 5,
+      app: 'default',
+      environmentTargetId: 31,
+      namedEnvironmentId: 41,
+      environment: 'prod',
+      runtimePlane: RuntimePlane.sandbox,
+    ),
+    projects: [ConsoleProject(slug: 'default', name: 'Default')],
+    apps: [ConsoleAppTarget(appId: 5, slug: 'default', name: 'Default')],
+    environments: [
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 31,
+        namedEnvironmentId: 41,
+        slug: 'prod',
+        runtimePlane: RuntimePlane.sandbox,
+      ),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 32,
+        namedEnvironmentId: 41,
+        slug: 'prod',
+        runtimePlane: RuntimePlane.live,
+      ),
+    ],
+    surfaces: [
+      ConsoleSurface(surfaceType: 'paywall', slug: 'pro', name: 'Pro'),
+    ],
   );
 }
 

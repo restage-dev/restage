@@ -1,4 +1,5 @@
 import 'package:nocterm/nocterm.dart' as nocterm;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
@@ -36,12 +37,23 @@ class _FakeConsoleRepository implements ConsoleRepository {
     context: ConsoleContext(
       organizationSlug: 'restage',
       project: 'default',
+      appId: 5,
       app: 'default',
+      environmentTargetId: 12,
+      namedEnvironmentId: 22,
       environment: 'staging',
+      runtimePlane: RuntimePlane.live,
     ),
     projects: [ConsoleProject(slug: 'default', name: 'Default')],
-    apps: [ConsoleAppTarget(slug: 'default', name: 'Default')],
-    environments: [ConsoleEnvironmentTarget(slug: 'staging')],
+    apps: [ConsoleAppTarget(appId: 5, slug: 'default', name: 'Default')],
+    environments: [
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 12,
+        namedEnvironmentId: 22,
+        slug: 'staging',
+        runtimePlane: RuntimePlane.live,
+      ),
+    ],
     surfaces: [
       ConsoleSurface(surfaceType: 'paywall', slug: 'pro', name: 'Pro'),
     ],

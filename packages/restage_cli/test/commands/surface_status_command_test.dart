@@ -148,6 +148,27 @@ void main() {
             200,
           );
         },
+        (req) => activeAppDiscoveryResponse(
+          req,
+          appSlug: 'mobile',
+          projectSlug: 'demo',
+        ),
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listEnvironmentTargets');
+          expect(body['organizationId'], 7);
+          return http.Response(
+            jsonEncode([
+              {
+                'environmentTargetId': 12,
+                'namedEnvironmentId': 22,
+                'environmentSlug': 'staging',
+                'runtimePlane': 'sandbox',
+              },
+            ]),
+            200,
+          );
+        },
         (req) {
           capturedStatusBody = jsonDecode(req.body) as Map<String, dynamic>;
           return http.Response(
@@ -164,7 +185,7 @@ void main() {
             200,
           );
         },
-      ]);
+      ], withDefaultTargetDiscovery: false);
 
       final out = StringBuffer();
       final runner = CommandRunner<int>('restage', '')

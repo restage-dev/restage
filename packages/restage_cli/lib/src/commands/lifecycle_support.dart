@@ -2,19 +2,15 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
-import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
-
-/// The environment that gets the extra-strict destructive-op guardrail.
-/// Centralized so the production rule lives in exactly one place; a future
-/// per-environment `isProduction` flag can replace this convention.
-const kProductionEnvironmentSlug = 'production';
 
 /// The stable line prefix of the rollback cohort-impact note. Shared between
 /// the rollback command (which writes the note) and consumers that pick it
@@ -32,6 +28,8 @@ class LifecycleContext {
     required this.app,
     required this.environment,
     required this.organizationId,
+    required this.environmentTargetId,
+    required this.runtimePlane,
   });
 
   /// The authenticated credential to use for API calls.
@@ -49,8 +47,14 @@ class LifecycleContext {
   /// Target environment slug.
   final String environment;
 
-  /// Backend organization id selected by `restage_config.yaml`, if any.
-  final int? organizationId;
+  /// Authorized backend organization id.
+  final int organizationId;
+
+  /// Exact numeric environment target id.
+  final int environmentTargetId;
+
+  /// Canonical runtime plane for the selected target.
+  final RuntimePlane runtimePlane;
 }
 
 /// Register the options every lifecycle command shares.
@@ -69,6 +73,10 @@ void addLifecycleOptions(
     );
   }
   parser
+    ..addOption(
+      'organization',
+      help: 'Organization slug (overrides restage_config.yaml).',
+    )
     ..addOption(
       'project',
       help: 'Project slug (overrides restage_config.yaml).',
@@ -92,6 +100,7 @@ void addLifecycleOptions(
       help: 'Audit reason for this change (required).',
     );
   }
+  addRuntimePlaneOption(parser);
 }
 
 /// Resolve credential + project/app/env. Prints a precise error and returns
@@ -163,17 +172,24 @@ Future<LifecycleContext?> loadLifecycleContext({
     stderr.writeln(e.toString());
     return null;
   }
-  final ConfiguredOrganizationContext? configuredOrganization;
+  final ResolvedEnvironmentTargetContext? resolvedTarget;
   try {
-    configuredOrganization = await resolveConfiguredOrganization(
+    resolvedTarget = await resolveEnvironmentTargetContext(
       api: api,
-      config: loaded?.config,
+      interactive: interactive,
       stderr: stderr,
+      projectSlug: project,
+      appSlug: app,
+      environmentSlug: environment,
+      preferredOrganizationSlug:
+          (argResults?['organization'] as String?) ??
+          loaded?.config.organization,
+      runtimePlane: runtimePlaneFromArgs(argResults),
     );
   } finally {
     if (httpClient == null) api.close();
   }
-  if (configuredOrganization == null) return null;
+  if (resolvedTarget == null) return null;
 
   return LifecycleContext(
     credential: credential,
@@ -181,7 +197,9 @@ Future<LifecycleContext?> loadLifecycleContext({
     project: project,
     app: app,
     environment: environment,
-    organizationId: configuredOrganization.organizationId,
+    organizationId: resolvedTarget.organizationId,
+    environmentTargetId: resolvedTarget.target.environmentTargetId,
+    runtimePlane: resolvedTarget.target.runtimePlane,
   );
 }
 
@@ -206,31 +224,33 @@ Future<String?> requireReason({
 
 /// The extra-strict destructive-op guardrail.
 ///
-/// On the production environment a `--yes` bypass is refused: the operator
-/// must confirm interactively. Other environments honor `--yes`. In
-/// non-interactive mode without `--yes` the call fails closed regardless of
-/// environment. Returns whether to proceed.
+/// On the live runtime plane a `--yes` bypass is refused: the operator must
+/// confirm interactively. Sandbox targets honor `--yes`, including targets
+/// whose environment slug happens to be `production`. In non-interactive mode
+/// without `--yes` the call fails closed regardless of plane. Returns whether
+/// to proceed.
 Future<bool> confirmDestructive({
   required Interactive interactive,
   required StringSink stdout,
   required StringSink stderr,
   required String environment,
+  required RuntimePlane runtimePlane,
   required bool yesFlag,
   required String impactLine,
 }) async {
-  final isProd = environment == kProductionEnvironmentSlug;
-  if (isProd && yesFlag) {
+  final isLive = runtimePlane == RuntimePlane.live;
+  if (isLive && yesFlag) {
     stderr.writeln(
-      'Refusing --yes on the production environment. Re-run without --yes and '
+      'Refusing --yes on the live runtime plane. Re-run without --yes and '
       'confirm interactively.',
     );
     return false;
   }
-  if (yesFlag) return true; // non-prod explicit skip
+  if (yesFlag) return true; // sandbox explicit skip
   if (!interactive.isInteractive) {
     stderr.writeln(
       'This is a destructive change to `$environment` and needs confirmation. '
-      'Run interactively, or pass --yes (non-production only).',
+      'Run interactively, or pass --yes (sandbox only).',
     );
     return false;
   }

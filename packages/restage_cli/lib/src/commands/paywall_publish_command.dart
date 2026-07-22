@@ -4,12 +4,13 @@ import 'dart:typed_data';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/paywall_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
-import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_payload.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/commands/upload_catalog_if_present.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -47,6 +48,10 @@ class PaywallPublishCommand extends Command<int> {
        _httpClient = httpClient {
     argParser
       ..addOption(
+        'organization',
+        help: 'Organization slug (overrides restage_config.yaml).',
+      )
+      ..addOption(
         'project',
         help: 'Project slug (overrides restage_config.yaml).',
       )
@@ -72,6 +77,7 @@ class PaywallPublishCommand extends Command<int> {
             'Directory to start the restage_config.yaml search from. '
             'Defaults to the current working directory.',
       );
+    addRuntimePlaneOption(argParser);
   }
 
   final StringSink _stdout;
@@ -167,11 +173,14 @@ class PaywallPublishCommand extends Command<int> {
     return _runPipeline(
       credential: credential,
       apiEndpoint: apiEndpoint,
-      config: loaded?.config,
       paywall: paywallName,
       project: project,
       app: app,
       environment: environment,
+      preferredOrganizationSlug:
+          (argResults?['organization'] as String?) ??
+          loaded?.config.organization,
+      runtimePlane: runtimePlaneFromArgs(argResults),
       bytes: resolved.bytes,
       projectRoot: projectRoot,
     );
@@ -186,11 +195,12 @@ class PaywallPublishCommand extends Command<int> {
   Future<int> _runPipeline({
     required Credential credential,
     required Uri apiEndpoint,
-    required RestageConfig? config,
     required String paywall,
     required String project,
     required String app,
     required String environment,
+    required String? preferredOrganizationSlug,
+    required RuntimePlane? runtimePlane,
     required Uint8List bytes,
     required Directory projectRoot,
   }) async {
@@ -206,12 +216,17 @@ class PaywallPublishCommand extends Command<int> {
       return 1;
     }
     try {
-      final configuredOrganization = await resolveConfiguredOrganization(
+      final resolvedTarget = await resolveEnvironmentTargetContext(
         api: api,
-        config: config,
+        interactive: _interactive,
         stderr: _stderr,
+        projectSlug: project,
+        appSlug: app,
+        environmentSlug: environment,
+        preferredOrganizationSlug: preferredOrganizationSlug,
+        runtimePlane: runtimePlane,
       );
-      if (configuredOrganization == null) return 1;
+      if (resolvedTarget == null) return 1;
       final paywallApi = PaywallApi(api);
 
       try {
@@ -220,7 +235,8 @@ class PaywallPublishCommand extends Command<int> {
           app: app,
           paywall: paywall,
           canonicalBytes: bytes,
-          organizationId: configuredOrganization.organizationId,
+          organizationId: resolvedTarget.organizationId,
+          appId: resolvedTarget.appId,
         );
       } on RestageApiException catch (e) {
         return _handleApiException(e, stage: _Stage.save, paywall: paywall);
@@ -235,7 +251,9 @@ class PaywallPublishCommand extends Command<int> {
           app: app,
           paywall: paywall,
           environment: environment,
-          organizationId: configuredOrganization.organizationId,
+          environmentTargetId: resolvedTarget.target.environmentTargetId,
+          runtimePlane: resolvedTarget.target.runtimePlane,
+          organizationId: resolvedTarget.organizationId,
         );
         _stdout.writeln(
           'Published $paywall to $environment as version $version.',
@@ -244,7 +262,7 @@ class PaywallPublishCommand extends Command<int> {
           api: api,
           project: project,
           app: app,
-          organizationId: configuredOrganization.organizationId,
+          organizationId: resolvedTarget.organizationId,
           projectRoot: projectRoot,
           stderr: _stderr,
         );
@@ -255,13 +273,16 @@ class PaywallPublishCommand extends Command<int> {
           stage: _Stage.publish,
           paywall: paywall,
           environment: environment,
+          runtimePlane: resolvedTarget.target.runtimePlane,
         );
       } on SocketException catch (e) {
         _stderr
           ..writeln('Could not publish: $e')
           ..writeln(
             'The draft is on the server. Re-run `restage paywall publish '
-            '$paywall --env $environment` to retry (the command re-uploads '
+            '$paywall --env $environment --plane '
+            '${resolvedTarget.target.runtimePlane.wireName}` to retry '
+            '(the command re-uploads '
             'your current local paywall artifact and publishes it).',
           );
         return 2;
@@ -298,6 +319,7 @@ class PaywallPublishCommand extends Command<int> {
     required _Stage stage,
     required String paywall,
     String? environment,
+    RuntimePlane? runtimePlane,
   }) {
     // Paywalls publish through the generic surface endpoint, so its typed
     // exceptions are what surface here. Decode them and present the same
@@ -326,7 +348,11 @@ class PaywallPublishCommand extends Command<int> {
         );
         if (stage == _Stage.publish) {
           _stderr.writeln(
-            _draftUploadedHint(paywall: paywall, environment: environment),
+            _draftUploadedHint(
+              paywall: paywall,
+              environment: environment,
+              runtimePlane: runtimePlane,
+            ),
           );
         }
         return 1;
@@ -349,7 +375,11 @@ class PaywallPublishCommand extends Command<int> {
             'Could not publish: ${outcome.message.replaceFirst('Could not contact the backend: ', '')}',
           )
           ..writeln(
-            _draftUploadedHint(paywall: paywall, environment: environment),
+            _draftUploadedHint(
+              paywall: paywall,
+              environment: environment,
+              runtimePlane: runtimePlane,
+            ),
           );
       } else {
         _stderr.writeln(outcome.message);
@@ -363,10 +393,14 @@ class PaywallPublishCommand extends Command<int> {
   String _draftUploadedHint({
     required String paywall,
     required String? environment,
+    RuntimePlane? runtimePlane,
   }) {
     final envFragment = environment == null ? '' : ' --env $environment';
+    final planeFragment = runtimePlane == null
+        ? ''
+        : ' --plane ${runtimePlane.wireName}';
     return 'The draft is on the server. Re-run `restage paywall publish '
-        '$paywall$envFragment` to retry (the command re-uploads your '
+        '$paywall$envFragment$planeFragment` to retry (the command re-uploads your '
         'current local paywall artifact and publishes it).';
   }
 }

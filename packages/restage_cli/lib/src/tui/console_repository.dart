@@ -46,28 +46,35 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final discovery = DiscoveryApi(api);
     final organization = await _resolveOrganization(api, discovery, config);
     _organizationId = organization.organizationId;
-    _context = ConsoleContext(
-      organizationSlug: organization.slug,
-      project: config.project,
-      app: config.app,
-      environment: environment,
-    );
 
     final projects = await _loadProjects(discovery, config, organization);
     final apps = await _loadApps(discovery, config, organization);
-    final environments = await _loadEnvironments(
+    final selectedApp = apps.singleWhere((app) => app.slug == config.app);
+    final environmentSelection = await _loadEnvironments(
       discovery,
       config,
       organization,
+      selectedApp,
       environment,
     );
-    final surfaces = await _loadSurfaces(config, organization);
+    final selectedEnvironment = environmentSelection.selected;
+    _context = ConsoleContext(
+      organizationSlug: organization.slug,
+      project: config.project,
+      appId: selectedApp.appId,
+      app: config.app,
+      environmentTargetId: selectedEnvironment.environmentTargetId,
+      namedEnvironmentId: selectedEnvironment.namedEnvironmentId,
+      environment: selectedEnvironment.slug,
+      runtimePlane: selectedEnvironment.runtimePlane,
+    );
+    final surfaces = await _loadSurfaces(config, organization, selectedApp);
 
     return ConsoleSnapshot(
       context: _context!,
       projects: projects,
       apps: apps,
-      environments: environments,
+      environments: environmentSelection.targets,
       surfaces: surfaces,
     );
   }
@@ -91,6 +98,8 @@ class DefaultConsoleRepository implements ConsoleRepository {
         surfaceSlug: surface.slug,
         environment: context.environment,
         organizationId: organizationId,
+        environmentTargetId: context.environmentTargetId,
+        runtimePlane: context.runtimePlane,
       );
     } on RestageApiException catch (e) {
       throw _apiException(e);
@@ -294,7 +303,11 @@ class DefaultConsoleRepository implements ConsoleRepository {
       }
       return [
         for (final app in apps)
-          ConsoleAppTarget(slug: app.slug, name: app.name),
+          ConsoleAppTarget(
+            appId: _requireAppId(app),
+            slug: app.slug,
+            name: app.name,
+          ),
       ];
     } on RestageApiException catch (e) {
       throw _apiException(e);
@@ -303,26 +316,56 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
   }
 
-  Future<List<ConsoleEnvironmentTarget>> _loadEnvironments(
+  Future<_ConsoleEnvironmentSelection> _loadEnvironments(
     DiscoveryApi discovery,
     RestageConfig config,
     _ConsoleOrganization organization,
+    ConsoleAppTarget app,
     String environment,
   ) async {
     try {
-      final environments = await discovery.listEnvironments(
+      final legacyEnvironments = await discovery.listEnvironments(
         organizationId: organization.organizationId,
         projectSlug: config.project,
       );
-      if (!_containsSlug(environments, environment)) {
+      final legacyMatches = [
+        for (final candidate in legacyEnvironments)
+          if (candidate.appId == app.appId && candidate.slug == environment)
+            candidate,
+      ];
+      if (legacyMatches.length != 1 ||
+          legacyMatches.single.environmentTargetId == null) {
         throw ConsoleLoadException(
           'No environment found for defaultEnvironment: $environment.',
         );
       }
-      return [
-        for (final environment in environments)
-          ConsoleEnvironmentTarget(slug: environment.slug),
+      final legacyTargetId = legacyMatches.single.environmentTargetId!;
+      final discoveredTargets = await discovery.listEnvironmentTargets(
+        organizationId: organization.organizationId,
+        projectSlug: config.project,
+        appSlug: app.slug,
+        appId: app.appId,
+      );
+      final targets = [
+        for (final target in discoveredTargets)
+          ConsoleEnvironmentTarget(
+            environmentTargetId: target.environmentTargetId,
+            namedEnvironmentId: target.namedEnvironmentId,
+            slug: target.environmentSlug,
+            runtimePlane: target.runtimePlane,
+          ),
       ];
+      final selected = targets.where(
+        (target) =>
+            target.environmentTargetId == legacyTargetId &&
+            target.slug == environment,
+      );
+      if (selected.length != 1) {
+        throw ConsoleLoadException(
+          'No environment found for defaultEnvironment: $environment.',
+        );
+      }
+      return (targets: targets, selected: selected.single);
     } on RestageApiException catch (e) {
       throw _apiException(e);
     } on SocketException catch (e) {
@@ -333,6 +376,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
   Future<List<ConsoleSurface>> _loadSurfaces(
     RestageConfig config,
     _ConsoleOrganization organization,
+    ConsoleAppTarget app,
   ) async {
     final surfaceApi = _surfaceApi!;
     final surfaces = <ConsoleSurface>[];
@@ -348,6 +392,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
           app: config.app,
           surfaceType: surfaceType,
           organizationId: organization.organizationId,
+          appId: app.appId,
         );
         surfaces.addAll([
           for (final summary in summaries)
@@ -384,7 +429,20 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
     return false;
   }
+
+  int _requireAppId(AppSummary app) {
+    final appId = app.appId;
+    if (appId != null) return appId;
+    throw ConsoleLoadException(
+      'Could not resolve the numeric app id for app: ${app.slug}.',
+    );
+  }
 }
+
+typedef _ConsoleEnvironmentSelection = ({
+  List<ConsoleEnvironmentTarget> targets,
+  ConsoleEnvironmentTarget selected,
+});
 
 class _ConsoleOrganization {
   const _ConsoleOrganization({

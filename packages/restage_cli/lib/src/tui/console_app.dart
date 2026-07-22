@@ -1,9 +1,8 @@
 import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
-import 'package:restage_cli/src/commands/lifecycle_support.dart'
-    show kProductionEnvironmentSlug;
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 
@@ -440,7 +439,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
     switch (prompt) {
       case _PromptKind.kill:
-        if (_needsProductionConfirmation) {
+        if (_needsLiveConfirmation) {
           final target = _confirmTarget();
           if (target == null) {
             _reportNothingSelected();
@@ -481,7 +480,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     // Rollback is always preview-then-confirm: the read-only preview's
     // cohort-impact note is the only signal for how the re-point lands
     // across the installed cohort, so it is shown before the mutation in
-    // every environment (production additionally keeps its guardrail
+    // every environment (the live plane additionally keeps its guardrail
     // semantics on the executor side). The preflight classification never
     // blocks a rollback server-side, but a FAILED preview does abort this
     // console flow (fail-visible; the raw CLI can still roll back without
@@ -532,17 +531,21 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     );
   }
 
-  /// The (surface type, slug, environment) triple a parked confirm is pinned
-  /// to, or null when nothing is selected.
+  /// The exact surface and environment target a parked confirm is pinned to,
+  /// or null when nothing is selected.
   _ConfirmTarget? _confirmTarget() {
     final state = component.controller.state;
     final surface = state.selectedSurface;
-    final environment = state.context?.environment;
-    if (surface == null || environment == null) return null;
+    final context = state.context;
+    if (surface == null || context == null) return null;
     return _ConfirmTarget(
       surfaceType: surface.surfaceType,
       surfaceSlug: surface.slug,
-      environment: environment,
+      appId: context.appId,
+      environmentTargetId: context.environmentTargetId,
+      namedEnvironmentId: context.namedEnvironmentId,
+      environment: context.environment,
+      runtimePlane: context.runtimePlane,
     );
   }
 
@@ -577,7 +580,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         );
       case _PendingRollback(:final toVersion):
         // "The operator typed confirm" — the executor scopes the flag to
-        // production itself, so both arms pass it unconditionally.
+        // the live plane itself, so both arms pass it unconditionally.
         await component.controller.rollbackSelected(
           reason: pending.reason,
           toVersion: toVersion,
@@ -587,11 +590,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     }
   }
 
-  bool get _needsProductionConfirmation =>
-      component.controller.state.context?.environment ==
-      kProductionEnvironmentSlug;
+  bool get _needsLiveConfirmation =>
+      component.controller.state.context?.runtimePlane == RuntimePlane.live;
 
-  /// Surface a visible refusal when a production kill was submitted with no
+  /// Surface a visible refusal when a live-plane kill was submitted with no
   /// usable selection (e.g. a background refresh emptied the surface list
   /// while the prompt was open). The prompt input is already consumed at
   /// this point, so dropping it silently would leave the operator unable to
@@ -937,7 +939,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   String _contextLabel(ConsoleState state) {
     final context = state.context;
     if (context == null) return '- / - / -';
-    return '${context.project} / ${context.app} / ${context.environment}';
+    return '${context.project} / ${context.app} / '
+        '${context.environmentLabel}';
   }
 
   String get _middlePanelTitle {
@@ -1203,7 +1206,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       child: SizedBox(
         width: 17,
         child: Text(
-          '${selected ? '>' : ' '} ${environment.slug}',
+          '${selected ? '>' : ' '} ${environment.label}',
           maxLines: 1,
           style: TextStyle(
             color: focused
@@ -1468,7 +1471,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         ),
         if (context != null)
           Text(
-            'Env ${context.environment}',
+            'Env ${context.environmentLabel}',
             maxLines: 1,
             style: const TextStyle(color: _ConsoleTheme.accentBlue),
           ),
@@ -1659,7 +1662,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         ..._rollbackSupportLines(status),
         ..._versionHistoryLines(status),
         Text(
-          'Command preview: ${_commandPreview(state, _detailAction)}',
+          _commandPreview(state, _detailAction),
           maxLines: 1,
           style: TextStyle(
             color: _ConsoleTheme.text,
@@ -1724,7 +1727,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         '--type ${surface.surfaceType} '
         '--project ${context.project} '
         '--app ${context.app} '
-        '--env ${context.environment}';
+        '--env ${context.environment} '
+        '--plane ${context.runtimePlane.wireName}';
   }
 
   Component _actionChip(_DetailAction action) {
@@ -1941,7 +1945,7 @@ enum _PromptKind {
 }
 
 /// A destructive operation parked behind the type-confirm prompt: kill on
-/// production, and rollback in every environment (its confirm carries the
+/// the live plane, and rollback in every environment (its confirm carries the
 /// preview's cohort-impact note). Pinned to the [target] it was opened for —
 /// the confirm is refused if the selection moves before it is typed.
 sealed class _PendingConfirmOperation {
@@ -1967,26 +1971,46 @@ final class _PendingRollback extends _PendingConfirmOperation {
   final String? impactNote;
 }
 
-/// The (surface type, slug, environment) triple a parked confirm is pinned
-/// to. Value-comparable so a selection change is detectable by equality.
+/// The full target identity a parked confirm is pinned to. Value-comparable so
+/// same-slug plane switches are detectable by equality.
 class _ConfirmTarget {
   const _ConfirmTarget({
     required this.surfaceType,
     required this.surfaceSlug,
+    required this.appId,
+    required this.environmentTargetId,
+    required this.namedEnvironmentId,
     required this.environment,
+    required this.runtimePlane,
   });
 
   final String surfaceType;
   final String surfaceSlug;
+  final int appId;
+  final int environmentTargetId;
+  final int namedEnvironmentId;
   final String environment;
+  final RuntimePlane runtimePlane;
 
   @override
   bool operator ==(Object other) =>
       other is _ConfirmTarget &&
       other.surfaceType == surfaceType &&
       other.surfaceSlug == surfaceSlug &&
-      other.environment == environment;
+      other.appId == appId &&
+      other.environmentTargetId == environmentTargetId &&
+      other.namedEnvironmentId == namedEnvironmentId &&
+      other.environment == environment &&
+      other.runtimePlane == runtimePlane;
 
   @override
-  int get hashCode => Object.hash(surfaceType, surfaceSlug, environment);
+  int get hashCode => Object.hash(
+    surfaceType,
+    surfaceSlug,
+    appId,
+    environmentTargetId,
+    namedEnvironmentId,
+    environment,
+    runtimePlane,
+  );
 }

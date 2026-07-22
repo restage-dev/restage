@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/paywall_models.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
@@ -32,12 +33,14 @@ class PaywallApi {
     required String project,
     required String app,
     int? organizationId,
+    int? appId,
   }) async {
     final surfaces = await _surface.list(
       project: project,
       app: app,
       surfaceType: SurfaceType.paywall,
       organizationId: organizationId,
+      appId: appId,
     );
     return [
       for (final surface in surfaces)
@@ -66,6 +69,7 @@ class PaywallApi {
     required String paywall,
     required Uint8List canonicalBytes,
     int? organizationId,
+    int? appId,
   }) async {
     await _surface.save(
       project: project,
@@ -74,6 +78,7 @@ class PaywallApi {
       surfaceSlug: paywall,
       bytes: canonicalBytes,
       organizationId: organizationId,
+      appId: appId,
     );
   }
 
@@ -85,6 +90,8 @@ class PaywallApi {
     required String app,
     required String paywall,
     required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) {
     return _surface.publish(
@@ -93,6 +100,8 @@ class PaywallApi {
       surfaceType: SurfaceType.paywall,
       surfaceSlug: paywall,
       environment: environment,
+      environmentTargetId: environmentTargetId,
+      runtimePlane: runtimePlane,
       organizationId: organizationId,
     );
   }
@@ -104,6 +113,8 @@ class PaywallApi {
     required String app,
     required String paywall,
     required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) {
     return _surface.getPublishedVersion(
@@ -112,6 +123,8 @@ class PaywallApi {
       surfaceType: SurfaceType.paywall,
       surfaceSlug: paywall,
       environment: environment,
+      environmentTargetId: environmentTargetId,
+      runtimePlane: runtimePlane,
       organizationId: organizationId,
     );
   }
@@ -128,6 +141,7 @@ class PaywallApi {
     required String app,
     required String paywall,
     int? organizationId,
+    int? appId,
   }) async {
     final frame = await _surface.load(
       project: project,
@@ -135,6 +149,7 @@ class PaywallApi {
       surfaceType: SurfaceType.paywall,
       surfaceSlug: paywall,
       organizationId: organizationId,
+      appId: appId,
     );
     // A never-saved surface returns the 1-byte skeleton — not a decodable
     // payload frame. Pass it through unchanged.

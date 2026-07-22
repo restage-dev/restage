@@ -151,6 +151,7 @@ void main() {
       expect(exitCode, 0);
       expect(seenBody['projectSlug'], 'flag-proj');
       expect(seenBody['appSlug'], 'flag-app');
+      expect(seenBody['appId'], 7);
     });
 
     test('resolves configured organization before listing', () async {
@@ -180,10 +181,22 @@ void main() {
           );
         },
         (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listApps');
+          expect(body['organizationId'], 7);
+          expect(body['projectSlug'], 'demo');
+          return http.Response(
+            jsonEncode([
+              {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
+            ]),
+            200,
+          );
+        },
+        (req) {
           seenListBody = jsonDecode(req.body) as Map<String, dynamic>;
           return http.Response('[]', 200);
         },
-      ]);
+      ], withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -196,6 +209,7 @@ void main() {
       expect(seenListBody, isNotNull);
       expect(seenListBody!['method'], 'list');
       expect(seenListBody!['organizationId'], 7);
+      expect(seenListBody!['appId'], 5);
     });
 
     test('errors when no project context is available', () async {

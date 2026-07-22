@@ -48,7 +48,7 @@ void main() {
   });
 
   test(
-    'tools/list exposes the four discovery tools with the right schemas',
+    'tools/list exposes legacy and target-aware discovery schemas',
     () async {
       final connection = await connectServer(
         store: store,
@@ -63,6 +63,7 @@ void main() {
       expect(tools, contains('restage_list_projects'));
       expect(tools, contains('restage_list_apps'));
       expect(tools, contains('restage_list_environments'));
+      expect(tools, contains('restage_list_environment_targets'));
 
       // list_organizations takes no inputs.
       expect(
@@ -82,6 +83,23 @@ void main() {
       expect(
         tools['restage_list_environments']!.inputSchema.required,
         containsAll(['organizationId', 'projectSlug']),
+      );
+      expect(tools['restage_list_environment_targets']!.inputSchema.required, [
+        'organizationId',
+        'projectSlug',
+        'appSlug',
+      ]);
+      expect(
+        tools['restage_list_environment_targets']!.inputSchema.properties,
+        contains('appId'),
+      );
+      expect(
+        tools['restage_list_environment_targets']!.inputSchema.required,
+        isNot(contains('appId')),
+      );
+      expect(
+        tools['restage_list_environment_targets']!.inputSchema.required,
+        isNot(contains('runtimePlane')),
       );
     },
   );
@@ -218,6 +236,137 @@ void main() {
     final envs = result.structuredContent!['environments']! as List<dynamic>;
     expect((envs.single as Map)['slug'], 'production');
   });
+
+  test('list_environment_targets threads app scope + optional plane', () async {
+    final rec = _recorder(
+      jsonEncode([
+        {
+          'environmentTargetId': 42,
+          'namedEnvironmentId': 9,
+          'environmentSlug': 'production',
+          'runtimePlane': 'live',
+          '__className__': 'EnvironmentTargetRef',
+        },
+      ]),
+    );
+    final connection = await connectServer(
+      store: store,
+      httpClient: rec.client,
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_list_environment_targets',
+        arguments: {
+          'organizationId': 7,
+          'projectSlug': 'mobile',
+          'appSlug': 'ios',
+          'appId': 17,
+          'runtimePlane': 'live',
+        },
+      ),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(
+      rec.calls.single.body,
+      containsPair('method', 'listEnvironmentTargets'),
+    );
+    expect(rec.calls.single.body, containsPair('appSlug', 'ios'));
+    expect(rec.calls.single.body, containsPair('appId', 17));
+    expect(rec.calls.single.body, containsPair('runtimePlane', 'live'));
+    final targets =
+        result.structuredContent!['environmentTargets']! as List<dynamic>;
+    expect((targets.single as Map)['environmentTargetId'], 42);
+  });
+
+  test('list_environment_targets compactly omits an absent plane', () async {
+    final rec = _recorder('[]');
+    final connection = await connectServer(
+      store: store,
+      httpClient: rec.client,
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_list_environment_targets',
+        arguments: {
+          'organizationId': 7,
+          'projectSlug': 'mobile',
+          'appSlug': 'ios',
+        },
+      ),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(rec.calls.single.body, isNot(contains('appId')));
+    expect(rec.calls.single.body, isNot(contains('runtimePlane')));
+  });
+
+  test(
+    'list_environment_targets preserves the six same-slug plane cells',
+    () async {
+      final wireTargets = <Map<String, Object>>[
+        for (final coordinate in const [
+          (id: 101, parentId: 11, slug: 'dev', plane: 'sandbox'),
+          (id: 102, parentId: 11, slug: 'dev', plane: 'live'),
+          (id: 103, parentId: 12, slug: 'staging', plane: 'sandbox'),
+          (id: 104, parentId: 12, slug: 'staging', plane: 'live'),
+          (id: 105, parentId: 13, slug: 'prod', plane: 'sandbox'),
+          (id: 106, parentId: 13, slug: 'prod', plane: 'live'),
+        ])
+          {
+            'environmentTargetId': coordinate.id,
+            'namedEnvironmentId': coordinate.parentId,
+            'environmentSlug': coordinate.slug,
+            'runtimePlane': coordinate.plane,
+            '__className__': 'EnvironmentTargetRef',
+          },
+      ];
+      final rec = _recorder(jsonEncode(wireTargets));
+      final connection = await connectServer(
+        store: store,
+        httpClient: rec.client,
+      );
+
+      final result = await connection.callTool(
+        CallToolRequest(
+          name: 'restage_list_environment_targets',
+          arguments: {
+            'organizationId': 7,
+            'projectSlug': 'default',
+            'appSlug': 'default',
+            'appId': 17,
+          },
+        ),
+      );
+
+      expect(result.isError, isNot(true));
+      expect(rec.calls.single.body, containsPair('appId', 17));
+      expect(rec.calls.single.body, isNot(contains('runtimePlane')));
+      final targets =
+          result.structuredContent!['environmentTargets']! as List<dynamic>;
+      expect(targets, hasLength(6));
+      expect(
+        targets
+            .cast<Map<String, dynamic>>()
+            .map(
+              (target) =>
+                  '${target['environmentSlug']}:${target['runtimePlane']}:'
+                  '${target['environmentTargetId']}:${target['namedEnvironmentId']}',
+            )
+            .toSet(),
+        {
+          'dev:sandbox:101:11',
+          'dev:live:102:11',
+          'staging:sandbox:103:12',
+          'staging:live:104:12',
+          'prod:sandbox:105:13',
+          'prod:live:106:13',
+        },
+      );
+    },
+  );
 
   test(
     'a wrong-shape 200 body leaks neither the secret nor a stack trace',

@@ -59,7 +59,7 @@ void main() {
           200,
         );
       },
-    ]);
+    ], withDefaultTargetDiscovery: false);
 
     final out = StringBuffer();
     final runner = _runner(
@@ -105,7 +105,7 @@ void main() {
           200,
         );
       },
-    ]);
+    ], withDefaultTargetDiscovery: false);
 
     final out = StringBuffer();
     final code = await _runner(
@@ -137,7 +137,7 @@ void main() {
           200,
         );
       },
-    ]);
+    ], withDefaultTargetDiscovery: false);
 
     final out = StringBuffer();
     final code = await _runner(

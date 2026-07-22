@@ -233,9 +233,20 @@ Future<void> seedPaywallBlob(
 /// Build an [http.Client] that returns the same response for every
 /// request, computed by [handler]. Useful when the test only cares
 /// about a single round-trip.
+///
+/// Target-aware commands perform two read-only discovery calls before their
+/// operation. The shared default keeps pre-target command fixtures focused on
+/// the operation they exercise; discovery-specific tests opt out.
 http.Client mockHttpClient(
-  http.Response Function(http.Request request) handler,
-) => MockClient((req) async => handler(req));
+  http.Response Function(http.Request request) handler, {
+  bool withDefaultTargetDiscovery = true,
+}) => MockClient((request) async {
+  if (withDefaultTargetDiscovery) {
+    final discovery = _defaultTargetDiscoveryResponse(request);
+    if (discovery != null) return discovery;
+  }
+  return handler(request);
+});
 
 /// One scripted response per HTTP call. The Nth request to the
 /// [http.Client] returns the response produced by `steps[N]`. Asserts
@@ -243,10 +254,36 @@ http.Client mockHttpClient(
 /// chatter.
 typedef ScriptStep = http.Response Function(http.Request request);
 
-/// Build an [http.Client] that drives [steps] one response per call.
-http.Client scriptedHttpClient(List<ScriptStep> steps) {
+/// Script step for the exact-App discovery now required before target lookup.
+http.Response activeAppDiscoveryResponse(
+  http.Request request, {
+  int appId = 5,
+  String appSlug = 'mobile',
+  String? projectSlug,
+}) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'listApps');
+  if (projectSlug != null) expect(body['projectSlug'], projectSlug);
+  return http.Response(
+    jsonEncode([
+      {'id': appId, 'slug': appSlug, 'name': appSlug},
+    ]),
+    200,
+  );
+}
+
+/// Build an [http.Client] that drives [steps] one response per operation call.
+/// Target discovery is supplied by default and does not consume a step.
+http.Client scriptedHttpClient(
+  List<ScriptStep> steps, {
+  bool withDefaultTargetDiscovery = true,
+}) {
   var index = 0;
   return MockClient((request) async {
+    if (withDefaultTargetDiscovery) {
+      final discovery = _defaultTargetDiscoveryResponse(request);
+      if (discovery != null) return discovery;
+    }
     if (index >= steps.length) {
       fail('Unexpected backend call ${index + 1}: ${request.url}');
     }
@@ -255,4 +292,58 @@ http.Client scriptedHttpClient(List<ScriptStep> steps) {
     index++;
     return response;
   });
+}
+
+http.Response? _defaultTargetDiscoveryResponse(http.Request request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  switch (body['method']) {
+    case 'listMine':
+      return http.Response(
+        jsonEncode([
+          {'organizationId': 7, 'slug': 'restage', 'name': 'Restage'},
+        ]),
+        200,
+      );
+    case 'listApps':
+      return http.Response(
+        jsonEncode([
+          {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
+          {'id': 8, 'slug': 'a', 'name': 'A'},
+          {'id': 9, 'slug': 'default', 'name': 'Default'},
+          {'id': 6, 'slug': 'config-app', 'name': 'Config App'},
+          {'id': 7, 'slug': 'flag-app', 'name': 'Flag App'},
+        ]),
+        200,
+      );
+    case 'listEnvironmentTargets':
+      final allTargets = <Map<String, dynamic>>[
+        {
+          'environmentTargetId': 11,
+          'namedEnvironmentId': 21,
+          'environmentSlug': 'dev',
+          'runtimePlane': 'sandbox',
+        },
+        {
+          'environmentTargetId': 12,
+          'namedEnvironmentId': 22,
+          'environmentSlug': 'staging',
+          'runtimePlane': 'sandbox',
+        },
+        {
+          'environmentTargetId': 13,
+          'namedEnvironmentId': 23,
+          'environmentSlug': 'production',
+          'runtimePlane': 'live',
+        },
+      ];
+      final plane = body['runtimePlane'] as String?;
+      return http.Response(
+        jsonEncode([
+          for (final target in allTargets)
+            if (plane == null || target['runtimePlane'] == plane) target,
+        ]),
+        200,
+      );
+  }
+  return null;
 }

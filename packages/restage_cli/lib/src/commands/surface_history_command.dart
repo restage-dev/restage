@@ -93,6 +93,8 @@ class SurfaceHistoryCommand extends Command<int> {
         surfaceType: surfaceType,
         surfaceSlug: slug,
         environment: ctx.environment,
+        environmentTargetId: ctx.environmentTargetId,
+        runtimePlane: ctx.runtimePlane,
         organizationId: ctx.organizationId,
       );
       if (argResults?['json'] as bool? ?? false) {

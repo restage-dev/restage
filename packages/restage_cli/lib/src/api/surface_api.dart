@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -30,12 +31,14 @@ class SurfaceApi {
     required String app,
     required SurfaceType surfaceType,
     int? organizationId,
+    int? appId,
   }) async {
     final raw = await _api.call('surface', 'list', <String, dynamic>{
       'projectSlug': project,
       'appSlug': app,
       'surfaceType': surfaceType.wireName,
       'organizationId': ?organizationId,
+      'appId': ?appId,
     });
     return [
       for (final item in raw as List<dynamic>)
@@ -52,6 +55,7 @@ class SurfaceApi {
     required SurfaceType surfaceType,
     required String surfaceSlug,
     int? organizationId,
+    int? appId,
   }) async {
     final raw = await _api.call('surface', 'load', <String, dynamic>{
       'projectSlug': project,
@@ -59,6 +63,7 @@ class SurfaceApi {
       'surfaceType': surfaceType.wireName,
       'surfaceSlug': surfaceSlug,
       'organizationId': ?organizationId,
+      'appId': ?appId,
     });
     return _decodeByteDataWire(raw as String);
   }
@@ -72,6 +77,8 @@ class SurfaceApi {
     required SurfaceType surfaceType,
     required String surfaceSlug,
     required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     final raw = await _api
@@ -81,6 +88,9 @@ class SurfaceApi {
           'surfaceType': surfaceType.wireName,
           'surfaceSlug': surfaceSlug,
           'environmentSlug': environment,
+          if (environmentTargetId != null)
+            'environmentTargetId': environmentTargetId,
+          if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
           'organizationId': ?organizationId,
         });
     return raw as int?;
@@ -102,6 +112,7 @@ class SurfaceApi {
     required String surfaceSlug,
     required Uint8List bytes,
     int? organizationId,
+    int? appId,
   }) async {
     await _api.call('surface', 'save', <String, dynamic>{
       'projectSlug': project,
@@ -114,6 +125,7 @@ class SurfaceApi {
       // match exactly — the server does not accept a bare base64 value.
       'bytes': "decode('${base64Encode(bytes)}', 'base64')",
       'organizationId': ?organizationId,
+      'appId': ?appId,
     });
   }
 
@@ -129,6 +141,8 @@ class SurfaceApi {
     required SurfaceType surfaceType,
     required String surfaceSlug,
     required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     final raw = await _api.call('surface', 'surfaceStatus', <String, dynamic>{
@@ -137,6 +151,9 @@ class SurfaceApi {
       'surfaceType': surfaceType.wireName,
       'surfaceSlug': surfaceSlug,
       'environmentSlug': environment,
+      if (environmentTargetId != null)
+        'environmentTargetId': environmentTargetId,
+      if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
     return SurfaceStatusResult.fromJson(raw as Map<String, dynamic>);
@@ -150,6 +167,8 @@ class SurfaceApi {
     required SurfaceType surfaceType,
     required String surfaceSlug,
     required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     final raw = await _api
@@ -159,6 +178,9 @@ class SurfaceApi {
           'surfaceType': surfaceType.wireName,
           'surfaceSlug': surfaceSlug,
           'environmentSlug': environment,
+          if (environmentTargetId != null)
+            'environmentTargetId': environmentTargetId,
+          if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
           'organizationId': ?organizationId,
         });
     return [
@@ -225,6 +247,8 @@ class SurfaceApi {
     required String environment,
     required bool frozen,
     required String reason,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     await _api.call('surface', 'killSurface', <String, dynamic>{
@@ -235,6 +259,9 @@ class SurfaceApi {
       'environmentSlug': environment,
       'mode': frozen ? 'frozen' : 'transient',
       'reason': reason,
+      if (environmentTargetId != null)
+        'environmentTargetId': environmentTargetId,
+      if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
   }
@@ -253,6 +280,8 @@ class SurfaceApi {
     required String environment,
     required bool locked,
     required String reason,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     await _api.call('surface', 'setSurfaceLock', <String, dynamic>{
@@ -263,6 +292,9 @@ class SurfaceApi {
       'environmentSlug': environment,
       'locked': locked,
       'reason': reason,
+      if (environmentTargetId != null)
+        'environmentTargetId': environmentTargetId,
+      if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
   }
@@ -284,6 +316,8 @@ class SurfaceApi {
     required int toVersion,
     required bool lockAfter,
     required String reason,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     await _api.call('surface', 'rollbackSurface', <String, dynamic>{
@@ -295,6 +329,9 @@ class SurfaceApi {
       'toVersion': toVersion,
       'lockAfter': lockAfter,
       'reason': reason,
+      if (environmentTargetId != null)
+        'environmentTargetId': environmentTargetId,
+      if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
   }
@@ -312,6 +349,8 @@ class SurfaceApi {
     required String surfaceSlug,
     required String environment,
     required int toVersion,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     final raw = await _api
@@ -322,6 +361,9 @@ class SurfaceApi {
           'surfaceSlug': surfaceSlug,
           'environmentSlug': environment,
           'toVersion': toVersion,
+          if (environmentTargetId != null)
+            'environmentTargetId': environmentTargetId,
+          if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
           'organizationId': ?organizationId,
         });
     return RollbackPreflightResult.fromJson(raw as Map<String, dynamic>);
@@ -339,6 +381,8 @@ class SurfaceApi {
     required SurfaceType surfaceType,
     required String surfaceSlug,
     required String environment,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
     final raw = await _api.call('surface', 'publish', <String, dynamic>{
@@ -347,6 +391,9 @@ class SurfaceApi {
       'surfaceType': surfaceType.wireName,
       'surfaceSlug': surfaceSlug,
       'environmentSlug': environment,
+      if (environmentTargetId != null)
+        'environmentTargetId': environmentTargetId,
+      if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
     return raw as int;

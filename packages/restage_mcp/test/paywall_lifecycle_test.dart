@@ -74,6 +74,24 @@ void main() {
         tools['restage_publish_paywall']!.inputSchema.required,
         isNot(contains('organizationId')),
       );
+      for (final name in [
+        'restage_publish_paywall',
+        'restage_get_published_version',
+      ]) {
+        expect(
+          tools[name]!.inputSchema.properties,
+          contains('environmentTargetId'),
+        );
+        expect(tools[name]!.inputSchema.properties, contains('runtimePlane'));
+        expect(
+          tools[name]!.inputSchema.required,
+          isNot(contains('environmentTargetId')),
+        );
+        expect(
+          tools[name]!.inputSchema.required,
+          isNot(contains('runtimePlane')),
+        );
+      }
     },
   );
 
@@ -97,6 +115,8 @@ void main() {
             'appSlug': 'ios',
             'paywallSlug': 'pro',
             'environmentSlug': 'production',
+            'environmentTargetId': 42,
+            'runtimePlane': 'live',
             'organizationId': 9,
           },
         ),
@@ -107,6 +127,8 @@ void main() {
       expect(seen!['surfaceType'], 'paywall');
       expect(seen!['surfaceSlug'], 'pro');
       expect(seen!['environmentSlug'], 'production');
+      expect(seen!['environmentTargetId'], 42);
+      expect(seen!['runtimePlane'], 'live');
       expect(seen!['organizationId'], 9);
       expect(result.structuredContent!['version'], 4);
     },

@@ -1,4 +1,5 @@
 import 'package:args/args.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -9,26 +10,28 @@ void main() {
   // confirmDestructive
   // ---------------------------------------------------------------------------
   group('confirmDestructive', () {
-    test('rejects --yes on production', () async {
+    test('rejects --yes on the live plane', () async {
       final err = StringBuffer();
       final proceed = await confirmDestructive(
         interactive: const NonInteractive(),
         stdout: StringBuffer(),
         stderr: err,
         environment: 'production',
+        runtimePlane: RuntimePlane.live,
         yesFlag: true,
         impactLine: 'kill pro (v7)',
       );
       expect(proceed, isFalse);
-      expect(err.toString(), contains('production'));
+      expect(err.toString(), contains('live runtime plane'));
     });
 
-    test('proceeds on --yes for a non-prod env', () async {
+    test('proceeds on --yes for a sandbox target', () async {
       final proceed = await confirmDestructive(
         interactive: const NonInteractive(),
         stdout: StringBuffer(),
         stderr: StringBuffer(),
         environment: 'staging',
+        runtimePlane: RuntimePlane.sandbox,
         yesFlag: true,
         impactLine: 'kill pro (v7)',
       );
@@ -42,6 +45,7 @@ void main() {
         stdout: StringBuffer(),
         stderr: err,
         environment: 'production',
+        runtimePlane: RuntimePlane.live,
         yesFlag: false,
         impactLine: 'kill pro (v7)',
       );
@@ -60,6 +64,7 @@ void main() {
           stdout: out,
           stderr: StringBuffer(),
           environment: 'production',
+          runtimePlane: RuntimePlane.live,
           yesFlag: false,
           impactLine: 'kill my-surface (v42)',
         );
@@ -75,10 +80,41 @@ void main() {
         stdout: StringBuffer(),
         stderr: StringBuffer(),
         environment: 'production',
+        runtimePlane: RuntimePlane.live,
         yesFlag: false,
         impactLine: 'kill my-surface (v42)',
       );
       expect(proceed, isTrue);
+    });
+
+    test('allows --yes for a sandbox target named production', () async {
+      final proceed = await confirmDestructive(
+        interactive: const NonInteractive(),
+        stdout: StringBuffer(),
+        stderr: StringBuffer(),
+        environment: 'production',
+        runtimePlane: RuntimePlane.sandbox,
+        yesFlag: true,
+        impactLine: 'kill pro (v7)',
+      );
+
+      expect(proceed, isTrue);
+    });
+
+    test('rejects --yes for a live target named dev', () async {
+      final err = StringBuffer();
+      final proceed = await confirmDestructive(
+        interactive: const NonInteractive(),
+        stdout: StringBuffer(),
+        stderr: err,
+        environment: 'dev',
+        runtimePlane: RuntimePlane.live,
+        yesFlag: true,
+        impactLine: 'kill pro (v7)',
+      );
+
+      expect(proceed, isFalse);
+      expect(err.toString(), contains('live runtime plane'));
     });
   });
 
@@ -271,6 +307,8 @@ ArgResults _parseWith(
     ..addOption('env')
     ..addOption('project')
     ..addOption('app')
+    ..addOption('organization')
+    ..addOption('plane')
     ..addOption('directory', defaultsTo: '.');
   final args = <String>[];
   for (final entry in flags.entries) {

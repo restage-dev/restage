@@ -4,12 +4,14 @@ import 'dart:io';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -117,12 +119,20 @@ class SurfaceListCommand extends Command<int> {
     }
 
     try {
-      final configuredOrganization = await resolveConfiguredOrganization(
+      final organizationId = await resolveRequiredOrganizationId(
         api: api,
         config: loaded?.config,
         stderr: _stderr,
       );
-      if (configuredOrganization == null) return 1;
+      if (organizationId == null) return 1;
+      final appId = await resolveActiveAppId(
+        discovery: DiscoveryApi(api),
+        stderr: _stderr,
+        organizationId: organizationId,
+        projectSlug: project,
+        appSlug: app,
+      );
+      if (appId == null) return 1;
 
       final surfaceApi = SurfaceApi(api);
       final summaries = <SurfaceSummary>[];
@@ -132,7 +142,8 @@ class SurfaceListCommand extends Command<int> {
             project: project,
             app: app,
             surfaceType: surfaceType,
-            organizationId: configuredOrganization.organizationId,
+            organizationId: organizationId,
+            appId: appId,
           ),
         );
       }

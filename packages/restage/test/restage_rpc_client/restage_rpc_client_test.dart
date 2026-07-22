@@ -284,6 +284,54 @@ void main() {
   });
 
   group('RestageRpcClient.fetchSurface version omission', () {
+    test(
+      'six opaque API keys remain the only exact-target SDK authority',
+      () async {
+        final keys = <String>[
+          'rs_pk_dev_sandbox',
+          'rs_pk_dev_live',
+          'rs_pk_staging_sandbox',
+          'rs_pk_staging_live',
+          'rs_pk_prod_sandbox',
+          'rs_pk_prod_live',
+        ];
+        final requests = <http.Request>[];
+
+        for (final key in keys) {
+          final client = RestageRpcClient(
+            baseUrl: 'https://example.com',
+            apiKey: key,
+            httpClient: MockClient((request) async {
+              requests.add(request);
+              return http.Response(
+                jsonEncode({
+                  'envelope': base64Encode([requests.length]),
+                }),
+                200,
+              );
+            }),
+          );
+
+          final result = await client.fetchSurface(
+            surfaceType: 'paywall',
+            surfaceSlug: 'shared',
+          );
+          expect(result, isNotNull, reason: key);
+        }
+
+        expect(requests, hasLength(6));
+        expect(requests.map((request) => request.headers['Authorization']), [
+          for (final key in keys) 'Bearer $key',
+        ]);
+        for (final request in requests) {
+          expect(jsonDecode(request.body), {
+            'surfaceType': 'paywall',
+            'surfaceSlug': 'shared',
+          });
+        }
+      },
+    );
+
     test('returns envelope bytes with valid assignment metadata', () async {
       final mock = MockClient((req) async {
         return http.Response(

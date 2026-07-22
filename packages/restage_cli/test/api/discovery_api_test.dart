@@ -1,4 +1,5 @@
 import 'package:restage_cli/src/api/discovery_api.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:test/test.dart';
 
@@ -131,6 +132,52 @@ void main() {
       expect(fake.lastArgs!['projectSlug'], 'default');
       expect(fake.lastArgs!.containsKey('appSlug'), isFalse);
       expect(environments.single.slug, 'staging');
+    });
+
+    test('listEnvironmentTargets threads app scope and plane', () async {
+      final fake = FakeRestageApi(
+        response: <dynamic>[
+          {
+            'environmentTargetId': 42,
+            'namedEnvironmentId': 9,
+            'environmentSlug': 'production',
+            'runtimePlane': 'live',
+          },
+        ],
+      );
+
+      final targets = await DiscoveryApi(fake).listEnvironmentTargets(
+        organizationId: 7,
+        projectSlug: 'default',
+        appSlug: 'mobile',
+        appId: 11,
+        runtimePlane: RuntimePlane.live,
+      );
+
+      expect(fake.lastEndpoint, 'environment');
+      expect(fake.lastMethod, 'listEnvironmentTargets');
+      expect(fake.lastArgs, {
+        'organizationId': 7,
+        'projectSlug': 'default',
+        'appSlug': 'mobile',
+        'appId': 11,
+        'runtimePlane': 'live',
+      });
+      expect(targets.single.environmentTargetId, 42);
+      expect(targets.single.runtimePlane, RuntimePlane.live);
+    });
+
+    test('listEnvironmentTargets omits absent additive selectors', () async {
+      final fake = FakeRestageApi(response: <dynamic>[]);
+
+      await DiscoveryApi(fake).listEnvironmentTargets(
+        organizationId: 7,
+        projectSlug: 'default',
+        appSlug: 'mobile',
+      );
+
+      expect(fake.lastArgs!.containsKey('appId'), isFalse);
+      expect(fake.lastArgs!.containsKey('runtimePlane'), isFalse);
     });
   });
 }

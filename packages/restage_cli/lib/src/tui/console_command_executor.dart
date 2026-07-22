@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/cli.dart';
-import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
@@ -38,7 +38,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
         '--reason',
         reason,
         if (frozen) '--frozen',
-        if (context.environment != kProductionEnvironmentSlug) '--yes',
+        if (context.runtimePlane == RuntimePlane.sandbox) '--yes',
       ],
     );
   }
@@ -64,7 +64,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
         '--to-version',
         '$toVersion',
         if (freeze) '--freeze',
-        if (context.environment != kProductionEnvironmentSlug) '--yes',
+        if (context.runtimePlane == RuntimePlane.sandbox) '--yes',
       ],
     );
   }
@@ -75,7 +75,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     required ConsoleSurface surface,
     required int toVersion,
   }) {
-    // A pure read — no reason, no confirmation bypass, works on production.
+    // A pure read: no reason and no confirmation bypass on either plane.
     return _run([
       'surface',
       'rollback',
@@ -125,7 +125,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }
 
   /// The shared target-selection arguments every surface lifecycle command
-  /// takes: slug, type, project, app, environment.
+  /// takes: slug, type, project, app, environment, and resolved plane.
   List<String> _surfaceArgs(ConsoleContext context, ConsoleSurface surface) => [
     surface.slug,
     '--type',
@@ -136,6 +136,8 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     context.app,
     '--env',
     context.environment,
+    '--plane',
+    context.runtimePlane.wireName,
   ];
 
   Future<ConsoleOperationResult> _runLifecycle({
@@ -144,8 +146,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     required List<String> args,
   }) {
     final confirmed =
-        context.environment == kProductionEnvironmentSlug &&
-        confirmedProduction;
+        context.runtimePlane == RuntimePlane.live && confirmedProduction;
     return _run(
       args,
       interactive: confirmed

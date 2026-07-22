@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:restage_cli/src/tui/console_repository.dart';
@@ -45,6 +46,7 @@ void main() {
         _listProjects,
         _listApps,
         _listEnvironments,
+        _listEnvironmentTargets,
         _listPaywalls,
         _emptySurfaceList,
         _emptySurfaceList,
@@ -53,6 +55,8 @@ void main() {
           statusBody = jsonDecode(request.body) as Map<String, dynamic>;
           expect(statusBody!['method'], 'surfaceStatus');
           expect(statusBody!['organizationId'], 7);
+          expect(statusBody!['environmentTargetId'], 12);
+          expect(statusBody!['runtimePlane'], 'live');
           return http.Response(
             jsonEncode({
               '__className__': 'SurfaceStatusResult',
@@ -67,7 +71,7 @@ void main() {
             200,
           );
         },
-      ]),
+      ], withDefaultTargetDiscovery: false),
     );
 
     final snapshot = await repo.load();
@@ -78,9 +82,24 @@ void main() {
 
     expect(snapshot.context.organizationSlug, 'restage');
     expect(snapshot.context.project, 'alpha');
+    expect(snapshot.context.appId, 5);
     expect(snapshot.context.app, 'mobile');
     expect(snapshot.context.environment, 'staging');
-    expect(snapshot.environments.map((e) => e.slug), ['production', 'staging']);
+    expect(snapshot.context.environmentTargetId, 12);
+    expect(snapshot.context.namedEnvironmentId, 22);
+    expect(snapshot.context.runtimePlane, RuntimePlane.live);
+    expect(
+      snapshot.environments.map(
+        (target) =>
+            (target.environmentTargetId, target.slug, target.runtimePlane),
+      ),
+      [
+        (11, 'dev', RuntimePlane.live),
+        (12, 'staging', RuntimePlane.live),
+        (31, 'prod', RuntimePlane.sandbox),
+        (32, 'prod', RuntimePlane.live),
+      ],
+    );
     expect(snapshot.surfaces.single.slug, 'pro');
     expect(status.liveVersion, 2);
     expect(statusBody, isNotNull);
@@ -107,6 +126,7 @@ void main() {
           _listProjects,
           _listApps,
           _listEnvironments,
+          _listEnvironmentTargets,
           _listPaywalls,
           _emptySurfaceList,
           _emptySurfaceList,
@@ -148,7 +168,7 @@ void main() {
               200,
             );
           },
-        ]),
+        ], withDefaultTargetDiscovery: false),
       );
 
       final snapshot = await repo.load();
@@ -176,7 +196,10 @@ void main() {
     final repo = DefaultConsoleRepository(
       credentialStore: store,
       directory: tempDir,
-      httpClient: mockHttpClient((_) => fail('HTTP should not be called')),
+      httpClient: mockHttpClient(
+        (_) => fail('HTTP should not be called'),
+        withDefaultTargetDiscovery: false,
+      ),
     );
 
     await expectLater(
@@ -189,6 +212,48 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('joins the old config default to the exact legacy target', () async {
+    await seedCredential(store);
+    await seedRestageConfig(
+      tempDir,
+      'alpha',
+      'mobile',
+      defaultEnvironment: 'prod',
+      organization: 'restage',
+      endpoint: 'http://localhost:8080/',
+    );
+
+    final repo = DefaultConsoleRepository(
+      credentialStore: store,
+      directory: tempDir,
+      httpClient: scriptedHttpClient([
+        _listOrganizations,
+        _listProjects,
+        _listApps,
+        _listSameSlugLegacyEnvironments,
+        _listSameSlugTargets,
+        _listPaywalls,
+        _emptySurfaceList,
+        _emptySurfaceList,
+        _emptySurfaceList,
+      ], withDefaultTargetDiscovery: false),
+    );
+
+    final snapshot = await repo.load();
+
+    expect(snapshot.context.environment, 'prod');
+    expect(snapshot.context.environmentTargetId, 31);
+    expect(snapshot.context.runtimePlane, RuntimePlane.sandbox);
+    expect(snapshot.environments.map((target) => target.environmentTargetId), [
+      31,
+      32,
+    ]);
+    expect(snapshot.environments.map((target) => target.runtimePlane), [
+      RuntimePlane.sandbox,
+      RuntimePlane.live,
+    ]);
   });
 }
 
@@ -228,7 +293,7 @@ http.Response _listApps(http.Request request) {
   expect(body['projectSlug'], 'alpha');
   return http.Response(
     jsonEncode([
-      {'slug': 'mobile', 'name': 'Mobile'},
+      {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
     ]),
     200,
   );
@@ -241,8 +306,79 @@ http.Response _listEnvironments(http.Request request) {
   expect(body['projectSlug'], 'alpha');
   return http.Response(
     jsonEncode([
-      {'slug': 'production'},
-      {'slug': 'staging'},
+      {'id': 12, 'appId': 5, 'slug': 'staging'},
+    ]),
+    200,
+  );
+}
+
+http.Response _listEnvironmentTargets(http.Request request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'listEnvironmentTargets');
+  expect(body['organizationId'], 7);
+  expect(body['projectSlug'], 'alpha');
+  expect(body['appSlug'], 'mobile');
+  expect(body['appId'], 5);
+  return http.Response(
+    jsonEncode([
+      {
+        'environmentTargetId': 11,
+        'namedEnvironmentId': 21,
+        'environmentSlug': 'dev',
+        'runtimePlane': 'live',
+      },
+      {
+        'environmentTargetId': 12,
+        'namedEnvironmentId': 22,
+        'environmentSlug': 'staging',
+        'runtimePlane': 'live',
+      },
+      {
+        'environmentTargetId': 31,
+        'namedEnvironmentId': 41,
+        'environmentSlug': 'prod',
+        'runtimePlane': 'sandbox',
+      },
+      {
+        'environmentTargetId': 32,
+        'namedEnvironmentId': 41,
+        'environmentSlug': 'prod',
+        'runtimePlane': 'live',
+      },
+    ]),
+    200,
+  );
+}
+
+http.Response _listSameSlugLegacyEnvironments(http.Request request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'listEnvironments');
+  return http.Response(
+    jsonEncode([
+      {'id': 31, 'appId': 5, 'slug': 'prod'},
+    ]),
+    200,
+  );
+}
+
+http.Response _listSameSlugTargets(http.Request request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'listEnvironmentTargets');
+  expect(body['appId'], 5);
+  return http.Response(
+    jsonEncode([
+      {
+        'environmentTargetId': 31,
+        'namedEnvironmentId': 41,
+        'environmentSlug': 'prod',
+        'runtimePlane': 'sandbox',
+      },
+      {
+        'environmentTargetId': 32,
+        'namedEnvironmentId': 41,
+        'environmentSlug': 'prod',
+        'runtimePlane': 'live',
+      },
     ]),
     200,
   );
@@ -253,6 +389,7 @@ http.Response _listPaywalls(http.Request request) {
   expect(body['method'], 'list');
   expect(body['surfaceType'], 'paywall');
   expect(body['organizationId'], 7);
+  expect(body['appId'], 5);
   return http.Response(
     jsonEncode([
       {
@@ -273,5 +410,6 @@ http.Response _emptySurfaceList(http.Request request) {
   expect(body['method'], 'list');
   expect(body['surfaceType'], isIn(['onboarding', 'message', 'survey']));
   expect(body['organizationId'], 7);
+  expect(body['appId'], 5);
   return http.Response(jsonEncode(<Map<String, dynamic>>[]), 200);
 }

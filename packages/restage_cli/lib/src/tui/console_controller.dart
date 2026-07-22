@@ -89,7 +89,9 @@ class ConsoleController {
 
   int _environmentIndex(ConsoleSnapshot snapshot) {
     final index = snapshot.environments.indexWhere(
-      (environment) => environment.slug == snapshot.context.environment,
+      (environment) =>
+          environment.environmentTargetId ==
+          snapshot.context.environmentTargetId,
     );
     return index < 0 ? 0 : index;
   }
@@ -139,7 +141,12 @@ class ConsoleController {
     final environment = environments[clamped];
     _state = _state.copyWith(
       environmentIndex: clamped,
-      context: context.copyWith(environment: environment.slug),
+      context: context.copyWith(
+        environmentTargetId: environment.environmentTargetId,
+        namedEnvironmentId: environment.namedEnvironmentId,
+        environment: environment.slug,
+        runtimePlane: environment.runtimePlane,
+      ),
     );
     await refreshStatus();
   }

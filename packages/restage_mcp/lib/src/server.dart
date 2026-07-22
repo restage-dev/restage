@@ -90,6 +90,10 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     registerTool(_listProjectsTool, _scrubbed(_handleListProjects));
     registerTool(_listAppsTool, _scrubbed(_handleListApps));
     registerTool(_listEnvironmentsTool, _scrubbed(_handleListEnvironments));
+    registerTool(
+      _listEnvironmentTargetsTool,
+      _scrubbed(_handleListEnvironmentTargets),
+    );
     registerTool(_listProductsTool, _scrubbed(_handleListProducts));
     registerTool(_importProductsTool, _scrubbed(_handleImportProducts));
     registerTool(_listProductSlotsTool, _scrubbed(_handleListProductSlots));
@@ -160,6 +164,19 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'disambiguate when you belong to more than one organization.',
   );
 
+  static const _runtimePlaneValues = ['sandbox', 'live'];
+
+  /// Optional exact target id shared by target-scoped tools.
+  static final _environmentTargetIdProperty = Schema.int(
+    description: 'Optional exact environment target id.',
+  );
+
+  /// Optional runtime plane shared by target-scoped tools.
+  static final _runtimePlaneProperty = UntitledSingleSelectEnumSchema(
+    description: 'Optional runtime plane selector.',
+    values: _runtimePlaneValues,
+  );
+
   static final _listPaywallsTool = Tool(
     name: 'restage_list_paywalls',
     description:
@@ -210,6 +227,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The target environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'organizationId': _organizationIdProperty,
       },
       required: ['projectSlug', 'appSlug', 'paywallSlug', 'environmentSlug'],
@@ -229,6 +248,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'organizationId': _organizationIdProperty,
       },
       required: ['projectSlug', 'appSlug', 'paywallSlug', 'environmentSlug'],
@@ -262,6 +283,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'appSlug': Schema.string(
           description: 'The app slug under the project.',
         ),
+        'appId': Schema.int(description: 'The active numeric App id.'),
         'surfaceType': _surfaceTypeProperty,
         'organizationId': _organizationIdProperty,
       },
@@ -286,6 +308,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'organizationId': _organizationIdProperty,
       },
       required: [
@@ -313,6 +337,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'organizationId': _organizationIdProperty,
       },
       required: [
@@ -340,6 +366,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The target environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'organizationId': _organizationIdProperty,
       },
       required: [
@@ -371,6 +399,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'toVersion': Schema.int(
           description: 'The published version the rollback would target.',
         ),
@@ -404,6 +434,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'toVersion': Schema.int(
           description: 'The published version to roll back to.',
         ),
@@ -476,6 +508,23 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'projectSlug': Schema.string(description: 'The project slug.'),
       },
       required: ['organizationId', 'projectSlug'],
+    ),
+  );
+
+  static final _listEnvironmentTargetsTool = Tool(
+    name: 'restage_list_environment_targets',
+    description:
+        'List the existing environment targets under one app, optionally '
+        'filtered by runtime plane.',
+    inputSchema: Schema.object(
+      properties: {
+        'organizationId': Schema.int(description: 'The organization id.'),
+        'projectSlug': Schema.string(description: 'The project slug.'),
+        'appSlug': Schema.string(description: 'The app slug.'),
+        'appId': Schema.int(description: 'The active numeric App id.'),
+        'runtimePlane': _runtimePlaneProperty,
+      },
+      required: ['organizationId', 'projectSlug', 'appSlug'],
     ),
   );
 
@@ -680,6 +729,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'environmentSlug': Schema.string(
           description: 'The environment slug (e.g. production).',
         ),
+        'environmentTargetId': _environmentTargetIdProperty,
+        'runtimePlane': _runtimePlaneProperty,
         'organizationId': _organizationIdProperty,
       },
       required: ['projectSlug', 'appSlug', 'environmentSlug'],
@@ -831,6 +882,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         app: appSlug,
         paywall: paywallSlug,
         environment: environmentSlug,
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: organizationId,
       );
       return jsonResult(<String, Object?>{'version': version});
@@ -852,6 +905,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         app: appSlug,
         paywall: paywallSlug,
         environment: environmentSlug,
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: organizationId,
       );
       return jsonResult(<String, Object?>{'version': version});
@@ -891,6 +946,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     );
   }
 
+  RuntimePlane? _runtimePlaneFromRequest(CallToolRequest request) {
+    final value = request.optStr('runtimePlane');
+    return value == null ? null : RuntimePlane.fromWireName(value);
+  }
+
   /// Handle `restage_list_surfaces` — list one surface type under an app.
   Future<CallToolResult> _handleListSurfaces(CallToolRequest request) {
     return _withSurfaceApi(request, 'listing surfaces', (
@@ -902,6 +962,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         app: request.str('appSlug'),
         surfaceType: surfaceType,
         organizationId: request.optInt('organizationId'),
+        appId: request.optInt('appId'),
       );
       return jsonResult(<String, Object?>{
         'surfaces': [for (final summary in summaries) summary.toJson()],
@@ -922,6 +983,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         surfaceType: surfaceType,
         surfaceSlug: request.str('surfaceSlug'),
         environment: request.str('environmentSlug'),
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: request.optInt('organizationId'),
       );
       return jsonResult(status.toJson());
@@ -940,6 +1003,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         surfaceType: surfaceType,
         surfaceSlug: request.str('surfaceSlug'),
         environment: request.str('environmentSlug'),
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: request.optInt('organizationId'),
       );
       return jsonResult(<String, Object?>{
@@ -960,6 +1025,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         surfaceType: surfaceType,
         surfaceSlug: request.str('surfaceSlug'),
         environment: request.str('environmentSlug'),
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: request.optInt('organizationId'),
       );
       return jsonResult(<String, Object?>{'version': version});
@@ -981,6 +1048,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         surfaceSlug: request.str('surfaceSlug'),
         environment: request.str('environmentSlug'),
         toVersion: request.reqInt('toVersion'),
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: request.optInt('organizationId'),
       );
       return jsonResult(preflight.toJson());
@@ -1019,6 +1088,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         toVersion: toVersion,
         lockAfter: freeze,
         reason: reason,
+        environmentTargetId: request.optInt('environmentTargetId'),
+        runtimePlane: _runtimePlaneFromRequest(request),
         organizationId: request.optInt('organizationId'),
       );
       return jsonResult(<String, Object?>{
@@ -1107,6 +1178,26 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
       args: {
         'organizationId': request.reqInt('organizationId'),
         'projectSlug': request.str('projectSlug'),
+      },
+    );
+  }
+
+  /// Handle app-scoped environment target discovery.
+  Future<CallToolResult> _handleListEnvironmentTargets(
+    CallToolRequest request,
+  ) {
+    final appId = request.optInt('appId');
+    return _listVia(
+      endpoint: 'environment',
+      method: 'listEnvironmentTargets',
+      resultKey: 'environmentTargets',
+      action: 'listing environment targets',
+      args: {
+        'organizationId': request.reqInt('organizationId'),
+        'projectSlug': request.str('projectSlug'),
+        'appSlug': request.str('appSlug'),
+        if (appId != null) 'appId': appId,
+        'runtimePlane': request.optStr('runtimePlane'),
       },
     );
   }
@@ -1276,6 +1367,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
         'projectSlug': request.str('projectSlug'),
         'appSlug': request.str('appSlug'),
         'environmentSlug': request.str('environmentSlug'),
+        'environmentTargetId': request.optInt('environmentTargetId'),
+        'runtimePlane': request.optStr('runtimePlane'),
         'organizationId': request.optInt('organizationId'),
       },
     );
