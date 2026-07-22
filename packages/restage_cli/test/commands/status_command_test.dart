@@ -238,5 +238,5 @@ http.Client _statusClient({
       'listWorkspaceExperiences' => http.Response(jsonEncode(workspaces), 200),
       final method => throw StateError('Unexpected method: $method'),
     };
-  });
+  }, withDefaultTargetDiscovery: false);
 }

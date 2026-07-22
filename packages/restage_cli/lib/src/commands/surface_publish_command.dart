@@ -4,13 +4,14 @@ import 'dart:typed_data';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
-import 'package:restage_cli/src/commands/organization_resolution.dart';
 import 'package:restage_cli/src/commands/surface_payload.dart';
+import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/commands/upload_catalog_if_present.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -50,6 +51,10 @@ class SurfacePublishCommand extends Command<int> {
        _httpClient = httpClient {
     argParser
       ..addOption(
+        'organization',
+        help: 'Organization slug (overrides restage_config.yaml).',
+      )
+      ..addOption(
         'type',
         help:
             'Surface type (required): ${_validTypeList()}. Drives where the '
@@ -83,6 +88,7 @@ class SurfacePublishCommand extends Command<int> {
             'Directory to start the restage_config.yaml search from. '
             'Defaults to the current working directory.',
       );
+    addRuntimePlaneOption(argParser);
   }
 
   final StringSink _stdout;
@@ -196,12 +202,15 @@ class SurfacePublishCommand extends Command<int> {
     return _runPipeline(
       credential: credential,
       apiEndpoint: apiEndpoint,
-      config: loaded?.config,
       slug: slug,
       surfaceType: surfaceType,
       project: project,
       app: app,
       environment: environment,
+      preferredOrganizationSlug:
+          (argResults?['organization'] as String?) ??
+          loaded?.config.organization,
+      runtimePlane: runtimePlaneFromArgs(argResults),
       bytes: bytes,
       projectRoot: projectRoot,
     );
@@ -245,12 +254,13 @@ class SurfacePublishCommand extends Command<int> {
   Future<int> _runPipeline({
     required Credential credential,
     required Uri apiEndpoint,
-    required RestageConfig? config,
     required String slug,
     required SurfaceType surfaceType,
     required String project,
     required String app,
     required String environment,
+    required String? preferredOrganizationSlug,
+    required RuntimePlane? runtimePlane,
     required Uint8List bytes,
     required Directory projectRoot,
   }) async {
@@ -266,12 +276,17 @@ class SurfacePublishCommand extends Command<int> {
       return 1;
     }
     try {
-      final configuredOrganization = await resolveConfiguredOrganization(
+      final resolvedTarget = await resolveEnvironmentTargetContext(
         api: api,
-        config: config,
+        interactive: _interactive,
         stderr: _stderr,
+        projectSlug: project,
+        appSlug: app,
+        environmentSlug: environment,
+        preferredOrganizationSlug: preferredOrganizationSlug,
+        runtimePlane: runtimePlane,
       );
-      if (configuredOrganization == null) return 1;
+      if (resolvedTarget == null) return 1;
       final surfaceApi = SurfaceApi(api);
 
       try {
@@ -281,7 +296,8 @@ class SurfacePublishCommand extends Command<int> {
           surfaceType: surfaceType,
           surfaceSlug: slug,
           bytes: bytes,
-          organizationId: configuredOrganization.organizationId,
+          organizationId: resolvedTarget.organizationId,
+          appId: resolvedTarget.appId,
         );
       } on RestageApiException catch (e) {
         return _handleApiException(
@@ -302,7 +318,9 @@ class SurfacePublishCommand extends Command<int> {
           surfaceType: surfaceType,
           surfaceSlug: slug,
           environment: environment,
-          organizationId: configuredOrganization.organizationId,
+          environmentTargetId: resolvedTarget.target.environmentTargetId,
+          runtimePlane: resolvedTarget.target.runtimePlane,
+          organizationId: resolvedTarget.organizationId,
         );
         _stdout.writeln(
           'Published $slug (${surfaceType.wireName}) to $environment as '
@@ -312,7 +330,7 @@ class SurfacePublishCommand extends Command<int> {
           api: api,
           project: project,
           app: app,
-          organizationId: configuredOrganization.organizationId,
+          organizationId: resolvedTarget.organizationId,
           projectRoot: projectRoot,
           stderr: _stderr,
         );
@@ -324,6 +342,7 @@ class SurfacePublishCommand extends Command<int> {
           slug: slug,
           surfaceType: surfaceType,
           environment: environment,
+          runtimePlane: resolvedTarget.target.runtimePlane,
         );
       } on SocketException catch (e) {
         _stderr
@@ -333,6 +352,7 @@ class SurfacePublishCommand extends Command<int> {
               slug: slug,
               surfaceType: surfaceType,
               environment: environment,
+              runtimePlane: resolvedTarget.target.runtimePlane,
             ),
           );
         return 2;
@@ -392,6 +412,7 @@ class SurfacePublishCommand extends Command<int> {
     required String slug,
     required SurfaceType surfaceType,
     String? environment,
+    RuntimePlane? runtimePlane,
   }) {
     // Surface-specific typed errors get bespoke phrasing.
     final typed = decodeSurfaceTypedException(e.body);
@@ -421,6 +442,7 @@ class SurfacePublishCommand extends Command<int> {
               slug: slug,
               surfaceType: surfaceType,
               environment: environment,
+              runtimePlane: runtimePlane,
             ),
           );
         }
@@ -439,10 +461,13 @@ class SurfacePublishCommand extends Command<int> {
     // generic "not authorised" message — the draft is already on the server.
     if (stage == _Stage.publish && _isAuthorizationFailure(e)) {
       final envFragment = environment == null ? '' : ' --env $environment';
+      final planeFragment = runtimePlane == null
+          ? ''
+          : ' --plane ${runtimePlane.wireName}';
       _stderr.writeln(
         'Draft uploaded. Publishing requires an admin role; an admin can run '
         '`restage surface publish $slug --type ${surfaceType.wireName}'
-        '$envFragment` to publish it.',
+        '$envFragment$planeFragment` to publish it.',
       );
       return 1;
     }
@@ -463,6 +488,7 @@ class SurfacePublishCommand extends Command<int> {
               slug: slug,
               surfaceType: surfaceType,
               environment: environment,
+              runtimePlane: runtimePlane,
             ),
           );
       } else {
@@ -485,11 +511,16 @@ class SurfacePublishCommand extends Command<int> {
     required String slug,
     required SurfaceType surfaceType,
     required String? environment,
+    RuntimePlane? runtimePlane,
   }) {
     final envFragment = environment == null ? '' : ' --env $environment';
+    final planeFragment = runtimePlane == null
+        ? ''
+        : ' --plane ${runtimePlane.wireName}';
     final artifact = surfaceType == SurfaceType.paywall ? 'paywall' : 'flow';
     return 'The draft is on the server. Re-run `restage surface publish '
-        '$slug --type ${surfaceType.wireName}$envFragment` to retry (the '
+        '$slug --type ${surfaceType.wireName}$envFragment$planeFragment` '
+        'to retry (the '
         'command re-uploads your current local $artifact and publishes it).';
   }
 }

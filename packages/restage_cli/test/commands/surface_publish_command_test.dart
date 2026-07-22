@@ -378,6 +378,7 @@ void main() {
             expect(body['method'], 'save');
             expect(body['projectSlug'], 'demo');
             expect(body['appSlug'], 'mobile');
+            expect(body['appId'], 5);
             expect(body['surfaceType'], 'onboarding');
             expect(body['surfaceSlug'], 'first_run');
             final wireBytes = body['bytes'] as String;
@@ -447,6 +448,27 @@ void main() {
             200,
           );
         },
+        (req) => activeAppDiscoveryResponse(
+          req,
+          appSlug: 'mobile',
+          projectSlug: 'demo',
+        ),
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listEnvironmentTargets');
+          expect(body['organizationId'], 7);
+          return http.Response(
+            jsonEncode([
+              {
+                'environmentTargetId': 11,
+                'namedEnvironmentId': 21,
+                'environmentSlug': 'dev',
+                'runtimePlane': 'sandbox',
+              },
+            ]),
+            200,
+          );
+        },
         (req) {
           saveBody = jsonDecode(req.body) as Map<String, dynamic>;
           return http.Response('null', 200);
@@ -455,7 +477,7 @@ void main() {
           publishBody = jsonDecode(req.body) as Map<String, dynamic>;
           return http.Response('5', 200);
         },
-      ]);
+      ], withDefaultTargetDiscovery: false);
 
       final exitCode = await runArgs([
         'surface',
@@ -471,6 +493,7 @@ void main() {
       expect(saveBody, isNotNull);
       expect(saveBody!['method'], 'save');
       expect(saveBody!['organizationId'], 7);
+      expect(saveBody!['appId'], 5);
       expect(publishBody, isNotNull);
       expect(publishBody!['method'], 'publish');
       expect(publishBody!['organizationId'], 7);

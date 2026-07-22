@@ -417,5 +417,5 @@ http.Client _discoveryClient() {
       default:
         fail('Unexpected method ${body['method']}');
     }
-  });
+  }, withDefaultTargetDiscovery: false);
 }

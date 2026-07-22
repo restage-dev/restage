@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart'
     show kCohortImpactNotePrefix;
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -31,12 +32,13 @@ void main() {
 
       final calls = <Map<String, dynamic>>[];
       final client = scriptedHttpClient([
-        _okListOrgs,
         _okStatus,
         (request) {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           calls.add(body);
           expect(body['method'], 'killSurface');
+          expect(body['environmentTargetId'], 12);
+          expect(body['runtimePlane'], 'sandbox');
           expect(body['reason'], 'cleanup');
           return http.Response('{}', 200);
         },
@@ -52,8 +54,12 @@ void main() {
         context: const ConsoleContext(
           organizationSlug: 'restage',
           project: 'default',
+          appId: 5,
           app: 'default',
+          environmentTargetId: 12,
+          namedEnvironmentId: 22,
           environment: 'staging',
+          runtimePlane: RuntimePlane.sandbox,
         ),
         surface: const ConsoleSurface(
           surfaceType: 'paywall',
@@ -87,7 +93,6 @@ void main() {
 
       final calls = <Map<String, dynamic>>[];
       final client = scriptedHttpClient([
-        _okListOrgs,
         _okStatus,
         (request) {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -107,8 +112,12 @@ void main() {
         context: const ConsoleContext(
           organizationSlug: 'restage',
           project: 'default',
+          appId: 5,
           app: 'default',
+          environmentTargetId: 13,
+          namedEnvironmentId: 23,
           environment: 'production',
+          runtimePlane: RuntimePlane.live,
         ),
         surface: const ConsoleSurface(
           surfaceType: 'paywall',
@@ -143,7 +152,7 @@ void main() {
 
       final executor = ConsoleCommandExecutor(
         credentialStore: store,
-        httpClient: scriptedHttpClient([_okListOrgs, _okStatus]),
+        httpClient: scriptedHttpClient([_okStatus]),
         directory: dir,
       );
 
@@ -151,8 +160,12 @@ void main() {
         context: const ConsoleContext(
           organizationSlug: 'restage',
           project: 'default',
+          appId: 5,
           app: 'default',
+          environmentTargetId: 13,
+          namedEnvironmentId: 23,
           environment: 'production',
+          runtimePlane: RuntimePlane.live,
         ),
         surface: const ConsoleSurface(
           surfaceType: 'paywall',
@@ -175,7 +188,6 @@ void main() {
 
       final calls = <Map<String, dynamic>>[];
       final client = scriptedHttpClient([
-        _okListOrgs,
         _okStatus,
         (request) {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -230,7 +242,6 @@ void main() {
 
     var mutated = false;
     final client = scriptedHttpClient([
-      _okListOrgs,
       _okStatus,
       (request) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -250,8 +261,12 @@ void main() {
       context: const ConsoleContext(
         organizationSlug: 'restage',
         project: 'default',
+        appId: 5,
         app: 'default',
+        environmentTargetId: 12,
+        namedEnvironmentId: 22,
         environment: 'staging',
+        runtimePlane: RuntimePlane.sandbox,
       ),
       surface: const ConsoleSurface(
         surfaceType: 'paywall',
@@ -277,20 +292,22 @@ void main() {
 
     final lockCalls = <Map<String, dynamic>>[];
     final client = scriptedHttpClient([
-      _okListOrgs,
       (request) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         lockCalls.add(body);
         expect(body['method'], 'setSurfaceLock');
+        expect(body['environmentTargetId'], 12);
+        expect(body['runtimePlane'], 'sandbox');
         expect(body['locked'], true);
         expect(body['reason'], 'pause publishes');
         return http.Response('', 200);
       },
-      _okListOrgs,
       (request) {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         lockCalls.add(body);
         expect(body['method'], 'setSurfaceLock');
+        expect(body['environmentTargetId'], 12);
+        expect(body['runtimePlane'], 'sandbox');
         expect(body['locked'], false);
         expect(body['reason'], 'resume publishes');
         return http.Response('', 200);
@@ -326,7 +343,6 @@ void main() {
     var saveCalls = 0;
     var publishCalls = 0;
     final client = scriptedHttpClient([
-      _okListOrgs,
       (request) {
         saveCalls++;
         final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -342,6 +358,8 @@ void main() {
         expect(body['surfaceType'], 'paywall');
         expect(body['surfaceSlug'], 'pro');
         expect(body['environmentSlug'], 'staging');
+        expect(body['environmentTargetId'], 12);
+        expect(body['runtimePlane'], 'sandbox');
         return http.Response('3', 200);
       },
     ]);
@@ -361,6 +379,92 @@ void main() {
     expect(saveCalls, 1);
     expect(publishCalls, 1);
   });
+
+  for (final environment in const ['dev', 'staging']) {
+    test('live $environment kill forwards the exact live target', () async {
+      final fixture = await _seedExecutorFixture(environment: environment);
+      final targetId = environment == 'dev' ? 41 : 42;
+      Map<String, dynamic>? mutation;
+      final client = scriptedHttpClient([
+        _okListOrganizations,
+        (request) => activeAppDiscoveryResponse(
+          request,
+          appSlug: 'default',
+          projectSlug: 'default',
+        ),
+        _targetList(environment, targetId, RuntimePlane.live),
+        _okStatus,
+        (request) {
+          mutation = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{}', 200);
+        },
+      ], withDefaultTargetDiscovery: false);
+      final executor = ConsoleCommandExecutor(
+        credentialStore: fixture.store,
+        httpClient: client,
+        directory: fixture.dir,
+      );
+
+      final result = await executor.kill(
+        context: _context(
+          environment,
+          environmentTargetId: targetId,
+          namedEnvironmentId: targetId + 100,
+          runtimePlane: RuntimePlane.live,
+        ),
+        surface: _surface,
+        reason: 'cleanup',
+        frozen: false,
+        confirmedProduction: true,
+      );
+
+      expect(result.exitCode, 0);
+      expect(mutation?['method'], 'killSurface');
+      expect(mutation?['environmentTargetId'], targetId);
+      expect(mutation?['runtimePlane'], 'live');
+    });
+  }
+
+  test('sandbox prod kill bypasses only on the sandbox plane', () async {
+    final fixture = await _seedExecutorFixture(environment: 'prod');
+    Map<String, dynamic>? mutation;
+    final client = scriptedHttpClient([
+      _okListOrganizations,
+      (request) => activeAppDiscoveryResponse(
+        request,
+        appSlug: 'default',
+        projectSlug: 'default',
+      ),
+      _targetList('prod', 31, RuntimePlane.sandbox),
+      _okStatus,
+      (request) {
+        mutation = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('{}', 200);
+      },
+    ], withDefaultTargetDiscovery: false);
+    final executor = ConsoleCommandExecutor(
+      credentialStore: fixture.store,
+      httpClient: client,
+      directory: fixture.dir,
+    );
+
+    final result = await executor.kill(
+      context: _context(
+        'prod',
+        environmentTargetId: 31,
+        namedEnvironmentId: 131,
+        runtimePlane: RuntimePlane.sandbox,
+      ),
+      surface: _surface,
+      reason: 'cleanup',
+      frozen: false,
+    );
+
+    expect(result.exitCode, 0);
+    expect(mutation?['method'], 'killSurface');
+    expect(mutation?['environmentTargetId'], 31);
+    expect(mutation?['runtimePlane'], 'sandbox');
+  });
 }
 
 const _surface = ConsoleSurface(
@@ -369,11 +473,20 @@ const _surface = ConsoleSurface(
   name: 'Pro',
 );
 
-ConsoleContext _context(String environment) => ConsoleContext(
+ConsoleContext _context(
+  String environment, {
+  int environmentTargetId = 12,
+  int namedEnvironmentId = 22,
+  RuntimePlane runtimePlane = RuntimePlane.sandbox,
+}) => ConsoleContext(
   organizationSlug: 'restage',
   project: 'default',
+  appId: 5,
   app: 'default',
+  environmentTargetId: environmentTargetId,
+  namedEnvironmentId: namedEnvironmentId,
   environment: environment,
+  runtimePlane: runtimePlane,
 );
 
 Future<({Directory dir, FileCredentialStore store})> _seedExecutorFixture({
@@ -394,21 +507,37 @@ Future<({Directory dir, FileCredentialStore store})> _seedExecutorFixture({
   return (dir: dir, store: store);
 }
 
-http.Response _okListOrgs(http.Request request) {
+http.Response _okListOrganizations(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   expect(body['method'], 'listMine');
   return http.Response(
     jsonEncode([
-      {
-        'organizationId': 7,
-        'slug': 'restage',
-        'name': 'Restage',
-        'role': 'owner',
-      },
+      {'organizationId': 7, 'slug': 'restage', 'name': 'Restage'},
     ]),
     200,
   );
 }
+
+ScriptStep _targetList(
+  String environment,
+  int environmentTargetId,
+  RuntimePlane runtimePlane,
+) => (request) {
+  final body = jsonDecode(request.body) as Map<String, dynamic>;
+  expect(body['method'], 'listEnvironmentTargets');
+  expect(body['runtimePlane'], runtimePlane.wireName);
+  return http.Response(
+    jsonEncode([
+      {
+        'environmentTargetId': environmentTargetId,
+        'namedEnvironmentId': environmentTargetId + 100,
+        'environmentSlug': environment,
+        'runtimePlane': runtimePlane.wireName,
+      },
+    ]),
+    200,
+  );
+};
 
 http.Response _okStatus(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;

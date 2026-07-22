@@ -53,6 +53,7 @@ void main() {
       expect(seenBody['method'], 'list');
       expect(seenBody['projectSlug'], 'demo');
       expect(seenBody['appSlug'], 'mobile');
+      expect(seenBody['appId'], 5);
       expect(seenBody['surfaceType'], 'onboarding');
 
       final lines = const LineSplitter().convert(stdout.toString().trim());

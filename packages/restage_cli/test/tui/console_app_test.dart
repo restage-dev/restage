@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/tui/console_app.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
@@ -209,7 +210,7 @@ void main() {
       await tester.sendArrowDown();
       await tester.pump();
 
-      expect(tester.terminalState, containsText('Command preview'));
+      expect(tester.terminalState, containsText('surface publish'));
       expect(tester.terminalState, containsText('p publish'));
       expect(
         tester.terminalState,
@@ -279,7 +280,7 @@ void main() {
       expect(
         tester.terminalState,
         containsText(
-          'surface publish pro --type paywall --project default --app default --env staging',
+          'surface publish pro --type paywall --project default --app default --env staging --plane live',
         ),
       );
     }, size: const Size(160, 32));
@@ -306,7 +307,7 @@ void main() {
       expect(
         tester.terminalState,
         containsText(
-          'surface rollback pro --type paywall --project default --app default --env staging',
+          'surface rollback pro --type paywall --project default --app default --env staging --plane live',
         ),
       );
     }, size: const Size(160, 32));
@@ -682,6 +683,51 @@ void main() {
       expect(executor.calls, ['kill:pro:production']);
     }, size: const Size(120, 32));
   });
+
+  test(
+    'same-slug plane switch invalidates a parked live confirmation',
+    () async {
+      await testNocterm('same-slug confirmation target pinning', (
+        tester,
+      ) async {
+        final executor = RecordingConsoleOperationExecutor();
+        final controller = ConsoleController(
+          repository: SameSlugConsoleRepository(),
+          operationExecutor: executor,
+        );
+        await tester.pumpComponent(RestageConsoleApp(controller: controller));
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.terminalState, containsText('prod (sandbox'));
+        expect(tester.terminalState, containsText('prod (live'));
+        await controller.selectEnvironment(1);
+        await tester.pump();
+        await tester.sendArrowDown();
+        await tester.pump();
+        await tester.sendKey(LogicalKey.tab);
+        await tester.sendKey(LogicalKey.tab);
+        await tester.pump();
+
+        await tester.sendKey(LogicalKey.keyK);
+        await tester.pump();
+        await tester.enterText('live target cleanup');
+        await tester.sendEnter();
+        await tester.pump();
+        expect(tester.terminalState, containsText('Type confirm to proceed'));
+
+        await controller.selectEnvironment(0);
+        await tester.pump();
+        await tester.enterText('confirm');
+        await tester.sendEnter();
+        await tester.pump();
+        await tester.pump();
+
+        expect(executor.calls, <String>[]);
+        expect(tester.terminalState, containsText('changed'));
+      }, size: const Size(140, 32));
+    },
+  );
 
   test('submitting an operation with nothing selected reports a visible '
       'message instead of silently dropping the input', () async {
@@ -1394,14 +1440,28 @@ class FakeConsoleRepository implements ConsoleRepository {
     context: ConsoleContext(
       organizationSlug: 'restage',
       project: 'default',
+      appId: 5,
       app: 'default',
+      environmentTargetId: 12,
+      namedEnvironmentId: 22,
       environment: 'staging',
+      runtimePlane: RuntimePlane.live,
     ),
     projects: [ConsoleProject(slug: 'default', name: 'Default')],
-    apps: [ConsoleAppTarget(slug: 'default', name: 'Default')],
+    apps: [ConsoleAppTarget(appId: 5, slug: 'default', name: 'Default')],
     environments: [
-      ConsoleEnvironmentTarget(slug: 'production'),
-      ConsoleEnvironmentTarget(slug: 'staging'),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 13,
+        namedEnvironmentId: 23,
+        slug: 'production',
+        runtimePlane: RuntimePlane.live,
+      ),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 12,
+        namedEnvironmentId: 22,
+        slug: 'staging',
+        runtimePlane: RuntimePlane.live,
+      ),
     ],
     surfaces: [
       ConsoleSurface(surfaceType: 'paywall', slug: 'pro', name: 'Pro'),
@@ -1548,16 +1608,65 @@ class EmptyConsoleRepository extends FakeConsoleRepository {
     context: ConsoleContext(
       organizationSlug: 'restage',
       project: 'default',
+      appId: 5,
       app: 'default',
+      environmentTargetId: 12,
+      namedEnvironmentId: 22,
       environment: 'staging',
+      runtimePlane: RuntimePlane.live,
     ),
     projects: [ConsoleProject(slug: 'default', name: 'Default')],
-    apps: [ConsoleAppTarget(slug: 'default', name: 'Default')],
+    apps: [ConsoleAppTarget(appId: 5, slug: 'default', name: 'Default')],
     environments: [
-      ConsoleEnvironmentTarget(slug: 'production'),
-      ConsoleEnvironmentTarget(slug: 'staging'),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 13,
+        namedEnvironmentId: 23,
+        slug: 'production',
+        runtimePlane: RuntimePlane.live,
+      ),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 12,
+        namedEnvironmentId: 22,
+        slug: 'staging',
+        runtimePlane: RuntimePlane.live,
+      ),
     ],
     surfaces: [],
+  );
+}
+
+class SameSlugConsoleRepository extends FakeConsoleRepository {
+  @override
+  Future<ConsoleSnapshot> load() async => const ConsoleSnapshot(
+    context: ConsoleContext(
+      organizationSlug: 'restage',
+      project: 'default',
+      appId: 5,
+      app: 'default',
+      environmentTargetId: 31,
+      namedEnvironmentId: 41,
+      environment: 'prod',
+      runtimePlane: RuntimePlane.sandbox,
+    ),
+    projects: [ConsoleProject(slug: 'default', name: 'Default')],
+    apps: [ConsoleAppTarget(appId: 5, slug: 'default', name: 'Default')],
+    environments: [
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 31,
+        namedEnvironmentId: 41,
+        slug: 'prod',
+        runtimePlane: RuntimePlane.sandbox,
+      ),
+      ConsoleEnvironmentTarget(
+        environmentTargetId: 32,
+        namedEnvironmentId: 41,
+        slug: 'prod',
+        runtimePlane: RuntimePlane.live,
+      ),
+    ],
+    surfaces: [
+      ConsoleSurface(surfaceType: 'paywall', slug: 'pro', name: 'Pro'),
+    ],
   );
 }
 

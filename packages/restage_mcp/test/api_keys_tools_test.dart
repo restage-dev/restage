@@ -69,6 +69,14 @@ void main() {
       tools['restage_revoke_api_key']!.inputSchema.required,
       containsAll(['projectSlug', 'appSlug', 'apiKeyId']),
     );
+    expect(
+      tools['restage_list_api_keys']!.inputSchema.required,
+      isNot(contains('environmentTargetId')),
+    );
+    expect(
+      tools['restage_list_api_keys']!.inputSchema.required,
+      isNot(contains('runtimePlane')),
+    );
   });
 
   test('list_api_keys hits apiKey.listKeys and passes the redacted view '
@@ -79,6 +87,8 @@ void main() {
           'id': 3,
           'environmentId': 9,
           'environmentSlug': 'production',
+          'environmentTargetId': 42,
+          'runtimePlane': 'sandbox',
           'kind': 'public',
           'keyPrefix': 'rs_pk_ab',
           'createdAt': '2026-06-01T00:00:00.000Z',
@@ -100,6 +110,8 @@ void main() {
           'projectSlug': 'acme',
           'appSlug': 'ios',
           'environmentSlug': 'production',
+          'environmentTargetId': 42,
+          'runtimePlane': 'sandbox',
         },
       ),
     );
@@ -108,6 +120,8 @@ void main() {
     expect(rec.calls.single.url.toString(), 'https://api.test/apiKey');
     expect(rec.calls.single.body['method'], 'listKeys');
     expect(rec.calls.single.body['environmentSlug'], 'production');
+    expect(rec.calls.single.body['environmentTargetId'], 42);
+    expect(rec.calls.single.body['runtimePlane'], 'sandbox');
     final keys = result.structuredContent!['apiKeys']! as List<dynamic>;
     final view = keys.single as Map;
     expect(view['keyPrefix'], 'rs_pk_ab');

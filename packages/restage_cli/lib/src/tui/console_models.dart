@@ -1,3 +1,4 @@
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 
 enum ConsolePanel { projects, apps, surfaces, detail, actions }
@@ -6,25 +7,43 @@ class ConsoleContext {
   const ConsoleContext({
     required this.organizationSlug,
     required this.project,
+    required this.appId,
     required this.app,
+    required this.environmentTargetId,
+    required this.namedEnvironmentId,
     required this.environment,
+    required this.runtimePlane,
   });
 
   final String? organizationSlug;
   final String project;
+  final int appId;
   final String app;
+  final int environmentTargetId;
+  final int namedEnvironmentId;
   final String environment;
+  final RuntimePlane runtimePlane;
+
+  String get environmentLabel => '$environment (${runtimePlane.wireName})';
 
   ConsoleContext copyWith({
     String? organizationSlug,
     String? project,
+    int? appId,
     String? app,
+    int? environmentTargetId,
+    int? namedEnvironmentId,
     String? environment,
+    RuntimePlane? runtimePlane,
   }) => ConsoleContext(
     organizationSlug: organizationSlug ?? this.organizationSlug,
     project: project ?? this.project,
+    appId: appId ?? this.appId,
     app: app ?? this.app,
+    environmentTargetId: environmentTargetId ?? this.environmentTargetId,
+    namedEnvironmentId: namedEnvironmentId ?? this.namedEnvironmentId,
     environment: environment ?? this.environment,
+    runtimePlane: runtimePlane ?? this.runtimePlane,
   );
 }
 
@@ -36,16 +55,31 @@ class ConsoleProject {
 }
 
 class ConsoleAppTarget {
-  const ConsoleAppTarget({required this.slug, required this.name});
+  const ConsoleAppTarget({
+    required this.appId,
+    required this.slug,
+    required this.name,
+  });
 
+  final int appId;
   final String slug;
   final String name;
 }
 
 class ConsoleEnvironmentTarget {
-  const ConsoleEnvironmentTarget({required this.slug});
+  const ConsoleEnvironmentTarget({
+    required this.environmentTargetId,
+    required this.namedEnvironmentId,
+    required this.slug,
+    required this.runtimePlane,
+  });
 
+  final int environmentTargetId;
+  final int namedEnvironmentId;
   final String slug;
+  final RuntimePlane runtimePlane;
+
+  String get label => '$slug (${runtimePlane.wireName})';
 }
 
 class ConsoleSurface {

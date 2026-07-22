@@ -89,6 +89,7 @@ void main() {
           expect(body['surfaceType'], 'paywall');
           expect(body['projectSlug'], 'demo');
           expect(body['appSlug'], 'mobile');
+          expect(body['appId'], 5);
           expect(body['surfaceSlug'], 'hello');
           // The wire format for bytes is the backend `decode('<base64>',
           // 'base64')` string, wrapping the canonical blob-surface frame.
@@ -246,6 +247,27 @@ void main() {
             200,
           );
         },
+        (req) => activeAppDiscoveryResponse(
+          req,
+          appSlug: 'mobile',
+          projectSlug: 'demo',
+        ),
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listEnvironmentTargets');
+          expect(body['organizationId'], 7);
+          return http.Response(
+            jsonEncode([
+              {
+                'environmentTargetId': 11,
+                'namedEnvironmentId': 21,
+                'environmentSlug': 'dev',
+                'runtimePlane': 'sandbox',
+              },
+            ]),
+            200,
+          );
+        },
         (req) {
           saveBody = jsonDecode(req.body) as Map<String, dynamic>;
           return http.Response('null', 200);
@@ -254,7 +276,7 @@ void main() {
           publishBody = jsonDecode(req.body) as Map<String, dynamic>;
           return http.Response('5', 200);
         },
-      ]);
+      ], withDefaultTargetDiscovery: false);
 
       final exitCode = await RestageCli(
         stdout: stdout,
@@ -267,6 +289,7 @@ void main() {
       expect(saveBody, isNotNull);
       expect(saveBody!['method'], 'save');
       expect(saveBody!['organizationId'], 7);
+      expect(saveBody!['appId'], 5);
       expect(publishBody, isNotNull);
       expect(publishBody!['method'], 'publish');
       expect(publishBody!['organizationId'], 7);

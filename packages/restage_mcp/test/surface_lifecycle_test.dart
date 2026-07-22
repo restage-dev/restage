@@ -76,6 +76,14 @@ void main() {
       tools['restage_list_surfaces']!.inputSchema.required,
       containsAll(['projectSlug', 'appSlug', 'surfaceType']),
     );
+    expect(
+      tools['restage_list_surfaces']!.inputSchema.properties,
+      contains('appId'),
+    );
+    expect(
+      tools['restage_list_surfaces']!.inputSchema.required,
+      isNot(contains('appId')),
+    );
     for (final name in [
       'restage_surface_status',
       'restage_surface_history',
@@ -116,6 +124,27 @@ void main() {
         'reason',
       ]),
     );
+    for (final name in [
+      'restage_surface_status',
+      'restage_surface_history',
+      'restage_publish_surface',
+      'restage_rollback_preflight',
+      'restage_rollback_surface',
+    ]) {
+      expect(
+        tools[name]!.inputSchema.properties,
+        contains('environmentTargetId'),
+      );
+      expect(tools[name]!.inputSchema.properties, contains('runtimePlane'));
+      expect(
+        tools[name]!.inputSchema.required,
+        isNot(contains('environmentTargetId')),
+      );
+      expect(
+        tools[name]!.inputSchema.required,
+        isNot(contains('runtimePlane')),
+      );
+    }
     // The preview is its own read-only tool; it must not require a reason.
     expect(
       tools['restage_rollback_preflight']!.inputSchema.required,
@@ -155,6 +184,8 @@ void main() {
           'surfaceType': 'onboarding',
           'surfaceSlug': 'first-run',
           'environmentSlug': 'staging',
+          'environmentTargetId': 42,
+          'runtimePlane': 'sandbox',
         },
       ),
     );
@@ -316,13 +347,46 @@ void main() {
           'surfaceType': 'onboarding',
           'surfaceSlug': 'first-run',
           'environmentSlug': 'staging',
+          'environmentTargetId': 42,
+          'runtimePlane': 'sandbox',
         },
       ),
     );
 
     expect(result.isError, isNot(true));
     expect(seenBody!['method'], 'publish');
+    expect(seenBody!['environmentTargetId'], 42);
+    expect(seenBody!['runtimePlane'], 'sandbox');
     expect(result.structuredContent!['version'], 5);
+  });
+
+  test('publish_surface forwards a mixed selector unchanged', () async {
+    Map<String, dynamic>? seenBody;
+    final connection = await connectServer(
+      store: store,
+      httpClient: MockClient((request) async {
+        seenBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response('5', 200);
+      }),
+    );
+
+    final result = await connection.callTool(
+      CallToolRequest(
+        name: 'restage_publish_surface',
+        arguments: {
+          'projectSlug': 'demo',
+          'appSlug': 'mobile',
+          'surfaceType': 'onboarding',
+          'surfaceSlug': 'first-run',
+          'environmentSlug': 'staging',
+          'environmentTargetId': 42,
+        },
+      ),
+    );
+
+    expect(result.isError, isNot(true));
+    expect(seenBody!['environmentTargetId'], 42);
+    expect(seenBody!.containsKey('runtimePlane'), isFalse);
   });
 
   test('a typed surface error renders surface-neutral wording, not paywall '

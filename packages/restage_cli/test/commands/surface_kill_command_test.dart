@@ -184,7 +184,7 @@ void main() {
       },
     );
 
-    test('(d) --env production --yes exits 1 (refused by prod guardrail), '
+    test('(d) live production --yes exits 1, '
         'kill not called', () async {
       var killCalled = false;
       final client = scriptedHttpClient([
@@ -218,7 +218,7 @@ void main() {
           ]);
 
       expect(code, 1);
-      expect(err.toString(), contains('production'));
+      expect(err.toString(), contains('live runtime plane'));
       expect(killCalled, isFalse);
     });
 
@@ -246,7 +246,7 @@ void main() {
               'kill',
               'pro',
               '--env',
-              'staging', // non-prod → interactive path
+              'staging', // sandbox → interactive path
               '--reason',
               'x',
               // no --yes → goes to interactive confirm

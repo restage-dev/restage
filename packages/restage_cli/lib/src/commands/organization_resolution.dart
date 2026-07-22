@@ -14,6 +14,14 @@ class ConfiguredOrganizationContext {
   final int? organizationId;
 }
 
+void _writeOrganizationDiscoveryError(
+  StringSink stderr,
+  RestageApiException error,
+) => stderr.writeln(
+  renderGenericTypedError(error)?.message ??
+      'Could not discover organization context: ${error.body}',
+);
+
 /// Resolve `restage_config.yaml`'s organization slug to the backend id.
 ///
 /// Project/app commands can omit this when there is no configured organization;
@@ -44,12 +52,50 @@ Future<ConfiguredOrganizationContext?> resolveConfiguredOrganization({
     );
     return null;
   } on RestageApiException catch (e) {
-    final outcome = renderGenericTypedError(e);
-    if (outcome != null) {
-      stderr.writeln(outcome.message);
-    } else {
-      stderr.writeln('Could not discover organization context: ${e.body}');
+    _writeOrganizationDiscoveryError(stderr, e);
+    return null;
+  } on SocketException catch (e) {
+    stderr.writeln('Could not contact the backend: $e');
+    return null;
+  }
+}
+
+/// Resolve the exact organization id required by target-aware operations.
+///
+/// A configured organization is authoritative. Without one, a sole membership
+/// is safe to select automatically; multiple memberships fail closed and ask
+/// the caller to persist an explicit organization in `restage_config.yaml`.
+Future<int?> resolveRequiredOrganizationId({
+  required RestageApi api,
+  required RestageConfig? config,
+  required StringSink stderr,
+}) async {
+  final configured = await resolveConfiguredOrganization(
+    api: api,
+    config: config,
+    stderr: stderr,
+  );
+  if (configured == null) return null;
+  if (configured.organizationId case final organizationId?) {
+    return organizationId;
+  }
+
+  try {
+    final organizations = await DiscoveryApi(api).listOrganizations();
+    if (organizations.isEmpty) {
+      stderr.writeln('No organizations found for this account.');
+      return null;
     }
+    if (organizations.length != 1) {
+      stderr.writeln(
+        'No organization context. Set `organization` in '
+        'restage_config.yaml.',
+      );
+      return null;
+    }
+    return organizations.single.organizationId;
+  } on RestageApiException catch (e) {
+    _writeOrganizationDiscoveryError(stderr, e);
     return null;
   } on SocketException catch (e) {
     stderr.writeln('Could not contact the backend: $e');

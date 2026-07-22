@@ -95,7 +95,13 @@ class ProjectSummary {
 @immutable
 class AppSummary {
   /// Construct an app summary.
-  const AppSummary({required this.slug, required this.name});
+  const AppSummary({required this.slug, required this.name, this.appId});
+
+  /// Stable numeric app id when returned by the current backend.
+  ///
+  /// This remains nullable so older servers that omit the additive field keep
+  /// decoding. Target-aware consumers can require it before proceeding.
+  final int? appId;
 
   /// App slug.
   final String slug;
@@ -104,8 +110,11 @@ class AppSummary {
   final String name;
 
   /// Decode from the backend app view.
-  factory AppSummary.fromJson(Map<String, dynamic> json) =>
-      AppSummary(slug: json['slug']! as String, name: json['name']! as String);
+  factory AppSummary.fromJson(Map<String, dynamic> json) => AppSummary(
+    slug: json['slug']! as String,
+    name: json['name']! as String,
+    appId: json['id'] as int?,
+  );
 }
 
 /// An environment under a project.
@@ -113,12 +122,83 @@ class AppSummary {
 @immutable
 class EnvironmentSummary {
   /// Construct an environment summary.
-  const EnvironmentSummary({required this.slug});
+  const EnvironmentSummary({
+    required this.slug,
+    this.environmentTargetId,
+    this.appId,
+  });
+
+  /// Stable numeric environment target id when returned by the current
+  /// backend.
+  final int? environmentTargetId;
+
+  /// Stable numeric parent app id when returned by the current backend.
+  final int? appId;
 
   /// Environment slug.
   final String slug;
 
   /// Decode from the backend environment view.
   factory EnvironmentSummary.fromJson(Map<String, dynamic> json) =>
-      EnvironmentSummary(slug: json['slug']! as String);
+      EnvironmentSummary(
+        slug: json['slug']! as String,
+        environmentTargetId: json['id'] as int?,
+        appId: json['appId'] as int?,
+      );
+}
+
+/// Canonical execution plane for an environment target.
+@experimental
+enum RuntimePlane {
+  /// Isolated evaluation and development traffic.
+  sandbox,
+
+  /// Customer-facing production traffic.
+  live;
+
+  /// Decode the backend wire name.
+  factory RuntimePlane.fromWireName(String value) => switch (value) {
+    'sandbox' => RuntimePlane.sandbox,
+    'live' => RuntimePlane.live,
+    _ => throw FormatException('Unknown runtime plane: $value'),
+  };
+
+  /// Backend wire name.
+  String get wireName => name;
+}
+
+/// One concrete target for a named environment and runtime plane.
+@experimental
+@immutable
+class EnvironmentTargetSummary {
+  /// Construct an environment target summary.
+  const EnvironmentTargetSummary({
+    required this.environmentTargetId,
+    required this.namedEnvironmentId,
+    required this.environmentSlug,
+    required this.runtimePlane,
+  });
+
+  /// Stable numeric target id used by target-scoped operations.
+  final int environmentTargetId;
+
+  /// Stable parent named-environment id.
+  final int namedEnvironmentId;
+
+  /// Human-readable named-environment slug.
+  final String environmentSlug;
+
+  /// Runtime plane served by this target.
+  final RuntimePlane runtimePlane;
+
+  /// Decode from the backend target reference.
+  factory EnvironmentTargetSummary.fromJson(Map<String, dynamic> json) =>
+      EnvironmentTargetSummary(
+        environmentTargetId: json['environmentTargetId']! as int,
+        namedEnvironmentId: json['namedEnvironmentId']! as int,
+        environmentSlug: json['environmentSlug']! as String,
+        runtimePlane: RuntimePlane.fromWireName(
+          json['runtimePlane']! as String,
+        ),
+      );
 }

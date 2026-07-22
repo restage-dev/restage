@@ -119,6 +119,7 @@ void main() {
           'restage_list_projects',
           'restage_list_apps',
           'restage_list_environments',
+          'restage_list_environment_targets',
           // Products / store
           'restage_list_products',
           'restage_import_products',

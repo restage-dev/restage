@@ -76,8 +76,25 @@ void main() {
       ).run(['envs', '-C', tempDir.path]);
 
       expect(exitCode, 0);
-      expect(stdout.toString(), contains('staging'));
-      expect(stdout.toString(), contains('production'));
+      expect(stdout.toString(), 'staging\nproduction\n');
+    },
+  );
+
+  test(
+    'restage targets resolves project + app and prints stable target rows',
+    () async {
+      await seedCredential(store);
+      await seedRestageConfig(tempDir, 'alpha', 'mobile');
+
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: stderr,
+        credentialStore: store,
+        httpClient: _discoveryClient(),
+      ).run(['targets', '--plane', 'sandbox', '-C', tempDir.path]);
+
+      expect(exitCode, 0);
+      expect(stdout.toString(), '12\tproduction\tsandbox\n21\tdev\tsandbox\n');
     },
   );
 
@@ -132,8 +149,8 @@ http.Client _discoveryClient() {
         expect(body['projectSlug'], 'alpha');
         return http.Response(
           jsonEncode([
-            {'slug': 'mobile', 'name': 'Mobile'},
-            {'slug': 'tablet', 'name': 'Tablet'},
+            {'id': 5, 'slug': 'mobile', 'name': 'Mobile'},
+            {'id': 6, 'slug': 'tablet', 'name': 'Tablet'},
           ]),
           200,
         );
@@ -147,10 +164,33 @@ http.Client _discoveryClient() {
           ]),
           200,
         );
+      case 'listEnvironmentTargets':
+        expect(body['organizationId'], 7);
+        expect(body['projectSlug'], 'alpha');
+        expect(body['appSlug'], 'mobile');
+        expect(body['appId'], 5);
+        expect(body['runtimePlane'], 'sandbox');
+        return http.Response(
+          jsonEncode([
+            {
+              'environmentTargetId': 21,
+              'namedEnvironmentId': 3,
+              'environmentSlug': 'dev',
+              'runtimePlane': 'sandbox',
+            },
+            {
+              'environmentTargetId': 12,
+              'namedEnvironmentId': 4,
+              'environmentSlug': 'production',
+              'runtimePlane': 'sandbox',
+            },
+          ]),
+          200,
+        );
       default:
         fail('Unexpected method ${body['method']}');
     }
-  });
+  }, withDefaultTargetDiscovery: false);
 }
 
 Future<HttpServer> _serveDiscoveryBackend() async {

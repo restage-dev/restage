@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
@@ -141,6 +142,100 @@ void main() {
       );
       expect(seen!.containsKey('organizationId'), isFalse);
     });
+
+    test('draft save/list/load thread appId and preserve omission', () async {
+      final save = FakeRestageApi(response: null);
+      await SurfaceApi(save).save(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.onboarding,
+        surfaceSlug: 'welcome',
+        bytes: Uint8List.fromList(const [1]),
+        appId: 41,
+      );
+      expect(save.lastArgs!['appId'], 41);
+
+      final list = FakeRestageApi(response: <dynamic>[]);
+      await SurfaceApi(list).list(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.onboarding,
+        appId: 41,
+      );
+      expect(list.lastArgs!['appId'], 41);
+
+      final load = FakeRestageApi(response: "decode('AA==', 'base64')");
+      await SurfaceApi(load).load(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.onboarding,
+        surfaceSlug: 'welcome',
+        appId: 41,
+      );
+      expect(load.lastArgs!['appId'], 41);
+
+      final omitted = FakeRestageApi(response: <dynamic>[]);
+      await SurfaceApi(
+        omitted,
+      ).list(project: 'p', app: 'a', surfaceType: SurfaceType.onboarding);
+      expect(omitted.lastArgs!.containsKey('appId'), isFalse);
+    });
+
+    test(
+      'forwards the exact target pair and omits each null independently',
+      () async {
+        Map<String, dynamic>? seen;
+        final client = MockClient((request) async {
+          seen = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('1', 200);
+        });
+        final api = SurfaceApi(_apiWithClient(client));
+
+        await api.publish(
+          project: 'd',
+          app: 'm',
+          surfaceType: SurfaceType.onboarding,
+          surfaceSlug: 's',
+          environment: 'production',
+          environmentTargetId: 42,
+          runtimePlane: RuntimePlane.sandbox,
+        );
+        expect(seen!['environmentTargetId'], 42);
+        expect(seen!['runtimePlane'], 'sandbox');
+
+        await api.publish(
+          project: 'd',
+          app: 'm',
+          surfaceType: SurfaceType.onboarding,
+          surfaceSlug: 's',
+          environment: 'production',
+          environmentTargetId: 42,
+        );
+        expect(seen!['environmentTargetId'], 42);
+        expect(seen!.containsKey('runtimePlane'), isFalse);
+
+        await api.publish(
+          project: 'd',
+          app: 'm',
+          surfaceType: SurfaceType.onboarding,
+          surfaceSlug: 's',
+          environment: 'production',
+          runtimePlane: RuntimePlane.live,
+        );
+        expect(seen!.containsKey('environmentTargetId'), isFalse);
+        expect(seen!['runtimePlane'], 'live');
+
+        await api.publish(
+          project: 'd',
+          app: 'm',
+          surfaceType: SurfaceType.onboarding,
+          surfaceSlug: 's',
+          environment: 'production',
+        );
+        expect(seen!.containsKey('environmentTargetId'), isFalse);
+        expect(seen!.containsKey('runtimePlane'), isFalse);
+      },
+    );
   });
 
   group('SurfaceApi.publish', () {

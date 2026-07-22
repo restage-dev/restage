@@ -76,4 +76,28 @@ class DiscoveryApi {
         EnvironmentSummary.fromJson(item as Map<String, dynamic>),
     ];
   }
+
+  /// Existing active environment targets under one app.
+  ///
+  /// [appId] is additive for exact authority. Legacy integrations may omit it.
+  Future<List<EnvironmentTargetSummary>> listEnvironmentTargets({
+    required int organizationId,
+    required String projectSlug,
+    required String appSlug,
+    int? appId,
+    RuntimePlane? runtimePlane,
+  }) async {
+    final raw = await _api
+        .call('environment', 'listEnvironmentTargets', <String, dynamic>{
+          'organizationId': organizationId,
+          'projectSlug': projectSlug,
+          'appSlug': appSlug,
+          if (appId != null) 'appId': appId,
+          if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
+        });
+    return [
+      for (final item in raw as List<dynamic>)
+        EnvironmentTargetSummary.fromJson(item as Map<String, dynamic>),
+    ];
+  }
 }

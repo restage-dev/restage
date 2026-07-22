@@ -242,6 +242,15 @@ class RestageCli {
         ),
       )
       ..addCommand(
+        TargetsCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
         InitCommand(
           stdout: _stdout,
           stderr: _stderr,

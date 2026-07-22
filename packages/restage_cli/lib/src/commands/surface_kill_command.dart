@@ -20,8 +20,8 @@ import 'package:restage_shared/restage_shared.dart';
 ///   - non-null → typed-group convenience (e.g. `paywall kill`; no `--type`).
 ///
 /// Requires a non-empty `--reason` for the audit trail. A destructive-op
-/// confirmation step guards production: `--yes` is accepted on non-production
-/// environments; production always requires an interactive confirmation.
+/// confirmation step guards the live runtime plane: `--yes` is accepted for
+/// sandbox targets; live targets always require interactive confirmation.
 /// The `--frozen` flag additionally locks the surface against future publishes
 /// after killing it.
 class SurfaceKillCommand extends Command<int> {
@@ -57,8 +57,7 @@ class SurfaceKillCommand extends Command<int> {
       ..addFlag(
         'yes',
         negatable: false,
-        help:
-            'Skip the confirmation prompt (non-production environments only).',
+        help: 'Skip the confirmation prompt (sandbox targets only).',
       );
   }
 
@@ -132,6 +131,8 @@ class SurfaceKillCommand extends Command<int> {
           surfaceType: surfaceType,
           surfaceSlug: slug,
           environment: ctx.environment,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
@@ -155,6 +156,7 @@ class SurfaceKillCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
         environment: ctx.environment,
+        runtimePlane: ctx.runtimePlane,
         yesFlag: yesFlag,
         impactLine: impactLine,
       );
@@ -178,6 +180,8 @@ class SurfaceKillCommand extends Command<int> {
           environment: ctx.environment,
           frozen: frozen,
           reason: reason,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {

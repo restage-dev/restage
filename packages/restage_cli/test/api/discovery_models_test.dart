@@ -45,4 +45,19 @@ void main() {
     expect(workspace.hostedAccessState, 'sandbox');
     expect(workspace.productionAllowed, isFalse);
   });
+
+  test('EnvironmentTargetSummary decodes the exact target coordinate', () {
+    final target = EnvironmentTargetSummary.fromJson({
+      'environmentTargetId': 42,
+      'namedEnvironmentId': 9,
+      'environmentSlug': 'production',
+      'runtimePlane': 'sandbox',
+      '__className__': 'EnvironmentTargetRef',
+    });
+
+    expect(target.environmentTargetId, 42);
+    expect(target.namedEnvironmentId, 9);
+    expect(target.environmentSlug, 'production');
+    expect(target.runtimePlane, RuntimePlane.sandbox);
+  });
 }

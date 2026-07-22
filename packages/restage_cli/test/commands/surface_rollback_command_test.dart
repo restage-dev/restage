@@ -33,6 +33,7 @@ void main() {
   http.Response statusResponse({
     String deliveryShape = 'blob',
     int? liveVersion = 3,
+    String environmentSlug = 'staging',
     List<Map<String, dynamic>> versions = const [
       {
         'version': 1,
@@ -58,7 +59,7 @@ void main() {
       '__className__': 'SurfaceStatusResult',
       'surfaceType': 'paywall',
       'surfaceSlug': 'pro',
-      'environmentSlug': 'staging',
+      'environmentSlug': environmentSlug,
       'liveVersion': liveVersion,
       'locked': false,
       'deliveryShape': deliveryShape,
@@ -74,12 +75,13 @@ void main() {
   http.Response preflightResponse({
     String classification = 'compatible',
     List<String> blockingChanges = const [],
+    String environmentSlug = 'staging',
   }) => http.Response(
     jsonEncode({
       '__className__': 'RollbackPreflightView',
       'surfaceType': 'paywall',
       'surfaceSlug': 'pro',
-      'environmentSlug': 'staging',
+      'environmentSlug': environmentSlug,
       'toVersion': 1,
       'classification': classification,
       'blockingChanges': blockingChanges,
@@ -225,6 +227,24 @@ void main() {
             200,
           );
         },
+        (req) =>
+            activeAppDiscoveryResponse(req, appSlug: 'a', projectSlug: 'p'),
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(body['method'], 'listEnvironmentTargets');
+          expect(body['organizationId'], 7);
+          return http.Response(
+            jsonEncode([
+              {
+                'environmentTargetId': 12,
+                'namedEnvironmentId': 22,
+                'environmentSlug': 'staging',
+                'runtimePlane': 'sandbox',
+              },
+            ]),
+            200,
+          );
+        },
         (_) => statusResponse(),
         (req) {
           preflightBody = jsonDecode(req.body) as Map<String, dynamic>;
@@ -234,7 +254,7 @@ void main() {
           rollbackBody = jsonDecode(req.body) as Map<String, dynamic>;
           return rollbackOkResponse();
         },
-      ]);
+      ], withDefaultTargetDiscovery: false);
 
       final code =
           await makeRunner(
@@ -318,33 +338,85 @@ void main() {
       expect(apiCalled, isFalse);
     });
 
-    test(
-      '(e) --env production --yes exits 1 (prod guardrail), rollback NOT called',
-      () async {
-        var rollbackCalled = false;
-        final client = scriptedHttpClient([
-          // Status + preflight run before confirmDestructive.
-          (_) => statusResponse(),
-          (_) => preflightResponse(),
-          (req) {
-            final body = jsonDecode(req.body) as Map<String, dynamic>;
-            if (body['method'] == 'rollbackSurface') rollbackCalled = true;
-            return rollbackOkResponse();
-          },
-        ]);
+    test('(e) live production --yes exits 1, rollback NOT called', () async {
+      var rollbackCalled = false;
+      final client = scriptedHttpClient([
+        // Status + preflight run before confirmDestructive.
+        (_) => statusResponse(),
+        (_) => preflightResponse(),
+        (req) {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          if (body['method'] == 'rollbackSurface') rollbackCalled = true;
+          return rollbackOkResponse();
+        },
+      ]);
 
-        final err = StringBuffer();
+      final err = StringBuffer();
+      final code = await makeRunner(
+        stdout: StringBuffer(),
+        stderr: err,
+        httpClient: client,
+      ).run(baseArgs(env: 'production'));
+
+      expect(code, 1);
+      expect(err.toString(), contains('live runtime plane'));
+      expect(rollbackCalled, isFalse);
+    });
+
+    test('live dev and staging --yes are denied before rollback', () async {
+      for (final environment in const ['dev', 'staging']) {
+        final client = scriptedHttpClient([
+          (request) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['method'], 'listMine');
+            return http.Response(
+              jsonEncode([
+                {'organizationId': 7, 'slug': 'restage', 'name': 'Restage'},
+              ]),
+              200,
+            );
+          },
+          (request) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['method'], 'listApps');
+            return http.Response(
+              jsonEncode([
+                {'id': 5, 'slug': 'a', 'name': 'A'},
+              ]),
+              200,
+            );
+          },
+          (request) {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            expect(body['method'], 'listEnvironmentTargets');
+            expect(body['runtimePlane'], 'live');
+            return http.Response(
+              jsonEncode([
+                {
+                  'environmentTargetId': environment == 'dev' ? 102 : 104,
+                  'namedEnvironmentId': environment == 'dev' ? 11 : 12,
+                  'environmentSlug': environment,
+                  'runtimePlane': 'live',
+                },
+              ]),
+              200,
+            );
+          },
+          (_) => statusResponse(environmentSlug: environment),
+          (_) => preflightResponse(environmentSlug: environment),
+        ], withDefaultTargetDiscovery: false);
+        final stderr = StringBuffer();
+
         final code = await makeRunner(
           stdout: StringBuffer(),
-          stderr: err,
+          stderr: stderr,
           httpClient: client,
-        ).run(baseArgs(env: 'production'));
+        ).run([...baseArgs(env: environment), '--plane', 'live']);
 
-        expect(code, 1);
-        expect(err.toString(), contains('production'));
-        expect(rollbackCalled, isFalse);
-      },
-    );
+        expect(code, 1, reason: environment);
+        expect(stderr.toString(), contains('live'), reason: environment);
+      }
+    });
 
     test(
       '(f) --to-version 99 not in versions exits 1, rollback NOT called',

@@ -28,10 +28,10 @@ import 'package:restage_shared/restage_shared.dart';
 /// validates this and previews the cohort impact before confirming.
 ///
 /// Requires a non-empty `--reason` for the audit trail. A destructive-op
-/// confirmation step guards production: `--yes` is accepted on
-/// non-production environments; production always requires an interactive
-/// confirmation. The `--freeze` flag additionally locks the surface
-/// against future publishes after the re-point.
+/// confirmation step guards the live runtime plane: `--yes` is accepted for
+/// sandbox targets; live targets always require interactive confirmation. The
+/// `--freeze` flag additionally locks the surface against future publishes
+/// after the re-point.
 class SurfaceRollbackCommand extends Command<int> {
   /// Construct a rollback command.
   ///
@@ -69,8 +69,7 @@ class SurfaceRollbackCommand extends Command<int> {
       ..addFlag(
         'yes',
         negatable: false,
-        help:
-            'Skip the confirmation prompt (non-production environments only).',
+        help: 'Skip the confirmation prompt (sandbox targets only).',
       )
       ..addFlag(
         'preview',
@@ -171,6 +170,8 @@ class SurfaceRollbackCommand extends Command<int> {
           surfaceType: surfaceType,
           surfaceSlug: slug,
           environment: ctx.environment,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
@@ -208,6 +209,8 @@ class SurfaceRollbackCommand extends Command<int> {
           surfaceSlug: slug,
           environment: ctx.environment,
           toVersion: toVersion,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
@@ -241,6 +244,7 @@ class SurfaceRollbackCommand extends Command<int> {
         stdout: _stdout,
         stderr: _stderr,
         environment: ctx.environment,
+        runtimePlane: ctx.runtimePlane,
         yesFlag: yesFlag,
         impactLine: impactLine,
       );
@@ -265,6 +269,8 @@ class SurfaceRollbackCommand extends Command<int> {
           toVersion: toVersion,
           lockAfter: freeze,
           reason: reason!,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
         );
       } on RestageApiException catch (e) {
