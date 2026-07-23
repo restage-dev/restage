@@ -359,8 +359,13 @@ void main() {
       expect(snapshot(named), snapshot(legacy));
       final namedTone = named.widgets.single.properties
           .singleWhere((property) => property.name == 'tone');
-      expect(namedTone.enumType, isNull);
-      expect(namedTone.valueShape, isNull);
+      // The RFW target now carries the customer enum's identity — it
+      // was previously dropped here, which made the RFW customer catalog reject
+      // the enum slot. The RFW-vs-legacy-default byte-neutrality asserted above
+      // still holds (both are the RFW target), so this pins the corrected RFW
+      // behavior, not a divergence between the explicit target and the default.
+      expect(namedTone.enumType, 'Tone');
+      expect(namedTone.valueShape, isA<EnumShape>());
       expect(
         snapshot(named),
         [
