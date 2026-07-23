@@ -132,7 +132,7 @@ void main() {
     );
     expect(
       dart,
-      contains('/// GenUI 0.9.2 inline catalogs are serialization-only here;'),
+      contains('/// GenUI 0.10.1 inline catalogs are serialization-only here;'),
     );
     expect(
       dart,

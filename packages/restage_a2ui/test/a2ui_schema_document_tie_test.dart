@@ -100,6 +100,11 @@ Object? _canonical(Object? node) {
   if (node is Map) {
     final sorted = SplayTreeMap<String, Object?>();
     for (final entry in node.entries) {
+      // json_schema_builder 0.1.6 makes the JSON-schema default explicit on the
+      // runtime `Schema.value` (`additionalProperties: true`) while the emitted
+      // document omits it. Drop ONLY that default-elision so the two compare
+      // equal on everything else; a schema-valued additionalProperties stays.
+      if (entry.key == 'additionalProperties' && entry.value == true) continue;
       sorted[entry.key as String] = _canonical(entry.value);
     }
     return sorted;

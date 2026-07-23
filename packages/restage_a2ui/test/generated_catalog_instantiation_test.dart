@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:a2ui_core/a2ui_core.dart'
+    show CreateSurfaceMessage, UpdateComponentsMessage;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
@@ -230,74 +232,94 @@ void main() {
     expect(fallback.isLoading, isTrue);
   });
 
-  testWidgets(
-    'real Surface contextualizes a registered child builder failure',
-    (tester) async {
-      const catalogId = 'required-child-runtime-test';
-      final runtimeCatalog = Catalog(<CatalogItem>[
-        ...catalog.items,
-        CatalogItem(
-          name: 'FailingChild',
-          dataSchema: S.object(),
-          widgetBuilder: (_) => throw const FormatException('fixture failure'),
+  testWidgets('real Surface contextualizes a registered child builder failure', (
+    tester,
+  ) async {
+    // genui 0.10.1 sanitizes the raw cause out of the AGENT-facing onSubmit
+    // report, but still logs the underlying build exception at SEVERE — the
+    // developer-facing loud channel. Capture it to prove the actionable cause
+    // is MOVED (to the log), not LOST.
+    final severeErrors = <Object?>[];
+    final logSub = genUiLogger.onRecord.listen((record) {
+      if (record.level.name == 'SEVERE') severeErrors.add(record.error);
+    });
+    addTearDown(logSub.cancel);
+    const catalogId = 'required-child-runtime-test';
+    final runtimeCatalog = Catalog(<CatalogItem>[
+      ...catalog.items,
+      CatalogItem(
+        name: 'FailingChild',
+        dataSchema: S.object(),
+        widgetBuilder: (_) => throw const FormatException('fixture failure'),
+      ),
+    ], catalogId: catalogId);
+    final controller = SurfaceController(catalogs: [runtimeCatalog]);
+    final submissions = <ChatMessage>[];
+    final submissionSubscription = controller.onSubmit.listen(submissions.add);
+    addTearDown(submissionSubscription.cancel);
+    addTearDown(controller.dispose);
+    controller
+      ..handleMessage(
+        CreateSurfaceMessage(surfaceId: 'surface', catalogId: catalogId),
+      )
+      ..handleMessage(
+        UpdateComponentsMessage(
+          surfaceId: 'surface',
+          components: const [
+            {
+              'id': 'root',
+              'component': 'Visibility',
+              'visible': true,
+              'child': 'broken-child',
+            },
+            {'id': 'broken-child', 'component': 'FailingChild'},
+          ],
         ),
-      ], catalogId: catalogId);
-      final controller = SurfaceController(catalogs: [runtimeCatalog]);
-      final submissions = <ChatMessage>[];
-      final submissionSubscription = controller.onSubmit.listen(
-        submissions.add,
       );
-      addTearDown(submissionSubscription.cancel);
-      addTearDown(controller.dispose);
-      controller
-        ..handleMessage(
-          const CreateSurface(surfaceId: 'surface', catalogId: catalogId),
-        )
-        ..handleMessage(
-          const UpdateComponents(
-            surfaceId: 'surface',
-            components: [
-              Component(
-                id: 'root',
-                type: 'Visibility',
-                properties: {'visible': true, 'child': 'broken-child'},
-              ),
-              Component(
-                id: 'broken-child',
-                type: 'FailingChild',
-                properties: {},
-              ),
-            ],
-          ),
-        );
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Surface(surfaceContext: controller.contextFor('surface')),
-        ),
-      );
-      await tester.pump();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Surface(surfaceContext: controller.contextFor('surface')),
+      ),
+    );
+    await tester.pump();
 
-      final frameworkError = tester.takeException();
-      expect(frameworkError, isA<StateError>());
-      expect(
-        frameworkError.toString(),
-        allOf(
-          contains('Required A2UI child "Visibility.child"'),
-          contains('component id "broken-child"'),
-          contains('failed to build'),
-        ),
-      );
-      expect(submissions, hasLength(1));
-      final interaction =
-          submissions.single.parts.uiInteractionParts.single.interaction;
-      final payload = jsonDecode(interaction) as Map<String, Object?>;
-      final reportedError =
-          (payload['error']! as Map<String, Object?>)['message']! as String;
-      expect(reportedError, contains('FormatException: fixture failure'));
-      expect(find.byType(FallbackWidget), findsNothing);
-    },
-  );
+    final frameworkError = tester.takeException();
+    expect(frameworkError, isA<StateError>());
+    expect(
+      frameworkError.toString(),
+      allOf(
+        contains('Required A2UI child "Visibility.child"'),
+        contains('component id "broken-child"'),
+        contains('failed to build'),
+      ),
+    );
+    expect(submissions, hasLength(1));
+    final interaction =
+        submissions.single.parts.uiInteractionParts.single.interaction;
+    final payload = jsonDecode(interaction) as Map<String, Object?>;
+    final reportedError =
+        (payload['error']! as Map<String, Object?>)['message']! as String;
+    // genui 0.10.1 SANITIZES the raw exception text out of the agent-facing
+    // report (0.9.2 surfaced 'FormatException: fixture failure' here); the
+    // failure is still reported, now with a generic message.
+    expect(reportedError, contains('An unexpected system error occurred.'));
+    // The underlying cause is not LOST — it MOVED to the SEVERE developer log
+    // (genui 0.10.1 `Surface` logs the child build exception before degrading
+    // to a FallbackWidget). Assert the actionable cause where it now lives, so
+    // the loud-and-actionable required-child diagnostic contract still holds.
+    expect(
+      severeErrors.any(
+        (e) => e.toString().contains('FormatException: fixture failure'),
+      ),
+      isTrue,
+      reason:
+          'the underlying child-build exception must reach the developer on the '
+          'SEVERE record ERROR slot (not merely the message); '
+          'saw: $severeErrors',
+    );
+    expect(find.byType(FallbackWidget), findsNothing);
+  });
 
   testWidgets('Wrap renders — BoundNumber value + list child slot', (
     tester,

@@ -1,3 +1,5 @@
+import 'package:a2ui_core/a2ui_core.dart'
+    show A2uiMessage, CreateSurfaceMessage, UpdateComponentsMessage;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
@@ -13,7 +15,7 @@ import 'a2ui_proof_support.dart';
 /// The full-chain proof: a golden `updateComponents` + `createSurface` payload
 /// referencing the generated DOMAIN components → wrapped in a Restage sidecar →
 /// passed through `RestageA2uiPreRenderCheck` (expected renderable) → rendered
-/// through genui's REAL `SurfaceController`/`Surface` runtime (0.9.2). The
+/// through genui's REAL `SurfaceController`/`Surface` runtime (0.10.1). The
 /// customer lesson widgets render through the real surface — compile-and-run,
 /// not a static source assertion.
 ///
@@ -159,22 +161,20 @@ void main() {
     addTearDown(controller.dispose);
     controller
       ..handleMessage(
-        const CreateSurface(
+        CreateSurfaceMessage(
           surfaceId: surfaceId,
           catalogId: restageA2uiCatalogId,
         ),
       )
       ..handleMessage(
-        const UpdateComponents(
+        UpdateComponentsMessage(
           surfaceId: surfaceId,
-          components: [
-            Component(
-              id: 'root',
-              type: 'IntegerListPicker',
-              properties: {
-                'selected': <int>[1, 2],
-              },
-            ),
+          components: const [
+            {
+              'id': 'root',
+              'component': 'IntegerListPicker',
+              'selected': <int>[1, 2],
+            },
           ],
         ),
       );
@@ -193,16 +193,14 @@ void main() {
     expect(find.text('selected:1,2,3'), findsOneWidget);
 
     controller.handleMessage(
-      const UpdateComponents(
+      UpdateComponentsMessage(
         surfaceId: surfaceId,
-        components: [
-          Component(
-            id: 'root',
-            type: 'IntegerListPicker',
-            properties: {
-              'selected': <int>[9],
-            },
-          ),
+        components: const [
+          {
+            'id': 'root',
+            'component': 'IntegerListPicker',
+            'selected': <int>[9],
+          },
         ],
       ),
     );

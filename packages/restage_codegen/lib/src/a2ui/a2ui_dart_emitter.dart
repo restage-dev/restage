@@ -723,7 +723,7 @@ String _emitA2uiCatalogDart(
       )
       ..writeln('/// of this exact predefined catalog contract.')
       ..writeln(
-        '/// GenUI 0.9.2 inline catalogs are serialization-only here;',
+        '/// GenUI 0.10.1 inline catalogs are serialization-only here;',
       )
       ..writeln(
         '/// no end-to-end inline server interoperability is claimed.',
@@ -774,7 +774,7 @@ String _emitA2uiCatalogDart(
       'Object? childId) {',
     )
     ..writeln('  if (childId is! String || childId.isEmpty) return null;')
-    // genui 0.9.2: CatalogItemContext.buildChild is a typed callback field
+    // genui 0.10.1: CatalogItemContext.buildChild is a typed callback field
     // `Widget Function(String id, [DataContext? dataContext])` — render a
     // child by id with a direct typed call (no dynamic bridge).
     ..writeln('  return itemContext.buildChild(childId);')
@@ -843,7 +843,7 @@ String _emitA2uiCatalogDart(
       'propertyContext, error);',
     )
     ..writeln('  }')
-    // GenUI 0.9.2's Surface converts a child build exception into an errored
+    // GenUI 0.10.1's Surface converts a child build exception into an errored
     // FallbackWidget. Treat that as a failed required child, while preserving
     // loading and empty fallbacks whose error is null.
     ..writeln('  if (child is FallbackWidget && child.error != null) {')

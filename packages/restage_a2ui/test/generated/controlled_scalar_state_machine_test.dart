@@ -5,6 +5,8 @@
 import 'controlled_scalar_fixture.dart' as p0;
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:a2ui_core/a2ui_core.dart'
+    show CreateSurfaceMessage, UpdateComponentsMessage, UpdateDataModelMessage;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
@@ -673,7 +675,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// Content address for exactly the generated custom-only catalog.
 /// Default A2A supportedCatalogIds use requires server registration
 /// of this exact predefined catalog contract.
-/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/dec8541a3fcbc4d1cd86f9f21ce38fa9951419d4197c7d7f98ef5f6693176d91';
@@ -1410,21 +1412,19 @@ Future<void> _pumpTwoConfiguredItems(
   await tester.pump();
 }
 
-Component _controlledFamiliesComponent(Object choice) => Component(
-      id: 'root',
-      type: 'ControlledLeafFamilies',
-      properties: {
-        'enabled': true,
-        'label': 'surface',
-        'choice': choice,
-        'strings': const <String>[],
-        'integers': const <int>[],
-        'doubles': const <double>[],
-        'numbers': const <num>[],
-        'booleans': const <bool>[],
-        'maybeNumbers': const <num?>[],
-      },
-    );
+Map<String, Object?> _controlledFamiliesComponent(Object choice) => {
+      'id': 'root',
+      'component': 'ControlledLeafFamilies',
+      'enabled': true,
+      'label': 'surface',
+      'choice': choice,
+      'strings': const <String>[],
+      'integers': const <int>[],
+      'doubles': const <double>[],
+      'numbers': const <num>[],
+      'booleans': const <bool>[],
+      'maybeNumbers': const <num?>[],
+    };
 
 final class _DirectConfiguration {
   const _DirectConfiguration({
@@ -1644,7 +1644,8 @@ void main() {
   });
 
   testWidgets(
-      'obsolete asynchronous cancel failures report without corrupting state',
+      'obsolete asynchronous cancel failures are swallowed (genui 0.10.1) '
+      'without corrupting state',
       (tester) async {
     final model = InMemoryDataModel();
     addTearDown(model.dispose);
@@ -1682,18 +1683,39 @@ void main() {
     expect(events.last, 'cancel:failingCancel:1');
     expect(find.text('direct-value:7:literal'), findsOneWidget);
 
+    // Seed the backing document + snapshot the bound path so a HIDDEN document
+    // mutation from the failed obsolete cancel is caught directly — rendered
+    // output alone would not reveal a stale write into the data model.
+    dataContext.update(DataPath('cancel-integrity-probe'), 'intact');
+    final boundValueBeforeCancel = dataContext.getValue<Object?>(
+      DataPath('root.value'),
+    );
+
+    // Documents upstream genui 0.10.1 behavior: an OBSOLETE (already-rebound-
+    // away) binding's failed async cancellation is no longer awaited/consumed by
+    // genui (0.9.2 routed its error to the old reportError). The subscription's
+    // cancel future is the test's own; ignore its error so it does not surface
+    // as an unhandled async error, then assert the failure is NOT reported and
+    // state is not corrupted.
+    cancellation.future.ignore();
     cancellation.completeError(
       StateError('deterministic cancel failure'),
       StackTrace.current,
     );
     await tester.pump();
-    expect(oldErrors, hasLength(1));
-    expect(
-      oldErrors.single.toString(),
-      contains('deterministic cancel failure'),
-    );
+    expect(oldErrors, isEmpty);
     expect(newErrors, isEmpty);
     expect(find.text('direct-value:7:literal'), findsOneWidget);
+    // Document integrity, read straight off the DataContext: the failed obsolete
+    // cancel mutated NOTHING — the seeded probe and the bound path are intact.
+    expect(
+      dataContext.getValue<Object?>(DataPath('cancel-integrity-probe')),
+      'intact',
+    );
+    expect(
+      dataContext.getValue<Object?>(DataPath('root.value')),
+      boundValueBeforeCancel,
+    );
 
     configuration.value = _directConfiguration(
       dataContext,
@@ -1702,6 +1724,11 @@ void main() {
     );
     await tester.pump();
     expect(find.text('direct-value:8:literal'), findsOneWidget);
+    // ...and the seeded document value still survives the subsequent rebind.
+    expect(
+      dataContext.getValue<Object?>(DataPath('cancel-integrity-probe')),
+      'intact',
+    );
   });
 
   testWidgets(
@@ -2447,20 +2474,20 @@ void main() {
     addTearDown(controller.dispose);
     controller
       ..handleMessage(
-        const CreateSurface(
+        CreateSurfaceMessage(
           surfaceId: surfaceId,
           catalogId: restageA2uiCatalogId,
         ),
       )
       ..handleMessage(
-        UpdateDataModel(
+        UpdateDataModelMessage(
           surfaceId: surfaceId,
-          path: DataPath('choice-path'),
+          path: 'choice-path',
           value: 'alpha',
         ),
       )
       ..handleMessage(
-        UpdateComponents(
+        UpdateComponentsMessage(
           surfaceId: surfaceId,
           components: [
             _controlledFamiliesComponent(
@@ -2483,9 +2510,9 @@ void main() {
     expect(find.text('families-choice:alpha'), findsOneWidget);
 
     controller.handleMessage(
-      UpdateDataModel(
+      UpdateDataModelMessage(
         surfaceId: surfaceId,
-        path: DataPath('choice-path'),
+        path: 'choice-path',
         value: 'beta',
       ),
     );
@@ -2513,13 +2540,13 @@ void main() {
     addTearDown(controller.dispose);
     controller
       ..handleMessage(
-        const CreateSurface(
+        CreateSurfaceMessage(
           surfaceId: surfaceId,
           catalogId: restageA2uiCatalogId,
         ),
       )
       ..handleMessage(
-        UpdateComponents(
+        UpdateComponentsMessage(
           surfaceId: surfaceId,
           components: [
             _controlledFamiliesComponent(
@@ -2556,25 +2583,21 @@ void main() {
     addTearDown(controller.dispose);
     controller
       ..handleMessage(
-        const CreateSurface(
+        CreateSurfaceMessage(
           surfaceId: surfaceId,
           catalogId: restageA2uiCatalogId,
         ),
       )
       ..handleMessage(
-        const UpdateComponents(
+        UpdateComponentsMessage(
           surfaceId: surfaceId,
-          components: [
-            Component(
-              id: 'root',
-              type: 'ControlledScalarHost',
-              properties: {'child': 'control-a'},
-            ),
-            Component(
-              id: 'control-a',
-              type: 'ControlledInt',
-              properties: {'value': 17},
-            ),
+          components: const [
+            {
+              'id': 'root',
+              'component': 'ControlledScalarHost',
+              'child': 'control-a',
+            },
+            {'id': 'control-a', 'component': 'ControlledInt', 'value': 17},
           ],
         ),
       );
@@ -2589,19 +2612,15 @@ void main() {
     expect(find.text('controlled-value:41'), findsOneWidget);
 
     controller.handleMessage(
-      const UpdateComponents(
+      UpdateComponentsMessage(
         surfaceId: surfaceId,
-        components: [
-          Component(
-            id: 'root',
-            type: 'ControlledScalarHost',
-            properties: {'child': 'control-a'},
-          ),
-          Component(
-            id: 'control-a',
-            type: 'ControlledInt',
-            properties: {'value': 99},
-          ),
+        components: const [
+          {
+            'id': 'root',
+            'component': 'ControlledScalarHost',
+            'child': 'control-a',
+          },
+          {'id': 'control-a', 'component': 'ControlledInt', 'value': 99},
         ],
       ),
     );
@@ -2609,19 +2628,15 @@ void main() {
     expect(find.text('controlled-value:41'), findsOneWidget);
 
     controller.handleMessage(
-      const UpdateComponents(
+      UpdateComponentsMessage(
         surfaceId: surfaceId,
-        components: [
-          Component(
-            id: 'root',
-            type: 'ControlledScalarHost',
-            properties: {'child': 'control-b'},
-          ),
-          Component(
-            id: 'control-b',
-            type: 'ControlledInt',
-            properties: {'value': 23},
-          ),
+        components: const [
+          {
+            'id': 'root',
+            'component': 'ControlledScalarHost',
+            'child': 'control-b',
+          },
+          {'id': 'control-b', 'component': 'ControlledInt', 'value': 23},
         ],
       ),
     );

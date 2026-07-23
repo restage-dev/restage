@@ -1,12 +1,13 @@
 /// The A2UI component-type discriminator key. A component object carries its
-/// widget type under this key (genui's `Component.fromJson` reads
-/// `json['component']`; its schema matcher keys on the same property).
+/// widget type under this key (genui reads the widget type from
+/// `json['component']` on each raw component map; its schema matcher keys on
+/// the same property).
 const String _componentDiscriminator = 'component';
 
-/// The component-instance id key. A genui component object always carries one
-/// (`Component.fromJson` requires `id`); a plain property bag does not — which
-/// is how a real component object is told apart from arbitrary property data
-/// that happens to contain a `component` key.
+/// The component-instance id key. A genui component map always carries one (the
+/// `id` field is required); a plain property bag does not — which is how a real
+/// component object is told apart from arbitrary property data that happens to
+/// contain a `component` key.
 const String _componentIdKey = 'id';
 
 /// Collects every widget type a (raw, unwrapped) A2UI payload references — the
@@ -14,7 +15,7 @@ const String _componentIdKey = 'id';
 /// a model generated live.
 ///
 /// The walk recurses the payload JSON to find component objects wherever the
-/// envelope places them — `components` as a list (an `UpdateComponents`
+/// envelope places them — `components` as a list (an `updateComponents`
 /// message) or a map (a `SurfaceDefinition`), at any depth — and collects the
 /// String value under each component's [_componentDiscriminator] key. It is
 /// shape-agnostic on purpose, depending only on the A2UI component-object

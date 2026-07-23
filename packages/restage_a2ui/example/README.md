@@ -26,7 +26,7 @@ lists, nested data, and child references. The example has no app entrypoint:
 
 ```bash
 dart run build_runner build   # regenerate the catalog + stamp from the @RestageWidget source
-flutter test                  # render the generated widgets through genui 0.9.2
+flutter test                  # render the generated widgets through genui 0.10.1
 ```
 
 The tests render the generated catalog through genui's real surface runtime and

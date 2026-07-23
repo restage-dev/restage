@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:a2ui_core/a2ui_core.dart'
+    show CreateSurfaceMessage, UpdateComponentsMessage;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
 import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
@@ -12,6 +14,28 @@ Map<String, Object?> _standaloneCatalog() =>
 
 Map<String, Object?> _objectAt(Map<String, Object?> object, String key) =>
     (object[key]! as Map).cast<String, Object?>();
+
+/// Removes ONLY the exact default-elision `additionalProperties: true`,
+/// recursively, leaving every other key — including a schema-valued
+/// `additionalProperties` (e.g. a typed map) — untouched for deep equality.
+///
+/// json_schema_builder 0.1.6 serializes the JSON-schema DEFAULT
+/// (`additionalProperties: true`) explicitly on `Schema.value` at RUNTIME,
+/// whereas the build-time emitter that writes the standalone `.a2ui.json`
+/// document omits it. An absent `additionalProperties` IS `true`, so the two are
+/// structurally identical; this drops only that one default so the runtime
+/// catalog and the emitted document compare equal on everything else.
+Object? _normalizeSchema(Object? node) {
+  if (node is Map) {
+    return <String, Object?>{
+      for (final entry in node.entries)
+        if (!(entry.key == 'additionalProperties' && entry.value == true))
+          entry.key as String: _normalizeSchema(entry.value),
+    };
+  }
+  if (node is List) return node.map(_normalizeSchema).toList();
+  return node;
+}
 
 void _expectDescription(Map<String, Object?> object, String description) {
   expect(object['description'], description);
@@ -38,8 +62,8 @@ void main() {
       expect(standaloneComponents.keys.toSet(), generatedItems.keys.toSet());
       for (final entry in generatedItems.entries) {
         expect(
-          entry.value.dataSchema.value,
-          standaloneComponents[entry.key],
+          _normalizeSchema(entry.value.dataSchema.value),
+          _normalizeSchema(standaloneComponents[entry.key]),
           reason: '${entry.key}: generated and standalone schemas must match',
         );
       }
@@ -50,11 +74,14 @@ void main() {
     'the real prompt and conversation handoff carries one exact catalog ID',
     () async {
       final catalog = buildRestageCatalog();
-      final expectedSchema = A2uiMessage.a2uiMessageSchema(
-        catalog,
-      ).toJson(indent: '  ');
       final prompt = PromptBuilder.chat(catalog: catalog).systemPromptJoined();
-      expect(prompt, contains(expectedSchema));
+      // GenUI 0.10.1 no longer embeds `a2uiMessageSchema(catalog)` verbatim in
+      // the system prompt (it builds the CATALOG SCHEMA / MESSAGE SCHEMA
+      // sections from `catalog.fullSchema` + the embedded server-to-client
+      // schema). Assert the load-bearing producer contract by shape instead:
+      // the content-derived catalog ID and the component vocabulary are carried.
+      expect(prompt, contains(restageA2uiCatalogId));
+      expect(prompt, contains('ProductCard'));
 
       ChatMessage? captured;
       final transport = A2uiTransportAdapter(
@@ -77,11 +104,14 @@ void main() {
       expect(captured, same(outbound));
       expect(captured!.role, ChatMessageRole.system);
       expect(captured!.text, prompt);
-      expect(captured!.text, contains(expectedSchema));
-      expect(
-        RegExp(RegExp.escape(restageA2uiCatalogId)).allMatches(captured!.text),
-        hasLength(1),
-      );
+      expect(captured!.text, contains('ProductCard'));
+      // GenUI 0.10.1 references the active catalog ID in more than one prompt
+      // section, so the load-bearing claim is "exactly ONE distinct catalog ID"
+      // (no divergent id), not a single literal occurrence.
+      final catalogIds = RegExp(
+        r'restage:catalog/sha256/[0-9a-f]{64}',
+      ).allMatches(captured!.text).map((m) => m.group(0)).toSet();
+      expect(catalogIds, {restageA2uiCatalogId});
     },
   );
 
@@ -95,7 +125,7 @@ void main() {
       _objectAt(_standaloneCatalog(), 'components'),
       'ProductCard',
     );
-    expect(generated, standalone);
+    expect(_normalizeSchema(generated), _normalizeSchema(standalone));
 
     final schema = standalone;
     final definitions = _objectAt(schema, r'$defs');
@@ -197,7 +227,7 @@ void main() {
         controller.dispose();
       });
 
-      Future<void> receive(CreateSurface message) async {
+      Future<void> receive(CreateSurfaceMessage message) async {
         final received = conversation.events.firstWhere(
           (event) =>
               event is ConversationSurfaceAdded &&
@@ -208,7 +238,7 @@ void main() {
       }
 
       await receive(
-        const CreateSurface(
+        CreateSurfaceMessage(
           surfaceId: 'matching',
           catalogId: restageA2uiCatalogId,
         ),
@@ -219,7 +249,7 @@ void main() {
 
       final wrongCatalogId = '$restageA2uiCatalogId-wrong';
       await receive(
-        CreateSurface(surfaceId: 'wrong', catalogId: wrongCatalogId),
+        CreateSurfaceMessage(surfaceId: 'wrong', catalogId: wrongCatalogId),
       );
       final wrong = controller.contextFor('wrong');
       expect(wrong.definition.value!.catalogId, wrongCatalogId);
@@ -251,8 +281,8 @@ void main() {
     // interoperability for inline catalogs.
   });
 
-  test('required SectionHeader.title rejects absence but GenUI currently '
-      'accepts null and wrong primitive types', () async {
+  test('GenUI 0.10.1 reports a required-property error for a missing title '
+      '(report-only: the update event still fires)', () async {
     final catalog = buildRestageCatalog();
     final outbound = StreamController<ChatMessage>.broadcast();
     final transport = A2uiTransportAdapter(
@@ -276,7 +306,10 @@ void main() {
             event is ConversationSurfaceAdded && event.surfaceId == surfaceId,
       );
       transport.addMessage(
-        CreateSurface(surfaceId: surfaceId, catalogId: restageA2uiCatalogId),
+        CreateSurfaceMessage(
+          surfaceId: surfaceId,
+          catalogId: restageA2uiCatalogId,
+        ),
       );
       await received.timeout(const Duration(seconds: 5));
     }
@@ -288,14 +321,10 @@ void main() {
             event.surfaceId == surfaceId,
       );
       transport.addMessage(
-        UpdateComponents(
+        UpdateComponentsMessage(
           surfaceId: surfaceId,
           components: [
-            Component(
-              id: 'root',
-              type: 'SectionHeader',
-              properties: {'title': title},
-            ),
+            {'id': 'root', 'component': 'SectionHeader', 'title': title},
           ],
         ),
       );
@@ -305,10 +334,10 @@ void main() {
     await createSurface('missing');
     final errorSent = outbound.stream.first;
     transport.addMessage(
-      const UpdateComponents(
+      UpdateComponentsMessage(
         surfaceId: 'missing',
-        components: [
-          Component(id: 'root', type: 'SectionHeader', properties: {}),
+        components: const [
+          {'id': 'root', 'component': 'SectionHeader'},
         ],
       ),
     );
@@ -317,8 +346,12 @@ void main() {
     final errorJson =
         jsonDecode(interaction.interaction) as Map<String, Object?>;
     final error = errorJson['error']! as Map<String, Object?>;
-    expect(error['message'], contains('Missing required property'));
+    expect(error['message'], contains('Required property "title" is missing'));
 
+    // GenUI 0.10.1 validation is REPORT-ONLY: it surfaces an error but does not
+    // roll back, so the components-updated event still fires. null and a
+    // wrong-typed value now ALSO produce a validation error (0.9.2 accepted
+    // them), yet the update is still applied — the event fires either way.
     await createSurface('null');
     await updateAccepted('null', null);
     await createSurface('wrong-type');

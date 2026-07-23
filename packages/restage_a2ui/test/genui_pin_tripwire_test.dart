@@ -1,7 +1,8 @@
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart'
+    show A2uiMessage, CreateSurfaceMessage;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:genui/genui.dart';
 import 'package:yaml/yaml.dart';
 
 /// Walks up from the current directory to the workspace root and reads the
@@ -28,20 +29,22 @@ String? _resolvedGenuiVersion() {
 }
 
 /// The genui-version-pin loudness tripwire. All A2UI render/tie proofs pin genui
-/// 0.9.2; genui's surface/catalog contracts move between minors (its own 0.8 ->
-/// 0.9 migration is the precedent). A bump MUST re-baseline these proofs — and
+/// 0.10.1; genui's surface/catalog contracts move between minors (the 0.9 -> 0.10
+/// migration relocated the message model into `a2ui_core`; its own 0.8 -> 0.9
+/// move is the earlier precedent). A bump MUST re-baseline these proofs — and
 /// that re-baseline must be LOUD, never a silent green against a changed
 /// contract. Two complementary tripwires:
 ///
-///  * (a) the RESOLVED genui version equals the pinned 0.9.2 — a cheap early
+///  * (a) the RESOLVED genui version equals the pinned 0.10.1 — a cheap early
 ///    tripwire so a `pub upgrade` past the pin red-flags the proofs before any
 ///    contract even changes;
-///  * (b) genui still enforces the `v0.9` A2UI wire contract — the STRONGER
-///    property: the render proofs' golden payloads carry `version: 'v0.9'`, so a
-///    genui wire-contract move fails those proofs loud rather than passing
-///    against a changed contract.
+///  * (b) genui still enforces the `v0.9` A2UI WIRE contract — the STRONGER
+///    property. The A2UI wire version is independent of the genui package
+///    version and stayed `v0.9` across the 0.10 move; the render proofs' golden
+///    payloads carry `version: 'v0.9'`, so an A2UI wire-contract move fails those
+///    proofs loud rather than passing against a changed contract.
 void main() {
-  test('the resolved genui version is the pinned 0.9.2', () {
+  test('the resolved genui version is the pinned 0.10.1', () {
     final version = _resolvedGenuiVersion();
     expect(
       version,
@@ -52,9 +55,9 @@ void main() {
     );
     expect(
       version,
-      '0.9.2',
+      '0.10.1',
       reason:
-          'the resolved genui version drifted from the pinned 0.9.2 — the '
+          'the resolved genui version drifted from the pinned 0.10.1 — the '
           'A2UI render/tie proofs pin this contract. Re-baseline them '
           'consciously (re-run the render + fail-closed proofs) before moving '
           'the pin.',
@@ -77,13 +80,15 @@ void main() {
     );
 
     // And the pinned contract still accepts v0.9 (guards against a false
-    // positive where fromJson throws for an unrelated reason).
+    // positive where fromJson throws for an unrelated reason). The message
+    // model now lives in `a2ui_core` (CreateSurface -> CreateSurfaceMessage);
+    // the WIRE version it parses is unchanged at v0.9.
     expect(
       A2uiMessage.fromJson(const {
         'version': 'v0.9',
         'createSurface': {'surfaceId': 's', 'catalogId': 'c'},
       }),
-      isA<CreateSurface>(),
+      isA<CreateSurfaceMessage>(),
     );
   });
 }

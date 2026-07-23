@@ -610,7 +610,7 @@ const Map<String, Map<String, String>> restageA2uiExampleRegistry =
 /// Content address for exactly the generated custom-only catalog.
 /// Default A2A supportedCatalogIds use requires server registration
 /// of this exact predefined catalog contract.
-/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff';
