@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:a2ui_core/a2ui_core.dart'
+    show CreateSurfaceMessage, UpdateComponentsMessage;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
@@ -53,26 +55,45 @@ const _validProperties = <String, Object?>{
   'items': <Object?>['one'],
 };
 
+// Characterizes the REAL genui runtime's component-schema validation. genui
+// 0.10.1 performs full JSON-schema validation (enum, primitive type, and the
+// numeric/string/array keyword constraints), a marked tightening over 0.9.2,
+// which enforced only enum membership and ignored primitive-type and keyword
+// constraints. These tests document UPSTREAM genui behavior — they are not a
+// statement of any Restage guarantee. Validation is report-only: genui surfaces
+// the error on `onSubmit` without rolling back the mutation, so Restage's
+// pre-render check remains the fail-closed gate.
 void main() {
-  test('real GenUI 0.9.2 rejects a non-null enum mismatch', () async {
+  test('real GenUI 0.10.1 rejects a non-null enum mismatch', () async {
     final error = await _validationError({
       ..._validProperties,
       'enumValue': 'rejected',
     });
 
-    expect(error, contains('Value not in enum'));
+    expect(error, contains('enumValueNotAllowed'));
   });
 
-  test('real GenUI 0.9.2 accepts null before enum and type checks', () async {
-    final error = await _validationError({
-      ..._validProperties,
-      'enumValue': null,
-    });
+  test(
+    'real GenUI 0.10.1 now rejects null for a required typed field',
+    () async {
+      // 0.9.2 accepted null before enum/type checks; 0.10.1 enforces both the
+      // enum membership and the declared `string` type, so null is rejected.
+      final error = await _validationError({
+        ..._validProperties,
+        'enumValue': null,
+      });
 
-    expect(error, isNull);
-  });
+      expect(error, isNotNull);
+      expect(
+        error,
+        anyOf(contains('enumValueNotAllowed'), contains('typeMismatch')),
+      );
+    },
+  );
 
-  test('real GenUI 0.9.2 does not enforce primitive schema types', () async {
+  test('real GenUI 0.10.1 now enforces primitive schema types', () async {
+    // 0.9.2 did NOT enforce primitive types; 0.10.1 reports a typeMismatch for
+    // each wrong-typed property.
     final error = await _validationError({
       ..._validProperties,
       'number': 'not-a-number',
@@ -81,23 +102,36 @@ void main() {
       'items': 'not-a-list',
     });
 
-    expect(error, isNull);
+    expect(error, contains('typeMismatch'));
   });
 
-  test('real GenUI 0.9.2 accepts representative ignored constraints', () async {
-    final violations = <Map<String, Object?>>[
-      {..._validProperties, 'number': -1},
-      {..._validProperties, 'patternText': 'lowercase'},
-      {..._validProperties, 'shortText': 'too long'},
-      {
-        ..._validProperties,
-        'items': <Object?>['one', 'two'],
-      },
-    ];
+  test(
+    'real GenUI 0.10.1 now enforces numeric/string/array constraints',
+    () async {
+      // 0.9.2 ignored these keyword constraints; 0.10.1 enforces minimum,
+      // pattern, maxLength, and maxItems. Each violation is reported.
+      final violations = <Map<String, Object?>>[
+        {..._validProperties, 'number': -1},
+        {..._validProperties, 'patternText': 'lowercase'},
+        {..._validProperties, 'shortText': 'too long'},
+        {
+          ..._validProperties,
+          'items': <Object?>['one', 'two'],
+        },
+      ];
 
-    for (final properties in violations) {
-      expect(await _validationError(properties), isNull, reason: '$properties');
-    }
+      for (final properties in violations) {
+        expect(
+          await _validationError(properties),
+          isNotNull,
+          reason: '$properties',
+        );
+      }
+    },
+  );
+
+  test('real GenUI 0.10.1 accepts a fully valid payload', () async {
+    expect(await _validationError(_validProperties), isNull);
   });
 }
 
@@ -107,17 +141,13 @@ Future<String?> _validationError(Map<String, Object?> properties) async {
   final subscription = controller.onSubmit.listen(submissions.add);
   try {
     controller.handleMessage(
-      const CreateSurface(surfaceId: 'surface', catalogId: _catalogId),
+      CreateSurfaceMessage(surfaceId: 'surface', catalogId: _catalogId),
     );
     controller.handleMessage(
-      UpdateComponents(
+      UpdateComponentsMessage(
         surfaceId: 'surface',
         components: [
-          Component(
-            id: 'root',
-            type: 'ConstrainedValue',
-            properties: properties,
-          ),
+          {'id': 'root', 'component': 'ConstrainedValue', ...properties},
         ],
       ),
     );

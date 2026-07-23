@@ -745,7 +745,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// Content address for exactly the generated custom-only catalog.
 /// Default A2A supportedCatalogIds use requires server registration
 /// of this exact predefined catalog contract.
-/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273';

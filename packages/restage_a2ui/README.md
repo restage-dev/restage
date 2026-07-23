@@ -40,7 +40,7 @@ renderer; `rfw_catalog_schema` holds the annotations.
 
 ```yaml
 dependencies:
-  genui: ^0.9.2                 # the renderer the generated catalog targets
+  genui: ^0.10.1                # the renderer the generated catalog targets
   json_schema_builder: ^0.1.3   # the generated catalog's data schemas are built with this
   rfw_catalog_schema: ^1.2.0    # the widget, data-field, and example annotations
   # Production-safe path only — the app-side pre-render check + capability sidecar (step 8):
@@ -187,7 +187,7 @@ component types in well-formed entries and capability-version gaps then fail *cl
 instead of throwing mid-render. That is the [Quickstart](#quickstart) below.
 
 A worked version of steps 1–7 lives in [`example/`](example/) — the annotated widgets, the library barrel,
-the `build.yaml`, the committed generated catalog, and a test that renders them against genui 0.9.2. It has
+the `build.yaml`, the committed generated catalog, and a test that renders them against genui 0.10.1. It has
 no app entrypoint: run `dart run build_runner build` to regenerate, then `flutter test` to see it render.
 (`example/`'s own README shows the step-8 pre-render check.)
 
@@ -198,7 +198,7 @@ Add the dependency:
 ```yaml
 dependencies:
   restage_a2ui: ^0.1.6
-  genui: ^0.9.2
+  genui: ^0.10.1
 ```
 
 Build the check once (it is immutable — reuse it for every payload), then gate each cached payload before
@@ -398,5 +398,5 @@ server-shipped executable code. This package adds only a pre-render check over t
 
 ## Status
 
-Pre-1.0, tracking `genui ^0.9.2` (A2UI protocol v0.9). genui is alpha and its API is expected to change;
+Pre-1.0, tracking `genui ^0.10.1` (A2UI protocol v0.9). genui is alpha and its API is expected to change;
 this package isolates the integration so a churn moves one place.

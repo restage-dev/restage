@@ -1,3 +1,17 @@
+## Unreleased
+
+- **Migrate the A2UI integration to genui 0.10.1 and `a2ui_core`.** The A2UI
+  message model relocated into `package:a2ui_core` (`CreateSurfaceMessage`,
+  `UpdateComponentsMessage`, …); the A2UI wire is unchanged (still `v0.9`).
+- genui 0.10.1 requires `json_schema_builder` 0.1.6 (a required transitive
+  bump). 0.1.6 serializes the JSON-schema default `additionalProperties: true`
+  explicitly on the runtime schema value — a runtime-only detail that does not
+  reach the emitted catalog document. The bundled generated catalog and its
+  content-derived `catalogId` are UNCHANGED.
+- genui 0.10.1 performs full JSON-schema validation of components (a tightening
+  over 0.9.2's enum-only checks). Validation is report-only and does not change
+  the fail-closed pre-render check, which remains the authoritative gate.
+
 ## 0.1.6
 
 - Update the bundled generated catalog and documentation for content-derived
