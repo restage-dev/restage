@@ -747,13 +747,25 @@ void main() {
       );
     });
 
-    // A widget this feature ADMITS for a structured prop must be
-    // EXCLUDED-loud if ANY of its OTHER props is unemittable by the factory
-    // (here a direct scalar-enum prop with no enum metadata), so the catalog
-    // never carries a widget the factory would skip (the admit-then-skip
-    // incoherence). Whole-widget emittability at the ONE admission point.
+    // THE ADMIT-THEN-SKIP COHERENCE ANCHOR. A widget this feature ADMITS for a
+    // structured prop must be EXCLUDED-loud if the widget is otherwise
+    // unemittable by the factory, so the catalog never carries a widget the
+    // factory would skip. Whole-widget emittability at the ONE admission point.
+    //
+    // The unemittable trigger here is `childrenSlot: ChildrenSlot.single` on a
+    // class with NO `child` widget property: the factory emitter's
+    // `_canonicalChildPropertyOf` finds no canonical child for the single slot,
+    // so it cannot mechanically construct the widget and skips it — hence the
+    // whole widget is excluded, not admitted-then-skipped.
+    //
+    // If that shape is ever MADE emittable, RE-ANCHOR this test on another
+    // still-unemittable trigger — do NOT delete it; the invariant it guards is
+    // permanent. (A direct customer-enum prop was the original trigger; it is
+    // no longer unemittable — the catalog build now carries the enum identity,
+    // so the widget is admitted + emitted, a path proven in
+    // customer_scalar_vocabulary_test.)
     test(
-        'a structured widget with an UNEMITTABLE direct-enum prop is '
+        'a structured widget that is otherwise factory-unemittable is '
         'EXCLUDED from the catalog (never admitted-then-factory-skipped)',
         () async {
       const mixed = '''
@@ -763,7 +775,6 @@ void main() {
           capabilityVersion: 1,
         )
         const restageLibrary = 0;
-        enum Tone { soft, loud }
         class Badge { const Badge({required this.label}); final String label; }
         @RestageWidget(name: 'PlainButton',
           library: WidgetLibrary.custom('acme.design_system'),
@@ -771,11 +782,11 @@ void main() {
         class PlainButton { const PlainButton(); }
         @RestageWidget(name: 'BadgeCard',
           library: WidgetLibrary.custom('acme.design_system'),
-          category: WidgetCategory.decoration, description: 'c')
+          category: WidgetCategory.decoration, description: 'c',
+          childrenSlot: ChildrenSlot.single)
         class BadgeCard {
-          const BadgeCard({required this.badge, required this.tone});
+          const BadgeCard({required this.badge});
           @RestageProperty(description: 'b') final Badge badge;
-          @RestageProperty(description: 't') final Tone tone;
         }
       ''';
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -795,8 +806,9 @@ void main() {
           'apps_examples|lib/user_catalog.g.dart': decodedMatches(
             allOf(
               contains("name: 'PlainButton'"),
-              // BadgeCard is factory-unemittable (the `tone` enum has no
-              // metadata) -> excluded from the catalog too (not admit-skip).
+              // BadgeCard is factory-unemittable (a single-child slot with no
+              // canonical `child` property) -> excluded from the catalog too
+              // (not admit-then-skip).
               isNot(contains("name: 'BadgeCard'")),
             ),
           ),

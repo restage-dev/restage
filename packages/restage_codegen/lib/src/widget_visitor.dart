@@ -525,18 +525,20 @@ PropertyEntry? _readPropertyAnnotation(
   final resolvedSource = defaultSource ??
       (defaultValue != null ? LiteralDefault(defaultValue) : null);
 
-  // The shared RFW visitor output remains byte-neutral. The A2UI target alone
-  // retains a source-qualified enum identity so generated code can import and
-  // spell customer enums instead of dropping an otherwise representable
-  // required enum at the emitter boundary.
-  final EnumShape? a2uiEnumShape;
+  // Both targets retain a source-qualified enum identity for an enum-valued
+  // property. The RFW customer catalog needs it so `encodeCatalog` accepts the
+  // enum slot (an enumValue property must carry `enumType` or an `EnumShape`)
+  // and so the generated factory can import + spell a customer enum instead of
+  // dropping an otherwise representable enum at the emitter boundary; a
+  // built-in (Flutter/Dart) enum comes bare through the emitter's flutter
+  // import. A2UI's projection is unchanged.
+  final EnumShape? enumShape;
   final fieldType = field.type;
-  if (isA2ui &&
-      type == PropertyType.enumValue &&
+  if (type == PropertyType.enumValue &&
       fieldType is InterfaceType &&
       fieldType.element is EnumElement) {
     final element = fieldType.element as EnumElement;
-    a2uiEnumShape = EnumShape(
+    enumShape = EnumShape(
       propertyType: PropertyType.enumValue,
       enumRef: DartTypeRef(
         libraryUri: element.library.identifier,
@@ -544,7 +546,7 @@ PropertyEntry? _readPropertyAnnotation(
       ),
     );
   } else {
-    a2uiEnumShape = null;
+    enumShape = null;
   }
 
   return PropertyEntry(
@@ -556,9 +558,9 @@ PropertyEntry? _readPropertyAnnotation(
     positional: positional,
     defaultBrandToken: defaultBrandToken,
     defaultSource: resolvedSource,
-    enumType: a2uiEnumShape?.enumRef.symbolName,
+    enumType: enumShape?.enumRef.symbolName,
     structuredRef: structuredShape?.structuredRef,
-    valueShape: structuredShape?.valueShape ?? a2uiEnumShape,
+    valueShape: structuredShape?.valueShape ?? enumShape,
     validationRule: validationRule,
     constraints: constraints,
   );
@@ -710,6 +712,32 @@ PropertyType? _inferPropertyType(
   if (inferred != null) return inferred;
   final fieldName = field.name ?? '<unnamed>';
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
+  final location = '${assetId.path}#$ownerName.$fieldName';
+  // A direct scalar-list property is supported on the A2UI target (it rides a
+  // DynamicList) but the RFW customer catalog has no vocabulary for it. Fail
+  // loud with a boundary-aware, customer-actionable diagnostic rather than the
+  // generic "unsupported type" message: name the widget + property, state the
+  // A2UI-supported / RFW-unsupported boundary, and name the remedies. The
+  // message keeps the "Unsupported property type <T> on <owner>.<field>" prefix
+  // the existing loud-failure assertions match.
+  if (target == WidgetVisitorTarget.rfw && _isA2uiScalarList(t)) {
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedPropertyType,
+        message: 'Unsupported property type ${t.getDisplayString()} '
+            'on $ownerName.$fieldName. Scalar-list properties (a List of '
+            'String, int, double, num, or bool) are supported on the A2UI '
+            'target but are not carried by the RFW customer catalog. '
+            'Remedies: restrict the field to a supported RFW type (e.g. a '
+            'single scalar, or List<Widget>), or scope this package to the '
+            'A2UI target only by disabling the RFW customer-catalog builders '
+            '(user_catalog, user_catalog_json, user_factories) in build.yaml, '
+            'as the A2UI-only example does.',
+        location: location,
+      ),
+    );
+    return null;
+  }
   final a2uiListHint = target == WidgetVisitorTarget.a2ui
       ? ', and List<scalar> (String, int, double, num, or bool)'
       : '';
