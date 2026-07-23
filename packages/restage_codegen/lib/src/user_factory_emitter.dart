@@ -82,7 +82,8 @@ String? emitUserFactoriesDart(
 
   final emittable = <(WidgetEntry, String)>[];
   for (final entry in widgets) {
-    final body = emitFactoryFunction(entry, customer: customer);
+    final body =
+        emitFactoryFunction(entry, customer: customer, aliases: aliasByUri);
     if (body == null) {
       onSkip?.call(entry);
       continue;

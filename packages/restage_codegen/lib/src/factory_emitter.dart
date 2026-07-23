@@ -96,6 +96,7 @@ String? emitFactoryFunction(
   WidgetEntry entry, {
   NativeCatalogIndex? nativeIndex,
   CustomerReconstruction? customer,
+  Map<String, String> aliases = const {},
 }) {
   if (!_isMechanicallyEmittable(
     entry,
@@ -105,7 +106,13 @@ String? emitFactoryFunction(
     return null;
   }
 
-  final customerAliases = customer?.aliases ?? const <String, String>{};
+  // The import-alias map is threaded in explicitly so it is available even
+  // when there is no structured-type reconstruction context (`customer` is
+  // null but the caller still emits aliased imports). Fall back to the
+  // customer record's aliases for callers that only pass `customer`.
+  final customerAliases = aliases.isNotEmpty
+      ? aliases
+      : (customer?.aliases ?? const <String, String>{});
   final functionName = functionNameFor(entry);
   final ctor = _ctorExpressionFor(entry, aliases: customerAliases);
   final canonicalChild = _canonicalChildPropertyOf(entry);

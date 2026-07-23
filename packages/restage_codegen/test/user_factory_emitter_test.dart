@@ -136,6 +136,48 @@ void main() {
     });
 
     test(
+        'qualifies the constructor with the import alias when the package has '
+        'NO structured-type properties (regression)', () {
+      // A `@RestageWidget` package where every property is a scalar (no
+      // structured-type decomposition) has no structured-type context, so
+      // the customer reconstruction record is absent. The import-alias map
+      // is nonetheless always computed, and the import block emits each
+      // customer library aliased (`as s0`). The constructor call MUST use
+      // the same alias — a bare `AcmeBadge(...)` reference is undefined
+      // under the prefixed import and fails analysis in the generated
+      // `user_factories.g.dart`.
+      final src = emitUserFactoriesDart([
+        _widgetEntry(
+          name: 'AcmeBadge',
+          flutterType: 'package:acme/widgets/acme_badge.dart#AcmeBadge',
+          properties: const [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'label',
+              type: PropertyType.string,
+              description: 'Visible label.',
+              required: true,
+            ),
+          ],
+        ),
+      ]);
+      expect(src, isNotNull);
+      // The library is imported with the uniform-prefix alias.
+      expect(
+        src,
+        contains("import 'package:acme/widgets/acme_badge.dart' as s0;"),
+      );
+      // The constructor is called through that alias, not bare.
+      expect(src, contains('return s0.AcmeBadge('));
+      expect(
+        src,
+        isNot(contains('return AcmeBadge(')),
+        reason: 'a bare constructor reference is undefined under the '
+            'prefixed import and would not analyze',
+      );
+    });
+
+    test(
         'groups entries by library and calls registerWidgetLibrary once per '
         'library, sorted by namespace', () {
       final src = emitUserFactoriesDart([
