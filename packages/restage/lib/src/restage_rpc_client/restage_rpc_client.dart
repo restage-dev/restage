@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_shared/restage_shared.dart';
 
+import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
 
 /// Result of a successful hosted surface fetch.
@@ -181,6 +182,9 @@ class RestageRpcClient {
         'surfaceSlug': surfaceSlug,
         if (version != null) 'version': version,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
+        if (await SurfaceMeteringKeyProvider.currentKey()
+            case final String meteringKey)
+          'meteringKey': meteringKey,
         if (contractHash != null) 'contractHash': contractHash,
         if (contract != null) 'contract': contract.toJson(),
       },

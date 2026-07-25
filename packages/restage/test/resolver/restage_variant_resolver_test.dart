@@ -8,6 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
+import 'package:restage/src/metering/metering_token_store.dart';
+import 'package:restage/src/resolver/surface_metering_key_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restage/restage.dart';
 // The installed built-in catalog content version is the resolver's capability
 // ceiling (internal; the resolver's own tests reach it via the src path).
@@ -101,6 +104,48 @@ void main() {
       expect(keyedBody['surfaceSlug'], 'pro_upgrade');
       expect(keyedBody['assignmentKey'], 'anon-assignment-1');
       expect(keyedBody['contractHash'], startsWith('sha256:'));
+    });
+
+    test(
+        'threads the metering key into the hosted serve body only while the '
+        'provider is installed', () async {
+      addTearDown(SurfaceMeteringKeyProvider.clear);
+      const token = 'd9428888-122b-4b0b-8b7f-3e23441121e8';
+      SharedPreferences.setMockInitialValues(
+        <String, Object>{'restage.metering_token': token},
+      );
+      final prefs = await SharedPreferences.getInstance();
+      final envelope =
+          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
+
+      SurfaceMeteringKeyProvider.install(
+        store: MeteringTokenStore(prefsProvider: () async => prefs),
+      );
+      final installedRequests = <http.Request>[];
+      await RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _server(envelope, onRequest: installedRequests.add),
+      ).resolve('pro_upgrade');
+      expect(
+        (jsonDecode(installedRequests.single.body)
+            as Map<String, dynamic>)['meteringKey'],
+        token,
+      );
+
+      SurfaceMeteringKeyProvider.clear();
+      final clearedRequests = <http.Request>[];
+      await RestageVariantResolver(
+        apiKey: apiKey,
+        environment: RestageEnvironment.production,
+        baseUrl: baseUrl,
+        httpClient: _server(envelope, onRequest: clearedRequests.add),
+      ).resolve('pro_upgrade');
+      expect(
+        jsonDecode(clearedRequests.single.body) as Map<String, dynamic>,
+        isNot(contains('meteringKey')),
+      );
     });
 
     test(
