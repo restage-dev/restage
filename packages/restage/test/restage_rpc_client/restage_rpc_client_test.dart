@@ -3,10 +3,15 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage/src/metering/metering_token_store.dart';
+import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('RestageRpcClient construction', () {
     test('rejects empty baseUrl', () {
       expect(
@@ -672,6 +677,94 @@ void main() {
       });
     });
   });
+
+  group('RestageRpcClient.fetchSurface metering key', () {
+    setUp(SurfaceMeteringKeyProvider.clear);
+    tearDown(SurfaceMeteringKeyProvider.clear);
+
+    test('omits meteringKey when no provider is installed', () async {
+      final client = _clientCapturing(_bodies());
+
+      await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(_captured.single.containsKey('meteringKey'), isFalse);
+    });
+
+    test('threads the installed key into the request body', () async {
+      const token = 'd9428888-122b-4b0b-8b7f-3e23441121e8';
+      SurfaceMeteringKeyProvider.install(
+        store: MeteringTokenStore(
+          prefsProvider: () => _prefsWith(token),
+        ),
+      );
+      final client = _clientCapturing(_bodies());
+
+      await client.fetchSurface(
+        surfaceType: 'onboarding',
+        surfaceSlug: 'first_run',
+      );
+
+      expect(_captured.single['meteringKey'], token);
+    });
+
+    test(
+        'a failing key store leaves the surface fetch working — the body '
+        'simply carries no key', () async {
+      // The key is resolved WHILE the request body is being built, so a storage
+      // fault that escaped would break delivery, not just counting. Delivery
+      // must be strictly independent of it.
+      SurfaceMeteringKeyProvider.install(
+        store: MeteringTokenStore(
+          prefsProvider: () async => throw StateError('storage unavailable'),
+        ),
+      );
+      final client = _clientCapturing(_bodies());
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(
+        result,
+        isNotNull,
+        reason: 'the surface still resolves without a metering key',
+      );
+      expect(result!.envelopeBytes, isNotEmpty);
+      expect(_captured.single.containsKey('meteringKey'), isFalse);
+    });
+  });
+}
+
+final _captured = <Map<String, dynamic>>[];
+
+MockClient _bodies() {
+  _captured.clear();
+  return MockClient((req) async {
+    _captured.add((jsonDecode(req.body) as Map).cast());
+    return http.Response(
+      jsonEncode({
+        'envelope': base64Encode([1, 2])
+      }),
+      200,
+    );
+  });
+}
+
+RestageRpcClient _clientCapturing(MockClient mock) => RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: mock,
+    );
+
+Future<SharedPreferences> _prefsWith(String token) async {
+  SharedPreferences.setMockInitialValues(<String, Object>{
+    'restage.metering_token': token,
+  });
+  return SharedPreferences.getInstance();
 }
 
 const ReportTransactionRequest _request = ReportTransactionRequest(

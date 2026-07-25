@@ -14,6 +14,7 @@ import '../billing/anonymous_token.dart';
 import '../billing/billing_gateway.dart';
 import '../billing/in_app_purchase_gateway.dart';
 import '../billing/signed_native_offer.dart';
+import '../metering/metering_token_store.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
@@ -25,6 +26,7 @@ import '../refresh/surface_update_channel.dart';
 import '../resolver/asset_variant_resolver.dart';
 import '../resolver/restage_variant_resolver.dart';
 import '../resolver/surface_assignment_key_provider.dart';
+import '../resolver/surface_metering_key_provider.dart';
 import '../resolver/variant_resolver.dart';
 import 'library_runtime_registry.dart';
 import 'first_paint_lease_guard.dart';
@@ -78,6 +80,7 @@ abstract final class Restage {
   static final Map<String, EntitlementSummary> _lastSyncedSummaryById = {};
 
   static AnonymousTokenStore _anonymousTokenStore = AnonymousTokenStore();
+  static MeteringTokenStore? _meteringTokenStore;
   static RestageRpcClient? _rpcClient;
   static _RestageLifecycleObserver? _lifecycleObserver;
 
@@ -200,12 +203,16 @@ abstract final class Restage {
       baseUrl: baseUrl,
       enabled: analyticsEnabled,
     );
+    _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
     if (baseUrl != null) {
       // Microtask-defer so `configure` stays sync-returning. The cold-start
       // sync runs after the host's `runApp` settles. Re-calls of
       // `configure` re-schedule — supporting hosts that switch
       // environment / base-URL at runtime.
       scheduleMicrotask(() async {
+        try {
+          await _meteringTokenStore?.getOrCreate();
+        } on Object catch (_) {}
         // Warm the persisted pseudonymous id so events firing during cold start
         // carry it synchronously rather than racing the prefs read. Best-effort
         // — the bridge resolves it lazily, so a prefs fault never breaks boot.
@@ -269,6 +276,15 @@ abstract final class Restage {
       onError: (error, _) =>
           debugPrint('[restage][analytics] dropped a batch: $error'),
     );
+  }
+
+  static void _configureSurfaceMeteringKeyProvider({String? baseUrl}) {
+    if (baseUrl == null || baseUrl.isEmpty) {
+      SurfaceMeteringKeyProvider.clear();
+      return;
+    }
+    _meteringTokenStore ??= MeteringTokenStore();
+    SurfaceMeteringKeyProvider.install(store: _meteringTokenStore!);
   }
 
   static void _configureSurfaceAssignmentKeyProvider({
@@ -1182,6 +1198,8 @@ abstract final class Restage {
     _analyticsIdentity = null;
     _analyticsAppContext = null;
     SurfaceAssignmentKeyProvider.clear();
+    _meteringTokenStore = null;
+    SurfaceMeteringKeyProvider.clear();
     debugAnalyticsHttpClient = null;
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();
