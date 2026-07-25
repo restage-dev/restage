@@ -1,0 +1,5 @@
+# Analyzer- and build-runner-backed tests can exceed the package:test
+# 30-second default when the full workspace suite is running concurrently.
+# Ten minutes prevents ordinary contention from becoming a false timeout while
+# retaining a bound for genuinely stuck tests.
+timeout: 10m

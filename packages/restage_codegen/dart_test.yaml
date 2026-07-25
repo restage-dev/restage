@@ -1,9 +1,8 @@
-# build_test fixtures spin up build_runner steps that are slow under
-# constrained concurrency. The default 30s per-test timeout occasionally trips
-# at `--concurrency=2` (intermittent flake — the work itself is well under 30s).
-# Bump to give those fixtures headroom. This is a mitigation, not a guaranteed
-# elimination of the flake.
-timeout: 90s
+# Analyzer- and build_runner-backed fixtures can take several minutes while
+# multiple heavy package suites share the workstation. Ten minutes prevents
+# ordinary contention from becoming a false timeout without reducing
+# concurrency, while retaining a bound for genuinely stuck tests.
+timeout: 10m
 
 tags:
   # Live pub.dev fetch + `flutter pub get`. Declared so `@Tags(['network'])`
