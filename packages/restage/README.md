@@ -266,7 +266,19 @@ Restage includes a conversion-analytics layer. It powers your dashboard, A/B res
 
 **Delivery is fail-safe.** Events are batched, capped, retried safely, and never throw into your app.
 
-**Turning it off:** run in local mode (omit `baseUrl`) for zero telemetry, or pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted delivery and entitlement sync while disabling analytics.
+**Turning it off:** run in local mode (omit `baseUrl`) for zero telemetry, or pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted delivery and entitlement sync while disabling analytics. If you use the hosted service, surface fetches still include the metering token described below.
+
+### The metering token
+
+The hosted service is billed by monthly active users, so the SDK needs a way to count them. How it works:
+
+- **If you don't use the hosted service, there is no token.** Without a `baseUrl` the SDK never creates one. Even with a `baseUrl`, the token is only created the first time a surface is actually fetched from the server.
+- **It's a random UUID.** Generated on the device, stored in `shared_preferences`, gone when the app is uninstalled. It contains nothing about the user or the device, and it is not connected to the analytics install id.
+- **It is only sent with surface fetches.** It goes in the body of the request to `<baseUrl>/sdk/v1/surface` and nowhere else. It never appears in analytics events. Grep for `meteringKey`.
+- **It only goes to the server you configured.** Like everything else in the SDK, there is no baked-in Restage endpoint. If your `baseUrl` is your own backend, the token is sent there, not to us, and your server is free to ignore the field.
+- **`analyticsEnabled: false` does not remove it.** That flag turns off analytics. The metering token is how use of the hosted service is counted for billing, so it stays as long as you fetch surfaces from the server. Run without a `baseUrl` and the SDK sends nothing at all.
+
+If you need to describe it in your own privacy policy: a random per-install identifier, used only to count active users for billing, reset when the app is uninstalled. The implementation is in `lib/src/metering/` and it is short.
 
 It's all BSD-3-Clause and readable: see `lib/src/analytics/` and `lib/src/billing/anonymous_token.dart`.
 
