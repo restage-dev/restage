@@ -258,11 +258,11 @@ Restage includes a conversion-analytics layer. It powers your dashboard, A/B res
 
 - **It's off until you connect a backend.** Analytics activates only when you pass `baseUrl` to `Restage.configure(...)`. In local mode (no `baseUrl`) the SDK renders everything on-device and calls no backend.
 - **No endpoint is baked in.** Events go to *your* configured `baseUrl` (`<baseUrl>/analytics/events`), authenticated with your public key (`rs_pk_…`). Point it at Restage Cloud and your events power your dashboard and usage-based billing. Point it at your own backend and they go there. There is no hidden Restage host in the SDK. Grep for it.
-- **The identity is pseudonymous.** Each install gets a random UUID that carries no personal data and resets on uninstall or `Restage.reset()`. After a reset, future activity is treated as a new user, so experiment assignment may change on the next surface presentation. The SDK never collects a user identity unless *you* attach your own via `Restage.identify(...)`.
+- **The identity is pseudonymous.** Each install gets a random UUID, not derived from any device or advertising identifier, which resets on uninstall or `Restage.reset()`. It is a pseudonymous identifier rather than an anonymous one — treat it as personal data under GDPR and similar laws, as we do. After a reset, future activity is treated as a new user, so experiment assignment may change on the next surface presentation. The SDK never attaches a user identity of your own unless *you* pass one via `Restage.identify(...)`.
 
 **What each event contains:** a dedup id; the event name and a UTC timestamp; which surface it was, with its id, version, and session; the pseudonymous install id and an app-session id; an app context of `platform`, `locale`, SDK version, and optional app version or build; conversion dimensions (product, offer, variant, experiment) where they apply; and the event's own typed fields, after a scrub that keeps render and host context out of analytics.
 
-**What it never collects:** advertising identifiers (IDFA/GAID), device fingerprints, location, contacts, screen content, or any PII you do not explicitly attach.
+**What it never collects:** advertising identifiers (IDFA/GAID), device fingerprints, location, contacts, or screen content. Beyond the fields listed above, it collects no personal data you do not explicitly attach — note that ordinary request metadata such as an IP address is visible to whatever backend you point it at, as with any network call.
 
 **Delivery is fail-safe.** Events are batched, capped, retried safely, and never throw into your app.
 
