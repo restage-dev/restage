@@ -26,7 +26,7 @@
 
 - **Your real Flutter UI, over the air.** Author a surface in your own widgets and design system; what ships is compiled from that exact code. Not a fixed palette, not a JSON dialect, not a webview.
 - **Your design system comes with it.** `Theme.of(context)` resolves live at render time. A surface follows your app into dark mode or a rebrand, with no recompile.
-- **No code over the air.** An update changes the screens your app shows. It can't run new code, so an update can't do anything your released app couldn't already do. That keeps updates App Store-safe, and makes OTA UI viable where compliance matters.
+- **No code over the air.** An update changes the screens your app shows. It can't run new code, so an update can't do anything your released app couldn't already do. That's what makes OTA UI workable where the app stores' rules on shipping interpreted code are the constraint — though what your own app needs to satisfy remains your call.
 - **Fails safe, not wrong.** A surface can't reach a client too old to render it, and a failed fetch falls back to your bundled copy. `FlowUnavailablePolicy` is required, not optional.
 - **Built for governed delivery.** This SDK ships the primitives: surface versioning and fail-closed clients. The delivery service builds roll back, freeze, kill, and an exportable audit trail on top; the hosted service is coming soon.
 - **One runtime, every surface.** Paywalls, onboarding, messages, surveys, whole screens. One catalog, one runtime.
