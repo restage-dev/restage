@@ -18,6 +18,23 @@ final class OfferSignatureRequest {
         assert(offerId.length > 0, 'offerId must not be empty'),
         assert(appAccountToken.length > 0, 'appAccountToken must not be empty');
 
+  /// Parses the exact published three-field request shape.
+  factory OfferSignatureRequest.fromJson(Map<String, dynamic> json) {
+    if (json.length != 3 ||
+        !json.containsKey('productId') ||
+        !json.containsKey('offerId') ||
+        !json.containsKey('appAccountToken')) {
+      throw ArgumentError(
+        'Expected exactly productId, offerId, and appAccountToken',
+      );
+    }
+    return OfferSignatureRequest(
+      productId: _requiredNonEmptyString(json, 'productId'),
+      offerId: _requiredNonEmptyString(json, 'offerId'),
+      appAccountToken: _requiredNonEmptyString(json, 'appAccountToken'),
+    );
+  }
+
   /// Store product identifier the offer applies to.
   final String productId;
 
@@ -47,4 +64,10 @@ final class OfferSignatureRequest {
 
   @override
   int get hashCode => Object.hash(productId, offerId, appAccountToken);
+}
+
+String _requiredNonEmptyString(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value is String && value.isNotEmpty) return value;
+  throw ArgumentError('$key must be a non-empty string');
 }

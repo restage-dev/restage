@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -41,14 +42,147 @@ void main() {
     });
   });
 
+  group('RestageRpcClient.createPurchaseIntent', () {
+    test('POSTs the immutable tuple and returns the correlated commit',
+        () async {
+      late http.Request seen;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((request) async {
+          seen = request;
+          return http.Response(
+            jsonEncode(<String, Object?>{
+              'purchaseIntentId': _intentRequest.purchaseIntentId,
+              'created': true,
+            }),
+            200,
+          );
+        }),
+      );
+
+      final response = await client.createPurchaseIntent(_intentRequest);
+
+      expect(seen.url.path, '/sdk/v1/purchase-intent');
+      expect(seen.headers['Authorization'], 'Bearer rs_pk_test');
+      expect(jsonDecode(seen.body), _intentRequest.toJson());
+      expect(response?.purchaseIntentId, _intentRequest.purchaseIntentId);
+      expect(response?.created, isTrue);
+    });
+
+    test('fails closed when the response echoes a different intent', () async {
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode(<String, Object?>{
+              'purchaseIntentId': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+              'created': true,
+            }),
+            200,
+          ),
+        ),
+      );
+
+      expect(await client.createPurchaseIntent(_intentRequest), isNull);
+    });
+  });
+
   group('RestageRpcClient.reportTransaction', () {
+    test('compile-time debug outage follows the assertion-gated define',
+        () async {
+      const outageRequested = bool.fromEnvironment(
+        'RESTAGE_DEBUG_FAIL_TRANSACTION_REPORTS',
+      );
+      var requests = 0;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((_) async {
+          requests += 1;
+          return http.Response(jsonEncode(_acceptedResponse()), 200);
+        }),
+      );
+
+      final response = await client.reportTransaction(_request);
+
+      expect(response, outageRequested ? isNull : isNotNull);
+      expect(requests, outageRequested ? 0 : 1);
+    });
+
+    test('debug outage intercepts only transaction reports', () async {
+      final paths = <String>[];
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        debugFailTransactionReports: true,
+        httpClient: MockClient((request) async {
+          paths.add(request.url.path);
+          return http.Response(
+            jsonEncode(<String, Object?>{
+              'purchaseIntentId': _intentRequest.purchaseIntentId,
+              'created': true,
+            }),
+            200,
+          );
+        }),
+      );
+
+      expect(await client.reportTransaction(_request), isNull);
+      expect(await client.createPurchaseIntent(_intentRequest), isNotNull);
+      expect(paths, <String>['/sdk/v1/purchase-intent']);
+    });
+
+    test('debug outage is inert when explicitly disabled', () async {
+      var requests = 0;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        debugFailTransactionReports: false,
+        httpClient: MockClient((_) async {
+          requests += 1;
+          return http.Response(jsonEncode(_acceptedResponse()), 200);
+        }),
+      );
+
+      expect(await client.reportTransaction(_request), isNotNull);
+      expect(requests, 1);
+    });
+
+    test('debug outage diagnostics contain no transaction evidence', () async {
+      final messages = <String?>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) => messages.add(message);
+      addTearDown(() => debugPrint = originalDebugPrint);
+      var requests = 0;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        debugFailTransactionReports: true,
+        httpClient: MockClient((_) async {
+          requests += 1;
+          return http.Response(jsonEncode(_acceptedResponse()), 200);
+        }),
+      );
+
+      expect(await client.reportTransaction(_request), isNull);
+      expect(requests, 0);
+      final diagnostics = messages.whereType<String>().join('\n');
+      expect(diagnostics, contains('local debug outage injection'));
+      expect(diagnostics, isNot(contains(_request.storeVerificationData)));
+      expect(diagnostics, isNot(contains(_request.storeTransactionId)));
+      expect(diagnostics, isNot(contains(_request.storeProductId)));
+      expect(diagnostics, isNot(contains(_request.reportId)));
+    });
+
     test('POSTs to /sdk/v1/reportTransaction with Bearer auth and JSON body',
         () async {
       late http.Request seen;
       final mock = MockClient((req) async {
         seen = req;
         return http.Response(
-          jsonEncode(<String, Object?>{'entitlements': <Object?>[]}),
+          jsonEncode(_acceptedResponse()),
           200,
         );
       });
@@ -67,11 +201,10 @@ void main() {
       expect(jsonDecode(seen.body), _request.toJson());
     });
 
-    test('returns an empty list from a 200 response with no entitlements',
-        () async {
+    test('returns explicit acceptance with no entitlements', () async {
       final mock = MockClient((req) async {
         return http.Response(
-          jsonEncode(<String, Object?>{'entitlements': <Object?>[]}),
+          jsonEncode(_acceptedResponse()),
           200,
         );
       });
@@ -81,27 +214,18 @@ void main() {
         httpClient: mock,
       );
 
-      final summaries = await client.reportTransaction(_request);
+      final response = await client.reportTransaction(_request);
 
-      // Non-null: the server's explicit "nothing entitled" answer, not
-      // a transport failure.
-      expect(summaries, isNotNull);
-      expect(summaries, isEmpty);
+      expect(response, isNotNull);
+      expect(response!.accepted, isTrue);
+      expect(response.reportId, _request.reportId);
+      expect(response.entitlements, isEmpty);
     });
 
-    test('returns the parsed entitlements from a 200 response', () async {
+    test('returns parsed evidence, disposition, and entitlements', () async {
       final mock = MockClient((req) async {
         return http.Response(
-          jsonEncode({
-            'entitlements': [
-              {
-                'entitlementId': 'pro',
-                'status': 'active',
-                'productId': 'monthly',
-                'source': 'storeNotification',
-              },
-            ],
-          }),
+          jsonEncode(_acceptedResponse(entitled: true)),
           200,
         );
       });
@@ -111,12 +235,62 @@ void main() {
         httpClient: mock,
       );
 
-      final summaries = await client.reportTransaction(_request);
+      final response = await client.reportTransaction(_request);
 
-      expect(summaries, hasLength(1));
-      expect(summaries!.single.entitlementId, 'pro');
-      expect(summaries.single.status, 'active');
-      expect(summaries.single.isEntitled, isTrue);
+      expect(response, isNotNull);
+      expect(response!.evidence, isA<AppleAcceptedStoreEvidence>());
+      expect(
+        response.attributionDisposition,
+        AttributionDisposition.applied,
+      );
+      expect(response.entitlements, hasLength(1));
+      expect(response.entitlements.single.entitlementId, 'pro');
+      expect(response.entitlements.single.status, 'active');
+      expect(response.entitlements.single.isEntitled, isTrue);
+    });
+
+    test('fails closed when accepted is missing or false', () async {
+      for (final body in <Map<String, Object?>>[
+        _acceptedResponse()..remove('accepted'),
+        _acceptedResponse()..['accepted'] = false,
+      ]) {
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient(
+            (req) async => http.Response(jsonEncode(body), 200),
+          ),
+        );
+
+        expect(await client.reportTransaction(_request), isNull);
+      }
+    });
+
+    test('fails closed when reportId does not correlate', () async {
+      final body = _acceptedResponse()
+        ..['reportId'] = '550e8400-e29b-41d4-a716-446655440099';
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (req) async => http.Response(jsonEncode(body), 200),
+        ),
+      );
+
+      expect(await client.reportTransaction(_request), isNull);
+    });
+
+    test('fails closed when accepted evidence is malformed', () async {
+      final body = _acceptedResponse()..['evidence'] = <String, Object?>{};
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (req) async => http.Response(jsonEncode(body), 200),
+        ),
+      );
+
+      expect(await client.reportTransaction(_request), isNull);
     });
 
     test('returns null on 4xx (distinguishing transport failure from empty)',
@@ -161,6 +335,27 @@ void main() {
       expect(summaries, isNull);
     });
 
+    test('transport diagnostics never echo store verification evidence',
+        () async {
+      final messages = <String?>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) => messages.add(message);
+      addTearDown(() => debugPrint = originalDebugPrint);
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (_) async => throw StateError(_request.storeVerificationData),
+        ),
+      );
+
+      expect(await client.reportTransaction(_request), isNull);
+      expect(
+        messages.whereType<String>().join('\n'),
+        isNot(contains(_request.storeVerificationData)),
+      );
+    });
+
     test('returns null when the response body is malformed JSON', () async {
       final mock = MockClient(
         (req) async => http.Response('not-json{', 200),
@@ -199,7 +394,8 @@ void main() {
       final mock = MockClient(
         (req) async => http.Response(
           jsonEncode(<String, Object?>{
-            'entitlements': [
+            ..._acceptedResponse(),
+            'entitlements': <Object?>[
               {'entitlementId': 'pro'}, // missing status/productId/source
             ],
           }),
@@ -768,8 +964,47 @@ Future<SharedPreferences> _prefsWith(String token) async {
 }
 
 const ReportTransactionRequest _request = ReportTransactionRequest(
+  reportId: '550e8400-e29b-41d4-a716-446655440000',
   store: 'appStore',
   storeVerificationData: 'wrapped-jws',
   storeProductId: 'pro_monthly',
   storeTransactionId: 'tx-1',
 );
+
+const CreatePurchaseIntentRequest _intentRequest = CreatePurchaseIntentRequest(
+  purchaseIntentId: '11111111-2222-4333-8444-555555555555',
+  store: 'playStore',
+  appAnonymousToken: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  storeProductId: 'pro_monthly',
+  basePlanId: 'monthly',
+  offerId: 'winback',
+  paywallId: 'upgrade',
+  paywallVariantSlug: 'treatment',
+  paywallPublishedVersion: 7,
+  experimentId: 'experiment-1',
+  experimentVariantId: 'arm-b',
+  experimentEpoch: 2,
+);
+
+Map<String, Object?> _acceptedResponse({bool entitled = false}) {
+  return <String, Object?>{
+    'accepted': true,
+    'reportId': _request.reportId,
+    'evidence': <String, Object?>{
+      'store': 'appStore',
+      'submittedTransactionId': 'tx-1',
+      'acceptedTransactionId': 'tx-1',
+      'originalTransactionId': 'original-1',
+    },
+    'attributionDisposition': 'applied',
+    'entitlements': <Object?>[
+      if (entitled)
+        <String, Object?>{
+          'entitlementId': 'pro',
+          'status': 'active',
+          'productId': 'monthly',
+          'source': 'storeNotification',
+        },
+    ],
+  };
+}

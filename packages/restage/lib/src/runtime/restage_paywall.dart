@@ -12,6 +12,7 @@ import 'package:rfw/rfw.dart';
 
 import '../authoring/event_dispatcher.dart';
 import '../billing/billing_gateway.dart';
+import '../billing/purchase_attribution.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_controller.dart';
@@ -178,6 +179,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// served under an A/B arm. Non-null locks the surface out of live swaps so
   /// exposure accounting stays clean (a remount re-resolves fresh).
   String? _renderedExperimentId;
+  String? _renderedExperimentVariantId;
+  int? _renderedExperimentEpoch;
 
   /// The anonymous-identity generation that selected the rendered hosted
   /// artifact. A later generation cannot replace it within this presentation.
@@ -732,6 +735,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _blobPresentation = null;
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
     _renderedExperimentId = payload.experimentId;
+    _renderedExperimentVariantId = payload.variantId;
+    _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedContentHash = null;
   }
@@ -1078,6 +1083,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) {
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
     _renderedExperimentId = payload.experimentId;
+    _renderedExperimentVariantId = payload.variantId;
+    _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedContentHash = null;
   }
@@ -1426,6 +1433,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _flowEpoch = null;
     _resolvedPaywallPublishedVersion = variant.paywallPublishedVersion;
     _renderedExperimentId = variant.experimentId;
+    _renderedExperimentVariantId = variant.variantId;
+    _renderedExperimentEpoch = variant.experimentEpoch;
     _renderedAssignmentLease = stage.payload.assignmentLease;
     _renderedContentHash = variant.paywallPublishedVersion == null
         ? FlowContentHash.compute(variant.bytes)
@@ -1727,8 +1736,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // `finally` on EVERY outcome (success/pending/cancelled/failed/thrown
     // error), so a legitimate sequential purchase or retry is never blocked.
     try {
-      final outcome =
-          await Restage.purchaseProduct(productId, offerId: offerId);
+      final gateway = Restage.billingGateway;
+      final coordinatorOwned = BundledPurchaseOwnership.isInstalled(gateway);
+      final attribution = _capturePurchaseAttribution(offerId);
+      final purchase = PurchaseAttributionScope.run(
+        attribution,
+        () => Restage.purchaseProduct(productId, offerId: offerId),
+      );
+      final outcome = await purchase;
       // Don't early-return on !mounted: the global event stream + entitlement
       // grant must run even when the user has navigated away mid-flow,
       // otherwise a user who taps Buy and then dismisses gets charged but
@@ -1749,36 +1764,39 @@ class _RestagePaywallState extends State<RestagePaywall> {
             currency: currency,
             offerId: offerId,
           ));
-          Restage.grantEntitlementForProduct(
-            productId,
-            EntitlementSource.purchase,
-          );
-          if (verificationData != null) {
-            // Verified purchase (the bundled gateway surfaced the store
-            // receipt): report it to the entitlement service in the
-            // background. The optimistic local grant above keeps UX
-            // immediate; the report converges the server's view and feeds
-            // the reserved subscription events on the next reconciliation.
-            // No-ops cleanly when the SDK was configured without a baseUrl.
-            unawaited(Restage.reportTransaction(
-              storeProductId: productId,
-              storeTransactionId: transactionId,
-              storeVerificationData: verificationData,
-              paywallId: widget.id,
-              paywallPublishedVersion: _resolvedPaywallPublishedVersion,
-            ));
-          } else {
-            // Receipt-less, attribution-only success: an external-provider
-            // gateway delegated the purchase and kept the receipt, so there is
-            // nothing to validate. Report the attribution hint (transaction id +
-            // paywall id) — never down the receipt-validation path. No-ops
-            // cleanly when the SDK was configured without a baseUrl.
-            unawaited(Restage.reportAttribution(
-              storeProductId: productId,
-              storeTransactionId: transactionId,
-              paywallId: widget.id,
-              paywallPublishedVersion: _resolvedPaywallPublishedVersion,
-            ));
+          if (!coordinatorOwned) {
+            Restage.grantEntitlementForProduct(
+              productId,
+              EntitlementSource.purchase,
+            );
+            if (verificationData != null) {
+              // Verified purchase (the bundled gateway surfaced the store
+              // receipt): report it to the entitlement service in the
+              // background. The optimistic local grant above keeps UX
+              // immediate; the report converges the server's view and feeds
+              // the reserved subscription events on the next reconciliation.
+              // No-ops cleanly when the SDK was configured without a baseUrl.
+              unawaited(Restage.reportTransaction(
+                storeProductId: productId,
+                storeTransactionId: transactionId,
+                storeVerificationData: verificationData,
+                paywallId: widget.id,
+                paywallPublishedVersion: _resolvedPaywallPublishedVersion,
+              ));
+            } else {
+              // Receipt-less, attribution-only success: an external-provider
+              // gateway delegated the purchase and kept the receipt, so there
+              // is nothing to validate. Report the attribution hint
+              // (transaction id + paywall id) — never down the
+              // receipt-validation path. No-ops cleanly when the SDK was
+              // configured without a baseUrl.
+              unawaited(Restage.reportAttribution(
+                storeProductId: productId,
+                storeTransactionId: transactionId,
+                paywallId: widget.id,
+                paywallPublishedVersion: _resolvedPaywallPublishedVersion,
+              ));
+            }
           }
           _feedFlowOutcome(_kPurchaseSucceededEvent);
         case PurchaseOutcomePending(:final reason):
@@ -1817,7 +1835,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // The in-flight billing guard is reserved by the caller (_handleRfwEvent);
     // here we only RELEASE it in the `finally` on every outcome.
     try {
-      final outcome = await Restage.billingGateway.restore();
+      final gateway = Restage.billingGateway;
+      final coordinatorOwned = BundledPurchaseOwnership.isInstalled(gateway);
+      final outcome = await gateway.restore();
       // See _runPurchase: global side effects fire regardless of mount.
       switch (outcome) {
         case RestoreOutcomeSucceeded(:final restoredProductIds):
@@ -1825,11 +1845,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
             paywallId: widget.id,
             restoredProductIds: restoredProductIds,
           ));
-          for (final productId in restoredProductIds) {
-            Restage.grantEntitlementForProduct(
-              productId,
-              EntitlementSource.restore,
-            );
+          if (!coordinatorOwned) {
+            for (final productId in restoredProductIds) {
+              Restage.grantEntitlementForProduct(
+                productId,
+                EntitlementSource.restore,
+              );
+            }
           }
           _feedFlowOutcome(_kRestoreSucceededEvent);
         case RestoreOutcomeNoPurchases():
@@ -1846,6 +1868,23 @@ class _RestagePaywallState extends State<RestagePaywall> {
     } finally {
       _billingInFlight = false;
     }
+  }
+
+  PurchaseAttributionSnapshot _capturePurchaseAttribution(String? offerId) {
+    final experimentId = _renderedExperimentId;
+    final experimentVariantId = _renderedExperimentVariantId;
+    final experimentEpoch = _renderedExperimentEpoch;
+    final hasCompleteExperiment = experimentId != null &&
+        experimentVariantId != null &&
+        experimentEpoch != null;
+    return PurchaseAttributionSnapshot(
+      paywallId: widget.id,
+      paywallPublishedVersion: _resolvedPaywallPublishedVersion,
+      experimentId: hasCompleteExperiment ? experimentId : null,
+      experimentVariantId: hasCompleteExperiment ? experimentVariantId : null,
+      experimentEpoch: hasCompleteExperiment ? experimentEpoch : null,
+      offerId: offerId,
+    );
   }
 
   /// Adapter so the [RestagePaywallEventDispatcher] (which expects

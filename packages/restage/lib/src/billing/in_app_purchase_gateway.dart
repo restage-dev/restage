@@ -1,32 +1,64 @@
 import 'dart:async';
+import 'dart:collection';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, visibleForTesting;
+    show
+        TargetPlatform,
+        debugPrint,
+        defaultTargetPlatform,
+        internal,
+        visibleForTesting;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/billing_client_wrappers.dart'
+    show ProductType;
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
-import 'package:restage_shared/restage_shared.dart' show OfferSignatureScheme;
+import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart'
+    show SK2ProductType;
+import 'package:restage_shared/restage_shared.dart'
+    show
+        AppleAcceptedStoreEvidence,
+        CreatePurchaseIntentRequest,
+        EntitlementSummary,
+        GoogleAcceptedStoreEvidence,
+        IntentBoundOfferSignatureRequest,
+        OfferSignatureScheme,
+        PurchaseIntentDisposition,
+        ReportTransactionRequest,
+        ReportTransactionResponse;
 
 import '../events/event_enums.dart' show PendingReason;
+import '../restage_rpc_client/restage_rpc_client.dart';
 import 'anonymous_token.dart';
 import 'billing_gateway.dart';
+import 'purchase_attribution.dart';
+import 'purchase_coordinator_delegate.dart';
+import 'purchase_platform_adapter.dart';
 import 'signed_native_offer.dart';
+
+part 'purchase_coordinator.dart';
 
 /// Basic implementation backed by `package:in_app_purchase`.
 ///
-/// This implementation supports a bounded purchase + restore flow. Renewals,
-/// refund detection via transaction-update streams, and Play webhook
-/// integration require host or server logic outside this gateway.
+/// When installed through `Restage.configure`, the SDK owns one long-lived
+/// purchase listener plus native recovery drains. Constructing and invoking the
+/// gateway directly retains the bounded call-scoped behavior for compatibility.
 ///
 /// **Operational limits:**
-/// - Each [purchase] call subscribes to [InAppPurchase.purchaseStream]
+/// - A directly-invoked [purchase] call subscribes to
+///   [InAppPurchase.purchaseStream]
 ///   for the duration of the call and unsubscribes after the first
 ///   terminal status. StoreKit "Ask to Buy" / "SCA challenge" flows where
 ///   `pending` is followed minutes-to-hours later by `purchased` will not
 ///   surface the eventual approval — only the initial `pending` outcome.
-///   Apps that need eventual approval handling should use a long-lived
-///   purchase listener.
+///   Apps that need eventual approval handling should install the gateway
+///   through `Restage.configure`, which owns the long-lived listener and
+///   durable server-reporting lifecycle.
+/// - Configure-owned durable billing currently accepts auto-renewing
+///   subscriptions only. One-time products fail before intent creation or
+///   store UI. Direct gateway calls retain their legacy product behavior.
 /// - [restore] uses a wall-clock timeout (default 5s) before declaring
 ///   "no purchases" because the underlying API does not emit a "done"
 ///   signal. On slow networks, restored purchases that arrive after the
@@ -51,12 +83,9 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
   /// to arrive on [InAppPurchase.purchaseStream] before returning the
   /// accumulated set; the underlying API does not emit a "done" signal.
   ///
-  /// [anonymousTokenProvider] supplies the value stamped onto
-  /// `PurchaseParam.applicationUserName` (and `restorePurchases`). The
-  /// platform routes this to Apple `appAccountToken` and Google
-  /// `obfuscatedAccountId`. The provider's value is validated as a
-  /// canonical-form UUID before being passed; non-UUID values are
-  /// silently dropped by StoreKit 2, so the guard keeps the SDK honest.
+  /// [anonymousTokenProvider] supplies the restore identity and the legacy
+  /// direct-invocation stamp. Configure-owned purchases instead stamp the
+  /// durably committed purchase-intent UUID.
   InAppPurchaseGateway({
     InAppPurchase? plugin,
     Duration restoreTimeout = const Duration(seconds: 5),
@@ -68,9 +97,14 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
   final InAppPurchase _plugin;
   final Duration _restoreTimeout;
   final Future<String?> Function()? _anonymousTokenProvider;
+  PurchaseCoordinatorDelegate? _purchaseCoordinator;
 
   @override
   Future<PurchaseOutcome> purchase(String productId, {String? basePlanId}) {
+    final coordinator = _purchaseCoordinator;
+    if (coordinator != null) {
+      return coordinator.purchase(productId, basePlanId: basePlanId);
+    }
     return _purchaseFlow(
       productId: productId,
       buildParam: (products) async {
@@ -115,6 +149,13 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
     required SignedNativeOffer offer,
     required String appAccountToken,
   }) {
+    final coordinator = _purchaseCoordinator;
+    if (coordinator != null) {
+      return coordinator.purchaseWithOffer(
+        productId: productId,
+        offer: offer,
+      );
+    }
     // Dispatch on the offer variant and the platform. Each store transports
     // only its own kind of offer — an Apple legacy-scheme signature rides
     // StoreKit 2 on an Apple platform; a Google offer rides Play Billing on
@@ -307,6 +348,8 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
 
   @override
   Future<RestoreOutcome> restore() async {
+    final coordinator = _purchaseCoordinator;
+    if (coordinator != null) return coordinator.restore();
     if (!await _plugin.isAvailable()) {
       return RestoreOutcome.failed(
         errorCode: RestageBillingErrorCodes.unavailable,
@@ -354,6 +397,245 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
     return RestoreOutcome.succeeded(
       restoredProductIds: restored.toList(growable: false),
     );
+  }
+
+  Future<_PreparedPurchaseResult> _prepareCoordinatedPurchase({
+    required String productId,
+    required String? basePlanId,
+    required String? offerId,
+    required String store,
+    required bool Function() isCurrentEpoch,
+  }) async {
+    if (!isCurrentEpoch()) {
+      return _PreparedPurchaseResult.failure(
+        _coordinatedConfigurationChanged(productId),
+      );
+    }
+    try {
+      if (!await _plugin.isAvailable()) {
+        return _PreparedPurchaseResult.failure(
+          PurchaseOutcomeFailed(
+            productId: productId,
+            errorCode: RestageBillingErrorCodes.unavailable,
+            message: 'In-app purchase is unavailable on this device.',
+          ),
+        );
+      }
+    } on Object {
+      return _PreparedPurchaseResult.failure(
+        PurchaseOutcomeFailed(
+          productId: productId,
+          errorCode: RestageBillingErrorCodes.unavailable,
+          message: 'In-app purchase is unavailable on this device.',
+        ),
+      );
+    }
+    if (!isCurrentEpoch()) {
+      return _PreparedPurchaseResult.failure(
+        _coordinatedConfigurationChanged(productId),
+      );
+    }
+
+    ProductDetailsResponse response;
+    try {
+      response = await _plugin.queryProductDetails(<String>{productId});
+    } on Object {
+      return _PreparedPurchaseResult.failure(
+        PurchaseOutcomeFailed(
+          productId: productId,
+          errorCode: RestageBillingErrorCodes.buyFailed,
+          message: 'The store product could not be verified.',
+        ),
+      );
+    }
+    if (!isCurrentEpoch()) {
+      return _PreparedPurchaseResult.failure(
+        _coordinatedConfigurationChanged(productId),
+      );
+    }
+    if (response.error != null ||
+        response.notFoundIDs.contains(productId) ||
+        response.productDetails.isEmpty) {
+      return _PreparedPurchaseResult.failure(
+        PurchaseOutcomeFailed(
+          productId: productId,
+          errorCode: RestageBillingErrorCodes.productNotFound,
+          message: 'The store did not recognize the requested product.',
+        ),
+      );
+    }
+
+    _PreparedPurchase? prepared;
+    String unresolvedCode = RestageBillingErrorCodes.offerUnavailable;
+    String unresolvedMessage =
+        'The requested offer is not available for this product.';
+    if (store == 'appStore') {
+      // Promotional offers in this path use StoreKit 2 purchase parameters.
+      // Exclude StoreKit 1 products before committing an intent so the offer
+      // cannot be silently dropped when the store UI opens.
+      final matches = response.productDetails
+          .where((product) =>
+              product.id == productId &&
+              _isSupportedSubscriptionProduct(product, store) &&
+              (offerId == null || product is AppStoreProduct2Details))
+          .toList(growable: false);
+      if (matches.length == 1) {
+        prepared = _PreparedPurchase(
+          product: matches.single,
+          resolvedBasePlanId: null,
+          offerId: offerId,
+        );
+      }
+    } else if (store == 'playStore') {
+      final GooglePlayProductDetails? selected;
+      if (offerId != null) {
+        selected = _resolveGooglePlayOfferProduct(
+          productId: productId,
+          products: response.productDetails,
+          basePlanId: basePlanId,
+          offerId: offerId,
+        );
+      } else {
+        selected = _resolveGooglePlayBasePlanProduct(
+          productId: productId,
+          products: response.productDetails,
+          basePlanId: basePlanId,
+        );
+        unresolvedCode = RestageBillingErrorCodes.basePlanSelectionRequired;
+        unresolvedMessage = basePlanId == null
+            ? 'This subscription requires an explicit base plan.'
+            : 'The requested base plan is unavailable.';
+      }
+      if (selected != null &&
+          _isSupportedSubscriptionProduct(selected, store)) {
+        prepared = _PreparedPurchase(
+          product: selected,
+          resolvedBasePlanId: _googleBasePlanId(selected),
+          offerId: offerId,
+        );
+      }
+    }
+
+    if (prepared == null) {
+      final hasSupportedSubscription = response.productDetails.any(
+        (product) =>
+            product.id == productId &&
+            _isSupportedSubscriptionProduct(product, store),
+      );
+      return _PreparedPurchaseResult.failure(
+        PurchaseOutcomeFailed(
+          productId: productId,
+          errorCode: hasSupportedSubscription
+              ? unresolvedCode
+              : RestageBillingErrorCodes.buyFailed,
+          message: hasSupportedSubscription
+              ? unresolvedMessage
+              : 'Only auto-renewing subscriptions are supported.',
+        ),
+      );
+    }
+
+    if (!isCurrentEpoch()) {
+      return _PreparedPurchaseResult.failure(
+        _coordinatedConfigurationChanged(productId),
+      );
+    }
+    return _PreparedPurchaseResult.success(prepared);
+  }
+
+  Future<bool> _verifyCoordinatedSubscriptionProduct({
+    required String productId,
+    required String store,
+    required bool Function() isCurrentEpoch,
+  }) async {
+    if (!isCurrentEpoch()) return false;
+    ProductDetailsResponse response;
+    try {
+      response = await _plugin.queryProductDetails(<String>{productId});
+    } on Object {
+      return false;
+    }
+    if (!isCurrentEpoch() ||
+        response.error != null ||
+        response.notFoundIDs.contains(productId)) {
+      return false;
+    }
+    return response.productDetails.any(
+      (product) =>
+          product.id == productId &&
+          _isSupportedSubscriptionProduct(product, store),
+    );
+  }
+
+  Future<PurchaseOutcomeFailed?> _launchCoordinatedPurchase({
+    required _PreparedPurchase prepared,
+    required SignedNativeOffer? offer,
+    required String purchaseIntentId,
+    required bool Function() isCurrentEpoch,
+  }) async {
+    if (!isCurrentEpoch()) {
+      return _coordinatedConfigurationChanged(prepared.product.id);
+    }
+    final purchaseParam = prepared.buildParam(
+      purchaseIntentId: purchaseIntentId,
+      offer: offer,
+    );
+    if (purchaseParam == null) {
+      return PurchaseOutcomeFailed(
+        productId: prepared.product.id,
+        errorCode: RestageBillingErrorCodes.offerUnavailable,
+        message: 'The prepared store offer no longer matches the intent.',
+      );
+    }
+    try {
+      final opened =
+          await _plugin.buyNonConsumable(purchaseParam: purchaseParam);
+      if (!opened) {
+        return PurchaseOutcomeFailed(
+          productId: prepared.product.id,
+          errorCode: RestageBillingErrorCodes.buyFailed,
+          message: 'The store did not open the purchase flow.',
+        );
+      }
+    } on Object catch (error) {
+      return PurchaseOutcomeFailed(
+        productId: prepared.product.id,
+        errorCode: prepared.offerId == null
+            ? RestageBillingErrorCodes.buyFailed
+            : _classifyOfferBuyError(error),
+        message: 'The store could not start the purchase.',
+      );
+    }
+    return null;
+  }
+
+  PurchaseOutcomeFailed _coordinatedConfigurationChanged(String productId) =>
+      PurchaseOutcomeFailed(
+        productId: productId,
+        errorCode: RestageBillingErrorCodes.buyFailed,
+        message: 'Billing configuration changed during the purchase.',
+      );
+
+  Future<RestoreOutcome> _initiateCoordinatedRestore() async {
+    if (!await _plugin.isAvailable()) {
+      return RestoreOutcome.failed(
+        errorCode: RestageBillingErrorCodes.unavailable,
+        message: 'In-app purchase is unavailable on this device.',
+      );
+    }
+    final applicationUserName =
+        await resolveApplicationUserNameForStamping(_anonymousTokenProvider);
+    try {
+      await _plugin.restorePurchases(
+        applicationUserName: applicationUserName,
+      );
+      return RestoreOutcome.noPurchases();
+    } on Object {
+      return RestoreOutcome.failed(
+        errorCode: RestageBillingErrorCodes.restoreFailed,
+        message: 'The store could not start purchase restoration.',
+      );
+    }
   }
 }
 
@@ -422,26 +704,13 @@ GooglePlayPurchaseParam? buildGooglePlayOfferParam({
   required String appAccountToken,
   required GoogleOffer offer,
 }) {
-  final matches = <GooglePlayProductDetails>[];
-  for (final product in products) {
-    if (product is! GooglePlayProductDetails) continue;
-    if (product.id != productId) continue;
-    final index = product.subscriptionIndex;
-    if (index == null) continue;
-    final details = product.productDetails.subscriptionOfferDetails;
-    if (details == null || index >= details.length) continue;
-    final candidate = details[index];
-    // A plain base plan has a null offer id and is never a promotional offer.
-    if (candidate.offerId == null || candidate.offerId != offer.offerId) {
-      continue;
-    }
-    if (offer.basePlanId != null && candidate.basePlanId != offer.basePlanId) {
-      continue;
-    }
-    matches.add(product);
-  }
-  if (matches.length != 1) return null;
-  final match = matches.first;
+  final match = _resolveGooglePlayOfferProduct(
+    productId: productId,
+    products: products,
+    basePlanId: offer.basePlanId,
+    offerId: offer.offerId,
+  );
+  if (match == null) return null;
   return GooglePlayPurchaseParam(
     productDetails: match,
     applicationUserName: appAccountToken,
@@ -473,25 +742,150 @@ GooglePlayPurchaseParam? buildGooglePlayBasePlanParam({
   required String? basePlanId,
   required String? applicationUserName,
 }) {
-  final matches = <GooglePlayProductDetails>[];
-  for (final product in products) {
-    if (product is! GooglePlayProductDetails) continue;
-    if (product.id != productId) continue;
-    final index = product.subscriptionIndex;
-    if (index == null) continue;
-    final details = product.productDetails.subscriptionOfferDetails;
-    if (details == null || index >= details.length) continue;
-    final candidate = details[index];
-    // Only standard base-plan entries are eligible — never a discounted offer.
-    if (candidate.offerId != null) continue;
-    if (basePlanId != null && candidate.basePlanId != basePlanId) continue;
-    matches.add(product);
-  }
-  if (matches.length != 1) return null;
-  final match = matches.first;
+  final match = _resolveGooglePlayBasePlanProduct(
+    productId: productId,
+    products: products,
+    basePlanId: basePlanId,
+  );
+  if (match == null) return null;
   return GooglePlayPurchaseParam(
     productDetails: match,
     applicationUserName: applicationUserName,
     offerToken: match.offerToken,
   );
+}
+
+GooglePlayProductDetails? _resolveGooglePlayOfferProduct({
+  required String productId,
+  required List<ProductDetails> products,
+  required String? basePlanId,
+  required String offerId,
+}) {
+  final matches = <GooglePlayProductDetails>[];
+  for (final product in products) {
+    if (product is! GooglePlayProductDetails) continue;
+    if (product.id != productId) continue;
+    final index = product.subscriptionIndex;
+    if (index == null || index < 0) continue;
+    final details = product.productDetails.subscriptionOfferDetails;
+    if (details == null || index >= details.length) continue;
+    final candidate = details[index];
+    if (candidate.basePlanId.isEmpty) continue;
+    if (candidate.offerId == null || candidate.offerId != offerId) continue;
+    if (basePlanId != null && candidate.basePlanId != basePlanId) continue;
+    matches.add(product);
+  }
+  return matches.length == 1 ? matches.single : null;
+}
+
+GooglePlayProductDetails? _resolveGooglePlayBasePlanProduct({
+  required String productId,
+  required List<ProductDetails> products,
+  required String? basePlanId,
+}) {
+  final matches = <GooglePlayProductDetails>[];
+  for (final product in products) {
+    if (product is! GooglePlayProductDetails) continue;
+    if (product.id != productId) continue;
+    final index = product.subscriptionIndex;
+    if (index == null || index < 0) continue;
+    final details = product.productDetails.subscriptionOfferDetails;
+    if (details == null || index >= details.length) continue;
+    final candidate = details[index];
+    if (candidate.basePlanId.isEmpty) continue;
+    // Only standard base-plan entries are eligible — never a discounted offer.
+    if (candidate.offerId != null) continue;
+    if (basePlanId != null && candidate.basePlanId != basePlanId) continue;
+    matches.add(product);
+  }
+  return matches.length == 1 ? matches.single : null;
+}
+
+bool _isSupportedSubscriptionProduct(ProductDetails product, String store) {
+  if (store == 'playStore') {
+    if (product is! GooglePlayProductDetails ||
+        product.productDetails.productType != ProductType.subs) {
+      return false;
+    }
+    final index = product.subscriptionIndex;
+    final details = product.productDetails.subscriptionOfferDetails;
+    return index != null &&
+        index >= 0 &&
+        details != null &&
+        index < details.length &&
+        details[index].basePlanId.isNotEmpty;
+  }
+  if (store == 'appStore') {
+    if (product is AppStoreProductDetails) {
+      return product.skProduct.subscriptionPeriod != null;
+    }
+    if (product is AppStoreProduct2Details) {
+      return product.sk2Product.type == SK2ProductType.autoRenewable;
+    }
+  }
+  return false;
+}
+
+String _googleBasePlanId(GooglePlayProductDetails product) {
+  final index = product.subscriptionIndex!;
+  return product.productDetails.subscriptionOfferDetails![index].basePlanId;
+}
+
+final class _PreparedPurchaseResult {
+  const _PreparedPurchaseResult._({this.prepared, this.failure});
+
+  factory _PreparedPurchaseResult.success(_PreparedPurchase prepared) =>
+      _PreparedPurchaseResult._(prepared: prepared);
+
+  factory _PreparedPurchaseResult.failure(PurchaseOutcomeFailed failure) =>
+      _PreparedPurchaseResult._(failure: failure);
+
+  final _PreparedPurchase? prepared;
+  final PurchaseOutcomeFailed? failure;
+}
+
+final class _PreparedPurchase {
+  const _PreparedPurchase({
+    required this.product,
+    required this.resolvedBasePlanId,
+    required this.offerId,
+  });
+
+  final ProductDetails product;
+  final String? resolvedBasePlanId;
+  final String? offerId;
+
+  PurchaseParam? buildParam({
+    required String purchaseIntentId,
+    required SignedNativeOffer? offer,
+  }) {
+    if (product is GooglePlayProductDetails) {
+      if (offerId == null) {
+        if (offer != null) return null;
+      } else if (offer is! GoogleOffer ||
+          offer.offerId != offerId ||
+          offer.basePlanId != resolvedBasePlanId) {
+        return null;
+      }
+      final googleProduct = product as GooglePlayProductDetails;
+      return GooglePlayPurchaseParam(
+        productDetails: googleProduct,
+        applicationUserName: purchaseIntentId,
+        offerToken: googleProduct.offerToken,
+      );
+    }
+    if (offerId == null) {
+      if (offer != null) return null;
+      return PurchaseParam(
+        productDetails: product,
+        applicationUserName: purchaseIntentId,
+      );
+    }
+    if (offer is! AppleSignedOffer || offer.offerId != offerId) return null;
+    return buildApplePromotionalOfferParam(
+      product: product,
+      appAccountToken: purchaseIntentId,
+      offer: offer,
+    );
+  }
 }

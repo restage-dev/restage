@@ -1,20 +1,37 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
+import 'package:in_app_purchase_storekit/store_kit_wrappers.dart';
+import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/billing/in_app_purchase_gateway.dart'
+    as billing_internal;
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _StaticResolver implements VariantResolver {
-  _StaticResolver(this.bytes, {this.publishedVersion});
+  _StaticResolver(
+    this.bytes, {
+    this.publishedVersion,
+    this.experimentId,
+    this.variantId,
+    this.experimentEpoch,
+  });
   final Uint8List bytes;
   final int? publishedVersion;
+  final String? experimentId;
+  final String? variantId;
+  final int? experimentEpoch;
   @override
   Future<ResolvedVariant> resolve(
     String id, {
@@ -25,6 +42,9 @@ class _StaticResolver implements VariantResolver {
         bytes: bytes,
         paywallId: id,
         paywallPublishedVersion: publishedVersion,
+        experimentId: experimentId,
+        variantId: variantId,
+        experimentEpoch: experimentEpoch,
       );
 }
 
@@ -89,7 +109,7 @@ class _SpyRestageRpcClient extends RestageRpcClient {
       })> reportAttributionCalls = [];
 
   @override
-  Future<List<EntitlementSummary>?> reportTransaction(
+  Future<ReportTransactionResponse?> reportTransaction(
     ReportTransactionRequest request,
   ) async {
     reportTransactionCalls.add(request);
@@ -112,6 +132,208 @@ class _SpyRestageRpcClient extends RestageRpcClient {
     ));
   }
 }
+
+class _BundledRpcClient extends RestageRpcClient {
+  _BundledRpcClient()
+      : super(
+          baseUrl: 'https://billing.test',
+          apiKey: 'k',
+          httpClient: MockClient((_) async => http.Response('', 500)),
+        );
+
+  final List<CreatePurchaseIntentRequest> intentRequests = [];
+  final List<IntentBoundOfferSignatureRequest> mintRequests = [];
+  final List<ReportTransactionRequest> reportRequests = [];
+
+  @override
+  Future<CreatePurchaseIntentResponse?> createPurchaseIntent(
+    CreatePurchaseIntentRequest request,
+  ) async {
+    intentRequests.add(request);
+    return CreatePurchaseIntentResponse(
+      purchaseIntentId: request.purchaseIntentId,
+      created: true,
+    );
+  }
+
+  @override
+  Future<OfferSignatureResponse?> mintIntentBoundOfferSignature(
+    IntentBoundOfferSignatureRequest request,
+  ) async {
+    mintRequests.add(request);
+    return const OfferSignatureResponse(
+      scheme: OfferSignatureScheme.legacy,
+      keyIdentifier: 'KEY123',
+      nonce: '11111111-2222-4333-8444-555555555555',
+      timestampMs: 1,
+      signatureBase64: 'signature',
+    );
+  }
+
+  @override
+  Future<ReportTransactionResponse?> reportTransaction(
+    ReportTransactionRequest request,
+  ) async {
+    reportRequests.add(request);
+    return ReportTransactionResponse(
+      accepted: true,
+      reportId: request.reportId,
+      evidence: AppleAcceptedStoreEvidence(
+        submittedTransactionId: request.storeTransactionId,
+        acceptedTransactionId: request.storeTransactionId,
+        originalTransactionId: request.storeTransactionId,
+      ),
+      attributionDisposition: AttributionDisposition.applied,
+      purchaseIntentDisposition: PurchaseIntentDisposition.associated,
+      recoveredAppAnonymousToken: intentRequests.single.appAnonymousToken,
+      entitlements: [
+        EntitlementSummary.fromJson(const <String, dynamic>{
+          'entitlementId': 'pro',
+          'status': 'active',
+          'productId': 'pro_monthly',
+          'source': 'storeNotification',
+        }),
+      ],
+    );
+  }
+
+  @override
+  Future<List<EntitlementSummary>?> syncEntitlements(
+    EntitlementSyncRequest request,
+  ) async =>
+      null;
+}
+
+class _BundledInAppPurchase implements InAppPurchase {
+  _BundledInAppPurchase({this.pendingOnBuy = false, ProductDetails? product})
+      : product = product ?? _bundledSubscriptionProduct(),
+        _controller = StreamController<List<PurchaseDetails>>.broadcast();
+
+  final bool pendingOnBuy;
+  final ProductDetails product;
+  final StreamController<List<PurchaseDetails>> _controller;
+  int buyCalls = 0;
+  int completeCalls = 0;
+  PurchaseParam? purchaseParam;
+
+  @override
+  Stream<List<PurchaseDetails>> get purchaseStream => _controller.stream;
+
+  @override
+  Future<bool> isAvailable() async => true;
+
+  @override
+  Future<ProductDetailsResponse> queryProductDetails(Set<String> ids) async =>
+      ProductDetailsResponse(
+        productDetails: [
+          product,
+        ],
+        notFoundIDs: const [],
+      );
+
+  @override
+  Future<bool> buyNonConsumable({required PurchaseParam purchaseParam}) async {
+    buyCalls += 1;
+    this.purchaseParam = purchaseParam;
+    scheduleMicrotask(() {
+      if (pendingOnBuy) {
+        _controller.add([
+          SK2PurchaseDetails(
+            purchaseID: null,
+            productID: purchaseParam.productDetails.id,
+            verificationData: PurchaseVerificationData(
+              localVerificationData: '',
+              serverVerificationData: '',
+              source: 'store',
+            ),
+            transactionDate: '0',
+            status: PurchaseStatus.pending,
+            appAccountToken: purchaseParam.applicationUserName,
+          ),
+        ]);
+      } else {
+        emitPurchased();
+      }
+    });
+    return true;
+  }
+
+  void emitPurchased() {
+    final param = purchaseParam!;
+    _controller.add([
+      SK2PurchaseDetails(
+        purchaseID: 'accepted-transaction',
+        productID: param.productDetails.id,
+        verificationData: PurchaseVerificationData(
+          localVerificationData: 'local-secret',
+          serverVerificationData: 'receipt-secret',
+          source: 'store',
+        ),
+        transactionDate: '0',
+        status: PurchaseStatus.purchased,
+        appAccountToken: param.applicationUserName,
+      ),
+    ]);
+  }
+
+  @override
+  Future<void> completePurchase(PurchaseDetails purchase) async {
+    completeCalls += 1;
+  }
+
+  @override
+  Future<void> restorePurchases({String? applicationUserName}) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+ProductDetails _bundledSubscriptionProduct() => AppStoreProduct2Details(
+      id: 'pro_monthly',
+      title: 'Pro',
+      description: 'Pro subscription',
+      price: r'$9.99',
+      rawPrice: 9.99,
+      currencyCode: 'USD',
+      currencySymbol: r'$',
+      sk2Product: SK2Product(
+        id: 'pro_monthly',
+        displayName: 'Pro',
+        displayPrice: r'$9.99',
+        description: 'Pro subscription',
+        price: 9.99,
+        type: SK2ProductType.autoRenewable,
+        priceLocale: SK2PriceLocale(
+          currencyCode: 'USD',
+          currencySymbol: r'$',
+        ),
+      ),
+    );
+
+ProductDetails _bundledStoreKit1SubscriptionProduct() => AppStoreProductDetails(
+      id: 'pro_monthly',
+      title: 'Pro',
+      description: 'Pro subscription',
+      price: r'$9.99',
+      rawPrice: 9.99,
+      currencyCode: 'USD',
+      currencySymbol: r'$',
+      skProduct: SKProductWrapper(
+        productIdentifier: 'pro_monthly',
+        localizedTitle: 'Pro',
+        localizedDescription: 'Pro subscription',
+        priceLocale: SKPriceLocaleWrapper(
+          currencyCode: 'USD',
+          currencySymbol: r'$',
+          countryCode: 'US',
+        ),
+        price: '9.99',
+        subscriptionPeriod: SKProductSubscriptionPeriodWrapper(
+          numberOfUnits: 1,
+          unit: SKSubscriptionPeriodUnit.month,
+        ),
+      ),
+    );
 
 /// A minimal paywall whose single button fires `restage.purchase` for the
 /// `primary` slot.
@@ -404,6 +626,15 @@ void main() {
     Restage.debugRestageRpcClient = spy;
 
     await _pumpAndBuy(tester, publishedVersion: 7);
+    await tester.runAsync(() async {
+      for (var turn = 0;
+          turn < 4 && spy.reportTransactionCalls.isEmpty;
+          turn += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
 
     expect(spy.reportAttributionCalls, isEmpty);
     expect(spy.reportTransactionCalls, hasLength(1));
@@ -414,6 +645,187 @@ void main() {
     // The served published version is threaded onto the verified-purchase
     // report for MAR attribution.
     expect(request.paywallPublishedVersion, 7);
+  });
+
+  testWidgets(
+      'bundled paywall captures the exact rendered intent tuple and reports once',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    billing_internal.PurchaseCoordinator.debugPlatformAdapterFactory =
+        (_, __) => const [];
+    final plugin = _BundledInAppPurchase();
+    final rpc = _BundledRpcClient();
+    Restage.configure(
+      apiKey: 'pk_test',
+      baseUrl: 'https://billing.test',
+      analyticsEnabled: false,
+      products: const [
+        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
+      ],
+      billingGateway: billing_internal.InAppPurchaseGateway(plugin: plugin),
+    );
+    debugDefaultTargetPlatformOverride = null;
+    Restage.debugRestageRpcClient = rpc;
+    final bytes = Uint8List.fromList(
+      encodeLibraryBlob(parseLibraryFile(_buyButtonSource)),
+    );
+    final received = <RestageEvent>[];
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'served-paywall',
+          resolver: _StaticResolver(
+            bytes,
+            publishedVersion: 7,
+            experimentId: 'experiment-a',
+            variantId: 'arm-b',
+            experimentEpoch: 3,
+          ),
+          onEvent: received.add,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Buy'));
+    await tester.runAsync(() async {
+      for (var turn = 0; turn < 8 && rpc.reportRequests.isEmpty; turn += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(rpc.intentRequests, hasLength(1));
+    final intent = rpc.intentRequests.single;
+    expect(intent.paywallId, 'served-paywall');
+    expect(intent.paywallPublishedVersion, 7);
+    expect(intent.paywallVariantSlug, isNull);
+    expect(intent.experimentId, 'experiment-a');
+    expect(intent.experimentVariantId, 'arm-b');
+    expect(intent.experimentEpoch, 3);
+    expect(plugin.purchaseParam?.applicationUserName, intent.purchaseIntentId);
+    expect(rpc.reportRequests, hasLength(1));
+    expect(plugin.completeCalls, 1);
+    expect(received.whereType<PurchaseSucceeded>(), hasLength(1));
+    expect(
+      Restage.currentEntitlements.where((entry) => entry.id == 'pro'),
+      hasLength(1),
+    );
+  });
+
+  test(
+      'configure-owned StoreKit 1 offer fails before intent, mint, or store UI',
+      () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    billing_internal.PurchaseCoordinator.debugPlatformAdapterFactory =
+        (_, __) => const [];
+    final plugin = _BundledInAppPurchase(
+      product: _bundledStoreKit1SubscriptionProduct(),
+    );
+    final rpc = _BundledRpcClient();
+    Restage.configure(
+      apiKey: 'pk_test',
+      baseUrl: 'https://billing.test',
+      analyticsEnabled: false,
+      products: const [
+        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
+      ],
+      billingGateway: billing_internal.InAppPurchaseGateway(plugin: plugin),
+    );
+    Restage.debugRestageRpcClient = rpc;
+
+    final outcome = await Restage.purchaseProduct(
+      'pro_monthly',
+      offerId: 'winback',
+    );
+
+    expect(outcome, isA<PurchaseOutcomeFailed>());
+    expect(
+      (outcome as PurchaseOutcomeFailed).errorCode,
+      RestageBillingErrorCodes.offerUnavailable,
+    );
+    expect(rpc.intentRequests, isEmpty);
+    expect(rpc.mintRequests, isEmpty);
+    expect(plugin.buyCalls, 0);
+  });
+
+  testWidgets(
+      'bundled pending approval after unmount emits one global accepted success',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    billing_internal.PurchaseCoordinator.debugPlatformAdapterFactory =
+        (_, __) => const [];
+    final plugin = _BundledInAppPurchase(pendingOnBuy: true);
+    final rpc = _BundledRpcClient();
+    Restage.configure(
+      apiKey: 'pk_test',
+      baseUrl: 'https://billing.test',
+      analyticsEnabled: false,
+      products: const [
+        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
+      ],
+      billingGateway: billing_internal.InAppPurchaseGateway(plugin: plugin),
+    );
+    debugDefaultTargetPlatformOverride = null;
+    Restage.debugRestageRpcClient = rpc;
+    final global = <RestageEvent>[];
+    final subscription = Restage.events.listen(global.add);
+    addTearDown(subscription.cancel);
+    final bytes = Uint8List.fromList(
+      encodeLibraryBlob(parseLibraryFile(_buyButtonSource)),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'served-paywall',
+          resolver: _StaticResolver(bytes, publishedVersion: 7),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Buy'));
+    await tester.runAsync(() async {
+      for (var turn = 0;
+          turn < 8 && global.whereType<PurchasePending>().isEmpty;
+          turn += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(global.whereType<PurchasePending>(), hasLength(1));
+
+    plugin.emitPurchased();
+    await tester.runAsync(() async {
+      for (var turn = 0;
+          turn < 8 && global.whereType<PurchaseSucceeded>().isEmpty;
+          turn += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
+    await tester.pump();
+    plugin.emitPurchased();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(Duration.zero);
+    });
+    await tester.pump();
+
+    expect(global.whereType<PurchaseSucceeded>(), hasLength(1));
+    expect(global.whereType<EntitlementGranted>(), hasLength(1));
+    expect(
+      global.whereType<PurchaseSucceeded>().single.paywallId,
+      'served-paywall',
+    );
+    expect(rpc.reportRequests, hasLength(1));
+    expect(plugin.completeCalls, 1);
+    expect(
+      Restage.currentEntitlements.where((entry) => entry.id == 'pro'),
+      hasLength(1),
+    );
   });
 
   testWidgets(
@@ -481,6 +893,15 @@ void main() {
 
     await tester.tap(find.text('Buy'));
     await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      for (var turn = 0;
+          turn < 4 && spy.reportTransactionCalls.isEmpty;
+          turn += 1) {
+        await Future<void>.delayed(Duration.zero);
+      }
+    });
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
 
     expect(spy.reportTransactionCalls, hasLength(1));
     expect(spy.reportTransactionCalls.single.paywallPublishedVersion, 5);
