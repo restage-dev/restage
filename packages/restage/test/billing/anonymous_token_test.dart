@@ -180,6 +180,39 @@ void main() {
 
       expect(store.cached, token);
     });
+
+    test('authoritative replacement is durable and updates the cache',
+        () async {
+      const recovered = '11111111-2222-4333-8444-555555555555';
+      final store = AnonymousTokenStore();
+      final original = await store.getOrCreate();
+
+      await store.replaceWithAuthoritativeToken(recovered);
+
+      expect(original, isNot(recovered));
+      expect(store.cached, recovered);
+      expect(await store.getOrCreate(), recovered);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('restage.anonymous_app_user_token'), recovered);
+    });
+
+    test('malformed authoritative replacement never exposes the value',
+        () async {
+      const malformed = 'secret-but-not-a-token';
+      final store = AnonymousTokenStore();
+
+      Object? error;
+      try {
+        await store.replaceWithAuthoritativeToken(malformed);
+      } on Object catch (caught) {
+        error = caught;
+      }
+
+      expect(error, isNotNull);
+      expect(error.toString(), isNot(contains(malformed)));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('restage.anonymous_app_user_token'), isNull);
+    });
   });
 
   group('resolveApplicationUserNameForStamping', () {

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math';
 
+import 'package:meta/meta.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persists an opaque anonymous app-user token used to thread the same
@@ -28,23 +30,62 @@ class AnonymousTokenStore {
   final Future<SharedPreferences> Function() _prefsProvider;
 
   String? _cached;
+  Future<void> _operations = Future<void>.value();
 
   /// Returns the persisted token, generating + persisting a new UUIDv4 on
   /// first run. Subsequent calls return the cached value without touching
   /// shared preferences.
-  Future<String> getOrCreate() async {
-    final cached = _cached;
-    if (cached != null) return cached;
-    final prefs = await _prefsProvider();
-    final persisted = prefs.getString(_prefsKey);
-    if (persisted != null && isValidUuid(persisted)) {
-      _cached = persisted;
-      return persisted;
+  Future<String> getOrCreate() => _serialize(() async {
+        final cached = _cached;
+        if (cached != null) return cached;
+        final prefs = await _prefsProvider();
+        final persisted = prefs.getString(_prefsKey);
+        if (persisted != null && isValidUuid(persisted)) {
+          _cached = persisted;
+          return persisted;
+        }
+        final fresh = generateUuidV4();
+        await prefs.setString(_prefsKey, fresh);
+        _cached = fresh;
+        return fresh;
+      });
+
+  /// Durably replaces the best-effort token with backend-authoritative state.
+  ///
+  /// The value is validated before storage and is cached only after the
+  /// preference write succeeds. The thrown validation/write errors never
+  /// include [token], so callers can report a shape-only diagnostic safely.
+  @internal
+  Future<void> replaceWithAuthoritativeToken(
+    String token, {
+    bool Function()? isCurrent,
+  }) {
+    if (!isValidUuid(token)) {
+      throw ArgumentError('The authoritative anonymous token was malformed.');
     }
-    final fresh = generateUuidV4();
-    await prefs.setString(_prefsKey, fresh);
-    _cached = fresh;
-    return fresh;
+    final isStillCurrent = isCurrent ?? () => true;
+    return _serialize(() async {
+      if (!isStillCurrent()) return;
+      final prefs = await _prefsProvider();
+      if (!isStillCurrent()) return;
+      final persisted = await prefs.setString(_prefsKey, token);
+      if (!persisted) {
+        throw StateError('The authoritative anonymous token was not stored.');
+      }
+      if (isStillCurrent()) _cached = token;
+    });
+  }
+
+  Future<T> _serialize<T>(Future<T> Function() operation) {
+    final result = Completer<T>();
+    _operations = _operations.then((_) async {
+      try {
+        result.complete(await operation());
+      } on Object catch (error, stackTrace) {
+        result.completeError(error, stackTrace);
+      }
+    });
+    return result.future;
   }
 
   /// The cached token if [getOrCreate] has resolved at least once,

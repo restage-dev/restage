@@ -15,7 +15,8 @@ export 'src/authoring/paywall_price_for.dart';
 export 'src/authoring/paywall_purchase.dart';
 export 'src/authoring/paywall_source.dart';
 export 'src/billing/billing_gateway.dart';
-export 'src/billing/in_app_purchase_gateway.dart';
+export 'src/billing/in_app_purchase_gateway.dart'
+    hide PurchaseCoordinator, PurchaseProcessingContext;
 export 'src/billing/signed_native_offer.dart';
 export 'src/events/event_enums.dart';
 export 'src/events/restage_event.dart';

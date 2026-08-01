@@ -13,6 +13,7 @@ import '../analytics/analytics_transport.dart';
 import '../billing/anonymous_token.dart';
 import '../billing/billing_gateway.dart';
 import '../billing/in_app_purchase_gateway.dart';
+import '../billing/purchase_attribution.dart';
 import '../billing/signed_native_offer.dart';
 import '../metering/metering_token_store.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
@@ -73,6 +74,8 @@ abstract final class Restage {
   // tests. The `billingGateway` getter materializes on first read; tests that
   // never invoke a purchase / restore never instantiate it.
   static BillingGateway? _billingGateway;
+  static PurchaseCoordinator? _purchaseCoordinator;
+  static int _purchaseCoordinatorEpoch = 0;
 
   /// Tracks the server's last-reported state per entitlement id. Drives
   /// the reconciliation transition matrix in [_reconcileFromServer]:
@@ -154,8 +157,14 @@ abstract final class Restage {
       products.map((p) => p.id).toSet().length == products.length,
       'Restage.configure: products contain duplicate ids',
     );
+    _purchaseCoordinatorEpoch += 1;
+    _purchaseCoordinator?.cancel();
+    _purchaseCoordinator = null;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
+    // A reconfiguration must never retain a client bound to the previous
+    // origin or credential. Test clients can be reinstalled after configure.
+    _rpcClient = null;
     _environment = environment;
     _defaultResolver = resolver ??
         RestageVariantResolver(
@@ -192,6 +201,19 @@ abstract final class Restage {
     // The current bundled asset resolvers do not read `locale` or `identity`.
     if (billingGateway != null) {
       _billingGateway = billingGateway;
+    }
+    final configuredGateway = _billingGateway;
+    if (configuredGateway is InAppPurchaseGateway && _isNativeBillingPlatform) {
+      _installPurchaseCoordinator(configuredGateway);
+    } else if (configuredGateway == null &&
+        baseUrl != null &&
+        products.isNotEmpty &&
+        _isNativeBillingPlatform) {
+      final bundled = InAppPurchaseGateway(
+        anonymousTokenProvider: _resolveAnonymousToken,
+      );
+      _billingGateway = bundled;
+      _installPurchaseCoordinator(bundled);
     }
     _registerLifecycleObserver();
     _configureAnalytics(
@@ -664,24 +686,76 @@ abstract final class Restage {
   /// instantiated on first read); override via
   /// `Restage.configure(billingGateway:)`.
   ///
-  /// The lazy-instantiated default threads the anonymous app-user token
-  /// through to `PurchaseParam.applicationUserName` on every purchase /
-  /// restore call. Hosts that pass an explicit [BillingGateway] via
-  /// [configure] own the stamping themselves.
-  static BillingGateway get billingGateway => _billingGateway ??=
-      InAppPurchaseGateway(anonymousTokenProvider: _resolveAnonymousToken);
+  /// The bundled path installs its coordinator before the first purchase. It
+  /// commits and stamps a purchase intent before opening store UI. Hosts that
+  /// pass a custom [BillingGateway] continue to own their gateway lifecycle.
+  static BillingGateway get billingGateway {
+    final existing = _billingGateway;
+    if (existing != null) {
+      if (existing is InAppPurchaseGateway && _isNativeBillingPlatform) {
+        _installPurchaseCoordinator(existing);
+      }
+      return existing;
+    }
+    final bundled = InAppPurchaseGateway(
+      anonymousTokenProvider: _resolveAnonymousToken,
+    );
+    _billingGateway = bundled;
+    if (_isNativeBillingPlatform) _installPurchaseCoordinator(bundled);
+    return bundled;
+  }
+
+  static void _installPurchaseCoordinator(InAppPurchaseGateway gateway) {
+    if (_purchaseCoordinator != null) return;
+    final epoch = _purchaseCoordinatorEpoch;
+    final coordinator = PurchaseCoordinator(
+      gateway: gateway,
+      knownSubscriptionProductIds: _productsById.keys.toSet(),
+      anonymousTokenProvider: _resolveAnonymousToken,
+      rpcClientProvider: _requireRpcClient,
+      store: _resolvePlatformStore(),
+      epoch: epoch,
+      isCurrentEpoch: (candidate) => candidate == _purchaseCoordinatorEpoch,
+      authoritativeTokenReplacer: (token) {
+        if (epoch != _purchaseCoordinatorEpoch) return Future<void>.value();
+        return _anonymousTokenStore.replaceWithAuthoritativeToken(
+          token,
+          isCurrent: () => epoch == _purchaseCoordinatorEpoch,
+        );
+      },
+      entitlementReconciler: _reconcileFromServer,
+      entitlementSync: () => _syncEntitlementsForPurchaseEpoch(epoch),
+      delayedSuccessEmitter: _emitDelayedPurchaseSuccess,
+    );
+    _purchaseCoordinator = coordinator;
+    coordinator.start();
+  }
 
   static Future<String?> _resolveAnonymousToken() async {
     try {
       return await _anonymousTokenStore.getOrCreate();
-    } on Object catch (error) {
+    } on Object {
       // SharedPreferences can throw on platforms that haven't initialized
       // their plugins yet. The stamping path is a defense-in-depth signal
       // for fraud detection; losing it on a degraded platform doesn't
       // block the purchase flow.
-      debugPrint('[restage] anonymous token resolution failed: $error');
+      debugPrint('[restage] anonymous token resolution failed');
       return null;
     }
+  }
+
+  static void _emitDelayedPurchaseSuccess(
+    PurchaseOutcomeSucceeded outcome,
+    PurchaseAttributionSnapshot attribution,
+  ) {
+    fireEvent(PurchaseSucceeded(
+      paywallId: attribution.paywallId,
+      productId: outcome.productId,
+      transactionId: outcome.transactionId,
+      priceMicros: outcome.priceMicros,
+      currency: outcome.currency,
+      offerId: attribution.offerId,
+    ));
   }
 
   /// Purchases [productId], optionally selecting a Google Play [basePlanId] or
@@ -690,11 +764,12 @@ abstract final class Restage {
   ///
   /// With no [offerId] this is a plain (no-discount) purchase. With an [offerId]
   /// the SDK resolves the offer for the current store and transports it through
-  /// the gateway, threading one store-account token through both steps: on Apple
-  /// it fetches a server-minted signature bound to that token; on Android it lets
-  /// the gateway resolve the eligible offer token from the live product (no
-  /// server). If the offer cannot be resolved, the active gateway cannot apply
-  /// native offers, or the platform is unsupported, it fails closed with
+  /// the gateway. Configure-owned purchases bind offer minting and the store
+  /// purchase to the same purchase-intent UUID; legacy/custom gateway calls use
+  /// their existing store-account token. On Android the gateway resolves the
+  /// eligible offer token from the live product (no server). If the offer cannot
+  /// be resolved, the active gateway cannot apply native offers, or the platform
+  /// is unsupported, it fails closed with
   /// [RestageBillingErrorCodes.offerUnavailable] rather than charging the full
   /// price — the host/paywall decides whether to retry or present the base
   /// price. It never silently charges full price for a discount the user chose.
@@ -705,18 +780,30 @@ abstract final class Restage {
   /// with [RestageBillingErrorCodes.basePlanSelectionRequired] rather than buy an
   /// arbitrary plan or silently apply a discount. With [offerId] it scopes the
   /// offer to that base plan (disambiguating an offer id shared across base
-  /// plans). It has no effect on Apple subscriptions or one-time products, so
-  /// cross-platform call sites may pass it unconditionally.
+  /// plans). It has no effect on Apple subscriptions, so cross-platform call
+  /// sites may pass it unconditionally. The configure-owned bundled path
+  /// currently accepts auto-renewing subscriptions only; one-time products
+  /// fail closed before intent creation or store UI. Custom and legacy direct
+  /// gateways retain their existing product behavior.
   static Future<PurchaseOutcome> purchaseProduct(
     String productId, {
     String? offerId,
     String? basePlanId,
   }) {
+    final gateway = billingGateway;
+    final coordinator = _purchaseCoordinator;
+    if (gateway is InAppPurchaseGateway && coordinator != null) {
+      return coordinator.purchaseProduct(
+        productId,
+        offerId: offerId,
+        basePlanId: basePlanId,
+      );
+    }
     // Only an absent offerId is a plain purchase. A present-but-empty offerId
     // is a malformed offer request and fails closed below — it must never
     // silently collapse to a full-price purchase.
     if (offerId == null) {
-      return billingGateway.purchase(productId, basePlanId: basePlanId);
+      return gateway.purchase(productId, basePlanId: basePlanId);
     }
     return _purchaseWithOffer(productId, offerId, basePlanId);
   }
@@ -991,6 +1078,22 @@ abstract final class Restage {
     _reconcileFromServer(summaries);
   }
 
+  static Future<void> _syncEntitlementsForPurchaseEpoch(int epoch) async {
+    if (epoch != _purchaseCoordinatorEpoch) return;
+    final client = _requireRpcClient();
+    if (client == null) return;
+    final token = await _resolveAnonymousToken();
+    if (epoch != _purchaseCoordinatorEpoch) return;
+    final summaries = await client.syncEntitlements(
+      EntitlementSyncRequest(
+        appAnonymousToken: token,
+        knownStoreTransactionIds: const [],
+      ),
+    );
+    if (epoch != _purchaseCoordinatorEpoch || summaries == null) return;
+    _reconcileFromServer(summaries);
+  }
+
   /// Internal: dispatches a `reportTransaction` call to the entitlement
   /// service in the background. Wired by `RestagePaywall._runPurchase`
   /// on a successful purchase outcome. Failures are logged + reconciled
@@ -1005,8 +1108,9 @@ abstract final class Restage {
     final client = _requireRpcClient();
     if (client == null) return;
     final token = await _resolveAnonymousToken();
-    final summaries = await client.reportTransaction(
+    final response = await client.reportTransaction(
       ReportTransactionRequest(
+        reportId: AnonymousTokenStore.generateUuidV4(),
         store: _resolvePlatformStore(),
         storeVerificationData: storeVerificationData,
         storeProductId: storeProductId,
@@ -1016,11 +1120,11 @@ abstract final class Restage {
         paywallPublishedVersion: paywallPublishedVersion,
       ),
     );
-    // Transport failure or empty response: the optimistic local grant
-    // from `RestagePaywall._runPurchase` stays in place; the next
-    // `syncEntitlements` reconciles.
-    if (summaries == null || summaries.isEmpty) return;
-    _reconcileFromServer(summaries);
+    // On transport failure or an accepted response without entitlements, the
+    // optimistic local grant from `RestagePaywall._runPurchase` stays in
+    // place; the next `syncEntitlements` reconciles.
+    if (response == null || response.entitlements.isEmpty) return;
+    _reconcileFromServer(response.entitlements);
   }
 
   /// Internal: dispatches an attribution-only report for a **receipt-less**
@@ -1077,6 +1181,9 @@ abstract final class Restage {
   /// resolved client-side from the product's eligible subscription offers.
   static bool get _isAndroidPlatform =>
       defaultTargetPlatform == TargetPlatform.android;
+
+  static bool get _isNativeBillingPlatform =>
+      _isApplePlatform || _isAndroidPlatform;
 
   static void _registerLifecycleObserver() {
     if (_lifecycleObserver != null) return;
@@ -1199,6 +1306,15 @@ abstract final class Restage {
     _entitlementsController?.close();
     _entitlementsController = null;
     _billingGateway = null;
+    _purchaseCoordinatorEpoch += 1;
+    _purchaseCoordinator?.cancel();
+    _purchaseCoordinator = null;
+    PurchaseCoordinator.debugPlatformAdapterFactory = null;
+    PurchaseCoordinator.debugEvidenceProcessor = null;
+    PurchaseCoordinator.debugReportIdGenerator = null;
+    PurchaseCoordinator.debugRetryDelayPolicy = null;
+    PurchaseCoordinator.debugDelay = null;
+    BundledPurchaseOwnership.debugReset();
     _rpcClient = null;
     _lastSyncedSummaryById.clear();
     _anonymousTokenStore = AnonymousTokenStore();
@@ -1230,6 +1346,10 @@ abstract final class Restage {
   static void _handleLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
+        final purchaseCoordinator = _purchaseCoordinator;
+        if (purchaseCoordinator != null) {
+          scheduleMicrotask(purchaseCoordinator.onAppResumed);
+        }
         scheduleMicrotask(Restage.syncEntitlements);
         scheduleMicrotask(
           () => SurfaceRefreshRegistry.instance.onAppResumed(),

@@ -106,6 +106,25 @@ void main() {
       expect(await clientWith(mock).mintOfferSignature(request), isNull);
     });
   });
+
+  test('intent-bound mint posts only the committed purchase intent', () async {
+    late http.Request seen;
+    final mock = MockClient((req) async {
+      seen = req;
+      return http.Response(jsonEncode(okBody()), 200);
+    });
+    final intentRequest = IntentBoundOfferSignatureRequest(
+      purchaseIntentId: '11111111-2222-4333-8444-555555555555',
+    );
+
+    final response = await clientWith(mock).mintIntentBoundOfferSignature(
+      intentRequest,
+    );
+
+    expect(response, isNotNull);
+    expect(seen.url.path, '/sdk/v1/offer-signature');
+    expect(jsonDecode(seen.body), intentRequest.toJson());
+  });
 }
 
 class _NetworkDown implements Exception {

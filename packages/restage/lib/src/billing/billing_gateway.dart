@@ -66,12 +66,17 @@ abstract class OfferCapableBillingGateway implements BillingGateway {
   /// resolving with the outcome once the store reports a terminal status — the
   /// same contract as [BillingGateway.purchase], with the offer applied.
   ///
-  /// [appAccountToken] is the store-account token threaded through the purchase
-  /// (Apple `appAccountToken` / Google `obfuscatedAccountId`). For an Apple
-  /// offer it is the value the signature commits to, so it **must** be the same
-  /// value the SDK sent when minting [offer] — the store rejects the offer if
-  /// the two differ. The SDK resolves the token once and threads the same value
-  /// into both the resolution step and this call.
+  /// [appAccountToken] is the stable store-account token supplied to custom
+  /// gateways and directly invoked bundled gateways (Apple `appAccountToken` /
+  /// Google `obfuscatedAccountId`). For an Apple offer it is the value the
+  /// supplied signature commits to, so those gateways must transport the same
+  /// value.
+  ///
+  /// When the bundled gateway is installed by `Restage.configure`, the SDK
+  /// instead creates a fresh durable purchase intent for every call. It stamps
+  /// that intent into the store request and re-resolves the selected offer; the
+  /// stable token remains in this signature for source compatibility and is not
+  /// reused as a purchase intent.
   ///
   /// Fails closed with a [PurchaseOutcomeFailed] carrying
   /// [RestageBillingErrorCodes.offerUnavailable] when the offer cannot be
@@ -146,8 +151,9 @@ final class PurchaseOutcomeSucceeded extends PurchaseOutcome {
   final String productId;
 
   /// Store-issued transaction identifier. For the bundled gateway this is the
-  /// receipt's transaction id; for an external-provider gateway it is the
-  /// id that provider surfaces (e.g. RevenueCat's `StoreTransaction.
+  /// StoreKit transaction ID on Apple and the Google Play order ID on Android;
+  /// for an external-provider gateway it is the id that provider surfaces
+  /// (e.g. RevenueCat's `StoreTransaction.
   /// transactionIdentifier` — the per-transaction id on iOS, the Google order
   /// id on Android), which a server can correlate to its own store ingestion.
   final String transactionId;

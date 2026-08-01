@@ -72,7 +72,7 @@ class _SpyRestageRpcClient extends RestageRpcClient {
       reportAttributionCalls = [];
 
   @override
-  Future<List<EntitlementSummary>?> reportTransaction(
+  Future<ReportTransactionResponse?> reportTransaction(
     ReportTransactionRequest request,
   ) async {
     reportTransactionCalls.add(request);

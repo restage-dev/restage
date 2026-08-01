@@ -14,6 +14,8 @@ final class ReportTransactionRequest {
     required this.storeVerificationData,
     required this.storeProductId,
     required this.storeTransactionId,
+    this.reportId,
+    this.purchaseIntentId,
     this.appAnonymousToken,
     this.paywallId,
     this.paywallVariantSlug,
@@ -27,7 +29,27 @@ final class ReportTransactionRequest {
   factory ReportTransactionRequest.fromJson(Map<String, dynamic> json) {
     final store = _requiredString(json, 'store');
     _checkAllowed(store, _stores, 'store');
+    final reportId = _optionalString(json, 'reportId');
+    if (reportId != null && !_isUuidV4(reportId)) {
+      throw ArgumentError.value(
+        reportId,
+        'reportId',
+        'Expected a canonical UUID v4',
+      );
+    }
+    final purchaseIntentId = _optionalString(json, 'purchaseIntentId');
+    if (purchaseIntentId != null &&
+        (!_isUuidV4(purchaseIntentId) ||
+            purchaseIntentId != purchaseIntentId.toLowerCase())) {
+      throw ArgumentError.value(
+        purchaseIntentId,
+        'purchaseIntentId',
+        'Expected a canonical lowercase UUID v4',
+      );
+    }
     return ReportTransactionRequest(
+      reportId: reportId,
+      purchaseIntentId: purchaseIntentId,
       store: store,
       storeVerificationData: _requiredString(json, 'storeVerificationData'),
       storeProductId: _requiredString(json, 'storeProductId'),
@@ -38,6 +60,20 @@ final class ReportTransactionRequest {
       paywallPublishedVersion: _optionalInt(json, 'paywallPublishedVersion'),
     );
   }
+
+  /// Client-generated report correlation UUID.
+  ///
+  /// This is correlation-only. Store identity remains the authoritative
+  /// idempotency boundary. It is nullable so servers remain compatible with
+  /// requests from SDK versions published before report correlation existed.
+  final String? reportId;
+
+  /// Client-observed purchase-intent UUID, when present in store evidence.
+  ///
+  /// This is a routing and consistency hint only. The server associates an
+  /// intent only from provider-verified store evidence. It remains nullable so
+  /// request shapes from earlier SDK versions remain valid.
+  final String? purchaseIntentId;
 
   /// Store that produced the transaction.
   final String store;
@@ -66,6 +102,8 @@ final class ReportTransactionRequest {
   /// Converts this request to JSON.
   Map<String, dynamic> toJson() {
     return {
+      if (reportId != null) 'reportId': reportId,
+      if (purchaseIntentId != null) 'purchaseIntentId': purchaseIntentId,
       'store': store,
       'storeVerificationData': storeVerificationData,
       'storeProductId': storeProductId,
@@ -82,6 +120,8 @@ final class ReportTransactionRequest {
   bool operator ==(Object other) {
     return identical(this, other) ||
         other is ReportTransactionRequest &&
+            other.reportId == reportId &&
+            other.purchaseIntentId == purchaseIntentId &&
             other.store == store &&
             other.storeVerificationData == storeVerificationData &&
             other.storeProductId == storeProductId &&
@@ -96,6 +136,8 @@ final class ReportTransactionRequest {
   int get hashCode {
     return Object.hash(
       store,
+      reportId,
+      purchaseIntentId,
       storeVerificationData,
       storeProductId,
       storeTransactionId,
@@ -136,4 +178,27 @@ void _checkAllowed(String value, Set<String> allowed, String key) {
   if (!allowed.contains(value)) {
     throw ArgumentError.value(value, key, 'Unsupported value');
   }
+}
+
+bool _isUuidV4(String value) {
+  if (value.length != 36) return false;
+  for (var i = 0; i < value.length; i += 1) {
+    final codeUnit = value.codeUnitAt(i);
+    if (i == 8 || i == 13 || i == 18 || i == 23) {
+      if (codeUnit != 0x2d) return false;
+      continue;
+    }
+    final isHex = (codeUnit >= 0x30 && codeUnit <= 0x39) ||
+        (codeUnit >= 0x41 && codeUnit <= 0x46) ||
+        (codeUnit >= 0x61 && codeUnit <= 0x66);
+    if (!isHex) return false;
+  }
+  if (value.codeUnitAt(14) != 0x34) return false;
+  final variant = value.codeUnitAt(19);
+  return variant == 0x38 ||
+      variant == 0x39 ||
+      variant == 0x41 ||
+      variant == 0x42 ||
+      variant == 0x61 ||
+      variant == 0x62;
 }

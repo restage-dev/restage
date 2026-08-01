@@ -67,10 +67,10 @@ final class SurfaceStamp {
 /// from a server response that successfully returned no entitlements
 /// (an empty `List<EntitlementSummary>`). Callers use the null vs empty
 /// distinction to preserve local state on transport failure rather than
-/// confusing it with "server says nothing's entitled". There is no
-/// retry-with-backoff in the client, by design — the server's
-/// transaction store is the durable backstop and the next sync
-/// converges the SDK's view.
+/// confusing it with "server says nothing's entitled". Transaction retry and
+/// native-store replay are owned by the configure-installed purchase
+/// coordinator; entitlement sync only reconciles the resulting entitlement
+/// view.
 class RestageRpcClient {
   /// Creates a client targeting [baseUrl] and authenticating as [apiKey].
   ///
@@ -80,9 +80,13 @@ class RestageRpcClient {
     required String baseUrl,
     required String apiKey,
     http.Client? httpClient,
+    @visibleForTesting bool? debugFailTransactionReports,
   })  : _baseUrl = baseUrl,
         _apiKey = apiKey,
-        _client = httpClient ?? http.Client() {
+        _client = httpClient ?? http.Client(),
+        _debugFailTransactionReports = _debugTransactionReportOutageEnabled(
+          debugFailTransactionReports,
+        ) {
     if (baseUrl.isEmpty) {
       throw ArgumentError.value(baseUrl, 'baseUrl', 'must not be empty');
     }
@@ -104,17 +108,74 @@ class RestageRpcClient {
   final String _baseUrl;
   final String _apiKey;
   final http.Client _client;
+  final bool _debugFailTransactionReports;
 
-  /// Reports a completed store transaction. Returns the authoritative
-  /// entitlement set from the server's response, or `null` when the
-  /// request fails — the SDK reconciles via the next sync.
-  Future<List<EntitlementSummary>?> reportTransaction(
+  /// Durably creates or exactly replays an immutable purchase intent.
+  ///
+  /// Returns the correlated response only when the server echoes the exact
+  /// client-generated intent UUID. Any transport or shape failure returns
+  /// `null`, which callers treat as a hard stop before opening store UI.
+  Future<CreatePurchaseIntentResponse?> createPurchaseIntent(
+    CreatePurchaseIntentRequest request,
+  ) async {
+    final json = await _postJsonObject(
+      path: '/sdk/v1/purchase-intent',
+      body: request.toJson(),
+    );
+    if (json == null) return null;
+    try {
+      final response = CreatePurchaseIntentResponse.fromJson(json);
+      if (response.purchaseIntentId != request.purchaseIntentId) {
+        debugPrint('[restage] purchase intent response did not correlate');
+        return null;
+      }
+      return response;
+    } on Object {
+      debugPrint('[restage] purchase intent response was malformed');
+      return null;
+    }
+  }
+
+  /// Reports a store transaction. Returns explicit durable acceptance, or
+  /// `null` when transport, parsing, correlation, or acceptance validation
+  /// fails.
+  Future<ReportTransactionResponse?> reportTransaction(
     ReportTransactionRequest request,
-  ) =>
-      _postEntitlements(
-        path: '/sdk/v1/reportTransaction',
-        body: request.toJson(),
+  ) async {
+    if (_debugFailTransactionReports) {
+      debugPrint(
+        '[restage] transaction report blocked by local debug outage injection',
       );
+      return null;
+    }
+    final reportId = request.reportId;
+    if (reportId == null) {
+      debugPrint('[restage] transaction report is missing reportId');
+      return null;
+    }
+    final json = await _postJsonObject(
+      path: '/sdk/v1/reportTransaction',
+      body: request.toJson(),
+    );
+    if (json == null) return null;
+    try {
+      final response = ReportTransactionResponse.fromJson(json);
+      if (!response.accepted ||
+          response.reportId != reportId ||
+          !_evidenceMatchesRequest(response.evidence, request)) {
+        debugPrint(
+          '[restage] transaction report response was not completion-safe',
+        );
+        return null;
+      }
+      return response;
+    } on Object {
+      // Parser exceptions may retain malformed wire values. Do not interpolate
+      // them here because a hostile response could reflect a purchase token.
+      debugPrint('[restage] transaction report response was malformed');
+      return null;
+    }
+  }
 
   /// Reports paywall attribution for a **receipt-less** purchase — one made
   /// through an external billing provider (e.g. RevenueCat) that keeps the
@@ -262,8 +323,28 @@ class RestageRpcClient {
     if (json == null) return null;
     try {
       return OfferSignatureResponse.fromJson(json);
-    } on Object catch (error) {
-      debugPrint('[restage] offer-signature response was malformed: $error');
+    } on Object {
+      debugPrint('[restage] offer-signature response was malformed');
+      return null;
+    }
+  }
+
+  /// Mints an Apple promotional-offer signature from a durable intent.
+  ///
+  /// The server derives the immutable product, offer, and account-token tuple
+  /// from [request], so no caller-supplied tuple can drift after intent commit.
+  Future<OfferSignatureResponse?> mintIntentBoundOfferSignature(
+    IntentBoundOfferSignatureRequest request,
+  ) async {
+    final json = await _postJsonObject(
+      path: '/sdk/v1/offer-signature',
+      body: request.toJson(),
+    );
+    if (json == null) return null;
+    try {
+      return OfferSignatureResponse.fromJson(json);
+    } on Object {
+      debugPrint('[restage] offer-signature response was malformed');
       return null;
     }
   }
@@ -323,8 +404,10 @@ class RestageRpcClient {
         return null;
       }
       return decoded.cast<String, dynamic>();
-    } on Object catch (error) {
-      debugPrint('[restage] request to $path threw: $error');
+    } on Object {
+      // Transport exceptions can include request details. Keep diagnostics
+      // shape-only because transaction requests may carry receipts or tokens.
+      debugPrint('[restage] request to $path failed before a response');
       return null;
     }
   }
@@ -342,6 +425,33 @@ class RestageRpcClient {
     }
     return out;
   }
+}
+
+const bool _debugTransactionReportOutageRequested = bool.fromEnvironment(
+  'RESTAGE_DEBUG_FAIL_TRANSACTION_REPORTS',
+);
+
+bool _debugTransactionReportOutageEnabled(bool? testOverride) {
+  var enabled = false;
+  assert(() {
+    enabled = testOverride ?? _debugTransactionReportOutageRequested;
+    return true;
+  }());
+  return enabled;
+}
+
+bool _evidenceMatchesRequest(
+  AcceptedStoreEvidence evidence,
+  ReportTransactionRequest request,
+) {
+  return switch (evidence) {
+    AppleAcceptedStoreEvidence(:final submittedTransactionId) =>
+      request.store == 'appStore' &&
+          submittedTransactionId == request.storeTransactionId,
+    GoogleAcceptedStoreEvidence(:final submittedOrderId) =>
+      request.store == 'playStore' &&
+          submittedOrderId == request.storeTransactionId,
+  };
 }
 
 final class _SurfaceAssignmentMetadata {
