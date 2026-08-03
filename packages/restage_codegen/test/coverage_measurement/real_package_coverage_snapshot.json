@@ -12,9 +12,12 @@
     "inlinable/+declarative-state": [],
     "classifier-only/emit-failed": [],
     "deferred": [
-      "package:restage_example/widgets/pricing_card.dart#PricingCard"
+      "package:restage_example/widgets/pricing_card.dart#PricingCard",
+      "package:restage_example/widgets/pricing_table.dart#PricingTable",
+      "package:restage_example/widgets/tier_board.dart#TierBoard"
     ],
     "structural": [
+      "package:restage_example/widgets/pulse_badge.dart#PulseBadge",
       "package:restage_example/widgets/streak_badge.dart#StreakBadge"
     ]
   },
@@ -31,9 +34,12 @@
     "inlinable/+declarative-state": [],
     "classifier-only/emit-failed": [],
     "deferred": [
-      "package:restage_example/widgets/pricing_card.dart#PricingCard"
+      "package:restage_example/widgets/pricing_card.dart#PricingCard",
+      "package:restage_example/widgets/pricing_table.dart#PricingTable",
+      "package:restage_example/widgets/tier_board.dart#TierBoard"
     ],
     "structural": [
+      "package:restage_example/widgets/pulse_badge.dart#PulseBadge",
       "package:restage_example/widgets/streak_badge.dart#StreakBadge"
     ]
   }

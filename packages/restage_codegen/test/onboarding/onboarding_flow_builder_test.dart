@@ -407,7 +407,7 @@ void main() {
       readerWriter.testing.writeBytes(
         AssetId(
           'apps_examples',
-          'assets/onboarding/screens/paywall_serene.rfw',
+          'assets/paywalls/screens/paywall_serene.rfw',
         ),
         paywallBytes,
       );

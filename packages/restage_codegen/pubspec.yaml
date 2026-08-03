@@ -20,17 +20,21 @@ dependencies:
   # Ceiling <13.0.0: analyzer 13.0.0 removed `NamedExpression` and changed
   # `ArgumentList.arguments` to `NodeList<Argument>`, which this package's
   # argument-list lowering relies on across many sites, so the code compiles
-  # only against analyzer < 13. The build_runner toolchain resolves analyzer
-  # 12.x anyway, so this ceiling matches what consumers actually use. Floor
-  # 10.0.0 is the verified-compiling lower bound; earlier majors lack
-  # element-model APIs this package uses (e.g. FormalParameterElement).
+  # only against analyzer < 13. The migration to the 13+ argument AST is
+  # blocked on the test toolchain: on current stable Flutter, `flutter_test`
+  # pins a `test_api` that resolves `test` 1.31.0, which itself caps analyzer
+  # below 13 — so no resolution that includes both `flutter_test` and
+  # `package:test` can reach analyzer 13 yet. Migrate and raise the floor as
+  # soon as a stable Flutter pins `test_api` >= 0.7.12. Floor 10.0.0 is the
+  # verified-compiling lower bound; earlier majors lack element-model APIs
+  # this package uses (e.g. FormalParameterElement).
   analyzer: ">=10.0.0 <13.0.0"
   build: ">=2.4.0 <5.0.0"
   collection: ^1.18.0
   dart_style: ">=2.3.0 <4.0.0"
   glob: ^2.1.2
   meta: ^1.16.0
-  package_config: ^2.0.0
+  package_config: ">=2.0.0 <4.0.0"
   path: ^1.9.0
   restage_shared:
     path: ../restage_shared

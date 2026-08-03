@@ -398,7 +398,8 @@ ScreenNodeDef screen(OnboardingScreenRef ref) {
 /// Creates a flow-screen reference for a Dart-authored paywall.
 ///
 /// The code generator emits a flow-screen adapter artifact for
-/// `@PaywallSource(id: ...)` paywalls at `assets/onboarding/screens/paywall_<id>.rfw`.
+/// `@PaywallSource(id: ...)` paywalls at
+/// `assets/paywalls/screens/paywall_<id>.rfw`.
 /// Use this reference in `buildFlow()` when the paywall should stay inside the
 /// flow's back stack instead of being opened by host navigation after
 /// completion.

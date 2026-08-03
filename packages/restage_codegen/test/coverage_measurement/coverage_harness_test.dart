@@ -19,7 +19,7 @@ import 'coverage_harness.dart';
 const String _kFixtureDir = 'test/coverage_measurement/coverage_fixtures';
 
 /// Path of the snapshot file the harness asserts against. Kept on disk
-/// so the report `docs/custom-widget-4a-coverage-report.md` can be
+/// so the custom-widget coverage report can be
 /// regenerated from the same source of truth and CI catches drift.
 const String _kSnapshotPath =
     'test/coverage_measurement/coverage_snapshot.json';

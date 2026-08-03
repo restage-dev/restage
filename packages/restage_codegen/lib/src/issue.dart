@@ -237,7 +237,7 @@ enum IssueCode {
   /// `final cs = …; cs.primary`.
   themeReadIntermediateVariable,
 
-  /// Root-source state or class-4a stateful custom-widget state passed an
+  /// Root-source state or inlineable stateful custom-widget state passed an
   /// earlier coarse shape check, but analysis or emit-time validation found a
   /// State construct it cannot lower to RFW — lifecycle, non-primitive fields,
   /// a non-foldable field initialiser, a setState body outside the recognised

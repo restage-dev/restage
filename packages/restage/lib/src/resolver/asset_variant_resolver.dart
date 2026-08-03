@@ -3,6 +3,8 @@ import 'dart:ui' show Locale;
 import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:meta/meta.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show kPaywallScreensAssetDir;
 
 import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_resolver.dart';
@@ -67,7 +69,7 @@ final class AssetVariantResolver
       final artifacts = await loadBundledFlowArtifacts(
         bundle: _effectiveBundle,
         flowJsonPath: '$assetPathPrefix/$id.flow.json',
-        screenAssetPathPrefix: 'assets/onboarding/screens',
+        screenAssetPathPrefix: kPaywallScreensAssetDir,
         flowId: id,
         supportedMinClient: RestageBuiltInCatalogCapabilities.currentVersion,
         clientDescription: 'supported client',

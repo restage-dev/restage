@@ -267,7 +267,7 @@ final class ClassificationResult {
   final Map<String, WidgetClassification> classifications;
 
   /// Emission blueprints, keyed by [CustomWidgetBlueprint.classKey] — one per
-  /// widget that classified [ComposableWidget]. A `4b` / unclassifiable widget
-  /// has no blueprint.
+  /// widget that classified [ComposableWidget]. An imperative or
+  /// unclassifiable widget has no blueprint.
   final Map<String, CustomWidgetBlueprint> blueprints;
 }

@@ -8,8 +8,8 @@ builders:
         - "assets/paywalls/{{name}}.rfw"
         - "assets/paywalls/{{name}}.capability.json"
         - "assets/paywalls/{{name}}.navplan.json"
-        - "assets/onboarding/screens/paywall_{{name}}.rfw"
-        - "assets/onboarding/screens/paywall_{{name}}.capability.json"
+        - "assets/paywalls/screens/paywall_{{name}}.rfw"
+        - "assets/paywalls/screens/paywall_{{name}}.capability.json"
       "lib/paywalls/{{name}}.rfwtxt":
         - "assets/paywalls/{{name}}.rfw"
         - "assets/paywalls/{{name}}.capability.json"

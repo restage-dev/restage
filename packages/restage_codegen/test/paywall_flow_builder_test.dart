@@ -38,13 +38,13 @@ void main() {
       final entryBytes = result.readerWriter.testing.readBytes(
         AssetId(
           'apps_examples',
-          'assets/onboarding/screens/paywall_entry.rfw',
+          'assets/paywalls/screens/paywall_entry.rfw',
         ),
       );
       final pushedBytes = result.readerWriter.testing.readBytes(
         AssetId(
           'apps_examples',
-          'assets/onboarding/screens/paywall_choose_plan.rfw',
+          'assets/paywalls/screens/paywall_choose_plan.rfw',
         ),
       );
 
@@ -201,7 +201,7 @@ void main() {
         ..writeBytes(
           AssetId(
             'apps_examples',
-            'assets/onboarding/screens/paywall_entry.rfw',
+            'assets/paywalls/screens/paywall_entry.rfw',
           ),
           [1, 2, 3],
         );

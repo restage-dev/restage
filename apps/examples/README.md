@@ -217,8 +217,9 @@ fills it from the host app's resolved store prices.
 These keep a surface transpilable. They apply to paywalls and onboarding screens
 alike:
 
-- **Strings are single literals.** Adjacent-string concatenation (`'a' 'b'`) is
-  not supported; write one literal.
+- **Keep adjacent interpolation in one literal.** Adjacent plain string literals
+  are folded correctly. A group that mixes plain and interpolated segments is
+  not currently lowerable, so write one interpolated string instead.
 - **Full-width without `double.infinity`.** `SizedBox(width: double.infinity)`
   does not survive lowering (a non-finite double has no render-blob literal), so
   the element ends up hugging its content once delivered. For a full-width child

@@ -174,6 +174,10 @@ final class _FlowAssetBundle extends CachingAssetBundle {
   }
 
   void writeScreen(String path, Uint8List bytes) {
+    _assets['assets/paywalls/screens/$path'] = Uint8List.fromList(bytes);
+  }
+
+  void writeLegacyScreen(String path, Uint8List bytes) {
     _assets['assets/onboarding/screens/$path'] = Uint8List.fromList(bytes);
   }
 
@@ -194,6 +198,17 @@ VariantResolver _navPaywallResolver() {
         'pro_upgrade', _navFlowDocument(entryBytes: entry, plansBytes: plans))
     ..writeScreen('paywall_pro_upgrade.rfw', entry)
     ..writeScreen('paywall_pro_upgrade_plans.rfw', plans);
+  return AssetVariantResolver(bundle: bundle);
+}
+
+VariantResolver _legacyNavPaywallResolver() {
+  final entry = _screenBlob({'See plans': 'restageNav0', 'No thanks': 'skip'});
+  final plans = _screenBlob({'Buy': 'restage.purchase'});
+  final bundle = _FlowAssetBundle()
+    ..writeFlow(
+        'pro_upgrade', _navFlowDocument(entryBytes: entry, plansBytes: plans))
+    ..writeLegacyScreen('paywall_pro_upgrade.rfw', entry)
+    ..writeLegacyScreen('paywall_pro_upgrade_plans.rfw', plans);
   return AssetVariantResolver(bundle: bundle);
 }
 
@@ -314,9 +329,22 @@ void main() {
   });
 
   testWidgets(
-      'a flow-hosted paywall renders its entry screen, navigates to the pushed '
-      'screen, and a purchase there charges exactly once + grants + attributes',
+      'a legacy flow-hosted paywall renders from the compatibility bundle path',
       (tester) async {
+    Restage.configure(apiKey: 'pk_test');
+
+    await _pumpFlowPaywall(tester, resolver: _legacyNavPaywallResolver());
+
+    expect(find.text('See plans'), findsOneWidget);
+    await tester.tap(find.text('See plans'));
+    await tester.pumpAndSettle();
+    expect(find.text('Buy'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a canonical flow-hosted paywall renders its entry screen, navigates to '
+      'the pushed screen, and a purchase there charges exactly once + grants + '
+      'attributes', (tester) async {
     final gateway = _FakeGateway(
       onPurchase: (productId) async => PurchaseOutcome.succeeded(
         productId: productId,

@@ -14,7 +14,7 @@ import 'package:restage_shared/rfw_formats.dart' as fmt;
 
 const String _kPaywallSourceDir = 'lib/paywalls';
 const String _kPaywallOutputDir = 'assets/paywalls';
-const String _kScreenOutputDir = 'assets/onboarding/screens';
+const String _kPaywallScreenOutputDir = kPaywallScreensAssetDir;
 const String _kDoneState = 'done';
 const String _zeroHash = 'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
@@ -206,7 +206,10 @@ Future<ScreenArtifact> _artifactFor(
   List<Issue> issues,
 ) async {
   final artifactPath = '$screenId.rfw';
-  final rfwId = AssetId(sourceId.package, '$_kScreenOutputDir/$artifactPath');
+  final rfwId = AssetId(
+    sourceId.package,
+    '$_kPaywallScreenOutputDir/$artifactPath',
+  );
   if (!await buildStep.canRead(rfwId)) {
     issues.add(
       Issue(

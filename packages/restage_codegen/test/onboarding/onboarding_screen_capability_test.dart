@@ -11,8 +11,8 @@ import '../helpers.dart';
 /// The no-fail-open invariant for the reachable (inline) Dart-screen case.
 ///
 /// A custom `@RestageWidget` referenced in a Dart-authored onboarding screen is
-/// either inlinable (4a) — inlined into the built-ins the client already has —
-/// or non-inlinable (4b) — a loud build failure. It is never emitted as a
+/// either inlineable — inlined into the built-ins the client already has —
+/// or non-inlineable — a loud build failure. It is never emitted as a
 /// custom-library *reference*, so a Dart screen's emitted RFW carries only
 /// built-in widgets and its capability sidecar correctly requires no custom
 /// library. (Only the raw-DSL paywall path emits a bare catalog reference; that

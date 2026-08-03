@@ -145,7 +145,7 @@ class PaywallPublishCommand extends Command<int> {
     // A paywall publishes either as a single compiled blob
     // (assets/paywalls/<slug>.rfw) or, when navigation-lowered, as a flow
     // document (assets/paywalls/<slug>.flow.json) whose screens live under
-    // assets/onboarding/screens/. The shared resolver detects the shape and
+    // assets/paywalls/screens/. The shared resolver detects the shape and
     // assembles the canonical frame the surface store persists as-is.
     final PaywallPublishPayload resolved;
     try {

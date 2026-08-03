@@ -400,8 +400,9 @@ final class FlowUnavailableError implements Exception {
 ///
 /// The default flow delivery path loads
 /// `assets/onboarding/flows/<id>.flow.json` and each referenced screen from
-/// `assets/onboarding/screens/`. Missing, malformed, incompatible, unsupported,
-/// or hash-mismatched artifacts throw [FlowUnavailableError].
+/// `assets/onboarding/screens/`. Paywall-owned flow screens (`paywall_*`) load
+/// from `assets/paywalls/screens/`. Missing, malformed, incompatible,
+/// unsupported, or hash-mismatched artifacts throw [FlowUnavailableError].
 final class AssetFlowResolver implements FlowResolver {
   /// Creates an asset-backed flow resolver.
   const AssetFlowResolver({AssetBundle? bundle}) : _bundle = bundle;

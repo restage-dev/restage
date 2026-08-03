@@ -54,6 +54,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/paywalls/
+    - assets/paywalls/screens/
     - assets/onboarding/screens/
     - assets/onboarding/flows/
 

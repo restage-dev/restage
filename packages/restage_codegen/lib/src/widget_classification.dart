@@ -1,7 +1,7 @@
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/issue.dart';
 
-/// An inlining mechanism a class-4a custom widget's `build()` / `State`
+/// An inlining mechanism an inlineable custom widget's `build()` / `State`
 /// depends on, beyond plain catalog-widget composition.
 ///
 /// A [ComposableWidget] is inlinable by a given codegen increment exactly
@@ -26,7 +26,7 @@ enum InliningMechanism {
   modalSheet,
 }
 
-/// The kind of construct that makes a custom widget imperative (class 4b) —
+/// The kind of construct that makes a custom widget imperative and app-backed —
 /// not expressible in RFW's declarative blob format.
 enum BlockerKind {
   /// `CustomPaint` / a `CustomPainter` subclass / canvas / shaders.
@@ -49,7 +49,7 @@ enum BlockerKind {
   /// `@RestageWidget`-annotated custom widget.
   unrecognisedComposedWidget,
 
-  /// `build()` composes another custom widget that is itself class 4b.
+  /// `build()` composes another custom widget that is itself imperative.
   composesImperativeWidget,
 
   /// A `StatefulWidget` whose `State` holds non-primitive / computed /
@@ -95,8 +95,8 @@ enum CustomWidgetDisposition {
   /// A genuine dead end; the author must redesign.
   deadEnd,
 
-  /// The classifier recognised the widget but could not reach a 4a/4b verdict
-  /// — it may well be transpilable; the transpiler simply cannot tell.
+  /// The classifier recognised the widget but could not reach an inlineability
+  /// verdict — it may well be transpilable; the transpiler simply cannot tell.
   indeterminate,
 }
 
@@ -172,7 +172,7 @@ final class Blocker {
       _dispositionOverride ?? kind.disposition;
 }
 
-/// The class-4a / class-4b classification of one custom (`@RestageWidget`)
+/// The inlineable / app-backed classification of one custom (`@RestageWidget`)
 /// widget, produced by the classifier and consumed by the translator.
 ///
 /// The classification is *sound*: [ComposableWidget] and [ImperativeWidget]
@@ -187,11 +187,11 @@ sealed class WidgetClassification {
   final String classKey;
 }
 
-/// Class 4a — pure composition: `build()` (and `State`) reduce to catalog
+/// Inlineable pure composition: `build()` (and `State`) reduce to catalog
 /// widgets, literals, references, branches, loops, and simple declarative
 /// state. Transpilable to an RFW remote-widget definition.
 final class ComposableWidget extends WidgetClassification {
-  /// Creates a class-4a classification.
+  /// Creates an inlineable classification.
   ComposableWidget(
     super.classKey, {
     required Set<InliningMechanism> requiredMechanisms,
@@ -213,11 +213,11 @@ final class ComposableWidget extends WidgetClassification {
   final List<String> composedCustomWidgets;
 }
 
-/// Class 4b — imperative: `build()` or `State` contains a construct RFW's
-/// declarative blob format cannot express. Not transpilable; referencing it
-/// in a transpiled paywall is an error.
+/// App-backed imperative widget: `build()` or `State` contains a construct RFW's
+/// declarative blob format cannot express. Its composition is not transpilable;
+/// a registered customer catalog can expose it through a runtime factory.
 final class ImperativeWidget extends WidgetClassification {
-  /// Creates a class-4b classification. [blockers] must be non-empty;
+  /// Creates an imperative classification. [blockers] must be non-empty;
   /// `blockers.first` is the construct the diagnostic names.
   ImperativeWidget(super.classKey, {required List<Blocker> blockers})
       : assert(blockers.isNotEmpty, 'an ImperativeWidget needs a blocker'),
@@ -237,9 +237,9 @@ final class ImperativeWidget extends WidgetClassification {
 }
 
 /// The widget is a recognised `@RestageWidget` but the classifier could not
-/// give it a 4a / 4b verdict — its `build()` body is not a single returned
+/// determine whether it is inlineable — its `build()` body is not a single returned
 /// expression, it uses a construct the transpiler does not yet analyse, or
-/// its source AST was unreachable. **Not** a class-4b verdict: the widget
+/// its source AST was unreachable. **Not** an imperative verdict: the widget
 /// may well be transpilable; the transpiler simply cannot tell.
 final class UnclassifiableWidget extends WidgetClassification {
   /// Creates an unclassifiable result. [diagnosticCode] overrides the

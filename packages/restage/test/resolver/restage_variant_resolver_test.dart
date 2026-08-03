@@ -565,7 +565,7 @@ void main() {
       expect(flowPayload.flow.screenBlobs['welcome'], bundledScreen);
       expect(bundle.loadedKeys, [
         'assets/paywalls/pro_upgrade.flow.json',
-        'assets/onboarding/screens/paywall_pro_upgrade.rfw',
+        'assets/paywalls/screens/paywall_pro_upgrade.rfw',
       ]);
     });
 
@@ -876,7 +876,7 @@ final class _PaywallAssetBundle extends CachingAssetBundle {
   }
 
   void writeScreen(String path, Uint8List bytes) {
-    _assets['assets/onboarding/screens/$path'] = Uint8List.fromList(bytes);
+    _assets['assets/paywalls/screens/$path'] = Uint8List.fromList(bytes);
   }
 
   @override

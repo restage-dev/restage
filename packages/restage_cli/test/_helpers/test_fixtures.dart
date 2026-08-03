@@ -169,13 +169,12 @@ Future<String> seedSurfaceFlow(
 /// Copy the real `fluent_pro` navigation-lowered paywall flow into [dir]
 /// under the codegen on-disk layout — the flow document at
 /// `assets/paywalls/<slug>.flow.json` and its screen blobs (+ capability
-/// sidecars) at `assets/onboarding/screens/`.
+/// sidecars) at `assets/paywalls/screens/`.
 ///
 /// Unlike [seedSurfaceFlow], a paywall flow's screens do NOT sit in a sibling
-/// `screens/` directory next to the flow; they share the onboarding screens
-/// directory. This mirrors what codegen emits (`_kPaywallOutputDir` vs
-/// `_kScreenOutputDir`), so a paywall flow publish must point the assembler at
-/// the onboarding screens directory rather than the default sibling.
+/// `screens/` directory next to the flow document. They use the canonical
+/// paywall screens directory, so a paywall flow publish must point the
+/// assembler there rather than at the default sibling.
 ///
 /// Returns the resolved flow JSON path. When [dropSidecarFor] is a screen
 /// artifact path, that screen's `.capability.json` sidecar is NOT copied, so
@@ -187,9 +186,7 @@ Future<String> seedPaywallFlow(
 }) async {
   final assetsRoot = locateOnboardingFixtures().parent;
   final paywallsDst = Directory(p.join(dir.path, 'assets', 'paywalls'));
-  final screensDst = Directory(
-    p.join(dir.path, 'assets', 'onboarding', 'screens'),
-  );
+  final screensDst = Directory(p.join(dir.path, kPaywallScreensAssetDir));
   await paywallsDst.create(recursive: true);
   await screensDst.create(recursive: true);
 
@@ -202,13 +199,13 @@ Future<String> seedPaywallFlow(
   final doc = FlowDocumentCodec.decodeJson(flowJson);
   for (final artifact in doc.screenArtifacts.values) {
     await File(
-      p.join(assetsRoot.path, 'onboarding', 'screens', artifact.path),
+      p.join(assetsRoot.path, 'paywalls', 'screens', artifact.path),
     ).copy(p.join(screensDst.path, artifact.path));
     if (artifact.path == dropSidecarFor) continue;
     final sidecarName =
         '${p.basenameWithoutExtension(artifact.path)}.capability.json';
     await File(
-      p.join(assetsRoot.path, 'onboarding', 'screens', sidecarName),
+      p.join(assetsRoot.path, 'paywalls', 'screens', sidecarName),
     ).copy(p.join(screensDst.path, sidecarName));
   }
   return flowPath;

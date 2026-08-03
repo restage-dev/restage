@@ -159,17 +159,18 @@ class SurfacePublishCommand extends Command<int> {
     try {
       // A paywall is either a single compiled blob (assets/paywalls/<slug>.rfw)
       // or, when navigation-lowered, a flow document
-      // (assets/paywalls/<slug>.flow.json) whose screens live under
-      // assets/onboarding/screens/. A flow surface is a flow document plus its
-      // per-screen blobs. Each has its own default location, all overridable
-      // with --path.
+      // (assets/paywalls/<slug>.flow.json) with paywall-owned screens. A flow
+      // surface is a flow document plus its per-screen blobs and may embed a
+      // paywall-owned screen. Each has its own default location, all
+      // overridable with --path.
+      final assetsRoot = p.join(
+        (loaded?.source.parent ?? Directory.current).path,
+        'assets',
+      );
       if (surfaceType == SurfaceType.paywall) {
         final resolved = await resolvePaywallPublishBytes(
           slug: slug,
-          assetsRoot: p.join(
-            (loaded?.source.parent ?? Directory.current).path,
-            'assets',
-          ),
+          assetsRoot: assetsRoot,
           pathOverride: argResults?['path'] as String?,
         );
         bytes = resolved.bytes;
@@ -183,7 +184,11 @@ class SurfacePublishCommand extends Command<int> {
           surfaceType,
           slug,
         );
-        bytes = await assembleSurfacePayloadBytes(flowPath);
+        bytes = await assembleSurfacePayloadBytes(
+          flowPath,
+          paywallScreensDir: p.join(assetsRoot, 'paywalls', 'screens'),
+          legacyPaywallScreensDir: p.join(assetsRoot, 'onboarding', 'screens'),
+        );
       }
     } on SurfacePayloadException catch (e) {
       _stderr.writeln(e.message);
