@@ -1,5 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// Generated from lib/registry_curation.dart by restage_catalog_gen.
+// Generated from lib/registry_curation.dart by the catalog generator.
 //
 // Edit the curation file and re-run build_runner; do not
 // edit this file directly. The runtime, codegen, and editor

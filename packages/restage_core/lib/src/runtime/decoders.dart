@@ -14,6 +14,8 @@ import 'package:flutter/painting.dart'
         CircleBorder,
         ContinuousRectangleBorder,
         DecorationImage,
+        EdgeInsetsDirectional,
+        EdgeInsetsGeometry,
         FontStyle,
         FontWeight,
         ImageProvider,
@@ -36,6 +38,7 @@ import 'package:flutter/painting.dart'
         TextSpan,
         TextStyle;
 import 'package:flutter/foundation.dart' show immutable;
+import 'package:flutter/rendering.dart' show BoxConstraints;
 import 'package:restage_shared/restage_shared.dart' show kMaxInlineSpanDepth;
 import 'package:rfw/rfw.dart';
 
@@ -52,6 +55,167 @@ import 'package:rfw/rfw.dart';
 /// any customer library generated via `@RestageWidget` can call into a
 /// single canonical implementation.
 abstract final class RestageDecoders {
+  /// Decodes a real scalar at [path], accepting either wire number shape.
+  ///
+  /// `DataSource.v<double>` is a strict type check: an `int` on the wire reads
+  /// back as `null` through it, indistinguishable from an absent slot — so a
+  /// producer that writes a whole number as `200` rather than `200.0` silently
+  /// loses the value and the slot takes its default. This read accepts both and
+  /// widens the `int`, so a real slot means what it says.
+  ///
+  /// Returns `null` only when the slot is genuinely absent (or carries a
+  /// non-number), leaving the caller's required-slot throw or literal default to
+  /// apply. It does no bounding: NaN and infinity pass through, so use it only
+  /// where the assembled value is repaired downstream (as a `BoxConstraints` is
+  /// by [safeConstraints]) or where a non-finite value is harmless.
+  static double? number(DataSource source, List<Object> path) =>
+      _number(source, path);
+
+  /// Repairs a `BoxConstraints` assembled from wire values into one that is
+  /// legal to hand to layout.
+  ///
+  /// `BoxConstraints` does not validate itself — its `debugAssertIsValid` is
+  /// debug-only, and it is the *render object*, not the constructor, that calls
+  /// it. So an inverted (`maxWidth < minWidth`) or NaN constraint built from a
+  /// corrupt wire sails through a release build and only fails inside
+  /// `performLayout`, where the rendering pipeline catches the throw and merely
+  /// reports it: the user is left with a broken frame and no signal. Repair the
+  /// value instead of trusting it:
+  ///
+  /// * a minimum that is not a finite, non-negative number floors at zero;
+  /// * a maximum that is not a number becomes unbounded — the same value an
+  ///   absent slot decodes to (`infinity` is a legal maximum and is preserved);
+  /// * a maximum below its minimum rises to meet it, so layout never receives
+  ///   an inverted constraint.
+  ///
+  /// **An infinite minimum floors at zero, and that asymmetry with the maximum
+  /// is deliberate.** An infinite *maximum* means "unbounded", which every box
+  /// already knows how to lay out. An infinite *minimum* means "you must be at
+  /// least infinitely large", which is only survivable while some ancestor
+  /// bounds the axis: hand it a box whose parent leaves that axis unbounded — a
+  /// `Row` gives its non-flex children exactly that — and the child is laid out
+  /// at an infinite extent, whose offset and overflow are then computed as
+  /// `Infinity` arithmetic that resolves to `NaN`, inside the layout phase, in
+  /// release. The build-time toolchain rejects a non-finite real *literal*, so
+  /// a compiled surface is unlikely to carry one — but that guard is not total:
+  /// authoring tools upstream have historically accepted non-finite numeric
+  /// input, and a corrupt or hostile wire can always carry one straight to that
+  /// `NaN`. Preserving an infinite minimum protects no legitimate surface, so
+  /// this repair floors it.
+  ///
+  /// A legal `BoxConstraints` passes through unchanged.
+  ///
+  /// **What this does not do.** It repairs the constraints slot, and only that
+  /// slot. A widget that also takes a raw `width` or `height` — `Container`,
+  /// `AnimatedContainer` — tightens its constraints against those separately,
+  /// and a non-finite one still reaches that arithmetic without passing through
+  /// here. This is a repair of one path, not of the class.
+  static BoxConstraints safeConstraints(BoxConstraints constraints) {
+    final minWidth = _safeConstraintMin(constraints.minWidth);
+    final minHeight = _safeConstraintMin(constraints.minHeight);
+    return BoxConstraints(
+      minWidth: minWidth,
+      maxWidth: _safeConstraintMax(constraints.maxWidth, minWidth),
+      minHeight: minHeight,
+      maxHeight: _safeConstraintMax(constraints.maxHeight, minHeight),
+    );
+  }
+
+  static double _safeConstraintMin(double value) =>
+      value.isFinite && value > 0.0 ? value : 0.0;
+
+  static double _safeConstraintMax(double value, double min) {
+    if (value.isNaN) return double.infinity;
+    return value < min ? min : value;
+  }
+
+  /// Decodes a layout-bearing inset at [path], repairing any component that
+  /// layout cannot use into one it can.
+  ///
+  /// An inset is *subtracted* from the space a box or a sliver has to give its
+  /// child, and the widgets that consume one check it with an `assert` — which
+  /// is stripped from release *and* profile builds. So a corrupt component
+  /// reaches `performLayout`, where the rendering pipeline catches the throw and
+  /// merely reports it: a broken frame, no signal, and nothing the build-time
+  /// error boundary can intercept, because layout runs long after the build that
+  /// would have caught it. The repair therefore happens here, on the way in.
+  ///
+  /// Exactly what it does, and nothing more:
+  ///
+  /// * A component that is NaN, infinite, or negative becomes `0.0` — the
+  ///   identity inset, which subtracts nothing and always lays out.
+  /// * An axis (`start + end`, or `top + bottom`) whose two finite components
+  ///   nevertheless **sum to infinity** collapses to `0.0` on both — see below.
+  /// * **Every other finite component passes through exactly as authored, at
+  ///   any magnitude.** There is no ceiling. A large inset is a legal layout —
+  ///   a horizontally scrolling view with a 2,000,000px inset and a 10px child
+  ///   has a content width of 4,000,010px, and that is the width it must get.
+  ///   Silently shrinking it would be a wrong render of a valid surface, which
+  ///   is worse than the corruption this repair exists to catch.
+  ///
+  /// **Why the axis sum needs its own arm.** What layout subtracts is not a
+  /// component but a *sum* — `EdgeInsetsGeometry.horizontal` and `.vertical` —
+  /// and two merely finite components can sum to infinity
+  /// (`1.7e308 + 1.7e308`). Subtract that from an unbounded axis and the result
+  /// is `Infinity - Infinity`, i.e. `NaN`, handed to the child during layout.
+  /// Per-component finiteness does not prevent it; the pair has to be checked.
+  ///
+  /// Collapsing that axis to zero is the disposition, and it is a choice, not a
+  /// derivation: the pair has no representable sum, so there is no layout in it
+  /// to preserve — no rescaling of the two components is more truthful than any
+  /// other, and zero is the one value guaranteed to lay out.
+  ///
+  /// What makes that cheap is *not* that the value cannot be authored. It can:
+  /// an axis overflows only when a component sits within a rounding step of the
+  /// largest finite double (~1.8e308), and such a value is **finite**, so the
+  /// build-time toolchain accepts it like any other real. Nothing upstream
+  /// rejects it. What makes it cheap is that no layout anyone means to write is
+  /// within hundreds of orders of magnitude of that number — a screen is on the
+  /// order of a thousand logical pixels — so collapsing the axis discards a
+  /// quantity that was never a layout, while every inset that *is* one passes
+  /// through untouched at any magnitude.
+  ///
+  /// The horizontal and vertical axes are decided independently: a vertical
+  /// overflow does not disturb a legal horizontal inset.
+  ///
+  /// Returns `null` when the slot is absent, so the caller's contract — a
+  /// required slot's throw, an optional slot's literal default — applies.
+  ///
+  /// The wire shape is the catalog's four-real list, read as
+  /// `[start, top, end, bottom]` with each component falling back the way CSS
+  /// shorthand does.
+  static EdgeInsetsGeometry? edgeInsets(DataSource source, List<Object> path) {
+    final start = source.v<double>([...path, 0]);
+    if (start == null) return null;
+    final top = source.v<double>([...path, 1]);
+    final end = source.v<double>([...path, 2]);
+    final bottom = source.v<double>([...path, 3]);
+    final horizontal = _safeInsetAxis(start, end ?? start);
+    final vertical = _safeInsetAxis(top ?? start, bottom ?? top ?? start);
+    return EdgeInsetsDirectional.fromSTEB(
+      horizontal.$1,
+      vertical.$1,
+      horizontal.$2,
+      vertical.$2,
+    );
+  }
+
+  /// The two components of one inset axis, repaired as a pair.
+  ///
+  /// Each component is individually made finite and non-negative; the pair is
+  /// then rejected wholesale if what layout subtracts — their sum — is still not
+  /// finite. Returned as a record because the second decision cannot be made one
+  /// component at a time.
+  static (double, double) _safeInsetAxis(double first, double second) {
+    final a = _safeInsetComponent(first);
+    final b = _safeInsetComponent(second);
+    if (!(a + b).isFinite) return (0, 0);
+    return (a, b);
+  }
+
+  static double _safeInsetComponent(double value) =>
+      value.isFinite && value > 0.0 ? value : 0.0;
+
   /// Decodes a `Duration` from a flat integer count of milliseconds at
   /// [path] in [source]. Returns `null` when the slot is missing so
   /// callers can choose between a `??` fallback (literal default) and

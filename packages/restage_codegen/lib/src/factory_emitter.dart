@@ -321,6 +321,9 @@ String _nativeRecipeEmit(
     );
   }
   final variant = _requiredVariant(index, construction.variantRef);
+  // A structured type that layout validates only under an assert gets its
+  // reassembled value repaired before it can reach a render object.
+  final repair = _kStructuredRepairs[structured.sourceType];
   final expression = _nativeFactoryInvocationExpression(
     invocation: construction,
     variant: variant,
@@ -333,9 +336,18 @@ String _nativeRecipeEmit(
       recipe: recipe,
       entry: entry,
       index: index,
+      // A field feeding a repaired reassembly reads its number tolerantly. The
+      // strict `source.v<double>` cannot tell an `int` on the wire from an
+      // absent slot, so a whole number written as `200` would take the field's
+      // default instead of its value — and the repair cannot undo that: by the
+      // time it sees the assembled value, the number is already gone. Read it
+      // where it is still there.
+      tolerantNumbers: repair != null,
     ),
   );
-  return '$targetArg: $expression';
+  return repair == null
+      ? '$targetArg: $expression'
+      : '$targetArg: $repair($expression)';
 }
 
 String _nativeFactoryInvocationExpression({
@@ -408,6 +420,7 @@ String? _outerArgumentForParameter({
   required DecompositionRecipe recipe,
   required WidgetEntry entry,
   required NativeCatalogIndex index,
+  bool tolerantNumbers = false,
 }) {
   final parameterMapping = recipe.parameterMappings.firstWhereOrNull(
     (mapping) => mapping.parameterRef == parameter.wireId,
@@ -419,6 +432,7 @@ String? _outerArgumentForParameter({
       entry: entry,
       index: index,
       parameter: parameter,
+      tolerantNumbers: tolerantNumbers,
     );
   }
 
@@ -441,6 +455,7 @@ String? _outerArgumentForParameter({
     entry: entry,
     index: index,
     parameter: parameter,
+    tolerantNumbers: tolerantNumbers,
   );
 }
 
@@ -450,6 +465,7 @@ String _mappedOuterArgument({
   required WidgetEntry entry,
   required NativeCatalogIndex index,
   required FactoryParameter parameter,
+  bool tolerantNumbers = false,
 }) {
   final property = _propertyByWireId(entry, propertyRef);
   if (property == null) {
@@ -464,6 +480,7 @@ String _mappedOuterArgument({
     entry: entry,
     index: index,
     parameter: parameter,
+    tolerantNumbers: tolerantNumbers,
   );
   // Recipe-hoisted borderRadius (e.g. `BoxDecoration.borderRadius` on
   // Container / AnimatedContainer): when the owning entry declares the four
@@ -577,6 +594,7 @@ String _transformExpression(
   required WidgetEntry entry,
   required NativeCatalogIndex index,
   required FactoryParameter parameter,
+  bool tolerantNumbers = false,
 }) {
   switch (transform) {
     case IdentityTransform():
@@ -585,6 +603,7 @@ String _transformExpression(
         entry: entry,
         parameter: parameter,
         index: index,
+        tolerantNumbers: tolerantNumbers,
       );
     case ConstructVariantTransform():
       return _constructVariantTransformExpression(
@@ -600,6 +619,7 @@ String _transformExpression(
           entry: entry,
           parameter: parameter,
           index: index,
+          tolerantNumbers: tolerantNumbers,
         );
       }
       throw StateError(
@@ -619,6 +639,7 @@ String _nativeDecodedArgument(
   required WidgetEntry entry,
   required FactoryParameter parameter,
   required NativeCatalogIndex index,
+  bool tolerantNumbers = false,
 }) {
   return _coerceNativeArgumentForParameter(
     _wrappedValueFor(
@@ -626,6 +647,7 @@ String _nativeDecodedArgument(
       entry.name,
       nullable: parameter.nullable,
       index: index,
+      tolerantNumbers: tolerantNumbers,
     ),
     parameter: parameter,
     index: index,
@@ -797,8 +819,14 @@ String _wrappedValueFor(
   String widgetName, {
   required bool nullable,
   NativeCatalogIndex? index,
+  bool tolerantNumbers = false,
 }) {
-  final decoded = _decodeExpression(prop, widgetName, index: index);
+  final decoded = _decodeExpression(
+    prop,
+    widgetName,
+    index: index,
+    tolerantNumbers: tolerantNumbers,
+  );
   switch (prop.synthetic) {
     case _borderRadiusCircularSynthetic:
       // Required / default-bearing slots resolve to non-null `double`
@@ -900,6 +928,19 @@ String _borderRadiusEmitWithCorners(
 /// Strategy identifier for `PropertyEntry.synthetic`: wrap the
 /// integer codepoint as `IconData(value, fontFamily: 'MaterialIcons')`.
 const String _iconDataSynthetic = 'iconData';
+
+/// Structured types whose validity Flutter enforces with a debug-only assert
+/// **from the render object rather than the constructor** — so a value
+/// assembled from a corrupt wire is only discovered inside `performLayout`,
+/// where a throw leaves a silently broken frame instead of a contained error.
+/// Route their reassembly through a repair that hands layout a legal value.
+///
+/// Keyed by the structured entry's `sourceType`, so the mapping survives a
+/// catalog rename.
+const Map<String, String> _kStructuredRepairs = {
+  'package:flutter/src/rendering/box.dart#BoxConstraints':
+      'RestageDecoders.safeConstraints',
+};
 
 /// Strategy identifier for `PropertyEntry.synthetic`: gate the entry's
 /// `onPressed` handler with the property's bool value.
@@ -1565,9 +1606,16 @@ String _decodeExpression(
   String widgetName, {
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
+  bool tolerantNumbers = false,
 }) {
   final path = "<Object>['${prop.name}']";
-  final decoded = _decoderCallFor(prop, path, index: index, aliases: aliases);
+  final decoded = _decoderCallFor(
+    prop,
+    path,
+    index: index,
+    aliases: aliases,
+    tolerantNumbers: tolerantNumbers,
+  );
   // Literal `defaultValue` takes precedence. Otherwise a `required`
   // scalar without a default emits a throw so a malformed blob fails
   // loudly (the SDK surfaces the throw as `PaywallLoadFailed`) rather
@@ -2112,6 +2160,7 @@ String _decoderCallFor(
   String path, {
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
+  bool tolerantNumbers = false,
 }) {
   switch (prop.type) {
     case PropertyType.boolean:
@@ -2120,7 +2169,14 @@ String _decoderCallFor(
       return 'source.v<int>($path)';
     case PropertyType.real:
     case PropertyType.length:
-      return 'source.v<double>($path)';
+      // `source.v<double>` is a strict type check: an `int` on the wire reads
+      // as null through it, indistinguishable from an absent slot, so the slot
+      // silently takes its default. Slots feeding a repaired structured
+      // reassembly read tolerantly instead — the repair runs on the assembled
+      // value, far too late to recover a number that was dropped here.
+      return tolerantNumbers
+          ? 'RestageDecoders.number(source, $path)'
+          : 'source.v<double>($path)';
     case PropertyType.string:
       return 'source.v<String>($path)';
     case PropertyType.stringList:
@@ -2133,7 +2189,14 @@ String _decoderCallFor(
     case PropertyType.color:
       return 'ArgumentDecoders.color(source, $path)';
     case PropertyType.edgeInsets:
-      return 'ArgumentDecoders.edgeInsets(source, $path)';
+      // An inset is layout-bearing: it is subtracted from the space a box or a
+      // sliver has to give its child, and the widgets that consume one check it
+      // with an `assert` — stripped from release and profile alike. So rfw's
+      // decoder, which passes a NaN, an infinity, or a negative component
+      // straight through, would land the failure inside `performLayout`, where
+      // nothing catches it and no error boundary can see it. Decode through the
+      // repair instead.
+      return 'RestageDecoders.edgeInsets(source, $path)';
     case PropertyType.alignment:
       return 'ArgumentDecoders.alignment(source, $path)';
     case PropertyType.alignmentXY:

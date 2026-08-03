@@ -82,6 +82,8 @@ const Map<String, String> _curatedMinimalRfwSource = <String, String>{
   'AnimatedSlide': 'AnimatedSlide(offset: {x: 0.0, y: 0.0}, duration: 200, '
       'child: SizedBox())',
   'AspectRatio': 'AspectRatio(aspectRatio: 1.0)',
+  // `color` is a required scalar with no Flutter default.
+  'ColoredBox': 'ColoredBox(color: 0xFF2196F3)',
   'DefaultTextStyle': 'DefaultTextStyle(child: SizedBox())',
   'Expanded': 'Expanded(child: SizedBox())',
   'FadeInImageAssetNetwork':
@@ -173,8 +175,12 @@ Type _flutterTypeFor(String entryName) {
       return ClipRect;
     case 'ClipRRect':
       return ClipRRect;
+    case 'ColoredBox':
+      return ColoredBox;
     case 'Column':
       return Column;
+    case 'ConstrainedBox':
+      return ConstrainedBox;
     case 'Container':
       return Container;
     case 'DecoratedBox':
@@ -216,6 +222,8 @@ Type _flutterTypeFor(String entryName) {
       return RestagePulse;
     case 'RestageStagger':
       return RestageStagger;
+    case 'Offstage':
+      return Offstage;
     case 'Opacity':
       return Opacity;
     case 'Padding':

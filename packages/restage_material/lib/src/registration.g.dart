@@ -85,7 +85,7 @@ Widget _buildActionChip(BuildContext context, DataSource source) {
         Clip.none,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
   );
 }
 
@@ -109,7 +109,7 @@ Widget _buildBadge(BuildContext context, DataSource source) {
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     textColor: ArgumentDecoders.color(source, <Object>['textColor']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
     offset: RestageDecoders.offset(source, <Object>['offset']),
     label: source.optionalChild(<Object>['label']),
@@ -123,7 +123,7 @@ Widget _buildCard(BuildContext context, DataSource source) {
     color: ArgumentDecoders.color(source, <Object>['color']),
     elevation: source.v<double>(<Object>['elevation']) ?? 1.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    margin: ArgumentDecoders.edgeInsets(source, <Object>['margin']),
+    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: ArgumentDecoders.enumValue<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.optionalChild(<Object>['child']),
@@ -135,7 +135,7 @@ Widget _buildCardFilled(BuildContext context, DataSource source) {
     color: ArgumentDecoders.color(source, <Object>['color']),
     elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    margin: ArgumentDecoders.edgeInsets(source, <Object>['margin']),
+    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: ArgumentDecoders.enumValue<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.optionalChild(<Object>['child']),
@@ -147,7 +147,7 @@ Widget _buildCardOutlined(BuildContext context, DataSource source) {
     color: ArgumentDecoders.color(source, <Object>['color']),
     elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    margin: ArgumentDecoders.edgeInsets(source, <Object>['margin']),
+    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: ArgumentDecoders.enumValue<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.optionalChild(<Object>['child']),
@@ -194,7 +194,7 @@ Widget _buildChip(BuildContext context, DataSource source) {
         Clip.none,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
   );
 }
 
@@ -213,7 +213,7 @@ Widget _buildChoiceChip(BuildContext context, DataSource source) {
         Clip.none,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     avatarBorder:
         RestageDecoders.shapeBorder(source, <Object>['avatarBorder']) ??
             const CircleBorder(),
@@ -248,7 +248,7 @@ Widget _buildElevatedButton(BuildContext context, DataSource source) {
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
         elevation: source.v<double>(<Object>['elevation']) ?? 1.0,
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -303,7 +303,7 @@ Widget _buildFilledButton(BuildContext context, DataSource source) {
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
         elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -328,7 +328,7 @@ Widget _buildFilledButtonTonal(BuildContext context, DataSource source) {
         backgroundColor:
             ArgumentDecoders.color(source, <Object>['backgroundColor']),
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -357,7 +357,7 @@ Widget _buildFilterChip(BuildContext context, DataSource source) {
         Clip.none,
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     avatarBorder:
         RestageDecoders.shapeBorder(source, <Object>['avatarBorder']) ??
             const CircleBorder(),
@@ -575,7 +575,7 @@ Widget _buildOutlinedButton(BuildContext context, DataSource source) {
         foregroundColor:
             ArgumentDecoders.color(source, <Object>['foregroundColor']),
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -597,7 +597,7 @@ Widget _buildOutlinedButtonIcon(BuildContext context, DataSource source) {
         foregroundColor:
             ArgumentDecoders.color(source, <Object>['foregroundColor']),
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -694,7 +694,7 @@ Widget _buildTextButton(BuildContext context, DataSource source) {
         foregroundColor:
             ArgumentDecoders.color(source, <Object>['foregroundColor']),
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -716,7 +716,7 @@ Widget _buildTextButtonIcon(BuildContext context, DataSource source) {
         foregroundColor:
             ArgumentDecoders.color(source, <Object>['foregroundColor']),
         textStyle: RestageDecoders.textStyle(source, <Object>['textStyle']),
-        padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+        padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
             const EdgeInsets.fromLTRB(24.0, 12.0, 24.0, 12.0),
         minimumSize: RestageDecoders.size(source, <Object>['minimumSize']),
         fixedSize: RestageDecoders.size(source, <Object>['fixedSize']),
@@ -736,7 +736,7 @@ Widget _buildTab(BuildContext context, DataSource source) {
   return Tab(
     text: source.v<String>(<Object>['text']),
     icon: source.optionalChild(<Object>['icon']),
-    iconMargin: ArgumentDecoders.edgeInsets(source, <Object>['iconMargin']),
+    iconMargin: RestageDecoders.edgeInsets(source, <Object>['iconMargin']),
     height: source.v<double>(<Object>['height']),
     child: source.optionalChild(<Object>['child']),
   );
@@ -765,8 +765,8 @@ Widget _buildTooltip(BuildContext context, DataSource source) {
   return Tooltip(
     message: source.v<String>(<Object>['message']) ??
         (throw ArgumentError('Tooltip.message is required.')),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
-    margin: ArgumentDecoders.edgeInsets(source, <Object>['margin']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
+    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     preferBelow: source.v<bool>(<Object>['preferBelow']),
     child: source.optionalChild(<Object>['child']),
   );

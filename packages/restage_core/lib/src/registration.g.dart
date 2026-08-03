@@ -32,7 +32,9 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'ClipOval': _buildClipOval,
   'ClipRRect': _buildClipRRect,
   'ClipRect': _buildClipRect,
+  'ColoredBox': _buildColoredBox,
   'Column': _buildColumn,
+  'ConstrainedBox': _buildConstrainedBox,
   'Container': _buildContainer,
   'DecoratedBox': _buildDecoratedBox,
   'DefaultTextStyle': _buildDefaultTextStyle,
@@ -54,6 +56,7 @@ const Map<String, LocalWidgetBuilder> kCoreLibraryFactories =
   'RestagePrice': _buildRestagePrice,
   'RestagePulse': _buildRestagePulse,
   'RestageStagger': _buildRestageStagger,
+  'Offstage': _buildOffstage,
   'Opacity': _buildOpacity,
   'Padding': _buildPadding,
   'Positioned': _buildPositioned,
@@ -120,16 +123,18 @@ Widget _buildAnimatedContainer(BuildContext context, DataSource source) {
         boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], ArgumentDecoders.boxShadow),
         gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
         shape: ArgumentDecoders.enumValue<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
-    constraints: BoxConstraints(
-        minWidth: source.v<double>(<Object>['minWidth']) ?? 0.0,
-        maxWidth: source.v<double>(<Object>['maxWidth']) ?? double.infinity,
-        minHeight: source.v<double>(<Object>['minHeight']) ?? 0.0,
-        maxHeight: source.v<double>(<Object>['maxHeight']) ?? double.infinity),
+    constraints: RestageDecoders.safeConstraints(BoxConstraints(
+        minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
+        maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
+            double.infinity,
+        minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
+        maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
+            double.infinity)),
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
-    margin: ArgumentDecoders.edgeInsets(source, <Object>['margin']),
+    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: ArgumentDecoders.enumValue<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
@@ -212,7 +217,7 @@ Widget _buildAnimatedOpacity(BuildContext context, DataSource source) {
 
 Widget _buildAnimatedPadding(BuildContext context, DataSource source) {
   return AnimatedPadding(
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
         (throw ArgumentError('AnimatedPadding.padding is required.')),
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
     duration: RestageDecoders.duration(source, <Object>['duration']) ??
@@ -366,6 +371,14 @@ Widget _buildClipRect(BuildContext context, DataSource source) {
   );
 }
 
+Widget _buildColoredBox(BuildContext context, DataSource source) {
+  return ColoredBox(
+    color: ArgumentDecoders.color(source, <Object>['color']) ??
+        (throw ArgumentError('ColoredBox.color is required.')),
+    child: source.optionalChild(<Object>['child']),
+  );
+}
+
 Widget _buildColumn(BuildContext context, DataSource source) {
   return Column(
     mainAxisAlignment: ArgumentDecoders.enumValue<MainAxisAlignment>(
@@ -381,6 +394,19 @@ Widget _buildColumn(BuildContext context, DataSource source) {
         CrossAxisAlignment.center,
     spacing: source.v<double>(<Object>['spacing']) ?? 0.0,
     children: source.childList(<Object>['children']),
+  );
+}
+
+Widget _buildConstrainedBox(BuildContext context, DataSource source) {
+  return ConstrainedBox(
+    constraints: RestageDecoders.safeConstraints(BoxConstraints(
+        minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
+        maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
+            double.infinity,
+        minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
+        maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
+            double.infinity)),
+    child: source.optionalChild(<Object>['child']),
   );
 }
 
@@ -409,16 +435,18 @@ Widget _buildContainer(BuildContext context, DataSource source) {
         boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], ArgumentDecoders.boxShadow),
         gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
         shape: ArgumentDecoders.enumValue<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
-    constraints: BoxConstraints(
-        minWidth: source.v<double>(<Object>['minWidth']) ?? 0.0,
-        maxWidth: source.v<double>(<Object>['maxWidth']) ?? double.infinity,
-        minHeight: source.v<double>(<Object>['minHeight']) ?? 0.0,
-        maxHeight: source.v<double>(<Object>['maxHeight']) ?? double.infinity),
+    constraints: RestageDecoders.safeConstraints(BoxConstraints(
+        minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
+        maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
+            double.infinity,
+        minHeight: RestageDecoders.number(source, <Object>['minHeight']) ?? 0.0,
+        maxHeight: RestageDecoders.number(source, <Object>['maxHeight']) ??
+            double.infinity)),
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']),
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
-    margin: ArgumentDecoders.edgeInsets(source, <Object>['margin']),
+    margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
     clipBehavior: ArgumentDecoders.enumValue<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
@@ -634,7 +662,7 @@ Widget _buildListView(BuildContext context, DataSource source) {
         Axis.vertical,
     reverse: source.v<bool>(<Object>['reverse']) ?? false,
     shrinkWrap: source.v<bool>(<Object>['shrinkWrap']) ?? false,
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     keyboardDismissBehavior:
         ArgumentDecoders.enumValue<ScrollViewKeyboardDismissBehavior>(
             ScrollViewKeyboardDismissBehavior.values,
@@ -799,6 +827,13 @@ Widget _buildRestageStagger(BuildContext context, DataSource source) {
   );
 }
 
+Widget _buildOffstage(BuildContext context, DataSource source) {
+  return Offstage(
+    offstage: source.v<bool>(<Object>['offstage']) ?? true,
+    child: source.optionalChild(<Object>['child']),
+  );
+}
+
 Widget _buildOpacity(BuildContext context, DataSource source) {
   return Opacity(
     opacity: source.v<double>(<Object>['opacity']) ??
@@ -811,7 +846,7 @@ Widget _buildOpacity(BuildContext context, DataSource source) {
 
 Widget _buildPadding(BuildContext context, DataSource source) {
   return Padding(
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']) ??
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']) ??
         (throw ArgumentError('Padding.padding is required.')),
     child: source.optionalChild(<Object>['child']),
   );
@@ -873,7 +908,7 @@ Widget _buildSingleChildScrollView(BuildContext context, DataSource source) {
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.vertical,
     reverse: source.v<bool>(<Object>['reverse']) ?? false,
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     clipBehavior: ArgumentDecoders.enumValue<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
