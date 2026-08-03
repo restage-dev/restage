@@ -638,8 +638,8 @@ const List<String> kContainerCoreExcludes = [
 /// (`scrollDirection` / `reverse` / `padding` / `shrinkWrap` /
 /// `keyboardDismissBehavior` on `ListView` / `child` or `children`).
 ///
-/// `cacheExtent` lives only on `ListView` (viewport-based) — added
-/// per-entry there rather than here.
+/// Viewport cache controls are added as per-entry exclusions because their
+/// availability varies by scroll-view constructor.
 ///
 /// `controller` (`ScrollController`), `dragStartBehavior`
 /// (`DragStartBehavior`), `hitTestBehavior` (`HitTestBehavior`), and

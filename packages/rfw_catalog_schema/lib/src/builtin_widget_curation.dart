@@ -123,6 +123,14 @@ final class BuiltinWidgetCuration<T extends Object> {
   /// baseline floors only the surfaces that use it (the content-version
   /// capability contract); it does not touch any other entry.
   ///
+  /// **Stamp a new widget at the next GLOBAL content version** — one above the
+  /// highest [sinceVersion] anywhere in the built-in set, across every library,
+  /// not just this one. See [WidgetEntry.sinceVersion]: the client advertises a
+  /// single installed content version (the maximum over all built-in
+  /// libraries), so a per-library stamp yields a floor an older client already
+  /// clears, and the capability check passes on a client that cannot render the
+  /// widget.
+  ///
   /// Distinct axis from [minSchemaVersion]: content version tracks *which
   /// widgets exist*; schema version tracks the catalog JSON structure.
   final int sinceVersion;

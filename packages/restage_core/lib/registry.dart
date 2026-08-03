@@ -1,5 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// Generated from lib/registry_curation.dart by restage_catalog_gen.
+// Generated from lib/registry_curation.dart by the catalog generator.
 //
 // Edit the curation file and re-run build_runner; do not
 // edit this file directly. The runtime, codegen, and editor
@@ -1864,6 +1864,38 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
+      wireId: WireId('w0055'),
+      name: 'ColoredBox',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A box that paints a solid color behind its child.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#ColoredBox',
+      childrenSlot: ChildrenSlot.single,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0580'),
+          name: 'color',
+          type: PropertyType.color,
+          description: 'The color to paint the background area with.',
+          required: true,
+          category: PropertyCategory.style,
+          priority: PropertyPriority.primary,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.color,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0581'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+        ),
+      ],
+      sinceVersion: 5,
+    ),
+    WidgetEntry(
       wireId: WireId('w0009'),
       name: 'Column',
       library: WidgetLibrary.core,
@@ -1932,6 +1964,99 @@ final Catalog kRegistry = Catalog(
           description: '',
         ),
       ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0056'),
+      name: 'ConstrainedBox',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A box that adds size constraints to its child.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#ConstrainedBox',
+      childrenSlot: ChildrenSlot.single,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0582'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0583'),
+          name: 'minWidth',
+          type: PropertyType.real,
+          description: 'Minimum width the box may have.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0584'),
+          name: 'maxWidth',
+          type: PropertyType.real,
+          description: 'Maximum width the box may have.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0585'),
+          name: 'minHeight',
+          type: PropertyType.real,
+          description: 'Minimum height the box may have.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0586'),
+          name: 'maxHeight',
+          type: PropertyType.real,
+          description: 'Maximum height the box may have.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.real,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+      ],
+      decomposes: [
+        DecompositionRecipe(
+          structuredRef:
+              WireIdRef(library: 'restage.core', wireId: WireId('s0028')),
+          flatProperties: <WireId, WireId>{},
+          targetArg: 'constraints',
+          construction: FactoryInvocation(
+              variantRef:
+                  WireIdRef(library: 'restage.core', wireId: WireId('v0052')),
+              receiver: ResultStructuredTypeReceiver()),
+          fieldMappings: [
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0561'),
+              propertyRef: WireId('p0583'),
+              transform: IdentityTransform(),
+            ),
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0562'),
+              propertyRef: WireId('p0584'),
+              transform: IdentityTransform(),
+            ),
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0563'),
+              propertyRef: WireId('p0585'),
+              transform: IdentityTransform(),
+            ),
+            DecompositionFieldMapping(
+              fieldRef: WireId('p0564'),
+              propertyRef: WireId('p0586'),
+              transform: IdentityTransform(),
+            ),
+          ],
+        ),
+      ],
+      sinceVersion: 5,
     ),
     WidgetEntry(
       wireId: WireId('w0010'),
@@ -4962,6 +5087,36 @@ final Catalog kRegistry = Catalog(
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
       ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0057'),
+      name: 'Offstage',
+      library: WidgetLibrary.core,
+      category: WidgetCategory.layout,
+      description: 'A box that can lay out its child without painting it.',
+      flutterType: 'package:flutter/src/widgets/basic.dart#Offstage',
+      childrenSlot: ChildrenSlot.single,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0587'),
+          name: 'offstage',
+          type: PropertyType.boolean,
+          description: 'Whether the child is hidden from the rest of the tree.',
+          defaultSource: LiteralDefault(true),
+          valueShape: ScalarShape(
+              propertyType: PropertyType.boolean,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0588'),
+          name: 'child',
+          type: PropertyType.widget,
+          description: '',
+        ),
+      ],
+      sinceVersion: 5,
     ),
     WidgetEntry(
       wireId: WireId('w0022'),
@@ -8776,4 +8931,4 @@ final Catalog kRegistry = Catalog(
 /// The content version of the `restage.core` catalog —
 /// the maximum widget `sinceVersion` in this library. Read by
 /// the SDK to derive the installed built-in catalog version.
-const int kCoreCatalogContentVersion = 1;
+const int kCoreCatalogContentVersion = 5;

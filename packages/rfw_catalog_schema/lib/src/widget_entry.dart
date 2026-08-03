@@ -122,6 +122,18 @@ final class WidgetEntry {
   /// renderable at every version greater than N. An incompatible change
   /// allocates a new [wireId] and [sinceVersion] rather than mutating an
   /// existing entry.
+  ///
+  /// **The line is GLOBAL across the built-in libraries, not per library.** A
+  /// client advertises one installed content version — the maximum over every
+  /// built-in library it ships — and the pre-render check compares a surface's
+  /// floor against that single number. So a new widget must be stamped above
+  /// the highest [sinceVersion] anywhere in the built-in set at the time it
+  /// lands, not above its own library's highest. Stamp it at its library's
+  /// next value and the floor it produces is one an older client already
+  /// clears on the strength of a *different* library's version: the check
+  /// passes, and the widget is not there to render. The floor fails open, and
+  /// it is the only thing standing between a new widget and a client that
+  /// cannot draw it.
   final int sinceVersion;
 
   /// Legacy plain-string deprecation marker — the catalog version where

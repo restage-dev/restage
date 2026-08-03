@@ -209,9 +209,39 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.decoration,
     excludeParams: ['clipper'],
   ),
+  BuiltinWidgetCuration<ColoredBox>(
+    category: WidgetCategory.layout,
+    descriptionOverride: 'A box that paints a solid color behind its child.',
+    // The content version is ONE line across every built-in library, not one
+    // line per library. The SDK advertises a single installed content version
+    // — the maximum over all three — and a surface's capability floor is the
+    // maximum `sinceVersion` of the entries it uses, checked against that one
+    // number. Stamping a new widget at its own library's next version instead
+    // of the next GLOBAL one produces a floor an older SDK already clears, so
+    // the check passes on a client whose catalog cannot render the widget.
+    // Take the next global version.
+    sinceVersion: 5,
+    // Edge anti-alias tuning is a paint optimisation rather than part of the
+    // declarative color-and-child surface.
+    excludeParams: ['isAntiAlias'],
+  ),
   BuiltinWidgetCuration<Column>(
     category: WidgetCategory.layout,
     excludeParams: kFlexExcludes,
+  ),
+  BuiltinWidgetCuration<ConstrainedBox>(
+    category: WidgetCategory.layout,
+    descriptionOverride: 'A box that adds size constraints to its child.',
+    // The next GLOBAL content version — see the note on `ColoredBox`.
+    sinceVersion: 5,
+    // The four constraint scalars reach layout as a single `BoxConstraints`.
+    // Nothing about that value is validated outside a debug assert, so the
+    // reassembly is repaired at the construction site — see the structured
+    // repair the factory emitter applies to `BoxConstraints`. The same repair
+    // covers `Container` / `AnimatedContainer`, which hoist the identical
+    // slots through the identical recipe.
+    synthetics: kBoxConstraintsSynthetics,
+    nativeDecomposes: [kBoxConstraintsNativeDecompose],
   ),
   BuiltinWidgetCuration<Container>(
     category: WidgetCategory.layout,
@@ -440,6 +470,7 @@ const List<BuiltinWidgetCuration> kCuration = [
     excludeParams: [
       ...kScrollableImperativeExcludes,
       'cacheExtent',
+      'scrollCacheExtent',
       'itemExtent',
       'itemExtentBuilder',
       'prototypeItem',
@@ -506,7 +537,20 @@ const List<BuiltinWidgetCuration> kCuration = [
       'fromOffset': kOffsetZeroOverride,
     },
   ),
+  BuiltinWidgetCuration<Offstage>(
+    category: WidgetCategory.layout,
+    descriptionOverride:
+        'A box that can lay out its child without painting it.',
+    // The next GLOBAL content version — see the note on `ColoredBox`.
+    sinceVersion: 5,
+  ),
   BuiltinWidgetCuration<Opacity>(category: WidgetCategory.decoration),
+  // `OverflowBox` is deliberately not curated. Its four constraint scalars are
+  // separate nullable ctor parameters rather than a `BoxConstraints` value, so
+  // they reach `performLayout` with no reassembly site to repair them — an
+  // inverted or NaN pair lays out unchecked in a release build. It also forces
+  // the emitter to import a type the widgets library does not re-export, for a
+  // niche escape hatch. `ConstrainedBox` covers the constraint surface safely.
   BuiltinWidgetCuration<Padding>(category: WidgetCategory.layout),
   BuiltinWidgetCuration<Positioned>(
     category: WidgetCategory.layout,
@@ -632,6 +676,14 @@ const List<BuiltinWidgetCuration> kCuration = [
     // through the shared `offset` decoder.
     propertyOverrides: {'alignment': kAlignmentCenterOverride},
   ),
+  // `UnconstrainedBox` is deliberately not curated, for the same reason as
+  // `OverflowBox` above. Its `alignment` slot decodes through the raw alignment
+  // decoder, which accepts a non-finite component and turns it into a NaN paint
+  // and hit-test offset during layout — where an assert is stripped and a throw
+  // is swallowed. It is also the widget that makes an unbounded constraint
+  // minimum reachable from a composition. Neither is worth carrying for an
+  // escape hatch this niche; `ConstrainedBox` covers the constraint surface
+  // safely.
   BuiltinWidgetCuration<Visibility>(
     category: WidgetCategory.decoration,
     // Start minimal: `visible` toggles the subtree. `replacement` is

@@ -165,9 +165,12 @@ void main() {
         source,
         contains("ArgumentDecoders.color(source, <Object>['tint'])"),
       );
+      // An inset decodes through the repair, never rfw's raw decoder — a
+      // layout-bearing value that reaches `performLayout` corrupt fails where
+      // no error boundary can see it.
       expect(
         source,
-        contains("ArgumentDecoders.edgeInsets(source, <Object>['pad'])"),
+        contains("RestageDecoders.edgeInsets(source, <Object>['pad'])"),
       );
       expect(
         source,
@@ -3315,7 +3318,10 @@ void main() {
               r'style:\s*GeneratedButton\.styleFrom\(\s*'
               r'backgroundColor:\s*ArgumentDecoders\.color\(source, '
               r"<Object>\['backgroundColor'\]\),\s*"
-              r'padding:\s*ArgumentDecoders\.edgeInsets\(source, '
+              // An inset decodes through the repair even inside a decomposed
+              // style — the value reaches layout the same way wherever it was
+              // assembled.
+              r'padding:\s*RestageDecoders\.edgeInsets\(source, '
               r"<Object>\['padding'\]\)\s*\)",
             ),
           ),

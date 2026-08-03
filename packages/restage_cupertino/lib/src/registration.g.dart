@@ -7,6 +7,7 @@
 // catalog, and this file).
 
 import 'package:flutter/cupertino.dart';
+import 'package:restage_core/restage_core.dart';
 import 'package:rfw/rfw.dart' hide Switch;
 
 /// One [LocalWidgetBuilder] per widget entry in `lib/registry.dart`,
@@ -44,7 +45,7 @@ Widget _buildCupertinoButton(BuildContext context, DataSource source) {
   final disabled = source.v<bool>(<Object>['disabled']) ?? false;
 
   return CupertinoButton(
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     color: ArgumentDecoders.color(source, <Object>['color']),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
     child: source.child(<Object>['child']),
@@ -55,7 +56,7 @@ Widget _buildCupertinoButtonFilled(BuildContext context, DataSource source) {
   final disabled = source.v<bool>(<Object>['disabled']) ?? false;
 
   return CupertinoButton.filled(
-    padding: ArgumentDecoders.edgeInsets(source, <Object>['padding']),
+    padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     color: ArgumentDecoders.color(source, <Object>['color']),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
     child: source.child(<Object>['child']),

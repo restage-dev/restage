@@ -2,9 +2,11 @@
 
 /// Fully-qualified Flutter widget identifiers excluded from the
 /// catalog at the widget level (independent of their property types).
-/// Curated across navigation surfaces, modal overlays, imperative
-/// context builders, drag-and-drop targets, and custom-painting
-/// primitives whose semantics cannot be represented declaratively.
+/// Some entries are irreducible because their executable or runtime-context
+/// semantics cannot be represented declaratively. Others are declarative APIs
+/// whose capability is routed through a compiled catalog widget instead of the
+/// mechanical catalog. Denylist membership therefore does not imply that the
+/// capability is unsupported.
 const Set<String> kBuiltInWidgetDenylist = {
   // Routing / navigation.
   'package:flutter/src/widgets/navigator.dart#Navigator',
@@ -36,7 +38,10 @@ const Set<String> kBuiltInWidgetDenylist = {
   'package:flutter/src/widgets/form.dart#FormField',
   'package:flutter/src/material/text_form_field.dart#TextFormField',
 
-  // Imperative-context builders.
+  // Imperative context construction (genuinely irreducible). Builder widgets
+  // take executable callback closures that a declarative blob cannot carry;
+  // Theme and MediaQuery establish inherited runtime context rather than leaf
+  // catalog values.
   'package:flutter/src/widgets/layout_builder.dart#LayoutBuilder',
   'package:flutter/src/widgets/basic.dart#Builder',
   'package:flutter/src/widgets/theme.dart#Theme',

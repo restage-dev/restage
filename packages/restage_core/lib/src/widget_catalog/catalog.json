@@ -2401,6 +2401,42 @@
       ]
     },
     {
+      "wireId": "w0055",
+      "name": "ColoredBox",
+      "library": "restage.core",
+      "category": "layout",
+      "description": "A box that paints a solid color behind its child.",
+      "flutterType": "package:flutter/src/widgets/basic.dart#ColoredBox",
+      "childrenSlot": "single",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0580",
+          "name": "color",
+          "type": "color",
+          "description": "The color to paint the background area with.",
+          "required": true,
+          "category": "style",
+          "priority": "primary",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "color",
+            "dartTypeRef": {
+              "libraryUri": "dart:ui",
+              "symbolName": "Color"
+            }
+          }
+        },
+        {
+          "wireId": "p0581",
+          "name": "child",
+          "type": "widget",
+          "description": ""
+        }
+      ],
+      "sinceVersion": 5
+    },
+    {
       "wireId": "w0009",
       "name": "Column",
       "library": "restage.core",
@@ -2494,6 +2530,130 @@
           "description": ""
         }
       ]
+    },
+    {
+      "wireId": "w0056",
+      "name": "ConstrainedBox",
+      "library": "restage.core",
+      "category": "layout",
+      "description": "A box that adds size constraints to its child.",
+      "flutterType": "package:flutter/src/widgets/basic.dart#ConstrainedBox",
+      "childrenSlot": "single",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0582",
+          "name": "child",
+          "type": "widget",
+          "description": ""
+        },
+        {
+          "wireId": "p0583",
+          "name": "minWidth",
+          "type": "real",
+          "description": "Minimum width the box may have.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0584",
+          "name": "maxWidth",
+          "type": "real",
+          "description": "Maximum width the box may have.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0585",
+          "name": "minHeight",
+          "type": "real",
+          "description": "Minimum height the box may have.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        },
+        {
+          "wireId": "p0586",
+          "name": "maxHeight",
+          "type": "real",
+          "description": "Maximum height the box may have.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "real",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "double"
+            }
+          }
+        }
+      ],
+      "decomposes": [
+        {
+          "structuredRef": {
+            "library": "restage.core",
+            "wireId": "s0028"
+          },
+          "flatProperties": {},
+          "targetArg": "constraints",
+          "construction": {
+            "variantRef": {
+              "library": "restage.core",
+              "wireId": "v0052"
+            },
+            "receiver": {
+              "kind": "resultStructuredType"
+            }
+          },
+          "fieldMappings": [
+            {
+              "fieldRef": "p0561",
+              "propertyRef": "p0583",
+              "transform": {
+                "kind": "identity"
+              }
+            },
+            {
+              "fieldRef": "p0562",
+              "propertyRef": "p0584",
+              "transform": {
+                "kind": "identity"
+              }
+            },
+            {
+              "fieldRef": "p0563",
+              "propertyRef": "p0585",
+              "transform": {
+                "kind": "identity"
+              }
+            },
+            {
+              "fieldRef": "p0564",
+              "propertyRef": "p0586",
+              "transform": {
+                "kind": "identity"
+              }
+            }
+          ]
+        }
+      ],
+      "sinceVersion": 5
     },
     {
       "wireId": "w0010",
@@ -6524,6 +6684,43 @@
           }
         }
       ]
+    },
+    {
+      "wireId": "w0057",
+      "name": "Offstage",
+      "library": "restage.core",
+      "category": "layout",
+      "description": "A box that can lay out its child without painting it.",
+      "flutterType": "package:flutter/src/widgets/basic.dart#Offstage",
+      "childrenSlot": "single",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0587",
+          "name": "offstage",
+          "type": "boolean",
+          "description": "Whether the child is hidden from the rest of the tree.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": true
+          },
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "boolean",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "bool"
+            }
+          }
+        },
+        {
+          "wireId": "p0588",
+          "name": "child",
+          "type": "widget",
+          "description": ""
+        }
+      ],
+      "sinceVersion": 5
     },
     {
       "wireId": "w0022",

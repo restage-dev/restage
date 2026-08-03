@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/issue.dart' show IssueCode;
 import 'package:restage_shared/restage_shared.dart' show LibraryRequirement;
@@ -6,6 +8,17 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+
+/// The catalog a built-in library actually ships, read from the committed
+/// `catalog.json` — tolerant of either the package dir or the workspace root as
+/// cwd, the way the sibling built-in tests resolve it.
+Catalog _committedCatalog(String package) {
+  final fromPackage = File('../$package/lib/src/widget_catalog/catalog.json');
+  final file = fromPackage.existsSync()
+      ? fromPackage
+      : File('packages/$package/lib/src/widget_catalog/catalog.json');
+  return decodeCatalog(file.readAsStringSync());
+}
 
 void main() {
   // A built-in (restage.core) catalog whose widgets carry distinct
@@ -77,6 +90,53 @@ void main() {
       final result = deriveCapabilityManifest(surface, builtInCatalog);
       expect(result.manifest!.builtInFloor, 3);
     });
+
+    test(
+      'a newly-added built-in floors above every OTHER shipped library — '
+      'derived from the real committed catalogs',
+      () {
+        // The cases above run on a synthetic catalog, so they prove the
+        // derivation walks the tree but say nothing about the numbers actually
+        // shipped. This one runs on the REAL committed catalogs, and pins the
+        // property that makes the floor mean anything.
+        //
+        // A client advertises ONE installed content version: the maximum over
+        // every built-in library it ships. So a surface using a widget that
+        // only the newest catalog contains must floor STRICTLY ABOVE the
+        // highest version any other library can contribute — otherwise an older
+        // client clears the floor on the strength of a library it happens to
+        // have, accepts the surface, and cannot render it.
+        //
+        // Stamping a new widget at its own library's next version instead of
+        // the next global one is exactly how that happens, and it is the defect
+        // this test was written after.
+        final core = _committedCatalog('restage_core');
+        final elsewhere = [
+          for (final package in const ['restage_material', 'restage_cupertino'])
+            _committedCatalog(package).contentVersion,
+        ].reduce((a, b) => a > b ? a : b);
+
+        const dsl = '''
+          import restage.core;
+          widget Paywall = ColoredBox(color: 0xFF000000);
+        ''';
+        final surface = parseLibraryFile(dsl, sourceIdentifier: 'test');
+        final result = deriveCapabilityManifest(surface, core);
+
+        expect(result.issues, isEmpty);
+        expect(
+          result.manifest!.builtInFloor,
+          greaterThan(elsewhere),
+          reason:
+              'A surface using a newly-added core widget derives a floor of '
+              '${result.manifest!.builtInFloor}, which a client shipping only '
+              'up to version $elsewhere of ANOTHER library already clears. '
+              'That client does not have the widget: the capability check '
+              'passes and the render fails. Stamp the widget at the next '
+              'GLOBAL content version and regenerate.',
+        );
+      },
+    );
 
     test('a surface referencing no catalog widgets floors at the baseline', () {
       // A library-local `widget` definition referenced by name is not a catalog
