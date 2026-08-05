@@ -242,7 +242,7 @@ void main() {
 
   testWidgets(
       'Restage.reset changes identity synchronously, leaves no fabricated '
-      'surface session, and the next real mount creates a fresh one',
+      'surface session, and paywall mounts do not leak one into global track',
       (tester) async {
     final postedEvents = <Map<String, Object?>>[];
     Restage.debugAnalyticsHttpClient = MockClient((request) async {
@@ -291,11 +291,12 @@ void main() {
     expect(oldAssignmentKey, isNotNull);
     expect(immediateAssignmentKey, isNot(oldAssignmentKey));
 
-    // The queued pre-reset event keeps its old actor; the immediate post-reset
+    // The queued pre-reset event keeps its old actor; app-global track events
+    // never inherit a paywall owner's root session. The immediate post-reset
     // event has the new actor/session, no user, and no invented presentation.
     expect(beforeReset['anonymousId'], oldAssignmentKey);
     expect(beforeReset['userId'], 'customer-before-reset');
-    expect(oldSurfaceSessionId, isNotNull);
+    expect(oldSurfaceSessionId, isNull);
     expect(afterReset['anonymousId'], immediateAssignmentKey);
     expect(afterReset['anonymousId'], isNot(beforeReset['anonymousId']));
     expect(afterReset['sessionId'], isNot(beforeReset['sessionId']));
@@ -305,8 +306,7 @@ void main() {
     expect(afterRealMount['anonymousId'], immediateAssignmentKey);
     expect(afterRealMount['sessionId'], afterReset['sessionId']);
     expect(afterRealMount['userId'], isNull);
-    expect(afterRealMount['surfaceSessionId'], isNotNull);
-    expect(afterRealMount['surfaceSessionId'], isNot(oldSurfaceSessionId));
+    expect(afterRealMount['surfaceSessionId'], isNull);
   });
 }
 

@@ -31,6 +31,7 @@ void main() {
         generated,
         allOf(
           contains('SurfaceFlowRef<Map<String, Object?>>'),
+          contains('surfaceType: SurfaceType.onboarding'),
           contains(
             'decodeResult: GeneralFirstRunFlowDescriptor._decodeResult',
           ),
@@ -355,7 +356,9 @@ Future<void> _assertIdentityDecoderRuns(String generated) async {
   final script = File('${dir.path}/general_identity_check.dart');
   final source = generated.replaceFirst(
     "part of 'general_first_run.dart';",
-    "import 'package:restage/src/flow/flow_descriptors.dart';",
+    "import 'package:restage/src/flow/flow_descriptors.dart';\n"
+        "import 'package:restage_shared/restage_shared.dart' "
+        'show FlowDeliveryMode, SurfaceType;',
   );
   script.writeAsStringSync('''
 $source

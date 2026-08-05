@@ -8,6 +8,8 @@ abstract final class BareSurfaceFlowDescriptor {
     id: 'bare_surface',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: BareSurfaceFlowDescriptor._decodeResult,
   );
 

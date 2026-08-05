@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:meta/meta.dart';
 
-/// Internal provider for hosted paywall experiment assignment keys.
+/// Internal provider for hosted surface experiment assignment keys.
 ///
 /// This is deliberately not exported from `restage.dart`: hosts do not choose
 /// experiment assignments. `Restage.configure` installs it from the SDK-owned
 /// analytics identity when hosted analytics is active; hosted resolvers read it
-/// just before fetching the active paywall arm.
+/// just before fetching an active experiment arm.
 abstract final class SurfaceAssignmentKeyProvider {
   static FutureOr<String?> Function()? _current;
   static int Function()? _identityGeneration;
@@ -16,6 +16,22 @@ abstract final class SurfaceAssignmentKeyProvider {
   /// Current provider. Tests set this directly; production code uses [install]
   /// so a lease also observes anonymous-identity generation changes.
   static FutureOr<String?> Function()? get current => _current;
+
+  /// Monotonic identity of the installed assignment-key provider.
+  @internal
+  static int get configurationGeneration => _configurationEpoch;
+
+  /// Current anonymous actor generation observed by the installed provider.
+  @internal
+  static int get analyticsIdentityGeneration {
+    final provider = _identityGeneration;
+    if (provider == null) return 0;
+    try {
+      return provider();
+    } on Object {
+      return -1;
+    }
+  }
 
   static set current(FutureOr<String?> Function()? provider) {
     _configurationEpoch += 1;

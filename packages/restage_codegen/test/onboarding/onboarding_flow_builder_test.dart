@@ -45,6 +45,7 @@ void main() {
           isNot(contains('FlowActionHandler')),
         ),
       );
+      expect(generated, contains('surfaceType: SurfaceType.onboarding'));
       expect(generated, contains('static FirstRunResult _decodeResult('));
       // A flow with no host-seedable key emits no seed builder.
       expect(generated, isNot(contains('implements FlowSeed')));
@@ -2103,6 +2104,8 @@ Future<void> _assertGeneratedResultDecoderRuns(String generated) async {
   final script = File('${dir.path}/generated_decoder_check.dart');
   final source = generated.replaceFirst("part of 'first_run.dart';", '''
 import 'package:restage/src/flow/flow_descriptors.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show FlowDeliveryMode, SurfaceType;
 ''');
   script.writeAsStringSync('''
 $source

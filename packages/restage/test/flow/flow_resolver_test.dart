@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+// ignore: implementation_imports
+import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 void main() {
@@ -64,6 +66,95 @@ void main() {
       () => resolved.screenBlobs['extra'] = Uint8List(0),
       throwsUnsupportedError,
     );
+  });
+
+  test('asset resolver owns empty-manifest metadata for every returned object',
+      () async {
+    final screenBytes = Uint8List.fromList([1, 2, 3, 255]);
+    final bundle = _FlowAssetBundle.withFlow(
+      flowRef,
+      _validDocument(screenBytes: screenBytes),
+      screenBytes: screenBytes,
+    );
+    final resolver = AssetFlowResolver(bundle: bundle);
+    final provider = resolver as FlowExperimentArtifactMetadataProvider;
+    final foreignProvider = AssetFlowResolver(bundle: bundle)
+        as FlowExperimentArtifactMetadataProvider;
+
+    final fresh = await resolver.resolve(flowRef);
+    final cached = await resolver.resolve(flowRef);
+
+    for (final resolved in [fresh, cached]) {
+      final metadata = provider.metadataFor(resolved);
+      expect(metadata.requiredLibraries, isEmpty);
+      expect(metadata.payloadIntegrityVerified, isTrue);
+    }
+    expect(
+      () => provider.metadataFor(_foreignResolvedFlow(screenBytes)),
+      throwsStateError,
+    );
+    expect(
+      () => foreignProvider.metadataFor(fresh),
+      throwsStateError,
+    );
+  });
+
+  for (final surfaceType in const [
+    SurfaceType.message,
+    SurfaceType.survey,
+  ]) {
+    test('loads ${surfaceType.wireName} flow assets from its surface directory',
+        () async {
+      final screenBytes = Uint8List.fromList([1, 2, 3, 255]);
+      final surfaceRef = OnboardingFlowRef<Map<String, Object?>>(
+        id: 'first_run',
+        version: 1,
+        minClient: 3,
+        surfaceType: surfaceType,
+        decodeResult: _decodeMapResult,
+      );
+      final bundle = _FlowAssetBundle.withFlow(
+        surfaceRef,
+        _validDocument(screenBytes: screenBytes),
+        screenBytes: screenBytes,
+      );
+
+      await AssetFlowResolver(bundle: bundle).resolve(surfaceRef);
+
+      expect(bundle.loadedKeys, [
+        'assets/${surfaceType.wireName}/flows/first_run.flow.json',
+        'assets/${surfaceType.wireName}/screens/welcome.rfw',
+      ]);
+    });
+  }
+
+  test('equal flow slugs cache independently across surfaces', () async {
+    final screenBytes = Uint8List.fromList([1, 2, 3, 255]);
+    const messageRef = OnboardingFlowRef<Map<String, Object?>>(
+      id: 'first_run',
+      version: 1,
+      minClient: 3,
+      surfaceType: SurfaceType.message,
+      decodeResult: _decodeMapResult,
+    );
+    const surveyRef = OnboardingFlowRef<Map<String, Object?>>(
+      id: 'first_run',
+      version: 1,
+      minClient: 3,
+      surfaceType: SurfaceType.survey,
+      decodeResult: _decodeMapResult,
+    );
+    final document = _validDocument(screenBytes: screenBytes);
+    final bundle = _FlowAssetBundle()
+      ..writeFlow(messageRef, document)
+      ..writeScreenFor(messageRef, 'welcome.rfw', screenBytes)
+      ..writeFlow(surveyRef, document)
+      ..writeScreenFor(surveyRef, 'welcome.rfw', screenBytes);
+    final resolver = AssetFlowResolver(bundle: bundle);
+
+    expect((await resolver.resolve(messageRef)).cacheHit, isFalse);
+    expect((await resolver.resolve(surveyRef)).cacheHit, isFalse);
+    expect((await resolver.resolve(messageRef)).cacheHit, isTrue);
   });
 
   test('freezes nested result JSON values in resolved documents', () async {
@@ -178,6 +269,97 @@ void main() {
       () => steps.add(4),
       throwsUnsupportedError,
     );
+  });
+
+  test('ResolvedFlow recursively owns and freezes nested action schemas', () {
+    final channelValues = <String>['email', 'push'];
+    final channelSchema = FlowActionSchema.enumValues(channelValues);
+    final channelField = FlowActionSchemaField(
+      required: true,
+      schema: channelSchema,
+    );
+    final payloadFields = <String, FlowActionSchemaField>{
+      'channel': channelField,
+    };
+    final payloadSchema = FlowActionSchema.object(payloadFields);
+    final nullablePayloadSchema = FlowActionSchema.nullable(payloadSchema);
+    final payloadListSchema = FlowActionSchema.list(nullablePayloadSchema);
+    final payloadField = FlowActionSchemaField(
+      required: true,
+      schema: payloadListSchema,
+    );
+    final argsFields = <String, FlowActionSchemaField>{
+      'payloads': payloadField,
+    };
+    final argsSchema = FlowActionSchema.object(argsFields);
+    final resultValues = <String>['accepted', 'rejected'];
+    final resultSchema = FlowActionSchema.enumValues(resultValues);
+    final action = FlowActionContract(
+      actionName: 'submit_profile',
+      contractVersion: 7,
+      argsSchema: argsSchema,
+      resultSchema: resultSchema,
+      minClient: 5,
+      idempotent: true,
+    );
+    final screenBytes = Uint8List.fromList([1, 2, 3, 255]);
+    final resolved = ResolvedFlow(
+      document: _validDocument(
+        screenBytes: screenBytes,
+        actions: {'submit_profile': action},
+      ),
+      screenBlobs: {'welcome': screenBytes},
+      cacheHit: false,
+    );
+    final constructionBytes =
+        FlowDocumentCodec.encodeCanonicalJson(resolved.document).toList();
+    final constructionArgsHash = action.argsSchemaHash;
+    final constructionResultHash = action.resultSchemaHash;
+
+    channelValues[0] = 'sms';
+    payloadFields['mutated'] = const FlowActionSchemaField(
+      required: false,
+      schema: FlowActionSchema.string(),
+    );
+    argsFields.clear();
+    resultValues.add('pending');
+
+    expect(
+      FlowDocumentCodec.encodeCanonicalJson(resolved.document),
+      constructionBytes,
+    );
+    final frozenAction = resolved.document.actions['submit_profile']!;
+    expect(frozenAction, isNot(same(action)));
+    expect(frozenAction.actionName, action.actionName);
+    expect(frozenAction.contractVersion, action.contractVersion);
+    expect(frozenAction.minClient, action.minClient);
+    expect(frozenAction.idempotent, action.idempotent);
+    expect(frozenAction.argsSchemaHash, constructionArgsHash);
+    expect(frozenAction.resultSchemaHash, constructionResultHash);
+
+    final frozenArgs = frozenAction.argsSchema as FlowObjectActionSchema;
+    final frozenPayloadField = frozenArgs.fields['payloads']!;
+    final frozenPayloadList = frozenPayloadField.schema as FlowListActionSchema;
+    final frozenNullable = frozenPayloadList.child as FlowNullableActionSchema;
+    final frozenPayload = frozenNullable.child as FlowObjectActionSchema;
+    final frozenChannelField = frozenPayload.fields['channel']!;
+    final frozenChannel = frozenChannelField.schema as FlowEnumActionSchema;
+    final frozenResult = frozenAction.resultSchema as FlowEnumActionSchema;
+
+    expect(frozenArgs, isNot(same(argsSchema)));
+    expect(frozenPayloadField, isNot(same(payloadField)));
+    expect(frozenPayloadList, isNot(same(payloadListSchema)));
+    expect(frozenNullable, isNot(same(nullablePayloadSchema)));
+    expect(frozenPayload, isNot(same(payloadSchema)));
+    expect(frozenChannelField, isNot(same(channelField)));
+    expect(frozenChannel, isNot(same(channelSchema)));
+    expect(frozenResult, isNot(same(resultSchema)));
+    expect(frozenChannel.values, ['email', 'push']);
+    expect(frozenResult.values, ['accepted', 'rejected']);
+    expect(() => frozenArgs.fields.clear(), throwsUnsupportedError);
+    expect(() => frozenPayload.fields.clear(), throwsUnsupportedError);
+    expect(() => frozenChannel.values.add('sms'), throwsUnsupportedError);
+    expect(() => frozenResult.values.add('pending'), throwsUnsupportedError);
   });
 
   test('ResolvedFlow freezes hostSeedable flow state declarations', () {
@@ -550,6 +732,12 @@ void main() {
 
 Map<String, Object?> _decodeMapResult(Map<String, Object?> result) => result;
 
+ResolvedFlow _foreignResolvedFlow(Uint8List screenBytes) => ResolvedFlow(
+      document: _validDocument(screenBytes: screenBytes),
+      screenBlobs: {'welcome': screenBytes},
+      cacheHit: false,
+    );
+
 Matcher _flowUnavailable(String reason) {
   return isA<FlowUnavailableError>()
       .having((error) => error.reason, 'reason', reason)
@@ -609,7 +797,7 @@ final class _FlowAssetBundle extends CachingAssetBundle {
   }) {
     return _FlowAssetBundle()
       ..writeFlow(flow, document)
-      ..writeScreen('welcome.rfw', screenBytes);
+      ..writeScreenFor(flow, 'welcome.rfw', screenBytes);
   }
 
   final Map<String, Uint8List> _assets = {};
@@ -620,12 +808,21 @@ final class _FlowAssetBundle extends CachingAssetBundle {
   }
 
   void writeFlowJson(OnboardingFlowRef<Object?> flow, String json) {
-    _assets['assets/onboarding/flows/${flow.id}.flow.json'] =
+    _assets['assets/${flow.surfaceType.wireName}/flows/${flow.id}.flow.json'] =
         Uint8List.fromList(utf8.encode(json));
   }
 
   void writeScreen(String path, Uint8List bytes) {
     _assets['assets/onboarding/screens/$path'] = Uint8List.fromList(bytes);
+  }
+
+  void writeScreenFor(
+    OnboardingFlowRef<Object?> flow,
+    String path,
+    Uint8List bytes,
+  ) {
+    _assets['assets/${flow.surfaceType.wireName}/screens/$path'] =
+        Uint8List.fromList(bytes);
   }
 
   void removeScreen(String path) {

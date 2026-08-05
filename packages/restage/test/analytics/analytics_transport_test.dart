@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -141,6 +142,134 @@ void main() {
     await transport.flush();
     expect(sent, ['e2', 'e3']);
   });
+
+  test(
+      'an explicit flush requested during an in-flight POST waits for and '
+      'sends a follow-up batch', () async {
+    final firstResponse = Completer<http.Response>();
+    final postedEventIds = <List<String>>[];
+    final transport = AnalyticsTransport(
+      endpointUrl: 'https://api.example.com/analytics/events',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        postedEventIds.add(<String>[
+          for (final event in body['events']! as List)
+            (event! as Map)['eventId']! as String,
+        ]);
+        if (postedEventIds.length == 1) return firstResponse.future;
+        return http.Response('', 200);
+      }),
+    );
+
+    transport.enqueue(event('existing'));
+    final flushA = transport.flush();
+    await _waitFor(() => postedEventIds.length == 1);
+
+    transport.enqueue(event('canonical'));
+    var flushBCompleted = false;
+    final flushB = transport.flush().whenComplete(() {
+      flushBCompleted = true;
+    });
+    await Future<void>.delayed(Duration.zero);
+
+    expect(flushBCompleted, isFalse);
+    firstResponse.complete(http.Response('', 200));
+    await Future.wait<void>(<Future<void>>[flushA, flushB]);
+
+    expect(postedEventIds, <List<String>>[
+      <String>['existing'],
+      <String>['canonical'],
+    ]);
+  });
+
+  for (final firstStatus in <int>[200, 400]) {
+    test(
+        'in-flight $firstStatus removal preserves overflow replacements for '
+        'the coalesced follow-up', () async {
+      final firstResponse = Completer<http.Response>();
+      final postedEventIds = <List<String>>[];
+      final transport = AnalyticsTransport(
+        endpointUrl: 'https://api.example.com/analytics/events',
+        apiKey: 'rs_pk_test',
+        batchSize: 10,
+        maxBufferSize: 2,
+        httpClient: MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, Object?>;
+          postedEventIds.add(<String>[
+            for (final event in body['events']! as List)
+              (event! as Map)['eventId']! as String,
+          ]);
+          if (postedEventIds.length == 1) return firstResponse.future;
+          return http.Response('', 200);
+        }),
+      );
+
+      transport
+        ..enqueue(event('e1'))
+        ..enqueue(event('e2'));
+      final flushA = transport.flush();
+      await _waitFor(() => postedEventIds.length == 1);
+
+      transport
+        ..enqueue(event('e3'))
+        ..enqueue(event('e4'));
+      final flushB = transport.flush();
+      firstResponse.complete(http.Response('', firstStatus));
+      await Future.wait<void>(<Future<void>>[flushA, flushB]);
+
+      expect(postedEventIds, <List<String>>[
+        <String>['e1', 'e2'],
+        <String>['e3', 'e4'],
+      ]);
+    });
+  }
+
+  test(
+      'a coalesced follow-up after a transient attempt is bounded and does '
+      'not spin', () async {
+    final firstResponse = Completer<http.Response>();
+    final postedEventIds = <List<String>>[];
+    var recover = false;
+    final transport = AnalyticsTransport(
+      endpointUrl: 'https://api.example.com/analytics/events',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, Object?>;
+        postedEventIds.add(<String>[
+          for (final event in body['events']! as List)
+            (event! as Map)['eventId']! as String,
+        ]);
+        if (postedEventIds.length == 1) return firstResponse.future;
+        return http.Response('', recover ? 200 : 503);
+      }),
+    );
+
+    transport.enqueue(event('existing'));
+    final flushA = transport.flush();
+    await _waitFor(() => postedEventIds.length == 1);
+    transport.enqueue(event('canonical'));
+    final flushB = transport.flush();
+
+    firstResponse.complete(http.Response('', 503));
+    await Future.wait<void>(<Future<void>>[flushA, flushB]);
+    expect(postedEventIds, hasLength(2));
+
+    await Future<void>.delayed(Duration.zero);
+    expect(postedEventIds, hasLength(2), reason: 'must not self-retry forever');
+
+    recover = true;
+    await transport.flush();
+    expect(postedEventIds, hasLength(3));
+    expect(postedEventIds.last, <String>['existing', 'canonical']);
+  });
+}
+
+Future<void> _waitFor(bool Function() condition) async {
+  for (var attempt = 0; attempt < 100 && !condition(); attempt += 1) {
+    await Future<void>.delayed(Duration.zero);
+  }
+  expect(condition(), isTrue);
 }
 
 /// A stand-in throwable for a network failure.

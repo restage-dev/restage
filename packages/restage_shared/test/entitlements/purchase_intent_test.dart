@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 const _purchaseIntentId = '550e8400-e29b-41d4-a716-446655440000';
 const _appAnonymousToken = '6ba7b810-9dad-41d1-80b4-00c04fd430c8';
-const _maxSignedInt64 = 9223372036854775807;
+final int _maxSignedInt64 = int.parse('9223372036854775807');
 
 Map<String, Object?> _requiredRequestJson() => {
       'purchaseIntentId': _purchaseIntentId,
@@ -290,7 +290,7 @@ void main() {
     });
 
     test('accepts signed 64-bit min and max boundaries', () {
-      for (final value in const [1, _maxSignedInt64]) {
+      for (final value in [1, _maxSignedInt64]) {
         final versionJson = _requiredRequestJson()
           ..['paywallId'] = 'upgrade'
           ..['paywallPublishedVersion'] = value;

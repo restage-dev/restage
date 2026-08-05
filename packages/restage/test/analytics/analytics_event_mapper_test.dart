@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/analytics/analytics_event_mapper.dart';
+import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage/src/events/restage_event.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -13,6 +14,7 @@ void main() {
 
   AnalyticsEvent map(
     RestageEvent event, {
+    RootAnalyticsEventBinding? rootAttribution,
     String? surfaceSessionId,
     String? userId,
   }) {
@@ -25,10 +27,13 @@ void main() {
       userId: userId,
       appContext: appContext,
       now: now,
+      rootAttribution: rootAttribution,
     );
   }
 
-  test('a paywall event maps to surface=paywall with the 4-level identity', () {
+  test(
+      'a paywall event maps to surface=paywall without trusting payload '
+      'experiment fields', () {
     final firedAt = DateTime.utc(2026, 6, 13, 11, 59);
     final envelope = map(
       PaywallViewed(
@@ -52,10 +57,9 @@ void main() {
     expect(envelope.appContext, appContext);
     expect(envelope.eventId, 'evt-1');
     expect(envelope.occurredAt, firedAt);
-    // variantId is a promoted cohort dim → typed envelope field, not properties.
-    expect(envelope.variantId, 'variant-A');
-    expect(envelope.experimentId, 'exp-1');
-    expect(envelope.experimentEpoch, 3);
+    expect(envelope.variantId, isNull);
+    expect(envelope.experimentId, isNull);
+    expect(envelope.experimentEpoch, isNull);
     expect(envelope.properties.containsKey('variantId'), isFalse);
     expect(envelope.properties.containsKey('experimentId'), isFalse);
     expect(envelope.properties.containsKey('experimentEpoch'), isFalse);
@@ -237,6 +241,120 @@ void main() {
       expect(isProdSuppressedAnalyticsEvent('paywall_viewed'), isFalse);
       expect(isProdSuppressedAnalyticsEvent('purchase_succeeded'), isFalse);
       expect(isProdSuppressedAnalyticsEvent('flow_started'), isFalse);
+    });
+  });
+
+  group('authoritative internal root attribution', () {
+    test('a child flow outcome inherits the exact rendered root envelope', () {
+      const root = RootAnalyticsEventContext(
+        identityGeneration: 3,
+        surface: 'message',
+        surfaceId: 'welcome-message',
+        surfaceVersion: '14',
+        surfaceSessionId: 'root-session-1',
+        experimentId: 'exp-message',
+        variantId: 'variant-b',
+        experimentEpoch: 8,
+      );
+
+      final envelope = map(
+        const FlowCustomEvent(
+          flowId: 'child-flow',
+          flowVersion: 2,
+          resolvedVersion: 6,
+          eventName: 'cta_tapped',
+          fields: <String, Object?>{'cta': 'continue'},
+        ),
+        rootAttribution: RootAnalyticsEventBinding.active(root),
+      );
+
+      expect(envelope.surface, 'message');
+      expect(envelope.surfaceId, 'welcome-message');
+      expect(envelope.surfaceVersion, '14');
+      expect(envelope.surfaceSessionId, 'root-session-1');
+      expect(envelope.experimentId, 'exp-message');
+      expect(envelope.variantId, 'variant-b');
+      expect(envelope.experimentEpoch, 8);
+      expect(envelope.properties['eventName'], 'cta_tapped');
+      expect(envelope.properties['fields'], <String, Object?>{
+        'cta': 'continue',
+      });
+    });
+
+    test('pre-paint and retired roots cannot trust event assignment fields',
+        () {
+      final envelope = map(
+        const PaywallViewed(
+          paywallId: 'upgrade',
+          productIds: <String>[],
+          publishedVersion: 4,
+          experimentId: 'event-exp',
+          variantId: 'event-variant',
+          experimentEpoch: 99,
+        ),
+        surfaceSessionId: 'global-slot',
+        rootAttribution: const RootAnalyticsEventBinding.anonymous(
+          surface: 'paywall',
+          surfaceId: 'upgrade',
+        ),
+      );
+
+      expect(envelope.surface, 'paywall');
+      expect(envelope.surfaceId, 'upgrade');
+      expect(envelope.surfaceVersion, isNull);
+      expect(envelope.surfaceSessionId, isNull);
+      expect(envelope.experimentId, isNull);
+      expect(envelope.variantId, isNull);
+      expect(envelope.experimentEpoch, isNull);
+    });
+
+    test('one- and two-field payload triples remain assignment-null', () {
+      for (final event in const <PaywallViewed>[
+        PaywallViewed(
+          paywallId: 'upgrade',
+          productIds: <String>[],
+          experimentId: 'event-exp',
+        ),
+        PaywallViewed(
+          paywallId: 'upgrade',
+          productIds: <String>[],
+          variantId: 'event-variant',
+          experimentEpoch: 99,
+        ),
+      ]) {
+        final envelope = map(event);
+        expect(envelope.experimentId, isNull);
+        expect(envelope.variantId, isNull);
+        expect(envelope.experimentEpoch, isNull);
+      }
+    });
+
+    test('active root attribution wins over a conflicting payload triple', () {
+      const root = RootAnalyticsEventContext(
+        identityGeneration: 3,
+        surface: 'paywall',
+        surfaceId: 'upgrade',
+        surfaceVersion: '4',
+        surfaceSessionId: 'root-session-1',
+        experimentId: 'root-exp',
+        variantId: 'root-variant',
+        experimentEpoch: 7,
+      );
+
+      final envelope = map(
+        const PaywallViewed(
+          paywallId: 'upgrade',
+          productIds: <String>[],
+          experimentId: 'event-exp',
+          variantId: 'event-variant',
+          experimentEpoch: 99,
+        ),
+        rootAttribution: RootAnalyticsEventBinding.active(root),
+      );
+
+      expect(envelope.experimentId, 'root-exp');
+      expect(envelope.variantId, 'root-variant');
+      expect(envelope.experimentEpoch, 7);
     });
   });
 }

@@ -1,6 +1,8 @@
 import 'package:restage/src/events/restage_event.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import 'root_analytics_context.dart';
+
 /// Event names the SDK does NOT yet bridge to analytics in production.
 ///
 /// The Tier-2 `paywall_session_summary` contract exists, but active
@@ -43,14 +45,17 @@ const Set<String> _promotedKeys = <String>{
 /// Maps an SDK [RestageEvent] to the wire [AnalyticsEvent] envelope, attaching
 /// the four-level identity and the client [appContext].
 ///
-/// The mapping is data-driven off [RestageEvent.toMap]: a `flowId` ⇒
-/// `surface=onboarding` / `surfaceId=flowId`; otherwise a non-null `paywallId`
-/// ⇒ `surface=paywall`; otherwise the event is app-wide (`surface=null`).
-/// Promoted conversion/cohort dims (`productId`/`offerId`/`variantId`/
-/// `experimentId`/`experimentEpoch`) land on typed envelope fields; every other
-/// residual field goes to `properties` **after the reserved-key scrub** (so a
-/// custom event can never smuggle render context). `tier`/`source` are NOT set
-/// here — the server stamps them.
+/// Without an authoritative [rootAttribution], the compatibility mapping is
+/// data-driven off [RestageEvent.toMap]: a `flowId` maps to onboarding, a
+/// non-null `paywallId` maps to paywall, and any other event is app-wide. An
+/// authoritative root binding instead supplies the actual root surface, ID,
+/// version, session, and experiment assignment.
+/// Promoted conversion dims (`productId`/`offerId`) land on typed envelope
+/// fields. Experiment dimensions come only from a complete authoritative root
+/// binding; payload claims are scrubbed but never trusted. Every other residual
+/// field goes to `properties` **after the reserved-key scrub** (so a custom
+/// event can never smuggle render context). `tier`/`source` are NOT set here —
+/// the server stamps them.
 AnalyticsEvent mapRestageEventToEnvelope(
   RestageEvent event, {
   required String eventId,
@@ -58,6 +63,7 @@ AnalyticsEvent mapRestageEventToEnvelope(
   required String sessionId,
   required AnalyticsAppContext appContext,
   required DateTime now,
+  RootAnalyticsEventBinding? rootAttribution,
   String? surfaceSessionId,
   String? userId,
 }) {
@@ -65,23 +71,37 @@ AnalyticsEvent mapRestageEventToEnvelope(
   final flowId = map['flowId'] as String?;
   final paywallId = event.paywallId;
 
-  final String? surface;
-  final String? surfaceId;
-  final String? effectiveSurfaceSessionId;
+  final String? eventSurface;
+  final String? eventSurfaceId;
+  final String? eventSurfaceSessionId;
   if (flowId != null) {
-    surface = AnalyticsSurface.onboarding;
-    surfaceId = flowId;
-    effectiveSurfaceSessionId =
+    eventSurface = AnalyticsSurface.onboarding;
+    eventSurfaceId = flowId;
+    eventSurfaceSessionId =
         (map['flowSessionId'] as String?) ?? surfaceSessionId;
   } else if (paywallId != null) {
-    surface = AnalyticsSurface.paywall;
-    surfaceId = paywallId;
-    effectiveSurfaceSessionId = surfaceSessionId;
+    eventSurface = AnalyticsSurface.paywall;
+    eventSurfaceId = paywallId;
+    eventSurfaceSessionId = surfaceSessionId;
   } else {
-    surface = null;
-    surfaceId = null;
-    effectiveSurfaceSessionId = surfaceSessionId;
+    eventSurface = null;
+    eventSurfaceId = null;
+    eventSurfaceSessionId = surfaceSessionId;
   }
+
+  final rootContext = rootAttribution?.context;
+  final authoritative = rootAttribution != null;
+  final surface = rootAttribution?.surface ?? eventSurface;
+  final surfaceId = rootAttribution?.surfaceId ?? eventSurfaceId;
+  final effectiveSurfaceSessionId =
+      authoritative ? rootContext?.surfaceSessionId : eventSurfaceSessionId;
+  final surfaceVersion = authoritative
+      ? rootContext?.surfaceVersion
+      : (map['flowVersion'] ?? map['surfaceVersion'] ?? map['publishedVersion'])
+          ?.toString();
+  final hasCompleteRootExperiment = rootContext?.experimentId != null &&
+      rootContext?.variantId != null &&
+      rootContext?.experimentEpoch != null;
 
   final properties = scrubReservedKeys(<String, Object?>{
     for (final entry in map.entries)
@@ -94,9 +114,7 @@ AnalyticsEvent mapRestageEventToEnvelope(
     occurredAt: (event.firedAt ?? now).toUtc(),
     surface: surface,
     surfaceId: surfaceId,
-    surfaceVersion:
-        (map['flowVersion'] ?? map['surfaceVersion'] ?? map['publishedVersion'])
-            ?.toString(),
+    surfaceVersion: surfaceVersion,
     surfaceSessionId: effectiveSurfaceSessionId,
     anonymousId: anonymousId,
     sessionId: sessionId,
@@ -104,9 +122,10 @@ AnalyticsEvent mapRestageEventToEnvelope(
     appContext: appContext,
     productId: map['productId'] as String?,
     offerId: map['offerId'] as String?,
-    variantId: map['variantId'] as String?,
-    experimentId: map['experimentId'] as String?,
-    experimentEpoch: map['experimentEpoch'] as int?,
+    variantId: hasCompleteRootExperiment ? rootContext?.variantId : null,
+    experimentId: hasCompleteRootExperiment ? rootContext?.experimentId : null,
+    experimentEpoch:
+        hasCompleteRootExperiment ? rootContext?.experimentEpoch : null,
     properties: properties,
   );
 }

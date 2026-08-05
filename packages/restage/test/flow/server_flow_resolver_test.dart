@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+// ignore: implementation_imports
+import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 // The installed built-in catalog content version is the resolver's capability
 // ceiling (internal; the resolver's own tests reach it via the src path).
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
@@ -722,8 +724,31 @@ void main() {
         screenBytes,
         requiredLibraries: const [requirement],
       );
-      final resolved = await resolverFor(envelope).resolve(flowRef);
-      expect(resolved.document.flow, 'first_run');
+      final resolver = resolverFor(envelope);
+      final provider = resolver as FlowExperimentArtifactMetadataProvider;
+      final fresh = await resolver.resolve(flowRef);
+      final cached = await resolver.resolve(flowRef);
+      expect(fresh.document.flow, 'first_run');
+      expect(cached.cacheHit, isTrue);
+      for (final resolved in [fresh, cached]) {
+        final metadata = provider.metadataFor(resolved);
+        expect(metadata.requiredLibraries, [requirement]);
+        expect(metadata.payloadIntegrityVerified, isTrue);
+      }
+      expect(
+        () => provider.metadataFor(
+          ResolvedFlow(
+            document: fresh.document,
+            screenBlobs: fresh.screenBlobs,
+            contentHash: fresh.contentHash,
+            cacheHit: false,
+          ),
+        ),
+        throwsStateError,
+      );
+      final foreignProvider =
+          resolverFor(envelope) as FlowExperimentArtifactMetadataProvider;
+      expect(() => foreignProvider.metadataFor(fresh), throwsStateError);
     });
 
     test(

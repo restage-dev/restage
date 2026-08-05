@@ -192,6 +192,31 @@ final class PublicOnboardingUsage extends StatelessWidget {
     );
   }
 }
+
+final class PublicSurfaceUsage extends StatelessWidget {
+  const PublicSurfaceUsage({super.key});
+
+  static final SurfaceFlowRef<FirstRunResult> messageRef =
+      SurfaceFlowRef<FirstRunResult>(
+    id: 'first_run_message',
+    version: 1,
+    minClient: 3,
+    surfaceType: SurfaceType.message,
+    decodeResult: FirstRunFlowDescriptor._decodeResult,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final SurfaceEventHandler onEvent = (eventId, value) {};
+    return RestageSurfaceEventDispatcher(
+      onEvent: onEvent,
+      child: RestageSurfaceFlow<FirstRunResult>(
+        flow: messageRef,
+        unavailable: const FlowUnavailablePolicy.hide(),
+      ),
+    );
+  }
+}
 ''';
 
     await _assertSourcesAnalyze({

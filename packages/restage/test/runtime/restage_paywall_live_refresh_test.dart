@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,11 +7,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage/src/refresh/surface_refresh_registry.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../flow/flow_test_support.dart';
 
@@ -98,7 +101,13 @@ Future<void> _pump(WidgetTester tester, RestagePaywall paywall) async {
 }
 
 void main() {
-  setUp(Restage.debugReset);
+  setUp(() {
+    Restage.debugReset();
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+  tearDown(() {
+    RootAnalyticsRuntime.debugPostFrameScheduler = null;
+  });
 
   testWidgets('reloadSurfaces swaps a clean paywall in place', (tester) async {
     final resolver = _MutableResolver(_blob('A'), version: 1);
@@ -142,6 +151,57 @@ void main() {
     // Exactly one NEW impression, carrying the RENDERED version.
     expect(viewed.length, 2);
     expect(viewed.last.publishedVersion, 2);
+  });
+
+  testWidgets(
+      'deferred viewed callbacks retain the exact presentation that scheduled '
+      'them across a refresh overlap', (tester) async {
+    final analyticsRequests = <http.Request>[];
+    _configureAnalytics(analyticsRequests);
+    final scheduled = <VoidCallback>[];
+    RootAnalyticsRuntime.debugPostFrameScheduler = scheduled.add;
+    final resolver = _MutableResolver(_blob('A'), version: 1);
+
+    await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
+    expect(scheduled, hasLength(1));
+
+    resolver
+      ..bytes = _blob('B')
+      ..version = 2;
+    await Restage.reloadSurfaces();
+    await tester.pumpAndSettle();
+    expect(scheduled, hasLength(2));
+
+    for (final callback in scheduled) {
+      callback();
+      callback();
+    }
+    await tester.pump();
+
+    final events = await _capturedAnalytics(analyticsRequests);
+    final canonical = _canonicalEvents(events);
+    final viewed =
+        events.where((event) => event['name'] == 'paywall_viewed').toList();
+    expect(canonical, hasLength(2));
+    expect(viewed, hasLength(2));
+
+    for (final version in const <String>['1', '2']) {
+      final owner = canonical.singleWhere(
+        (event) => event['surfaceVersion'] == version,
+      );
+      final impression = viewed.singleWhere(
+        (event) => event['surfaceVersion'] == version,
+      );
+      expect(impression['surface'], 'paywall');
+      expect(impression['surfaceId'], 'p');
+      expect(
+        impression['surfaceSessionId'],
+        owner['surfaceSessionId'],
+      );
+      expect(impression['experimentId'], isNull);
+      expect(impression['variantId'], isNull);
+      expect(impression['experimentEpoch'], isNull);
+    }
   });
 
   testWidgets(
@@ -599,9 +659,17 @@ void main() {
   testWidgets(
       'a refresh arriving after B paint commit but before deferred promotion '
       'does not dispose B when C fails', (tester) async {
+    final analyticsRequests = <http.Request>[];
+    _configureAnalytics(analyticsRequests);
     _registerReloadOnPaintProbe();
     final resolver = _FlowResolver(resolvedFlow(welcomeText: 'Flow A'), 1);
     await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
+    final initialPresentations =
+        _canonicalEvents(await _capturedAnalytics(analyticsRequests));
+    final initialSession = initialPresentations.isEmpty
+        ? null
+        : initialPresentations.first['surfaceSessionId'];
+    analyticsRequests.clear();
 
     final nestedRefreshDone = Completer<void>();
     _ReloadOnPaintProbe.onFirstPaint = () {
@@ -633,6 +701,8 @@ void main() {
     final flowViews = tester
         .widgetList<RestageFlowView<void>>(find.byType(RestageFlowView<void>))
         .toList();
+    final overlapPresentations =
+        _canonicalEvents(await _capturedAnalytics(analyticsRequests));
     final observed = (
       nestedRefreshDone: nestedRefreshDone.isCompleted,
       flowB: flowB,
@@ -671,6 +741,18 @@ void main() {
       ),
     );
     expect(observed.currentEntry, isNotNull);
+    expect(initialPresentations, hasLength(1));
+    expect(overlapPresentations, hasLength(1));
+    expect(overlapPresentations.single['surface'], 'paywall');
+    expect(overlapPresentations.single['surfaceId'], 'p');
+    expect(overlapPresentations.single['surfaceVersion'], '2');
+    expect(
+      overlapPresentations.single['surfaceSessionId'],
+      isNot(initialSession),
+    );
+    expect(overlapPresentations.single['experimentId'], isNull);
+    expect(overlapPresentations.single['variantId'], isNull);
+    expect(overlapPresentations.single['experimentEpoch'], isNull);
   });
 
   testWidgets(
@@ -1181,6 +1263,34 @@ class _ShapeResolver implements VariantResolver, FlowCapableVariantResolver {
     );
   }
 }
+
+void _configureAnalytics(List<http.Request> requests) {
+  Restage.debugAnalyticsHttpClient = MockClient((request) async {
+    requests.add(request);
+    return http.Response('', 200);
+  });
+  Restage.configure(
+    apiKey: 'rs_pk_test',
+    baseUrl: 'http://127.0.0.1:1',
+  );
+}
+
+Future<List<Map<String, Object?>>> _capturedAnalytics(
+  List<http.Request> requests,
+) async {
+  await Restage.debugFlushAnalytics();
+  return <Map<String, Object?>>[
+    for (final request in requests)
+      for (final event in (jsonDecode(request.body)
+          as Map<String, Object?>)['events']! as List)
+        (event! as Map).cast<String, Object?>(),
+  ];
+}
+
+List<Map<String, Object?>> _canonicalEvents(
+  List<Map<String, Object?>> events,
+) =>
+    events.where((event) => event['name'] == 'surface_presented').toList();
 
 class _CompleterGateway implements BillingGateway {
   _CompleterGateway(this._gate);

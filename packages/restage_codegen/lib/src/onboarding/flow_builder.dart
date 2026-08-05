@@ -285,7 +285,9 @@ final class OnboardingFlowBuilder implements Builder {
         // format-clean AND build_runner-byte-stable (the screen builder's
         // simpler template is already format-clean; the flow builder's richer
         // template needs the explicit pass).
-        formatGeneratedDart(_emitFlowDescriptor(stem, flow, lowered)),
+        formatGeneratedDart(
+          _emitFlowDescriptor(stem, flow, lowered, surface),
+        ),
       ),
       buildStep.writeAsBytes(
         AssetId(
@@ -3361,6 +3363,7 @@ String _emitFlowDescriptor(
   String stem,
   _FlowSource flow,
   _LoweredFlow lowered,
+  SurfaceType surface,
 ) {
   final baseName = _flowBaseName(flow.className);
   final descriptorClass = '${flow.className}Descriptor';
@@ -3397,6 +3400,8 @@ abstract final class $descriptorClass {
     id: '${flow.id}',
     version: ${flow.version},
     minClient: ${flow.minClient},
+    surfaceType: SurfaceType.${surface.wireName},
+    deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
     decodeResult: $descriptorClass._decodeResult,
   );
 
@@ -3424,6 +3429,8 @@ abstract final class $descriptorClass {
     id: '${flow.id}',
     version: ${flow.version},
     minClient: ${flow.minClient},
+    surfaceType: SurfaceType.${surface.wireName},
+    deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
     decodeResult: $descriptorClass._decodeResult,
   );
 

@@ -5,12 +5,13 @@ import 'package:restage_shared/restage_shared.dart';
 import 'bundled_flow_loader.dart';
 import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
+import 'flow_experiment_artifact_metadata.dart';
 
-/// Resolves onboarding flow descriptors for `RestageOnboarding`.
+/// Resolves generated surface-flow descriptors for `RestageSurfaceFlow`.
 ///
 /// A resolver returns a validated flow document plus the exact pinned screen
 /// blobs it references. Resolver failures are surfaced as unavailable flows by
-/// `RestageOnboarding`.
+/// `RestageSurfaceFlow`.
 abstract interface class FlowResolver {
   /// Resolves [flow] into a validated flow document and pinned screen blobs.
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow);
@@ -101,7 +102,10 @@ final class ResolvedFlow {
 // relying on per-field vigilance.
 FlowDocument _freezeDocument(FlowDocument document) {
   return document.copyWith(
-    actions: Map.unmodifiable(document.actions),
+    actions: Map.unmodifiable({
+      for (final entry in document.actions.entries)
+        entry.key: _freezeActionContract(entry.value),
+    }),
     flowState: Map.unmodifiable({
       for (final entry in document.flowState.entries)
         entry.key: _freezeFlowStateDeclaration(entry.value),
@@ -114,6 +118,44 @@ FlowDocument _freezeDocument(FlowDocument document) {
     }),
     unsupportedFeatures: Set.unmodifiable(document.unsupportedFeatures),
   );
+}
+
+FlowActionContract _freezeActionContract(FlowActionContract contract) {
+  return FlowActionContract(
+    actionName: contract.actionName,
+    contractVersion: contract.contractVersion,
+    argsSchema: _freezeActionSchema(contract.argsSchema),
+    resultSchema: _freezeActionSchema(contract.resultSchema),
+    minClient: contract.minClient,
+    idempotent: contract.idempotent,
+  );
+}
+
+FlowActionSchema _freezeActionSchema(FlowActionSchema schema) {
+  return switch (schema) {
+    FlowObjectActionSchema(:final fields) => FlowActionSchema.object(
+        Map.unmodifiable({
+          for (final entry in fields.entries)
+            entry.key: FlowActionSchemaField(
+              required: entry.value.required,
+              schema: _freezeActionSchema(entry.value.schema),
+            ),
+        }),
+      ),
+    FlowBoolActionSchema() => const FlowActionSchema.bool(),
+    FlowIntActionSchema() => const FlowActionSchema.int(),
+    FlowDoubleActionSchema() => const FlowActionSchema.double(),
+    FlowStringActionSchema() => const FlowActionSchema.string(),
+    FlowEnumActionSchema(:final values) => FlowActionSchema.enumValues(
+        List.unmodifiable(values),
+      ),
+    FlowListActionSchema(:final child) => FlowActionSchema.list(
+        _freezeActionSchema(child),
+      ),
+    FlowNullableActionSchema(:final child) => FlowActionSchema.nullable(
+        _freezeActionSchema(child),
+      ),
+  };
 }
 
 FlowStateDeclaration _freezeFlowStateDeclaration(
@@ -366,9 +408,9 @@ Object? _freezeJsonValue(Object? value) {
   };
 }
 
-/// Error surfaced when an onboarding flow cannot be resolved or rendered.
+/// Error surfaced when a surface flow cannot be resolved or rendered.
 ///
-/// `RestageOnboarding` routes this through its required
+/// `RestageSurfaceFlow` routes this through its required
 /// `FlowUnavailablePolicy`, optional callback, and global flow-unavailable
 /// event.
 final class FlowUnavailableError implements Exception {
@@ -380,7 +422,7 @@ final class FlowUnavailableError implements Exception {
     required this.message,
   });
 
-  /// Stable onboarding flow identifier.
+  /// Stable flow identifier.
   final String flowId;
 
   /// Flow descriptor version.
@@ -403,14 +445,15 @@ final class FlowUnavailableError implements Exception {
   }
 }
 
-/// Resolves onboarding flows from bundled Flutter assets.
+/// Resolves flows from bundled Flutter assets.
 ///
 /// The default flow delivery path loads
-/// `assets/onboarding/flows/<id>.flow.json` and each referenced screen from
-/// `assets/onboarding/screens/`. Paywall-owned flow screens (`paywall_*`) load
+/// `assets/<surface>/flows/<id>.flow.json` and each referenced screen from
+/// `assets/<surface>/screens/`. Paywall-owned flow screens (`paywall_*`) load
 /// from `assets/paywalls/screens/`. Missing, malformed, incompatible,
 /// unsupported, or hash-mismatched artifacts throw [FlowUnavailableError].
-final class AssetFlowResolver implements FlowResolver {
+final class AssetFlowResolver
+    implements FlowResolver, FlowExperimentArtifactMetadataProvider {
   /// Creates an asset-backed flow resolver.
   const AssetFlowResolver({AssetBundle? bundle}) : _bundle = bundle;
 
@@ -424,10 +467,11 @@ final class AssetFlowResolver implements FlowResolver {
 
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    final surface = flow.surfaceType.wireName;
     final artifacts = await loadBundledFlowArtifacts(
       bundle: _effectiveBundle,
-      flowJsonPath: 'assets/onboarding/flows/${flow.id}.flow.json',
-      screenAssetPathPrefix: 'assets/onboarding/screens',
+      flowJsonPath: 'assets/$surface/flows/${flow.id}.flow.json',
+      screenAssetPathPrefix: 'assets/$surface/screens',
       flowId: flow.id,
       expectedVersion: flow.version,
       supportedMinClient: flow.minClient,
@@ -444,7 +488,7 @@ final class AssetFlowResolver implements FlowResolver {
     );
     final cached = _cache[cacheKey];
     if (cached != null) {
-      return cached._withCacheHit();
+      return _own(cached._withCacheHit());
     }
 
     final resolved = ResolvedFlow(
@@ -454,8 +498,23 @@ final class AssetFlowResolver implements FlowResolver {
       cacheHit: false,
     );
     _cache[cacheKey] = resolved;
-    return resolved;
+    return _own(resolved);
   }
+
+  ResolvedFlow _own(ResolvedFlow flow) {
+    FlowExperimentArtifactOwnership.attach(
+      owner: this,
+      flow: flow,
+      metadata: FlowExperimentArtifactOwnership.verifiedMetadata(
+        requiredLibraries: const [],
+      ),
+    );
+    return flow;
+  }
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      FlowExperimentArtifactOwnership.metadataFor(owner: this, flow: flow);
 
   String _cacheKey<R>(
     OnboardingFlowRef<R> flow,
@@ -468,7 +527,8 @@ final class AssetFlowResolver implements FlowResolver {
     final artifactHashes = artifactEntries
         .map((entry) => '${entry.key}=${entry.value.contentHash.value}')
         .join('|');
-    return '${flow.id}\u0000${flow.version}\u0000$documentHash'
+    return '${flow.surfaceType.wireName}\u0000${flow.id}\u0000'
+        '${flow.version}\u0000$documentHash'
         '\u0000$artifactHashes';
   }
 

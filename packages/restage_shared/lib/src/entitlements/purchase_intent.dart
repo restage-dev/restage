@@ -1,7 +1,12 @@
 import 'package:meta/meta.dart';
 
 const _maxStringLength = 1024;
-const _maxSignedInt64 = 9223372036854775807;
+// Compare the exact signed-int64 ceiling as two web-safe decimal chunks. The
+// single `9223372036854775807` int literal cannot be represented exactly by
+// dart2js and makes every web consumer of this public library fail to compile.
+const _signedInt64ChunkBase = 1000000;
+const _maxSignedInt64HighChunk = 9223372036854;
+const _maxSignedInt64LowChunk = 775807;
 const _stores = {'appStore', 'playStore'};
 const _requestFields = {
   'purchaseIntentId',
@@ -81,7 +86,12 @@ final class CreatePurchaseIntentRequest {
         assert(
           paywallPublishedVersion == null ||
               (paywallPublishedVersion >= 1 &&
-                  paywallPublishedVersion <= _maxSignedInt64),
+                  (paywallPublishedVersion ~/ _signedInt64ChunkBase <
+                          _maxSignedInt64HighChunk ||
+                      (paywallPublishedVersion ~/ _signedInt64ChunkBase ==
+                              _maxSignedInt64HighChunk &&
+                          paywallPublishedVersion % _signedInt64ChunkBase <=
+                              _maxSignedInt64LowChunk))),
           'paywallPublishedVersion must be an int from '
           '1 to 9223372036854775807',
         ),
@@ -113,7 +123,13 @@ final class CreatePurchaseIntentRequest {
         ),
         assert(
           experimentEpoch == null ||
-              (experimentEpoch >= 1 && experimentEpoch <= _maxSignedInt64),
+              (experimentEpoch >= 1 &&
+                  (experimentEpoch ~/ _signedInt64ChunkBase <
+                          _maxSignedInt64HighChunk ||
+                      (experimentEpoch ~/ _signedInt64ChunkBase ==
+                              _maxSignedInt64HighChunk &&
+                          experimentEpoch % _signedInt64ChunkBase <=
+                              _maxSignedInt64LowChunk))),
           'experimentEpoch must be an int from 1 to 9223372036854775807',
         );
 
@@ -436,7 +452,7 @@ int? _optionalPositiveSignedInt64(
   String key,
 ) {
   final value = _optionalInt(json, key);
-  if (value == null || (value >= 1 && value <= _maxSignedInt64)) {
+  if (value == null || _isPositiveSignedInt64(value)) {
     return value;
   }
   throw ArgumentError.value(
@@ -444,6 +460,14 @@ int? _optionalPositiveSignedInt64(
     key,
     'Expected an int from 1 to 9223372036854775807 or null',
   );
+}
+
+bool _isPositiveSignedInt64(int value) {
+  if (value < 1) return false;
+  final highChunk = value ~/ _signedInt64ChunkBase;
+  return highChunk < _maxSignedInt64HighChunk ||
+      (highChunk == _maxSignedInt64HighChunk &&
+          value % _signedInt64ChunkBase <= _maxSignedInt64LowChunk);
 }
 
 void _requireCanonicalLowercaseUuidV4(String value, String key) {

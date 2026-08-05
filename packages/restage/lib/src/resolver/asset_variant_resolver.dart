@@ -10,6 +10,7 @@ import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_resolver.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/paywall_error.dart';
+import 'asset_paywall_flow_preflight.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
 import 'variant_resolver.dart';
@@ -99,6 +100,18 @@ final class AssetVariantResolver
       return BlobPaywallPayload(variant);
     }
   }
+
+  /// Freezes the flow-only bundled baseline for one hosted presentation.
+  ///
+  /// Package-internal: unlike [resolvePayload], a missing flow document never
+  /// consults the `.rfw` blob fallback.
+  @internal
+  Future<AssetPaywallFlowPreflightOutcome> preflightFlowBaseline(String id) =>
+      preflightAssetPaywallFlowBaseline(
+        bundle: _effectiveBundle,
+        assetPathPrefix: assetPathPrefix,
+        paywallId: id,
+      );
 
   Future<ResolvedVariant> _loadBlob(String id) async {
     final path = '$assetPathPrefix/$id.rfw';

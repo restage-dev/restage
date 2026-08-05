@@ -8,6 +8,8 @@ abstract final class MinimalNoticeFlowDescriptor {
     id: 'minimal_notice',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: MinimalNoticeFlowDescriptor._decodeResult,
   );
 

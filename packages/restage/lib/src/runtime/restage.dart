@@ -10,6 +10,7 @@ import 'package:restage_shared/restage_shared.dart';
 import '../analytics/analytics_event_mapper.dart';
 import '../analytics/analytics_identity.dart';
 import '../analytics/analytics_transport.dart';
+import '../analytics/root_analytics_context.dart';
 import '../billing/anonymous_token.dart';
 import '../billing/billing_gateway.dart';
 import '../billing/in_app_purchase_gateway.dart';
@@ -49,6 +50,7 @@ abstract final class Restage {
   static RestageEnvironment _environment = RestageEnvironment.production;
   static VariantResolver _defaultResolver = const AssetVariantResolver();
   static FlowResolver _defaultFlowResolver = const AssetFlowResolver();
+  static int _configurationGeneration = 0;
   static List<RestageProduct> _products = const [];
   static Map<String, RestageProduct> _productsBySlot = const {};
   static Map<String, RestageProduct> _productsById = const {};
@@ -96,6 +98,11 @@ abstract final class Restage {
   static AnalyticsIdentity? _analyticsIdentity;
   static AnalyticsTransport? _analyticsTransport;
   static AnalyticsAppContext? _analyticsAppContext;
+  static ({
+    String apiKey,
+    String endpoint,
+    RestageEnvironment environment,
+  })? _analyticsAuthority;
 
   /// Configure the SDK at app startup.
   ///
@@ -149,6 +156,7 @@ abstract final class Restage {
     SurfaceUpdateChannel? updateChannel,
     Uri? liveRefreshEdgeUrl,
   }) {
+    _configurationGeneration += 1;
     assert(
       products.map((p) => p.slot).toSet().length == products.length,
       'Restage.configure: products contain duplicate slots',
@@ -221,6 +229,7 @@ abstract final class Restage {
       baseUrl: baseUrl,
       locale: locale,
       enabled: analyticsEnabled,
+      environment: environment,
     );
     _configureSurfaceAssignmentKeyProvider(
       baseUrl: baseUrl,
@@ -280,25 +289,56 @@ abstract final class Restage {
     String? baseUrl,
     Locale? locale,
     bool enabled = true,
+    required RestageEnvironment environment,
   }) {
     if (!enabled || baseUrl == null || baseUrl.isEmpty) {
+      if (_analyticsAuthority != null) {
+        _retireAnalyticsAuthority();
+      }
+      _analyticsAuthority = null;
+      _analyticsTransport?.close();
       _analyticsTransport = null;
       _analyticsAppContext = null;
       return;
     }
-    _analyticsIdentity ??= AnalyticsIdentity();
+    final endpoint = _analyticsEndpoint(baseUrl);
+    final authority = (
+      apiKey: apiKey,
+      endpoint: endpoint,
+      environment: environment,
+    );
+    final previousAuthority = _analyticsAuthority;
+    if (previousAuthority != null && previousAuthority != authority) {
+      _retireAnalyticsAuthority();
+    }
+    _analyticsAuthority = authority;
+    _analyticsIdentity ??= RootAnalyticsRuntime.createIdentity();
     _analyticsAppContext = AnalyticsAppContext(
       platform: _platformWireName(),
       locale: locale?.toLanguageTag() ?? 'und',
       sdkVersion: sdkVersion,
     );
-    _analyticsTransport = AnalyticsTransport(
-      endpointUrl: _analyticsEndpoint(baseUrl),
-      apiKey: apiKey,
-      httpClient: debugAnalyticsHttpClient,
-      onError: (error, _) =>
-          debugPrint('[restage][analytics] dropped a batch: $error'),
+    final preservesTransport =
+        previousAuthority == authority && _analyticsTransport != null;
+    if (!preservesTransport) {
+      _analyticsTransport?.close();
+      _analyticsTransport = AnalyticsTransport(
+        endpointUrl: endpoint,
+        apiKey: apiKey,
+        httpClient: debugAnalyticsHttpClient,
+        onError: (error, _) =>
+            debugPrint('[restage][analytics] dropped a batch: $error'),
+      );
+    }
+    RootAnalyticsRuntime.install(
+      identity: _analyticsIdentity!,
+      onSurfacePresented: _emitSurfacePresented,
     );
+  }
+
+  static void _retireAnalyticsAuthority() {
+    RootAnalyticsRuntime.retireAuthority();
+    FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
   }
 
   static void _configureSurfaceMeteringKeyProvider({String? baseUrl}) {
@@ -406,6 +446,7 @@ abstract final class Restage {
     // persistence await. Reject pending hosted paint work against that new
     // generation now; accepted presentations remain pinned.
     unawaited(identity.reset());
+    RootAnalyticsRuntime.retireAll();
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
   }
 
@@ -463,15 +504,15 @@ abstract final class Restage {
     }
   }
 
-  /// Begins a surface-presentation session (mount), minting a new
-  /// `surfaceSessionId` for events fired during this presentation. Internal —
-  /// called by `RestagePaywall` on mount. Paired with [endSurfaceSession].
+  /// Begins a legacy app-global surface session by minting a new
+  /// `surfaceSessionId`. Root-owned surface attribution does not use this slot.
+  /// Paired with [endSurfaceSession].
   static void beginSurfaceSession() {
     final identity = _analyticsIdentity;
     if (identity != null) identity.surfaceSessionId = identity.newEventId();
   }
 
-  /// Ends the current surface-presentation session (dismiss). Internal.
+  /// Ends the legacy app-global surface session.
   static void endSurfaceSession() {
     _analyticsIdentity?.surfaceSessionId = null;
   }
@@ -545,6 +586,7 @@ abstract final class Restage {
     // can change on the next mount/dismiss before the (possibly async)
     // anonymousId resolves, so the event must bind the values at fire time.
     final snapshot = _IdentitySnapshot.capture(identity);
+    final rootAttribution = RootAnalyticsRuntime.currentEventBinding;
     unawaited(
       _enqueue(
         transport,
@@ -558,9 +600,43 @@ abstract final class Restage {
           userId: snapshot.userId,
           appContext: appContext,
           now: DateTime.now().toUtc(),
+          rootAttribution: rootAttribution,
         ),
         label: event.name,
         flushAfterEnqueue: _isMeteredExposureEvent(event),
+      ),
+    );
+  }
+
+  static void _emitSurfacePresented(RootAnalyticsEventContext context) {
+    final transport = _analyticsTransport;
+    final identity = _analyticsIdentity;
+    final appContext = _analyticsAppContext;
+    if (transport == null || identity == null || appContext == null) return;
+    final snapshot = _IdentitySnapshot.capture(identity);
+    unawaited(
+      _enqueue(
+        transport,
+        identity,
+        (anonymousId) => AnalyticsEvent(
+          eventId: context.canonicalEventId!,
+          name: 'surface_presented',
+          occurredAt: context.canonicalOccurredAt!,
+          surface: context.surface,
+          surfaceId: context.surfaceId,
+          surfaceVersion: context.surfaceVersion,
+          surfaceSessionId: context.surfaceSessionId,
+          anonymousId: anonymousId,
+          sessionId: snapshot.sessionId,
+          userId: snapshot.userId,
+          appContext: appContext,
+          experimentId: context.experimentId,
+          variantId: context.variantId,
+          experimentEpoch: context.experimentEpoch,
+          properties: const <String, Object?>{},
+        ),
+        label: 'surface_presented',
+        flushAfterEnqueue: true,
       ),
     );
   }
@@ -630,6 +706,10 @@ abstract final class Restage {
   /// The default is [AssetFlowResolver]; hosted flow delivery is not installed
   /// by [configure].
   static FlowResolver get defaultFlowResolver => _defaultFlowResolver;
+
+  /// Monotonic identity of mutable SDK configuration used by hosted mounts.
+  @internal
+  static int get configurationGeneration => _configurationGeneration;
 
   /// Products configured via [configure]. Used by the slot resolution
   /// path in `RestagePaywall` and the billing layer.
@@ -748,14 +828,23 @@ abstract final class Restage {
     PurchaseOutcomeSucceeded outcome,
     PurchaseAttributionSnapshot attribution,
   ) {
-    fireEvent(PurchaseSucceeded(
-      paywallId: attribution.paywallId,
-      productId: outcome.productId,
-      transactionId: outcome.transactionId,
-      priceMicros: outcome.priceMicros,
-      currency: outcome.currency,
-      offerId: attribution.offerId,
-    ));
+    void emit() {
+      fireEvent(PurchaseSucceeded(
+        paywallId: attribution.paywallId,
+        productId: outcome.productId,
+        transactionId: outcome.transactionId,
+        priceMicros: outcome.priceMicros,
+        currency: outcome.currency,
+        offerId: attribution.offerId,
+      ));
+    }
+
+    final rootAnalyticsContext = attribution.rootAnalyticsContext;
+    if (rootAnalyticsContext == null) {
+      emit();
+      return;
+    }
+    rootAnalyticsContext.runWithEventContext(emit);
   }
 
   /// Purchases [productId], optionally selecting a Google Play [basePlanId] or
@@ -1289,6 +1378,7 @@ abstract final class Restage {
   /// to avoid leaking state between tests.**
   @visibleForTesting
   static void debugReset() {
+    _configurationGeneration += 1;
     _apiKey = null;
     _baseUrl = null;
     _environment = RestageEnvironment.production;
@@ -1320,8 +1410,10 @@ abstract final class Restage {
     _anonymousTokenStore = AnonymousTokenStore();
     _analyticsTransport?.close();
     _analyticsTransport = null;
+    RootAnalyticsRuntime.clear();
     _analyticsIdentity = null;
     _analyticsAppContext = null;
+    _analyticsAuthority = null;
     SurfaceAssignmentKeyProvider.clear();
     _meteringTokenStore = null;
     SurfaceMeteringKeyProvider.clear();

@@ -8,6 +8,8 @@ abstract final class MinimalOnboardingFlowDescriptor {
     id: 'minimal_onboarding',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: MinimalOnboardingFlowDescriptor._decodeResult,
   );
 

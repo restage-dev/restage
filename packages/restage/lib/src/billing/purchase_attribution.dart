@@ -1,5 +1,7 @@
 import 'dart:collection';
 
+import '../analytics/root_analytics_context.dart';
+
 /// Immutable attribution captured from the content that rendered the buy CTA.
 ///
 /// This file is deliberately not exported. The synchronous scope lets the
@@ -13,6 +15,7 @@ final class PurchaseAttributionSnapshot {
     required this.experimentVariantId,
     required this.experimentEpoch,
     required this.offerId,
+    this.rootAnalyticsContext,
   });
 
   final String paywallId;
@@ -21,6 +24,7 @@ final class PurchaseAttributionSnapshot {
   final String? experimentVariantId;
   final int? experimentEpoch;
   final String? offerId;
+  final RootAnalyticsDeferredContext? rootAnalyticsContext;
 }
 
 /// Synchronous, isolate-local bridge around the source-compatible public call.
