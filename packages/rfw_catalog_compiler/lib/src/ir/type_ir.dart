@@ -76,7 +76,10 @@ final class ResolvedType {
       ResolvedTypeKind.shapeBorder => PropertyType.shapeBorder,
       ResolvedTypeKind.boxShadowList => PropertyType.boxShadowList,
       ResolvedTypeKind.structured => PropertyType.structured,
-      ResolvedTypeKind.listOfStructured => PropertyType.unknown,
+      ResolvedTypeKind.listOfStructured ||
+      ResolvedTypeKind.record ||
+      ResolvedTypeKind.map =>
+        PropertyType.unknown,
       ResolvedTypeKind.inlineSpan => PropertyType.inlineSpan,
       ResolvedTypeKind.decorationImage => PropertyType.decorationImage,
       ResolvedTypeKind.selectionOptionList => PropertyType.selectionOptionList,
@@ -201,6 +204,12 @@ enum ResolvedTypeKind {
 
   /// List of structured values.
   listOfStructured,
+
+  /// Inline named-record value.
+  record,
+
+  /// Inline map value.
+  map,
 
   /// List of primitive values.
   listOfPrimitive,

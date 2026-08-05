@@ -57,6 +57,26 @@ DartType? listItemType(DartType type) {
   return type.typeArguments.single;
 }
 
+/// [type] as `dart:core`'s `Map<K, V>`, or null when it is not one.
+///
+/// The single definition of "this is the core map type". Checked by library
+/// identity as well as by name and arity: a project class merely *named* `Map`
+/// is not the core one, and admitting it here would let a customer class be
+/// seeded as a map by one pass and rejected as a non-map by another.
+InterfaceType? dartCoreMapType(DartType type) {
+  if (type is! InterfaceType ||
+      type.element.name != 'Map' ||
+      type.element.library.identifier != 'dart:core' ||
+      type.typeArguments.length != 2) {
+    return null;
+  }
+  return type;
+}
+
+/// The value type of a `dart:core` `Map<K, V>`, or null for non-map values.
+DartType? mapValueType(DartType type) =>
+    dartCoreMapType(type)?.typeArguments[1];
+
 /// The `<library-identifier>#<ClassName>` identity for [type], or null when
 /// [type] is not an interface type with a resolvable [ClassElement].
 ///

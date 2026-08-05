@@ -4,6 +4,8 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/customer_map_plan.dart';
+import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart'
     show reconstructionVariant, structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
@@ -54,6 +56,8 @@ final class CustomerStructuredDiscovery {
     required this.nullableStructuredSlots,
     required this.localUnrenderable,
     required this.reconstructionPlans,
+    required this.mapPlans,
+    required this.recordPlans,
     required PolicyLedger policy,
     required Map<String, String> libraryNamespaceByFqn,
   })  : _policy = policy,
@@ -67,6 +71,8 @@ final class CustomerStructuredDiscovery {
         nullableStructuredSlots = const {},
         localUnrenderable = const {},
         reconstructionPlans = const {},
+        mapPlans = const {},
+        recordPlans = const {},
         _policy = const PolicyLedger.builtIn(),
         _libraryNamespaceByFqn = const {};
 
@@ -76,13 +82,10 @@ final class CustomerStructuredDiscovery {
   /// The discovered unions (unallocated wire IDs).
   final List<UnionEntry> unions;
 
-  /// Maps each `PropertyType.structured` slot — a widget property or a nested
-  /// structured field, keyed `'<ownerFqn>.<slotName>'` (the same source-key
-  /// convention the allocator uses) — to its target structured type's
-  /// `sourceType` FQN. This is the identity the sentinel `structuredRef`
-  /// (a bare `unallocatedStructured`) does not carry; the allocation pass reads
-  /// it to resolve each slot's ref, and the admissibility check reads it to
-  /// walk the closure.
+  /// Maps each nominal `PropertyType.structured` slot — a widget property or a
+  /// nested structured field, keyed `'<ownerFqn>.<slotName>'` — to its target
+  /// structured type's `sourceType` FQN. A nested map field may also leave an
+  /// inert collector entry here; map consumers read only [mapPlans].
   final Map<String, String> slotTargets;
 
   /// The subset of WIDGET structured-property slot keys (same
@@ -94,9 +97,11 @@ final class CustomerStructuredDiscovery {
   /// reconstruction plan; this covers only the level-0 widget prop.
   final Set<String> nullableStructuredSlots;
 
-  /// Structured types whose walk warn+dropped an unsupported inner field
-  /// (Map/record/list-of-objects/customer-union) — keyed by `sourceType`, value
-  /// a human-readable reason. A type here is not fully renderable on the RFW
+  /// Structured types carrying an inner field that cannot be lowered — keyed
+  /// by `sourceType`, value a human-readable reason. Two paths populate this:
+  /// the walker warn+drops an unsupported field, and an
+  /// out-of-boundary record field is recorded directly without going through
+  /// the walker's diagnostics. A type here is not fully renderable on the RFW
   /// path; the recursive gate excludes any widget whose closure reaches one.
   final Map<String, String> localUnrenderable;
 
@@ -108,7 +113,19 @@ final class CustomerStructuredDiscovery {
   /// instead (a predicate gap), never given a partial plan.
   final Map<String, ReconstructionPlan> reconstructionPlans;
 
+  /// The build-time map reconstruction recipe for each map slot.
+  final Map<String, MapPlan> mapPlans;
+
+  /// The build-time record reconstruction recipe for each record slot.
+  final Map<String, RecordPlan> recordPlans;
+
   final PolicyLedger _policy;
+
+  /// The walk policy, exposed so a widget-property map classification can be
+  /// decided against the same policy the structured walk used. Without it the
+  /// classifier cannot tell a customer data class from any other type, and a
+  /// map of one is refused as an unsupported value.
+  PolicyLedger get policy => _policy;
   final Map<String, String> _libraryNamespaceByFqn;
 
   /// The structured property shape for [fieldType], or `null` when the field
@@ -154,6 +171,28 @@ class _StructuredRoot {
   final String libraryNamespace;
 }
 
+/// The innermost value type of a (possibly nested) `Map`, or null when [type]
+/// is not a map.
+///
+/// Bounded rather than recursive without limit, for the same reason the alias
+/// unwrapper is: a pathological type must terminate rather than spin. On
+/// hitting the bound this yields the type reached there rather than null —
+/// null means "not a map", and reporting that for a map nested past the bound
+/// would seed discovery with the wrong type instead of a deeper one.
+DartType? _mapValueSeedType(DartType type) {
+  final first = mapValueType(type);
+  if (first == null) return null;
+  // Held in a non-nullable local: reassigning the nullable one inside the loop
+  // would drop its promotion and the next read would not compile.
+  var current = first;
+  for (var i = 0; i < 8; i++) {
+    final next = mapValueType(current);
+    if (next == null) return current;
+    current = next;
+  }
+  return current;
+}
+
 /// Walks [widgetClasses]' `@RestageProperty` fields, discovers the customer
 /// structured value types they reference (transitively, so a data class that
 /// nests another data class materialises both), and lowers each to a catalog
@@ -174,6 +213,7 @@ CustomerStructuredDiscovery discoverCustomerStructured({
   final slotTargets = <String, String>{};
   // Widget structured-prop slot keys whose Dart type is nullable (`Badge?`).
   final nullableStructuredSlots = <String>{};
+  final mapPlans = <String, MapPlan>{};
 
   // Adds [type]'s class to the closure when it is a customer data class, and
   // returns the resolved element (or `null` when [type] is not a customer data
@@ -200,9 +240,21 @@ CustomerStructuredDiscovery discoverCustomerStructured({
     final ownerFqn = elementFqn(cls);
     for (final field in cls.fields) {
       if (firstAnnotation(field, 'RestageProperty') == null) continue;
-      final targetElement = addDataClass(field.type, libraryNamespace);
+      // A widget property's innermost map value is seeded here so a data-class
+      // value is discoverable. The transitive pass below applies the same rule
+      // to map fields nested inside data classes.
+      final mapValueSeed = _mapValueSeedType(field.type);
+      final targetElement =
+          addDataClass(mapValueSeed ?? field.type, libraryNamespace);
       final fieldName = field.name;
-      if (targetElement != null && fieldName != null && fieldName.isNotEmpty) {
+      // The nominal slot bookkeeping below applies to nominal structured slots
+      // only. A map slot carries its target through its own build-time recipe,
+      // so recording it here too would give the same fact two homes that can
+      // disagree.
+      if (mapValueSeed == null &&
+          targetElement != null &&
+          fieldName != null &&
+          fieldName.isNotEmpty) {
         final slotKey = structuredSlotKey(ownerFqn, fieldName);
         slotTargets[slotKey] = elementFqn(targetElement);
         // A build-time signal (never a wire field): an optional NULLABLE
@@ -245,6 +297,7 @@ CustomerStructuredDiscovery discoverCustomerStructured({
   final localUnrenderable = <String, String>{};
   // The build-time reconstruction recipe per renderable type (arg kind/order).
   final reconstructionPlans = <String, ReconstructionPlan>{};
+  final recordPlans = <String, RecordPlan>{};
   for (final entry in closure.entries) {
     final fqn = entry.key;
     final root = entry.value;
@@ -272,10 +325,39 @@ CustomerStructuredDiscovery discoverCustomerStructured({
         }
       }
 
-      // The walker records a diagnostic and DROPS an unsupported inner field
-      // (Map/record/list-of-objects/customer-union) rather than failing the
-      // build. A dropped field means the lowered entry is missing state, so the
-      // type is not fully renderable — mark it loud rather than admit-and-drop.
+      // Materialized once and shared by both passes below: the generator
+      // rebuilds the generative-parameter name set from every constructor on
+      // each enumeration, and this root's fields do not change between them.
+      final structuredFields = _structuredFields(root.element).toList();
+
+      // Map and record fields stay disjoint from nominal structured fields.
+      // Their reconstruction identities live in their slot-keyed sidecars.
+      for (final field in structuredFields) {
+        final mapClassification = classifyMapType(
+          field.type,
+          structuredValuesAdmitted: false,
+        );
+        if (mapClassification case final MapAdmitted admitted) {
+          mapPlans[structuredSlotKey(lowered.sourceType, field.name)] =
+              mapPlanFromClassification(admitted);
+        }
+        final classification = classifyRecordType(
+          field.type,
+          library: library,
+          policy: policy,
+        );
+        if (classification case final RecordAdmitted admitted) {
+          recordPlans[structuredSlotKey(lowered.sourceType, field.name)] =
+              recordPlanFromClassification(admitted);
+        }
+        if (classification case RecordExcluded(:final reason)) {
+          recordUnrenderable('record field "${field.name}": $reason');
+        }
+      }
+
+      // The walker records a diagnostic and drops an unsupported inner field
+      // rather than failing the build. A dropped field means the lowered entry
+      // is missing state, so the type is not fully renderable.
       if (ir.diagnostics.isNotEmpty) {
         recordUnrenderable(_diagnosticReason(ir.diagnostics));
       }
@@ -338,7 +420,7 @@ CustomerStructuredDiscovery discoverCustomerStructured({
       }
       // Record each nested structured field's slot target for ref resolution.
       for (final (fieldName, targetFqn)
-          in _structuredFieldTargets(root.element)) {
+          in _structuredFieldTargets(structuredFields)) {
         slotTargets[structuredSlotKey(lowered.sourceType, fieldName)] =
             targetFqn;
       }
@@ -352,10 +434,67 @@ CustomerStructuredDiscovery discoverCustomerStructured({
     nullableStructuredSlots: Set.unmodifiable(nullableStructuredSlots),
     localUnrenderable: Map.unmodifiable(localUnrenderable),
     reconstructionPlans: Map.unmodifiable(reconstructionPlans),
+    mapPlans: Map.unmodifiable(mapPlans),
+    recordPlans: Map.unmodifiable(recordPlans),
     policy: policy,
     libraryNamespaceByFqn: libraryNamespaceByFqn,
   );
 }
+
+/// Maps one admitted map classification to the build-time sidecar consumed by
+/// the generated factory.
+MapPlan mapPlanFromClassification(MapAdmitted classification) {
+  final keys = <MapKeyPlan>[];
+  var current = classification;
+  while (true) {
+    keys.add((enumRef: current.keyEnumRef));
+    // Descend through the classification the caller already computed. It was
+    // classified WITH the library and policy, which the customer-structured
+    // branch requires; re-classifying here would drop both and mis-read a
+    // nested map of a customer data class as excluded, leaving the outer
+    // map's own opaque marker as the terminal value shape.
+    final nested = current.nestedValue;
+    if (nested != null) {
+      current = nested;
+      continue;
+    }
+    final shape = current.valueShape;
+    final valueElement = classElementFor(current.valueType);
+    // A map value is only ever a scalar, an enum, a nested map, or a customer
+    // data class: the classifier excludes every other shape before a plan
+    // exists, so a list value cannot reach here.
+    final valueSourceType = shape is StructuredShape && valueElement != null
+        ? elementFqn(valueElement)
+        : null;
+    return (
+      keys: List<MapKeyPlan>.unmodifiable(keys),
+      valueShape: shape,
+      valueSourceType: valueSourceType,
+    );
+  }
+}
+
+/// Maps one admitted record classification to the build-time sidecar the
+/// generated factory consumes.
+///
+/// Both widget properties and nested structured fields call this conversion on
+/// the same admitted verdict that produced their catalog slot, so the emitted
+/// label set and the recognized value shape cannot disagree.
+RecordPlan recordPlanFromClassification(RecordAdmitted classification) => (
+      labels: List<RecordLabelPlan>.unmodifiable(
+        classification.labels.map((label) {
+          final shape = label.shape;
+          final enumShape = shape is EnumShape ? shape : null;
+          return (
+            name: label.name,
+            type: shape.propertyType,
+            shape: shape,
+            enumLibraryUri: enumShape?.enumRef.libraryUri,
+            enumTypeName: enumShape?.enumRef.symbolName,
+          );
+        }),
+      ),
+    );
 
 /// The structured (value-bearing) fields of [element] — the declared
 /// `(name, type)` of fields named by a generative constructor parameter (the
@@ -379,13 +518,20 @@ Iterable<({String name, DartType type})> _structuredFields(
   }
 }
 
-/// The `(fieldName, targetSourceType)` for each of [element]'s fields whose
-/// type is a customer data class — the slot targets a later pass uses to
-/// resolve nested structured `structuredRef`s from their bare sentinels.
-Iterable<(String, String)> _structuredFieldTargets(ClassElement element) sync* {
-  for (final field in _structuredFields(element)) {
-    final targetElement =
-        classElementFor(listItemType(field.type) ?? field.type);
+/// The `(fieldName, targetSourceType)` for each of [fields] whose direct,
+/// list-item, or innermost map-value type is a customer data class.
+/// Nominal slots use these targets to resolve bare structured references; a
+/// map entry produced by the shared collector is inert.
+///
+/// Takes the already-materialized fields rather than the owning element so the
+/// caller enumerates them once and shares them across its passes.
+Iterable<(String, String)> _structuredFieldTargets(
+  Iterable<({String name, DartType type})> fields,
+) sync* {
+  for (final field in fields) {
+    final targetElement = classElementFor(
+      _mapValueSeedType(field.type) ?? listItemType(field.type) ?? field.type,
+    );
     if (targetElement == null || !_isCustomerDataClass(targetElement)) continue;
     yield (field.name, elementFqn(targetElement));
   }

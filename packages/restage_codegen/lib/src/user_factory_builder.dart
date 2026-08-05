@@ -46,6 +46,8 @@ final class UserFactoryBuilder implements Builder {
       slotTargets: collection.slotTargets,
       nullableStructuredSlots: collection.nullableStructuredSlots,
       reconstructionPlans: collection.reconstructionPlans,
+      mapPlans: collection.mapPlans,
+      recordPlans: collection.recordPlans,
       stampedCapabilityVersions: collection.stampedCapabilityVersions,
       onSkip: (skipped) => log.warning(
         '@RestageWidget(name: ${skipped.name}) on ${skipped.flutterType} '

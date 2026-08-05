@@ -8,10 +8,14 @@ import 'package:restage/restage.dart';
 /// must declare a monotonic `capabilityVersion`. The delivery pipeline records
 /// it as the library's floor: a hosted blob authored against a newer library
 /// is rejected before render on an app built against an older one, rather than
-/// mis-rendering. A library with only simple widgets needs no declaration.
+/// mis-rendering. Adding a record-shaped property is likewise a new render
+/// capability, so the library raises its floor when a widget gains one — as
+/// [SectionHeader] does. A map-shaped property is another such capability, so
+/// [PlanBoard] raises it again. A library with only simple widgets needs no
+/// declaration.
 @RestageLibrary(
   library: WidgetLibrary.custom('restage_example.widgets'),
-  capabilityVersion: 1,
+  capabilityVersion: 3,
 )
 const restageExampleWidgetLibrary = 0;
 

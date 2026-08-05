@@ -14,12 +14,14 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/acme_border.dart' as s0;
 import 'package:restage_example/widgets/acme_stack.dart' as s1;
 import 'package:restage_example/widgets/minimal_custom_widget.dart' as s2;
-import 'package:restage_example/widgets/pricing_card.dart' as s3;
-import 'package:restage_example/widgets/pricing_table.dart' as s4;
-import 'package:restage_example/widgets/promo_badge.dart' as s5;
-import 'package:restage_example/widgets/pulse_badge.dart' as s6;
-import 'package:restage_example/widgets/streak_badge.dart' as s7;
-import 'package:restage_example/widgets/tier_board.dart' as s8;
+import 'package:restage_example/widgets/plan_board.dart' as s3;
+import 'package:restage_example/widgets/pricing_card.dart' as s4;
+import 'package:restage_example/widgets/pricing_table.dart' as s5;
+import 'package:restage_example/widgets/promo_badge.dart' as s6;
+import 'package:restage_example/widgets/pulse_badge.dart' as s7;
+import 'package:restage_example/widgets/section_header.dart' as s8;
+import 'package:restage_example/widgets/streak_badge.dart' as s9;
+import 'package:restage_example/widgets/tier_board.dart' as s10;
 
 /// Registers every emittable @RestageWidget-annotated class
 /// in this package with Restage. Call once at the app's
@@ -29,14 +31,16 @@ import 'package:restage_example/widgets/tier_board.dart' as s8;
 void registerRestageCustomerWidgets() {
   Restage.registerWidgetLibrary(
     WidgetLibrary.custom('restage_example.widgets'),
-    capabilityVersion: 1,
+    capabilityVersion: 3,
     widgets: const <RestageWidgetFactory>[
       RestageWidgetFactory(name: 'AcmeBorder', builder: _buildAcmeBorder),
       RestageWidgetFactory(name: 'AcmeStack', builder: _buildAcmeStack),
+      RestageWidgetFactory(name: 'PlanBoard', builder: _buildPlanBoard),
       RestageWidgetFactory(name: 'PricingCard', builder: _buildPricingCard),
       RestageWidgetFactory(name: 'PricingTable', builder: _buildPricingTable),
       RestageWidgetFactory(name: 'PromoBadge', builder: _buildPromoBadge),
       RestageWidgetFactory(name: 'PulseBadge', builder: _buildPulseBadge),
+      RestageWidgetFactory(name: 'SectionHeader', builder: _buildSectionHeader),
       RestageWidgetFactory(name: 'StatBadge', builder: _buildStatBadge),
       RestageWidgetFactory(name: 'StreakBadge', builder: _buildStreakBadge),
       RestageWidgetFactory(name: 'TierBoard', builder: _buildTierBoard),
@@ -57,14 +61,96 @@ Widget _buildAcmeStack(BuildContext context, DataSource source) {
   );
 }
 
+Widget _buildPlanBoard(BuildContext context, DataSource source) {
+  return s3.PlanBoard(
+    plans: source.isList(<Object>['plans'])
+        ? () {
+            final m0 = <String, s4.Plan>{};
+            final n0 = source.length(<Object>['plans']);
+            for (var i0 = 0; i0 < n0; i0++) {
+              if (!source.isMap(<Object>['plans', i0])) {
+                throw ArgumentError('PlanBoard.plans entry must be an object.');
+              }
+              final k0 = source.v<String>(<Object>['plans', i0, 'key']) ??
+                  (throw ArgumentError(
+                      'PlanBoard.plans entry key is required.'));
+              if (m0.containsKey(k0)) {
+                throw ArgumentError('PlanBoard.plans has a duplicate key.');
+              }
+              m0[k0] = source.isMap(<Object>['plans', i0, 'value'])
+                  ? s4.Plan(
+                      name:
+                          source.v<String>(<Object>['plans', i0, 'value', 'name']) ??
+                              (throw ArgumentError('Plan.name is required.')),
+                      price: source.isMap(<Object>['plans', i0, 'value', 'price'])
+                          ? s4.Price(source.v<int>(<Object>['plans', i0, 'value', 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
+                              currency:
+                                  source.v<String>(<Object>['plans', i0, 'value', 'price', 'currency']) ??
+                                      'USD')
+                          : (throw ArgumentError('Plan.price is required.')),
+                      badge: source
+                          .v<String>(<Object>['plans', i0, 'value', 'badge']),
+                      tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                              s4.PlanTier.values,
+                              source,
+                              <Object>['plans', i0, 'value', 'tier']) ??
+                          s4.PlanTier.starter)
+                  : (throw ArgumentError('PlanBoard.plans entry value is required.'));
+            }
+            return m0;
+          }()
+        : (throw ArgumentError('PlanBoard.plans is required.')),
+    highlights: source.isList(<Object>['highlights'])
+        ? () {
+            final m0 = <s4.PlanTier, s4.Plan>{};
+            final n0 = source.length(<Object>['highlights']);
+            for (var i0 = 0; i0 < n0; i0++) {
+              if (!source.isMap(<Object>['highlights', i0])) {
+                throw ArgumentError(
+                    'PlanBoard.highlights entry must be an object.');
+              }
+              final k0 = ArgumentDecoders.enumValue<s4.PlanTier>(
+                      s4.PlanTier.values,
+                      source,
+                      <Object>['highlights', i0, 'key']) ??
+                  (throw ArgumentError(
+                      'PlanBoard.highlights entry key is not a known member.'));
+              if (m0.containsKey(k0)) {
+                throw ArgumentError(
+                    'PlanBoard.highlights has a duplicate key.');
+              }
+              m0[k0] = source.isMap(<Object>['highlights', i0, 'value'])
+                  ? s4.Plan(
+                      name: source.v<String>(<Object>['highlights', i0, 'value', 'name']) ??
+                          (throw ArgumentError('Plan.name is required.')),
+                      price: source.isMap(<Object>['highlights', i0, 'value', 'price'])
+                          ? s4.Price(source.v<int>(<Object>['highlights', i0, 'value', 'price', 'amount']) ?? (throw ArgumentError('Price.amount is required.')),
+                              currency: source.v<String>(<Object>['highlights', i0, 'value', 'price', 'currency']) ??
+                                  'USD')
+                          : (throw ArgumentError('Plan.price is required.')),
+                      badge: source.v<String>(
+                          <Object>['highlights', i0, 'value', 'badge']),
+                      tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                              s4.PlanTier.values,
+                              source,
+                              <Object>['highlights', i0, 'value', 'tier']) ??
+                          s4.PlanTier.starter)
+                  : (throw ArgumentError('PlanBoard.highlights entry value is required.'));
+            }
+            return m0;
+          }()
+        : (throw ArgumentError('PlanBoard.highlights is required.')),
+  );
+}
+
 Widget _buildPricingCard(BuildContext context, DataSource source) {
-  return s3.PricingCard(
+  return s4.PricingCard(
     plan: source.isMap(<Object>['plan'])
-        ? s3.Plan(
+        ? s4.Plan(
             name: source.v<String>(<Object>['plan', 'name']) ??
                 (throw ArgumentError('Plan.name is required.')),
             price: source.isMap(<Object>['plan', 'price'])
-                ? s3.Price(
+                ? s4.Price(
                     source.v<int>(<Object>['plan', 'price', 'amount']) ??
                         (throw ArgumentError('Price.amount is required.')),
                     currency: source
@@ -72,35 +158,36 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
                         'USD')
                 : (throw ArgumentError('Plan.price is required.')),
             badge: source.v<String>(<Object>['plan', 'badge']),
-            tier: ArgumentDecoders.enumValue<s3.PlanTier>(
-                    s3.PlanTier.values, source, <Object>['plan', 'tier']) ??
-                s3.PlanTier.starter)
+            tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                    s4.PlanTier.values, source, <Object>['plan', 'tier']) ??
+                s4.PlanTier.starter)
         : (throw ArgumentError('PricingCard.plan is required.')),
   );
 }
 
 Widget _buildPricingTable(BuildContext context, DataSource source) {
-  return s4.PricingTable(
+  return s5.PricingTable(
     plans: source.isList(<Object>['plans'])
         ? [
-            for (var i0 = 0; i0 < source.length(<Object>['plans']); i0++)
+            for (var i0 = 0, n0 = source.length(<Object>['plans']); i0 < n0; i0++)
               source.isMap(<Object>['plans', i0])
-                  ? s3.Plan(
+                  ? s4.Plan(
                       name: source.v<String>(<Object>['plans', i0, 'name']) ??
                           (throw ArgumentError('Plan.name is required.')),
                       price: source.isMap(<Object>['plans', i0, 'price'])
-                          ? s3.Price(
+                          ? s4.Price(
                               source.v<int>(<Object>['plans', i0, 'price', 'amount']) ??
                                   (throw ArgumentError(
                                       'Price.amount is required.')),
-                              currency: source.v<String>(
-                                      <Object>['plans', i0, 'price', 'currency']) ??
+                              currency: source.v<String>(<Object>['plans', i0, 'price', 'currency']) ??
                                   'USD')
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: source.v<String>(<Object>['plans', i0, 'badge']),
-                      tier: ArgumentDecoders.enumValue<s3.PlanTier>(
-                              s3.PlanTier.values, source, <Object>['plans', i0, 'tier']) ??
-                          s3.PlanTier.starter)
+                      tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                              s4.PlanTier.values,
+                              source,
+                              <Object>['plans', i0, 'tier']) ??
+                          s4.PlanTier.starter)
                   : (throw ArgumentError('PricingTable.plans element must be an object.'))
           ]
         : (throw ArgumentError('PricingTable.plans is required.')),
@@ -108,7 +195,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
 }
 
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
-  return s5.PromoBadge(
+  return s6.PromoBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('PromoBadge.label is required.')),
     color: ArgumentDecoders.color(source, <Object>['color']),
@@ -116,11 +203,48 @@ Widget _buildPromoBadge(BuildContext context, DataSource source) {
 }
 
 Widget _buildPulseBadge(BuildContext context, DataSource source) {
-  return s6.PulseBadge(
+  return s7.PulseBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('PulseBadge.label is required.')),
     count: source.v<int>(<Object>['count']) ??
         (throw ArgumentError('PulseBadge.count is required.')),
+  );
+}
+
+Widget _buildSectionHeader(BuildContext context, DataSource source) {
+  return s8.SectionHeader(
+    heading: source.isMap(<Object>['heading'])
+        ? (
+            step: source.v<int>(<Object>['heading', 'step']) ??
+                (throw ArgumentError(
+                    'SectionHeader.heading.step is required.')),
+            title: source.v<String>(<Object>['heading', 'title']) ??
+                (throw ArgumentError(
+                    'SectionHeader.heading.title is required.')),
+            tone: ArgumentDecoders.enumValue<s8.HeaderTone>(
+                    s8.HeaderTone.values,
+                    source,
+                    <Object>['heading', 'tone']) ??
+                (throw ArgumentError(
+                    'SectionHeader.heading.tone is required.')),
+          )
+        : (throw ArgumentError('SectionHeader.heading is required.')),
+    entry: source.isMap(<Object>['entry'])
+        ? s8.SectionEntry(
+            label: source.v<String>(<Object>['entry', 'label']) ??
+                (throw ArgumentError('SectionEntry.label is required.')),
+            meta: source.isMap(<Object>['entry', 'meta'])
+                ? (
+                    order: source.v<int>(<Object>['entry', 'meta', 'order']) ??
+                        (throw ArgumentError(
+                            'SectionEntry.meta.order is required.')),
+                    pinned:
+                        source.v<bool>(<Object>['entry', 'meta', 'pinned']) ??
+                            (throw ArgumentError(
+                                'SectionEntry.meta.pinned is required.')),
+                  )
+                : (throw ArgumentError('SectionEntry.meta is required.')))
+        : (throw ArgumentError('SectionHeader.entry is required.')),
   );
 }
 
@@ -134,7 +258,7 @@ Widget _buildStatBadge(BuildContext context, DataSource source) {
 }
 
 Widget _buildStreakBadge(BuildContext context, DataSource source) {
-  return s7.StreakBadge(
+  return s9.StreakBadge(
     label: source.v<String>(<Object>['label']) ??
         (throw ArgumentError('StreakBadge.label is required.')),
     count: source.v<int>(<Object>['count']) ??
@@ -143,24 +267,26 @@ Widget _buildStreakBadge(BuildContext context, DataSource source) {
 }
 
 Widget _buildTierBoard(BuildContext context, DataSource source) {
-  return s8.TierBoard(
+  return s10.TierBoard(
     tiers: source.isList(<Object>['tiers'])
         ? [
-            for (var i0 = 0; i0 < source.length(<Object>['tiers']); i0++)
+            for (var i0 = 0, n0 = source.length(<Object>['tiers']);
+                i0 < n0;
+                i0++)
               source.isMap(<Object>['tiers', i0])
-                  ? s8.Tier(
+                  ? s10.Tier(
                       name: source.v<String>(<Object>['tiers', i0, 'name']) ??
                           (throw ArgumentError('Tier.name is required.')),
                       features: source.isList(<Object>['tiers', i0, 'features'])
                           ? [
-                              for (var i1 = 0;
-                                  i1 <
-                                      source.length(
+                              for (var i1 = 0,
+                                      n1 = source.length(
                                           <Object>['tiers', i0, 'features']);
+                                  i1 < n1;
                                   i1++)
                                 source.isMap(
                                         <Object>['tiers', i0, 'features', i1])
-                                    ? s8.Feature(
+                                    ? s10.Feature(
                                         label: source.v<String>(<Object>[
                                               'tiers',
                                               i0,
@@ -180,22 +306,24 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
         : (throw ArgumentError('TierBoard.tiers is required.')),
     bonusTiers: source.isList(<Object>['bonusTiers'])
         ? [
-            for (var i0 = 0; i0 < source.length(<Object>['bonusTiers']); i0++)
+            for (var i0 = 0, n0 = source.length(<Object>['bonusTiers']);
+                i0 < n0;
+                i0++)
               source.isMap(<Object>['bonusTiers', i0])
-                  ? s8.Tier(
+                  ? s10.Tier(
                       name: source
                               .v<String>(<Object>['bonusTiers', i0, 'name']) ??
                           (throw ArgumentError('Tier.name is required.')),
                       features: source
                               .isList(<Object>['bonusTiers', i0, 'features'])
                           ? [
-                              for (var i1 = 0;
-                                  i1 <
-                                      source.length(<Object>[
-                                        'bonusTiers',
-                                        i0,
-                                        'features'
-                                      ]);
+                              for (var i1 = 0,
+                                      n1 = source.length(<Object>[
+                                'bonusTiers',
+                                i0,
+                                'features'
+                              ]);
+                                  i1 < n1;
                                   i1++)
                                 source.isMap(<Object>[
                                   'bonusTiers',
@@ -203,7 +331,7 @@ Widget _buildTierBoard(BuildContext context, DataSource source) {
                                   'features',
                                   i1
                                 ])
-                                    ? s8.Feature(
+                                    ? s10.Feature(
                                         label: source.v<String>(<Object>[
                                               'bonusTiers',
                                               i0,

@@ -5,11 +5,25 @@ import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/const_folding.dart';
+import 'package:restage_codegen/src/customer_map_plan.dart';
+import 'package:restage_codegen/src/customer_record_plan.dart';
+import 'package:restage_codegen/src/customer_structured_admissibility.dart'
+    show structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_discovery.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/json_scalar_type.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show
+        MapAdmitted,
+        MapExcluded,
+        NotAMap,
+        NotARecord,
+        RecordAdmitted,
+        RecordExcluded,
+        classifyMapType,
+        classifyRecordType;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _unknownEnumHint =
@@ -30,6 +44,8 @@ final class WidgetVisitorResult {
     Map<String, String> localUnrenderable = const {},
     Map<String, String> widgetUnrenderable = const {},
     Map<String, ReconstructionPlan> reconstructionPlans = const {},
+    Map<String, MapPlan> mapPlans = const {},
+    Map<String, RecordPlan> recordPlans = const {},
   })  : widgets = List.unmodifiable(widgets),
         issues = List.unmodifiable(issues),
         structuredTypes = List.unmodifiable(structuredTypes),
@@ -38,7 +54,9 @@ final class WidgetVisitorResult {
         nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
         localUnrenderable = Map.unmodifiable(localUnrenderable),
         widgetUnrenderable = Map.unmodifiable(widgetUnrenderable),
-        reconstructionPlans = Map.unmodifiable(reconstructionPlans);
+        reconstructionPlans = Map.unmodifiable(reconstructionPlans),
+        mapPlans = Map.unmodifiable(mapPlans),
+        recordPlans = Map.unmodifiable(recordPlans);
 
   /// Successfully extracted widget entries.
   final List<WidgetEntry> widgets;
@@ -66,13 +84,19 @@ final class WidgetVisitorResult {
   /// [CustomerStructuredDiscovery.localUnrenderable]).
   final Map<String, String> localUnrenderable;
 
-  /// Widgets whose constructor has a positional hole, keyed by `flutterType` ->
-  /// a human-readable reason. Excluded-loud at the admission point.
+  /// Widgets excluded before admission, keyed by `flutterType` to a
+  /// human-readable reason.
   final Map<String, String> widgetUnrenderable;
 
   /// The build-time reconstruction recipe per renderable structured type (see
   /// [CustomerStructuredDiscovery.reconstructionPlans]).
   final Map<String, ReconstructionPlan> reconstructionPlans;
+
+  /// The build-time map reconstruction recipe per map slot.
+  final Map<String, MapPlan> mapPlans;
+
+  /// The build-time record reconstruction recipe per record slot.
+  final Map<String, RecordPlan> recordPlans;
 }
 
 /// Chooses the format-specific projection rules for [visitRestageWidgets].
@@ -119,9 +143,11 @@ WidgetVisitorResult visitRestageWidgets(
     assetId: assetId,
     issues: issues,
   );
+  final mapPlans = <String, MapPlan>{...structured.mapPlans};
+  final recordPlans = <String, RecordPlan>{...structured.recordPlans};
 
-  // Widgets whose constructor has a POSITIONAL HOLE — excluded-loud at the one
-  // admission point (a silent wrong-render otherwise). Keyed by `flutterType`.
+  // Widget-level exclusions are collected first-wins and surfaced at the one
+  // admission point. Keyed by `flutterType`.
   final widgetUnrenderable = <String, String>{};
   for (final cls in widgetClasses) {
     final annotation = firstAnnotation(cls, 'RestageWidget')!;
@@ -131,7 +157,10 @@ WidgetVisitorResult visitRestageWidgets(
       assetId,
       issues,
       structured,
+      widgetUnrenderable: widgetUnrenderable,
       target: target,
+      mapPlans: mapPlans,
+      recordPlans: recordPlans,
     );
     if (entry == null) continue;
     widgets.add(entry);
@@ -144,7 +173,9 @@ WidgetVisitorResult visitRestageWidgets(
     if (ctor != null) {
       final propNames = {for (final p in entry.properties) p.name};
       final hole = positionalHoleReason(ctor, propNames);
-      if (hole != null) widgetUnrenderable[entry.flutterType] = hole;
+      if (hole != null) {
+        widgetUnrenderable.putIfAbsent(entry.flutterType, () => hole);
+      }
     }
   }
 
@@ -183,6 +214,8 @@ WidgetVisitorResult visitRestageWidgets(
     localUnrenderable: structured.localUnrenderable,
     widgetUnrenderable: widgetUnrenderable,
     reconstructionPlans: structured.reconstructionPlans,
+    mapPlans: mapPlans,
+    recordPlans: recordPlans,
   );
 }
 
@@ -192,7 +225,10 @@ WidgetEntry? _readWidgetAnnotation(
   AssetId assetId,
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
+  required Map<String, String> widgetUnrenderable,
   required WidgetVisitorTarget target,
+  required Map<String, MapPlan> mapPlans,
+  required Map<String, RecordPlan> recordPlans,
 }) {
   final value = annotation.computeConstantValue();
   final className = cls.name ?? '<unnamed>';
@@ -262,6 +298,7 @@ WidgetEntry? _readWidgetAnnotation(
       _childrenSlotFromAnnotation(value, issues, widgetLocation);
   final fires = _firesFromAnnotation(value, issues, widgetLocation);
   final deprecatedSince = value.getField('deprecatedSince')?.toStringValue();
+  final flutterType = _flutterTypeOf(cls);
 
   // Collect each property with a stable ordering key so POSITIONAL args emit in
   // CONSTRUCTOR order, not field-declaration order: a positional ctor param
@@ -283,7 +320,12 @@ WidgetEntry? _readWidgetAnnotation(
       assetId,
       issues,
       structured,
+      widgetFlutterType: flutterType,
+      library: library,
+      widgetUnrenderable: widgetUnrenderable,
       target: target,
+      mapPlans: mapPlans,
+      recordPlans: recordPlans,
     );
     // A bad property emits its own issue; keep collecting so a typo on one
     // field doesn't silently drop the entire widget from the catalog.
@@ -304,7 +346,7 @@ WidgetEntry? _readWidgetAnnotation(
     library: library,
     category: category,
     description: description,
-    flutterType: _flutterTypeOf(cls),
+    flutterType: flutterType,
     childrenSlot: childrenSlot,
     fires: fires,
     properties: properties,
@@ -377,6 +419,11 @@ PropertyEntry? _readPropertyAnnotation(
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
   required WidgetVisitorTarget target,
+  required WidgetLibrary library,
+  required String widgetFlutterType,
+  required Map<String, String> widgetUnrenderable,
+  required Map<String, MapPlan> mapPlans,
+  required Map<String, RecordPlan> recordPlans,
 }) {
   final value = annotation.computeConstantValue();
   final fieldName = field.name ?? '<unnamed>';
@@ -467,12 +514,62 @@ PropertyEntry? _readPropertyAnnotation(
     return null;
   }
 
-  // A customer structured value (a nested data class, or a list/map/record of
-  // one, or a sealed union) is resolved by the structured pre-pass; a scalar /
-  // enum / widget / event falls through to the legacy type inference.
+  // A customer structured value (a nested data class, a list of one, or a
+  // sealed union) is resolved by the structured pre-pass. Named records with
+  // admitted scalar or enum labels are resolved at the RFW boundary below;
+  // scalar / enum / widget / event types fall through to legacy type inference.
   final structuredShape = structured.shapeFor(field.type);
   final isA2ui = target == WidgetVisitorTarget.a2ui;
   final a2uiScalarList = isA2ui && _isA2uiScalarList(field.type);
+  // Record and map value shapes mark this wire format only; other emit targets
+  // keep an independent data-shape boundary. Both ride the same gate, and they
+  // are mutually exclusive: a type classified as a record is never offered to
+  // the map classifier.
+  final customerValueSlot = target == WidgetVisitorTarget.rfw &&
+      structuredShape == null &&
+      !a2uiScalarList;
+  final recordClassification =
+      customerValueSlot ? classifyRecordType(field.type) : const NotARecord();
+  final mapClassification =
+      customerValueSlot && recordClassification is NotARecord
+          ? classifyMapType(
+              field.type,
+              structuredValuesAdmitted: true,
+              library: library,
+              policy: structured.policy,
+            )
+          : const NotAMap();
+  final excludedReason = switch ((recordClassification, mapClassification)) {
+    (RecordExcluded(:final reason), _) =>
+      '$reason Record slot on $ownerName.$fieldName was excluded.',
+    (_, MapExcluded(:final reason)) =>
+      '$reason Map slot on $ownerName.$fieldName was excluded.',
+    _ => null,
+  };
+  if (excludedReason != null) {
+    widgetUnrenderable.putIfAbsent(widgetFlutterType, () => excludedReason);
+    return null;
+  }
+  // The admitted slot's opaque marker, recorded alongside its build-time plan
+  // so the shape and the sidecar cannot be set without each other.
+  //
+  // ONE local can stand for both kinds only because they are mutually
+  // exclusive, and that is not incidental: the map classifier above runs only
+  // when `recordClassification is NotARecord`, so a record slot is never
+  // offered to it and the two arms below can never both apply. If that gate
+  // ever loosens, this local has to split back into two.
+  final ScalarShape? customerShape;
+  if (recordClassification case final RecordAdmitted admitted) {
+    recordPlans[structuredSlotKey(widgetFlutterType, fieldName)] =
+        recordPlanFromClassification(admitted);
+    customerShape = ScalarShape.opaqueRecord();
+  } else if (mapClassification case final MapAdmitted admitted) {
+    mapPlans[structuredSlotKey(widgetFlutterType, fieldName)] =
+        mapPlanFromClassification(admitted);
+    customerShape = ScalarShape.opaqueStringKeyedMap();
+  } else {
+    customerShape = null;
+  }
   // The A2UI target preserves each scalar-list element type through its
   // analyzer seam without widening the shared RFW catalog taxonomy.
   // `structured` is the target-local carrier; seam assembly reflects the real
@@ -482,6 +579,8 @@ PropertyEntry? _readPropertyAnnotation(
     type = structuredShape.type;
   } else if (a2uiScalarList) {
     type = PropertyType.structured;
+  } else if (customerShape != null) {
+    type = PropertyType.unknown;
   } else {
     type = _inferPropertyType(
       field.type,
@@ -560,7 +659,7 @@ PropertyEntry? _readPropertyAnnotation(
     defaultSource: resolvedSource,
     enumType: enumShape?.enumRef.symbolName,
     structuredRef: structuredShape?.structuredRef,
-    valueShape: structuredShape?.valueShape ?? enumShape,
+    valueShape: structuredShape?.valueShape ?? customerShape ?? enumShape,
     validationRule: validationRule,
     constraints: constraints,
   );

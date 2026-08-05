@@ -8,7 +8,7 @@ final Catalog kUserCatalog = Catalog(
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.custom('restage_example.widgets'):
-        const LibraryInfo(version: '0.0.0', capabilityVersion: 1),
+        const LibraryInfo(version: '0.0.0', capabilityVersion: 3),
   },
   widgets: [
     WidgetEntry(
@@ -53,6 +53,41 @@ final Catalog kUserCatalog = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: 'Overlay children, top-most last.',
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0016'),
+      name: 'PlanBoard',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description:
+          'Renders plans keyed by slug plus a highlighted plan per billing tier (map-of-data-class properties).',
+      flutterType: 'package:restage_example/widgets/plan_board.dart#PlanBoard',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0045'),
+          name: 'plans',
+          type: PropertyType.unknown,
+          description: 'The plans to render, keyed by slug.',
+          required: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.unknown,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'Map')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0046'),
+          name: 'highlights',
+          type: PropertyType.unknown,
+          description: 'The highlighted plan for each billing tier.',
+          required: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.unknown,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'Map')),
         ),
       ],
     ),
@@ -162,6 +197,43 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.integer,
           description: 'Count shown after the caption.',
           required: true,
+        ),
+      ],
+    ),
+    WidgetEntry(
+      wireId: WireId('w0015'),
+      name: 'SectionHeader',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'Introduces a section with heading and entry metadata.',
+      flutterType:
+          'package:restage_example/widgets/section_header.dart#SectionHeader',
+      childrenSlot: ChildrenSlot.none,
+      fires: [],
+      properties: [
+        PropertyEntry(
+          wireId: WireId('p0041'),
+          name: 'heading',
+          type: PropertyType.unknown,
+          description: 'The section title, step, and visual tone.',
+          required: true,
+          valueShape: ScalarShape(
+              propertyType: PropertyType.unknown,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'Record')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0042'),
+          name: 'entry',
+          type: PropertyType.structured,
+          description: 'The section entry and its ordering metadata.',
+          required: true,
+          structuredRef: WireIdRef(
+              library: 'restage_example.widgets', wireId: WireId('s0005')),
+          valueShape: StructuredShape(
+              propertyType: PropertyType.structured,
+              structuredRef: WireIdRef(
+                  library: 'restage_example.widgets', wireId: WireId('s0005'))),
         ),
       ],
     ),
@@ -369,6 +441,46 @@ final Catalog kUserCatalog = Catalog(
             'currency': ArgMapping(targetFields: [WireId('p0030')]),
           },
           description: 'Creates a price.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0005'),
+      name: 'SectionEntry',
+      library: WidgetLibrary.custom('restage_example.widgets'),
+      description: 'A section entry that itself carries a record field.',
+      sourceType:
+          'package:restage_example/widgets/section_header.dart#SectionEntry',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0043'),
+          name: 'label',
+          type: PropertyType.string,
+          description: 'The entry\'s display label.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.string,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+        ),
+        StructuredField(
+          wireId: WireId('p0044'),
+          name: 'meta',
+          type: PropertyType.unknown,
+          description: 'The entry\'s ordering and pinned state.',
+          valueShape: ScalarShape(
+              propertyType: PropertyType.unknown,
+              dartTypeRef:
+                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'Record')),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0005'),
+          argMappings: {
+            'label': ArgMapping(targetFields: [WireId('p0043')]),
+            'meta': ArgMapping(targetFields: [WireId('p0044')]),
+          },
+          description: 'Creates a section entry.',
         ),
       ],
     ),

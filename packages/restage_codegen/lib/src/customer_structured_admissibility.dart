@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/customer_map_plan.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A customer structured widget that was excluded from the RFW path, paired
@@ -26,6 +27,37 @@ String structuredSlotKey(String ownerFqn, String slotName) =>
 bool isCustomerStructuredListShape(CatalogValueShape? shape) =>
     shape is ListShape && shape.isOpaqueStructuredList;
 
+// Map and record recognition deliberately stay separate from nominal
+// structured-slot recognition. Their reconstruction identity travels through
+// a build-time sidecar rather than an allocated nominal target.
+
+/// Whether [shape] is the customer record value contract: an opaque scalar
+/// carrying the record category reference.
+bool isCustomerRecordShape(CatalogValueShape? shape) =>
+    shape is ScalarShape && shape.isOpaqueRecord;
+
+/// Whether [shape] is the customer map value contract: an opaque scalar
+/// carrying an entry-list representation of a string- or enum-keyed map.
+bool isCustomerMapShape(CatalogValueShape? shape) =>
+    shape is ScalarShape && shape.isOpaqueStringKeyedMap;
+
+/// Whether [prop] is a customer map slot.
+bool isCustomerMapPropertySlot(PropertyEntry prop) =>
+    prop.type == PropertyType.unknown && isCustomerMapShape(prop.valueShape);
+
+/// Whether [field] is a customer map slot.
+bool isCustomerMapFieldSlot(StructuredField field) =>
+    field.type == PropertyType.unknown && isCustomerMapShape(field.valueShape);
+
+/// Whether [prop] is a customer record slot.
+bool isCustomerRecordPropertySlot(PropertyEntry prop) =>
+    prop.type == PropertyType.unknown && isCustomerRecordShape(prop.valueShape);
+
+/// Whether [field] is a customer record slot.
+bool isCustomerRecordFieldSlot(StructuredField field) =>
+    field.type == PropertyType.unknown &&
+    isCustomerRecordShape(field.valueShape);
+
 /// Whether [prop] is a customer structured slot whose target is resolved
 /// through [structuredSlotKey].
 bool isCustomerStructuredPropertySlot(PropertyEntry prop) =>
@@ -44,16 +76,16 @@ bool isCustomerStructuredFieldSlot(StructuredField field) =>
 ///
 /// Renderable IFF (a) its own walk lowered cleanly ([localUnrenderable] carries
 /// no entry for its `sourceType`), (b) its reconstruction variant sources every
-/// required ctor parameter from a same-named field, and (c) every
-/// `PropertyType.structured` field's target — resolved via [slotTargets] — is
-/// present in [bySourceType] and itself renderable (recursively). A dangling
-/// target (absent from [bySourceType]) is non-renderable (resolve-or-exclude-
-/// loud). The walk is cycle-safe via [visiting].
+/// required ctor parameter from a same-named field, and (c) every nominal
+/// structured or map-value target is present in [bySourceType] and itself
+/// renderable recursively. Nominal targets resolve through [slotTargets]; map
+/// targets resolve through [mapPlans]. The walk is cycle-safe via [visiting].
 bool isRenderableStructuredType(
   StructuredEntry entry, {
   required Map<String, StructuredEntry> bySourceType,
   required Map<String, String> slotTargets,
   required Map<String, String> localUnrenderable,
+  Map<String, MapPlan> mapPlans = const {},
   Set<String>? visiting,
 }) =>
     _obstruction(
@@ -61,6 +93,7 @@ bool isRenderableStructuredType(
       bySourceType: bySourceType,
       slotTargets: slotTargets,
       localUnrenderable: localUnrenderable,
+      mapPlans: mapPlans,
       visiting: visiting,
     ) ==
     null;
@@ -89,6 +122,7 @@ CustomerStructuredAdmission computeAdmission({
   required List<StructuredEntry> structuredTypes,
   required Map<String, String> slotTargets,
   required Map<String, String> localUnrenderable,
+  Map<String, MapPlan> mapPlans = const {},
   Map<String, String> widgetUnrenderable = const {},
   bool Function(WidgetEntry widget)? isWholeWidgetEmittable,
 }) {
@@ -108,15 +142,24 @@ CustomerStructuredAdmission computeAdmission({
           bySourceType: bySourceType,
           slotTargets: slotTargets,
           localUnrenderable: localUnrenderable,
+          mapPlans: mapPlans,
         );
-    // Whole-widget emittability: a widget admitted for its structured prop but
-    // not fully factory-emittable is excluded here, not admitted-then-skipped.
+    // Whole-widget emittability: a widget admitted for a nominal structured,
+    // map, or record prop but not fully factory-emittable is excluded here.
+    // The predicates stay disjoint: nominal slots resolve through
+    // [slotTargets], while maps and records travel through their build-time
+    // sidecars.
     if (reason == null &&
         isWholeWidgetEmittable != null &&
-        widget.properties.any(isCustomerStructuredPropertySlot) &&
+        widget.properties.any(
+          (prop) =>
+              isCustomerStructuredPropertySlot(prop) ||
+              isCustomerRecordPropertySlot(prop) ||
+              isCustomerMapPropertySlot(prop),
+        ) &&
         !isWholeWidgetEmittable(widget)) {
       reason = 'the widget has a property the factory cannot emit — admitted '
-          'for its structured property but not whole-widget emittable (an '
+          'for its customer value property but not whole-widget emittable (an '
           'admitted-then-skipped incoherence, excluded at admission)';
     }
     if (reason == null) {
@@ -129,14 +172,19 @@ CustomerStructuredAdmission computeAdmission({
   final admittedSourceTypes = <String>{};
   for (final widget in admitted) {
     for (final prop in widget.properties) {
-      if (!isCustomerStructuredPropertySlot(prop)) continue;
-      final targetFqn =
-          slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
+      final targetFqn = _slotStructuredTarget(
+        slotKey: structuredSlotKey(widget.flutterType, prop.name),
+        isMapSlot: isCustomerMapPropertySlot(prop),
+        isStructuredSlot: isCustomerStructuredPropertySlot(prop),
+        slotTargets: slotTargets,
+        mapPlans: mapPlans,
+      );
       if (targetFqn == null) continue;
       _collectClosure(
         targetFqn,
         bySourceType: bySourceType,
         slotTargets: slotTargets,
+        mapPlans: mapPlans,
         into: admittedSourceTypes,
       );
     }
@@ -156,8 +204,31 @@ String? _widgetExclusionReason(
   required Map<String, StructuredEntry> bySourceType,
   required Map<String, String> slotTargets,
   required Map<String, String> localUnrenderable,
+  required Map<String, MapPlan> mapPlans,
 }) {
   for (final prop in widget.properties) {
+    if (isCustomerMapPropertySlot(prop)) {
+      final outcome = _resolveMapTarget(
+        structuredSlotKey(widget.flutterType, prop.name),
+        bySourceType: bySourceType,
+        slotTargets: slotTargets,
+        localUnrenderable: localUnrenderable,
+        mapPlans: mapPlans,
+      );
+      switch (outcome) {
+        case _MapTargetClear():
+          continue;
+        case _MapTargetPlanMissing():
+          return "property '${prop.name}' has no map reconstruction plan";
+        case _MapTargetDangling(:final targetFqn):
+          return "property '${prop.name}' has a map value targeting "
+              "'$targetFqn', which is not an admitted structured type";
+        case _MapTargetUnrenderable(:final target, :final obstruction):
+          return "property '${prop.name}' has a map value targeting "
+              "'${target.name}' whose closure is not fully renderable "
+              '($obstruction)';
+      }
+    }
     if (!isCustomerStructuredPropertySlot(prop)) continue;
     final targetFqn =
         slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
@@ -175,6 +246,7 @@ String? _widgetExclusionReason(
       bySourceType: bySourceType,
       slotTargets: slotTargets,
       localUnrenderable: localUnrenderable,
+      mapPlans: mapPlans,
     );
     if (obstruction != null) {
       return "property '${prop.name}' targets '${target.name}' whose closure "
@@ -202,6 +274,7 @@ String? _obstruction(
   required Map<String, StructuredEntry> bySourceType,
   required Map<String, String> slotTargets,
   required Map<String, String> localUnrenderable,
+  required Map<String, MapPlan> mapPlans,
   Set<String>? visiting,
 }) {
   final local = localUnrenderable[entry.sourceType];
@@ -227,6 +300,19 @@ String? _obstruction(
           'decodable field (non-canonical shape)';
     }
     for (final field in entry.fields) {
+      if (isCustomerMapFieldSlot(field)) {
+        final mapObstruction = _mapValueObstruction(
+          entry,
+          field,
+          bySourceType: bySourceType,
+          slotTargets: slotTargets,
+          localUnrenderable: localUnrenderable,
+          mapPlans: mapPlans,
+          visiting: seen,
+        );
+        if (mapObstruction != null) return mapObstruction;
+        continue;
+      }
       if (!isCustomerStructuredFieldSlot(field)) continue;
       final targetFqn =
           slotTargets[structuredSlotKey(entry.sourceType, field.name)];
@@ -243,6 +329,7 @@ String? _obstruction(
         bySourceType: bySourceType,
         slotTargets: slotTargets,
         localUnrenderable: localUnrenderable,
+        mapPlans: mapPlans,
         visiting: seen,
       );
       if (nested != null) return nested;
@@ -253,28 +340,154 @@ String? _obstruction(
   }
 }
 
+/// The obstruction reached through a map field's structured value target, or
+/// `null` when its value is not structured and its closure renders.
+///
+/// [field] must already be known to be a map slot: the caller branches on that
+/// predicate, so this does not re-test it.
+String? _mapValueObstruction(
+  StructuredEntry owner,
+  StructuredField field, {
+  required Map<String, StructuredEntry> bySourceType,
+  required Map<String, String> slotTargets,
+  required Map<String, String> localUnrenderable,
+  required Map<String, MapPlan> mapPlans,
+  required Set<String> visiting,
+}) =>
+    switch (_resolveMapTarget(
+      structuredSlotKey(owner.sourceType, field.name),
+      bySourceType: bySourceType,
+      slotTargets: slotTargets,
+      localUnrenderable: localUnrenderable,
+      mapPlans: mapPlans,
+      visiting: visiting,
+    )) {
+      _MapTargetClear() => null,
+      _MapTargetPlanMissing() =>
+        '${owner.name}.${field.name}: missing map reconstruction plan',
+      _MapTargetDangling(:final targetFqn) =>
+        '${owner.name}.${field.name} map value -> $targetFqn '
+            '(not an admitted structured type)',
+      _MapTargetUnrenderable(:final obstruction) => obstruction,
+    };
+
+/// How a map slot's structured value target resolved.
+///
+/// The resolution is shared; the PHRASING is not. A widget property and a
+/// nested field name the offending slot differently, and both wordings are
+/// relied on, so each caller matches these cases and writes its own sentence.
+sealed class _MapTargetOutcome {
+  const _MapTargetOutcome();
+}
+
+/// The slot poses no obstruction: its value is not structured, or its target's
+/// closure renders faithfully.
+final class _MapTargetClear extends _MapTargetOutcome {
+  const _MapTargetClear();
+}
+
+/// The slot carries no build-time map reconstruction plan.
+final class _MapTargetPlanMissing extends _MapTargetOutcome {
+  const _MapTargetPlanMissing();
+}
+
+/// The slot's value targets [targetFqn], which is not an admitted type.
+final class _MapTargetDangling extends _MapTargetOutcome {
+  const _MapTargetDangling(this.targetFqn);
+
+  /// The unresolvable target identity.
+  final String targetFqn;
+}
+
+/// The slot's value targets [target], whose closure carries [obstruction].
+final class _MapTargetUnrenderable extends _MapTargetOutcome {
+  const _MapTargetUnrenderable(this.target, this.obstruction);
+
+  /// The resolved target whose closure does not render.
+  final StructuredEntry target;
+
+  /// The first obstruction found in [target]'s closure.
+  final String obstruction;
+}
+
+/// Resolves the map slot at [slotKey] to its structured value target and walks
+/// that target's closure.
+///
+/// Map targets live only in the map-plan sidecar. A nominal slot-target entry
+/// for the same slot is deliberately ignored so the two mechanisms cannot
+/// disagree about the value's identity.
+_MapTargetOutcome _resolveMapTarget(
+  String slotKey, {
+  required Map<String, StructuredEntry> bySourceType,
+  required Map<String, String> slotTargets,
+  required Map<String, String> localUnrenderable,
+  required Map<String, MapPlan> mapPlans,
+  Set<String>? visiting,
+}) {
+  final plan = mapPlans[slotKey];
+  if (plan == null) return const _MapTargetPlanMissing();
+  final targetFqn = plan.valueSourceType;
+  if (targetFqn == null) return const _MapTargetClear();
+  final target = bySourceType[targetFqn];
+  if (target == null) return _MapTargetDangling(targetFqn);
+  final obstruction = _obstruction(
+    target,
+    bySourceType: bySourceType,
+    slotTargets: slotTargets,
+    localUnrenderable: localUnrenderable,
+    mapPlans: mapPlans,
+    visiting: visiting,
+  );
+  return obstruction == null
+      ? const _MapTargetClear()
+      : _MapTargetUnrenderable(target, obstruction);
+}
+
 /// Adds [sourceType] and its transitive structured closure to [into].
 void _collectClosure(
   String sourceType, {
   required Map<String, StructuredEntry> bySourceType,
   required Map<String, String> slotTargets,
+  required Map<String, MapPlan> mapPlans,
   required Set<String> into,
 }) {
   if (!into.add(sourceType)) return;
   final entry = bySourceType[sourceType];
   if (entry == null) return;
   for (final field in entry.fields) {
-    if (!isCustomerStructuredFieldSlot(field)) continue;
-    final targetFqn =
-        slotTargets[structuredSlotKey(entry.sourceType, field.name)];
+    final targetFqn = _slotStructuredTarget(
+      slotKey: structuredSlotKey(entry.sourceType, field.name),
+      isMapSlot: isCustomerMapFieldSlot(field),
+      isStructuredSlot: isCustomerStructuredFieldSlot(field),
+      slotTargets: slotTargets,
+      mapPlans: mapPlans,
+    );
     if (targetFqn == null) continue;
     _collectClosure(
       targetFqn,
       bySourceType: bySourceType,
       slotTargets: slotTargets,
+      mapPlans: mapPlans,
       into: into,
     );
   }
+}
+
+/// The structured type a slot targets, or `null` when it targets none.
+///
+/// The two mechanisms stay disjoint and are resolved in one place: a MAP slot
+/// resolves through the map-plan sidecar and never consults [slotTargets], so
+/// a stray nominal entry for the same slot cannot contradict it; a nominal
+/// slot resolves through [slotTargets] alone.
+String? _slotStructuredTarget({
+  required String slotKey,
+  required bool isMapSlot,
+  required bool isStructuredSlot,
+  required Map<String, String> slotTargets,
+  required Map<String, MapPlan> mapPlans,
+}) {
+  if (isMapSlot) return mapPlans[slotKey]?.valueSourceType;
+  return isStructuredSlot ? slotTargets[slotKey] : null;
 }
 
 /// The label of a reconstruction-variant parameter — required OR optional —

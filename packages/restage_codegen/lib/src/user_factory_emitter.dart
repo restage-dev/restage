@@ -1,4 +1,6 @@
+import 'package:restage_codegen/src/customer_map_plan.dart';
 import 'package:restage_codegen/src/customer_preview_reservation.dart';
+import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
@@ -35,6 +37,8 @@ String? emitUserFactoriesDart(
   Map<String, String> slotTargets = const {},
   Set<String> nullableStructuredSlots = const {},
   Map<String, ReconstructionPlan> reconstructionPlans = const {},
+  Map<String, MapPlan> mapPlans = const {},
+  Map<String, RecordPlan> recordPlans = const {},
   Map<String, int> stampedCapabilityVersions = const {},
 }) {
   validateCustomerPreviewReservations(widgets);
@@ -59,6 +63,14 @@ String? emitUserFactoriesDart(
       for (final structured in structuredTypes)
         for (final field in structured.fields)
           if (_enumLibOf(field.valueShape) case final uri?) uri,
+      for (final plan in mapPlans.values)
+        for (final key in plan.keys)
+          if (key.enumRef?.libraryUri case final uri?) uri,
+      for (final plan in mapPlans.values)
+        if (_enumLibOf(plan.valueShape) case final uri?) uri,
+      for (final plan in recordPlans.values)
+        for (final label in plan.labels)
+          if (label.enumLibraryUri case final uri?) uri,
     }.where(_isCustomerLibUri).toList()
       ..sort();
     for (var i = 0; i < customerUris.length; i++) {
@@ -66,21 +78,24 @@ String? emitUserFactoriesDart(
     }
   }
 
-  // The build-time context for the inline customer reconstructor: the admitted
-  // structured types + their plans + the slot map + the import-alias map, all
-  // name-based (no allocated wire IDs needed).
-  final customer = structuredTypes.isEmpty
-      ? null
-      : (
-          structuredBySourceType: {
-            for (final structured in structuredTypes)
-              structured.sourceType: structured,
-          },
-          plansBySourceType: reconstructionPlans,
-          slotTargets: slotTargets,
-          nullableStructuredSlots: nullableStructuredSlots,
-          aliases: aliasByUri,
-        );
+  // The build-time context for inline customer reconstruction: admitted
+  // structured types, slot-keyed map and record plans, nominal slot targets,
+  // and import aliases. No allocated wire IDs are needed.
+  final customer =
+      structuredTypes.isEmpty && mapPlans.isEmpty && recordPlans.isEmpty
+          ? null
+          : (
+              structuredBySourceType: {
+                for (final structured in structuredTypes)
+                  structured.sourceType: structured,
+              },
+              plansBySourceType: reconstructionPlans,
+              mapPlans: mapPlans,
+              recordPlans: recordPlans,
+              slotTargets: slotTargets,
+              nullableStructuredSlots: nullableStructuredSlots,
+              aliases: aliasByUri,
+            );
 
   final emittable = <(WidgetEntry, String)>[];
   for (final entry in widgets) {
@@ -112,6 +127,14 @@ String? emitUserFactoriesDart(
     for (final structured in structuredTypes)
       for (final field in structured.fields)
         if (_enumLibOf(field.valueShape) case final uri?) uri,
+    for (final plan in mapPlans.values)
+      for (final key in plan.keys)
+        if (key.enumRef?.libraryUri case final uri?) uri,
+    for (final plan in mapPlans.values)
+      if (_enumLibOf(plan.valueShape) case final uri?) uri,
+    for (final plan in recordPlans.values)
+      for (final label in plan.labels)
+        if (label.enumLibraryUri case final uri?) uri,
   }.where(_isCustomerLibUri).toList()
     ..sort();
 
