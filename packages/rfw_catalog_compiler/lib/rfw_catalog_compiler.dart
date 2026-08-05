@@ -23,13 +23,31 @@ export 'src/walker/default_value_resolver.dart'
 export 'src/walker/element_fqn.dart'
     show
         classElementFor,
+        dartCoreMapType,
         elementFqn,
         interfaceFqn,
         interfaceFqnOrNull,
         listItemType,
+        mapValueType,
         typeFqn;
 export 'src/walker/library_walker.dart'
     show LibraryWalkResult, RestageLibraryDeclaration, walkRestageLibrary;
+export 'src/walker/map_shape_resolver.dart'
+    show
+        MapAdmitted,
+        MapClassification,
+        MapExcluded,
+        MapKeyKind,
+        NotAMap,
+        classifyMapType;
+export 'src/walker/record_shape_resolver.dart'
+    show
+        NotARecord,
+        RecordAdmitted,
+        RecordClassification,
+        RecordExcluded,
+        RecordLabel,
+        classifyRecordType;
 export 'src/walker/structured_description_resolver.dart'
     show
         StructuredDescriptionConflict,

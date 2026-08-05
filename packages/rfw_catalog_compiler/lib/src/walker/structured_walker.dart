@@ -15,6 +15,8 @@ import 'package:rfw_catalog_compiler/src/walker/dart_ui_doc_fallbacks.dart';
 import 'package:rfw_catalog_compiler/src/walker/dartdoc.dart';
 import 'package:rfw_catalog_compiler/src/walker/element_fqn.dart';
 import 'package:rfw_catalog_compiler/src/walker/factory_variant_enumerator.dart';
+import 'package:rfw_catalog_compiler/src/walker/map_shape_resolver.dart';
+import 'package:rfw_catalog_compiler/src/walker/record_shape_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_description_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_type_predicate.dart';
 import 'package:rfw_catalog_compiler/src/walker/value_shape_resolver.dart';
@@ -317,6 +319,76 @@ StructuredWalkResult _walkConcrete({
           ),
         );
       case StructuredKind.notStructured:
+        // A record is neither a linking shape nor a list. Decide it before the
+        // list/resolver fallback so its opaque property type never reaches
+        // `_resolvedKindForPropertyType`, where it is rejected by design.
+        switch (classifyRecordType(
+          field.type,
+          library: library,
+          policy: policy,
+        )) {
+          case RecordAdmitted():
+            fields.add(
+              _structuredField(
+                field,
+                descriptionModel: descriptionModel,
+                ownerSourceType: fqn,
+                kind: ResolvedTypeKind.record,
+                valueShape: ScalarShape.opaqueRecord(),
+              ),
+            );
+            continue;
+          case RecordExcluded(:final reason):
+            diagnostics.add(
+              DiagnosticIR(
+                code: issue_codes.unsupportedPropertyType,
+                message: '$reason Record slot on '
+                    '${element.name}.$fieldName was excluded.',
+                location: location,
+                severity: DiagnosticSeverity.warning,
+                target: fieldName,
+              ),
+            );
+            continue;
+          case NotARecord():
+            break;
+        }
+
+        // A map of a customer data class is admitted on a widget property and
+        // deferred when it appears on a field of a data class.
+        switch (classifyMapType(
+          field.type,
+          structuredValuesAdmitted: false,
+          library: library,
+          policy: policy,
+        )) {
+          case MapAdmitted():
+            fields.add(
+              _structuredField(
+                field,
+                descriptionModel: descriptionModel,
+                ownerSourceType: fqn,
+                kind: ResolvedTypeKind.map,
+                valueShape: ScalarShape.opaqueStringKeyedMap(),
+              ),
+            );
+            continue;
+          case MapExcluded(:final reason):
+            diagnostics.add(
+              DiagnosticIR(
+                code: issue_codes.unsupportedPropertyType,
+                message: '$reason Map slot on '
+                    '${element.name}.$fieldName was excluded.',
+                location: location,
+                severity: DiagnosticSeverity.warning,
+                target: fieldName,
+              ),
+            );
+            continue;
+          case NotAMap():
+            break;
+        }
+
         // The branches above handle the value types the structured-walk
         // policy enumerates (concrete structured types + registered abstract
         // unions) and the inline primitives. Everything else historically
@@ -661,8 +733,9 @@ ResolvedTypeKind _resolvedKindForPropertyType(PropertyType type) {
     PropertyType.unknown => throw ArgumentError.value(
         type,
         'type',
-        'PropertyType.unknown has no ResolvedTypeKind; a resolver value '
-            'shape never carries it.',
+        'PropertyType.unknown has no ResolvedTypeKind. The shared resolver CAN '
+            'return an opaque shape, so every caller must intercept those '
+            'before the fallback that reaches here.',
       ),
   };
 }

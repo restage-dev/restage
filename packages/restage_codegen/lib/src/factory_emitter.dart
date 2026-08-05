@@ -1,12 +1,21 @@
 import 'package:collection/collection.dart';
+import 'package:restage_codegen/src/customer_map_plan.dart';
+import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart'
     show
+        isCustomerMapFieldSlot,
+        isCustomerMapPropertySlot,
+        isCustomerMapShape,
+        isCustomerRecordFieldSlot,
+        isCustomerRecordPropertySlot,
+        isCustomerRecordShape,
         isCustomerStructuredListShape,
         isCustomerStructuredPropertySlot,
         structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
+import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Returns the Dart source for one top-level `LocalWidgetBuilder` closure
@@ -133,6 +142,12 @@ String? emitFactoryFunction(
 
   for (final p in entry.properties) {
     if (!p.positional || consumedByRecipes.contains(p.name)) continue;
+    final customerValue =
+        _customerMapOrRecordPropValue(p, entry, customer, nativeIndex);
+    if (customerValue != null) {
+      argLines.add('    $customerValue,');
+      continue;
+    }
     // A POSITIONAL customer structured prop routes through the reconstructor
     // (emitted positionally, no name prefix) — the positional analog of the
     // named structured prop below. Without this it would fall into the old
@@ -229,6 +244,12 @@ String? emitFactoryFunction(
       argLines.add(
         '    ${p.name}: ${gatingProp.name} ? null : $decoded,',
       );
+      continue;
+    }
+    final customerValue =
+        _customerMapOrRecordPropValue(p, entry, customer, nativeIndex);
+    if (customerValue != null) {
+      argLines.add('    ${p.name}: $customerValue,');
       continue;
     }
     final customerSourceType = _customerPropSourceType(p, entry, customer);
@@ -1158,6 +1179,9 @@ bool _isMechanicallyEmittable(
     //      not-emittable path and gets silently excluded.
     //   2. A resolvable ref whose structured type has no registered decoder
     //      — the registered-table gap. Throw the same way.
+    if (_customerReconstructableMapOrRecordProp(prop, entry, customer)) {
+      continue;
+    }
     if (_customerReconstructableProp(prop, entry, customer)) continue;
 
     if (prop.type == PropertyType.structured) {
@@ -1798,9 +1822,9 @@ String? _structuredRefDecoderFor(
 
 /// The build-time context for reconstructing customer structured values inline:
 /// the discovered structured types + their reconstruction plans, both keyed by
-/// `sourceType`, the slot -> target-`sourceType` map (which resolves each
-/// structured slot without needing an allocated wire ID, so the factory
-/// reconstruction is name-based and deterministic), and the import-alias map.
+/// `sourceType`, map and record plans keyed by slot, the slot ->
+/// target-`sourceType` map (which resolves each nominal structured slot without
+/// needing an allocated wire ID), and the import-alias map.
 ///
 /// `aliases` maps each referenced CUSTOMER library URI to its unique
 /// uniform-prefix import alias (`s0`, `s1`, ...). Every customer type the
@@ -1813,6 +1837,8 @@ String? _structuredRefDecoderFor(
 typedef CustomerReconstruction = ({
   Map<String, StructuredEntry> structuredBySourceType,
   Map<String, ReconstructionPlan> plansBySourceType,
+  Map<String, MapPlan> mapPlans,
+  Map<String, RecordPlan> recordPlans,
   Map<String, String> slotTargets,
   Set<String> nullableStructuredSlots,
   Map<String, String> aliases,
@@ -1856,6 +1882,416 @@ bool _canReconstructCustomer(CustomerReconstruction? ctx, String? sourceType) =>
 /// The Dart class name for a `<library-uri>#<ClassName>` [sourceType].
 String _typeNameForSourceType(String sourceType) =>
     sourceType.substring(sourceType.indexOf('#') + 1);
+
+// BEGIN CUSTOMER MAP RECONSTRUCTION
+MapPlan? _customerMapPropPlan(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+) {
+  if (customer == null || !isCustomerMapPropertySlot(prop)) return null;
+  return customer.mapPlans[structuredSlotKey(entry.flutterType, prop.name)];
+}
+
+MapPlan? _customerMapFieldPlan(
+  StructuredField field,
+  String ownerSourceType,
+  CustomerReconstruction ctx,
+) {
+  if (!isCustomerMapFieldSlot(field)) return null;
+  return ctx.mapPlans[structuredSlotKey(ownerSourceType, field.name)];
+}
+
+String _customerMapKeyType(
+  MapKeyPlan key,
+  CustomerReconstruction ctx,
+) {
+  final enumRef = key.enumRef;
+  if (enumRef == null) return 'String';
+  return _qualifyName(enumRef.symbolName, enumRef.libraryUri, ctx.aliases);
+}
+
+String _customerMapTerminalType(
+  MapPlan plan,
+  CustomerReconstruction ctx,
+) {
+  final sourceType = plan.valueSourceType;
+  if (sourceType != null) {
+    return _qualifyName(
+      _typeNameForSourceType(sourceType),
+      _libraryUriOf(sourceType),
+      ctx.aliases,
+    );
+  }
+  final valueType = plan.valueShape.propertyType;
+  switch (valueType) {
+    case PropertyType.boolean:
+      return 'bool';
+    case PropertyType.integer:
+      return 'int';
+    case PropertyType.real:
+    case PropertyType.length:
+      return 'double';
+    case PropertyType.string:
+      return 'String';
+    case PropertyType.enumValue:
+      final shape = plan.valueShape;
+      if (shape is! EnumShape) {
+        throw StateError(
+          'A customer map enum value plan has no enum shape.',
+        );
+      }
+      return _qualifyName(
+        shape.enumRef.symbolName,
+        shape.enumRef.libraryUri,
+        ctx.aliases,
+      );
+    case PropertyType.structured:
+      throw StateError(
+        'A customer map structured value plan has no reconstruction target.',
+      );
+    case PropertyType.stringList:
+      return 'List<String>';
+    case PropertyType.color:
+      return 'Color';
+    case PropertyType.edgeInsets:
+      return 'EdgeInsets';
+    case PropertyType.alignment:
+      return 'AlignmentGeometry';
+    case PropertyType.alignmentXY:
+      return 'Alignment';
+    case PropertyType.offset:
+      return 'Offset';
+    case PropertyType.fontWeight:
+      return 'FontWeight';
+    case PropertyType.duration:
+      return 'Duration';
+    case PropertyType.curve:
+      return 'Curve';
+    case PropertyType.gradient:
+      return 'Gradient';
+    case PropertyType.border:
+      return 'BoxBorder';
+    case PropertyType.boxShadowList:
+      return 'List<BoxShadow>';
+    case PropertyType.locale:
+      return 'Locale';
+    case PropertyType.paint:
+      return 'Paint';
+    case PropertyType.shadowList:
+      return 'List<Shadow>';
+    case PropertyType.fontFeatureList:
+      return 'List<FontFeature>';
+    case PropertyType.fontVariationList:
+      return 'List<FontVariation>';
+    case PropertyType.textDecoration:
+      return 'TextDecoration';
+    case PropertyType.shapeBorder:
+      return 'ShapeBorder';
+    case PropertyType.inlineSpan:
+      return 'InlineSpan';
+    case PropertyType.decorationImage:
+      return 'DecorationImage';
+    case PropertyType.selectionOptionList:
+      return 'List<RestageSelectionOption>';
+    case PropertyType.booleanList:
+      return 'List<bool>';
+    case PropertyType.widget:
+    case PropertyType.widgetList:
+    case PropertyType.event:
+    case PropertyType.dataReference:
+    case PropertyType.unknown:
+      throw StateError(
+        '$valueType cannot be a customer map value.',
+      );
+  }
+}
+
+String _customerMapTypeAt(
+  MapPlan plan,
+  int keyDepth,
+  CustomerReconstruction ctx,
+) {
+  final keyType = _customerMapKeyType(plan.keys[keyDepth], ctx);
+  final valueType = keyDepth + 1 < plan.keys.length
+      ? _customerMapTypeAt(plan, keyDepth + 1, ctx)
+      : _customerMapTerminalType(plan, ctx);
+  return 'Map<$keyType, $valueType>';
+}
+
+String _customerMapTerminalValue(
+  MapPlan plan,
+  List<Object> path, {
+  required String ownerLabel,
+  required CustomerReconstruction ctx,
+  required NativeCatalogIndex? nativeIndex,
+  required int depth,
+}) {
+  final pathLiteral = _pathLiteral(path);
+  final sourceType = plan.valueSourceType;
+  if (sourceType != null) {
+    if (!_canReconstructCustomer(ctx, sourceType)) {
+      throw StateError(
+        'Customer map $ownerLabel targets an unreconstructable value type.',
+      );
+    }
+    final reconstruction = _emitCustomerReconstruction(
+      sourceType,
+      path,
+      ctx,
+      nativeIndex,
+      depth: depth,
+    );
+    return 'source.isMap($pathLiteral) ? $reconstruction '
+        ": (throw ArgumentError('$ownerLabel entry value is required.'))";
+  }
+  final decoded = _decoderCallFor(
+    syntheticProperty('value', plan.valueShape),
+    pathLiteral,
+    index: nativeIndex,
+    aliases: ctx.aliases,
+  );
+  return '$decoded ?? '
+      "(throw ArgumentError('$ownerLabel entry value is required.'))";
+}
+
+String _customerMapValue(
+  MapPlan plan,
+  List<Object> path, {
+  required String ownerLabel,
+  required String requiredMessage,
+  required CustomerReconstruction ctx,
+  required NativeCatalogIndex? nativeIndex,
+  int keyDepth = 0,
+  int depth = 0,
+}) {
+  if (plan.keys.isEmpty) {
+    throw StateError('A customer map reconstruction plan has no key layer.');
+  }
+  final pathLiteral = _pathLiteral(path);
+  // Named from the SHARED loop depth, never from [keyDepth]: a map layer is
+  // not the only thing that can enclose this loop (a map inside a list element
+  // sits under the list's counter), and every path segment below references
+  // the enclosing counters by identifier.
+  final indexName = 'i$depth';
+  final mapName = 'm$depth';
+  final keyName = 'k$depth';
+  final lengthName = 'n$depth';
+  final entryPath = <Object>[...path, _PathIndex(indexName)];
+  final keyPath = <Object>[...entryPath, 'key'];
+  final valuePath = <Object>[...entryPath, 'value'];
+  final keyPlan = plan.keys[keyDepth];
+  final keyType = _customerMapKeyType(keyPlan, ctx);
+  final valueType = keyDepth + 1 < plan.keys.length
+      ? _customerMapTypeAt(plan, keyDepth + 1, ctx)
+      : _customerMapTerminalType(plan, ctx);
+  final keyEnumRef = keyPlan.enumRef;
+  final String keyRead;
+  if (keyEnumRef == null) {
+    keyRead = 'source.v<String>(${_pathLiteral(keyPath)}) ?? '
+        "(throw ArgumentError('$ownerLabel entry key is required.'))";
+  } else {
+    final qualified =
+        _qualifyName(keyEnumRef.symbolName, keyEnumRef.libraryUri, ctx.aliases);
+    // A defaulted field changes one value. Defaulting a key can discard the
+    // author's entry and insert a different entry that was never sent.
+    keyRead = 'ArgumentDecoders.enumValue<$qualified>('
+        '$qualified.values, source, ${_pathLiteral(keyPath)}) ?? '
+        "(throw ArgumentError('$ownerLabel entry key is not a known "
+        "member.'))";
+  }
+  final value = keyDepth + 1 < plan.keys.length
+      ? _customerMapValue(
+          plan,
+          valuePath,
+          ownerLabel: ownerLabel,
+          requiredMessage: "'$ownerLabel entry value is required.'",
+          ctx: ctx,
+          nativeIndex: nativeIndex,
+          keyDepth: keyDepth + 1,
+          depth: depth + 1,
+        )
+      : _customerMapTerminalValue(
+          plan,
+          valuePath,
+          ownerLabel: ownerLabel,
+          ctx: ctx,
+          nativeIndex: nativeIndex,
+          depth: depth + 1,
+        );
+  // The entry count is read ONCE. Left in the condition it is re-evaluated per
+  // entry, and each evaluation allocates a fresh path list plus a key and a
+  // hash on the customer's device; a nested map multiplies that per level.
+  final map = '() { '
+      'final $mapName = <$keyType, $valueType>{}; '
+      'final $lengthName = source.length($pathLiteral); '
+      'for (var $indexName = 0; '
+      '$indexName < $lengthName; $indexName++) { '
+      'if (!source.isMap(${_pathLiteral(entryPath)})) { '
+      "throw ArgumentError('$ownerLabel entry must be an object.'); } "
+      'final $keyName = $keyRead; '
+      'if ($mapName.containsKey($keyName)) { '
+      "throw ArgumentError('$ownerLabel has a duplicate key.'); } "
+      '$mapName[$keyName] = $value; } '
+      'return $mapName; }()';
+  return 'source.isList($pathLiteral) ? $map '
+      ': (throw ArgumentError($requiredMessage))';
+}
+
+String? _customerMapPropValue(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+  NativeCatalogIndex? nativeIndex,
+) {
+  final plan = _customerMapPropPlan(prop, entry, customer);
+  if (plan == null || customer == null) return null;
+  final ownerLabel = '${entry.name}.${prop.name}';
+  return _customerMapValue(
+    plan,
+    <Object>[prop.name],
+    ownerLabel: ownerLabel,
+    requiredMessage: "'$ownerLabel is required.'",
+    ctx: customer,
+    nativeIndex: nativeIndex,
+  );
+}
+
+String? _customerMapFieldValue(
+  StructuredField field,
+  String ownerSourceType,
+  List<Object> path,
+  CustomerReconstruction ctx,
+  NativeCatalogIndex? nativeIndex, {
+  required int depth,
+}) {
+  final plan = _customerMapFieldPlan(field, ownerSourceType, ctx);
+  if (plan == null) return null;
+  final owner = _typeNameForSourceType(ownerSourceType);
+  final ownerLabel = '$owner.${field.name}';
+  return _customerMapValue(
+    plan,
+    path,
+    ownerLabel: ownerLabel,
+    requiredMessage: "'$ownerLabel is required.'",
+    ctx: ctx,
+    nativeIndex: nativeIndex,
+    depth: depth,
+  );
+}
+
+RecordPlan? _customerRecordPropPlan(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+) {
+  if (customer == null || !isCustomerRecordPropertySlot(prop)) return null;
+  return customer.recordPlans[structuredSlotKey(entry.flutterType, prop.name)];
+}
+
+/// Whether [prop] on [entry] has the build-time plan required to emit its map
+/// OR record reconstruction. Maps are checked first; a slot can only be one of
+/// the two, so the first plan found decides.
+bool _customerReconstructableMapOrRecordProp(
+  PropertyEntry prop,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+) =>
+    _customerMapPropPlan(prop, entry, customer) != null ||
+    _customerRecordPropPlan(prop, entry, customer) != null;
+
+/// Emits a Dart record expression from [plan], reading each label below [path].
+///
+/// Labels emit in the plan's canonical order for deterministic source
+/// generation. Every label is an unconditional hard read, enums included:
+/// absence, a wrong wire type, and an enum-membership miss all throw rather
+/// than fabricating a value the author did not send.
+String _customerRecordValue(
+  RecordPlan plan,
+  List<Object> path, {
+  required String ownerLabel,
+  required CustomerReconstruction ctx,
+  required NativeCatalogIndex? nativeIndex,
+}) {
+  final labels = <String>[];
+  for (final label in plan.labels) {
+    final decoded = _decoderCallFor(
+      syntheticProperty(label.name, label.shape),
+      _pathLiteral([...path, label.name]),
+      index: nativeIndex,
+      aliases: ctx.aliases,
+    );
+    final message = "'$ownerLabel.${label.name} is required.'";
+    labels.add('${label.name}: $decoded ?? (throw ArgumentError($message))');
+  }
+  return '(${labels.join(', ')},)';
+}
+
+/// The argument value for a MAP or RECORD widget property, or `null` when [p]
+/// is neither. The map path is tried first; the two plan kinds are disjoint, so
+/// whichever produces a value decides.
+///
+/// An admitted record slot is non-nullable and carries no wire default, so its
+/// map must be present before the label-keyed value can be reconstructed.
+String? _customerMapOrRecordPropValue(
+  PropertyEntry p,
+  WidgetEntry entry,
+  CustomerReconstruction? customer,
+  NativeCatalogIndex? nativeIndex,
+) {
+  final map = _customerMapPropValue(p, entry, customer, nativeIndex);
+  if (map != null) return map;
+  final plan = _customerRecordPropPlan(p, entry, customer);
+  if (plan == null || customer == null) return null;
+  final pathLiteral = _pathLiteral(<Object>[p.name]);
+  final ownerLabel = '${entry.name}.${p.name}';
+  final record = _customerRecordValue(
+    plan,
+    <Object>[p.name],
+    ownerLabel: ownerLabel,
+    ctx: customer,
+    nativeIndex: nativeIndex,
+  );
+  return 'source.isMap($pathLiteral) ? $record '
+      ": (throw ArgumentError('$ownerLabel is required.'))";
+}
+
+/// The decoded value for a MAP or RECORD field nested in a customer data
+/// class, or `null` when [field] is neither. The map path is tried first; the
+/// two plan kinds are disjoint, so whichever produces a value decides.
+String? _customerMapOrRecordFieldValue(
+  StructuredField field,
+  String ownerSourceType,
+  List<Object> path,
+  CustomerReconstruction ctx,
+  NativeCatalogIndex? nativeIndex, {
+  required int depth,
+}) {
+  final map = _customerMapFieldValue(
+    field,
+    ownerSourceType,
+    path,
+    ctx,
+    nativeIndex,
+    depth: depth,
+  );
+  if (map != null) return map;
+  if (!isCustomerRecordFieldSlot(field)) return null;
+  final plan = ctx.recordPlans[structuredSlotKey(ownerSourceType, field.name)];
+  if (plan == null) return null;
+  final owner = _typeNameForSourceType(ownerSourceType);
+  final ownerLabel = '$owner.${field.name}';
+  final record = _customerRecordValue(
+    plan,
+    path,
+    ownerLabel: ownerLabel,
+    ctx: ctx,
+    nativeIndex: nativeIndex,
+  );
+  return 'source.isMap(${_pathLiteral(path)}) ? $record '
+      ": (throw ArgumentError('$ownerLabel is required.'))";
+}
+// END CUSTOMER MAP RECONSTRUCTION
 
 /// The customer structured `sourceType` a widget [prop] on [entry] targets —
 /// resolved via the slot map (keyed by the widget's `flutterType` + property
@@ -1957,10 +2393,10 @@ String _customerStructuredListValue(
   required bool isRequired,
   required bool isNullable,
   required String? defaultCode,
-  int listDepth = 0,
+  int depth = 0,
 }) {
   final listPath = _pathLiteral(path);
-  final indexName = 'i$listDepth';
+  final indexName = 'i$depth';
   final itemPath = <Object>[...path, _PathIndex(indexName)];
   final itemPathLiteral = _pathLiteral(itemPath);
   final item = _emitCustomerReconstruction(
@@ -1968,10 +2404,16 @@ String _customerStructuredListValue(
     itemPath,
     ctx,
     nativeIndex,
-    listDepth: listDepth + 1,
+    depth: depth + 1,
   );
-  final list = '[for (var $indexName = 0; '
-      '$indexName < source.length($listPath); $indexName++) '
+  // The element count is read ONCE, as a second declarator because a
+  // collection-for admits no statement ahead of it. Left in the condition it is
+  // re-evaluated per element, allocating a fresh path list and a lookup each
+  // time, and a nested list multiplies that per level.
+  final lengthName = 'n$depth';
+  final list = '[for (var $indexName = 0, '
+      '$lengthName = source.length($listPath); '
+      '$indexName < $lengthName; $indexName++) '
       'source.isMap($itemPathLiteral) ? $item '
       ': (throw ArgumentError($elementMessage))]';
   if (isRequired) {
@@ -1999,7 +2441,7 @@ String _emitCustomerReconstruction(
   List<Object> path,
   CustomerReconstruction ctx,
   NativeCatalogIndex? nativeIndex, {
-  int listDepth = 0,
+  int depth = 0,
 }) {
   final structured = ctx.structuredBySourceType[sourceType]!;
   final plan = ctx.plansBySourceType[sourceType]!;
@@ -2028,7 +2470,7 @@ String _emitCustomerReconstruction(
       isRequired: arg.isRequired,
       defaultCode: arg.defaultCode,
       defaultEnumValue: arg.defaultEnumValue,
-      listDepth: listDepth,
+      depth: depth,
     );
     args.add(arg.isNamed ? '${arg.fieldName}: $value' : value);
   }
@@ -2057,9 +2499,18 @@ String _customerFieldDecode(
   required bool isRequired,
   required String? defaultCode,
   required String? defaultEnumValue,
-  required int listDepth,
+  required int depth,
 }) {
   final pathLiteral = _pathLiteral(path);
+  final mapOrRecordValue = _customerMapOrRecordFieldValue(
+    field,
+    ownerSourceType,
+    path,
+    ctx,
+    nativeIndex,
+    depth: depth,
+  );
+  if (mapOrRecordValue != null) return mapOrRecordValue;
   if (field.type == PropertyType.structured) {
     final nested =
         ctx.slotTargets[structuredSlotKey(ownerSourceType, field.name)];
@@ -2069,7 +2520,7 @@ String _customerFieldDecode(
         path,
         ctx,
         nativeIndex,
-        listDepth: listDepth,
+        depth: depth,
       );
       if (isRequired) {
         // A required nested object: its own fields may all be optional, so the
@@ -2104,7 +2555,7 @@ String _customerFieldDecode(
         isRequired: isRequired,
         isNullable: !isRequired && defaultCode == null,
         defaultCode: defaultCode,
-        listDepth: listDepth,
+        depth: depth,
       );
     }
   }
@@ -2328,10 +2779,22 @@ String _decoderCallFor(
       // scalar decoder. The eligibility gate excludes them before reaching
       // here; if one slips through, surface loudly.
       throw StateError(
-        'PropertyType.${prop.type} cannot be decoded by the mechanical '
+        '${prop.type} cannot be decoded by the mechanical '
         'emitter. Property: $path',
       );
     case PropertyType.unknown:
+      if (isCustomerMapShape(prop.valueShape)) {
+        throw StateError(
+          'Customer map slot reached the generic decoder path; it must be '
+          'emitted through the customer reconstruction path. Property: $path',
+        );
+      }
+      if (isCustomerRecordShape(prop.valueShape)) {
+        throw StateError(
+          'Customer record slot reached the generic decoder path; it must be '
+          'emitted through the customer reconstruction path. Property: $path',
+        );
+      }
       if (isCustomerStructuredListShape(prop.valueShape)) {
         throw StateError(
           'Customer structured list slot reached the generic decoder path; '
@@ -2515,7 +2978,7 @@ String _nullableFlutterType(PropertyType type) {
     // ignore: no_default_cases
     default:
       throw StateError(
-        'No theme-binding cast type for PropertyType.$type. '
+        'No theme-binding cast type for $type. '
         'Theme-binding seeds cover color / length / real / fontWeight.',
       );
   }

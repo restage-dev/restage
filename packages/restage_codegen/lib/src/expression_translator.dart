@@ -25,6 +25,7 @@ import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/single_select_recognition.dart';
 import 'package:restage_codegen/src/structured_value_emitter.dart';
+import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/toggle_buttons_recognition.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
@@ -40,6 +41,13 @@ import 'package:restage_shared/restage_shared.dart'
         kSupportedCurveNames,
         kThemeContractPathKinds,
         kThemeContractPaths;
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show
+        RecordAdmitted,
+        RecordExcluded,
+        classifyRecordType,
+        dartCoreMapType,
+        resolveValueShape;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _kRestageFlutterSdkLibraryOrigin = 'package:restage';
@@ -620,8 +628,8 @@ final class ExpressionTranslator {
   /// (see `codegen_builder`). So a body that translates issue-free but whose
   /// emitted DSL would fail one of those would still count confirmed here.
   /// The metric is therefore a (safe-direction) **over-confirming upper
-  /// bound** — it never under-counts inlinable; the residual is narrow and is
-  /// closed when the post-L12 conversion runs the full real-catalog emit.
+  /// bound** — it never under-counts inlinable; the residual is narrow and
+  /// closes once the measurement is run against the full real-catalog emit.
   ///
   /// Internal to the coverage-measurement tooling (the harness + the
   /// standalone CLI). Callers map the result to an `EmitOutcome`.
@@ -897,6 +905,9 @@ final class ExpressionTranslator {
     }
     if (expr is SetOrMapLiteral) {
       return _setOrMapLiteral(expr, issues);
+    }
+    if (expr is RecordLiteral) {
+      return _recordLiteral(expr, issues);
     }
     if (expr is ConditionalExpression) {
       return _conditionalExpression(expr, issues);
@@ -1197,6 +1208,66 @@ final class ExpressionTranslator {
       );
     }
     return '{ ${parts.join(', ')} }';
+  }
+
+  String _recordLiteral(RecordLiteral expr, List<Issue> issues) {
+    String defer(String reason) {
+      issues.add(
+        Issue(
+          code: IssueCode.unrecognizedMethodCall,
+          capabilityGapSubject: 'expression:${expr.runtimeType}',
+          message: 'Record literal cannot be encoded: $reason.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+
+    final staticType = expr.staticType;
+    if (staticType is! RecordType) {
+      return defer('its resolved static type is not a record type');
+    }
+    final classification = classifyRecordType(staticType);
+    if (classification is! RecordAdmitted) {
+      final reason = classification is RecordExcluded
+          ? classification.reason
+          : 'its resolved static type is not a record type';
+      return defer(reason);
+    }
+
+    final valueByLabel = <String, Expression>{};
+    for (final field in expr.fields) {
+      if (field is! NamedExpression) {
+        return defer('positional record fields are unsupported');
+      }
+      valueByLabel[field.name.label.name] = field.expression;
+    }
+
+    final issuesBefore = issues.length;
+    final entries = <String>[];
+    // The classifier exposes the analyzer's canonical label order rather than
+    // the source spelling, so two author orderings of the same record emit
+    // byte-identically.
+    for (final label in classification.labels) {
+      final value = valueByLabel[label.name];
+      if (value == null) {
+        return defer("the '${label.name}' label has no value");
+      }
+      final shape = label.shape;
+      final emitted = _translateSlotValue(
+        value,
+        shape.propertyType,
+        issues,
+        property: syntheticProperty(label.name, shape),
+      );
+      entries.add('${label.name}: $emitted');
+    }
+
+    // A label may defer after earlier labels translated cleanly. The record is
+    // one value contract, so any such issue suppresses the whole map rather
+    // than exposing a partially successful encoding.
+    if (issues.length > issuesBefore) return '';
+    return '{${entries.join(', ')}}';
   }
 
   String _mapLiteralKey(Expression expr, List<Issue> issues) {
@@ -5112,6 +5183,30 @@ final class ExpressionTranslator {
       final suppliedExpr = supplied[param.name];
       final fallback = fallbacks[param.name];
       if (suppliedExpr != null) {
+        // Gate 0: a `Map` value bound to a custom-widget parameter. A
+        // parameter carries no slot shape (only a numeric flag), so the value
+        // lowers through the GENERIC map arm to the natural key-keyed
+        // spelling `{k: v}` — while the property this parameter feeds inside
+        // the definition body decodes the ENTRY LIST `[{key: k, value: v}]`.
+        // Nothing downstream can tell the two apart: the blob parses, catalog
+        // validation passes, and the generated factory's `isList` guard fails
+        // only at render. Refuse at build time rather than emit a spelling the
+        // decoder cannot read. Checked on the supplied expression itself, so a
+        // conditional whose branches are maps is caught once, at the argument.
+        if (_dartCoreMapType(_stripParens(suppliedExpr).staticType) != null) {
+          issues.add(
+            Issue(
+              code: IssueCode.unsupportedCollectionFlow,
+              message: "The property '${param.name}' of "
+                  "'${blueprint.rfwName}' is a map, and a map passed to an "
+                  'inlined custom widget cannot carry the shape its slot '
+                  'decodes. Pass the map to the widget that declares the '
+                  'property instead of through this one.',
+              location: _locationOf(suppliedExpr),
+            ),
+          );
+          continue;
+        }
         if (fallback != null && _isNullLiteral(suppliedExpr)) {
           // Row 3: explicit `null` fires the `??` → the fallback.
           emitted.add('${param.name}: ${_coerceParamValue(param, fallback)}');
@@ -5613,6 +5708,10 @@ final class ExpressionTranslator {
       issues.add(_constObjectFieldUnresolvedIssue(resolved));
       return '';
     }
+    final valueShape = property?.valueShape;
+    if (valueShape is ScalarShape && valueShape.isOpaqueStringKeyedMap) {
+      return _customerMapSlotValue(resolved, issues);
+    }
     // A concrete-`Alignment` slot (`alignmentXY`) decodes a `{x, y}` map
     // (`RestageDecoders.alignmentXY`), so a Dart-source `Alignment.<member>`
     // / `Alignment(x, y)` must lower to that map HERE rather than fall
@@ -5631,6 +5730,132 @@ final class ExpressionTranslator {
       if (enumValue != null) return enumValue;
     }
     return _coerceForPropertyType(type, _translate(resolved, issues));
+  }
+
+  String _customerMapSlotValue(Expression expr, List<Issue> issues) {
+    if (expr is! SetOrMapLiteral) {
+      return _translate(expr, issues);
+    }
+
+    final issuesBefore = issues.length;
+    if (!expr.isMap) {
+      _addUnsupportedCustomerMapElement(expr, issues);
+      return '';
+    }
+
+    final mapType = _dartCoreMapType(expr.staticType);
+    final keyShape =
+        mapType == null ? null : resolveValueShape(mapType.typeArguments[0]);
+    final valueShape = mapType == null
+        ? null
+        : _customerMapValueShape(mapType.typeArguments[1]);
+    final entries = <String>[];
+
+    // Preserve authored entry order. The decoder reconstructs a Dart Map whose
+    // iteration order can be observed by the customer's build(), unlike record
+    // label order; sorting here would change behavior rather than normalize
+    // bytes.
+    for (final element in expr.elements) {
+      if (element is! MapLiteralEntry) {
+        _addUnsupportedCustomerMapElement(expr, issues);
+        continue;
+      }
+      final key = _customerMapEntryKey(
+        element.key,
+        keyShape,
+        expr,
+        issues,
+      );
+      final shape =
+          valueShape ?? _customerMapValueShape(element.value.staticType);
+      final value = _translateSlotValue(
+        element.value,
+        shape?.propertyType ?? PropertyType.unknown,
+        issues,
+        property: shape == null ? null : syntheticProperty('value', shape),
+      );
+      entries.add('{key: $key, value: $value}');
+    }
+
+    // One map is one value contract. A failed key or value suppresses every
+    // entry, including entries that translated before the failure.
+    if (issues.length > issuesBefore) return '';
+    return '[${entries.join(', ')}]';
+  }
+
+  InterfaceType? _dartCoreMapType(DartType? type) =>
+      type == null ? null : dartCoreMapType(type);
+
+  CatalogValueShape? _customerMapValueShape(DartType? type) {
+    if (type == null) return null;
+    if (_dartCoreMapType(type) != null) {
+      return ScalarShape.opaqueStringKeyedMap();
+    }
+
+    final shape = resolveValueShape(type);
+    if (shape != null) return shape;
+
+    final element = type is InterfaceType ? type.element : null;
+    if (element is! ClassElement) return null;
+    final ref = _dartTypeRefOfClass(element);
+    final structured = ref == null ? null : _customerStructuredByDartType[ref];
+    if (structured == null) return null;
+    return StructuredShape(
+      propertyType: PropertyType.structured,
+      structuredRef: WireIdRef(
+        library: structured.library.namespace,
+        wireId: structured.wireId,
+      ),
+    );
+  }
+
+  String _customerMapEntryKey(
+    Expression source,
+    CatalogValueShape? expectedShape,
+    SetOrMapLiteral map,
+    List<Issue> issues,
+  ) {
+    final key = _stripParens(source);
+    var shape = expectedShape;
+    final staticType = key.staticType;
+    if (shape == null && staticType != null) {
+      shape = resolveValueShape(staticType);
+    }
+
+    if (shape is ScalarShape &&
+        shape.propertyType == PropertyType.string &&
+        key is SimpleStringLiteral) {
+      return _stringLiteral(key.value);
+    }
+    final enumMember = _unwrapPropertyAccessor(_enumMemberElement(key));
+    if (shape is EnumShape &&
+        enumMember is FieldElement &&
+        enumMember.isEnumConstant) {
+      return _translateSlotValue(
+        key,
+        shape.propertyType,
+        issues,
+        property: syntheticProperty('key', shape),
+      );
+    }
+
+    _addUnsupportedCustomerMapElement(map, issues);
+    return '';
+  }
+
+  void _addUnsupportedCustomerMapElement(
+    SetOrMapLiteral expr,
+    List<Issue> issues,
+  ) {
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedCollectionFlow,
+        message: 'Set literals, spreads, collection-if, and collection-for '
+            'are not supported in map literals. Use a static string-keyed '
+            'map.',
+        location: _locationOf(expr),
+      ),
+    );
   }
 
   /// Slot-aware generic enum lowering. The context-free fallback at

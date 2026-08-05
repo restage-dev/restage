@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 4,
+  "generatedAt": "1970-01-01T00:00:00Z",
+  "libraries": {
+    "acme.design_system": {
+      "version": "0.0.0",
+      "capabilityVersion": 1
+    }
+  },
+  "widgets": [
+    {
+      "wireId": "w0001",
+      "name": "PlainCard",
+      "library": "acme.design_system",
+      "category": "decoration",
+      "description": "p",
+      "flutterType": "package:apps_examples/widgets.dart#PlainCard",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "title",
+          "type": "string",
+          "description": "t"
+        },
+        {
+          "wireId": "p0002",
+          "name": "plan",
+          "type": "structured",
+          "description": "p",
+          "required": true,
+          "structuredRef": {
+            "library": "acme.design_system",
+            "wireId": "s0001"
+          },
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "acme.design_system",
+              "wireId": "s0001"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "structuredTypes": [
+    {
+      "wireId": "s0001",
+      "name": "Plan",
+      "library": "acme.design_system",
+      "description": "",
+      "sourceType": "package:apps_examples/widgets.dart#Plan",
+      "fields": [
+        {
+          "wireId": "p0003",
+          "name": "name",
+          "type": "string",
+          "description": "",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0001",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "name": [
+              "p0003"
+            ]
+          }
+        }
+      ],
+      "stability": "volatile"
+    }
+  ]
+}

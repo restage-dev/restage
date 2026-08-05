@@ -4,6 +4,8 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
+import 'package:restage_codegen/src/customer_map_plan.dart';
+import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
@@ -23,12 +25,16 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// `sourceType` (the identity the sentinel `structuredRef` does not carry); the
 /// catalog builder allocates + resolves both from this one seed, and the
 /// factory builder reconstructs from the same.
+/// Map and record plans are parallel slot-keyed build-time sidecars for values
+/// whose reconstruction identity does not travel through a nominal slot.
 typedef RestageWidgetCollection = ({
   List<WidgetEntry> widgets,
   List<StructuredEntry> structuredTypes,
   Map<String, String> slotTargets,
   Set<String> nullableStructuredSlots,
   Map<String, ReconstructionPlan> reconstructionPlans,
+  Map<String, MapPlan> mapPlans,
+  Map<String, RecordPlan> recordPlans,
   Map<String, int> stampedCapabilityVersions,
 });
 
@@ -63,6 +69,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final localUnrenderable = <String, String>{};
   final widgetUnrenderable = <String, String>{};
   final reconstructionPlans = <String, ReconstructionPlan>{};
+  final mapPlans = <String, MapPlan>{};
+  final recordPlans = <String, RecordPlan>{};
   // Declared `@RestageLibrary(capabilityVersion:)` per customer library (from
   // the barrel walk), used to stamp a structured-admitting library's floor. A
   // conflicting redeclaration across files fails loud (not last-wins).
@@ -90,6 +98,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     localUnrenderable.addAll(result.localUnrenderable);
     widgetUnrenderable.addAll(result.widgetUnrenderable);
     reconstructionPlans.addAll(result.reconstructionPlans);
+    mapPlans.addAll(result.mapPlans);
+    recordPlans.addAll(result.recordPlans);
 
     // The asset resolved with `allowSyntaxErrors: true`, so a malformed token
     // whose parser error-recovery yields a structurally-valid declaration
@@ -173,6 +183,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         structured.sourceType: structured,
     },
     plansBySourceType: reconstructionPlans,
+    mapPlans: mapPlans,
+    recordPlans: recordPlans,
     slotTargets: slotTargets,
     nullableStructuredSlots: nullableStructuredSlots,
     aliases: const <String, String>{},
@@ -182,6 +194,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     structuredTypes: structuredTypes,
     slotTargets: slotTargets,
     localUnrenderable: localUnrenderable,
+    mapPlans: mapPlans,
     widgetUnrenderable: widgetUnrenderable,
     // Close the admit-then-skip gap: a structured-prop widget whose OTHER
     // props aren't all factory-emittable is excluded here, not
@@ -189,8 +202,11 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     isWholeWidgetEmittable: (widget) =>
         isFactoryEmittable(widget, customer: emittabilityContext),
   );
+  // Exclusion is a build-time capability loss the author needs to see, so it
+  // is a warning: a builder's `info` is suppressed unless the build runs
+  // verbose, which made this diagnostic effectively silent.
   for (final excluded in admission.excluded) {
-    log.info(
+    log.warning(
       'Customer widget ${excluded.widget.library.namespace}#'
       '${excluded.widget.name} is excluded from the RFW catalog/factory: '
       '${excluded.reason}. It still renders in the A2UI catalog.',
@@ -207,6 +223,34 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
           seenStructured.add(structured.sourceType))
         structured,
   ];
+  final admittedRecordSlotKeys = <String>{
+    for (final widget in admittedWidgets)
+      for (final prop in widget.properties)
+        if (isCustomerRecordPropertySlot(prop))
+          structuredSlotKey(widget.flutterType, prop.name),
+    for (final structured in admittedStructuredTypes)
+      for (final field in structured.fields)
+        if (isCustomerRecordFieldSlot(field))
+          structuredSlotKey(structured.sourceType, field.name),
+  };
+  final admittedRecordPlans = <String, RecordPlan>{
+    for (final plan in recordPlans.entries)
+      if (admittedRecordSlotKeys.contains(plan.key)) plan.key: plan.value,
+  };
+  final admittedMapSlotKeys = <String>{
+    for (final widget in admittedWidgets)
+      for (final prop in widget.properties)
+        if (isCustomerMapPropertySlot(prop))
+          structuredSlotKey(widget.flutterType, prop.name),
+    for (final structured in admittedStructuredTypes)
+      for (final field in structured.fields)
+        if (isCustomerMapFieldSlot(field))
+          structuredSlotKey(structured.sourceType, field.name),
+  };
+  final admittedMapPlans = <String, MapPlan>{
+    for (final plan in mapPlans.entries)
+      if (admittedMapSlotKeys.contains(plan.key)) plan.key: plan.value,
+  };
 
   // The visitor catches duplicate (library, name) pairs within a single
   // file. Cross-file collisions only surface here, after aggregation.
@@ -227,23 +271,40 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   }
 
   // Customer-library capabilityVersion stamp (the capability-floor fold-in): a
-  // library with an admitted widget that RENDERS a CUSTOMER structured property
-  // is using a NEW render capability, so its declared capabilityVersion raises
-  // the delivery floor (an under-capable client fails closed at the SDK
-  // pre-render check). Such a library MUST declare one (fail loud). A scalar /
-  // built-in-structured-only library is NEVER forced and stays byte-stable.
+  // library with an admitted widget that RENDERS a customer structured
+  // property, map, or record slot is using a new render capability, so its
+  // declared capabilityVersion raises the delivery floor (an under-capable
+  // client fails closed at the SDK pre-render check). Such a library must
+  // declare one. A scalar / built-in-structured-only library is never forced
+  // and stays byte-stable.
   final structuredSourceTypes = {
     for (final structured in structuredTypes) structured.sourceType,
   };
   final structuredAdmittingLibraries = <String>{};
   for (final widget in admittedWidgets) {
     for (final prop in widget.properties) {
+      if (isCustomerRecordPropertySlot(prop) ||
+          isCustomerMapPropertySlot(prop)) {
+        structuredAdmittingLibraries.add(widget.library.namespace);
+        continue;
+      }
       if (!isCustomerStructuredPropertySlot(prop)) continue;
       final target =
           slotTargets[structuredSlotKey(widget.flutterType, prop.name)];
       if (target != null && structuredSourceTypes.contains(target)) {
         structuredAdmittingLibraries.add(widget.library.namespace);
       }
+    }
+  }
+  // A data class carrying a map or record field also raises its library's
+  // floor. Keep this field-level fold independent of how the owning type is
+  // reached so a new reachability path cannot silently omit the capability.
+  for (final structured in admittedStructuredTypes) {
+    if (structured.fields.any(
+      (field) =>
+          isCustomerRecordFieldSlot(field) || isCustomerMapFieldSlot(field),
+    )) {
+      structuredAdmittingLibraries.add(structured.library.namespace);
     }
   }
   final stampedCapabilityVersions = <String, int>{};
@@ -254,11 +315,11 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         Issue(
           code: IssueCode.customLibraryMissingCapabilityVersion,
           message: 'Customer library "$namespace" renders a customer '
-              'structured property (a new render capability) but declares no '
-              'capability version. Add `capabilityVersion:` to its '
-              '@RestageLibrary so the delivery-time floor rejects an '
-              'under-capable client (a monotonic integer, not your pub '
-              'package version).',
+              'structured, map, or record property but declares no capability '
+              'version. Add `capabilityVersion:` to '
+              'its @RestageLibrary so the delivery-time floor rejects an '
+              'under-capable client (a monotonic integer, not your pub package '
+              'version).',
           location: namespace,
         ),
       );
@@ -305,6 +366,8 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
         if (admission.admittedSourceTypes.contains(plan.key))
           plan.key: plan.value,
     },
+    mapPlans: admittedMapPlans,
+    recordPlans: admittedRecordPlans,
     stampedCapabilityVersions: stampedCapabilityVersions,
   );
 }

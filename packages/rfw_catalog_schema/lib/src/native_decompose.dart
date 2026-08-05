@@ -28,6 +28,14 @@ final class DartTypeRef {
   String toString() => '$libraryUri#$symbolName';
 }
 
+/// The `dart:core#Record` category reference used by the opaque-record shape.
+const DartTypeRef kRecordTypeRef =
+    DartTypeRef(libraryUri: 'dart:core', symbolName: 'Record');
+
+/// The `dart:core#Map` category reference used by the opaque-map shape.
+const DartTypeRef kMapTypeRef =
+    DartTypeRef(libraryUri: 'dart:core', symbolName: 'Map');
+
 /// Extra wire-level codec hints for values whose semantic shape is not enough.
 enum CatalogWireCodec {
   /// Remote Flutter Widgets gradient map shape.
@@ -86,8 +94,32 @@ final class ScalarShape extends CatalogValueShape {
           'ScalarShape must not carry PropertyType.enumValue/structured',
         );
 
+  /// The opaque record wire shape: an inline structural value whose labels the
+  /// build-time reconstruction plan carries.
+  factory ScalarShape.opaqueRecord() => const ScalarShape(
+        propertyType: PropertyType.unknown,
+        dartTypeRef: kRecordTypeRef,
+      );
+
+  /// The opaque map wire shape, also used for enum-keyed maps.
+  ///
+  /// The `PropertyType.unknown` and `dart:core#Map` pair is permanently
+  /// reserved for this contract.
+  factory ScalarShape.opaqueStringKeyedMap() => const ScalarShape(
+        propertyType: PropertyType.unknown,
+        dartTypeRef: kMapTypeRef,
+      );
+
   /// Source-qualified Dart type for scalar/source-backed values.
   final DartTypeRef? dartTypeRef;
+
+  /// Whether this scalar uses the opaque-record contract.
+  bool get isOpaqueRecord =>
+      propertyType == PropertyType.unknown && dartTypeRef == kRecordTypeRef;
+
+  /// Whether this scalar uses the opaque-map contract, including enum keys.
+  bool get isOpaqueStringKeyedMap =>
+      propertyType == PropertyType.unknown && dartTypeRef == kMapTypeRef;
 
   @override
   bool operator ==(Object other) =>

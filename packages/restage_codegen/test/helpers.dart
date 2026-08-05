@@ -295,6 +295,8 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
         ...acc.reconstructionPlans,
         ...r.reconstructionPlans,
       },
+      mapPlans: {...acc.mapPlans, ...r.mapPlans},
+      recordPlans: {...acc.recordPlans, ...r.recordPlans},
     ),
   );
 }

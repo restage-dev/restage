@@ -20,6 +20,8 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
+import '../helpers.dart';
+
 /// The binding-tie: the shipped example artifacts' customer-widget lowering is
 /// byte-traceable to the production emit path.
 ///
@@ -188,6 +190,63 @@ Catalog _customerCatalog(_ExampleSources sources) {
   );
 }
 
+Catalog _visitorCatalog(WidgetVisitorResult result) {
+  final libraries = <WidgetLibrary>{
+    for (final widget in result.widgets) widget.library,
+  };
+  return Catalog(
+    schemaVersion: kSupportedSchemaVersion,
+    generatedAt: '1970-01-01T00:00:00Z',
+    libraries: {
+      for (final library in libraries)
+        library: const LibraryInfo(
+          version: '0.0.0',
+          capabilityVersion: 1,
+        ),
+    },
+    widgets: result.widgets,
+  );
+}
+
+List<int> _encodedA2uiCatalog(Catalog catalog) {
+  final registration = emitA2uiCatalog(catalog);
+  return utf8.encode(
+    const JsonEncoder.withIndent('  ').convert(registration.toJson()),
+  );
+}
+
+String _recordPackageSource({required bool includeRecord}) {
+  final constructor = includeRecord
+      ? "const RecordCard({this.heading = (step: 0, title: 'Untitled')});"
+      : 'const RecordCard();';
+  final property = includeRecord
+      ? '''
+    @RestageProperty(description: 'The heading.')
+    final ({String title, int step}) heading;
+  '''
+      : '';
+  return '''
+    import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+    @RestageLibrary(
+      library: WidgetLibrary.custom('acme.widgets'),
+      capabilityVersion: 1,
+    )
+    const restageLibrary = 0;
+
+    @RestageWidget(
+      name: 'RecordCard',
+      library: WidgetLibrary.custom('acme.widgets'),
+      category: WidgetCategory.decoration,
+      description: 'A card.',
+    )
+    class RecordCard {
+      $constructor
+      $property
+    }
+  ''';
+}
+
 /// The body of a generated catalog — everything from the
 /// `buildRestageCatalogItems()` declaration onward (the CatalogItem lowerings +
 /// the emitter helper set), excluding the import block.
@@ -341,6 +400,43 @@ void main() {
             'byte-for-byte from the example @RestageWidget source through the '
             'production emit path — the shipped capability surface is '
             'traceable',
+      );
+    },
+  );
+
+  test(
+    'an RFW-admitted record property leaves A2UI catalog bytes unchanged',
+    () async {
+      final recordSource = _recordPackageSource(includeRecord: true);
+      final removedSource = _recordPackageSource(includeRecord: false);
+
+      final rfwRecord = await runWidgetVisitorOn(
+        {'lib/record_card.dart': recordSource},
+      );
+      expect(
+        rfwRecord.widgets.single.properties.map((property) => property.name),
+        ['heading'],
+        reason: 'the control package must carry an RFW-admitted record',
+      );
+
+      final a2uiRecord = await runWidgetVisitorOn(
+        {'lib/record_card.dart': recordSource},
+        target: WidgetVisitorTarget.a2ui,
+      );
+      final a2uiRemoved = await runWidgetVisitorOn(
+        {'lib/record_card.dart': removedSource},
+        target: WidgetVisitorTarget.a2ui,
+      );
+
+      // The current A2UI catalog property path rejects records before
+      // projection, while a String control would intentionally add `heading`
+      // and change the catalog. Removing the record is therefore the
+      // byte-neutral comparison for this harness.
+      expect(a2uiRecord.widgets.single.properties, isEmpty);
+      expect(
+        _encodedA2uiCatalog(_visitorCatalog(a2uiRecord)),
+        orderedEquals(_encodedA2uiCatalog(_visitorCatalog(a2uiRemoved))),
+        reason: 'omitting the record must be the only A2UI projection effect',
       );
     },
   );

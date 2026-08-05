@@ -3,6 +3,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:rfw_catalog_compiler/src/policy/policy_ledger.dart';
 import 'package:rfw_catalog_compiler/src/walker/abstract_type_fallback.dart';
 import 'package:rfw_catalog_compiler/src/walker/element_fqn.dart';
+import 'package:rfw_catalog_compiler/src/walker/record_shape_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_type_predicate.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -23,16 +24,17 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///    catalog-shape one).
 /// 2. A Dart `enum` lowers to an [EnumShape] carrying its source-qualified
 ///    type.
-/// 3. A recognized scalar (`bool` / `int` / `double` / `Color` / `EdgeInsets`
+/// 3. An admitted named record lowers to the opaque-record [ScalarShape].
+/// 4. A recognized scalar (`bool` / `int` / `double` / `Color` / `EdgeInsets`
 ///    / `FontWeight` / `Duration` / …) lowers to a [ScalarShape].
-/// 4. A registered abstract-union base (`Gradient` / `BoxBorder` /
+/// 5. A registered abstract-union base (`Gradient` / `BoxBorder` /
 ///    `ShapeBorder`) lowers to a [UnionShape] and records its FQN into
 ///    [referencedUnionFqns] for the union back-pass.
-/// 5. A `List<T>` of a recognized scalar item lowers to a [ListShape]; a
+/// 6. A `List<T>` of a recognized scalar item lowers to a [ListShape]; a
 ///    `List<BoxShadow>` lowers to the boxed box-shadow list shape; a
 ///    `List<T>` whose item is a concrete structured type in the walk policy
 ///    lowers to an opaque list shape with a structured item shape.
-/// 6. A known recipe structured type ([knownRecipeStructuredTypes]) lowers to
+/// 7. A known recipe structured type ([knownRecipeStructuredTypes]) lowers to
 ///    a [StructuredShape] whose `structuredRef` is resolved by a later pass.
 ///
 /// Returns null for any type that does not map to a catalog value shape.
@@ -65,6 +67,15 @@ CatalogValueShape? resolveValueShape(
         symbolName: enumElement.name ?? '<unnamed>',
       ),
     );
+  }
+
+  switch (classifyRecordType(type, library: library, policy: policy)) {
+    case RecordAdmitted():
+      return ScalarShape.opaqueRecord();
+    case RecordExcluded():
+      return null;
+    case NotARecord():
+      break;
   }
 
   final scalar = _scalarShapeForDartType(type);

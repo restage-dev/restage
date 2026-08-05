@@ -4,7 +4,7 @@
   "libraries": {
     "restage_example.widgets": {
       "version": "0.0.0",
-      "capabilityVersion": 1
+      "capabilityVersion": 3
     }
   },
   "widgets": [
@@ -48,6 +48,48 @@
           "name": "children",
           "type": "widgetList",
           "description": "Overlay children, top-most last."
+        }
+      ]
+    },
+    {
+      "wireId": "w0016",
+      "name": "PlanBoard",
+      "library": "restage_example.widgets",
+      "category": "decoration",
+      "description": "Renders plans keyed by slug plus a highlighted plan per billing tier (map-of-data-class properties).",
+      "flutterType": "package:restage_example/widgets/plan_board.dart#PlanBoard",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0045",
+          "name": "plans",
+          "type": "unknown",
+          "description": "The plans to render, keyed by slug.",
+          "required": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "unknown",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "Map"
+            }
+          }
+        },
+        {
+          "wireId": "p0046",
+          "name": "highlights",
+          "type": "unknown",
+          "description": "The highlighted plan for each billing tier.",
+          "required": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "unknown",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "Map"
+            }
+          }
         }
       ]
     },
@@ -161,6 +203,52 @@
           "type": "integer",
           "description": "Count shown after the caption.",
           "required": true
+        }
+      ]
+    },
+    {
+      "wireId": "w0015",
+      "name": "SectionHeader",
+      "library": "restage_example.widgets",
+      "category": "decoration",
+      "description": "Introduces a section with heading and entry metadata.",
+      "flutterType": "package:restage_example/widgets/section_header.dart#SectionHeader",
+      "childrenSlot": "none",
+      "fires": [],
+      "properties": [
+        {
+          "wireId": "p0041",
+          "name": "heading",
+          "type": "unknown",
+          "description": "The section title, step, and visual tone.",
+          "required": true,
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "unknown",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "Record"
+            }
+          }
+        },
+        {
+          "wireId": "p0042",
+          "name": "entry",
+          "type": "structured",
+          "description": "The section entry and its ordering metadata.",
+          "required": true,
+          "structuredRef": {
+            "library": "restage_example.widgets",
+            "wireId": "s0005"
+          },
+          "valueShape": {
+            "kind": "structured",
+            "propertyType": "structured",
+            "structuredRef": {
+              "library": "restage_example.widgets",
+              "wireId": "s0005"
+            }
+          }
         }
       ]
     },
@@ -407,6 +495,59 @@
             ]
           },
           "description": "Creates a price."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0005",
+      "name": "SectionEntry",
+      "library": "restage_example.widgets",
+      "description": "A section entry that itself carries a record field.",
+      "sourceType": "package:restage_example/widgets/section_header.dart#SectionEntry",
+      "fields": [
+        {
+          "wireId": "p0043",
+          "name": "label",
+          "type": "string",
+          "description": "The entry's display label.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0044",
+          "name": "meta",
+          "type": "unknown",
+          "description": "The entry's ordering and pinned state.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "unknown",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "Record"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0005",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "label": [
+              "p0043"
+            ],
+            "meta": [
+              "p0044"
+            ]
+          },
+          "description": "Creates a section entry."
         }
       ],
       "stability": "volatile"

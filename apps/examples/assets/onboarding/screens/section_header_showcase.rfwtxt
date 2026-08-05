@@ -1,0 +1,6 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+import restage_example.widgets;
+
+widget OnboardingScreen = Scaffold(body: SafeArea(child: Padding(padding: [24.0, 12.0, 24.0, 24.0], child: Column(crossAxisAlignment: "stretch", children: [Row(mainAxisAlignment: "end", children: [IconButton(onPressed: event "dismiss" {}, icon: Icon(iconCodepoint: 63047, color: data.theme.colorScheme.onSurfaceVariant))]), Spacer(), Text(text: "Set up your experience", color: data.theme.colorScheme.onSurfaceVariant, fontSize: 16.0, fontWeight: "w600"), SizedBox(height: 12.0), SectionHeader(heading: {step: 2, title: "Choose a plan", tone: "emphasis"}, entry: {label: "Billing", meta: {order: 1, pinned: true}}), SizedBox(height: 16.0), Text(text: "Review the highlighted section, then continue when you are ready.", color: data.theme.colorScheme.onSurfaceVariant, fontSize: 16.0, height: 1.45), Spacer(), FilledButton(onPressed: event "act" {}, padding: [0.0, 16.0, 0.0, 16.0], child: Text(text: "Continue"))]))));

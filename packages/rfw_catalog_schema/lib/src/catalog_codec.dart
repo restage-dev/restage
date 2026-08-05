@@ -1121,15 +1121,20 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
     };
 
 // `PropertyType.unknown` is normally a decoder sentinel. The opaque
-// list-of-structured contract is the one local construction that keeps the
-// legacy wire type while the value shape carries the structured item.
+// list-of-structured, opaque-record, and opaque-map contracts are the local
+// constructions that keep the legacy wire type while the value shape identifies
+// the value.
 Map<String, dynamic> _propertyToJson(PropertyEntry p) {
   assert(
     p.type != PropertyType.unknown ||
         (p.valueShape is ListShape &&
-            (p.valueShape! as ListShape).isOpaqueStructuredList),
+            (p.valueShape! as ListShape).isOpaqueStructuredList) ||
+        (p.valueShape is ScalarShape &&
+            (p.valueShape! as ScalarShape).isOpaqueRecord) ||
+        (p.valueShape is ScalarShape &&
+            (p.valueShape! as ScalarShape).isOpaqueStringKeyedMap),
     'PropertyType.unknown is only locally encodable for opaque structured '
-    'lists.',
+    'lists, opaque records, or opaque maps.',
   );
   return {
     'wireId': p.wireId.value,
@@ -1209,13 +1214,18 @@ Map<String, dynamic> _structuredToJson(StructuredEntry s) => {
     };
 
 Map<String, dynamic> _structuredFieldToJson(StructuredField f) {
-  // Unknown is only locally emitted for the opaque list-of-structured shape.
+  // Unknown is locally emitted only for the opaque list-of-structured,
+  // opaque-record, and opaque-map shapes.
   assert(
     f.type != PropertyType.unknown ||
         (f.valueShape is ListShape &&
-            (f.valueShape! as ListShape).isOpaqueStructuredList),
+            (f.valueShape! as ListShape).isOpaqueStructuredList) ||
+        (f.valueShape is ScalarShape &&
+            (f.valueShape! as ScalarShape).isOpaqueRecord) ||
+        (f.valueShape is ScalarShape &&
+            (f.valueShape! as ScalarShape).isOpaqueStringKeyedMap),
     'PropertyType.unknown is only locally encodable for opaque structured '
-    'lists.',
+    'lists, opaque records, or opaque maps.',
   );
   return {
     'wireId': f.wireId.value,
