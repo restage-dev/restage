@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart'
-    show ProductType;
+    show ProductType, RecurrenceMode;
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_storekit/in_app_purchase_storekit.dart';
 import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart'
@@ -36,9 +36,16 @@ import 'billing_gateway.dart';
 import 'purchase_attribution.dart';
 import 'purchase_coordinator_delegate.dart';
 import 'purchase_platform_adapter.dart';
+import 'purchase_token_digest.dart';
 import 'signed_native_offer.dart';
 
 part 'purchase_coordinator.dart';
+
+enum _SubscriptionProductVerdict {
+  supported,
+  unsupported,
+  indeterminate,
+}
 
 /// Basic implementation backed by `package:in_app_purchase`.
 ///
@@ -58,7 +65,8 @@ part 'purchase_coordinator.dart';
 ///   durable server-reporting lifecycle.
 /// - Configure-owned durable billing currently accepts auto-renewing
 ///   subscriptions only. One-time products fail before intent creation or
-///   store UI. Direct gateway calls retain their legacy product behavior.
+///   store UI. Google Play prepaid base plans are not accepted. Direct gateway
+///   calls retain their legacy product behavior.
 /// - [restore] uses a wall-clock timeout (default 5s) before declaring
 ///   "no purchases" because the underlying API does not emit a "done"
 ///   signal. On slow networks, restored purchases that arrive after the
@@ -264,9 +272,9 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
             completer.complete(
               PurchaseOutcome.succeeded(
                 productId: productId,
-                transactionId: p.purchaseID ?? '',
+                transactionId: p.purchaseID,
                 verificationData: p.verificationData.serverVerificationData,
-                priceMicros: (product.rawPrice * 1000000).toInt(),
+                priceMicros: _priceMicros(product),
                 currency: product.currencyCode,
               ),
             );
@@ -543,28 +551,54 @@ final class InAppPurchaseGateway implements OfferCapableBillingGateway {
     return _PreparedPurchaseResult.success(prepared);
   }
 
-  Future<bool> _verifyCoordinatedSubscriptionProduct({
+  Future<_SubscriptionProductVerdict> _verifyCoordinatedSubscriptionProduct({
     required String productId,
     required String store,
     required bool Function() isCurrentEpoch,
+    required Duration attemptTimeout,
   }) async {
-    if (!isCurrentEpoch()) return false;
+    if (!isCurrentEpoch()) {
+      return _SubscriptionProductVerdict.indeterminate;
+    }
     ProductDetailsResponse response;
     try {
-      response = await _plugin.queryProductDetails(<String>{productId});
+      response = await _plugin
+          .queryProductDetails(<String>{productId}).timeout(attemptTimeout);
     } on Object {
-      return false;
+      return _SubscriptionProductVerdict.indeterminate;
     }
-    if (!isCurrentEpoch() ||
-        response.error != null ||
-        response.notFoundIDs.contains(productId)) {
-      return false;
+    if (!isCurrentEpoch() || response.error != null) {
+      return _SubscriptionProductVerdict.indeterminate;
     }
-    return response.productDetails.any(
-      (product) =>
-          product.id == productId &&
-          _isSupportedSubscriptionProduct(product, store),
-    );
+    if (response.notFoundIDs.contains(productId)) {
+      // A temporarily unavailable catalog or locale can make an existing
+      // product look absent, so absence is not a definitive product verdict.
+      return _SubscriptionProductVerdict.indeterminate;
+    }
+    final products = response.productDetails
+        .where((product) => product.id == productId)
+        .toList(growable: false);
+    if (!isCurrentEpoch() || products.isEmpty) {
+      return _SubscriptionProductVerdict.indeterminate;
+    }
+    var sawUnrecognizedSubtype = false;
+    for (final product in products) {
+      if (!_isRecognizedSubscriptionProductSubtype(product, store)) {
+        sawUnrecognizedSubtype = true;
+        continue;
+      }
+      if (_isSupportedSubscriptionProduct(product, store)) {
+        return isCurrentEpoch()
+            ? _SubscriptionProductVerdict.supported
+            : _SubscriptionProductVerdict.indeterminate;
+      }
+    }
+    if (sawUnrecognizedSubtype) {
+      return _SubscriptionProductVerdict.indeterminate;
+    }
+    return isCurrentEpoch()
+        ? _SubscriptionProductVerdict.unsupported
+        : _SubscriptionProductVerdict.indeterminate;
   }
 
   Future<PurchaseOutcomeFailed?> _launchCoordinatedPurchase({
@@ -801,6 +835,21 @@ GooglePlayProductDetails? _resolveGooglePlayBasePlanProduct({
   return matches.length == 1 ? matches.single : null;
 }
 
+int _priceMicros(ProductDetails product) =>
+    (product.rawPrice * 1000000).toInt();
+
+bool _isRecognizedSubscriptionProductSubtype(
+  ProductDetails product,
+  String store,
+) {
+  if (store == 'playStore') return product is GooglePlayProductDetails;
+  if (store == 'appStore') {
+    return product is AppStoreProductDetails ||
+        product is AppStoreProduct2Details;
+  }
+  return false;
+}
+
 bool _isSupportedSubscriptionProduct(ProductDetails product, String store) {
   if (store == 'playStore') {
     if (product is! GooglePlayProductDetails ||
@@ -809,11 +858,17 @@ bool _isSupportedSubscriptionProduct(ProductDetails product, String store) {
     }
     final index = product.subscriptionIndex;
     final details = product.productDetails.subscriptionOfferDetails;
-    return index != null &&
-        index >= 0 &&
-        details != null &&
-        index < details.length &&
-        details[index].basePlanId.isNotEmpty;
+    if (index == null ||
+        index < 0 ||
+        details == null ||
+        index >= details.length) {
+      return false;
+    }
+    final offer = details[index];
+    return offer.basePlanId.isNotEmpty &&
+        offer.pricingPhases.isNotEmpty &&
+        offer.pricingPhases.last.recurrenceMode ==
+            RecurrenceMode.infiniteRecurring;
   }
   if (store == 'appStore') {
     if (product is AppStoreProductDetails) {

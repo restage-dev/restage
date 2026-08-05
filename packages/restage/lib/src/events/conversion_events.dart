@@ -73,9 +73,10 @@ final class PurchaseSucceeded extends RestageEvent {
   /// Platform product identifier.
   final String productId;
 
-  /// Platform transaction identifier (StoreKit `transactionIdentifier` /
-  /// Play `purchaseToken`).
-  final String transactionId;
+  /// Platform transaction identifier, when the store supplies one (StoreKit
+  /// transaction ID or Google Play order ID). A Google Play purchase redeemed
+  /// by promotional code has none.
+  final String? transactionId;
 
   /// Price in micros at purchase time.
   final int priceMicros;
@@ -94,7 +95,7 @@ final class PurchaseSucceeded extends RestageEvent {
         'name': name,
         'paywallId': paywallId,
         'productId': productId,
-        'transactionId': transactionId,
+        if (transactionId != null) 'transactionId': transactionId,
         'priceMicros': priceMicros,
         'currency': currency,
         if (offerId != null) 'offerId': offerId,

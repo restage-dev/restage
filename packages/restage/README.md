@@ -82,6 +82,7 @@ Call `Restage.configure` at app startup before showing store-backed paywalls.
 The bundled native gateway requires a `baseUrl` so it can create a durable
 purchase intent before opening store UI and report the transaction afterward.
 It currently accepts auto-renewing subscriptions only.
+Google Play prepaid base plans are not accepted.
 
 For the bundled gateway, Restage listens for native store updates outside the
 lifetime of a paywall. It reports an observed transaction before asking

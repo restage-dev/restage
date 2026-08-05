@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage/src/billing/purchase_token_digest.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -291,6 +292,45 @@ void main() {
       );
 
       expect(await client.reportTransaction(_request), isNull);
+    });
+
+    test('Google promotion acceptance requires the exact token digest',
+        () async {
+      for (final acceptedToken in <String>[
+        _googleRequest.storeVerificationData,
+        'different-purchase-token',
+      ]) {
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient(
+            (_) async => http.Response(
+              jsonEncode(<String, Object?>{
+                'accepted': true,
+                'reportId': _googleRequest.reportId,
+                'evidence': <String, Object?>{
+                  'store': 'playStore',
+                  'acceptedPurchaseTokenDigest':
+                      googlePurchaseTokenDigest(acceptedToken),
+                },
+                'attributionDisposition': 'notProvided',
+                'entitlements': <Object?>[],
+              }),
+              200,
+            ),
+          ),
+        );
+
+        final response = await client.reportTransaction(_googleRequest);
+
+        expect(
+          response,
+          acceptedToken == _googleRequest.storeVerificationData
+              ? isNotNull
+              : isNull,
+          reason: 'accepted token: $acceptedToken',
+        );
+      }
     });
 
     test('returns null on 4xx (distinguishing transport failure from empty)',
@@ -1045,6 +1085,14 @@ const ReportTransactionRequest _request = ReportTransactionRequest(
   storeVerificationData: 'wrapped-jws',
   storeProductId: 'pro_monthly',
   storeTransactionId: 'tx-1',
+);
+
+const ReportTransactionRequest _googleRequest = ReportTransactionRequest(
+  reportId: '550e8400-e29b-41d4-a716-446655440001',
+  store: 'playStore',
+  storeVerificationData: 'promotional-purchase-token',
+  storeProductId: 'pro_monthly',
+  storeTransactionId: null,
 );
 
 const CreatePurchaseIntentRequest _intentRequest = CreatePurchaseIntentRequest(

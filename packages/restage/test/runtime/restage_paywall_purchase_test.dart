@@ -176,13 +176,17 @@ class _BundledRpcClient extends RestageRpcClient {
     ReportTransactionRequest request,
   ) async {
     reportRequests.add(request);
+    final transactionId = request.storeTransactionId;
+    if (transactionId == null) {
+      throw StateError('App Store report omitted its transaction ID.');
+    }
     return ReportTransactionResponse(
       accepted: true,
       reportId: request.reportId,
       evidence: AppleAcceptedStoreEvidence(
-        submittedTransactionId: request.storeTransactionId,
-        acceptedTransactionId: request.storeTransactionId,
-        originalTransactionId: request.storeTransactionId,
+        submittedTransactionId: transactionId,
+        acceptedTransactionId: transactionId,
+        originalTransactionId: transactionId,
       ),
       attributionDisposition: AttributionDisposition.applied,
       purchaseIntentDisposition: PurchaseIntentDisposition.associated,

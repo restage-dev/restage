@@ -22,7 +22,6 @@ const _requestFields = {
   'experimentVariantId',
   'experimentEpoch',
 };
-const _responseFields = {'purchaseIntentId', 'created'};
 
 /// Public request to durably create an immutable purchase intent.
 @immutable
@@ -357,10 +356,9 @@ final class CreatePurchaseIntentResponse {
     required this.created,
   });
 
-  /// Strictly parses the frozen public response shape.
+  /// Parses the device-facing response while tolerating unknown fields for
+  /// forward compatibility. Server-parsed requests remain strict.
   factory CreatePurchaseIntentResponse.fromJson(Map<String, dynamic> json) {
-    _rejectUnknownFields(json, _responseFields);
-
     final purchaseIntentId = _requiredBoundedString(json, 'purchaseIntentId');
     _requireCanonicalLowercaseUuidV4(purchaseIntentId, 'purchaseIntentId');
 

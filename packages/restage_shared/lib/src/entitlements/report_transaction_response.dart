@@ -154,23 +154,38 @@ final class GoogleAcceptedStoreEvidence extends AcceptedStoreEvidence {
     required this.submittedOrderId,
     required this.acceptedOrderId,
     required this.orderLineageId,
+    required this.acceptedPurchaseTokenDigest,
   });
 
   /// Parses accepted Google Play evidence.
   factory GoogleAcceptedStoreEvidence.fromJson(Map<String, dynamic> json) {
-    final submittedOrderId = _requiredString(json, 'submittedOrderId');
-    final acceptedOrderId = _requiredString(json, 'acceptedOrderId');
-    final orderLineageId = _requiredString(json, 'orderLineageId');
-    if (_googleOrderLineageId(submittedOrderId) != orderLineageId ||
-        _googleOrderLineageId(acceptedOrderId) != orderLineageId) {
+    final submittedOrderId = _optionalString(json, 'submittedOrderId');
+    final acceptedOrderId = _optionalString(json, 'acceptedOrderId');
+    final orderLineageId = _optionalString(json, 'orderLineageId');
+    if (submittedOrderId != null &&
+        acceptedOrderId != null &&
+        orderLineageId != null) {
+      if (_googleOrderLineageId(submittedOrderId) != orderLineageId ||
+          _googleOrderLineageId(acceptedOrderId) != orderLineageId) {
+        throw ArgumentError(
+          'submittedOrderId and acceptedOrderId must share orderLineageId',
+        );
+      }
+    } else if (submittedOrderId != null ||
+        acceptedOrderId != null ||
+        orderLineageId != null) {
       throw ArgumentError(
-        'submittedOrderId and acceptedOrderId must share orderLineageId',
+        'Google order evidence must provide all three order fields or none',
       );
     }
     return GoogleAcceptedStoreEvidence(
       submittedOrderId: submittedOrderId,
       acceptedOrderId: acceptedOrderId,
       orderLineageId: orderLineageId,
+      acceptedPurchaseTokenDigest: _requiredString(
+        json,
+        'acceptedPurchaseTokenDigest',
+      ),
     );
   }
 
@@ -178,20 +193,40 @@ final class GoogleAcceptedStoreEvidence extends AcceptedStoreEvidence {
   String get store => 'playStore';
 
   /// Non-secret Play order ID submitted as the plugin purchase ID.
-  final String submittedOrderId;
+  final String? submittedOrderId;
 
   /// Authoritative order ID returned for the validated purchase token.
-  final String acceptedOrderId;
+  final String? acceptedOrderId;
 
   /// Stable base order ID for the authoritative order chain.
-  final String orderLineageId;
+  final String? orderLineageId;
+
+  /// Digest of the purchase token the server validated, so a client can
+  /// correlate an acceptance to the exact submitted purchase without the
+  /// purchase token itself ever appearing in a response.
+  ///
+  /// This is a cross-implementation contract: a client recomputes it locally
+  /// from the token it already holds, so the definition below is normative and
+  /// must not be restated by reference to any one implementation.
+  ///
+  /// SHA-256 over the UTF-8 bytes of the purchase-token string exactly as
+  /// received from the store — no trimming, no normalization, and no
+  /// case-folding of the token — rendered as lowercase hexadecimal, 64
+  /// characters. There is no salt, prefix, or key derivation: a digest that
+  /// could not be recomputed from the token alone would be useless here.
+  ///
+  /// A Google purchase may carry no order identity at all (promotional-code
+  /// redemptions), which is why this, and not an order id, is the one field
+  /// present on every accepted Google evidence.
+  final String acceptedPurchaseTokenDigest;
 
   @override
   Map<String, dynamic> toJson() => {
         'store': store,
-        'submittedOrderId': submittedOrderId,
-        'acceptedOrderId': acceptedOrderId,
-        'orderLineageId': orderLineageId,
+        if (submittedOrderId != null) 'submittedOrderId': submittedOrderId,
+        if (acceptedOrderId != null) 'acceptedOrderId': acceptedOrderId,
+        if (orderLineageId != null) 'orderLineageId': orderLineageId,
+        'acceptedPurchaseTokenDigest': acceptedPurchaseTokenDigest,
       };
 
   @override
@@ -200,11 +235,16 @@ final class GoogleAcceptedStoreEvidence extends AcceptedStoreEvidence {
       other is GoogleAcceptedStoreEvidence &&
           other.submittedOrderId == submittedOrderId &&
           other.acceptedOrderId == acceptedOrderId &&
-          other.orderLineageId == orderLineageId;
+          other.orderLineageId == orderLineageId &&
+          other.acceptedPurchaseTokenDigest == acceptedPurchaseTokenDigest;
 
   @override
-  int get hashCode =>
-      Object.hash(submittedOrderId, acceptedOrderId, orderLineageId);
+  int get hashCode => Object.hash(
+        submittedOrderId,
+        acceptedOrderId,
+        orderLineageId,
+        acceptedPurchaseTokenDigest,
+      );
 }
 
 /// Explicit durable acceptance returned by a transaction report.
@@ -434,6 +474,13 @@ String _requiredString(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is String && value.isNotEmpty) return value;
   throw ArgumentError.value(value, key, 'Expected a non-empty string');
+}
+
+String? _optionalString(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value == null) return null;
+  if (value is String && value.isNotEmpty) return value;
+  throw ArgumentError.value(value, key, 'Expected a non-empty string or null');
 }
 
 String _googleOrderLineageId(String orderId) {
