@@ -62,6 +62,18 @@ void main() {
     expect(e.toMap()['offerId'], 'winback_3mo');
   });
 
+  test('PurchaseSucceeded omits an unavailable store transaction id', () {
+    const e = PurchaseSucceeded(
+      paywallId: 'pro_upgrade',
+      productId: 'pro_monthly',
+      transactionId: null,
+      priceMicros: 0,
+      currency: 'USD',
+    );
+
+    expect(e.toMap().containsKey('transactionId'), isFalse);
+  });
+
   test('PurchasePending toMap serializes PendingReason as snake_case', () {
     const e = PurchasePending(
       paywallId: 'pro_upgrade',

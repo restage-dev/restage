@@ -7,6 +7,7 @@ import 'package:restage_shared/flow_experiment.dart'
     show kFlowExperimentClientContractVersionV1, kFlowExperimentContractKind;
 import 'package:restage_shared/restage_shared.dart';
 
+import '../billing/purchase_token_digest.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
 
@@ -519,8 +520,15 @@ bool _evidenceMatchesRequest(
     AppleAcceptedStoreEvidence(:final submittedTransactionId) =>
       request.store == 'appStore' &&
           submittedTransactionId == request.storeTransactionId,
-    GoogleAcceptedStoreEvidence(:final submittedOrderId) =>
+    GoogleAcceptedStoreEvidence(
+      :final submittedOrderId,
+      :final acceptedPurchaseTokenDigest,
+    ) =>
       request.store == 'playStore' &&
+          acceptedPurchaseTokenDigest ==
+              googlePurchaseTokenDigest(request.storeVerificationData) &&
+          // Deliberately symmetric: an order id present on only one side is a
+          // correlation failure, not a bonus.
           submittedOrderId == request.storeTransactionId,
   };
 }

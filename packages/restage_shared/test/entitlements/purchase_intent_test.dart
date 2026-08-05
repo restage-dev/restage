@@ -519,7 +519,7 @@ void main() {
       }
     });
 
-    test('rejects unknown and server-owned fields', () {
+    test('stays strict for unknown and server-owned fields', () {
       for (final field in const [
         'organizationId',
         'appId',
@@ -571,7 +571,7 @@ void main() {
       }
     });
 
-    test('rejects lookup data and any other unknown response field', () {
+    test('ignores unknown response fields and parses the known fields', () {
       for (final field in const [
         'appAnonymousToken',
         'organizationId',
@@ -584,10 +584,10 @@ void main() {
           'created': false,
           field: 'not-public',
         };
-        expect(
-          () => CreatePurchaseIntentResponse.fromJson(json),
-          throwsArgumentError,
-        );
+        final response = CreatePurchaseIntentResponse.fromJson(json);
+
+        expect(response.purchaseIntentId, _purchaseIntentId);
+        expect(response.created, isFalse);
       }
     });
   });

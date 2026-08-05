@@ -24,16 +24,19 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     Future<void> Function(String token)? authoritativeTokenReplacer,
     void Function(List<EntitlementSummary> entitlements)? entitlementReconciler,
     Future<void> Function()? entitlementSync,
-    Future<bool> Function(String productId)? subscriptionVerifier,
+    // ignore: library_private_types_in_public_api
+    Future<_SubscriptionProductVerdict> Function(String productId)?
+        subscriptionVerifier,
     void Function(
       PurchaseOutcomeSucceeded outcome,
       PurchaseAttributionSnapshot attribution,
     )? delayedSuccessEmitter,
     Duration Function(int retryIndex)? retryDelayPolicy,
     Future<void> Function(Duration delay)? delay,
-    int maxReportAttempts = 3,
+    int maxReportAttempts = 6,
     int maxFinishAttempts = 3,
-    Duration finishAttemptTimeout = const Duration(seconds: 15),
+    Duration externalAttemptTimeout = const Duration(seconds: 15),
+    Duration reportAttemptTimeout = const Duration(seconds: 75),
     int markerCapacity = 256,
   })  : _gateway = gateway,
         _knownSubscriptionProductIds =
@@ -44,20 +47,17 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
         _epoch = epoch,
         _isCurrentEpoch = isCurrentEpoch,
         _platformAdapters = platformAdapters ??
-            debugPlatformAdapterFactory?.call(
+            _debugOverride(() => debugPlatformAdapterFactory)?.call(
               gateway._plugin,
               knownSubscriptionProductIds,
             ) ??
-            _defaultPlatformAdapters(
-              gateway._plugin,
-              knownSubscriptionProductIds,
-            ),
+            _defaultPlatformAdapters(gateway._plugin),
         _evidenceProcessorOverride =
-            evidenceProcessor ?? debugEvidenceProcessor,
+            evidenceProcessor ?? _debugOverride(() => debugEvidenceProcessor),
         _purchaseIntentIdGenerator =
             purchaseIntentIdGenerator ?? AnonymousTokenStore.generateUuidV4,
         _reportIdGenerator = reportIdGenerator ??
-            debugReportIdGenerator ??
+            _debugOverride(() => debugReportIdGenerator) ??
             AnonymousTokenStore.generateUuidV4,
         _authoritativeTokenReplacer =
             authoritativeTokenReplacer ?? _ignoreAuthoritativeToken,
@@ -66,14 +66,18 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
         _subscriptionVerifierOverride = subscriptionVerifier,
         _delayedSuccessEmitter = delayedSuccessEmitter ?? _ignoreDelayedSuccess,
         _retryDelayPolicy = retryDelayPolicy ??
-            debugRetryDelayPolicy ??
+            _debugOverride(() => debugRetryDelayPolicy) ??
             _defaultRetryDelayPolicy(),
-        _delay = delay ?? debugDelay ?? Future<void>.delayed,
+        _delay =
+            delay ?? _debugOverride(() => debugDelay) ?? Future<void>.delayed,
         _maxReportAttempts = max(1, maxReportAttempts),
         _maxFinishAttempts = max(1, maxFinishAttempts),
-        _finishAttemptTimeout = finishAttemptTimeout,
+        _externalAttemptTimeout = externalAttemptTimeout,
+        _reportAttemptTimeout = reportAttemptTimeout,
         _acceptedEvidence = _BoundedMarkerMap(markerCapacity),
-        _completedEvidence = _BoundedMarkerSet(markerCapacity);
+        _completedEvidence = _BoundedMarkerSet(markerCapacity),
+        _unfinishedLogged = _BoundedMarkerSet(markerCapacity),
+        _unsupportedEvidence = _BoundedMarkerMap(markerCapacity);
 
   /// Test-only override for native recovery construction.
   @internal
@@ -101,6 +105,15 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   @internal
   static Future<void> Function(Duration delay)? debugDelay;
 
+  static T? _debugOverride<T>(T? Function() read) {
+    T? value;
+    assert(() {
+      value = read();
+      return true;
+    }());
+    return value;
+  }
+
   final InAppPurchaseGateway _gateway;
   final Set<String> _knownSubscriptionProductIds;
   final Future<String?> Function() _anonymousTokenProvider;
@@ -119,7 +132,8 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   final void Function(List<EntitlementSummary> entitlements)
       _entitlementReconciler;
   final Future<void> Function() _entitlementSync;
-  final Future<bool> Function(String productId)? _subscriptionVerifierOverride;
+  final Future<_SubscriptionProductVerdict> Function(String productId)?
+      _subscriptionVerifierOverride;
   final void Function(
     PurchaseOutcomeSucceeded outcome,
     PurchaseAttributionSnapshot attribution,
@@ -128,14 +142,28 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   final Future<void> Function(Duration delay) _delay;
   final int _maxReportAttempts;
   final int _maxFinishAttempts;
-  final Duration _finishAttemptTimeout;
+
+  /// Bounds the product query, anonymous-token read, identity repair, and
+  /// native-finish observation awaits.
+  final Duration _externalAttemptTimeout;
+
+  /// Bounds only the transaction-report POST await.
+  final Duration _reportAttemptTimeout;
 
   final Map<String, _PurchaseAttempt> _attemptsByProduct = {};
   final Set<String> _preparingProducts = <String>{};
   final Map<String, Future<void>> _evidenceInFlight = {};
+  final Map<String, _FinishOperation> _finishInFlight = {};
   final Set<String> _verifiedSubscriptionProductIds = <String>{};
   final _BoundedMarkerMap<_AcceptedEvidenceState> _acceptedEvidence;
   final _BoundedMarkerSet _completedEvidence;
+  final _BoundedMarkerSet _unfinishedLogged;
+
+  /// Evidence keys refused for an unsupported product shape, each carrying the
+  /// product id that earned the refusal so a later `supported` verdict for that
+  /// product can purge its siblings. Keyed by evidence and valued by product
+  /// precisely because the two memos would otherwise never reconcile.
+  final _BoundedMarkerMap<String> _unsupportedEvidence;
 
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   _RestoreAttempt? _restoreAttempt;
@@ -177,9 +205,12 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     _preparingProducts.clear();
     _restoreAttempt = null;
     _evidenceInFlight.clear();
+    _finishInFlight.clear();
     _verifiedSubscriptionProductIds.clear();
     _acceptedEvidence.clear();
     _completedEvidence.clear();
+    _unsupportedEvidence.clear();
+    _unfinishedLogged.clear();
     for (final attempt in attempts) {
       if (!attempt.completer.isCompleted) {
         attempt.completer.complete(
@@ -231,6 +262,13 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     required String? basePlanId,
     required PurchaseAttributionSnapshot? attribution,
   }) async {
+    if (!_knownSubscriptionProductIds.contains(productId)) {
+      return PurchaseOutcome.failed(
+        productId: productId,
+        errorCode: RestageBillingErrorCodes.buyFailed,
+        message: 'This product is not configured for purchase.',
+      );
+    }
     if (!_isActive) return _configurationChanged(productId);
     if (_attemptsByProduct.containsKey(productId) ||
         !_preparingProducts.add(productId)) {
@@ -464,9 +502,10 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
       productId: productId,
       purchaseIntentId: purchaseIntentId,
       attribution: attribution,
+      priceMicros: _priceMicros(prepared.product),
+      currency: prepared.product.currencyCode,
     );
     _attemptsByProduct[productId] = attempt;
-    attempt.prepare(prepared.product);
     final failure = await _gateway._launchCoordinatedPurchase(
       prepared: prepared,
       offer: offer,
@@ -487,16 +526,14 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   void _handlePurchaseBatch(List<PurchaseDetails> purchases) {
     if (!_isActive) return;
     for (final purchase in purchases) {
-      final attempt = _attemptsByProduct[purchase.productID];
       switch (purchase.status) {
         case PurchaseStatus.pending:
-          if (attempt != null &&
-              _matchesAttempt(purchase, attempt) &&
-              !attempt.completer.isCompleted) {
+          final attempt = _resolveTerminalAttempt(purchase);
+          if (attempt != null && !attempt.completer.isCompleted) {
             _completeAttempt(
               attempt,
               PurchaseOutcome.pending(
-                productId: purchase.productID,
+                productId: attempt.productId,
                 reason: PendingReason.paymentPending,
               ),
               remove: false,
@@ -510,30 +547,32 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
           final evidence = _normalizePurchase(purchase);
           if (evidence != null) unawaited(_enqueueEvidence(evidence));
         case PurchaseStatus.canceled:
-          if (attempt != null && _matchesAttempt(purchase, attempt)) {
+          final attempt = _resolveTerminalAttempt(purchase);
+          if (attempt != null) {
             if (!attempt.completer.isCompleted) {
               _completeAttempt(
                 attempt,
-                PurchaseOutcome.cancelled(productId: purchase.productID),
+                PurchaseOutcome.cancelled(productId: attempt.productId),
               );
             } else {
-              _attemptsByProduct.remove(purchase.productID);
+              _removeAttempt(attempt);
             }
           }
         case PurchaseStatus.error:
-          if (attempt != null && _matchesAttempt(purchase, attempt)) {
+          final attempt = _resolveTerminalAttempt(purchase);
+          if (attempt != null) {
             if (!attempt.completer.isCompleted) {
               _completeAttempt(
                 attempt,
                 PurchaseOutcome.failed(
-                  productId: purchase.productID,
+                  productId: attempt.productId,
                   errorCode:
                       purchase.error?.code ?? RestageBillingErrorCodes.unknown,
                   message: 'The store reported a purchase error.',
                 ),
               );
             } else {
-              _attemptsByProduct.remove(purchase.productID);
+              _removeAttempt(attempt);
             }
           }
       }
@@ -577,29 +616,30 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   }
 
   StoreTransactionEvidence? _normalizePurchase(PurchaseDetails purchase) {
-    if (!_knownSubscriptionProductIds.contains(purchase.productID) ||
-        (purchase.status != PurchaseStatus.purchased &&
-            purchase.status != PurchaseStatus.restored)) {
+    if (purchase.status != PurchaseStatus.purchased &&
+        purchase.status != PurchaseStatus.restored) {
       return null;
     }
-    final transactionId = purchase.purchaseID;
     final verificationData = purchase.verificationData.serverVerificationData;
-    if (transactionId == null ||
-        transactionId.isEmpty ||
-        purchase.productID.isEmpty ||
-        verificationData.isEmpty) {
+    if (purchase.productID.isEmpty || verificationData.isEmpty) {
       return null;
     }
 
     if (purchase is GooglePlayPurchaseDetails) {
       final wrapper = purchase.billingClientPurchase;
+      if (wrapper.purchaseToken.isEmpty) return null;
+      final orderId = wrapper.orderId.isEmpty ? null : wrapper.orderId;
       return StoreTransactionEvidence(
-        evidenceKey: googleEvidenceKey(wrapper.orderId),
+        evidenceKey: orderId != null
+            ? googleEvidenceKey(orderId)
+            : googleTokenDigestEvidenceKey(
+                googlePurchaseTokenDigest(wrapper.purchaseToken),
+              ),
         store: 'playStore',
         source: StoreTransactionSource.purchaseStream,
         state: _stateFromStatus(purchase.status),
         productId: purchase.productID,
-        transactionId: wrapper.orderId,
+        transactionId: orderId,
         verificationData: wrapper.purchaseToken,
         purchaseIntentId: _purchaseIntentHint(purchase),
         originalTransactionId: null,
@@ -608,6 +648,8 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
       );
     }
 
+    final transactionId = purchase.purchaseID;
+    if (transactionId == null || transactionId.isEmpty) return null;
     final purchaseIntentId = _purchaseIntentHint(purchase);
     String? originalTransactionId;
     if (purchase is AppStorePurchaseDetails) {
@@ -640,9 +682,49 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     return null;
   }
 
-  bool _matchesAttempt(PurchaseDetails purchase, _PurchaseAttempt attempt) =>
-      _purchaseIntentHint(purchase) == attempt.purchaseIntentId;
+  /// Whether store evidence may resolve [attempt].
+  ///
+  /// Stores do not always stamp the purchase-intent hint onto an update, so a
+  /// missing hint must not strand the caller's future. A hint naming a
+  /// different intent belongs to another transaction and still refuses.
+  static bool _hintAdmitsAttempt(String? hint, _PurchaseAttempt attempt) =>
+      hint == null || hint.isEmpty || hint == attempt.purchaseIntentId;
 
+  /// Resolves the attempt a terminal non-purchase update belongs to.
+  ///
+  /// Stores do not stamp the purchase-intent hint onto cancellations, so a
+  /// missing hint must not prevent an attempt from resolving — otherwise the
+  /// caller's future never completes and the surface stays wedged. A hint that
+  /// is present and names a different intent still refuses: that update belongs
+  /// to another transaction.
+  ///
+  /// At most one attempt per product can exist: `_attemptsByProduct` is keyed
+  /// by product id, and both the purchase entry point and the store launch
+  /// refuse a second attempt while one is in flight. So a product id identifies
+  /// an attempt uniquely, and no multi-attempt-per-product tie-break is
+  /// representable.
+  _PurchaseAttempt? _resolveTerminalAttempt(PurchaseDetails purchase) {
+    final hint = _purchaseIntentHint(purchase);
+    final productId = purchase.productID;
+    if (productId.isNotEmpty) {
+      final attempt = _attemptsByProduct[productId];
+      if (attempt == null) return null;
+      if (!_hintAdmitsAttempt(hint, attempt)) return null;
+      return attempt;
+    }
+    // Google Play reports a cancelled or failed launch with no product id at
+    // all. Exactly one in-flight attempt can be attributed unambiguously; more
+    // than one cannot, so those are left for the store to re-report.
+    if (_attemptsByProduct.length != 1) return null;
+    final attempt = _attemptsByProduct.values.single;
+    return _hintAdmitsAttempt(hint, attempt) ? attempt : null;
+  }
+
+  /// Drains one adapter without coupling its failure to the other adapters.
+  ///
+  /// An adapter failure is logged and skipped so remaining adapters still
+  /// drain. Enumeration is not retried inline; the next configure or resume
+  /// drain retries the failed adapter.
   Future<void> _drain(PurchasePlatformAdapter adapter) async {
     if (!_isActive) return;
     List<StoreTransactionEvidence> evidence;
@@ -662,8 +744,9 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   }
 
   Future<void> _enqueueEvidence(StoreTransactionEvidence evidence) {
-    if (evidence.store == 'appStore' &&
-        _completedEvidence.contains(evidence.evidenceKey)) {
+    if (_unsupportedEvidence[evidence.evidenceKey] != null ||
+        (evidence.store == 'appStore' &&
+            _completedEvidence.contains(evidence.evidenceKey))) {
       return Future<void>.value();
     }
     final existing = _evidenceInFlight[evidence.evidenceKey];
@@ -698,13 +781,42 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     if (!context.isCurrent ||
         (evidence.state != StoreTransactionState.purchased &&
             evidence.state != StoreTransactionState.restored) ||
-        !_knownSubscriptionProductIds.contains(evidence.productId) ||
         evidence.store != _store ||
+        _unsupportedEvidence[evidence.evidenceKey] != null ||
         (evidence.store == 'appStore' &&
             _completedEvidence.contains(evidence.evidenceKey))) {
       return;
     }
-    if (!await _verifySubscriptionProduct(evidence.productId, context)) return;
+    final verdict =
+        await _verifySubscriptionProduct(evidence.productId, context);
+    if (verdict == _SubscriptionProductVerdict.indeterminate) return;
+    // An unsupported shape is terminal: the transaction is neither reported nor
+    // completed, and the registry only selects which diagnostic is emitted.
+    //
+    // Both halves of that refusal are deliberate and each has a cost that is
+    // invisible from here, so neither should be "simplified" into an action.
+    // Reporting would send a purchase this SDK never started — the recovery
+    // drain enumerates everything the store has pending for the app, including
+    // purchases made by the host's own billing code — to a server that would
+    // attribute revenue for it. Completing one would consume that purchase, and
+    // the host's own delivery logic would never run, leaving a paying user with
+    // nothing and no trace of why.
+    if (verdict == _SubscriptionProductVerdict.unsupported) {
+      _unsupportedEvidence[evidence.evidenceKey] = evidence.productId;
+      if (_knownSubscriptionProductIds.contains(evidence.productId)) {
+        debugPrint(
+          '[restage] configured product ${evidence.productId} has an '
+          'unsupported subscription shape in ${evidence.store}; leaving its '
+          'transaction untouched',
+        );
+      } else {
+        debugPrint(
+          '[restage] leaving unsupported product '
+          '${evidence.productId} untouched',
+        );
+      }
+      return;
+    }
     if (!context.isCurrent) return;
 
     var accepted = evidence.store == 'appStore'
@@ -718,6 +830,14 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
         return;
       }
       if (!context.isCurrent) return;
+      final disposition = response.purchaseIntentDisposition;
+      if (evidence.purchaseIntentId != null &&
+          disposition != null &&
+          !_isAssociatingDisposition(disposition)) {
+        debugPrint(
+          '[restage] purchase intent disposition: ${disposition.name}',
+        );
+      }
       accepted = _AcceptedEvidenceState(evidence, response);
       if (evidence.store == 'appStore') {
         _acceptedEvidence[evidence.evidenceKey] = accepted;
@@ -735,30 +855,48 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     }
   }
 
-  Future<bool> _verifySubscriptionProduct(
+  Future<_SubscriptionProductVerdict> _verifySubscriptionProduct(
     String productId,
     PurchaseProcessingContext context,
   ) async {
-    if (_verifiedSubscriptionProductIds.contains(productId)) return true;
-    if (!context.isCurrent) return false;
-    bool verified;
+    if (_verifiedSubscriptionProductIds.contains(productId)) {
+      return _SubscriptionProductVerdict.supported;
+    }
+    if (!context.isCurrent) {
+      return _SubscriptionProductVerdict.indeterminate;
+    }
+    _SubscriptionProductVerdict verdict;
     try {
       final verifier = _subscriptionVerifierOverride;
-      verified = verifier != null
+      verdict = verifier != null
           ? await verifier(productId)
           : await _gateway._verifyCoordinatedSubscriptionProduct(
               productId: productId,
               store: _store,
               isCurrentEpoch: () => context.isCurrent,
+              attemptTimeout: _externalAttemptTimeout,
             );
     } on Object {
-      return false;
+      return _SubscriptionProductVerdict.indeterminate;
     }
-    if (!verified || !context.isCurrent) return false;
-    _verifiedSubscriptionProductIds.add(productId);
-    return true;
+    if (!context.isCurrent) return _SubscriptionProductVerdict.indeterminate;
+    if (verdict == _SubscriptionProductVerdict.supported) {
+      _verifiedSubscriptionProductIds.add(productId);
+      // A sibling transaction may already have been refused on an earlier,
+      // worse-informed answer for this same product. Now that the store calls
+      // it supported, drop those refusals so the next drain can recover them —
+      // otherwise the two memos disagree forever and a charged transaction is
+      // stranded next to one that succeeded.
+      _unsupportedEvidence.removeWhere((marked) => marked == productId);
+    }
+    return verdict;
   }
 
+  /// Uses a bounded foreground retry budget to absorb brief service hiccups.
+  ///
+  /// The default six attempts spend roughly 1.5 to 3.1 seconds in backoff,
+  /// plus request time, while foreground work stays bounded. Native configure
+  /// and resume drains own durable recovery beyond that budget.
   Future<ReportTransactionResponse?> _reportWithRetry(
     StoreTransactionEvidence evidence,
     PurchaseProcessingContext context,
@@ -773,24 +911,38 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
       if (reportId != null) {
         String? anonymousToken;
         try {
-          anonymousToken = await _anonymousTokenProvider();
+          // Bounded: this is a local platform channel, and a hung one would
+          // hold the per-evidence barrier open forever. A missing token is
+          // already an accepted outcome here, so timing out degrades cleanly.
+          anonymousToken = await _anonymousTokenProvider().timeout(
+            _externalAttemptTimeout,
+          );
+        } on TimeoutException {
+          anonymousToken = null;
         } on Object {
           anonymousToken = null;
         }
         if (!context.isCurrent) return null;
-        final response = await context.report(
-          () => client.reportTransaction(
-            ReportTransactionRequest(
-              reportId: reportId,
-              store: evidence.store,
-              storeVerificationData: evidence.verificationData,
-              storeProductId: evidence.productId,
-              storeTransactionId: evidence.transactionId,
-              purchaseIntentId: evidence.purchaseIntentId,
-              appAnonymousToken: anonymousToken,
-            ),
-          ),
-        );
+        ReportTransactionResponse? response;
+        try {
+          response = await context
+              .report(
+                () => client.reportTransaction(
+                  ReportTransactionRequest(
+                    reportId: reportId,
+                    store: evidence.store,
+                    storeVerificationData: evidence.verificationData,
+                    storeProductId: evidence.productId,
+                    storeTransactionId: evidence.transactionId,
+                    purchaseIntentId: evidence.purchaseIntentId,
+                    appAnonymousToken: anonymousToken,
+                  ),
+                ),
+              )
+              .timeout(_reportAttemptTimeout);
+        } on TimeoutException {
+          response = null;
+        }
         if (response != null &&
             _isCompletionSafe(response, reportId, evidence)) {
           return response;
@@ -815,28 +967,36 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     return null;
   }
 
+  /// Requires durable acceptance correlated to the exact submitted evidence.
+  ///
+  /// Purchase-intent disposition is attribution telemetry, not a durability
+  /// signal, so it is deliberately not part of the native completion gate.
   static bool _isCompletionSafe(
     ReportTransactionResponse response,
     String reportId,
     StoreTransactionEvidence evidence,
   ) {
     if (!response.accepted || response.reportId != reportId) return false;
-    final disposition = response.purchaseIntentDisposition;
-    if (evidence.purchaseIntentId == null) {
-      if (disposition != PurchaseIntentDisposition.notProvided) return false;
-    } else if (disposition != PurchaseIntentDisposition.associated &&
-        disposition != PurchaseIntentDisposition.alreadyAssociated) {
-      return false;
-    }
     return switch (response.evidence) {
       AppleAcceptedStoreEvidence(:final submittedTransactionId) =>
         evidence.store == 'appStore' &&
             submittedTransactionId == evidence.transactionId,
-      GoogleAcceptedStoreEvidence(:final submittedOrderId) =>
+      GoogleAcceptedStoreEvidence(
+        :final submittedOrderId,
+        :final acceptedPurchaseTokenDigest,
+      ) =>
         evidence.store == 'playStore' &&
+            acceptedPurchaseTokenDigest ==
+                googlePurchaseTokenDigest(evidence.verificationData) &&
+            // Deliberately symmetric: an order id in only the report or only
+            // the acceptance is a correlation failure.
             submittedOrderId == evidence.transactionId,
     };
   }
+
+  static bool _isAssociatingDisposition(PurchaseIntentDisposition? value) =>
+      value == PurchaseIntentDisposition.associated ||
+      value == PurchaseIntentDisposition.alreadyAssociated;
 
   Future<void> _applyAcceptedSideEffects(
     StoreTransactionEvidence evidence,
@@ -847,13 +1007,21 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     if (!accepted.identityHandled) {
       final disposition = response.purchaseIntentDisposition;
       final token = response.recoveredAppAnonymousToken;
-      if ((disposition == PurchaseIntentDisposition.associated ||
-              disposition == PurchaseIntentDisposition.alreadyAssociated) &&
-          token != null) {
+      if (_isAssociatingDisposition(disposition) && token != null) {
         try {
-          await context.repairIdentity(
-            () => _authoritativeTokenReplacer(token),
-          );
+          // Bounded for the same reason as the token read above: a hung local
+          // channel here would hold the per-evidence barrier open forever.
+          await context
+              .repairIdentity(() => _authoritativeTokenReplacer(token))
+              .timeout(_externalAttemptTimeout);
+        } on TimeoutException {
+          if (context.isCurrent) {
+            // Deliberately distinct from the throw below: an operator reading
+            // logs must be able to tell a hang from a failure.
+            debugPrint(
+              '[restage] authoritative anonymous token repair timed out',
+            );
+          }
         } on Object {
           if (context.isCurrent) {
             debugPrint('[restage] authoritative anonymous token repair failed');
@@ -908,18 +1076,15 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   ) {
     final attempt = _attemptsByProduct[evidence.productId];
     if (attempt == null ||
-        evidence.purchaseIntentId != attempt.purchaseIntentId) {
+        !_hintAdmitsAttempt(evidence.purchaseIntentId, attempt)) {
       return;
     }
-    final priceMicros = attempt.priceMicros;
-    final currency = attempt.currency;
-    if (priceMicros == null || currency == null) return;
     final outcome = PurchaseOutcomeSucceeded(
       productId: evidence.productId,
       transactionId: evidence.transactionId,
       verificationData: evidence.verificationData,
-      priceMicros: priceMicros,
-      currency: currency,
+      priceMicros: attempt.priceMicros,
+      currency: attempt.currency,
     );
 
     if (!attempt.completer.isCompleted) {
@@ -943,7 +1108,7 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     final attempt = _attemptsByProduct[evidence.productId];
     if (attempt == null ||
         attempt.completer.isCompleted ||
-        evidence.purchaseIntentId != attempt.purchaseIntentId) {
+        !_hintAdmitsAttempt(evidence.purchaseIntentId, attempt)) {
       return;
     }
     context.emitOutcome(() {
@@ -964,21 +1129,90 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
   ) async {
     for (var attempt = 0; attempt < _maxFinishAttempts; attempt += 1) {
       if (!context.isCurrent) return false;
+      final operation = _finishInFlight[evidence.evidenceKey] ??
+          _FinishOperation(context.finish(evidence));
+      _finishInFlight[evidence.evidenceKey] = operation;
       try {
-        if (await context.finish(evidence).timeout(_finishAttemptTimeout)) {
+        // This bound is load-bearing, not defensive. Completing an already
+        // completed transaction is a harmless no-op on every store, so it can
+        // look like a timeout guarding an idempotent call. On StoreKit 2,
+        // however, the plugin never invokes its completion callback for a
+        // transaction it can no longer fetch, so the future never settles.
+        // Removing this bound converts a redundant completion into a permanent
+        // hang.
+        final finished =
+            await operation.future.timeout(_externalAttemptTimeout);
+        _removeFinishOperation(evidence, operation);
+        if (finished) {
           return true;
         }
       } on TimeoutException {
-        return false;
+        if (operation.settled) {
+          _removeFinishOperation(evidence, operation);
+          if (operation.result == true) return true;
+          if (!context.isCurrent) return false;
+        }
+        // Keep observing an unresolved future on the next attempt. Starting a
+        // new native finish could complete the transaction twice.
       } on Object {
+        _removeFinishOperation(evidence, operation);
         if (!context.isCurrent) return false;
       }
-      if (attempt + 1 >= _maxFinishAttempts ||
-          !await _waitForRetry(attempt, context)) {
+      if (attempt + 1 >= _maxFinishAttempts) {
+        // Release an operation that never settled. Same-run serialization stops
+        // here: holding it would leave the transaction permanently unfinishable
+        // by any later drain, whereas a fresh completion is a no-op on every
+        // store if the first one did land.
+        _removeFinishOperation(evidence, operation);
+        _logUnfinishedEvidence(evidence, context);
+        return false;
+      }
+      if (!await _waitForRetry(attempt, context)) {
+        // The epoch changed. Release here too rather than relying on `cancel()`
+        // to clear the map: the coordinator is being torn down anyway, so this
+        // costs nothing, and it keeps the invariant local instead of depending
+        // on a cleanup somewhere else.
+        _removeFinishOperation(evidence, operation);
         return false;
       }
     }
     return false;
+  }
+
+  void _removeFinishOperation(
+    StoreTransactionEvidence evidence,
+    _FinishOperation operation,
+  ) {
+    if (identical(_finishInFlight[evidence.evidenceKey], operation)) {
+      _finishInFlight.remove(evidence.evidenceKey);
+    }
+  }
+
+  void _logUnfinishedEvidence(
+    StoreTransactionEvidence evidence,
+    PurchaseProcessingContext context,
+  ) {
+    if (!context.isCurrent) return;
+    // Once per transaction, not once per drain: a transaction that stays
+    // unfinished is re-enumerated on every resume, and repeating the line
+    // would bury the signal it exists to raise.
+    if (_unfinishedLogged.contains(evidence.evidenceKey)) return;
+    _unfinishedLogged.add(evidence.evidenceKey);
+    debugPrint(
+      '[restage] ${evidence.store} ${_evidenceKeyShape(evidence.evidenceKey)} '
+      'evidence remains unfinished after the finish retry budget was exhausted',
+    );
+  }
+
+  static String _evidenceKeyShape(String evidenceKey) {
+    if (evidenceKey.startsWith('appStore/transaction/')) {
+      return 'transaction-keyed';
+    }
+    if (evidenceKey.startsWith('playStore/order/')) return 'order-keyed';
+    if (evidenceKey.startsWith('playStore/tokenDigest/')) {
+      return 'token-digest-keyed';
+    }
+    return 'opaque-keyed';
   }
 
   Future<bool> _waitForRetry(
@@ -1010,7 +1244,6 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
 
   static List<PurchasePlatformAdapter> _defaultPlatformAdapters(
     InAppPurchase plugin,
-    Set<String> knownSubscriptionProductIds,
   ) {
     if (InAppPurchaseGateway._isApplePlatform) {
       return <PurchasePlatformAdapter>[
@@ -1019,10 +1252,7 @@ final class PurchaseCoordinator implements PurchaseCoordinatorDelegate {
     }
     if (InAppPurchaseGateway._isAndroidPlatform) {
       return <PurchasePlatformAdapter>[
-        GoogleOwnedPurchaseAdapter(
-          plugin: plugin,
-          knownSubscriptionProductIds: knownSubscriptionProductIds,
-        ),
+        GoogleOwnedPurchaseAdapter(plugin: plugin),
       ];
     }
     return const <PurchasePlatformAdapter>[];
@@ -1128,19 +1358,36 @@ final class _PurchaseAttempt {
     required this.productId,
     required this.purchaseIntentId,
     required this.attribution,
+    required this.priceMicros,
+    required this.currency,
   });
 
   final String productId;
   final String purchaseIntentId;
   final PurchaseAttributionSnapshot? attribution;
-  int? priceMicros;
-  String? currency;
+  final int priceMicros;
+  final String currency;
   final Completer<PurchaseOutcome> completer = Completer<PurchaseOutcome>();
+}
 
-  void prepare(ProductDetails product) {
-    priceMicros = (product.rawPrice * 1000000).toInt();
-    currency = product.currencyCode;
+final class _FinishOperation {
+  _FinishOperation(Future<bool> source) {
+    future = source.then(
+      (value) {
+        settled = true;
+        result = value;
+        return value;
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        settled = true;
+        Error.throwWithStackTrace(error, stackTrace);
+      },
+    );
   }
+
+  late final Future<bool> future;
+  bool settled = false;
+  bool? result;
 }
 
 final class _RestoreAttempt {
@@ -1158,7 +1405,7 @@ final class _AcceptedEvidenceState {
 
   final String store;
   final String productId;
-  final String transactionId;
+  final String? transactionId;
   final String? purchaseIntentId;
   final ReportTransactionResponse response;
 
@@ -1195,6 +1442,9 @@ final class _BoundedMarkerMap<T> {
   }
 
   void clear() => _values.clear();
+
+  void removeWhere(bool Function(T value) test) =>
+      _values.removeWhere((_, value) => test(value));
 }
 
 final class _BoundedMarkerSet {

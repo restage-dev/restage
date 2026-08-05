@@ -2163,7 +2163,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
                 paywallId: widget.id,
                 paywallPublishedVersion: _resolvedPaywallPublishedVersion,
               ));
-            } else {
+            } else if (verificationData == null && transactionId != null) {
               // Receipt-less, attribution-only success: an external-provider
               // gateway delegated the purchase and kept the receipt, so there
               // is nothing to validate. Report the attribution hint
@@ -2176,6 +2176,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
                 paywallId: widget.id,
                 paywallPublishedVersion: _resolvedPaywallPublishedVersion,
               ));
+            } else {
+              // Neither a receipt nor a transaction id: an external-provider
+              // gateway delegated the purchase, kept the receipt, and the
+              // store issued no transaction identity (a Google Play
+              // promotional-code redemption is the reachable case). There is
+              // nothing to validate and nothing to correlate an attribution
+              // hint against, so no report is sent. The local grant above still
+              // applies, and the entitlement service converges on the next
+              // sync. This branch exists so the absence of a report is a stated
+              // outcome rather than a silent fall-through.
             }
           }
           _feedFlowOutcome(_kPurchaseSucceededEvent);

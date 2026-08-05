@@ -36,6 +36,44 @@ void main() {
       expect(ReportTransactionRequest.fromJson(json), request);
     });
 
+    test('playStore permits an absent storeTransactionId and omits it', () {
+      final request = ReportTransactionRequest.fromJson(const {
+        'store': 'playStore',
+        'storeVerificationData': 'purchase-token',
+        'storeProductId': 'pro_monthly',
+      });
+
+      expect(request.storeTransactionId, isNull);
+      expect(request.toJson(), isNot(contains('storeTransactionId')));
+      expect(
+        ReportTransactionRequest.fromJson(request.toJson()),
+        request,
+      );
+    });
+
+    test('playStore rejects an empty storeTransactionId', () {
+      expect(
+        () => ReportTransactionRequest.fromJson(const {
+          'store': 'playStore',
+          'storeVerificationData': 'purchase-token',
+          'storeProductId': 'pro_monthly',
+          'storeTransactionId': '',
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('appStore rejects an absent storeTransactionId', () {
+      expect(
+        () => ReportTransactionRequest.fromJson(const {
+          'store': 'appStore',
+          'storeVerificationData': 'signed-transaction-info',
+          'storeProductId': 'pro_monthly',
+        }),
+        throwsArgumentError,
+      );
+    });
+
     test('rejects a non-UUID-v4 reportId', () {
       expect(
         () => ReportTransactionRequest.fromJson(const {

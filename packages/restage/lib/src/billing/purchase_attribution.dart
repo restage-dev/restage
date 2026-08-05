@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:collection';
 
 import '../analytics/root_analytics_context.dart';
 
+final _scopeKey = Object();
+
 /// Immutable attribution captured from the content that rendered the buy CTA.
 ///
-/// This file is deliberately not exported. The synchronous scope lets the
+/// This file is deliberately not exported. The zone scope lets the
 /// paywall pass render-time attribution through the existing public purchase
 /// API without adding attribution parameters to that API.
 final class PurchaseAttributionSnapshot {
@@ -27,21 +30,13 @@ final class PurchaseAttributionSnapshot {
   final RootAnalyticsDeferredContext? rootAnalyticsContext;
 }
 
-/// Synchronous, isolate-local bridge around the source-compatible public call.
+/// Zone-local bridge around the source-compatible public call.
 abstract final class PurchaseAttributionScope {
-  static PurchaseAttributionSnapshot? _current;
+  static PurchaseAttributionSnapshot? get current =>
+      Zone.current[_scopeKey] as PurchaseAttributionSnapshot?;
 
-  static PurchaseAttributionSnapshot? get current => _current;
-
-  static T run<T>(PurchaseAttributionSnapshot snapshot, T Function() action) {
-    final previous = _current;
-    _current = snapshot;
-    try {
-      return action();
-    } finally {
-      _current = previous;
-    }
-  }
+  static T run<T>(PurchaseAttributionSnapshot snapshot, T Function() action) =>
+      runZoned(action, zoneValues: {_scopeKey: snapshot});
 }
 
 /// Identity registry for gateways whose completion lifecycle is coordinator

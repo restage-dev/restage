@@ -106,7 +106,7 @@ sealed class PurchaseOutcome {
   /// contract.
   factory PurchaseOutcome.succeeded({
     required String productId,
-    required String transactionId,
+    required String? transactionId,
     required String? verificationData,
     required int priceMicros,
     required String currency,
@@ -150,13 +150,13 @@ final class PurchaseOutcomeSucceeded extends PurchaseOutcome {
   /// Product whose purchase succeeded.
   final String productId;
 
-  /// Store-issued transaction identifier. For the bundled gateway this is the
-  /// StoreKit transaction ID on Apple and the Google Play order ID on Android;
-  /// for an external-provider gateway it is the id that provider surfaces
-  /// (e.g. RevenueCat's `StoreTransaction.
-  /// transactionIdentifier` — the per-transaction id on iOS, the Google order
-  /// id on Android), which a server can correlate to its own store ingestion.
-  final String transactionId;
+  /// Store-issued transaction identifier, when one exists. For the bundled
+  /// gateway this is the StoreKit transaction ID on Apple and the Google Play
+  /// order ID on Android. Google Play promotional-code purchases have no order
+  /// identity. For an external-provider gateway it is the per-transaction id
+  /// that provider surfaces, which a server can correlate to its own store
+  /// ingestion.
+  final String? transactionId;
 
   /// Opaque store-issued verification payload (e.g. StoreKit
   /// `serverVerificationData` — the receipt blob for App Store

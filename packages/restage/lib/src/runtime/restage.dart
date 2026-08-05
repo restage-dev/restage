@@ -211,12 +211,10 @@ abstract final class Restage {
       _billingGateway = billingGateway;
     }
     final configuredGateway = _billingGateway;
-    if (configuredGateway is InAppPurchaseGateway && _isNativeBillingPlatform) {
+    if (configuredGateway is InAppPurchaseGateway &&
+        _canInstallPurchaseCoordinator) {
       _installPurchaseCoordinator(configuredGateway);
-    } else if (configuredGateway == null &&
-        baseUrl != null &&
-        products.isNotEmpty &&
-        _isNativeBillingPlatform) {
+    } else if (configuredGateway == null && _canInstallPurchaseCoordinator) {
       final bundled = InAppPurchaseGateway(
         anonymousTokenProvider: _resolveAnonymousToken,
       );
@@ -766,13 +764,14 @@ abstract final class Restage {
   /// instantiated on first read); override via
   /// `Restage.configure(billingGateway:)`.
   ///
-  /// The bundled path installs its coordinator before the first purchase. It
-  /// commits and stamps a purchase intent before opening store UI. Hosts that
-  /// pass a custom [BillingGateway] continue to own their gateway lifecycle.
+  /// When durable reporting is configured, the bundled path installs its
+  /// coordinator before the first purchase and stamps a committed purchase
+  /// intent before opening store UI. Hosts that pass a custom [BillingGateway]
+  /// continue to own their gateway lifecycle.
   static BillingGateway get billingGateway {
     final existing = _billingGateway;
     if (existing != null) {
-      if (existing is InAppPurchaseGateway && _isNativeBillingPlatform) {
+      if (existing is InAppPurchaseGateway && _canInstallPurchaseCoordinator) {
         _installPurchaseCoordinator(existing);
       }
       return existing;
@@ -781,9 +780,14 @@ abstract final class Restage {
       anonymousTokenProvider: _resolveAnonymousToken,
     );
     _billingGateway = bundled;
-    if (_isNativeBillingPlatform) _installPurchaseCoordinator(bundled);
+    if (_canInstallPurchaseCoordinator) {
+      _installPurchaseCoordinator(bundled);
+    }
     return bundled;
   }
+
+  static bool get _canInstallPurchaseCoordinator =>
+      _isNativeBillingPlatform && _baseUrl != null;
 
   static void _installPurchaseCoordinator(InAppPurchaseGateway gateway) {
     if (_purchaseCoordinator != null) return;
@@ -872,8 +876,9 @@ abstract final class Restage {
   /// plans). It has no effect on Apple subscriptions, so cross-platform call
   /// sites may pass it unconditionally. The configure-owned bundled path
   /// currently accepts auto-renewing subscriptions only; one-time products
-  /// fail closed before intent creation or store UI. Custom and legacy direct
-  /// gateways retain their existing product behavior.
+  /// fail closed before intent creation or store UI. Google Play prepaid base
+  /// plans are not accepted. Custom and legacy direct gateways retain their
+  /// existing product behavior.
   static Future<PurchaseOutcome> purchaseProduct(
     String productId, {
     String? offerId,
@@ -1183,13 +1188,18 @@ abstract final class Restage {
     _reconcileFromServer(summaries);
   }
 
-  /// Internal: dispatches a `reportTransaction` call to the entitlement
-  /// service in the background. Wired by `RestagePaywall._runPurchase`
-  /// on a successful purchase outcome. Failures are logged + reconciled
-  /// by the next sync.
+  /// Reports a receipt-bearing success from the non-coordinated gateway path.
+  ///
+  /// The paywall dispatches this after a non-coordinated gateway succeeds.
+  /// Transport and validation failures are logged by the RPC client and left
+  /// for the next entitlement sync to reconcile. Coordinator-owned purchases
+  /// do not use this method; the coordinator reports and completes them through
+  /// its durable configure and resume lifecycle. [storeTransactionId] may be
+  /// null for a Google Play promotional-code purchase; App Store reports must
+  /// always supply it.
   static Future<void> reportTransaction({
     required String storeProductId,
-    required String storeTransactionId,
+    required String? storeTransactionId,
     required String storeVerificationData,
     String? paywallId,
     int? paywallPublishedVersion,

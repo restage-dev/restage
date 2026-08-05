@@ -20,9 +20,23 @@ final class ReportTransactionRequest {
     this.paywallId,
     this.paywallVariantSlug,
     this.paywallPublishedVersion,
-  }) : assert(
+  })  : assert(
           store == 'appStore' || store == 'playStore',
           'store must be appStore or playStore',
+        ),
+        // `!= ''` rather than `.isNotEmpty`: a property access is not
+        // const-evaluable, and this constructor is invoked as `const`.
+        assert(
+          storeVerificationData != '',
+          'storeVerificationData must be non-empty',
+        ),
+        assert(
+          storeTransactionId == null || storeTransactionId != '',
+          'storeTransactionId must be non-empty when present',
+        ),
+        assert(
+          store != 'appStore' || storeTransactionId != null,
+          'appStore requires storeTransactionId',
         );
 
   /// Parses a request from JSON.
@@ -47,13 +61,21 @@ final class ReportTransactionRequest {
         'Expected a canonical lowercase UUID v4',
       );
     }
+    final storeTransactionId = _optionalString(json, 'storeTransactionId');
+    if (store == 'appStore' && storeTransactionId == null) {
+      throw ArgumentError.value(
+        storeTransactionId,
+        'storeTransactionId',
+        'appStore requires a non-empty transaction identifier',
+      );
+    }
     return ReportTransactionRequest(
       reportId: reportId,
       purchaseIntentId: purchaseIntentId,
       store: store,
       storeVerificationData: _requiredString(json, 'storeVerificationData'),
       storeProductId: _requiredString(json, 'storeProductId'),
-      storeTransactionId: _requiredString(json, 'storeTransactionId'),
+      storeTransactionId: storeTransactionId,
       appAnonymousToken: _optionalString(json, 'appAnonymousToken'),
       paywallId: _optionalString(json, 'paywallId'),
       paywallVariantSlug: _optionalString(json, 'paywallVariantSlug'),
@@ -85,7 +107,7 @@ final class ReportTransactionRequest {
   final String storeProductId;
 
   /// Store transaction identifier.
-  final String storeTransactionId;
+  final String? storeTransactionId;
 
   /// Stable anonymous app-user token, when available.
   final String? appAnonymousToken;
@@ -107,7 +129,7 @@ final class ReportTransactionRequest {
       'store': store,
       'storeVerificationData': storeVerificationData,
       'storeProductId': storeProductId,
-      'storeTransactionId': storeTransactionId,
+      if (storeTransactionId != null) 'storeTransactionId': storeTransactionId,
       if (appAnonymousToken != null) 'appAnonymousToken': appAnonymousToken,
       if (paywallId != null) 'paywallId': paywallId,
       if (paywallVariantSlug != null) 'paywallVariantSlug': paywallVariantSlug,

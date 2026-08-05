@@ -1,6 +1,9 @@
 import 'package:restage_shared/src/entitlements/entitlements.dart';
 import 'package:test/test.dart';
 
+const _purchaseTokenDigest =
+    '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
 void main() {
   group('ReportTransactionResponse', () {
     test('round-trips Apple accepted evidence and entitlements', () {
@@ -27,7 +30,7 @@ void main() {
       expect(response.toJson()['entitlements'], hasLength(1));
     });
 
-    test('round-trips Google evidence without a purchase token', () {
+    test('round-trips Google order evidence with a token digest', () {
       final response = ReportTransactionResponse(
         accepted: true,
         reportId: '550e8400-e29b-41d4-a716-446655440001',
@@ -35,6 +38,7 @@ void main() {
           submittedOrderId: 'GPA.1234-5678..3',
           acceptedOrderId: 'GPA.1234-5678..3',
           orderLineageId: 'GPA.1234-5678',
+          acceptedPurchaseTokenDigest: _purchaseTokenDigest,
         ),
         attributionDisposition: AttributionDisposition.alreadyApplied,
       );
@@ -42,7 +46,56 @@ void main() {
       final json = response.toJson();
 
       expect(json.toString(), isNot(contains('purchaseToken')));
+      expect(
+        (json['evidence'] as Map)['acceptedPurchaseTokenDigest'],
+        _purchaseTokenDigest,
+      );
       expect(ReportTransactionResponse.fromJson(json), response);
+    });
+
+    test('round-trips Google evidence without an order tuple', () {
+      const evidence = GoogleAcceptedStoreEvidence(
+        submittedOrderId: null,
+        acceptedOrderId: null,
+        orderLineageId: null,
+        acceptedPurchaseTokenDigest: _purchaseTokenDigest,
+      );
+
+      final json = evidence.toJson();
+
+      expect(json, isNot(contains('submittedOrderId')));
+      expect(json, isNot(contains('acceptedOrderId')));
+      expect(json, isNot(contains('orderLineageId')));
+      expect(AcceptedStoreEvidence.fromJson(json), evidence);
+    });
+
+    test('rejects a partial Google order tuple', () {
+      final json = const GoogleAcceptedStoreEvidence(
+        submittedOrderId: 'GPA.1234-5678..3',
+        acceptedOrderId: null,
+        orderLineageId: null,
+        acceptedPurchaseTokenDigest: _purchaseTokenDigest,
+      ).toJson();
+
+      expect(
+        () => AcceptedStoreEvidence.fromJson(json),
+        throwsArgumentError,
+      );
+    });
+
+    test('rejects Google evidence missing its purchase-token digest', () {
+      final json = const GoogleAcceptedStoreEvidence(
+        submittedOrderId: null,
+        acceptedOrderId: null,
+        orderLineageId: null,
+        acceptedPurchaseTokenDigest: _purchaseTokenDigest,
+      ).toJson()
+        ..remove('acceptedPurchaseTokenDigest');
+
+      expect(
+        () => AcceptedStoreEvidence.fromJson(json),
+        throwsArgumentError,
+      );
     });
 
     test('rejects Google evidence whose orders do not share one lineage', () {
@@ -53,6 +106,7 @@ void main() {
           submittedOrderId: 'GPA.1234-5678..2',
           acceptedOrderId: 'GPA.9999-0000..3',
           orderLineageId: 'GPA.1234-5678',
+          acceptedPurchaseTokenDigest: _purchaseTokenDigest,
         ),
         attributionDisposition: AttributionDisposition.alreadyApplied,
       ).toJson();
