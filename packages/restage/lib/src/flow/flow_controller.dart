@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
+import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
@@ -292,6 +293,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
       _frames
         ..clear()
         ..add(rootFrame);
+      RootAnalyticsArtifactRegistry.recordRootArtifact(
+        owner: this,
+        version: resolved.document.version,
+        contentHash: FlowContentHash.compute(
+          FlowDocumentCodec.encodeCanonicalJson(resolved.document),
+        ).value,
+      );
       await _goTo(rootFrame, resolved.document.initial);
       if (_isDisposed || _isUnavailable || _isComplete) return;
       _emitFlowStarted(rootFrame);
@@ -505,6 +513,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
   void dispose() {
     if (_isDisposed) return;
     _isDisposed = true;
+    RootAnalyticsArtifactRegistry.forget(this);
     _activeActionToken = null;
     _currentScreenEntryId = null;
     _frames.clear();

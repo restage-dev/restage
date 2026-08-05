@@ -78,6 +78,7 @@ final class OnboardingFlowRef<R> {
     required this.minClient,
     required this.decodeResult,
     this.surfaceType = SurfaceType.onboarding,
+    this.deliveryMode = FlowDeliveryMode.typed,
   });
 
   /// Stable onboarding flow identifier.
@@ -95,6 +96,13 @@ final class OnboardingFlowRef<R> {
   /// flow support retain their existing onboarding behavior and request/cache
   /// identity.
   final SurfaceType surfaceType;
+
+  /// Authored delivery discipline for this flow.
+  ///
+  /// Defaults to typed so descriptors generated before general delivery retain
+  /// their existing behavior. Generated descriptors stamp this explicitly so a
+  /// hosted mount can freeze the mode synchronously before any artifact lookup.
+  final FlowDeliveryMode deliveryMode;
 
   /// Converts a filtered end-state result map into the generated result type.
   final FlowResultDecoder<R> decodeResult;

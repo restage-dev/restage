@@ -8,6 +8,8 @@ abstract final class MinimalStatsFlowDescriptor {
     id: 'minimal_stats',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: MinimalStatsFlowDescriptor._decodeResult,
   );
 

@@ -8,6 +8,8 @@ abstract final class ApexDropFlowDescriptor {
     id: 'apex_drop',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: ApexDropFlowDescriptor._decodeResult,
   );
 

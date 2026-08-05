@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -53,7 +54,9 @@ class AnalyticsTransport {
   final http.Client _client;
   final void Function(Object, StackTrace) _onError;
   final List<AnalyticsEvent> _buffer = <AnalyticsEvent>[];
-  bool _flushing = false;
+  Future<void>? _flushWorker;
+  int _requestedFlushCount = 0;
+  int _completedFlushCount = 0;
 
   /// Buffers [event] and triggers a fire-and-forget [flush] once the buffer
   /// reaches [batchSize]. Synchronous and non-throwing.
@@ -70,12 +73,43 @@ class AnalyticsTransport {
 
   /// Sends the buffered batch. Never throws; clears the sent events on success,
   /// retains them on a transient failure, and drops them on a 4xx.
-  Future<void> flush() async {
-    if (_flushing || _buffer.isEmpty) return;
-    _flushing = true;
-    final batchLength = _buffer.length;
+  ///
+  /// A call made while another flush is in flight joins that worker and records
+  /// a follow-up request. Requests arriving during the same POST are coalesced
+  /// into one next attempt; a failed attempt does not request another retry by
+  /// itself.
+  Future<void> flush() {
+    _requestedFlushCount += 1;
+    final activeWorker = _flushWorker;
+    if (activeWorker != null) return activeWorker;
+    if (_buffer.isEmpty) {
+      _completedFlushCount = _requestedFlushCount;
+      return Future<void>.value();
+    }
+
+    final completion = Completer<void>();
+    _flushWorker = completion.future;
+    unawaited(_drainFlushRequests(completion));
+    return completion.future;
+  }
+
+  Future<void> _drainFlushRequests(Completer<void> completion) async {
+    try {
+      while (_completedFlushCount < _requestedFlushCount) {
+        final requestsThrough = _requestedFlushCount;
+        if (_buffer.isNotEmpty) await _flushOnce();
+        _completedFlushCount = requestsThrough;
+      }
+    } finally {
+      _flushWorker = null;
+      completion.complete();
+    }
+  }
+
+  Future<void> _flushOnce() async {
+    final batch = List<AnalyticsEvent>.of(_buffer);
     final body = jsonEncode(<String, Object?>{
-      'events': <Object?>[for (final e in _buffer) e.toJson()],
+      'events': <Object?>[for (final e in batch) e.toJson()],
     });
     try {
       final response = await _client.post(
@@ -88,10 +122,10 @@ class AnalyticsTransport {
       );
       final status = response.statusCode;
       if (status >= 200 && status < 300) {
-        _dropSent(batchLength);
+        _dropSent(batch);
       } else if (status >= 400 && status < 500) {
         // The server will never accept this batch — drop it rather than loop.
-        _dropSent(batchLength);
+        _dropSent(batch);
         _onError(
           StateError('analytics ingest rejected the batch ($status)'),
           StackTrace.current,
@@ -106,16 +140,15 @@ class AnalyticsTransport {
     } on Object catch (error, stackTrace) {
       // Network or encode failure — retain for retry; never surface to the host.
       _onError(error, stackTrace);
-    } finally {
-      _flushing = false;
     }
   }
 
-  void _dropSent(int batchLength) {
-    // Remove only the prefix that was sent; events enqueued during the in-flight
-    // POST are appended after and survive.
-    final removable = batchLength.clamp(0, _buffer.length);
-    _buffer.removeRange(0, removable);
+  void _dropSent(List<AnalyticsEvent> batch) {
+    // Overflow may evict sent entries while the POST is in flight. Remove only
+    // the exact objects that were serialized and still remain, never later
+    // unsent entries that moved into their old positions.
+    final sent = HashSet<AnalyticsEvent>.identity()..addAll(batch);
+    _buffer.removeWhere(sent.contains);
   }
 
   /// Closes the underlying client.

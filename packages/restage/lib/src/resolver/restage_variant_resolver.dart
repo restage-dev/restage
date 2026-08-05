@@ -1,14 +1,20 @@
+import 'dart:typed_data';
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         BlobRenderCapabilityGate,
         BlobRenderRejected,
         BlobSurfacePayload,
         CapabilityManifest,
+        FlowContentHash,
+        FlowDocument,
+        FlowDocumentCodec,
+        FlowDocumentValidation,
         FlowSurfacePayload,
         InstalledCapability,
         LibraryRequirement,
@@ -16,11 +22,17 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocumentCodec,
         SurfaceType;
 
+import '../flow/flow_assignment.dart';
+import '../flow/flow_descriptors.dart';
+import '../flow/flow_experiment_artifact_metadata.dart';
+import '../flow/flow_experiment_mount.dart';
+import '../flow/flow_resolver.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/paywall_error.dart';
 import 'asset_variant_resolver.dart';
+import 'asset_paywall_flow_preflight.dart';
 import 'flow_paywall_active_arm.dart';
 import 'resolved_paywall_payload.dart';
 import 'resolved_variant.dart';
@@ -100,6 +112,7 @@ final class RestageVariantResolver
   /// served without re-passing its gate. Per-instance + within-session; the
   /// bundled asset is the durable cross-restart offline floor.
   final Map<String, _CachedPayload> _cache = {};
+  final Map<String, _PaywallExperimentHostedFlow> _experimentFlowCache = {};
 
   @override
   Future<ResolvedVariant> resolve(
@@ -193,13 +206,55 @@ final class RestageVariantResolver
     String id, {
     String? placementId,
     Locale? locale,
-  }) =>
-      _resolvePayloadOnce(
-        id,
-        placementId: placementId,
-        locale: locale,
-        deferFreshPublication: true,
-      );
+  }) async {
+    final guard = currentPaywallPresentationGuard();
+    if (!guard()) throw const StaleSurfaceAssignmentResolution();
+    final fallback = _assetFallback;
+    if (_client != null && fallback is AssetVariantResolver) {
+      final preflight = await fallback.preflightFlowBaseline(id);
+      if (!guard()) throw const StaleSurfaceAssignmentResolution();
+      if (preflight is AssetPaywallFlowBaseline) {
+        final document = preflight.root.document;
+        final flow = OnboardingFlowRef<Object?>(
+          id: document.flow,
+          version: document.version,
+          minClient: document.minClient,
+          surfaceType: SurfaceType.paywall,
+          deliveryMode: document.deliveryMode,
+          decodeResult: _identityPaywallFlowResult,
+        );
+        final seedSource = FlowMountRuntimeSeedSource(
+          flow: flow,
+          actions: null,
+          installedSignalNames: const <String>{},
+        );
+        final presentation = _RestagePaywallExperimentPresentation(
+          owner: this,
+          paywallId: id,
+          flow: flow,
+          baseline: preflight,
+          captureSeed: seedSource.capture,
+          presentationGuard: guard,
+        );
+        try {
+          final payload = await presentation.resolvePayload();
+          if (payload != null) return payload;
+          presentation.disposePresentation();
+        } on Object {
+          presentation.disposePresentation();
+          rethrow;
+        }
+        if (!guard()) throw const StaleSurfaceAssignmentResolution();
+      }
+    }
+    if (!guard()) throw const StaleSurfaceAssignmentResolution();
+    return _resolvePayloadOnce(
+      id,
+      placementId: placementId,
+      locale: locale,
+      deferFreshPublication: true,
+    );
+  }
 
   Future<ResolvedPaywallPayload> _resolvePayloadOnce(
     String id, {
@@ -259,7 +314,7 @@ final class RestageVariantResolver
         if (!deferFreshPublication) {
           _cache[id] = cacheEntry;
         }
-        return _stampFlowPayload(
+        return stampFlowPayloadForDelivery(
           arm.payload,
           fresh.assignmentLease,
           hostedPublication: deferFreshPublication
@@ -287,7 +342,7 @@ final class RestageVariantResolver
           placementId: placementId,
           locale: locale,
         );
-        return _withoutAssignmentLease(payload);
+        return withoutAssignmentLeaseForDelivery(payload);
       }
       final variant = await fallback.resolve(
         id,
@@ -495,7 +550,10 @@ final class RestageVariantResolver
         cacheHit: true,
       );
       if (arm is FlowPaywallActiveAccepted) {
-        return _stampFlowPayload(arm.payload, cached.assignmentLease);
+        return stampFlowPayloadForDelivery(
+          arm.payload,
+          cached.assignmentLease,
+        );
       }
     }
     return null;
@@ -547,6 +605,499 @@ final class RestageVariantResolver
 
 String? _capabilityGapOf(_FreshOutcome fresh) =>
     fresh is _FreshRejected ? fresh.capabilityGap : null;
+
+final class _RestagePaywallExperimentPresentation
+    implements
+        FlowPaywallExperimentRetryAuthority,
+        FlowResolver,
+        FlowExperimentArtifactMetadataProvider {
+  _RestagePaywallExperimentPresentation({
+    required this.owner,
+    required this.paywallId,
+    required this.flow,
+    required this.baseline,
+    required this.captureSeed,
+    required this.presentationGuard,
+  });
+
+  final RestageVariantResolver owner;
+  final String paywallId;
+  final OnboardingFlowRef<Object?> flow;
+  final AssetPaywallFlowBaseline baseline;
+  final FlowMountSeedCapture captureSeed;
+  final bool Function() presentationGuard;
+
+  FlowMountContractSnapshot? _snapshot;
+  _PaywallExperimentHostedFlow? _provisional;
+  bool _published = false;
+  bool _disposed = false;
+  var _attempts = 0;
+
+  Future<FlowPaywallPayload?> resolvePayload() async {
+    while (_attempts < 3) {
+      _attempts += 1;
+      if (_disposed || !presentationGuard()) {
+        throw const StaleSurfaceAssignmentResolution();
+      }
+      _snapshot = null;
+      _provisional = null;
+
+      try {
+        final snapshotOutcome = await FlowMountContractSnapshotBuilder(
+          captureSeed: captureSeed,
+          resolveAssignmentKey: SurfaceAssignmentKeyProvider.resolve,
+          resolver: baseline,
+        ).seal();
+        if (_disposed || !presentationGuard()) {
+          throw const StaleSurfaceAssignmentResolution();
+        }
+        if (snapshotOutcome is FlowMountSnapshotRejected) {
+          if (snapshotOutcome.reason == FlowMountSnapshotRejection.seedDrift) {
+            continue;
+          }
+          return null;
+        }
+
+        final snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
+        if (!_baselineCanAdvertise(snapshot)) return null;
+        _snapshot = snapshot;
+
+        final fresh = await _fetchActive(snapshot);
+        if (_disposed || !presentationGuard()) {
+          throw const StaleSurfaceAssignmentResolution();
+        }
+        if (fresh != null) {
+          final prefetched = await FlowCandidatePrefetcher.prefetch(
+            snapshot: snapshot,
+            captureSeed: captureSeed,
+            candidateRoot: fresh.candidateRoot,
+            resolver: this,
+            serverVerdictAccepted: fresh.serverVerdictAccepted,
+          );
+          if (_disposed || !presentationGuard()) {
+            throw const StaleSurfaceAssignmentResolution();
+          }
+          if (prefetched is FlowCandidatePrefetchAccepted) {
+            final provisional = _PaywallExperimentHostedFlow(
+              snapshot: snapshot,
+              accepted: prefetched,
+              paywallPublishedVersion: fresh.paywallPublishedVersion,
+            );
+            _provisional = provisional;
+            return FlowPaywallPayload.experiment(
+              acceptedCandidate: prefetched,
+              paywallId: paywallId,
+              paywallPublishedVersion: fresh.paywallPublishedVersion,
+              resolvedFromActiveArm: true,
+              experimentAuthority: this,
+            );
+          }
+          if (prefetched is FlowCandidatePrefetchRejected &&
+              prefetched.reason == FlowCandidatePrefetchRejection.seedDrift) {
+            throw const StaleSurfaceAssignmentResolution();
+          }
+        }
+
+        final held = owner._experimentFlowCache[paywallId];
+        if (held != null) {
+          if (held.matches(snapshot) &&
+              revalidate(FlowMountRevalidationBoundary.fallback)) {
+            final accepted = held.accepted.asCacheHit();
+            return FlowPaywallPayload.experiment(
+              acceptedCandidate: accepted,
+              paywallId: paywallId,
+              paywallPublishedVersion: held.paywallPublishedVersion,
+              resolvedFromActiveArm: true,
+              experimentAuthority: this,
+            );
+          }
+          owner._experimentFlowCache.remove(paywallId);
+        }
+
+        if (!revalidate(FlowMountRevalidationBoundary.fallback)) {
+          throw const StaleSurfaceAssignmentResolution();
+        }
+        return FlowPaywallPayload.experimentBaseline(
+          flow: snapshot.baselineRoot,
+          pinnedFlowResolver: snapshot.baselineResolver,
+          paywallId: paywallId,
+          experimentAuthority: this,
+        );
+      } on StaleSurfaceAssignmentResolution {
+        if (_disposed || !presentationGuard()) rethrow;
+      }
+    }
+
+    if (!presentationGuard()) throw const StaleSurfaceAssignmentResolution();
+    disposePresentation();
+    return FlowPaywallPayload.experimentBaseline(
+      flow: baseline.root,
+      pinnedFlowResolver: baseline,
+      paywallId: paywallId,
+    );
+  }
+
+  @override
+  Future<FlowPaywallPayload?> resolveNextPayload() => resolvePayload();
+
+  bool _baselineCanAdvertise(FlowMountContractSnapshot snapshot) {
+    final verdict = FlowExperimentEligibilityEvaluatorV1.evaluate(
+      FlowExperimentVerdictInputV1(
+        clientBaselineClosure: snapshot.clientBaselineClosure,
+        candidateArmClosure: snapshot.clientBaselineClosure,
+        installedCapability: snapshot.seed.installedCapability,
+        actionBindings: snapshot.seed.actionBindings,
+        installedSignals: snapshot.seed.installedSignals,
+        surfaceType: SurfaceType.paywall,
+        deliveryMode: snapshot.seed.deliveryMode,
+        flowGateRevision: kFlowExperimentGateLogicRevisionV1,
+      ),
+    );
+    return verdict.accepted;
+  }
+
+  Future<_PaywallExperimentFreshFlow?> _fetchActive(
+    FlowMountContractSnapshot snapshot,
+  ) async {
+    _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
+    var result = await _fetchSurface(
+      snapshot: snapshot,
+      boundary: FlowMountRevalidationBoundary.request,
+      flowContract: FlowContractFetchRequest.hashOnly(
+        snapshot.contentHash.value,
+      ),
+    );
+    _requireCurrent(snapshot, FlowMountRevalidationBoundary.request);
+    if (result == null) return null;
+
+    if (result.flowContractRequired) {
+      final bytes = snapshot.bytesForRetry(
+        FlowMountRevalidationBoundary.uploadRetry,
+        _captureCurrentSeed(),
+      );
+      if (bytes == null) throw const StaleSurfaceAssignmentResolution();
+      result = await _fetchSurface(
+        snapshot: snapshot,
+        boundary: FlowMountRevalidationBoundary.uploadRetry,
+        flowContract: FlowContractFetchRequest.retry(
+          snapshot.contentHash.value,
+          bytes,
+        ),
+      );
+      _requireCurrent(snapshot, FlowMountRevalidationBoundary.uploadRetry);
+      if (result == null || result.flowContractRequired) return null;
+    }
+
+    final decoded = _decodeHostedFlow(
+      result,
+      requestedFlow: flow,
+      exactVersion: false,
+    );
+    if (decoded == null) return null;
+    final assignment = _flowAssignmentOf(result);
+    if ((assignment != null) != (result.decision == 'assigned')) return null;
+    if (assignment != null && snapshot.assignmentKey == null) return null;
+
+    final candidate = _own(
+      ResolvedFlow(
+        document: decoded.document,
+        screenBlobs: decoded.screenBlobs,
+        contentHash: FlowContentHash.compute(
+          FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+        ),
+        cacheHit: false,
+        assignment: assignment,
+      ),
+      requiredLibraries: decoded.requiredLibraries,
+    );
+    return _PaywallExperimentFreshFlow(
+      candidateRoot: candidate,
+      paywallPublishedVersion: decoded.publishedVersion,
+      serverVerdictAccepted:
+          assignment == null || result.decision == 'assigned',
+    );
+  }
+
+  Future<SurfaceFetchResult?> _fetchSurface({
+    required FlowMountContractSnapshot snapshot,
+    required FlowMountRevalidationBoundary boundary,
+    required FlowContractFetchRequest flowContract,
+  }) async {
+    try {
+      return await owner._client!.fetchSurface(
+        surfaceType: SurfaceType.paywall.wireName,
+        surfaceSlug: paywallId,
+        assignmentKey: snapshot.assignmentKey,
+        flowContract: flowContract,
+        publicationGuard: () => _snapshotIsCurrent(snapshot, boundary),
+      );
+    } on SurfaceRequestPublicationRejected {
+      throw const StaleSurfaceAssignmentResolution();
+    }
+  }
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> requestedFlow) async {
+    final snapshot = _snapshot;
+    if (_disposed || snapshot == null) {
+      throw FlowUnavailableError(
+        flowId: requestedFlow.id,
+        flowVersion: requestedFlow.version,
+        reason: 'presentation_disposed',
+        message: 'The paywall flow presentation no longer owns resolution.',
+      );
+    }
+    _requireCurrent(
+      snapshot,
+      FlowMountRevalidationBoundary.candidatePrefetch,
+    );
+    final SurfaceFetchResult? result;
+    try {
+      result = await owner._client!.fetchSurface(
+        surfaceType: SurfaceType.paywall.wireName,
+        surfaceSlug: requestedFlow.id,
+        version: requestedFlow.version,
+        publicationGuard: () => _snapshotIsCurrent(
+          snapshot,
+          FlowMountRevalidationBoundary.candidatePrefetch,
+        ),
+      );
+    } on SurfaceRequestPublicationRejected {
+      throw const StaleSurfaceAssignmentResolution();
+    }
+    _requireCurrent(
+      snapshot,
+      FlowMountRevalidationBoundary.candidatePrefetch,
+    );
+    if (result == null ||
+        result.decision == 'assigned' ||
+        _flowAssignmentOf(result) != null) {
+      throw FlowUnavailableError(
+        flowId: requestedFlow.id,
+        flowVersion: requestedFlow.version,
+        reason: 'candidate_prefetch_failed',
+        message: 'Exact paywall flow "${requestedFlow.id}" version '
+            '${requestedFlow.version} was unavailable.',
+      );
+    }
+    final decoded = _decodeHostedFlow(
+      result,
+      requestedFlow: requestedFlow,
+      exactVersion: true,
+    );
+    if (decoded == null) {
+      throw FlowUnavailableError(
+        flowId: requestedFlow.id,
+        flowVersion: requestedFlow.version,
+        reason: 'candidate_prefetch_rejected',
+        message: 'Exact paywall flow "${requestedFlow.id}" version '
+            '${requestedFlow.version} failed validation.',
+      );
+    }
+    return _own(
+      ResolvedFlow(
+        document: decoded.document,
+        screenBlobs: decoded.screenBlobs,
+        contentHash: FlowContentHash.compute(
+          FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+        ),
+        cacheHit: false,
+      ),
+      requiredLibraries: decoded.requiredLibraries,
+    );
+  }
+
+  _DecodedPaywallHostedFlow? _decodeHostedFlow<R>(
+    SurfaceFetchResult result, {
+    required OnboardingFlowRef<R> requestedFlow,
+    required bool exactVersion,
+  }) {
+    final SurfaceDocument surface;
+    try {
+      surface = SurfaceDocumentCodec.decode(result.envelopeBytes);
+    } on FormatException {
+      return null;
+    }
+    if (surface.surfaceType != SurfaceType.paywall ||
+        surface.surfaceSlug != requestedFlow.id ||
+        (exactVersion && surface.version != requestedFlow.version)) {
+      return null;
+    }
+    final payload = surface.payload;
+    if (payload is! FlowSurfacePayload) return null;
+    final document = payload.flowDocument;
+    if (document.flow != requestedFlow.id ||
+        (exactVersion && document.version != requestedFlow.version) ||
+        document.schemaVersion != 1 ||
+        document.deliveryMode != flow.deliveryMode ||
+        document.minClient > flow.minClient ||
+        document.minClient > RestageBuiltInCatalogCapabilities.currentVersion) {
+      return null;
+    }
+    for (final artifact in document.screenArtifacts.values) {
+      if (artifact.schemaVersion != 1 ||
+          artifact.minClient > flow.minClient ||
+          artifact.minClient >
+              RestageBuiltInCatalogCapabilities.currentVersion) {
+        return null;
+      }
+    }
+    for (final requirement in surface.requiredLibraries) {
+      if (!LibraryRuntimeRegistry.satisfies(requirement)) return null;
+    }
+    if (FlowDocumentValidation.validate(document).isNotEmpty) return null;
+    return _DecodedPaywallHostedFlow(
+      document: document,
+      screenBlobs: payload.screenBlobs,
+      requiredLibraries: surface.requiredLibraries,
+      publishedVersion: surface.version,
+    );
+  }
+
+  ResolvedFlow _own(
+    ResolvedFlow resolved, {
+    required List<LibraryRequirement> requiredLibraries,
+  }) {
+    FlowExperimentArtifactOwnership.attach(
+      owner: this,
+      flow: resolved,
+      metadata: FlowExperimentArtifactOwnership.verifiedMetadata(
+        requiredLibraries: requiredLibraries,
+      ),
+    );
+    return resolved;
+  }
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      FlowExperimentArtifactOwnership.metadataFor(owner: this, flow: flow);
+
+  @override
+  bool revalidate(FlowMountRevalidationBoundary boundary) {
+    final snapshot = _snapshot;
+    return !_disposed &&
+        snapshot != null &&
+        _snapshotIsCurrent(snapshot, boundary);
+  }
+
+  @override
+  void publishHostedLastGood() {
+    final provisional = _provisional;
+    if (!revalidate(FlowMountRevalidationBoundary.cachePublication)) {
+      _provisional = null;
+      return;
+    }
+    if (provisional != null) {
+      owner._experimentFlowCache[paywallId] = provisional;
+    }
+    _provisional = null;
+    _published = true;
+  }
+
+  @override
+  void abandonHostedLastGood() {
+    _provisional = null;
+  }
+
+  @override
+  void disposePresentation() {
+    if (_disposed) return;
+    _disposed = true;
+    abandonHostedLastGood();
+  }
+
+  FlowMountLeaseSeed _captureCurrentSeed() {
+    try {
+      return captureSeed();
+    } on Object {
+      throw const StaleSurfaceAssignmentResolution();
+    }
+  }
+
+  bool _snapshotIsCurrent(
+    FlowMountContractSnapshot snapshot,
+    FlowMountRevalidationBoundary boundary,
+  ) {
+    if (_disposed || (!_published && !presentationGuard())) return false;
+    try {
+      return snapshot.revalidate(boundary, captureSeed());
+    } on Object {
+      return false;
+    }
+  }
+
+  void _requireCurrent(
+    FlowMountContractSnapshot snapshot,
+    FlowMountRevalidationBoundary boundary,
+  ) {
+    if (!_snapshotIsCurrent(snapshot, boundary)) {
+      throw const StaleSurfaceAssignmentResolution();
+    }
+  }
+}
+
+final class _PaywallExperimentFreshFlow {
+  const _PaywallExperimentFreshFlow({
+    required this.candidateRoot,
+    required this.paywallPublishedVersion,
+    required this.serverVerdictAccepted,
+  });
+
+  final ResolvedFlow candidateRoot;
+  final int paywallPublishedVersion;
+  final bool serverVerdictAccepted;
+}
+
+final class _DecodedPaywallHostedFlow {
+  const _DecodedPaywallHostedFlow({
+    required this.document,
+    required this.screenBlobs,
+    required this.requiredLibraries,
+    required this.publishedVersion,
+  });
+
+  final FlowDocument document;
+  final Map<String, Uint8List> screenBlobs;
+  final List<LibraryRequirement> requiredLibraries;
+  final int publishedVersion;
+}
+
+final class _PaywallExperimentHostedFlow {
+  const _PaywallExperimentHostedFlow({
+    required this.snapshot,
+    required this.accepted,
+    required this.paywallPublishedVersion,
+  });
+
+  final FlowMountContractSnapshot snapshot;
+  final FlowCandidatePrefetchAccepted accepted;
+  final int paywallPublishedVersion;
+
+  bool matches(FlowMountContractSnapshot current) {
+    return snapshot.seed.sameIdentityAs(current.seed) &&
+        snapshot.assignmentKey == current.assignmentKey &&
+        snapshot.contentHash == current.contentHash;
+  }
+}
+
+FlowAssignment? _flowAssignmentOf(SurfaceFetchResult result) {
+  final experimentId = result.experimentId;
+  final variantId = result.variantId;
+  final experimentEpoch = result.experimentEpoch;
+  if (experimentId == null || variantId == null || experimentEpoch == null) {
+    return null;
+  }
+  return FlowAssignment(
+    experimentId: experimentId,
+    variantId: variantId,
+    experimentEpoch: experimentEpoch,
+  );
+}
+
+Map<String, Object?> _identityPaywallFlowResult(
+  Map<String, Object?> value,
+) =>
+    value;
 
 /// Outcome of a fresh hosted fetch: a renderable blob (+ its cache entry), a
 /// flow-shaped payload pending the active-arm gate, or a rejection.
@@ -640,37 +1191,30 @@ final class _CachedFlow extends _CachedPayload {
   final int? experimentEpoch;
 }
 
-FlowPaywallPayload _stampFlowPayload(
+/// Adds the exact assignment/publication transaction to a flow payload.
+///
+/// Kept package-internal so accepted-candidate identity remains SDK-owned.
+@internal
+FlowPaywallPayload stampFlowPayloadForDelivery(
   FlowPaywallPayload payload,
   SurfaceAssignmentResolutionLease assignmentLease, {
   HostedPayloadPublication? hostedPublication,
 }) =>
-    FlowPaywallPayload(
-      flow: payload.flow,
-      paywallId: payload.paywallId,
-      paywallPublishedVersion: payload.paywallPublishedVersion,
-      experimentId: payload.experimentId,
-      variantId: payload.variantId,
-      experimentEpoch: payload.experimentEpoch,
-      resolvedFromActiveArm: payload.resolvedFromActiveArm,
+    payload.copyForDelivery(
       assignmentLease: assignmentLease,
       hostedPublication: hostedPublication,
     );
 
-ResolvedPaywallPayload _withoutAssignmentLease(
+/// Removes hosted assignment/publication state without unpinning a candidate.
+///
+/// Kept package-internal for exact transform-path regression coverage.
+@internal
+ResolvedPaywallPayload withoutAssignmentLeaseForDelivery(
   ResolvedPaywallPayload payload,
 ) =>
     switch (payload) {
       BlobPaywallPayload(:final variant) => BlobPaywallPayload(variant),
-      FlowPaywallPayload() => FlowPaywallPayload(
-          flow: payload.flow,
-          paywallId: payload.paywallId,
-          paywallPublishedVersion: payload.paywallPublishedVersion,
-          experimentId: payload.experimentId,
-          variantId: payload.variantId,
-          experimentEpoch: payload.experimentEpoch,
-          resolvedFromActiveArm: payload.resolvedFromActiveArm,
-        ),
+      FlowPaywallPayload() => payload.copyForDelivery(assignmentLease: null),
     };
 
 /// Environment hint passed to `Restage.configure` and [RestageVariantResolver].

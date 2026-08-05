@@ -10,6 +10,7 @@ import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
+import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
 import '../billing/billing_gateway.dart';
 import '../billing/purchase_attribution.dart';
@@ -17,6 +18,7 @@ import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_controller.dart';
 import '../flow/flow_descriptors.dart';
+import '../flow/flow_experiment_mount.dart' show FlowMountRevalidationBoundary;
 import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
 import '../refresh/surface_refresh_registry.dart';
@@ -158,7 +160,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   RestagePaywallError? _error;
   DateTime? _mountedAt;
   bool _viewedFired = false;
+  final Expando<bool> _viewedPresentations =
+      Expando<bool>('viewed paywall presentations');
   bool _dismissedFired = false;
+  late final RootAnalyticsAnonymousContext _anonymousAnalyticsOwner;
 
   /// The server-assigned published version of the last successfully-resolved
   /// variant, captured at load so a later purchase attributes its conversion to
@@ -201,6 +206,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
   RestageFlowController<void>? _flowController;
   FirstPaintLeaseTransaction? _flowTransaction;
   int? _flowEpoch;
+  final Map<RestageFlowController<void>, RootAnalyticsPresentation>
+      _flowPresentations =
+      <RestageFlowController<void>, RootAnalyticsPresentation>{};
 
   VoidCallback? _initialFlowReadinessListener;
   bool _initialFlowIsStaged = false;
@@ -247,9 +255,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   @override
   void initState() {
     super.initState();
-    // Begin the surface-presentation session so events fired during this mount
-    // carry a stable surfaceSessionId (ended in dispose).
-    Restage.beginSurfaceSession();
+    _anonymousAnalyticsOwner = RootAnalyticsAnonymousContext(
+      surface: SurfaceType.paywall.wireName,
+      surfaceId: widget.id,
+    );
     _mountedAt = DateTime.now();
     widget.controller?.attachInternal(
       onDismiss: ({required DismissReason reason}) {
@@ -285,11 +294,31 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// The swap-safety gate. A surface is safe to live-swap only when no store
   /// operation is in flight, the user has not interacted, the render is not
   /// experiment-assigned, and any hosted flow is pristine and idle.
+  bool _payloadPresentationIsCurrent(
+    ResolvedPaywallPayload payload,
+    FlowMountRevalidationBoundary boundary,
+  ) =>
+      (payload.assignmentLease?.isCurrent ?? true) &&
+      payload.revalidateHostedPresentation(boundary);
+
+  bool _controllerPresentationIsCurrent(
+    RestageFlowController<void>? controller,
+    FlowMountRevalidationBoundary boundary,
+  ) {
+    final resolver = controller?.resolver;
+    return resolver is! _PreResolvedFlowResolver ||
+        resolver.revalidate(boundary);
+  }
+
   bool _canSwap() =>
       !_billingInFlight &&
       !_userInteracted &&
       _renderedExperimentId == null &&
       (_renderedAssignmentLease?.isCurrent ?? true) &&
+      _controllerPresentationIsCurrent(
+        _flowController,
+        FlowMountRevalidationBoundary.pendingPromotion,
+      ) &&
       !(_flowController?.hasUserContributedState ?? false) &&
       !(_flowController?.isBusy ?? false);
 
@@ -347,8 +376,19 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// navigates away) still reach app-wide listeners. The per-paywall
   /// callback is mounted-guarded so the host doesn't receive callbacks
   /// for a widget that no longer exists.
-  void _fireEvent(RestageEvent event) {
-    Restage.fireEvent(event);
+  RootAnalyticsPresentation? get _activeAnalyticsPresentation {
+    final flow = _flowController;
+    if (flow != null) return _flowPresentations[flow];
+    return _blobPresentation?.analyticsPresentation;
+  }
+
+  void _fireEvent(
+    RestageEvent event, {
+    RootAnalyticsContextSource? attribution,
+  }) {
+    final source =
+        attribution ?? _activeAnalyticsPresentation ?? _anonymousAnalyticsOwner;
+    source.runWithEventContext(() => Restage.fireEvent(event));
     if (mounted) widget.onEvent?.call(event);
   }
 
@@ -386,7 +426,20 @@ class _RestagePaywallState extends State<RestagePaywall> {
       // load supersedes this result, while an actor boundary re-enters the same
       // resolver ladder before payload shape, decode, or host state can move.
       if (!mounted || epoch != _loadEpoch) return;
-      if (!(payload.assignmentLease?.isCurrent ?? true)) {
+      if (!_payloadPresentationIsCurrent(
+        payload,
+        FlowMountRevalidationBoundary.pendingPromotion,
+      )) {
+        if (!isRefresh &&
+            payload is FlowPaywallPayload &&
+            payload.canRetryHostedPresentation) {
+          payload.abandonHostedCandidate();
+          unawaited(
+            _retryInitialFlowPayload(payload, stopwatch, epoch),
+          );
+          return;
+        }
+        payload.abandonHostedLastGood();
         _retryLoadAfterRejectedLease(epoch, isRefresh: isRefresh);
         return;
       }
@@ -460,43 +513,58 @@ class _RestagePaywallState extends State<RestagePaywall> {
       if (!mounted || epoch != _loadEpoch) return;
       // A failed refresh keeps the current render and stays silent.
       if (isRefresh) return;
-      if (_tryFallbackToCache(stopwatch, epoch)) return;
-      setState(() => _error = e);
-      _fireEvent(PaywallLoadFailed(
-        paywallId: widget.id,
-        errorCode: e.code,
-        message: e.message,
-        retryable: e.retryable,
-      ));
+      _finishInitialLoadFailure(e, stopwatch, epoch);
     } catch (e, st) {
       if (!mounted || epoch != _loadEpoch) return;
       // A failed refresh keeps the current render and stays silent.
       if (isRefresh) return;
-      // Surface the original exception + stack to the developer console so
-      // a buggy custom resolver doesn't get hidden behind a generic
-      // "unknown" error code in their crash reports.
-      FlutterError.reportError(FlutterErrorDetails(
-        exception: e,
-        stack: st,
-        library: 'restage',
-        context: ErrorDescription('resolving + decoding paywall ${widget.id}'),
-      ));
-      if (_tryFallbackToCache(stopwatch, epoch)) return;
-      final err = RestagePaywallError(
-        code: RestageErrorCodes.unknown,
-        message: 'Unexpected: $e',
-        cause: e,
-        stackTrace: st,
+      _reportUnexpectedLoadFailure(e, st);
+      _finishInitialLoadFailure(
+        _unexpectedLoadError(e, st),
+        stopwatch,
+        epoch,
       );
-      setState(() => _error = err);
-      _fireEvent(PaywallLoadFailed(
-        paywallId: widget.id,
-        errorCode: err.code,
-        message: err.message,
-        retryable: false,
-      ));
     }
   }
+
+  void _finishInitialLoadFailure(
+    RestagePaywallError error,
+    Stopwatch stopwatch,
+    int epoch,
+  ) {
+    if (!mounted || epoch != _loadEpoch) return;
+    if (_tryFallbackToCache(stopwatch, epoch)) return;
+    setState(() => _error = error);
+    _fireEvent(PaywallLoadFailed(
+      paywallId: widget.id,
+      errorCode: error.code,
+      message: error.message,
+      retryable: error.retryable,
+    ));
+  }
+
+  void _reportUnexpectedLoadFailure(Object error, StackTrace stackTrace) {
+    // Surface the original exception + stack to the developer console so
+    // a buggy custom resolver doesn't get hidden behind a generic
+    // "unknown" error code in their crash reports.
+    FlutterError.reportError(FlutterErrorDetails(
+      exception: error,
+      stack: stackTrace,
+      library: 'restage',
+      context: ErrorDescription('resolving + decoding paywall ${widget.id}'),
+    ));
+  }
+
+  RestagePaywallError _unexpectedLoadError(
+    Object error,
+    StackTrace stackTrace,
+  ) =>
+      RestagePaywallError(
+        code: RestageErrorCodes.unknown,
+        message: 'Unexpected: $error',
+        cause: error,
+        stackTrace: stackTrace,
+      );
 
   void _retryLoadAfterRejectedLease(
     int epoch, {
@@ -569,31 +637,51 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onComplete: (_) => _handleRefreshFlowComplete(pending),
       onUnavailable: (error) => _handleRefreshFlowUnavailable(pending, error),
     );
+    final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
+      surface: SurfaceType.paywall.wireName,
+      surfaceId: widget.id,
+    );
+    _flowPresentations[pending] = analyticsPresentation;
     late final FirstPaintLeaseTransaction transaction;
     transaction = FirstPaintLeaseTransaction(
       isReady: () => pending.currentScreenEntryId != null,
       isInvalidatedByIdentityReset: () =>
-          !(payload.assignmentLease?.isCurrent ?? true),
-      canCommit: () => _canCommitPendingFlow(
-        pending,
-        payload,
-        epoch,
-        transaction,
-      ),
-      commit: () => _commitPendingFlowAtPaint(
-        pending,
-        payload,
-        epoch,
-        transaction,
-      ),
-      onPainted: () => _publishRenderedPayload(payload),
+          analyticsPresentation.isInvalidatedByIdentityReset ||
+          !_payloadPresentationIsCurrent(
+            payload,
+            FlowMountRevalidationBoundary.firstPaint,
+          ),
+      canCommit: () =>
+          _canCommitPendingFlow(
+            pending,
+            payload,
+            epoch,
+            transaction,
+          ) &&
+          !analyticsPresentation.isInvalidatedByIdentityReset,
+      commit: () {
+        _commitPendingFlowAtPaint(
+          pending,
+          payload,
+          epoch,
+          transaction,
+        );
+        _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
+      },
+      onPainted: () {
+        analyticsPresentation.activate();
+        _publishRenderedPayload(payload);
+      },
       afterCommit: () => _finishPendingFlowPaintCommit(pending),
       afterRejection: () => _rejectPendingFlowTransaction(
         pending,
         payload,
         epoch,
       ),
-      onAbandon: payload.abandonHostedLastGood,
+      onAbandon: () {
+        analyticsPresentation.abandon();
+        payload.abandonHostedLastGood();
+      },
     );
     _pendingFlowController = pending;
     _pendingFlowTransaction = transaction;
@@ -717,7 +805,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _pendingFlowEpoch == epoch &&
       epoch == _loadEpoch &&
       pending.currentScreenEntryId != null &&
-      (payload.assignmentLease?.isCurrent ?? true) &&
+      _payloadPresentationIsCurrent(
+        payload,
+        FlowMountRevalidationBoundary.firstPaint,
+      ) &&
       _canSwap();
 
   /// Paint-time authority mutation. Keep this synchronous and callback-free.
@@ -745,7 +836,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// returned normally for the exact authority transaction.
   void _publishRenderedPayload(ResolvedPaywallPayload payload) {
     payload.publishHostedLastGood();
-    if (widget.cacheLastRender) {
+    if (widget.cacheLastRender && !payload.hasHostedExperimentAuthority) {
       _lastSuccessfulPayloads[widget.id] = payload;
     }
   }
@@ -767,8 +858,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     int epoch,
   ) {
     if (!mounted || !identical(_pendingFlowController, pending)) return;
-    final shouldRetry =
-        epoch == _loadEpoch && !(payload.assignmentLease?.isCurrent ?? true);
+    final analyticsInvalidated =
+        _flowPresentations[pending]?.isInvalidatedByIdentityReset ?? false;
+    final shouldRetry = epoch == _loadEpoch &&
+        (analyticsInvalidated ||
+            !_payloadPresentationIsCurrent(
+              payload,
+              FlowMountRevalidationBoundary.firstPaint,
+            ));
     _discardPendingFlow(pending);
     if (shouldRetry) {
       _retryLoadAfterRejectedLease(epoch, isRefresh: true);
@@ -836,13 +933,19 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// can return a blob OR a lowered flow; a host-supplied custom resolver stays
   /// blob-only (the public [VariantResolver.resolve] SPI), and its
   /// [ResolvedVariant] is wrapped as a [BlobPaywallPayload].
-  Future<ResolvedPaywallPayload> _resolvePayload(VariantResolver resolver) {
+  Future<ResolvedPaywallPayload> _resolvePayload(
+    VariantResolver resolver,
+    int epoch,
+  ) {
     if (resolver is PresentationPaywallResolver) {
-      return (resolver as PresentationPaywallResolver)
-          .resolvePayloadForPresentation(
-        widget.id,
-        placementId: widget.placementId,
-        locale: widget.locale,
+      return withPaywallPresentationGuard(
+        guard: () => mounted && epoch == _loadEpoch,
+        resolve: () => (resolver as PresentationPaywallResolver)
+            .resolvePayloadForPresentation(
+          widget.id,
+          placementId: widget.placementId,
+          locale: widget.locale,
+        ),
       );
     }
     if (resolver is FlowCapableVariantResolver) {
@@ -869,12 +972,32 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) async {
     while (mounted && epoch == _loadEpoch) {
       try {
-        final payload = await _resolvePayload(resolver);
+        final payload = await _resolvePayload(resolver, epoch);
         if (!mounted || epoch != _loadEpoch) {
           payload.abandonHostedLastGood();
           return null;
         }
-        if (payload.assignmentLease?.isCurrent ?? true) return payload;
+        if (_payloadPresentationIsCurrent(
+          payload,
+          FlowMountRevalidationBoundary.pendingPromotion,
+        )) {
+          return payload;
+        }
+        if (payload is FlowPaywallPayload &&
+            payload.canRetryHostedPresentation) {
+          payload.abandonHostedCandidate();
+          final retained =
+              await _resolveRetainedInitialFlowPayload(payload, epoch);
+          // This is intentionally the first work after the await. The caller
+          // performs the next presentation revalidation without recreating the
+          // strict authority or its frozen baseline.
+          if (!mounted || epoch != _loadEpoch) {
+            retained?.abandonHostedLastGood();
+            payload.disposeHostedPresentation();
+            return null;
+          }
+          return retained;
+        }
         payload.abandonHostedLastGood();
       } on StaleSurfaceAssignmentResolution {
         // The resolver's existing tiered ladder runs again under the new actor.
@@ -908,12 +1031,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onEvent: (_) {},
       onComplete: (_) {
         if (!_flowLoadAnnounced &&
-            !(payload.assignmentLease?.isCurrent ?? true)) {
+            !_payloadPresentationIsCurrent(
+              payload,
+              FlowMountRevalidationBoundary.firstPaint,
+            )) {
           _retryStaleInitialFlow(
             controller,
             payload,
             epoch,
             transaction,
+            stopwatch,
           );
           return;
         }
@@ -922,12 +1049,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
       },
       onUnavailable: (error) {
         if (!_flowLoadAnnounced &&
-            !(payload.assignmentLease?.isCurrent ?? true)) {
+            !_payloadPresentationIsCurrent(
+              payload,
+              FlowMountRevalidationBoundary.firstPaint,
+            )) {
           _retryStaleInitialFlow(
             controller,
             payload,
             epoch,
             transaction,
+            stopwatch,
           );
           return;
         }
@@ -935,23 +1066,40 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _handleFlowUnavailable(controller, error);
       },
     );
+    final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
+      surface: SurfaceType.paywall.wireName,
+      surfaceId: widget.id,
+    );
+    _flowPresentations[controller] = analyticsPresentation;
     transaction = FirstPaintLeaseTransaction(
       isReady: () => controller.currentScreenEntryId != null,
       isInvalidatedByIdentityReset: () =>
-          !(payload.assignmentLease?.isCurrent ?? true),
-      canCommit: () => _canCommitInitialFlow(
-        controller,
-        payload,
-        epoch,
-        transaction,
-      ),
-      commit: () => _commitInitialFlowAtPaint(
-        controller,
-        payload,
-        epoch,
-        transaction,
-      ),
-      onPainted: () => _publishRenderedPayload(payload),
+          analyticsPresentation.isInvalidatedByIdentityReset ||
+          !_payloadPresentationIsCurrent(
+            payload,
+            FlowMountRevalidationBoundary.firstPaint,
+          ),
+      canCommit: () =>
+          _canCommitInitialFlow(
+            controller,
+            payload,
+            epoch,
+            transaction,
+          ) &&
+          !analyticsPresentation.isInvalidatedByIdentityReset,
+      commit: () {
+        _commitInitialFlowAtPaint(
+          controller,
+          payload,
+          epoch,
+          transaction,
+        );
+        _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
+      },
+      onPainted: () {
+        analyticsPresentation.activate();
+        _publishRenderedPayload(payload);
+      },
       afterCommit: () => _finishInitialFlowPaintCommit(
         controller,
         payload,
@@ -963,8 +1111,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
         payload,
         epoch,
         transaction,
+        stopwatch,
       ),
-      onAbandon: payload.abandonHostedLastGood,
+      onAbandon: () {
+        analyticsPresentation.abandon();
+        payload.abandonHostedCandidate();
+      },
     );
     setState(() {
       _flowController = controller;
@@ -977,8 +1129,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     readinessListener = () {
       if (!mounted || !identical(_flowController, controller)) return;
       if (controller.currentScreenEntryId != null) {
-        final assignmentLease = payload.assignmentLease;
-        if (assignmentLease != null && !assignmentLease.isCurrent) {
+        if (!_payloadPresentationIsCurrent(
+          payload,
+          FlowMountRevalidationBoundary.firstPaint,
+        )) {
           return;
         }
         if (!_initialFlowIsStaged && transaction.isPending) {
@@ -1016,6 +1170,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _announceFlowLoaded(
       stopwatch.elapsed,
       fromCache || payload.flow.cacheHit,
+      publishedVersion: payload.paywallPublishedVersion,
       experimentId: payload.experimentId,
       variantId: payload.variantId,
       experimentEpoch: payload.experimentEpoch,
@@ -1037,9 +1192,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowPaywallPayload payload,
     int epoch,
     FirstPaintLeaseTransaction transaction,
+    Stopwatch stopwatch,
   ) {
-    final assignmentLease = payload.assignmentLease;
-    if (assignmentLease == null || assignmentLease.isCurrent) return;
+    final analyticsInvalidated =
+        _flowPresentations[controller]?.isInvalidatedByIdentityReset ?? false;
+    if (!analyticsInvalidated &&
+        _payloadPresentationIsCurrent(
+          payload,
+          FlowMountRevalidationBoundary.firstPaint,
+        )) {
+      return;
+    }
     if (!mounted ||
         !identical(_flowController, controller) ||
         !identical(_flowTransaction, transaction) ||
@@ -1048,14 +1211,93 @@ class _RestagePaywallState extends State<RestagePaywall> {
         transaction.isCommitted) {
       return;
     }
+    final resolver = controller.resolver;
+    final preservesPresentation = resolver is _PreResolvedFlowResolver &&
+        resolver.detachHostedPresentationForRetry();
     _removeInitialFlowReadinessListener(controller);
     _initialFlowIsStaged = false;
     transaction.supersede();
     _flowTransaction = null;
     _flowEpoch = null;
     setState(() => _flowController = null);
-    unawaited(_load(announceLoadStarted: false));
+    if (preservesPresentation) {
+      unawaited(_retryInitialFlowPayload(payload, stopwatch, epoch));
+    } else {
+      unawaited(_load(announceLoadStarted: false));
+    }
     _disposeFlowControllerAfterDetach(controller);
+  }
+
+  Future<void> _retryInitialFlowPayload(
+    FlowPaywallPayload rejectedPayload,
+    Stopwatch stopwatch,
+    int epoch,
+  ) async {
+    try {
+      final next =
+          await _resolveRetainedInitialFlowPayload(rejectedPayload, epoch);
+      // This is intentionally the first work after the await. A widget
+      // supersession or newer load epoch cannot stage or request later work.
+      if (!mounted || epoch != _loadEpoch) {
+        next?.abandonHostedLastGood();
+        rejectedPayload.disposeHostedPresentation();
+        return;
+      }
+      if (next != null) {
+        _startFlow(next, stopwatch, epoch: epoch);
+      }
+    } on RestagePaywallError catch (error) {
+      if (!mounted || epoch != _loadEpoch) return;
+      _finishInitialLoadFailure(error, stopwatch, epoch);
+    } catch (error, stackTrace) {
+      if (!mounted || epoch != _loadEpoch) return;
+      _reportUnexpectedLoadFailure(error, stackTrace);
+      _finishInitialLoadFailure(
+        _unexpectedLoadError(error, stackTrace),
+        stopwatch,
+        epoch,
+      );
+    }
+  }
+
+  Future<FlowPaywallPayload?> _resolveRetainedInitialFlowPayload(
+    FlowPaywallPayload rejectedPayload,
+    int epoch,
+  ) async {
+    var retainedPayload = rejectedPayload;
+    while (mounted && epoch == _loadEpoch) {
+      final FlowPaywallPayload? next;
+      try {
+        next = await retainedPayload.resolveNextHostedPresentation();
+      } on Object {
+        retainedPayload.disposeHostedPresentation();
+        rethrow;
+      }
+      // This is intentionally the first work after the await. A widget
+      // supersession or newer load epoch cannot stage or request later work.
+      if (!mounted || epoch != _loadEpoch) {
+        next?.abandonHostedLastGood();
+        retainedPayload.disposeHostedPresentation();
+        return null;
+      }
+      if (next == null) {
+        retainedPayload.disposeHostedPresentation();
+        throw RestagePaywallError(
+          code: RestageErrorCodes.deliveryUnavailable,
+          message: 'Strict flow retry ended without a renderable payload.',
+        );
+      }
+      if (_payloadPresentationIsCurrent(
+        next,
+        FlowMountRevalidationBoundary.pendingPromotion,
+      )) {
+        return next;
+      }
+      next.abandonHostedCandidate();
+      retainedPayload = next;
+    }
+    retainedPayload.disposeHostedPresentation();
+    return null;
   }
 
   bool _canCommitInitialFlow(
@@ -1070,7 +1312,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _flowEpoch == epoch &&
         epoch == _loadEpoch &&
         controller.currentScreenEntryId != null &&
-        (payload.assignmentLease?.isCurrent ?? true);
+        _payloadPresentationIsCurrent(
+          payload,
+          FlowMountRevalidationBoundary.firstPaint,
+        );
     return result;
   }
 
@@ -1087,6 +1332,38 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedContentHash = null;
+  }
+
+  void _stagePaywallAnalyticsPresentation(
+    RootAnalyticsPresentation presentation,
+    ResolvedPaywallPayload payload,
+  ) {
+    final attribution = switch (payload) {
+      BlobPaywallPayload(:final variant) => (
+          version: variant.paywallPublishedVersion,
+          experimentId: variant.experimentId,
+          variantId: variant.variantId,
+          experimentEpoch: variant.experimentEpoch,
+        ),
+      FlowPaywallPayload(
+        :final paywallPublishedVersion,
+        :final experimentId,
+        :final variantId,
+        :final experimentEpoch,
+      ) =>
+        (
+          version: paywallPublishedVersion,
+          experimentId: experimentId,
+          variantId: variantId,
+          experimentEpoch: experimentEpoch,
+        ),
+    };
+    presentation.stage(
+      surfaceVersion: attribution.version?.toString(),
+      experimentId: attribution.experimentId,
+      variantId: attribution.variantId,
+      experimentEpoch: attribution.experimentEpoch,
+    );
   }
 
   void _finishInitialFlowPaintCommit(
@@ -1107,6 +1384,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowPaywallPayload payload,
     int epoch,
     FirstPaintLeaseTransaction transaction,
+    Stopwatch stopwatch,
   ) {
     if (!mounted ||
         !identical(_flowController, controller) ||
@@ -1124,7 +1402,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _disposeFlowControllerAfterDetach(controller);
       return;
     }
-    _retryStaleInitialFlow(controller, payload, epoch, transaction);
+    _retryStaleInitialFlow(
+      controller,
+      payload,
+      epoch,
+      transaction,
+      stopwatch,
+    );
   }
 
   /// Builds a flow controller over an already-resolved [payload]. Construction
@@ -1142,9 +1426,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
         id: document.flow,
         version: document.version,
         minClient: document.minClient,
+        surfaceType: SurfaceType.paywall,
+        deliveryMode: document.deliveryMode,
         decodeResult: (_) {},
       ),
-      resolver: _PreResolvedFlowResolver(payload.flow),
+      resolver: _PreResolvedFlowResolver(payload),
       actions: null,
       onEvent: onEvent,
       onComplete: onComplete,
@@ -1202,12 +1488,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // Render commitment already happened before a refresh controller could be
     // promoted. Keep its committed payload cached; lifecycle announcement is
     // exact-once and is therefore inert for later start events.
-    if (widget.cacheLastRender) {
+    if (widget.cacheLastRender && !payload.hasHostedExperimentAuthority) {
       _lastSuccessfulPayloads[widget.id] = payload;
     }
     _announceFlowLoaded(
       stopwatch.elapsed,
       fromCache || payload.flow.cacheHit,
+      publishedVersion: payload.paywallPublishedVersion,
       experimentId: payload.experimentId,
       variantId: payload.variantId,
       experimentEpoch: payload.experimentEpoch,
@@ -1224,22 +1511,60 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void _announceFlowLoaded(
     Duration loadDuration,
     bool cacheHit, {
+    required int? publishedVersion,
     String? experimentId,
     String? variantId,
     int? experimentEpoch,
   }) {
     if (_flowLoadAnnounced || !mounted) return;
     _flowLoadAnnounced = true;
-    _fireEvent(PaywallLoadCompleted(
-      paywallId: widget.id,
+    final presentation = _activeAnalyticsPresentation;
+    if (presentation == null) {
+      _fireEvent(PaywallLoadCompleted(
+        paywallId: widget.id,
+        loadDuration: loadDuration,
+        cacheHit: cacheHit,
+      ));
+      return;
+    }
+    _announceRenderedPaywall(
+      presentation: presentation,
       loadDuration: loadDuration,
       cacheHit: cacheHit,
-    ));
-    _schedulePaywallViewed(
+      publishedVersion: publishedVersion,
       experimentId: experimentId,
       variantId: variantId,
       experimentEpoch: experimentEpoch,
     );
+  }
+
+  void _announceRenderedPaywall({
+    required RootAnalyticsPresentation presentation,
+    required Duration loadDuration,
+    required bool cacheHit,
+    required int? publishedVersion,
+    String? variantId,
+    String? experimentId,
+    int? experimentEpoch,
+  }) {
+    presentation.captureDeferredContextOnActivation((attribution) {
+      _fireEvent(
+        PaywallLoadCompleted(
+          paywallId: widget.id,
+          loadDuration: loadDuration,
+          cacheHit: cacheHit,
+        ),
+        attribution: attribution,
+      );
+      _schedulePaywallViewed(
+        presentation: presentation,
+        attribution: attribution,
+        publishedVersion: publishedVersion,
+        experimentId: experimentId,
+        variantId: variantId,
+        experimentEpoch: experimentEpoch,
+      );
+    });
   }
 
   /// Fires `PaywallViewed` exactly once in a post-frame callback after the first
@@ -1247,23 +1572,35 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// flow-hosted lifecycle ([_announceFlowLoaded]); assignment fields default
   /// to null for resolutions that are not part of an experiment.
   void _schedulePaywallViewed({
+    required RootAnalyticsPresentation presentation,
+    required RootAnalyticsDeferredContext attribution,
+    required int? publishedVersion,
     String? variantId,
     String? experimentId,
     int? experimentEpoch,
   }) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _viewedFired) return;
+    final event = PaywallViewed(
+      paywallId: widget.id,
+      productIds:
+          Restage.configuredProducts.map((p) => p.id).toList(growable: false),
+      variantId: variantId,
+      experimentId: experimentId,
+      experimentEpoch: experimentEpoch,
+      publishedVersion: publishedVersion,
+    );
+    void fire() {
+      if (!mounted || _viewedPresentations[presentation] == true) return;
+      _viewedPresentations[presentation] = true;
       _viewedFired = true;
-      _fireEvent(PaywallViewed(
-        paywallId: widget.id,
-        productIds:
-            Restage.configuredProducts.map((p) => p.id).toList(growable: false),
-        variantId: variantId,
-        experimentId: experimentId,
-        experimentEpoch: experimentEpoch,
-        publishedVersion: _resolvedPaywallPublishedVersion,
-      ));
-    });
+      _fireEvent(event, attribution: attribution);
+    }
+
+    final debugScheduler = RootAnalyticsRuntime.debugPostFrameScheduler;
+    if (debugScheduler != null) {
+      debugScheduler(fire);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => fire());
+    }
   }
 
   /// The flow reached its end state (the entry screen's skip/dismiss → end): the
@@ -1333,16 +1670,33 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }) {
     final runtime = _createBlobRuntime()..update(_paywallLibrary, library);
     final data = DynamicContent();
+    final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
+      surface: SurfaceType.paywall.wireName,
+      surfaceId: widget.id,
+    );
     late final _BlobStage stage;
     final transaction = FirstPaintLeaseTransaction(
       isInvalidatedByIdentityReset: () =>
+          analyticsPresentation.isInvalidatedByIdentityReset ||
           !(stage.payload.assignmentLease?.isCurrent ?? true),
       canCommit: () => _canCommitBlobStage(stage),
-      commit: () => _commitBlobStage(stage),
-      onPainted: () => _publishRenderedPayload(payload),
+      commit: () {
+        _commitBlobStage(stage);
+        _stagePaywallAnalyticsPresentation(
+          analyticsPresentation,
+          payload,
+        );
+      },
+      onPainted: () {
+        analyticsPresentation.activate();
+        _publishRenderedPayload(payload);
+      },
       afterCommit: () => _finishCommittedBlobStage(stage),
       afterRejection: () => _rejectBlobStage(stage),
-      onAbandon: payload.abandonHostedLastGood,
+      onAbandon: () {
+        analyticsPresentation.abandon();
+        payload.abandonHostedLastGood();
+      },
     );
     stage = _BlobStage(
       payload: payload,
@@ -1353,6 +1707,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       loadDuration: loadDuration,
       cacheHit: cacheHit,
       transaction: transaction,
+      analyticsPresentation: analyticsPresentation,
     );
     _populateBlobData(stage);
 
@@ -1415,6 +1770,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (!mounted ||
         !identical(_pendingBlobStage, stage) ||
         stage.epoch != _loadEpoch ||
+        stage.analyticsPresentation.isInvalidatedByIdentityReset ||
         !(stage.payload.assignmentLease?.isCurrent ?? true)) {
       return false;
     }
@@ -1449,14 +1805,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _error = null;
       });
     }
-    _fireEvent(PaywallLoadCompleted(
-      paywallId: widget.id,
+    final variant = stage.payload.variant;
+    _announceRenderedPaywall(
+      presentation: stage.analyticsPresentation,
       loadDuration: stage.loadDuration,
       cacheHit: stage.cacheHit,
-    ));
-    _viewedFired = false;
-    final variant = stage.payload.variant;
-    _schedulePaywallViewed(
+      publishedVersion: variant.paywallPublishedVersion,
       variantId: variant.variantId,
       experimentId: variant.experimentId,
       experimentEpoch: variant.experimentEpoch,
@@ -1478,7 +1832,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
       return;
     }
     final shouldRetry = stage.epoch == _loadEpoch &&
-        !(stage.payload.assignmentLease?.isCurrent ?? true);
+        (stage.analyticsPresentation.isInvalidatedByIdentityReset ||
+            !(stage.payload.assignmentLease?.isCurrent ?? true));
     setState(() => _pendingBlobStage = null);
     _disposeBlobStageAfterDetach(stage);
     if (shouldRetry) {
@@ -1615,6 +1970,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   void _disposeFlowController(RestageFlowController<void> controller) {
+    _flowPresentations.remove(controller)?.dispose();
+    final resolver = controller.resolver;
+    if (resolver is _PreResolvedFlowResolver) {
+      resolver.disposePresentation();
+    }
     controller.dispose();
   }
 
@@ -1636,8 +1996,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
     _refreshHandle = null;
     widget.controller?.detachInternal();
-    // Fire dismissed FIRST (it binds the current surfaceSessionId synchronously),
-    // then end the surface session.
+    // Fire dismissed before disposing the presentation that owns its context.
     if (_viewedFired) _fireDismissed(DismissReason.programmatic);
     // Tear down every authority candidate directly. State.dispose runs while
     // mounted is still true, so it must not route through helpers that setState
@@ -1675,10 +2034,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _pendingFlowTransaction = null;
     _pendingFlowEpoch = null;
     _flowToDisposeAfterPromotion = null;
+    for (final presentation in _flowPresentations.values) {
+      presentation.dispose();
+    }
+    _flowPresentations.clear();
     _blobPresentation = null;
     _pendingBlobStage = null;
     _blobToDisposeAfterPromotion = null;
-    Restage.endSurfaceSession();
     super.dispose();
   }
 
@@ -1716,21 +2078,33 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (event is PurchaseInitiated && event.productId.isNotEmpty) {
       if (_billingInFlight) return;
       _billingInFlight = true;
-      unawaited(_runPurchase(event.productId, offerId: event.offerId));
+      final attribution =
+          _activeAnalyticsPresentation?.captureDeferredContext();
+      unawaited(_runPurchase(
+        event.productId,
+        offerId: event.offerId,
+        attribution: attribution,
+      ));
       _fireEvent(event);
       return;
     }
     if (event is RestoreInitiated) {
       if (_billingInFlight) return;
       _billingInFlight = true;
-      unawaited(_runRestore());
+      final attribution =
+          _activeAnalyticsPresentation?.captureDeferredContext();
+      unawaited(_runRestore(attribution: attribution));
       _fireEvent(event);
       return;
     }
     _fireEvent(event);
   }
 
-  Future<void> _runPurchase(String productId, {String? offerId}) async {
+  Future<void> _runPurchase(
+    String productId, {
+    String? offerId,
+    RootAnalyticsDeferredContext? attribution,
+  }) async {
     // The in-flight billing guard is reserved by the caller (_handleRfwEvent)
     // before the initiation event fires; here we only RELEASE it in the
     // `finally` on EVERY outcome (success/pending/cancelled/failed/thrown
@@ -1738,9 +2112,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
     try {
       final gateway = Restage.billingGateway;
       final coordinatorOwned = BundledPurchaseOwnership.isInstalled(gateway);
-      final attribution = _capturePurchaseAttribution(offerId);
+      final purchaseAttribution = _capturePurchaseAttribution(
+        offerId,
+        rootAnalyticsContext: attribution,
+      );
       final purchase = PurchaseAttributionScope.run(
-        attribution,
+        purchaseAttribution,
         () => Restage.purchaseProduct(productId, offerId: offerId),
       );
       final outcome = await purchase;
@@ -1756,14 +2133,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
             :final priceMicros,
             :final currency,
           ):
-          _fireEvent(PurchaseSucceeded(
-            paywallId: widget.id,
-            productId: productId,
-            transactionId: transactionId,
-            priceMicros: priceMicros,
-            currency: currency,
-            offerId: offerId,
-          ));
+          _fireEvent(
+            PurchaseSucceeded(
+              paywallId: widget.id,
+              productId: productId,
+              transactionId: transactionId,
+              priceMicros: priceMicros,
+              currency: currency,
+              offerId: offerId,
+            ),
+            attribution: attribution,
+          );
           if (!coordinatorOwned) {
             Restage.grantEntitlementForProduct(
               productId,
@@ -1800,30 +2180,39 @@ class _RestagePaywallState extends State<RestagePaywall> {
           }
           _feedFlowOutcome(_kPurchaseSucceededEvent);
         case PurchaseOutcomePending(:final reason):
-          _fireEvent(PurchasePending(
-            paywallId: widget.id,
-            productId: productId,
-            reason: reason,
-          ));
+          _fireEvent(
+            PurchasePending(
+              paywallId: widget.id,
+              productId: productId,
+              reason: reason,
+            ),
+            attribution: attribution,
+          );
           _feedFlowOutcome(_kPurchasePendingEvent);
         case PurchaseOutcomeCancelled():
-          _fireEvent(PurchaseCancelled(
-            paywallId: widget.id,
-            productId: productId,
-          ));
+          _fireEvent(
+            PurchaseCancelled(
+              paywallId: widget.id,
+              productId: productId,
+            ),
+            attribution: attribution,
+          );
           _feedFlowOutcome(_kPurchaseCancelledEvent);
         case PurchaseOutcomeFailed(
             :final errorCode,
             :final message,
             :final platformErrorCode,
           ):
-          _fireEvent(PurchaseFailed(
-            paywallId: widget.id,
-            productId: productId,
-            errorCode: errorCode,
-            message: message,
-            platformErrorCode: platformErrorCode,
-          ));
+          _fireEvent(
+            PurchaseFailed(
+              paywallId: widget.id,
+              productId: productId,
+              errorCode: errorCode,
+              message: message,
+              platformErrorCode: platformErrorCode,
+            ),
+            attribution: attribution,
+          );
           _feedFlowOutcome(_kPurchaseFailedEvent);
       }
     } finally {
@@ -1831,7 +2220,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
   }
 
-  Future<void> _runRestore() async {
+  Future<void> _runRestore({
+    RootAnalyticsDeferredContext? attribution,
+  }) async {
     // The in-flight billing guard is reserved by the caller (_handleRfwEvent);
     // here we only RELEASE it in the `finally` on every outcome.
     try {
@@ -1841,10 +2232,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
       // See _runPurchase: global side effects fire regardless of mount.
       switch (outcome) {
         case RestoreOutcomeSucceeded(:final restoredProductIds):
-          _fireEvent(RestoreSucceeded(
-            paywallId: widget.id,
-            restoredProductIds: restoredProductIds,
-          ));
+          _fireEvent(
+            RestoreSucceeded(
+              paywallId: widget.id,
+              restoredProductIds: restoredProductIds,
+            ),
+            attribution: attribution,
+          );
           if (!coordinatorOwned) {
             for (final productId in restoredProductIds) {
               Restage.grantEntitlementForProduct(
@@ -1855,14 +2249,20 @@ class _RestagePaywallState extends State<RestagePaywall> {
           }
           _feedFlowOutcome(_kRestoreSucceededEvent);
         case RestoreOutcomeNoPurchases():
-          _fireEvent(RestoreNoPurchases(paywallId: widget.id));
+          _fireEvent(
+            RestoreNoPurchases(paywallId: widget.id),
+            attribution: attribution,
+          );
           _feedFlowOutcome(_kRestoreNoPurchasesEvent);
         case RestoreOutcomeFailed(:final errorCode, :final message):
-          _fireEvent(RestoreFailed(
-            paywallId: widget.id,
-            errorCode: errorCode,
-            message: message,
-          ));
+          _fireEvent(
+            RestoreFailed(
+              paywallId: widget.id,
+              errorCode: errorCode,
+              message: message,
+            ),
+            attribution: attribution,
+          );
           _feedFlowOutcome(_kRestoreFailedEvent);
       }
     } finally {
@@ -1870,7 +2270,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
   }
 
-  PurchaseAttributionSnapshot _capturePurchaseAttribution(String? offerId) {
+  PurchaseAttributionSnapshot _capturePurchaseAttribution(
+    String? offerId, {
+    RootAnalyticsDeferredContext? rootAnalyticsContext,
+  }) {
     final experimentId = _renderedExperimentId;
     final experimentVariantId = _renderedExperimentVariantId;
     final experimentEpoch = _renderedExperimentEpoch;
@@ -1884,6 +2287,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       experimentVariantId: hasCompleteExperiment ? experimentVariantId : null,
       experimentEpoch: hasCompleteExperiment ? experimentEpoch : null,
       offerId: offerId,
+      rootAnalyticsContext: rootAnalyticsContext,
     );
   }
 
@@ -2068,12 +2472,37 @@ const String _kRestoreFailedEvent = 'restage.restore.failed';
 /// that result straight into a [RestageFlowController] without re-fetching, so
 /// the controller's standard load/validate path runs over the bundled flow.
 final class _PreResolvedFlowResolver implements FlowResolver {
-  _PreResolvedFlowResolver(this._resolved);
+  _PreResolvedFlowResolver(this._payload);
 
-  final ResolvedFlow _resolved;
+  final FlowPaywallPayload _payload;
+  var _ownsHostedPresentation = true;
+
+  bool revalidate(FlowMountRevalidationBoundary boundary) =>
+      _payload.revalidateHostedPresentation(boundary);
+
+  bool detachHostedPresentationForRetry() {
+    if (!_payload.canRetryHostedPresentation) return false;
+    _ownsHostedPresentation = false;
+    return true;
+  }
+
+  void disposePresentation() {
+    if (_ownsHostedPresentation) _payload.disposeHostedPresentation();
+  }
 
   @override
-  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async => _resolved;
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    final pinnedResolver = _payload.pinnedFlowResolver;
+    if (pinnedResolver == null) return _payload.flow;
+    return pinnedResolver.resolve(OnboardingFlowRef<R>(
+      id: flow.id,
+      version: flow.version,
+      minClient: flow.minClient,
+      surfaceType: SurfaceType.paywall,
+      deliveryMode: flow.deliveryMode,
+      decodeResult: flow.decodeResult,
+    ));
+  }
 }
 
 final class _BlobStage {
@@ -2086,6 +2515,7 @@ final class _BlobStage {
     required this.loadDuration,
     required this.cacheHit,
     required this.transaction,
+    required this.analyticsPresentation,
   });
 
   final BlobPaywallPayload payload;
@@ -2096,6 +2526,7 @@ final class _BlobStage {
   final Duration loadDuration;
   final bool cacheHit;
   final FirstPaintLeaseTransaction transaction;
+  final RootAnalyticsPresentation analyticsPresentation;
 
   _BlobStage? previousBlob;
   RestageFlowController<void>? previousFlow;
@@ -2105,6 +2536,7 @@ final class _BlobStage {
     if (_disposed) return;
     _disposed = true;
     transaction.supersede();
+    analyticsPresentation.dispose();
     runtime.dispose();
   }
 }

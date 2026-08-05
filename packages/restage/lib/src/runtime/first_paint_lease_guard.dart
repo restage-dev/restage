@@ -45,6 +45,13 @@ final class FirstPaintLeaseTransaction {
   static final List<FirstPaintLeaseTransaction> _paintingTransactions =
       <FirstPaintLeaseTransaction>[];
 
+  /// Test-only failure injection immediately before guarded descendant paint.
+  ///
+  /// Production leaves this null. Tests use it to hold the transaction between
+  /// synchronous ownership commit and descendant paint acknowledgement.
+  static void Function(FirstPaintLeaseTransaction transaction)?
+      debugBeforeDescendantPaint;
+
   final bool Function() _isReady;
   final bool Function() _isInvalidatedByIdentityReset;
   final bool Function() _canCommit;
@@ -64,6 +71,14 @@ final class FirstPaintLeaseTransaction {
 
   bool get isPending => _state == _FirstPaintLeaseState.pending;
   bool get isCommitted => _state == _FirstPaintLeaseState.committed;
+
+  /// Whether guarded descendant paint returned successfully at least once.
+  ///
+  /// Commitment is only the synchronous pre-paint ownership mutation. Hosts
+  /// must use this acknowledgement before treating that provisional owner as
+  /// the accepted presentation.
+  bool get isPaintAcknowledged => _paintReported;
+
   bool get isReady => _isReady();
 
   /// Whether framework-owned rendering can still acknowledge success.
@@ -342,6 +357,9 @@ final class RenderFirstPaintLeaseGuard extends RenderProxyBox {
     var returnedNormally = false;
     _transaction._beginPaintObservation();
     try {
+      FirstPaintLeaseTransaction.debugBeforeDescendantPaint?.call(
+        _transaction,
+      );
       super.paint(context, offset);
       returnedNormally = true;
     } finally {

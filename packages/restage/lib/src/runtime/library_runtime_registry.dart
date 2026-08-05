@@ -12,6 +12,10 @@ abstract final class LibraryRuntimeRegistry {
 
   static final Map<String, _CustomLibraryEntry> _entries =
       <String, _CustomLibraryEntry>{};
+  static int _generation = 0;
+
+  /// Monotonic identity of the mutable registration set.
+  static int get generation => _generation;
 
   /// Record [library] under its namespace, replacing any prior registration.
   ///
@@ -110,6 +114,7 @@ abstract final class LibraryRuntimeRegistry {
       capabilityVersion: capabilityVersion,
       registration: registration,
     );
+    _generation += 1;
   }
 
   /// Whether a custom library with [namespace] is registered.
@@ -170,7 +175,10 @@ abstract final class LibraryRuntimeRegistry {
 
   /// Drop every recorded library. Called by `Restage.debugReset` so tests
   /// don't leak registrations across cases.
-  static void clear() => _entries.clear();
+  static void clear() {
+    _entries.clear();
+    _generation += 1;
+  }
 }
 
 class _CustomLibraryEntry {

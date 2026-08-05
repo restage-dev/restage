@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
@@ -19,11 +20,14 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceType;
 
 import '../restage_rpc_client/restage_rpc_client.dart';
+import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'bundled_flow_loader.dart';
 import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
+import 'flow_experiment_artifact_metadata.dart';
+import 'flow_experiment_mount.dart';
 import 'flow_resolver.dart';
 
 /// Creates a dynamic exact-version hosted flow reference.
@@ -58,15 +62,20 @@ SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
 /// bundled → typed-error ladder. The default (`active: false`) leaves the exact
 /// path byte-unchanged. The active arm needs the bundled flow asset present (the
 /// build emits it) — with no bundled contract it fails closed.
-final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
+final class ServerFlowResolver
+    implements
+        FlowResolver,
+        ActiveArmFlowResolver,
+        FlowExperimentMountFactory,
+        FlowExperimentArtifactMetadataProvider {
   /// Creates a resolver backed by the SDK surface endpoint.
   ///
   /// [active] opts into the active arm (default false → exact-only, byte
   /// unchanged). [bundle] supplies the bundled flow assets the active arm reads
   /// as the client contract + bundled fallback (defaults to the app's
   /// `rootBundle`); it is unused on the exact path. Exact requests derive their
-  /// surface namespace solely from the resolved flow descriptor. The active arm
-  /// currently supports onboarding descriptors only.
+  /// surface namespace solely from the resolved flow descriptor, and the active
+  /// arm uses that same descriptor-owned namespace.
   ServerFlowResolver({
     required String baseUrl,
     required String apiKey,
@@ -95,6 +104,7 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   /// contract-version (the exact key) never collides with resolved-active-
   /// version.
   final Map<String, _CachedServerFlow> _activeCache = {};
+  final Map<String, _ExperimentHostedFlow> _experimentActiveCache = {};
 
   AssetBundle get _effectiveBundle => _bundle ?? rootBundle;
 
@@ -102,8 +112,36 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   @override
   bool get activeArmEnabled => _active;
 
+  @internal
   @override
-  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+  bool get experimentMountsEnabled => _active;
+
+  @internal
+  @override
+  FlowExperimentPresentationResolver createExperimentPresentation({
+    required OnboardingFlowRef<Object?> flow,
+    required FlowMountSeedCapture captureSeed,
+  }) {
+    return _ServerFlowExperimentPresentation(
+      owner: this,
+      flow: flow,
+      captureSeed: captureSeed,
+    );
+  }
+
+  @internal
+  @override
+  FlowResolver createUnassignedFallbackResolver() =>
+      _BundledExperimentResolver(this);
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) =>
+      _resolveExact(flow);
+
+  Future<ResolvedFlow> _resolveExact<R>(
+    OnboardingFlowRef<R> flow, {
+    bool Function()? publicationGuard,
+  }) async {
     final cacheKey = _cacheKey(flow);
     final cached = _cache[cacheKey];
     if (cached != null) {
@@ -123,14 +161,24 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
         );
       }
       _checkRequiredLibraries(flow, cached.requiredLibraries);
-      return cached.toResolvedFlow(cacheHit: true);
+      return _own(
+        cached.toResolvedFlow(cacheHit: true),
+        requiredLibraries: cached.requiredLibraries,
+      );
     }
 
-    final result = await _client.fetchSurface(
-      surfaceType: flow.surfaceType.wireName,
-      surfaceSlug: flow.id,
-      version: flow.version,
-    );
+    final SurfaceFetchResult? result;
+    try {
+      result = await _client.fetchSurface(
+        surfaceType: flow.surfaceType.wireName,
+        surfaceSlug: flow.id,
+        version: flow.version,
+        publicationGuard: publicationGuard,
+      );
+    } on SurfaceRequestPublicationRejected {
+      throw const _ExperimentSeedDrift();
+    }
+    _requireExactPublicationCurrent(publicationGuard);
     if (result == null) {
       throw _error(
         flow,
@@ -167,7 +215,10 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
       assignment: _assignmentOf(result),
     );
     _cache[cacheKey] = cachedFlow;
-    return cachedFlow.toResolvedFlow(cacheHit: false);
+    return _own(
+      cachedFlow.toResolvedFlow(cacheHit: false),
+      requiredLibraries: cachedFlow.requiredLibraries,
+    );
   }
 
   @internal
@@ -180,16 +231,6 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     // resolver fails safe to the exact path rather than going active off-flag.
     if (!_active) return resolve(flow);
 
-    // The active delivery contract and bundled asset conventions remain
-    // onboarding-only. The descriptor owns identity, so reject any other
-    // surface before bundle access, cache access, or network work.
-    if (flow.surfaceType != SurfaceType.onboarding) {
-      throw _error(
-        flow,
-        'unsupported_surface_type',
-        'The active flow arm supports onboarding descriptors only.',
-      );
-    }
     final activeCacheKey = _activeCacheKey(flow);
 
     // Load the client's bundled contract: it is BOTH the render gate's `client`
@@ -210,7 +251,10 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
             active: active.document,
           )) {
         _activeCache[activeCacheKey] = active;
-        return active.toResolvedFlow(cacheHit: false);
+        return _own(
+          active.toResolvedFlow(cacheHit: false),
+          requiredLibraries: active.requiredLibraries,
+        );
       }
 
       // Tier 2 — hold-last-good (in-memory, keyed by flow id). Re-run the gate
@@ -225,7 +269,10 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
           ) &&
           _passesRetainedChecks(
               flow, cached.document, cached.requiredLibraries)) {
-        return cached.toResolvedFlow(cacheHit: true);
+        return _own(
+          cached.toResolvedFlow(cacheHit: true),
+          requiredLibraries: cached.requiredLibraries,
+        );
       }
 
       // Tier 3 — the client's own bundled document (exact; its version equals
@@ -241,20 +288,138 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
     );
   }
 
-  /// Loads the client's bundled flow document + screen blobs by convention
-  /// (`assets/onboarding/flows/<id>.flow.json`). Genuine onboarding screens
-  /// load from the onboarding screen directory; embedded paywall-owned screens
-  /// load from the paywall screen directory. Returns null when no bundled asset
-  /// is present or it fails to load — the "no contract ⇒ fail closed" signal
-  /// for the active arm.
+  Future<_ExperimentFreshFlow?> _fetchExperimentActive(
+    OnboardingFlowRef<Object?> flow,
+    FlowMountContractSnapshot snapshot,
+    FlowMountSeedCapture captureSeed,
+  ) async {
+    _requireExperimentSnapshotCurrent(
+      snapshot,
+      FlowMountRevalidationBoundary.request,
+      captureSeed,
+    );
+    var result = await _fetchExperimentSurface(
+      flow: flow,
+      snapshot: snapshot,
+      captureSeed: captureSeed,
+      boundary: FlowMountRevalidationBoundary.request,
+      flowContract: FlowContractFetchRequest.hashOnly(
+        snapshot.contentHash.value,
+      ),
+    );
+    _requireExperimentSnapshotCurrent(
+      snapshot,
+      FlowMountRevalidationBoundary.request,
+      captureSeed,
+    );
+    if (result == null) return null;
+
+    if (result.flowContractRequired) {
+      final current = _captureExperimentSeed(captureSeed);
+      final bytes = snapshot.bytesForRetry(
+        FlowMountRevalidationBoundary.uploadRetry,
+        current,
+      );
+      if (bytes == null) throw const _ExperimentSeedDrift();
+      result = await _fetchExperimentSurface(
+        flow: flow,
+        snapshot: snapshot,
+        captureSeed: captureSeed,
+        boundary: FlowMountRevalidationBoundary.uploadRetry,
+        flowContract: FlowContractFetchRequest.retry(
+          snapshot.contentHash.value,
+          bytes,
+        ),
+      );
+      _requireExperimentSnapshotCurrent(
+        snapshot,
+        FlowMountRevalidationBoundary.uploadRetry,
+        captureSeed,
+      );
+      if (result == null || result.flowContractRequired) return null;
+    }
+
+    final SurfaceDocument surfaceDocument;
+    try {
+      surfaceDocument = SurfaceDocumentCodec.decode(result.envelopeBytes);
+    } on FormatException {
+      return null;
+    }
+    if (surfaceDocument.surfaceType != flow.surfaceType ||
+        surfaceDocument.surfaceSlug != flow.id) {
+      return null;
+    }
+    final payload = surfaceDocument.payload;
+    if (payload is! FlowSurfacePayload) return null;
+    if (!_passesRetainedChecks(
+      flow,
+      payload.flowDocument,
+      surfaceDocument.requiredLibraries,
+    )) {
+      return null;
+    }
+
+    final assignment = _assignmentOf(result);
+    if ((assignment != null) != (result.decision == 'assigned')) {
+      return null;
+    }
+    if (assignment != null && snapshot.assignmentKey == null) {
+      return null;
+    }
+    final cached = _CachedServerFlow.from(
+      payload.flowDocument,
+      payload.screenBlobs,
+      surfaceDocument.requiredLibraries,
+      assignment: assignment,
+    );
+    return _ExperimentFreshFlow(
+      candidateRoot: _own(
+        cached.toResolvedFlow(cacheHit: false),
+        requiredLibraries: cached.requiredLibraries,
+      ),
+      serverVerdictAccepted:
+          assignment == null || result.decision == 'assigned',
+    );
+  }
+
+  Future<SurfaceFetchResult?> _fetchExperimentSurface({
+    required OnboardingFlowRef<Object?> flow,
+    required FlowMountContractSnapshot snapshot,
+    required FlowMountSeedCapture captureSeed,
+    required FlowMountRevalidationBoundary boundary,
+    required FlowContractFetchRequest flowContract,
+  }) async {
+    try {
+      return await _client.fetchSurface(
+        surfaceType: flow.surfaceType.wireName,
+        surfaceSlug: flow.id,
+        assignmentKey: snapshot.assignmentKey,
+        flowContract: flowContract,
+        publicationGuard: () => _experimentSnapshotIsCurrent(
+          snapshot,
+          boundary,
+          captureSeed,
+        ),
+      );
+    } on SurfaceRequestPublicationRejected {
+      throw const _ExperimentSeedDrift();
+    }
+  }
+
+  /// Loads the client's bundled flow document + screen blobs from its surface
+  /// directory by convention (`assets/<surface>/flows/<id>.flow.json`).
+  /// Embedded paywall-owned screens still load from the paywall screen
+  /// directory. Returns null when no bundled asset is present or it fails to
+  /// load — the "no contract ⇒ fail closed" signal for the active arm.
   Future<BundledFlowArtifacts?> _loadBundledContract<R>(
     OnboardingFlowRef<R> flow,
   ) async {
     try {
+      final surface = flow.surfaceType.wireName;
       return await loadBundledFlowArtifacts(
         bundle: _effectiveBundle,
-        flowJsonPath: 'assets/onboarding/flows/${flow.id}.flow.json',
-        screenAssetPathPrefix: 'assets/onboarding/screens',
+        flowJsonPath: 'assets/$surface/flows/${flow.id}.flow.json',
+        screenAssetPathPrefix: 'assets/$surface/screens',
         flowId: flow.id,
         // The bundled document IS the client's own version (codegen emits it at
         // flow.version), so pin it — parity with the exact bundled path. A
@@ -266,7 +431,11 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
         buildError: (reason, message, [cause]) =>
             _error(flow, reason, message, cause),
       );
-    } on FlowUnavailableError {
+    } on FlowUnavailableError catch (error) {
+      debugPrint(
+        '[restage] rejected bundled ${flow.surfaceType.wireName} flow baseline '
+        '"${flow.id}" (${error.reason}); active selection failed closed.',
+      );
       return null;
     }
   }
@@ -375,13 +544,34 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
   }
 
   ResolvedFlow _bundledResolvedFlow(BundledFlowArtifacts bundled) {
-    return ResolvedFlow(
-      document: bundled.document,
-      screenBlobs: bundled.screenBlobs,
-      contentHash: bundled.documentHash,
-      cacheHit: false,
+    return _own(
+      ResolvedFlow(
+        document: bundled.document,
+        screenBlobs: bundled.screenBlobs,
+        contentHash: bundled.documentHash,
+        cacheHit: false,
+      ),
+      requiredLibraries: const [],
     );
   }
+
+  ResolvedFlow _own(
+    ResolvedFlow flow, {
+    required List<LibraryRequirement> requiredLibraries,
+  }) {
+    FlowExperimentArtifactOwnership.attach(
+      owner: this,
+      flow: flow,
+      metadata: FlowExperimentArtifactOwnership.verifiedMetadata(
+        requiredLibraries: requiredLibraries,
+      ),
+    );
+    return flow;
+  }
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      FlowExperimentArtifactOwnership.metadataFor(owner: this, flow: flow);
 
   /// Rejects a decoded envelope whose header identity (`surfaceType` /
   /// `surfaceSlug` / `version`) does not match the requested flow. The inner
@@ -575,6 +765,281 @@ final class ServerFlowResolver implements FlowResolver, ActiveArmFlowResolver {
       reason: reason,
       message: cause == null ? message : '$message Cause: $cause',
     );
+  }
+}
+
+final class _ServerFlowExperimentPresentation
+    implements
+        FlowExperimentPresentationResolver,
+        FlowExperimentArtifactMetadataProvider {
+  _ServerFlowExperimentPresentation({
+    required this.owner,
+    required this.flow,
+    required this.captureSeed,
+  }) : _baselineResolver = _BundledExperimentResolver(owner);
+
+  final ServerFlowResolver owner;
+  final OnboardingFlowRef<Object?> flow;
+  final FlowMountSeedCapture captureSeed;
+  final _BundledExperimentResolver _baselineResolver;
+
+  FlowMountContractSnapshot? _snapshot;
+  FlowResolver? _selectedResolver;
+  _ExperimentHostedFlow? _provisional;
+  bool _disposed = false;
+
+  @override
+  bool get activeArmEnabled => owner.activeArmEnabled;
+
+  @override
+  Future<ResolvedFlow> resolveActiveRoot<R>(
+    OnboardingFlowRef<R> requestedFlow,
+  ) async {
+    if (!activeArmEnabled) return owner.resolve(requestedFlow);
+    for (var attempt = 0; attempt < 3 && !_disposed; attempt += 1) {
+      final snapshotOutcome = await FlowMountContractSnapshotBuilder(
+        captureSeed: captureSeed,
+        resolveAssignmentKey: SurfaceAssignmentKeyProvider.resolve,
+        resolver: _baselineResolver,
+      ).seal();
+      if (_disposed) throw _unavailable('disposed');
+      if (snapshotOutcome is FlowMountSnapshotRejected) {
+        if (snapshotOutcome.reason == FlowMountSnapshotRejection.seedDrift) {
+          continue;
+        }
+        throw _unavailable('invalid_baseline_closure');
+      }
+      final snapshot = (snapshotOutcome as FlowMountSnapshotSealed).snapshot;
+      _snapshot = snapshot;
+
+      try {
+        final fresh = await owner._fetchExperimentActive(
+          flow,
+          snapshot,
+          captureSeed,
+        );
+        if (_disposed) throw _unavailable('disposed');
+        if (fresh != null) {
+          final prefetched = await FlowCandidatePrefetcher.prefetch(
+            snapshot: snapshot,
+            captureSeed: captureSeed,
+            candidateRoot: fresh.candidateRoot,
+            resolver: this,
+            serverVerdictAccepted: fresh.serverVerdictAccepted,
+          );
+          if (_disposed) throw _unavailable('disposed');
+          if (prefetched is FlowCandidatePrefetchAccepted) {
+            _selectedResolver = prefetched.resolver;
+            _provisional = _ExperimentHostedFlow(
+              snapshot: snapshot,
+              accepted: prefetched,
+            );
+            return prefetched.candidateRoot;
+          }
+          if (prefetched is FlowCandidatePrefetchRejected &&
+              prefetched.reason == FlowCandidatePrefetchRejection.seedDrift) {
+            continue;
+          }
+        }
+      } on _ExperimentSeedDrift {
+        continue;
+      }
+
+      final key = owner._activeCacheKey(flow);
+      final held = owner._experimentActiveCache[key];
+      if (held != null) {
+        if (held.matches(snapshot) &&
+            _experimentSnapshotIsCurrent(
+              held.snapshot,
+              FlowMountRevalidationBoundary.fallback,
+              captureSeed,
+            )) {
+          final accepted = held.accepted.asCacheHit();
+          _selectedResolver = accepted.resolver;
+          _provisional = null;
+          return accepted.candidateRoot;
+        }
+        owner._experimentActiveCache.remove(key);
+      }
+
+      if (!_experimentSnapshotIsCurrent(
+        snapshot,
+        FlowMountRevalidationBoundary.fallback,
+        captureSeed,
+      )) {
+        continue;
+      }
+      _selectedResolver = snapshot.baselineResolver;
+      _provisional = null;
+      return snapshot.baselineRoot;
+    }
+    throw _unavailable('unstable_mount_identity');
+  }
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) {
+    final selected = _selectedResolver;
+    if (selected == null) {
+      final snapshot = _snapshot;
+      if (_disposed || snapshot == null) {
+        return Future<ResolvedFlow>.error(_unavailable('root_not_resolved'));
+      }
+      return owner._resolveExact(
+        flow,
+        publicationGuard: () =>
+            !_disposed &&
+            _experimentSnapshotIsCurrent(
+              snapshot,
+              FlowMountRevalidationBoundary.candidatePrefetch,
+              captureSeed,
+            ),
+      );
+    }
+    return selected.resolve(flow);
+  }
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      owner.metadataFor(flow);
+
+  @override
+  bool revalidate(FlowMountRevalidationBoundary boundary) {
+    final snapshot = _snapshot;
+    if (_disposed || snapshot == null) return false;
+    try {
+      return snapshot.revalidate(boundary, captureSeed());
+    } on Object {
+      return false;
+    }
+  }
+
+  @override
+  void publishHostedLastGood() {
+    final provisional = _provisional;
+    if (provisional == null) return;
+    if (!revalidate(FlowMountRevalidationBoundary.cachePublication)) {
+      _provisional = null;
+      return;
+    }
+    owner._experimentActiveCache[owner._activeCacheKey(flow)] = provisional;
+    _provisional = null;
+  }
+
+  @override
+  void abandonHostedLastGood() {
+    _provisional = null;
+  }
+
+  @override
+  void disposePresentation() {
+    _disposed = true;
+    abandonHostedLastGood();
+  }
+
+  FlowUnavailableError _unavailable(String reason) => FlowUnavailableError(
+        flowId: flow.id,
+        flowVersion: flow.version,
+        reason: reason,
+        message: 'Hosted flow "${flow.id}" could not complete its experiment '
+            'mount transaction ($reason).',
+      );
+}
+
+final class _BundledExperimentResolver
+    implements FlowResolver, FlowExperimentArtifactMetadataProvider {
+  const _BundledExperimentResolver(this.owner);
+
+  final ServerFlowResolver owner;
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
+    final bundled = await owner._loadBundledContract(flow);
+    if (bundled == null) {
+      throw FlowUnavailableError(
+        flowId: flow.id,
+        flowVersion: flow.version,
+        reason: 'missing_bundled_baseline',
+        message: 'Bundled baseline flow "${flow.id}" is unavailable.',
+      );
+    }
+    return owner._bundledResolvedFlow(bundled);
+  }
+
+  @override
+  FlowExperimentArtifactMetadata metadataFor(ResolvedFlow flow) =>
+      owner.metadataFor(flow);
+}
+
+final class _ExperimentFreshFlow {
+  const _ExperimentFreshFlow({
+    required this.candidateRoot,
+    required this.serverVerdictAccepted,
+  });
+
+  final ResolvedFlow candidateRoot;
+  final bool serverVerdictAccepted;
+}
+
+final class _ExperimentHostedFlow {
+  const _ExperimentHostedFlow({
+    required this.snapshot,
+    required this.accepted,
+  });
+
+  final FlowMountContractSnapshot snapshot;
+  final FlowCandidatePrefetchAccepted accepted;
+
+  bool matches(FlowMountContractSnapshot current) {
+    return snapshot.seed.sameIdentityAs(current.seed) &&
+        snapshot.assignmentKey == current.assignmentKey &&
+        snapshot.contentHash == current.contentHash;
+  }
+}
+
+final class _ExperimentSeedDrift implements Exception {
+  const _ExperimentSeedDrift();
+}
+
+void _requireExactPublicationCurrent(bool Function()? publicationGuard) {
+  if (publicationGuard == null) return;
+  try {
+    if (publicationGuard()) return;
+  } on Object {
+    // A throwing mutable-authority recapture is the same stale publication
+    // outcome as an explicit false guard.
+  }
+  throw const _ExperimentSeedDrift();
+}
+
+FlowMountLeaseSeed _captureExperimentSeed(
+  FlowMountSeedCapture captureSeed,
+) {
+  try {
+    return captureSeed();
+  } on Object {
+    throw const _ExperimentSeedDrift();
+  }
+}
+
+bool _experimentSnapshotIsCurrent(
+  FlowMountContractSnapshot snapshot,
+  FlowMountRevalidationBoundary boundary,
+  FlowMountSeedCapture captureSeed,
+) {
+  try {
+    return snapshot.revalidate(boundary, captureSeed());
+  } on Object {
+    return false;
+  }
+}
+
+void _requireExperimentSnapshotCurrent(
+  FlowMountContractSnapshot snapshot,
+  FlowMountRevalidationBoundary boundary,
+  FlowMountSeedCapture captureSeed,
+) {
+  if (!_experimentSnapshotIsCurrent(snapshot, boundary, captureSeed)) {
+    throw const _ExperimentSeedDrift();
   }
 }
 

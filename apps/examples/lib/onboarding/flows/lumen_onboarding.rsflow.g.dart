@@ -8,6 +8,8 @@ abstract final class LumenOnboardingFlowDescriptor {
     id: 'lumen_onboarding',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: LumenOnboardingFlowDescriptor._decodeResult,
   );
 

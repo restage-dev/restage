@@ -3,10 +3,52 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_shared/flow_experiment.dart'
+    show kFlowExperimentClientContractVersionV1, kFlowExperimentContractKind;
 import 'package:restage_shared/restage_shared.dart';
 
 import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
+
+/// SDK-internal fence evaluated immediately before a surface request posts.
+@internal
+typedef SurfaceRequestPublicationGuard = bool Function();
+
+/// Signals that a guarded surface request became stale before publication.
+@internal
+final class SurfaceRequestPublicationRejected implements Exception {
+  /// Creates the internal stale-publication signal.
+  const SurfaceRequestPublicationRejected();
+}
+
+/// Strict flow-contract identity attached to one hosted surface fetch.
+final class FlowContractFetchRequest {
+  /// Sends only [flowContractHash] for the first content-addressed lookup.
+  const FlowContractFetchRequest.hashOnly(this.flowContractHash)
+      : canonicalBytes = null;
+
+  /// Retries a cache miss with the exact canonical V1 contract bytes.
+  factory FlowContractFetchRequest.retry(
+    String flowContractHash,
+    List<int> canonicalBytes,
+  ) {
+    return FlowContractFetchRequest._(
+      flowContractHash,
+      List<int>.unmodifiable(canonicalBytes),
+    );
+  }
+
+  const FlowContractFetchRequest._(
+    this.flowContractHash,
+    this.canonicalBytes,
+  );
+
+  /// Exact `sha256:<lowercase hex>` content identity.
+  final String flowContractHash;
+
+  /// Canonical V1 bytes included only on a cache-miss retry.
+  final List<int>? canonicalBytes;
+}
 
 /// Result of a successful hosted surface fetch.
 final class SurfaceFetchResult {
@@ -18,6 +60,7 @@ final class SurfaceFetchResult {
     this.variantId,
     this.experimentEpoch,
     this.contractRequired = false,
+    this.flowContractRequired = false,
   });
 
   /// Base64-decoded `SurfaceDocument` envelope bytes.
@@ -43,6 +86,11 @@ final class SurfaceFetchResult {
   /// eligibility (a content-hash cache miss). The caller retries the fetch
   /// once with the contract attached.
   final bool contractRequired;
+
+  /// Whether the server needs the strict canonical flow contract uploaded.
+  ///
+  /// This is independent from the legacy blob [contractRequired] channel.
+  final bool flowContractRequired;
 }
 
 /// The active-version stamp for a surface.
@@ -235,7 +283,21 @@ class RestageRpcClient {
     String? assignmentKey,
     String? contractHash,
     InstalledCapability? contract,
+    FlowContractFetchRequest? flowContract,
+    SurfaceRequestPublicationGuard? publicationGuard,
   }) async {
+    final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
+    if (publicationGuard != null) {
+      final bool canPublish;
+      try {
+        canPublish = publicationGuard();
+      } on Object {
+        throw const SurfaceRequestPublicationRejected();
+      }
+      if (!canPublish) {
+        throw const SurfaceRequestPublicationRejected();
+      }
+    }
     final json = await _postJsonObject(
       path: '/sdk/v1/surface',
       body: {
@@ -243,11 +305,16 @@ class RestageRpcClient {
         'surfaceSlug': surfaceSlug,
         if (version != null) 'version': version,
         if (assignmentKey != null) 'assignmentKey': assignmentKey,
-        if (await SurfaceMeteringKeyProvider.currentKey()
-            case final String meteringKey)
-          'meteringKey': meteringKey,
+        if (meteringKey != null) 'meteringKey': meteringKey,
         if (contractHash != null) 'contractHash': contractHash,
         if (contract != null) 'contract': contract.toJson(),
+        if (flowContract != null) ...{
+          'flowContractKind': kFlowExperimentContractKind,
+          'flowContractVersion': kFlowExperimentClientContractVersionV1,
+          'flowContractHash': flowContract.flowContractHash,
+          if (flowContract.canonicalBytes case final bytes?)
+            'flowContractBytes': base64UrlEncode(bytes).replaceAll('=', ''),
+        },
       },
     );
     if (json == null) return null;
@@ -267,6 +334,9 @@ class RestageRpcClient {
       final rawContractRequired = json['contractRequired'];
       final contractRequired =
           rawContractRequired is bool ? rawContractRequired : false;
+      final rawFlowContractRequired = json['flowContractRequired'];
+      final flowContractRequired =
+          rawFlowContractRequired is bool ? rawFlowContractRequired : false;
       return SurfaceFetchResult(
         envelopeBytes: base64Decode(envelope),
         decision: decision,
@@ -274,6 +344,7 @@ class RestageRpcClient {
         variantId: assignment.variantId,
         experimentEpoch: assignment.experimentEpoch,
         contractRequired: contractRequired,
+        flowContractRequired: flowContractRequired,
       );
     } on FormatException catch (error) {
       debugPrint('[restage] surface envelope was not valid base64: $error');

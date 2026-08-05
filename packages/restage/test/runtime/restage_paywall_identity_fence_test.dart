@@ -1,15 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/flow/flow_experiment_mount.dart'
+    show FlowMountRevalidationBoundary;
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage/src/runtime/first_paint_lease_guard.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -202,6 +205,557 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(observed, (stalePainted: false, actorB: 1, resolverCalls: 2));
+  });
+
+  testWidgets(
+      'strict flow reset before first paint discards the assigned candidate, '
+      'publishes only the retried actor, and reuses only that HLG',
+      (tester) async {
+    _registerResetPaintProbe(_ResetTiming.duringBuild);
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://surfaces.example.com',
+    );
+    final baselineScreen = screenBlob('Frozen bundled baseline', 'finish');
+    final bundle = _StrictPaywallAssetBundle(
+      document: _strictFlowDocument(screen: baselineScreen),
+      screens: <String, Uint8List>{'paywall_pro_upgrade.rfw': baselineScreen},
+    );
+    final server = _ControlledHostedServer();
+    final resolver = RestageVariantResolver(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'https://surfaces.example.com',
+      httpClient: server.client,
+      assetFallback: AssetVariantResolver(bundle: bundle),
+    );
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'pro_upgrade',
+        resolver: resolver,
+        onEvent: events.add,
+      ),
+    ));
+    await _pumpUntil(tester, () => server.requests.length == 1);
+    expect(
+        _requestJson(server.requests[0].request), contains('flowContractHash'));
+    server.requests[0].complete(_hostedResponse(
+      _strictFlowEnvelope(
+        screen: _resettingFlowScreenBlob(),
+        version: 9,
+        requiredLibraries: const <LibraryRequirement>[
+          LibraryRequirement(
+            namespace: 'acme.identity_reset',
+            minVersion: 1,
+          ),
+        ],
+      ),
+      decision: 'assigned',
+      experimentId: 'experiment-a',
+      variantId: 'variant-a',
+      experimentEpoch: 1,
+    ));
+
+    await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
+    await _pumpUntil(tester, () => server.requests.length == 2);
+    final actorBScreen = screenBlob('Strict actor B', 'finish');
+    server.requests[1].complete(_hostedResponse(
+      _strictFlowEnvelope(screen: actorBScreen, version: 10),
+      decision: 'assigned',
+      experimentId: 'experiment-b',
+      variantId: 'variant-b',
+      experimentEpoch: 2,
+    ));
+    await tester.pumpAndSettle();
+
+    expect(_ResetPaintProbe.paintCount, 0);
+    expect(find.text('Strict actor B'), findsOneWidget);
+    expect(
+      events.whereType<PaywallViewed>().map((event) => (
+            experimentId: event.experimentId,
+            variantId: event.variantId,
+            experimentEpoch: event.experimentEpoch,
+          )),
+      orderedEquals(<Object>[
+        (
+          experimentId: 'experiment-b',
+          variantId: 'variant-b',
+          experimentEpoch: 2,
+        ),
+      ]),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    events.clear();
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'pro_upgrade',
+        resolver: resolver,
+        onEvent: events.add,
+      ),
+    ));
+    await _pumpUntil(tester, () => server.requests.length == 3);
+    server.requests[2].complete(http.Response('unavailable', 503));
+    await tester.pumpAndSettle();
+
+    final observed = (
+      actorB: find.text('Strict actor B').evaluate().length,
+      requests: server.requests.length,
+      cacheHits: events
+          .whereType<PaywallLoadCompleted>()
+          .map((event) => event.cacheHit)
+          .toList(),
+    );
+    Restage.reset();
+    await tester.pumpAndSettle();
+    expect(find.text('Strict actor B'), findsOneWidget);
+    await Restage.reloadSurfaces();
+    expect(server.requests, hasLength(3));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
+    ));
+    await _pumpUntil(tester, () => server.requests.length == 4);
+    server.requests[3].complete(http.Response('unavailable', 503));
+    await tester.pumpAndSettle();
+    expect(find.text('Frozen bundled baseline'), findsOneWidget);
+    expect(find.text('Strict actor B'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+
+    expect((actorB: observed.actorB, requests: observed.requests),
+        (actorB: 1, requests: 3));
+    expect(observed.cacheHits, orderedEquals(<bool>[true]));
+  });
+
+  testWidgets(
+      'strict flow first-paint churn shares one frozen preflight and falls '
+      'back unassigned after three total hosted attempts', (tester) async {
+    var actorGeneration = 0;
+    SurfaceAssignmentKeyProvider.install(
+      key: () => 'actor-$actorGeneration',
+      identityGeneration: () => actorGeneration,
+    );
+    final originalBaseline = screenBlob('Original frozen baseline', 'finish');
+    final bundle = _StrictPaywallAssetBundle(
+      document: _strictFlowDocument(screen: originalBaseline),
+      screens: <String, Uint8List>{
+        'paywall_pro_upgrade.rfw': originalBaseline,
+      },
+    );
+    final server = _ControlledHostedServer();
+    final resolver = RestageVariantResolver(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'https://surfaces.example.com',
+      httpClient: server.client,
+      assetFallback: AssetVariantResolver(bundle: bundle),
+    );
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'pro_upgrade',
+        resolver: resolver,
+        onEvent: events.add,
+      ),
+    ));
+    await _waitUntil(() => server.requests.length == 1);
+
+    final mutatedBaseline = screenBlob('Mutated bundled baseline', 'finish');
+    bundle.replace(
+      document: _strictFlowDocument(screen: mutatedBaseline),
+      screens: <String, Uint8List>{
+        'paywall_pro_upgrade.rfw': mutatedBaseline,
+      },
+    );
+
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      await _waitUntil(() => server.requests.length == attempt + 1);
+      final candidate = screenBlob('Rejected candidate $attempt', 'finish');
+      server.requests[attempt].complete(_hostedResponse(
+        _strictFlowEnvelope(screen: candidate, version: 10 + attempt),
+        decision: 'assigned',
+        experimentId: 'experiment-$attempt',
+        variantId: 'variant-$attempt',
+        experimentEpoch: attempt + 1,
+      ));
+      // Resolve and stage the candidate while its HTTP response Completer is
+      // controlled, but do not draw the scheduled first-paint frame.
+      await tester.idle();
+      actorGeneration += 1;
+      FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
+      await tester.idle();
+    }
+
+    await _pumpUntil(
+      tester,
+      () =>
+          find.text('Original frozen baseline').evaluate().isNotEmpty ||
+          server.requests.length > 3,
+    );
+    if (server.requests.length > 3) {
+      server.requests[3].complete(http.Response('unavailable', 503));
+    }
+    await tester.pumpAndSettle();
+
+    final viewed = events.whereType<PaywallViewed>().toList();
+    final observed = (
+      requests: server.requests.length,
+      loadedKeys: List<String>.of(bundle.loadedKeys),
+      original: find.text('Original frozen baseline').evaluate().length,
+      mutated: find.text('Mutated bundled baseline').evaluate().length,
+      candidates: find.textContaining('Rejected candidate').evaluate().length,
+      unavailable: events.whereType<FlowUnavailable>().length,
+      failed: events.whereType<PaywallLoadFailed>().length,
+      assignment: viewed.length != 1
+          ? null
+          : (
+              viewed.single.experimentId,
+              viewed.single.variantId,
+              viewed.single.experimentEpoch,
+            ),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+
+    expect(observed.requests, 3);
+    expect(
+      observed.loadedKeys,
+      orderedEquals(<String>[
+        'assets/paywalls/pro_upgrade.flow.json',
+        'assets/paywalls/screens/paywall_pro_upgrade.rfw',
+      ]),
+    );
+    expect(observed.original, 1);
+    expect(observed.mutated, 0);
+    expect(observed.candidates, 0);
+    expect(observed.unavailable, 0);
+    expect(observed.failed, 0);
+    expect(observed.assignment, (null, null, null));
+  });
+
+  testWidgets(
+      'strict flow post-resolver identity churn retains one frozen preflight '
+      'and three-attempt budget', (tester) async {
+    final identity = _PostResolverIdentityDrift();
+    SurfaceAssignmentKeyProvider.install(
+      key: () => 'actor-${identity.generation}',
+      identityGeneration: identity.read,
+    );
+    final originalBaseline =
+        screenBlob('Original resolver-gap baseline', 'finish');
+    final bundle = _StrictPaywallAssetBundle(
+      document: _strictFlowDocument(screen: originalBaseline),
+      screens: <String, Uint8List>{
+        'paywall_pro_upgrade.rfw': originalBaseline,
+      },
+    );
+    final server = _ControlledHostedServer();
+    final resolver = RestageVariantResolver(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'https://surfaces.example.com',
+      httpClient: server.client,
+      assetFallback: AssetVariantResolver(bundle: bundle),
+    );
+    final events = <RestageEvent>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'pro_upgrade',
+        resolver: resolver,
+        onEvent: events.add,
+      ),
+    ));
+    await _waitUntil(() => server.requests.length == 1);
+
+    final mutatedBaseline =
+        screenBlob('Mutated resolver-gap baseline', 'finish');
+    bundle.replace(
+      document: _strictFlowDocument(screen: mutatedBaseline),
+      screens: <String, Uint8List>{
+        'paywall_pro_upgrade.rfw': mutatedBaseline,
+      },
+    );
+
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      await _waitUntil(() => server.requests.length == attempt + 1);
+      identity.driftAfterPresentationFinalRecapture();
+      server.requests[attempt].complete(_hostedResponse(
+        _strictFlowEnvelope(
+          screen: screenBlob('Resolver-gap candidate $attempt', 'finish'),
+          version: 20 + attempt,
+        ),
+        decision: 'assigned',
+        experimentId: 'resolver-gap-experiment-$attempt',
+        variantId: 'resolver-gap-variant-$attempt',
+        experimentEpoch: attempt + 1,
+      ));
+      await tester.idle();
+      await _waitUntil(() => identity.completedDrifts == attempt + 1);
+    }
+
+    await _pumpUntil(
+      tester,
+      () =>
+          find.text('Original resolver-gap baseline').evaluate().isNotEmpty ||
+          server.requests.length > 3,
+      maxPumps: 100,
+      step: const Duration(milliseconds: 1),
+    );
+    if (server.requests.length > 3) {
+      server.requests[3].complete(http.Response('unavailable', 503));
+      await _pumpUntil(
+        tester,
+        () =>
+            find.text('Original resolver-gap baseline').evaluate().isNotEmpty ||
+            find.text('Mutated resolver-gap baseline').evaluate().isNotEmpty,
+        maxPumps: 100,
+        step: const Duration(milliseconds: 1),
+      );
+    }
+    await tester.pumpAndSettle();
+
+    final viewed = events.whereType<PaywallViewed>().toList();
+    final observed = (
+      requests: server.requests.length,
+      loadedKeys: List<String>.of(bundle.loadedKeys),
+      original: find.text('Original resolver-gap baseline').evaluate().length,
+      mutated: find.text('Mutated resolver-gap baseline').evaluate().length,
+      candidates:
+          find.textContaining('Resolver-gap candidate').evaluate().length,
+      unavailable: events.whereType<FlowUnavailable>().length,
+      failed: events.whereType<PaywallLoadFailed>().length,
+      assignment: viewed.length != 1
+          ? null
+          : (
+              viewed.single.experimentId,
+              viewed.single.variantId,
+              viewed.single.experimentEpoch,
+            ),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(observed.requests, 3);
+    expect(
+      observed.loadedKeys,
+      orderedEquals(<String>[
+        'assets/paywalls/pro_upgrade.flow.json',
+        'assets/paywalls/screens/paywall_pro_upgrade.rfw',
+      ]),
+    );
+    expect(observed.original, 1);
+    expect(observed.mutated, 0);
+    expect(observed.candidates, 0);
+    expect(observed.unavailable, 0);
+    expect(observed.failed, 0);
+    expect(observed.assignment, (null, null, null));
+  });
+
+  testWidgets(
+      'unexpected current-epoch retained flow retry failure reaches the normal '
+      'failure path', (tester) async {
+    final flow = resolvedFlow(welcomeText: 'Rejected retained flow');
+    final authority = _ThrowingRetryAuthority(flow);
+    final resolver = _ControlledPayloadResolver();
+    final events = <RestageEvent>[];
+    final reportedErrors = <FlutterErrorDetails>[];
+    final previousErrorHandler = FlutterError.onError;
+    FlutterError.onError = reportedErrors.add;
+    addTearDown(() => FlutterError.onError = previousErrorHandler);
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'pro_upgrade',
+        resolver: resolver,
+        onEvent: events.add,
+        loadingBuilder: (_) => const Text('Retry still loading'),
+        errorBuilder: (_, __) => const Text('Retained retry failed'),
+      ),
+    ));
+    await tester.pump();
+    resolver.responses.single.complete(FlowPaywallPayload.experimentBaseline(
+      flow: flow,
+      pinnedFlowResolver: authority,
+      paywallId: 'pro_upgrade',
+      experimentAuthority: authority,
+    ));
+
+    await _pumpUntil(tester, () => authority.retryCalls == 1);
+    await tester.pumpAndSettle();
+    FlutterError.onError = previousErrorHandler;
+
+    final observed = (
+      resolverCalls: resolver.responses.length,
+      loading: find.text('Retry still loading').evaluate().length,
+      error: find.text('Retained retry failed').evaluate().length,
+      failed: events.whereType<PaywallLoadFailed>().length,
+      viewed: events.whereType<PaywallViewed>().length,
+      reported: reportedErrors.length,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+
+    expect(
+      observed,
+      (
+        resolverCalls: 1,
+        loading: 0,
+        error: 1,
+        failed: 1,
+        viewed: 0,
+        reported: 1,
+      ),
+    );
+  });
+
+  testWidgets(
+      'unmount while a strict first-paint retry request is pending cannot '
+      'stage or request later work', (tester) async {
+    var actorGeneration = 0;
+    SurfaceAssignmentKeyProvider.install(
+      key: () => 'actor-$actorGeneration',
+      identityGeneration: () => actorGeneration,
+    );
+    final baseline = screenBlob('Disposal baseline', 'finish');
+    final bundle = _StrictPaywallAssetBundle(
+      document: _strictFlowDocument(screen: baseline),
+      screens: <String, Uint8List>{'paywall_pro_upgrade.rfw': baseline},
+    );
+    final server = _ControlledHostedServer();
+    final events = <RestageEvent>[];
+    final resolver = RestageVariantResolver(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'https://surfaces.example.com',
+      httpClient: server.client,
+      assetFallback: AssetVariantResolver(bundle: bundle),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(
+        id: 'pro_upgrade',
+        resolver: resolver,
+        onEvent: events.add,
+      ),
+    ));
+    await _waitUntil(() => server.requests.length == 1);
+    server.requests[0].complete(_hostedResponse(
+      _strictFlowEnvelope(
+        screen: screenBlob('Disposed candidate A', 'finish'),
+        version: 9,
+      ),
+      decision: 'assigned',
+      experimentId: 'experiment-a',
+      variantId: 'variant-a',
+      experimentEpoch: 1,
+    ));
+    await tester.idle();
+    actorGeneration += 1;
+    FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
+    await tester.idle();
+    await _waitUntil(() => server.requests.length == 2);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    server.requests[1].complete(_hostedResponse(
+      _strictFlowEnvelope(
+        screen: screenBlob('Disposed candidate B', 'finish'),
+        version: 10,
+      ),
+      decision: 'assigned',
+      experimentId: 'experiment-b',
+      variantId: 'variant-b',
+      experimentEpoch: 2,
+    ));
+    await tester.idle();
+    await tester.pump();
+
+    expect(server.requests, hasLength(2));
+    expect(bundle.loadedKeys, hasLength(2));
+    expect(events.whereType<PaywallLoadCompleted>(), isEmpty);
+    expect(events.whereType<PaywallViewed>(), isEmpty);
+    expect(events.whereType<PaywallLoadFailed>(), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'strict unassigned refresh promotes while a newly assigned refresh is '
+      'discarded and cannot replace HLG', (tester) async {
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'https://surfaces.example.com',
+    );
+    final baselineScreen = screenBlob('Frozen bundled baseline', 'finish');
+    final bundle = _StrictPaywallAssetBundle(
+      document: _strictFlowDocument(screen: baselineScreen),
+      screens: <String, Uint8List>{'paywall_pro_upgrade.rfw': baselineScreen},
+    );
+    final server = _ControlledHostedServer();
+    final resolver = RestageVariantResolver(
+      apiKey: 'rs_pk_test',
+      environment: RestageEnvironment.sandbox,
+      baseUrl: 'https://surfaces.example.com',
+      httpClient: server.client,
+      assetFallback: AssetVariantResolver(bundle: bundle),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
+    ));
+    await _pumpUntil(tester, () => server.requests.length == 1);
+    final screenA = screenBlob('Strict current A', 'finish');
+    server.requests[0].complete(_hostedResponse(
+      _strictFlowEnvelope(screen: screenA, version: 9),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Strict current A'), findsOneWidget);
+
+    final promote = Restage.reloadSurfaces();
+    await _pumpUntil(tester, () => server.requests.length == 2);
+    final screenB = screenBlob('Strict refreshed B', 'finish');
+    server.requests[1].complete(_hostedResponse(
+      _strictFlowEnvelope(screen: screenB, version: 10),
+    ));
+    await promote;
+    await tester.pumpAndSettle();
+    expect(find.text('Strict refreshed B'), findsOneWidget);
+    expect(find.text('Strict current A'), findsNothing);
+
+    final rejectAssigned = Restage.reloadSurfaces();
+    await _pumpUntil(tester, () => server.requests.length == 3);
+    final screenC = screenBlob('Incorrect assigned refresh C', 'finish');
+    server.requests[2].complete(_hostedResponse(
+      _strictFlowEnvelope(screen: screenC, version: 11),
+      decision: 'assigned',
+      experimentId: 'experiment-c',
+      variantId: 'variant-c',
+      experimentEpoch: 3,
+    ));
+    await rejectAssigned;
+    await tester.pumpAndSettle();
+    expect(find.text('Strict refreshed B'), findsOneWidget);
+    expect(find.text('Incorrect assigned refresh C'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(MaterialApp(
+      home: RestagePaywall(id: 'pro_upgrade', resolver: resolver),
+    ));
+    await _pumpUntil(tester, () => server.requests.length == 4);
+    server.requests[3].complete(http.Response('unavailable', 503));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Strict refreshed B'), findsOneWidget);
+    expect(server.requests, hasLength(4));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
   });
 
   testWidgets(
@@ -1053,6 +1607,7 @@ void _registerResetPaintProbe(_ResetTiming timing) {
         builder: (_, __) => const _ResetPaintProbe(),
       ),
     ],
+    capabilityVersion: 1,
   );
 }
 
@@ -1130,6 +1685,68 @@ final class _ControlledHostedServer {
   final List<_PendingHostedRequest> requests = <_PendingHostedRequest>[];
 }
 
+final class _PostResolverIdentityDrift {
+  int generation = 0;
+  int completedDrifts = 0;
+  int? _remainingReads;
+
+  int read() {
+    final captured = generation;
+    final remaining = _remainingReads;
+    if (remaining == null) return captured;
+    if (remaining > 1) {
+      _remainingReads = remaining - 1;
+      return captured;
+    }
+    _remainingReads = null;
+    // The strict presentation's final recapture receives [captured]. Advance
+    // the backing generation immediately afterward so the host's first
+    // post-await recapture is the first observer of the new identity.
+    generation += 1;
+    completedDrifts += 1;
+    return captured;
+  }
+
+  void driftAfterPresentationFinalRecapture() {
+    assert(_remainingReads == null, 'Only one drift may be armed at a time.');
+    // Response acceptance, prefetch entry, closure completion, prefetch
+    // completion, then the presentation's final pending-promotion recapture.
+    _remainingReads = 5;
+  }
+}
+
+final class _ThrowingRetryAuthority
+    implements FlowPaywallExperimentRetryAuthority, FlowResolver {
+  _ThrowingRetryAuthority(this.flow);
+
+  final ResolvedFlow flow;
+  int retryCalls = 0;
+  bool _disposed = false;
+
+  @override
+  bool revalidate(FlowMountRevalidationBoundary boundary) =>
+      !_disposed && boundary != FlowMountRevalidationBoundary.firstPaint;
+
+  @override
+  Future<FlowPaywallPayload?> resolveNextPayload() {
+    retryCalls += 1;
+    throw StateError('retained retry failed');
+  }
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> requestedFlow) async =>
+      flow;
+
+  @override
+  void publishHostedLastGood() {}
+
+  @override
+  void abandonHostedLastGood() {}
+
+  @override
+  void disposePresentation() => _disposed = true;
+}
+
 final class _PendingHostedRequest {
   _PendingHostedRequest(this.request);
 
@@ -1199,6 +1816,7 @@ String? _assignmentKey(http.Request request) {
 
 http.Response _hostedResponse(
   Uint8List envelope, {
+  String? decision,
   String? experimentId,
   String? variantId,
   int? experimentEpoch,
@@ -1206,12 +1824,106 @@ http.Response _hostedResponse(
   return http.Response(
     jsonEncode({
       'envelope': base64Encode(envelope),
+      if (decision != null) 'decision': decision,
       if (experimentId != null) 'experimentId': experimentId,
       if (variantId != null) 'variantId': variantId,
       if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
     }),
     200,
   );
+}
+
+Map<String, Object?> _requestJson(http.Request request) =>
+    (jsonDecode(request.body) as Map).cast<String, Object?>();
+
+Uint8List _strictFlowEnvelope({
+  required Uint8List screen,
+  required int version,
+  List<LibraryRequirement> requiredLibraries = const <LibraryRequirement>[],
+}) {
+  final document = _strictFlowDocument(screen: screen);
+  return SurfaceDocumentCodec.encode(SurfaceDocument(
+    surfaceType: SurfaceType.paywall,
+    surfaceSlug: 'pro_upgrade',
+    version: version,
+    minClient: document.minClient,
+    requiredLibraries: requiredLibraries,
+    payload: FlowSurfacePayload(
+      flowDocument: document,
+      screenBlobs: <String, Uint8List>{'welcome': screen},
+      requiredLibraries: requiredLibraries,
+    ),
+    publishedAt: DateTime.utc(2026),
+  ));
+}
+
+FlowDocument _strictFlowDocument({required Uint8List screen}) {
+  return FlowDocument(
+    flow: 'pro_upgrade',
+    version: 1,
+    schemaVersion: 1,
+    minClient: 3,
+    initial: 'welcome',
+    actions: const <String, FlowActionContract>{},
+    screenArtifacts: <String, ScreenArtifact>{
+      'welcome': ScreenArtifact(
+        path: 'paywall_pro_upgrade.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: 3,
+        contentHash: FlowContentHash.compute(screen),
+      ),
+    },
+    states: const <String, FlowState>{
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: <String, FlowTransition>{
+          'finish': FlowTransition.goto('done'),
+        },
+      ),
+      'done': EndFlowState(result: <String, Object?>{}),
+    },
+  );
+}
+
+final class _StrictPaywallAssetBundle extends CachingAssetBundle {
+  _StrictPaywallAssetBundle({
+    required FlowDocument document,
+    required Map<String, Uint8List> screens,
+  }) : _assets = <String, Uint8List>{
+          'assets/paywalls/${document.flow}.flow.json': Uint8List.fromList(
+            FlowDocumentCodec.encodeCanonicalJson(document),
+          ),
+          for (final entry in screens.entries)
+            'assets/paywalls/screens/${entry.key}':
+                Uint8List.fromList(entry.value),
+        };
+
+  final Map<String, Uint8List> _assets;
+  final List<String> loadedKeys = <String>[];
+
+  void replace({
+    required FlowDocument document,
+    required Map<String, Uint8List> screens,
+  }) {
+    _assets
+      ..clear()
+      ..['assets/paywalls/${document.flow}.flow.json'] =
+          Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document))
+      ..addAll(<String, Uint8List>{
+        for (final entry in screens.entries)
+          'assets/paywalls/screens/${entry.key}':
+              Uint8List.fromList(entry.value),
+      });
+  }
+
+  @override
+  Future<ByteData> load(String key) async {
+    loadedKeys.add(key);
+    final bytes = _assets[key];
+    if (bytes == null) throw FlutterError('Unable to load asset: $key');
+    return ByteData.sublistView(Uint8List.fromList(bytes));
+  }
 }
 
 Uint8List _blobEnvelope(String text, {required int version}) {

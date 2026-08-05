@@ -13,11 +13,8 @@ import '../helpers.dart';
 /// from `lib/<surface>/flows/` to `assets/<surface>/flows/` — in BOTH delivery
 /// modes (typed default + `delivery: general` stamped).
 ///
-/// Artifact-level only: NO host widget and NO message/survey example app is
-/// created here. `RestageOnboarding` is the only surface-level flow host
-/// widget today (the lower-level `RestageFlowView` renders any
-/// controller-driven flow); message/survey host widgets ship with those
-/// surfaces later and inherit this build machinery for free.
+/// Artifact-level proof only: neutral host behavior is covered by SDK widget
+/// tests, so no separate message/survey example app is needed here.
 void main() {
   for (final surface in const [SurfaceType.message, SurfaceType.survey]) {
     final name = surface.wireName;
@@ -47,6 +44,24 @@ void main() {
         final json = await _buildFlowJson(surface, null);
         expect(json, isNot(contains('deliveryMode')));
       });
+
+      for (final delivery in [
+        null,
+        FlowDeliveryMode.general,
+      ]) {
+        final mode = delivery?.wireName ?? 'typed';
+        test('$mode descriptor carries $name surface provenance', () async {
+          final generated = await _buildFlowDescriptor(surface, delivery);
+          expect(
+            generated,
+            contains('surfaceType: SurfaceType.$name'),
+          );
+          expect(
+            generated,
+            contains('deliveryMode: FlowDeliveryMode.$mode'),
+          );
+        });
+      }
     });
   }
 
@@ -109,6 +124,20 @@ Future<String> _buildFlowJson(
     AssetId('apps_examples', 'assets/$name/flows/$_flowSlug.flow.json'),
   );
   return utf8.decode(bytes);
+}
+
+Future<String> _buildFlowDescriptor(
+  SurfaceType surface,
+  FlowDeliveryMode? delivery,
+) async {
+  final name = surface.wireName;
+  final result = await _run(surface, delivery);
+  return result.readerWriter.testing.readString(
+    AssetId(
+      'apps_examples',
+      'lib/$name/flows/$_flowSlug.rsflow.g.dart',
+    ),
+  );
 }
 
 Future<TestBuilderResult> _run(

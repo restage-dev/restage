@@ -8,6 +8,8 @@ abstract final class StrideFirstRunFlowDescriptor {
     id: 'stride_first_run',
     version: 2,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.general,
     decodeResult: StrideFirstRunFlowDescriptor._decodeResult,
   );
 

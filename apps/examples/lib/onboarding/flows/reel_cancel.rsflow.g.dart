@@ -8,6 +8,8 @@ abstract final class ReelCancelFlowDescriptor {
     id: 'reel_cancel',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: ReelCancelFlowDescriptor._decodeResult,
   );
 

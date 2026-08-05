@@ -1,8 +1,8 @@
 /// Restage Flutter SDK.
 ///
-/// Renders bundled paywall and onboarding artifacts as real Flutter widgets
-/// through RFW. Flow and paywall artifacts are declarative; host actions stay
-/// typed app-owned callbacks installed by the app.
+/// Renders bundled surface artifacts as real Flutter widgets through RFW.
+/// Flow and paywall artifacts are declarative; host actions stay typed
+/// app-owned callbacks installed by the app.
 library;
 
 export 'src/authoring/event_dispatcher.dart';
@@ -24,6 +24,8 @@ export 'src/flow/flow_assignment.dart';
 export 'src/flow/flow_chrome.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
 export 'src/flow/flow_descriptors.dart';
+export 'src/flow/flow_experiment_artifact_metadata.dart'
+    show FlowExperimentArtifactMetadata;
 export 'src/flow/flow_predicates.dart';
 // `ActiveArmFlowResolver` is an SDK-internal resolver capability (the active-arm
 // seam); it is consumed within the package, not part of the public API.
@@ -32,6 +34,7 @@ export 'src/flow/flow_seed.dart';
 export 'src/flow/flow_transitions.dart';
 export 'src/flow/restage_flow_view.dart';
 export 'src/flow/restage_onboarding.dart';
+export 'src/flow/restage_surface_flow.dart';
 export 'src/flow/restage_screen_view.dart';
 export 'src/flow/server_flow_resolver.dart';
 export 'src/flow/system_back_policy.dart';
@@ -71,6 +74,7 @@ export 'package:restage_shared/restage_shared.dart'
         InFlowPredicateCondition,
         LessThanFlowPredicateCondition,
         LessThanOrEqualsFlowPredicateCondition,
+        LibraryRequirement,
         LiteralFlowValueSource,
         NotEqualsFlowPredicateCondition,
         kReservedPreviewConstructorName,
@@ -84,7 +88,8 @@ export 'package:restage_shared/restage_shared.dart'
 export 'src/refresh/surface_refresh_trigger.dart';
 export 'src/refresh/surface_update_channel.dart';
 export 'src/resolver/asset_variant_resolver.dart';
-export 'src/resolver/restage_variant_resolver.dart';
+export 'src/resolver/restage_variant_resolver.dart'
+    hide stampFlowPayloadForDelivery, withoutAssignmentLeaseForDelivery;
 // The exception thrown when a configured origin would transmit credentials or
 // purchaser data over cleartext. Public so hosts can catch it by type.
 export 'src/secure_transport.dart' show InsecureBaseUrlException;

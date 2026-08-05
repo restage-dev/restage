@@ -70,6 +70,9 @@ final Map<String, AnalyticsEventSpec> kAnalyticsRegistry =
   'subscription_renewed': _tier1,
   'subscription_lapsed': _tier1,
 
+  // --- Tier 1: canonical root presentation (all surface types) ---
+  'surface_presented': _tier1,
+
   // --- Tier 1: engagement-flow lifecycle (surface-agnostic) ---
   'flow_started': _tier1,
   'flow_completed': _tier1,

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/analytics/root_analytics_context.dart';
 
 import 'flow_test_support.dart';
 
@@ -131,6 +132,10 @@ void main() {
 
     expect(controller.hasRenderedContent, isFalse);
     expect(controller.renderedAssignment, isNull);
+    expect(
+      RootAnalyticsArtifactRegistry.surfaceVersionFor(controller),
+      firstRunFlowRef.version.toString(),
+    );
     expect(observations, [
       (flowId: 'first_run', ready: false, assignment: null),
       (flowId: 'child_flow', ready: false, assignment: null),

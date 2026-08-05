@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show AssetBundle, CachingAssetBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_event_mapper.dart';
+import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
+import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -36,6 +40,53 @@ void main() {
 
   setUp(Restage.debugReset);
 
+  testWidgets(
+      'explicit active surface host seals identity before its warm request',
+      (tester) async {
+    final bundledBytes = screenBlob('Bundled', 'next');
+    final activeBytes = screenBlob('Active', 'next');
+    final assignmentKey = Completer<String?>();
+    final requests = <http.Request>[];
+    SurfaceAssignmentKeyProvider.current = () => assignmentKey.future;
+    addTearDown(() {
+      if (!assignmentKey.isCompleted) assignmentKey.complete(null);
+      SurfaceAssignmentKeyProvider.clear();
+    });
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      active: true,
+      bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
+      httpClient: _server(
+        _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
+        onRequest: requests.add,
+      ),
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: RestageSurfaceFlow<Map<String, Object?>>(
+        flow: flowRef,
+        resolver: resolver,
+        unavailable: const FlowUnavailablePolicy.hide(),
+      ),
+    ));
+    await tester.pump();
+
+    expect(requests, isEmpty);
+
+    assignmentKey.complete('anon-controlled');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Active'), findsOneWidget);
+    expect(requests, hasLength(1));
+    final body = jsonDecode(requests.single.body) as Map<String, Object?>;
+    expect(body['assignmentKey'], 'anon-controlled');
+    expect(body['flowContractKind'], 'flow');
+    expect(body['flowContractVersion'], 1);
+    expect(body['flowContractHash'], startsWith('sha256:'));
+    expect(body.containsKey('flowContractBytes'), isFalse);
+  });
+
   test('old client → newer compatible active: renders the ACTIVE doc',
       () async {
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
@@ -55,6 +106,12 @@ void main() {
     // The newer, content-compatible active version renders — the OTA capability.
     expect(resolved.document.version, 2);
     expect(resolved.screenBlobs['welcome'], activeBytes);
+    final metadata =
+        (resolver as FlowExperimentArtifactMetadataProvider).metadataFor(
+      resolved,
+    );
+    expect(metadata.requiredLibraries, isEmpty);
+    expect(metadata.payloadIntegrityVerified, isTrue);
   });
 
   test(
@@ -161,6 +218,13 @@ void main() {
     // The second fetch fails (null) → hold-last-good serves the cached active.
     expect(second.document.version, 2);
     expect(second.screenBlobs['welcome'], activeBytes);
+    expect(second.cacheHit, isTrue);
+    final provider = resolver as FlowExperimentArtifactMetadataProvider;
+    for (final resolved in [first, second]) {
+      final metadata = provider.metadataFor(resolved);
+      expect(metadata.requiredLibraries, isEmpty);
+      expect(metadata.payloadIntegrityVerified, isTrue);
+    }
     expect(fetches, 2);
   });
 
@@ -178,10 +242,20 @@ void main() {
 
     expect(resolved.document.version, 1);
     expect(resolved.screenBlobs['welcome'], bundledBytes);
+    final metadata =
+        (resolver as FlowExperimentArtifactMetadataProvider).metadataFor(
+      resolved,
+    );
+    expect(metadata.requiredLibraries, isEmpty);
+    expect(metadata.payloadIntegrityVerified, isTrue);
   });
 
   test('no bundled asset + active arm → fail closed (never an ungated accept)',
       () async {
+    final logs = <String?>[];
+    final originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logs.add(message);
+    addTearDown(() => debugPrint = originalDebugPrint);
     final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
@@ -199,41 +273,60 @@ void main() {
       resolver.resolveActiveRoot(flowRef),
       throwsA(isA<FlowUnavailableError>()),
     );
-  });
-
-  test('active arm fails closed for a non-onboarding descriptor before fetch',
-      () async {
-    final requests = <http.Request>[];
-    const messageRef = OnboardingFlowRef<Map<String, Object?>>(
-      id: 'first_run',
-      version: 1,
-      minClient: _refFloor,
-      surfaceType: SurfaceType.message,
-      decodeResult: _decodeMapResult,
-    );
-    final resolver = ServerFlowResolver(
-      baseUrl: baseUrl,
-      apiKey: apiKey,
-      active: true,
-      bundle: _emptyBundle(),
-      httpClient: MockClient((request) async {
-        requests.add(request);
-        return http.Response('not found', 404);
-      }),
-    );
-
-    await expectLater(
-      resolver.resolveActiveRoot(messageRef),
-      throwsA(
-        isA<FlowUnavailableError>().having(
-          (error) => error.reason,
-          'reason',
-          'unsupported_surface_type',
-        ),
+    expect(
+      logs,
+      contains(
+        '[restage] rejected bundled onboarding flow baseline "first_run" '
+        '(missing_flow_json); active selection failed closed.',
       ),
     );
-    expect(requests, isEmpty);
+    expect(logs.join(), isNot(contains(apiKey)));
   });
+
+  for (final surfaceType in const [
+    SurfaceType.message,
+    SurfaceType.survey,
+  ]) {
+    test('active arm resolves a ${surfaceType.wireName} flow', () async {
+      final bundledBytes = Uint8List.fromList([1, 2, 3]);
+      final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
+      final requests = <http.Request>[];
+      final surfaceRef = OnboardingFlowRef<Map<String, Object?>>(
+        id: 'first_run',
+        version: 1,
+        minClient: _refFloor,
+        surfaceType: surfaceType,
+        decodeResult: _decodeMapResult,
+      );
+      final resolver = ServerFlowResolver(
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        active: true,
+        bundle: _bundleFor(
+          _doc(screenBytes: bundledBytes),
+          bundledBytes,
+          surfaceType: surfaceType,
+        ),
+        httpClient: _server(
+          _envelope(
+            _doc(version: 2, screenBytes: activeBytes),
+            activeBytes,
+            surfaceType: surfaceType,
+          ),
+          onRequest: requests.add,
+        ),
+      );
+
+      final resolved = await resolver.resolveActiveRoot(surfaceRef);
+
+      expect(resolved.document.version, 2);
+      expect(resolved.screenBlobs['welcome'], activeBytes);
+      expect(jsonDecode(requests.single.body), {
+        'surfaceType': surfaceType.wireName,
+        'surfaceSlug': 'first_run',
+      });
+    });
+  }
 
   test(
       'backstop (resolver): a gate-accepted active above the installed catalog '
@@ -329,6 +422,10 @@ void main() {
   test(
       'active arm + a mis-versioned bundled asset → fail closed (the bundled '
       'contract is version-pinned at load)', () async {
+    final logs = <String?>[];
+    final originalDebugPrint = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logs.add(message);
+    addTearDown(() => debugPrint = originalDebugPrint);
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
     // The bundled asset is version 2, but the ref (the client contract) is
@@ -351,6 +448,14 @@ void main() {
       resolver.resolveActiveRoot(flowRef),
       throwsA(isA<FlowUnavailableError>()),
     );
+    expect(
+      logs,
+      contains(
+        '[restage] rejected bundled onboarding flow baseline "first_run" '
+        '(version_mismatch); active selection failed closed.',
+      ),
+    );
+    expect(logs.join(), isNot(contains(apiKey)));
   });
 }
 
@@ -393,13 +498,17 @@ FlowDocument _doc({
 }
 
 /// Surface envelope wrapping [document] with its single `welcome` screen blob.
-Uint8List _envelope(FlowDocument document, Uint8List screenBytes) {
+Uint8List _envelope(
+  FlowDocument document,
+  Uint8List screenBytes, {
+  SurfaceType surfaceType = SurfaceType.onboarding,
+}) {
   final payload = FlowSurfacePayload(
     flowDocument: document,
     screenBlobs: {'welcome': screenBytes},
   );
   final surface = SurfaceDocument(
-    surfaceType: SurfaceType.onboarding,
+    surfaceType: surfaceType,
     surfaceSlug: document.flow,
     version: document.version,
     minClient: document.minClient,
@@ -411,11 +520,16 @@ Uint8List _envelope(FlowDocument document, Uint8List screenBytes) {
 
 /// A bundle carrying the bundled flow JSON + its `welcome` screen blob at the
 /// SDK's conventional asset paths.
-AssetBundle _bundleFor(FlowDocument document, Uint8List screenBytes) {
+AssetBundle _bundleFor(
+  FlowDocument document,
+  Uint8List screenBytes, {
+  SurfaceType surfaceType = SurfaceType.onboarding,
+}) {
+  final surface = surfaceType.wireName;
   return _TestBundle({
-    'assets/onboarding/flows/first_run.flow.json':
+    'assets/$surface/flows/first_run.flow.json':
         Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
-    'assets/onboarding/screens/welcome.rfw': screenBytes,
+    'assets/$surface/screens/welcome.rfw': screenBytes,
   });
 }
 

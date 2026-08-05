@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart'
@@ -753,7 +754,7 @@ void main() {
   });
 
   testWidgets(
-      'bundled pending approval after unmount emits one global accepted success',
+      'bundled pending approval after unmount retains initiation root attribution',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
     addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -761,10 +762,14 @@ void main() {
         (_, __) => const [];
     final plugin = _BundledInAppPurchase(pendingOnBuy: true);
     final rpc = _BundledRpcClient();
+    final requests = <http.Request>[];
+    Restage.debugAnalyticsHttpClient = MockClient((request) async {
+      requests.add(request);
+      return http.Response('', 200);
+    });
     Restage.configure(
       apiKey: 'pk_test',
       baseUrl: 'https://billing.test',
-      analyticsEnabled: false,
       products: const [
         RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
       ],
@@ -782,11 +787,23 @@ void main() {
       home: Scaffold(
         body: RestagePaywall(
           id: 'served-paywall',
-          resolver: _StaticResolver(bytes, publishedVersion: 7),
+          resolver: _StaticResolver(
+            bytes,
+            publishedVersion: 7,
+            experimentId: 'experiment-a',
+            variantId: 'arm-b',
+            experimentEpoch: 3,
+          ),
         ),
       ),
     ));
     await tester.pumpAndSettle();
+    await Restage.debugFlushAnalytics();
+    final presentation = _analyticsEvents(requests).singleWhere(
+      (event) => event['name'] == 'surface_presented',
+    );
+    final rootSession = presentation['surfaceSessionId'];
+    requests.clear();
     await tester.tap(find.text('Buy'));
     await tester.runAsync(() async {
       for (var turn = 0;
@@ -813,6 +830,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
     });
     await tester.pump();
+    await Restage.debugFlushAnalytics();
 
     expect(global.whereType<PurchaseSucceeded>(), hasLength(1));
     expect(global.whereType<EntitlementGranted>(), hasLength(1));
@@ -822,6 +840,16 @@ void main() {
     );
     expect(rpc.reportRequests, hasLength(1));
     expect(plugin.completeCalls, 1);
+    final succeeded = _analyticsEvents(requests).singleWhere(
+      (event) => event['name'] == 'purchase_succeeded',
+    );
+    expect(succeeded['surface'], 'paywall');
+    expect(succeeded['surfaceId'], 'served-paywall');
+    expect(succeeded['surfaceVersion'], '7');
+    expect(succeeded['surfaceSessionId'], rootSession);
+    expect(succeeded['experimentId'], 'experiment-a');
+    expect(succeeded['variantId'], 'arm-b');
+    expect(succeeded['experimentEpoch'], 3);
     expect(
       Restage.currentEntitlements.where((entry) => entry.id == 'pro'),
       hasLength(1),
@@ -1017,6 +1045,93 @@ void main() {
     );
   });
 
+  for (final resetBeforeOutcome in <bool>[false, true]) {
+    testWidgets(
+        'purchase outcome after unmount '
+        '${resetBeforeOutcome ? 'drops' : 'retains'} root attribution '
+        '${resetBeforeOutcome ? 'after reset' : 'without reset'}',
+        (tester) async {
+      final requests = <http.Request>[];
+      final outcome = Completer<PurchaseOutcome>();
+      Restage.debugAnalyticsHttpClient = MockClient((request) async {
+        requests.add(request);
+        return http.Response('', 200);
+      });
+      Restage.configure(
+        apiKey: 'rs_pk_test',
+        baseUrl: 'http://127.0.0.1:1',
+        products: const [
+          RestageProduct(
+            id: 'pro_monthly',
+            slot: 'primary',
+            entitlement: 'pro',
+          ),
+        ],
+        billingGateway: _FakeGateway(onPurchase: (_) => outcome.future),
+      );
+      final bytes = Uint8List.fromList(
+        encodeLibraryBlob(parseLibraryFile(_buyButtonSource)),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: RestagePaywall(
+            id: 'pro_upgrade',
+            resolver: _StaticResolver(
+              bytes,
+              publishedVersion: 9,
+              experimentId: 'exp-paywall',
+              variantId: 'variant-a',
+              experimentEpoch: 6,
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await Restage.debugFlushAnalytics();
+      final presentation = _analyticsEvents(requests).singleWhere(
+        (event) => event['name'] == 'surface_presented',
+      );
+      final rootSession = presentation['surfaceSessionId'];
+      requests.clear();
+
+      await tester.tap(find.text('Buy'));
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      if (resetBeforeOutcome) Restage.reset();
+
+      outcome.complete(PurchaseOutcome.succeeded(
+        productId: 'pro_monthly',
+        transactionId: 'tx-late',
+        verificationData: null,
+        priceMicros: 9990000,
+        currency: 'USD',
+      ));
+      await tester.pumpAndSettle();
+      await Restage.debugFlushAnalytics();
+
+      final succeeded = _analyticsEvents(requests).singleWhere(
+        (event) => event['name'] == 'purchase_succeeded',
+      );
+      expect(succeeded['surface'], 'paywall');
+      expect(succeeded['surfaceId'], 'pro_upgrade');
+      if (resetBeforeOutcome) {
+        expect(succeeded['surfaceVersion'], isNull);
+        expect(succeeded['surfaceSessionId'], isNull);
+        expect(succeeded['experimentId'], isNull);
+        expect(succeeded['variantId'], isNull);
+        expect(succeeded['experimentEpoch'], isNull);
+      } else {
+        expect(succeeded['surfaceVersion'], '9');
+        expect(succeeded['surfaceSessionId'], rootSession);
+        expect(succeeded['experimentId'], 'exp-paywall');
+        expect(succeeded['variantId'], 'variant-a');
+        expect(succeeded['experimentEpoch'], 6);
+      }
+    });
+  }
+
   test(
       'restore re-grant fires EntitlementGranted even when entitlement '
       'was already active', () async {
@@ -1105,3 +1220,11 @@ void main() {
     expect(gateway.purchaseCalls, ['pro_monthly']);
   });
 }
+
+List<Map<String, Object?>> _analyticsEvents(List<http.Request> requests) =>
+    <Map<String, Object?>>[
+      for (final request in requests)
+        for (final event in (jsonDecode(request.body)
+            as Map<String, Object?>)['events']! as List)
+          (event! as Map).cast<String, Object?>(),
+    ];

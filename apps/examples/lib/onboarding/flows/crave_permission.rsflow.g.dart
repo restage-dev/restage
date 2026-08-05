@@ -8,6 +8,8 @@ abstract final class CravePermissionFlowDescriptor {
     id: 'crave_permission',
     version: 1,
     minClient: 1,
+    surfaceType: SurfaceType.onboarding,
+    deliveryMode: FlowDeliveryMode.typed,
     decodeResult: CravePermissionFlowDescriptor._decodeResult,
   );
 

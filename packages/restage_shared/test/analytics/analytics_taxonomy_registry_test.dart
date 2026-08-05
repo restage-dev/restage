@@ -28,6 +28,7 @@ void main() {
         'flow_completed',
         'flow_unavailable',
         'flow_custom_event',
+        'surface_presented',
       ];
       for (final name in tier1Names) {
         expect(isRegisteredAnalyticsEvent(name), isTrue, reason: name);

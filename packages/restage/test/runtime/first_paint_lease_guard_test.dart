@@ -55,6 +55,7 @@ void main() {
 
     expect(observed.committed, isTrue);
     expect(transaction.isCommitted, isTrue);
+    expect(transaction.isPaintAcknowledged, isFalse);
     expect(paintError, isNull);
     expect(observed.painted, isFalse);
     expect(observed.ready, isFalse);
@@ -114,6 +115,7 @@ void main() {
 
       expect(committed, isTrue);
       expect(transaction.isCommitted, isTrue);
+      expect(transaction.isPaintAcknowledged, isTrue);
       expect(painted, isTrue);
       expect(ready, isTrue);
       expect(afterCommit, isTrue);
