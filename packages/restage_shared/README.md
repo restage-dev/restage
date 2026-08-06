@@ -20,9 +20,10 @@ The widget catalog data types and the `@RestageWidget` / `@RestageProperty`
 annotations now live in `package:rfw_catalog_schema`. This package re-exports
 them from its main barrel for compatibility with existing call sites, so a
 single `import 'package:restage_shared/restage_shared.dart';` still resolves
-`Catalog`, `WidgetEntry`, `PropertyEntry`, `LibraryInfo`, and the annotations.
-New code should import `package:rfw_catalog_schema/rfw_catalog_schema.dart`
-directly.
+`Catalog`, `WidgetEntry`, `PropertyEntry`, `RestageConstraints`, `LibraryInfo`,
+and the annotations, including `RestageDataField` and
+`RestageA2uiExample`. New code should import
+`package:rfw_catalog_schema/rfw_catalog_schema.dart` directly.
 
 A handful of catalog-adjacent helpers are defined here rather than in the schema
 package:

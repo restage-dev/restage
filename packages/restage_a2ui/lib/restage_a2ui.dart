@@ -3,9 +3,9 @@
 /// payloads.
 ///
 /// See the package README for the model. The check sits between an app's cached
-/// A2UI payload and genui's render seam, verifying the payload against the
-/// catalog the app registered before render — emitting a clean diagnostic
-/// instead of genui's mid-render hard-fail.
+/// A2UI payload and genui's render seam, checking component existence and
+/// capability requirements against the catalog the app registered before
+/// render. It is not a general validator for every inner A2UI payload shape.
 library;
 
 export 'src/installed_capability.dart';

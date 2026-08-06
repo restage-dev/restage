@@ -54,8 +54,10 @@ final class A2uiRejected extends A2uiPreRenderResult {
 ///    relation. **Fail-closed:** a stamped payload with no [installed]
 ///    descriptor cannot be verified and is rejected — never skipped.
 ///
-/// Every path fails closed: any decode/shape error yields an [A2uiRejected],
-/// never a throw at the render seam.
+/// Restage sidecar decode errors fail closed with [A2uiRejected]. Part (a) is
+/// an existence walk, not a general validator for the inner A2UI payload
+/// shape; malformed component entries can still fail when genui parses them at
+/// the render seam.
 @immutable
 final class RestageA2uiPreRenderCheck {
   /// Creates a check over the registered [catalog]. [installed] is the

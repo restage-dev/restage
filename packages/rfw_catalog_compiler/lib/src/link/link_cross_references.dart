@@ -660,6 +660,7 @@ PropertyEntry _copyPropertyWithValueShape(
     category: base.category,
     priority: base.priority,
     validationRule: base.validationRule,
+    constraints: base.constraints,
     deprecated: base.deprecated,
     structuredRef: base.structuredRef,
     valueShape: valueShape,

@@ -1,0 +1,13 @@
+[
+  {
+    "id": "root",
+    "component": "ScalarListPanel",
+    "labels": ["alpha", "beta"],
+    "counts": [0, 2],
+    "weights": [0.0, 1.5],
+    "measurements": [1, 2.0],
+    "flags": [true, false],
+    "maybeCounts": [3, 4],
+    "fallbackCounts": [9, 10]
+  }
+]

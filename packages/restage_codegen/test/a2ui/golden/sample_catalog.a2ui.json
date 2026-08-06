@@ -16,10 +16,10 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/2+acme.widgets@3",
+    "$id": "restage:catalog/sha256/8e4004111eb3fc57fbaf61626bcd13b97d56103b3659ae5bbbb6671d7f3ff878",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/2+acme.widgets@3",
+    "catalogId": "restage:catalog/sha256/8e4004111eb3fc57fbaf61626bcd13b97d56103b3659ae5bbbb6671d7f3ff878",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "AcmeBanner": {
@@ -86,6 +86,9 @@
         ]
       }
     },
-    "functions": {}
+    "functions": {},
+    "systemPromptFragments": [
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/8e4004111eb3fc57fbaf61626bcd13b97d56103b3659ae5bbbb6671d7f3ff878\"."
+    ]
   }
 }

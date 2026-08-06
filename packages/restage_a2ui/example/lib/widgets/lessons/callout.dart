@@ -6,6 +6,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// a customer widget) alongside a scalar. The child slot is nullable — an A2UI
 /// child is a component-id reference that need not resolve, so the generated
 /// catalog lowers the slot to an optional child.
+@RestageA2uiExample(
+  name: 'Optional child',
+  asset: 'lib/a2ui_examples/callout/optional_child.json',
+)
 @RestageWidget(
   name: 'Callout',
   library: WidgetLibrary.custom('acme.lessons'),

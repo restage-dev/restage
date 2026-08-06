@@ -25,10 +25,10 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/1+acme.lessons@1_acme.widgets@3",
+    "$id": "restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/1+acme.lessons@1_acme.widgets@3",
+    "catalogId": "restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "Callout": {
@@ -40,8 +40,15 @@
             "description": "The callout message."
           },
           "child": {
-            "type": "string",
-            "description": "The wrapped child content."
+            "description": "The wrapped child content.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "component": {
             "type": "string",
@@ -51,7 +58,8 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "message"
         ]
       },
       "ComparisonPanel": {
@@ -77,7 +85,9 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "heading",
+          "children"
         ]
       },
       "CtaButton": {
@@ -96,7 +106,8 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "label"
         ]
       },
       "IntegerListPicker": {
@@ -153,63 +164,69 @@
         ]
       },
       "ProductCard": {
-        "type": "object",
-        "description": "Renders a structured product (nested price, tags, features, attributes, size).",
-        "properties": {
-          "product": {
+        "$defs": {
+          "Money": {
             "type": "object",
-            "description": "The product to display.",
+            "description": "A monetary amount in a specific currency.",
             "properties": {
-              "name": {
-                "type": "string"
+              "amount": {
+                "type": "number",
+                "description": "The numeric amount."
               },
-              "price": {
+              "currency": {
+                "type": "string",
+                "description": "The ISO currency code (e.g. `'USD'`)."
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ]
+          },
+          "Product": {
+            "type": "object",
+            "description": "A product with pricing, feature, attribute, and display metadata.",
+            "properties": {
+              "attributes": {
                 "type": "object",
-                "properties": {
-                  "amount": {
-                    "type": "number"
-                  },
-                  "currency": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "amount",
-                  "currency"
-                ]
-              },
-              "tags": {
-                "type": "array",
-                "items": {
+                "description": "Arbitrary attributes — a String-keyed map.",
+                "additionalProperties": {
                   "type": "string"
                 }
               },
               "features": {
                 "type": "array",
+                "description": "Feature rows — a list of objects.",
                 "items": {
                   "type": "object",
+                  "description": "One feature included in or excluded from a product.",
                   "properties": {
-                    "label": {
-                      "type": "string"
-                    },
                     "included": {
-                      "type": "boolean"
+                      "type": "boolean",
+                      "description": "Whether this plan includes the feature."
+                    },
+                    "label": {
+                      "type": "string",
+                      "description": "The feature label."
                     }
                   },
                   "required": [
-                    "label",
-                    "included"
+                    "included",
+                    "label"
                   ]
                 }
               },
-              "attributes": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                }
+              "name": {
+                "type": "string",
+                "description": "The customer-facing product name."
+              },
+              "price": {
+                "description": "The price — a nested data class.",
+                "$ref": "#/$defs/Money"
               },
               "size": {
                 "type": "object",
+                "description": "The display size — a named record.",
                 "properties": {
                   "height": {
                     "type": "number"
@@ -222,17 +239,40 @@
                   "height",
                   "width"
                 ]
+              },
+              "tags": {
+                "type": "array",
+                "description": "Marketing tags — a scalar list.",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "required": [
+              "attributes",
+              "features",
               "name",
               "price",
-              "tags",
-              "features",
-              "attributes",
-              "size"
+              "size",
+              "tags"
             ]
           },
+          "__a2ui_root__": {
+            "type": "object",
+            "description": "Renders a structured product (nested price, tags, features, attributes, size).",
+            "properties": {
+              "product": {
+                "description": "The product to display.",
+                "$ref": "#/$defs/Product"
+              }
+            },
+            "required": [
+              "product"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
           "component": {
             "type": "string",
             "enum": [
@@ -241,8 +281,7 @@
           }
         },
         "required": [
-          "component",
-          "product"
+          "component"
         ]
       },
       "QuizCheck": {
@@ -295,7 +334,9 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "prompt",
+          "selected"
         ]
       },
       "RatingPicker": {
@@ -306,7 +347,7 @@
             "description": "The selected rating, 1 through 5.",
             "oneOf": [
               {
-                "type": "number"
+                "type": "integer"
               },
               {
                 "type": "object",
@@ -344,7 +385,8 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "rating"
         ]
       },
       "ScalarListPanel": {
@@ -656,12 +698,14 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "title"
         ]
       }
     },
     "functions": {},
     "systemPromptFragments": [
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff\".",
       "Callout: Use for a short highlighted aside around optional content.",
       "ComparisonPanel: A headed panel that lays out a list of child widgets.",
       "QuizCheck: A prompt with a checkable answer bound to a boolean value.",

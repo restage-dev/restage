@@ -1,0 +1,17 @@
+[
+  {
+    "id": "root",
+    "component": "ProductCard",
+    "product": {
+      "name": "Pro Plan",
+      "price": {"amount": 9.99, "currency": "USD"},
+      "tags": ["popular", "new"],
+      "features": [
+        {"label": "Unlimited", "included": true},
+        {"label": "Priority support", "included": false}
+      ],
+      "attributes": {"tier": "gold"},
+      "size": {"width": 300.0, "height": 200.0}
+    }
+  }
+]

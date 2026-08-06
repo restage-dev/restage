@@ -5,6 +5,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// [onSelected] callback bound back to `selected` via an EXPLICIT
 /// `@RestageProperty(writeBackValue:)` — the explicit write-back pairing (as
 /// opposed to `RatingPicker`'s same-type auto-pairing).
+@RestageA2uiExample(
+  name: 'Interaction',
+  asset: 'lib/a2ui_examples/quiz_check/interaction.json',
+)
 @RestageWidget(
   name: 'QuizCheck',
   library: WidgetLibrary.custom('acme.lessons'),

@@ -73,6 +73,8 @@ void main() {
       expect(source, contains("value: data['enabled'],"));
       expect(source, contains('builder: (context, enabled) => BoundNumber('));
       expect(source, contains("value: data['count'],"));
+      expect(source, contains("'count': S.integer()"));
+      expect(source, contains("'opacity': S.number()"));
       expect(source, contains('builder: (context, count) => BoundNumber('));
       expect(source, contains("value: data['opacity'],"));
       expect(source, contains('builder: (context, opacity) => BoundNumber('));
@@ -97,6 +99,401 @@ void main() {
       expect(
         source,
         contains('.toList(growable: false),'),
+      );
+    });
+
+    test('a required nullable scalar keeps presence and nullability distinct',
+        () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'NullableInput',
+          properties: [
+            a2uiProp('value', PropertyType.string, required: true),
+          ],
+        ),
+      ]);
+      const shapes = <(String, String), A2uiSchemaNode>{
+        ('NullableInput', 'value'):
+            ScalarNode(A2uiScalarType.string, nullable: true),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      expect(
+        source,
+        contains(
+          "'value': S.combined(anyOf: [S.string(), S.nil()])",
+        ),
+      );
+      expect(
+        source,
+        contains(
+          "value: data['value'] == null ? null : (value ?? ''),",
+        ),
+      );
+      expect(source, isNot(contains("data.containsKey('value')")));
+
+      final component = emitA2uiCatalog(
+        catalog,
+        richShapes: shapes,
+      ).components.single.dataSchema;
+      expect(component['required'], ['component', 'value']);
+      final properties = component['properties']! as Map<String, Object?>;
+      expect(properties['value'], {
+        'anyOf': [
+          {'type': 'string'},
+          {'type': 'null'},
+        ],
+      });
+    });
+
+    test('nullable leaf defaults preserve raw null and failed normalization',
+        () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'NullableDefaults',
+          properties: [
+            a2uiProp(
+              'label',
+              PropertyType.string,
+              literalDefault: 'Included',
+            ),
+            a2uiProp(
+              'featured',
+              PropertyType.boolean,
+              literalDefault: true,
+            ),
+            a2uiProp('count', PropertyType.integer, literalDefault: 7),
+            a2uiProp('amount', PropertyType.real, literalDefault: 12.5),
+            a2uiProp('timeout', PropertyType.duration, literalDefault: 250),
+            a2uiProp('weight', PropertyType.fontWeight),
+            a2uiProp(
+              'accent',
+              PropertyType.color,
+              literalDefault: '#FF00AA',
+            ),
+            a2uiProp(
+              'fit',
+              PropertyType.enumValue,
+              enumType: 'BoxFit',
+              literalDefault: 'cover',
+            ),
+            a2uiProp(
+              'requiredValue',
+              PropertyType.string,
+              required: true,
+            ),
+            a2uiProp(
+              'requiredFeatured',
+              PropertyType.boolean,
+              required: true,
+            ),
+            a2uiProp(
+              'requiredAmount',
+              PropertyType.real,
+              required: true,
+            ),
+            a2uiProp(
+              'requiredAccent',
+              PropertyType.color,
+              required: true,
+            ),
+            a2uiProp(
+              'requiredFit',
+              PropertyType.enumValue,
+              enumType: 'BoxFit',
+              required: true,
+            ),
+          ],
+        ),
+      ]);
+      final shapes = <(String, String), A2uiSchemaNode>{
+        ('NullableDefaults', 'label'):
+            const ScalarNode(A2uiScalarType.string, nullable: true),
+        ('NullableDefaults', 'featured'):
+            const ScalarNode(A2uiScalarType.boolean, nullable: true),
+        ('NullableDefaults', 'count'):
+            const ScalarNode(A2uiScalarType.integer, nullable: true),
+        ('NullableDefaults', 'amount'):
+            const ScalarNode(A2uiScalarType.number, nullable: true),
+        ('NullableDefaults', 'timeout'):
+            const ScalarNode(A2uiScalarType.number, nullable: true),
+        ('NullableDefaults', 'weight'):
+            const ScalarNode(A2uiScalarType.number, nullable: true),
+        ('NullableDefaults', 'accent'):
+            const ScalarNode(A2uiScalarType.string, nullable: true),
+        ('NullableDefaults', 'fit'): EnumNode(
+          dartTypeName: 'BoxFit',
+          members: const ['fill', 'cover'],
+          nullable: true,
+        ),
+        ('NullableDefaults', 'requiredValue'):
+            const ScalarNode(A2uiScalarType.string, nullable: true),
+        ('NullableDefaults', 'requiredFeatured'):
+            const ScalarNode(A2uiScalarType.boolean, nullable: true),
+        ('NullableDefaults', 'requiredAmount'):
+            const ScalarNode(A2uiScalarType.number, nullable: true),
+        ('NullableDefaults', 'requiredAccent'):
+            const ScalarNode(A2uiScalarType.string, nullable: true),
+        ('NullableDefaults', 'requiredFit'): EnumNode(
+          dartTypeName: 'BoxFit',
+          members: const ['fill', 'cover'],
+          nullable: true,
+        ),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      final compact = source.replaceAll(RegExp(r'\s+'), ' ');
+      final dense = source.replaceAll(RegExp(r'\s+'), '');
+
+      expect(
+        dense,
+        contains(
+          "label:data.containsKey('label')?(data['label']==null?null:"
+          "(label??'Included')):'Included',",
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "featured:data.containsKey('featured')?"
+          "(data['featured']==null?null:(featured??true)):true,",
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "count:data.containsKey('count')?(data['count']==null?null:"
+          '(count?.toInt()??(count??7).toInt())):'
+          '(count??7).toInt(),',
+        ),
+      );
+      expect(dense, contains("data['amount']==null?null"));
+      expect(dense, contains('amount?.toDouble()'));
+      expect(dense, contains('(amount??12.5).toDouble()'));
+      expect(dense, contains("data['timeout']==null?null"));
+      expect(dense, contains('Duration(milliseconds:timeout.toInt())'));
+      expect(
+        dense,
+        contains('Duration(milliseconds:(timeout??250).toInt())'),
+      );
+      expect(dense, contains("data['weight']==null?null"));
+      expect(
+        dense,
+        contains('_restageA2uiFontWeight(weight,FontWeight.normal)'),
+      );
+      expect(
+        dense,
+        contains(
+          "accent:data.containsKey('accent')?"
+          "(data['accent']==null?null:(_restageA2uiColor(accent)??"
+          "_restageA2uiColor('#FF00AA')??constColor(0x00000000))):",
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "fit:data.containsKey('fit')?(data['fit']==null?null:"
+          '(BoxFit.values.asNameMap()[fit]??BoxFit.cover)):BoxFit.cover,',
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "requiredValue:data['requiredValue']==null?null:"
+          "(requiredValue??''),",
+        ),
+      );
+      expect(
+        dense,
+        isNot(contains("data.containsKey('requiredValue')")),
+      );
+      expect(
+        dense,
+        contains(
+          "requiredFeatured:data['requiredFeatured']==null?null:"
+          '(requiredFeatured??false),',
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "requiredAmount:data['requiredAmount']==null?null:"
+          '(requiredAmount?.toDouble()??'
+          '(requiredAmount??0).toDouble()),',
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "requiredAccent:data['requiredAccent']==null?null:"
+          '(_restageA2uiColor(requiredAccent)??'
+          'constColor(0x00000000)),',
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          "requiredFit:data['requiredFit']==null?null:"
+          '(BoxFit.values.asNameMap()[requiredFit]??'
+          'BoxFit.values.first),',
+        ),
+      );
+      expect(
+        compact,
+        isNot(contains("data.containsKey('requiredFeatured')")),
+      );
+      expect(
+        compact,
+        isNot(contains("data.containsKey('requiredAmount')")),
+      );
+      expect(
+        compact,
+        isNot(contains("data.containsKey('requiredAccent')")),
+      );
+      expect(
+        compact,
+        isNot(contains("data.containsKey('requiredFit')")),
+      );
+    });
+
+    test('a required nullable child is schema-required without a null assert',
+        () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'NullableChild',
+          childrenSlot: ChildrenSlot.single,
+          properties: [
+            a2uiProp('child', PropertyType.widget, required: true),
+          ],
+        ),
+      ]);
+      const shapes = <(String, String), A2uiSchemaNode>{
+        ('NullableChild', 'child'):
+            ScalarNode(A2uiScalarType.string, nullable: true),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      expect(
+        source,
+        contains("child: _restageA2uiBuildChild(itemContext, data['child']),"),
+      );
+      expect(
+        source,
+        isNot(
+          contains(
+            "child: _restageA2uiBuildChild(itemContext, data['child'])!,",
+          ),
+        ),
+      );
+
+      final component = emitA2uiCatalog(
+        catalog,
+        richShapes: shapes,
+      ).components.single.dataSchema;
+      expect(component['required'], ['component', 'child']);
+      final properties = component['properties']! as Map<String, Object?>;
+      expect(properties['child'], {
+        'anyOf': [
+          {'type': 'string'},
+          {'type': 'null'},
+        ],
+      });
+    });
+
+    test('a required non-nullable child uses the checked resolver once', () {
+      final source = emitSource([
+        a2uiEntry(
+          name: 'RequiredChild',
+          childrenSlot: ChildrenSlot.single,
+          properties: [
+            a2uiProp('child', PropertyType.widget, required: true),
+          ],
+        ),
+      ]);
+      final dense = source.replaceAll(RegExp(r'\s+'), '');
+
+      expect(
+        dense,
+        contains(
+          "child:_restageA2uiRequireChild(itemContext,data['child'],"
+          "'RequiredChild.child'),",
+        ),
+      );
+      expect(
+        source,
+        contains('itemContext.getComponent(childId) == null'),
+      );
+      expect(
+        source,
+        contains('child = itemContext.buildChild(childId);'),
+      );
+      expect(
+        source,
+        contains('child is FallbackWidget && child.error != null'),
+      );
+      expect(
+        source,
+        isNot(contains('if (child == null)')),
+      );
+      expect(
+        source,
+        isNot(
+          contains(
+            "_restageA2uiBuildChild(itemContext, data['child'])!",
+          ),
+        ),
+      );
+    });
+
+    test('nullable child slots distinguish missing keys from explicit null',
+        () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'NullableChild',
+          childrenSlot: ChildrenSlot.single,
+          properties: [a2uiProp('child', PropertyType.widget)],
+        ),
+        a2uiEntry(
+          name: 'NullableChildren',
+          childrenSlot: ChildrenSlot.list,
+          properties: [a2uiProp('children', PropertyType.widgetList)],
+        ),
+      ]);
+      const shapes = <(String, String), A2uiSchemaNode>{
+        ('NullableChild', 'child'):
+            ScalarNode(A2uiScalarType.string, nullable: true),
+        (
+          'NullableChildren',
+          'children'
+        ): ListNode(element: ScalarNode(A2uiScalarType.string), nullable: true),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      final compact = source.replaceAll(RegExp(r'\s+'), ' ');
+
+      expect(
+        compact,
+        contains(
+          "child: data.containsKey('child') ? "
+          "_restageA2uiBuildChild(itemContext, data['child']) : null,",
+        ),
+      );
+      expect(
+        compact,
+        contains("children: data.containsKey('children') ?"),
+      );
+      expect(
+        compact,
+        contains(
+          "data['children'] == null ? null : "
+          "_restageA2uiBuildChildren(itemContext, data['children'])",
+        ),
+      );
+      expect(
+        compact,
+        contains(
+          ": _restageA2uiBuildChildren(itemContext, data['children']),",
+        ),
       );
     });
 
@@ -152,7 +549,6 @@ void main() {
             a2uiProp(
               'fallbackNullableList',
               PropertyType.structured,
-              required: true,
               literalDefault: [3],
             ),
           ],
@@ -204,6 +600,7 @@ void main() {
 
       final source = emitA2uiCatalogDart(catalog, richShapes: richShapes);
       final compactSource = source.replaceAll(RegExp(r'\s+'), ' ');
+      final denseSource = source.replaceAll(RegExp(r'\s+'), '');
 
       expect('BoundObject('.allMatches(source), hasLength(13));
       expect(source, contains("value: data['labels']"));
@@ -257,8 +654,12 @@ void main() {
         contains('counts is List ? counts.cast<Object?>() : null'),
       );
       expect(
-        compactSource,
-        contains('maybeCounts is List ? maybeCounts.cast<Object?>() : null'),
+        denseSource,
+        contains(
+          "data.containsKey('maybeCounts')?"
+          "(data['maybeCounts']==null?null:"
+          '(maybeCountsisList?maybeCounts.cast<Object?>():null)):null',
+        ),
       );
 
       expect('S.combined(oneOf:'.allMatches(source), hasLength(13));
@@ -313,6 +714,68 @@ void main() {
           {'type': 'null'},
         ],
       });
+    });
+
+    test('nullable scalar-list normalization preserves null and fallback', () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'NullableListDefault',
+          properties: [
+            a2uiProp(
+              'values',
+              PropertyType.structured,
+              literalDefault: [4],
+            ),
+            a2uiProp(
+              'requiredValues',
+              PropertyType.structured,
+              required: true,
+            ),
+          ],
+        ),
+      ]);
+      const shapes = <(String, String), A2uiSchemaNode>{
+        ('NullableListDefault', 'values'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer),
+          nullable: true,
+        ),
+        ('NullableListDefault', 'requiredValues'): ListNode(
+          element: ScalarNode(A2uiScalarType.integer),
+          nullable: true,
+        ),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      final compact = source.replaceAll(RegExp(r'\s+'), ' ');
+      final dense = source.replaceAll(RegExp(r'\s+'), '');
+
+      expect(
+        dense,
+        contains(
+          "data.containsKey('values')?(data['values']==null?null:",
+        ),
+      );
+      expect(
+        dense,
+        contains(
+          '(valuesisList?values.cast<Object?>():null)??const<int>[4]',
+        ),
+      );
+      expect(
+        dense,
+        contains(':const<int>[4])?.map'),
+      );
+      expect(
+        dense,
+        contains(
+          "data['requiredValues']==null?null:"
+          '(requiredValuesisList?requiredValues.cast<Object?>():null)',
+        ),
+      );
+      expect(
+        compact,
+        isNot(contains("data.containsKey('requiredValues')")),
+      );
     });
 
     test('invalid scalar-list literal defaults fail generation loudly', () {
@@ -613,7 +1076,7 @@ void main() {
 
       expect(source, contains("name: 'StyledText'"));
       expect(source, contains("'text': S.string()"));
-      expect(source, contains("'maxLines': S.number()"));
+      expect(source, contains("'maxLines': S.integer()"));
       expect(source, contains("value: data['text'],"));
       expect(source, contains("value: data['maxLines'],"));
       expect(source, isNot(contains("'fontSize':")));

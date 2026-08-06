@@ -254,13 +254,24 @@ void main() {
       final construction = object.construction! as A2uiClassConstruction;
       expect(construction.dartTypeName, 'Comment');
       expect(object.defId, isNotNull);
-      expect(object.fields['text'], const ScalarNode(A2uiScalarType.string));
+      expect(
+        object.definitionDescription,
+        'A comment that may link to one nested reply.',
+      );
+      expect(
+        object.fields['text'],
+        const ScalarNode(
+          A2uiScalarType.string,
+          occurrenceDescription: 'The comment text.',
+        ),
+      );
       // `reply` is the same type → a RefNode (cycle) back to the object's
       // defId, and nullable.
       final reply = object.fields['reply'];
       expect(reply, isA<RefNode>());
       expect((reply! as RefNode).defId, object.defId);
       expect(reply.nullable, isTrue);
+      expect(reply.occurrenceDescription, 'The next reply in the thread.');
       // `text` is required, `reply` (optional + nullable) is not.
       expect(object.required, {'text'});
     });
@@ -282,8 +293,13 @@ void main() {
       final shapes = _richShapes(library);
       final fixtureUri = _fixtureUri(shapes);
       final catalog = _proofCatalog(fixtureUri);
+      final registration = emitA2uiCatalog(catalog, richShapes: shapes);
 
-      final emitted = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      final emitted = emitA2uiCatalogDart(
+        catalog,
+        registration: registration,
+        richShapes: shapes,
+      );
       // Test-boundary URI normalization (URI string only): the resolved
       // `file://` fixture URI → the relative import the committed file uses.
       // The uniform-prefix spellings (`pN.Type`) are untouched, so the render
@@ -327,8 +343,7 @@ void main() {
       // equivalence against the real genui SDK. No URI normalization: the
       // document carries no import URIs (the `$defs` keys are symbol-derived).
       const encoder = JsonEncoder.withIndent('  ');
-      final manifest = emitA2uiCatalog(catalog, richShapes: shapes);
-      final manifestJson = encoder.convert(manifest.toJson());
+      final manifestJson = encoder.convert(registration.toJson());
       final manifestFile = File(_manifestPath);
       if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
         manifestFile.parent.createSync(recursive: true);

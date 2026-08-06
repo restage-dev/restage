@@ -5,6 +5,7 @@ import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:restage_codegen/src/user_catalog_emitter.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Aggregates `@RestageWidget`-annotated classes from every `lib/**.dart`
 /// file in the consuming package and emits a single
@@ -52,6 +53,7 @@ final class UserCatalogBuilder implements Builder {
       stampedCapabilityVersions: collection.stampedCapabilityVersions,
       existingEvents: existingEvents,
     );
+    requireNativeCatalog(allocation.catalog);
 
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/user_catalog.g.dart'),

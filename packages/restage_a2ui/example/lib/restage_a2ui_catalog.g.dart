@@ -12,9 +12,14 @@ import 'package:restage_a2ui_example/widgets/lessons/section_header.dart' as p4;
 import 'package:restage_a2ui_example/widgets/product_card.dart' as p5;
 import 'package:restage_a2ui_example/widgets/rating_picker.dart' as p6;
 import 'package:restage_a2ui_example/widgets/scalar_list_panel.dart' as p7;
+import 'dart:async';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+/// Items for the generated custom-only catalog.
+/// A composed Catalog must use a new application-owned catalog ID;
+/// do not reuse the generated catalog ID for a different
+/// item or schema set.
 List<CatalogItem> buildRestageCatalogItems() {
   return <CatalogItem>[
     CatalogItem(
@@ -25,11 +30,11 @@ List<CatalogItem> buildRestageCatalogItems() {
           'message': S.string(
             description: 'The callout message.',
           ),
-          'child': S.string(
-            description: 'The wrapped child content.',
-          )
+          'child': S.combined(
+              description: 'The wrapped child content.',
+              anyOf: [S.string(), S.nil()])
         },
-        required: <String>[],
+        required: <String>['message'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
@@ -38,10 +43,15 @@ List<CatalogItem> buildRestageCatalogItems() {
           value: data['message'],
           builder: (context, message) => p1.Callout(
             message: message ?? '',
-            child: _restageA2uiBuildChild(itemContext, data['child']),
+            child: data.containsKey('child')
+                ? _restageA2uiBuildChild(itemContext, data['child'])
+                : null,
           ),
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['Callout']!['Optional child']!,
+      ],
     ),
     CatalogItem(
       name: 'ComparisonPanel',
@@ -54,7 +64,7 @@ List<CatalogItem> buildRestageCatalogItems() {
           'children': S.list(
               description: 'The compared child widgets.', items: S.string())
         },
-        required: <String>[],
+        required: <String>['heading', 'children'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
@@ -67,6 +77,10 @@ List<CatalogItem> buildRestageCatalogItems() {
           ),
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () =>
+            restageA2uiExampleRegistry['ComparisonPanel']!['Child collection']!,
+      ],
     ),
     CatalogItem(
       name: 'QuizCheck',
@@ -90,30 +104,43 @@ List<CatalogItem> buildRestageCatalogItems() {
             ])
           ])
         },
-        required: <String>[],
+        required: <String>['prompt', 'selected'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiRef_selected = data['selected'];
-        final _restageA2uiPath_selected = (_restageA2uiRef_selected is Map &&
-                _restageA2uiRef_selected.containsKey('path'))
-            ? _restageA2uiRef_selected['path'] as String
-            : '${itemContext.id}.selected';
+        final restageA2uiSelfPathSelected = '${itemContext.id}.selected';
         return BoundString(
           dataContext: itemContext.dataContext,
           value: data['prompt'],
-          builder: (context, prompt) => BoundBool(
+          builder: (context, prompt) => _RestageA2uiControlledValue(
             dataContext: itemContext.dataContext,
-            value: {'path': _restageA2uiPath_selected},
-            builder: (context, selected) => p3.QuizCheck(
-              prompt: prompt ?? '',
-              selected: selected ?? false,
-              onSelected: (_restageA2uiNext) => itemContext.dataContext.update(
-                  DataPath(_restageA2uiPath_selected), _restageA2uiNext),
-            ),
+            source: data['selected'],
+            sourcePresent: data.containsKey('selected'),
+            surfaceId: itemContext.surfaceId,
+            catalogId: restageA2uiCatalogId,
+            componentId: itemContext.id,
+            field: 'selected',
+            selfPath: restageA2uiSelfPathSelected,
+            reportError: itemContext.reportError,
+            builder: (context,
+                restageA2uiRawSelected,
+                restageA2uiPresentSelected,
+                restageA2uiKindSelected,
+                restageA2uiWriteSelected) {
+              final selected = _restageA2uiBool(
+                  restageA2uiRawSelected, restageA2uiKindSelected);
+              return p3.QuizCheck(
+                prompt: prompt ?? '',
+                selected: selected ?? false,
+                onSelected: restageA2uiWriteSelected,
+              );
+            },
           ),
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['QuizCheck']!['Interaction']!,
+      ],
     ),
     CatalogItem(
       name: 'SectionHeader',
@@ -124,7 +151,7 @@ List<CatalogItem> buildRestageCatalogItems() {
             description: 'The header title.',
           )
         },
-        required: <String>[],
+        required: <String>['title'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
@@ -136,6 +163,9 @@ List<CatalogItem> buildRestageCatalogItems() {
           ),
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['SectionHeader']!['Default']!,
+      ],
     ),
     CatalogItem(
       name: 'CtaButton',
@@ -146,7 +176,7 @@ List<CatalogItem> buildRestageCatalogItems() {
             description: 'The button caption.',
           )
         },
-        required: <String>[],
+        required: <String>['label'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
@@ -160,6 +190,9 @@ List<CatalogItem> buildRestageCatalogItems() {
           ),
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['CtaButton']!['Interaction']!,
+      ],
     ),
     CatalogItem(
       name: 'IntegerListPicker',
@@ -183,64 +216,99 @@ List<CatalogItem> buildRestageCatalogItems() {
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiRef_selected = data['selected'];
-        final _restageA2uiPath_selected = (_restageA2uiRef_selected is Map &&
-                _restageA2uiRef_selected.containsKey('path'))
-            ? _restageA2uiRef_selected['path'] as String
-            : '${itemContext.id}.selected';
-        return BoundObject(
+        final restageA2uiSelfPathSelected = '${itemContext.id}.selected';
+        return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          value: {'path': _restageA2uiPath_selected},
-          builder: (context, selected) => p7.IntegerListPicker(
-            selected: ((selected is List ? selected.cast<Object?>() : null) ??
-                    const <Object?>[])
-                .map((value) => value is num ? value.toInt() : null)
-                .whereType<int>()
-                .toList(growable: false),
-            onSelected: (_restageA2uiNext) => itemContext.dataContext
-                .update(DataPath(_restageA2uiPath_selected), _restageA2uiNext),
-          ),
+          source: data['selected'],
+          sourcePresent: data.containsKey('selected'),
+          surfaceId: itemContext.surfaceId,
+          catalogId: restageA2uiCatalogId,
+          componentId: itemContext.id,
+          field: 'selected',
+          selfPath: restageA2uiSelfPathSelected,
+          reportError: itemContext.reportError,
+          builder: (context, restageA2uiRawSelected, restageA2uiPresentSelected,
+              restageA2uiKindSelected, restageA2uiWriteSelected) {
+            final selected = restageA2uiRawSelected;
+            return p7.IntegerListPicker(
+              selected: ((selected is List ? selected.cast<Object?>() : null) ??
+                      const <Object?>[])
+                  .map((value) => value is num ? value.toInt() : null)
+                  .whereType<int>()
+                  .toList(growable: false),
+              onSelected: restageA2uiWriteSelected,
+            );
+          },
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['IntegerListPicker']!['Interaction']!,
+      ],
     ),
     CatalogItem(
       name: 'ProductCard',
-      dataSchema: S.object(
-        description:
-            'Renders a structured product (nested price, tags, features, attributes, size).',
-        properties: {
-          'product': S.object(
-            description: 'The product to display.',
-            properties: {
-              'name': S.string(),
-              'price': S.object(
-                properties: {'amount': S.number(), 'currency': S.string()},
-                required: <String>['amount', 'currency'],
-              ),
-              'tags': S.list(items: S.string()),
-              'features': S.list(
-                  items: S.object(
-                properties: {'label': S.string(), 'included': S.boolean()},
-                required: <String>['label', 'included'],
-              )),
-              'attributes': S.object(additionalProperties: S.string()),
-              'size': S.object(
-                properties: {'height': S.number(), 'width': S.number()},
-                required: <String>['height', 'width'],
-              )
-            },
-            required: <String>[
-              'name',
-              'price',
-              'tags',
-              'features',
-              'attributes',
-              'size'
-            ],
-          )
-        },
-        required: <String>['product'],
-      ),
+      dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
+        'Money': S.object(
+          description: 'A monetary amount in a specific currency.',
+          properties: {
+            'amount': S.number(description: 'The numeric amount.'),
+            'currency':
+                S.string(description: 'The ISO currency code (e.g. `\'USD\'`).')
+          },
+          required: <String>['amount', 'currency'],
+        ),
+        'Product': S.object(
+          description:
+              'A product with pricing, feature, attribute, and display metadata.',
+          properties: {
+            'attributes': S.object(
+                description: 'Arbitrary attributes — a String-keyed map.',
+                additionalProperties: S.string()),
+            'features': S.list(
+                description: 'Feature rows — a list of objects.',
+                items: S.object(
+                  description:
+                      'One feature included in or excluded from a product.',
+                  properties: {
+                    'included': S.boolean(
+                        description: 'Whether this plan includes the feature.'),
+                    'label': S.string(description: 'The feature label.')
+                  },
+                  required: <String>['included', 'label'],
+                )),
+            'name': S.string(description: 'The customer-facing product name.'),
+            'price': S.combined(
+                description: 'The price — a nested data class.',
+                $ref: '#/\$defs/Money'),
+            'size': S.object(
+              description: 'The display size — a named record.',
+              properties: {'height': S.number(), 'width': S.number()},
+              required: <String>['height', 'width'],
+            ),
+            'tags': S.list(
+                description: 'Marketing tags — a scalar list.',
+                items: S.string())
+          },
+          required: <String>[
+            'attributes',
+            'features',
+            'name',
+            'price',
+            'size',
+            'tags'
+          ],
+        ),
+        '__a2ui_root__': S.object(
+          description:
+              'Renders a structured product (nested price, tags, features, attributes, size).',
+          properties: {
+            'product': S.combined(
+                description: 'The product to display.',
+                $ref: '#/\$defs/Product')
+          },
+          required: <String>['product'],
+        )
+      }),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
         final _restageA2uiArg_product =
@@ -250,6 +318,9 @@ List<CatalogItem> buildRestageCatalogItems() {
           product: _restageA2uiArg_product,
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['ProductCard']!['Default']!,
+      ],
     ),
     CatalogItem(
       name: 'RatingPicker',
@@ -259,7 +330,7 @@ List<CatalogItem> buildRestageCatalogItems() {
           'rating': S.combined(
               description: 'The selected rating, 1 through 5.',
               oneOf: [
-                S.number(),
+                S.integer(),
                 S.object(
                     properties: {'path': S.string()},
                     required: <String>['path']),
@@ -271,25 +342,35 @@ List<CatalogItem> buildRestageCatalogItems() {
                 ])
               ])
         },
-        required: <String>[],
+        required: <String>['rating'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiRef_rating = data['rating'];
-        final _restageA2uiPath_rating = (_restageA2uiRef_rating is Map &&
-                _restageA2uiRef_rating.containsKey('path'))
-            ? _restageA2uiRef_rating['path'] as String
-            : '${itemContext.id}.rating';
-        return BoundNumber(
+        final restageA2uiSelfPathRating = '${itemContext.id}.rating';
+        return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          value: {'path': _restageA2uiPath_rating},
-          builder: (context, rating) => p6.RatingPicker(
-            rating: (rating ?? 0).toInt(),
-            onRatingChanged: (_restageA2uiNext) => itemContext.dataContext
-                .update(DataPath(_restageA2uiPath_rating), _restageA2uiNext),
-          ),
+          source: data['rating'],
+          sourcePresent: data.containsKey('rating'),
+          surfaceId: itemContext.surfaceId,
+          catalogId: restageA2uiCatalogId,
+          componentId: itemContext.id,
+          field: 'rating',
+          selfPath: restageA2uiSelfPathRating,
+          reportError: itemContext.reportError,
+          builder: (context, restageA2uiRawRating, restageA2uiPresentRating,
+              restageA2uiKindRating, restageA2uiWriteRating) {
+            final rating =
+                _restageA2uiNumber(restageA2uiRawRating, restageA2uiKindRating);
+            return p6.RatingPicker(
+              rating: (rating ?? 0).toInt(),
+              onRatingChanged: restageA2uiWriteRating,
+            );
+          },
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['RatingPicker']!['Boundary']!,
+      ],
     ),
     CatalogItem(
       name: 'ScalarListPanel',
@@ -443,18 +524,27 @@ List<CatalogItem> buildRestageCatalogItems() {
                                     const <Object?>[])
                                 .whereType<bool>()
                                 .toList(growable: false),
-                        maybeCounts: (maybeCounts is List
-                                ? maybeCounts.cast<Object?>()
+                        maybeCounts: (data.containsKey('maybeCounts')
+                                ? (data['maybeCounts'] == null
+                                    ? null
+                                    : (maybeCounts is List
+                                        ? maybeCounts.cast<Object?>()
+                                        : null))
                                 : null)
                             ?.map(
                                 (value) => value is num ? value.toInt() : null)
                             .whereType<int>()
                             .toList(growable: false),
-                        fallbackCounts: ((fallbackCounts is List
-                                    ? fallbackCounts.cast<Object?>()
-                                    : null) ??
-                                const <int>[7, 8])
-                            .map((value) => value is num ? value.toInt() : null)
+                        fallbackCounts: (data.containsKey('fallbackCounts')
+                                ? (data['fallbackCounts'] == null
+                                    ? null
+                                    : ((fallbackCounts is List
+                                            ? fallbackCounts.cast<Object?>()
+                                            : null) ??
+                                        const <int>[7, 8]))
+                                : const <int>[7, 8])
+                            ?.map(
+                                (value) => value is num ? value.toInt() : null)
                             .whereType<int>()
                             .toList(growable: false),
                       ),
@@ -466,11 +556,67 @@ List<CatalogItem> buildRestageCatalogItems() {
           ),
         );
       },
+      exampleData: <ExampleBuilderCallback>[
+        () => restageA2uiExampleRegistry['ScalarListPanel']!['Collections']!,
+        () => restageA2uiExampleRegistry['ScalarListPanel']![
+            'Nullable optional']!,
+      ],
     ),
   ];
 }
 
+/// Canonical authored examples keyed by catalog component and
+/// example name. Both map levels preserve deterministic order.
+const Map<String, Map<String, String>> restageA2uiExampleRegistry =
+    <String, Map<String, String>>{
+  'Callout': <String, String>{
+    'Optional child':
+        '[{"child":"detail","component":"Callout","id":"root","message":"Remember this detail."},{"component":"SectionHeader","id":"detail","title":"Details"}]',
+  },
+  'ComparisonPanel': <String, String>{
+    'Child collection':
+        '[{"children":["first","second"],"component":"ComparisonPanel","heading":"Compare options","id":"root"},{"component":"SectionHeader","id":"first","title":"Starter"},{"component":"CtaButton","id":"second","label":"Choose"}]',
+  },
+  'CtaButton': <String, String>{
+    'Interaction': '[{"component":"CtaButton","id":"root","label":"Continue"}]',
+  },
+  'IntegerListPicker': <String, String>{
+    'Interaction':
+        '[{"component":"IntegerListPicker","id":"root","selected":[1,2]}]',
+  },
+  'ProductCard': <String, String>{
+    'Default':
+        '[{"component":"ProductCard","id":"root","product":{"attributes":{"tier":"gold"},"features":[{"included":true,"label":"Unlimited"},{"included":false,"label":"Priority support"}],"name":"Pro Plan","price":{"amount":9.99,"currency":"USD"},"size":{"height":200.0,"width":300.0},"tags":["popular","new"]}}]',
+  },
+  'QuizCheck': <String, String>{
+    'Interaction':
+        '[{"component":"QuizCheck","id":"root","prompt":"I reviewed the lesson","selected":true}]',
+  },
+  'RatingPicker': <String, String>{
+    'Boundary': '[{"component":"RatingPicker","id":"root","rating":5}]',
+  },
+  'ScalarListPanel': <String, String>{
+    'Collections':
+        '[{"component":"ScalarListPanel","counts":[0,2],"fallbackCounts":[9,10],"flags":[true,false],"id":"root","labels":["alpha","beta"],"maybeCounts":[3,4],"measurements":[1,2.0],"weights":[0.0,1.5]}]',
+    'Nullable optional':
+        '[{"component":"ScalarListPanel","counts":[],"flags":[],"id":"root","labels":[],"maybeCounts":null,"measurements":[],"weights":[]}]',
+  },
+  'SectionHeader': <String, String>{
+    'Default':
+        '[{"component":"SectionHeader","id":"root","title":"Lesson overview"}]',
+  },
+};
+
+/// Content address for exactly the generated custom-only catalog.
+/// Default A2A supportedCatalogIds use requires server registration
+/// of this exact predefined catalog contract.
+/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// no end-to-end inline server interoperability is claimed.
+const String restageA2uiCatalogId =
+    'restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff';
+
 const List<String> _restageA2uiSystemPromptFragments = <String>[
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff".',
   'Callout: Use for a short highlighted aside around optional content.',
   'ComparisonPanel: A headed panel that lays out a list of child widgets.',
   'QuizCheck: A prompt with a checkable answer bound to a boolean value.',
@@ -482,11 +628,15 @@ const List<String> _restageA2uiSystemPromptFragments = <String>[
   'ScalarListPanel: Renders string, integer, number, and boolean lists.',
 ];
 
-/// The fully-assembled genui catalog: the generated items
-/// plus the system-prompt fragments composed from each
-/// widget's usage note (falling back to its description).
+/// Builds the generated custom-only GenUI catalog identified by
+/// [restageA2uiCatalogId].
+///
+/// To compose a different catalog, use
+/// [buildRestageCatalogItems] and assign the new Catalog an
+/// application-owned catalog ID.
 Catalog buildRestageCatalog() => Catalog(
       buildRestageCatalogItems(),
+      catalogId: restageA2uiCatalogId,
       systemPromptFragments: _restageA2uiSystemPromptFragments,
     );
 
@@ -494,6 +644,53 @@ Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;
   return itemContext.buildChild(childId);
+}
+
+Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
+  final String reason;
+  if (childId == null) {
+    reason = 'the value was null or missing';
+  } else if (childId is! String) {
+    reason = 'the value had runtime type ${childId.runtimeType}, '
+        'but a String component id is required';
+  } else if (childId.isEmpty) {
+    reason = 'the value was the empty string';
+  } else {
+    reason = 'component id "$childId" is not registered';
+  }
+  throw StateError(
+    'Required A2UI child "$propertyContext" could not resolve: '
+    '$reason. Provide a non-empty String id for a component '
+    'registered on this surface.',
+  );
+}
+
+Never _restageA2uiRequiredChildBuildError(
+    String childId, String propertyContext, Object error) {
+  throw StateError(
+    'Required A2UI child "$propertyContext" with component id '
+    '"$childId" failed to build (${error.runtimeType}).',
+  );
+}
+
+Widget _restageA2uiRequireChild(
+    CatalogItemContext itemContext, Object? childId, String propertyContext) {
+  if (childId is! String || childId.isEmpty) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  if (itemContext.getComponent(childId) == null) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  late final Widget child;
+  try {
+    child = itemContext.buildChild(childId);
+  } catch (error) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, error);
+  }
+  if (child is FallbackWidget && child.error != null) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, child.error!);
+  }
+  return child;
 }
 
 List<Widget> _restageA2uiBuildChildren(
@@ -611,3 +808,381 @@ p5.Product? _restageA2uiBuild_Product(Object? _raw, int _depth) {
       attributes: attributes,
       size: size);
 }
+
+enum _RestageA2uiSourceKind { literal, path, call, localOverride }
+
+typedef _RestageA2uiControlledBuilder = Widget Function(
+  BuildContext context,
+  Object? rawValue,
+  bool sourcePresent,
+  _RestageA2uiSourceKind sourceKind,
+  ValueChanged<Object?> write,
+);
+
+final class _RestageA2uiControlledValue extends StatefulWidget {
+  const _RestageA2uiControlledValue({
+    required this.dataContext,
+    required this.source,
+    required this.sourcePresent,
+    required this.surfaceId,
+    required this.catalogId,
+    required this.componentId,
+    required this.field,
+    required this.selfPath,
+    required this.reportError,
+    required this.builder,
+  });
+
+  final DataContext dataContext;
+  final Object? source;
+  final bool sourcePresent;
+  final String surfaceId;
+  final String? catalogId;
+  final String componentId;
+  final String field;
+  final String selfPath;
+  final void Function(Object error, StackTrace? stack) reportError;
+  final _RestageA2uiControlledBuilder builder;
+
+  @override
+  State<_RestageA2uiControlledValue> createState() =>
+      _RestageA2uiControlledValueState();
+}
+
+final class _RestageA2uiControlledValueState
+    extends State<_RestageA2uiControlledValue> {
+  StreamSubscription<Object?>? _subscription;
+  void Function(Object error, StackTrace? stack)? _subscriptionReportError;
+  var _epoch = 0;
+  late _RestageA2uiSourceDescriptor _descriptor;
+  late _RestageA2uiSemanticIdentity _semanticIdentity;
+  Object? _sourceValue;
+  var _sourcePresent = false;
+  var _hasOverride = false;
+  Object? _overrideValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _adoptBinding(
+      _RestageA2uiSourceDescriptor.from(widget.source),
+      _RestageA2uiSemanticIdentity.from(widget),
+    );
+    _subscribe();
+  }
+
+  @override
+  void didUpdateWidget(_RestageA2uiControlledValue oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextDescriptor = _RestageA2uiSourceDescriptor.from(widget.source);
+    final nextSemantic = _RestageA2uiSemanticIdentity.from(widget);
+    final bindingChanged = !_descriptor.sameBinding(nextDescriptor) ||
+        _semanticIdentity != nextSemantic ||
+        oldWidget.componentId != widget.componentId ||
+        oldWidget.field != widget.field ||
+        oldWidget.selfPath != widget.selfPath;
+    if (bindingChanged) {
+      _invalidateSubscription();
+      _adoptBinding(nextDescriptor, nextSemantic);
+      _subscribe();
+      return;
+    }
+
+    final literalPayloadChanged =
+        nextDescriptor.kind == _RestageA2uiSourceKind.literal &&
+            (!_restageA2uiLiteralEqual(oldWidget.source, widget.source) ||
+                oldWidget.sourcePresent != widget.sourcePresent);
+    if (literalPayloadChanged && !_hasOverride) {
+      _invalidateSubscription();
+      _sourceValue = widget.source;
+      _sourcePresent = widget.sourcePresent;
+      _subscribe();
+    }
+  }
+
+  void _adoptBinding(
+    _RestageA2uiSourceDescriptor descriptor,
+    _RestageA2uiSemanticIdentity semanticIdentity,
+  ) {
+    _descriptor = descriptor;
+    _semanticIdentity = semanticIdentity;
+    _sourceValue = switch (descriptor.kind) {
+      _RestageA2uiSourceKind.literal => widget.source,
+      _RestageA2uiSourceKind.path =>
+        widget.dataContext.getValue<Object?>(DataPath(descriptor.path!)),
+      _RestageA2uiSourceKind.call ||
+      _RestageA2uiSourceKind.localOverride =>
+        null,
+    };
+    _sourcePresent = widget.sourcePresent;
+    _hasOverride = false;
+    _overrideValue = null;
+  }
+
+  void _subscribe() {
+    final subscribedEpoch = _epoch;
+    final literalPresence = widget.sourcePresent;
+    final reportError = widget.reportError;
+    _subscriptionReportError = reportError;
+    _subscription = widget.dataContext.resolve(widget.source).listen(
+      (value) {
+        if (!mounted || subscribedEpoch != _epoch || _hasOverride) return;
+        setState(() {
+          _sourceValue = value;
+          _sourcePresent = _descriptor.kind == _RestageA2uiSourceKind.literal
+              ? literalPresence
+              : true;
+        });
+      },
+      onError: (Object error, StackTrace stack) {
+        if (!mounted || subscribedEpoch != _epoch) return;
+        reportError(error, stack);
+      },
+    );
+  }
+
+  void _invalidateSubscription() {
+    final previous = _subscription;
+    final reportError = _subscriptionReportError ?? widget.reportError;
+    _subscription = null;
+    _subscriptionReportError = null;
+    _epoch += 1;
+    if (previous == null) return;
+    Future<void> cancellation;
+    try {
+      cancellation = previous.cancel();
+    } catch (error, stack) {
+      reportError(error, stack);
+      return;
+    }
+    unawaited(
+      cancellation.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stack) {
+          reportError(error, stack);
+        },
+      ),
+    );
+  }
+
+  void _write(Object? next) {
+    if (!mounted) return;
+    if (_descriptor.kind == _RestageA2uiSourceKind.path) {
+      widget.dataContext.update(DataPath(_descriptor.path!), next);
+      return;
+    }
+
+    _invalidateSubscription();
+    _hasOverride = true;
+    _overrideValue = next;
+    widget.dataContext.update(DataPath(widget.selfPath), next);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final overridden = _hasOverride;
+    return widget.builder(
+      context,
+      overridden ? _overrideValue : _sourceValue,
+      overridden ? true : _sourcePresent,
+      overridden ? _RestageA2uiSourceKind.localOverride : _descriptor.kind,
+      _write,
+    );
+  }
+
+  @override
+  void dispose() {
+    _invalidateSubscription();
+    super.dispose();
+  }
+}
+
+final class _RestageA2uiSourceDescriptor {
+  const _RestageA2uiSourceDescriptor._(
+    this.kind, {
+    this.path,
+    this.callName,
+    this.callArgs,
+  });
+
+  factory _RestageA2uiSourceDescriptor.from(Object? source) {
+    if (source is Map && source.containsKey('path')) {
+      final path = source['path'];
+      if (path is! String) {
+        throw ArgumentError.value(
+          path,
+          'source.path',
+          'A controlled A2UI path must be a String.',
+        );
+      }
+      return _RestageA2uiSourceDescriptor._(
+        _RestageA2uiSourceKind.path,
+        path: path,
+      );
+    }
+    if (source is Map && source.containsKey('call')) {
+      final callName = source['call'];
+      if (callName != null && callName is! String) {
+        throw ArgumentError.value(
+          callName,
+          'source.call',
+          'A controlled A2UI call name must be a String or null.',
+        );
+      }
+      final args = source['args'];
+      return _RestageA2uiSourceDescriptor._(
+        _RestageA2uiSourceKind.call,
+        callName: callName as String?,
+        callArgs: args is Map ? args : const <String, Object?>{},
+      );
+    }
+    return const _RestageA2uiSourceDescriptor._(
+      _RestageA2uiSourceKind.literal,
+    );
+  }
+
+  final _RestageA2uiSourceKind kind;
+  final String? path;
+  final String? callName;
+  final Map<Object?, Object?>? callArgs;
+
+  bool sameBinding(_RestageA2uiSourceDescriptor other) {
+    if (kind != other.kind) return false;
+    return switch (kind) {
+      _RestageA2uiSourceKind.literal => true,
+      _RestageA2uiSourceKind.path => path == other.path,
+      _RestageA2uiSourceKind.call => callName == other.callName &&
+          _restageA2uiCallIdentityEqual(callArgs, other.callArgs),
+      _RestageA2uiSourceKind.localOverride => false,
+    };
+  }
+}
+
+final class _RestageA2uiSemanticIdentity {
+  const _RestageA2uiSemanticIdentity(
+    this.surfaceId,
+    this.catalogId,
+    this.dataModel,
+    this.contextPath,
+  );
+
+  factory _RestageA2uiSemanticIdentity.from(
+    _RestageA2uiControlledValue widget,
+  ) =>
+      _RestageA2uiSemanticIdentity(
+        widget.surfaceId,
+        widget.catalogId,
+        widget.dataContext.dataModel,
+        widget.dataContext.path,
+      );
+
+  final String surfaceId;
+  final String? catalogId;
+  final Object dataModel;
+  final DataPath contextPath;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _RestageA2uiSemanticIdentity &&
+      surfaceId == other.surfaceId &&
+      catalogId == other.catalogId &&
+      identical(dataModel, other.dataModel) &&
+      contextPath == other.contextPath;
+
+  @override
+  int get hashCode => Object.hash(
+        surfaceId,
+        catalogId,
+        identityHashCode(dataModel),
+        contextPath,
+      );
+}
+
+bool _restageA2uiCallIdentityEqual(Object? left, Object? right) {
+  if (identical(left, right)) return true;
+  if (left is num && right is num) return left == right;
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      if (!_restageA2uiCallIdentityEqual(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (!right.containsKey(entry.key) ||
+          !_restageA2uiCallIdentityEqual(entry.value, right[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left == right;
+}
+
+bool _restageA2uiLiteralEqual(Object? left, Object? right) {
+  if (identical(left, right)) return true;
+  if (left == null || right == null) return false;
+  if (left is num && right is num) {
+    return left.runtimeType == right.runtimeType && left == right;
+  }
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      if (!_restageA2uiLiteralEqual(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (!right.containsKey(entry.key) ||
+          !_restageA2uiLiteralEqual(entry.value, right[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left.runtimeType == right.runtimeType && left == right;
+}
+
+num? _restageA2uiNumber(
+  Object? rawValue,
+  _RestageA2uiSourceKind sourceKind,
+) {
+  if (rawValue is num) return rawValue;
+  if ((sourceKind == _RestageA2uiSourceKind.path ||
+          sourceKind == _RestageA2uiSourceKind.call) &&
+      rawValue is String) {
+    return num.tryParse(rawValue);
+  }
+  return null;
+}
+
+bool? _restageA2uiBool(
+  Object? rawValue,
+  _RestageA2uiSourceKind sourceKind,
+) {
+  if (rawValue is bool) return rawValue;
+  if (sourceKind == _RestageA2uiSourceKind.path) {
+    if (rawValue is String) {
+      final normalized = rawValue.toLowerCase();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+    }
+    if (rawValue is num) return rawValue != 0;
+  }
+  if (sourceKind == _RestageA2uiSourceKind.call) {
+    return rawValue != null;
+  }
+  return null;
+}
+
+String? _restageA2uiString(Object? rawValue) => rawValue?.toString();
+
+String? _restageA2uiEnumName(Object? rawValue) =>
+    rawValue is Enum ? rawValue.name : rawValue?.toString();

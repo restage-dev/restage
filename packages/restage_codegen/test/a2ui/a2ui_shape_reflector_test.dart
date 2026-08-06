@@ -1,6 +1,11 @@
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_shape_reflector.dart';
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show
+        StructuredDescriptionConflict,
+        StructuredDescriptionResolution,
+        resolveStructuredDescriptions;
 import 'package:test/test.dart';
 
 import 'shape_reflector_test_support.dart';
@@ -23,6 +28,361 @@ Future<A2uiSchemaNode> reflectField(String source, String field) async {
 }
 
 void main() {
+  group('reflectType — shared nested-description resolver', () {
+    test('codegen consumes the compiler query facade across package boundary',
+        () async {
+      final data = await resolveClass(
+        '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Data {
+          const Data({required this.value});
+
+          @RestageDataField(description: 'Facade value.')
+          final String value;
+        }
+      ''',
+        'Data',
+      );
+
+      final resolution = resolveStructuredDescriptions(data.thisType);
+      _expectPublicFacade(resolution);
+      expect(
+        resolution.descriptionForField(data.fields.single),
+        'Facade value.',
+      );
+    });
+
+    test('a resolved scalar field carries the shared explicit description',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Data {
+          const Data({required this.label});
+
+          @RestageDataField(description: 'Nested label.')
+          final String label;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final node =
+          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
+      expect(
+        node.fields['label'],
+        const ScalarNode(
+          A2uiScalarType.string,
+          occurrenceDescription: 'Nested label.',
+        ),
+      );
+    });
+
+    test(
+        'enum, list, map, and record members keep descriptions on their own '
+        'nodes', () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        enum Tone { soft, loud }
+
+        class Data {
+          const Data({
+            required this.tone,
+            required this.tags,
+            required this.labels,
+            required this.point,
+          });
+
+          @RestageDataField(description: 'Selected tone.')
+          final Tone tone;
+
+          @RestageDataField(description: 'Visible tags.')
+          final List<String>? tags;
+
+          @RestageDataField(description: 'Labels by locale.')
+          final Map<String, String> labels;
+
+          @RestageDataField(description: 'Chart point.')
+          final ({int x, String y}) point;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final data =
+          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
+      final tone = data.fields['tone']! as EnumNode;
+      final tags = data.fields['tags']! as ListNode;
+      final labels = data.fields['labels']! as MapNode;
+      final point = data.fields['point']! as ObjectNode;
+
+      expect(tone.occurrenceDescription, 'Selected tone.');
+      expect(tags.occurrenceDescription, 'Visible tags.');
+      expect(tags.nullable, isTrue);
+      expect(tags.element.occurrenceDescription, isNull);
+      expect(labels.occurrenceDescription, 'Labels by locale.');
+      expect(labels.valueType.occurrenceDescription, isNull);
+      expect(point.occurrenceDescription, 'Chart point.');
+      expect(
+        point.fields.values.map((field) => field.occurrenceDescription),
+        everyElement(isNull),
+      );
+    });
+
+    test(
+        'unresolved explicit parameter metadata fails instead of name-guessing',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Data {
+          const Data(
+            @RestageDataField(description: 'Do not use by name.') String label,
+          ) : label = label;
+          final String label;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final result = await reflectViaOwner(source, 'Holder', 'data');
+      expect(result, isA<A2uiShapeScopedOut>());
+      expect(
+        (result as A2uiShapeScopedOut).typeDescription,
+        allOf(
+          contains('no analyzer identity link'),
+          contains('constructor parameter'),
+          contains('`this.field`'),
+          contains('super-formal chain'),
+          contains('canonical wire DTO'),
+          isNot(contains('public field or getter')),
+        ),
+      );
+    });
+
+    test('unresolved explicit getter metadata fails with the same guidance',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Data {
+          const Data(String label) : _label = label;
+          final String _label;
+
+          @RestageDataField(description: 'Do not use a computed getter.')
+          String get label => _label;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final result = await reflectViaOwner(source, 'Holder', 'data');
+      expect(result, isA<A2uiShapeScopedOut>());
+      expect(
+        (result as A2uiShapeScopedOut).typeDescription,
+        allOf(
+          contains('no analyzer identity link'),
+          contains('getter'),
+          contains('canonical wire DTO'),
+        ),
+      );
+    });
+
+    test('unresolved association without metadata remains undescribed',
+        () async {
+      const source = '''
+        class Data {
+          const Data({required String label}) : label = label;
+          final String label;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final node =
+          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
+      expect(node.fields['label'], const ScalarNode(A2uiScalarType.string));
+    });
+
+    test('a transitive super-formal chain ending at a field-formal resolves',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Base {
+          const Base({required this.label});
+
+          @RestageDataField(description: 'Inherited label.')
+          final String label;
+        }
+
+        class Middle extends Base {
+          const Middle({required super.label});
+        }
+
+        class Data extends Middle {
+          const Data({required super.label});
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final node =
+          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
+      expect(
+        node.fields['label'],
+        const ScalarNode(
+          A2uiScalarType.string,
+          occurrenceDescription: 'Inherited label.',
+        ),
+      );
+    });
+
+    test(
+        'a super-formal chain ending at an ordinary parameter stays unresolved',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Base {
+          const Base({required String label}) : label = label;
+          final String label;
+        }
+
+        class Data extends Base {
+          const Data({
+            @RestageDataField(description: 'Still unresolved.')
+            required super.label,
+          });
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final result = await reflectViaOwner(source, 'Holder', 'data');
+      expect(result, isA<A2uiShapeScopedOut>());
+      expect(
+        (result as A2uiShapeScopedOut).typeDescription,
+        allOf(
+          contains('no analyzer identity link'),
+          contains('constructor parameter'),
+          contains('canonical wire DTO'),
+        ),
+      );
+    });
+
+    test('a generic substituted occurrence retains its explicit description',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Box<T> {
+          const Box({required this.value});
+
+          @RestageDataField(description: 'Generic reflected value.')
+          final T value;
+        }
+
+        class Holder {
+          const Holder(this.box);
+          final Box<int> box;
+        }
+      ''';
+
+      final node =
+          await reflectViaOwnerResolved(source, 'Holder', 'box') as ObjectNode;
+      expect(
+        node.fields['value'],
+        const ScalarNode(
+          A2uiScalarType.integer,
+          occurrenceDescription: 'Generic reflected value.',
+        ),
+      );
+    });
+
+    test('same-site duplicate metadata scopes the reflected shape out',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Data {
+          const Data({
+            @RestageDataField(description: 'Same.')
+            @RestageDataField(description: 'Same.')
+            required this.value,
+          });
+          final String value;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final result = await reflectViaOwner(source, 'Holder', 'data');
+      expect(result, isA<A2uiShapeScopedOut>());
+      final description = (result as A2uiShapeScopedOut).typeDescription;
+      expect(description, contains('metadata #1'));
+      expect(description, contains('metadata #2'));
+    });
+
+    test('explicit metadata wins over both Dartdoc fallbacks', () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class Data {
+          const Data({
+            /// Parameter fallback.
+            @RestageDataField(description: 'Explicit reflected value.')
+            required this.value,
+          });
+
+          /// Member fallback.
+          final String value;
+        }
+
+        class Holder {
+          const Holder(this.data);
+          final Data data;
+        }
+      ''';
+
+      final node =
+          await reflectViaOwnerResolved(source, 'Holder', 'data') as ObjectNode;
+      expect(
+        node.fields['value'],
+        const ScalarNode(
+          A2uiScalarType.string,
+          occurrenceDescription: 'Explicit reflected value.',
+        ),
+      );
+    });
+  });
+
   group('reflectType — scalars', () {
     const source = '''
       class Data {
@@ -1385,6 +1745,13 @@ void main() {
       );
     });
   });
+}
+
+void _expectPublicFacade(StructuredDescriptionResolution resolution) {
+  expect(
+    resolution.conflicts,
+    everyElement(isA<StructuredDescriptionConflict>()),
+  );
 }
 
 /// Reflects the type of `<owner>.<field>` in [source] (an owner class wrapping

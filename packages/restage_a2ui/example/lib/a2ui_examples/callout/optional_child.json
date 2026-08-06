@@ -1,0 +1,13 @@
+[
+  {
+    "id": "root",
+    "component": "Callout",
+    "message": "Remember this detail.",
+    "child": "detail"
+  },
+  {
+    "id": "detail",
+    "component": "SectionHeader",
+    "title": "Details"
+  }
+]

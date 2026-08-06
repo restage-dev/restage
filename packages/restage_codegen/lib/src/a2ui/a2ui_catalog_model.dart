@@ -1,16 +1,30 @@
 import 'dart:collection';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_protocol.dart';
+import 'package:restage_codegen/src/a2ui/rfc8785_canonical_json.dart';
+
+/// Reserved placeholder for the catalog ID while its digest is computed.
+///
+/// Catalog content containing this exact value is rejected before hashing, so
+/// the canonical digest preimage contains this sentinel exactly once: in the
+/// producer identity instruction.
+const String kA2uiCatalogIdentitySentinel =
+    '{{RESTAGE_A2UI_CATALOG_ID_SHA256}}';
+
+/// The producer instruction that binds `createSurface.catalogId` to
+/// [catalogId].
+String a2uiCatalogIdentityInstruction(String catalogId) =>
+    'For every A2UI createSurface message, set catalogId to "$catalogId".';
 
 /// One component in an emitted A2UI catalog: a component [name] and its
 /// JSON-Schema [dataSchema] (the object schema the model is constrained to
 /// when emitting that component).
 ///
-/// At this milestone the [dataSchema] is the discriminator-only object schema
-/// (just the `component` const). The per-property schema body — derived from
-/// the widget's catalog properties — is layered on in a later milestone; this
-/// type is the stable carrier either way.
+/// [dataSchema] is the complete projected component schema: its data fields,
+/// required set, nullability, and the required `component` discriminator.
 ///
 /// This is part of the **shape-isolation surface**: the in-memory model of the
 /// A2UI catalog the adapter projects to. It is plain data — it imports nothing
@@ -142,47 +156,87 @@ final class RestageCapabilityStamp {
 /// `restageCapability` is the sidecar two-axis stamp.
 @immutable
 final class RestageStampedA2uiCatalog {
-  /// Creates a stamped catalog from its [stamp] and [components].
-  const RestageStampedA2uiCatalog({
+  /// Creates the complete predefined-catalog registration contract.
+  ///
+  /// [systemPromptFragments] contains only non-identity guidance. The frozen
+  /// identity instruction is added internally with a sentinel for hashing and
+  /// with the final content address for producer/runtime output.
+  RestageStampedA2uiCatalog({
     required this.stamp,
-    required this.components,
-    this.systemPromptFragments = const [],
-  });
+    required List<A2uiComponent> components,
+    Map<String, Object?> functions = const {},
+    List<String> systemPromptFragments = const [],
+  })  : components = List<A2uiComponent>.unmodifiable(
+          <A2uiComponent>[
+            for (final component in components)
+              A2uiComponent(
+                name: component.name,
+                dataSchema: _freezeJsonMap(component.dataSchema),
+              ),
+          ]..sort((a, b) => a.name.compareTo(b.name)),
+        ),
+        functions = _freezeJsonMap(functions),
+        nonIdentitySystemPromptFragments =
+            List.unmodifiable(systemPromptFragments) {
+    canonicalDigestPreimage = canonicalizeJsonRfc8785(
+      _registrationContract(
+        stamp: stamp,
+        components: this.components,
+        functions: this.functions,
+        identityCatalogId: kA2uiCatalogIdentitySentinel,
+        nonIdentitySystemPromptFragments: nonIdentitySystemPromptFragments,
+      ),
+    );
+    final sentinelCount =
+        kA2uiCatalogIdentitySentinel.allMatches(canonicalDigestPreimage).length;
+    if (sentinelCount != 1) {
+      throw ArgumentError.value(
+        sentinelCount,
+        'registrationContract',
+        'A2UI registration content must not contain the reserved catalog-ID '
+            'sentinel; the canonical digest preimage must contain it exactly '
+            'once in the identity instruction.',
+      );
+    }
+  }
 
   /// The capability stamp travelling with the catalog.
   final RestageCapabilityStamp stamp;
 
-  /// The catalog's components. Encoded in sorted-name order by [toJson].
+  /// The catalog's components in sorted-name order.
   final List<A2uiComponent> components;
 
-  /// Per-widget system-prompt guidance fragments, in the same order and with
-  /// the same usage-then-description fallback rule the generated `.g.dart`
-  /// catalog's `systemPromptFragments` carries — see
-  /// `composeSystemPromptFragments`.
-  final List<String> systemPromptFragments;
+  /// Predefined function contracts keyed by function name.
+  ///
+  /// The map is empty until generated client functions are supported, but it
+  /// remains an identity axis so adding a function cannot alias an older
+  /// registration.
+  final Map<String, Object?> functions;
+
+  /// Producer guidance excluding the self-referential identity instruction.
+  final List<String> nonIdentitySystemPromptFragments;
+
+  /// The exact RFC 8785 canonical UTF-8 digest input, exposed for conformance
+  /// and non-self-reference tests.
+  late final String canonicalDigestPreimage;
 
   /// The catalog document identifier (the A2UI `$id` / `catalogId`).
   ///
   /// **This is a document identifier, NEVER a capability authority** —
-  /// capability decisions read [stamp], not this string. It is derived from the
-  /// capability vector (built-in content version + the sorted custom-library
-  /// versions) so it is deterministic and unique per distinct catalog: under
-  /// the cumulative render-support invariant (an incompatible change forks a
-  /// new version), the same capability vector denotes the same cumulative
-  /// catalog content.
-  String get documentId {
-    final libraries = stamp.availableLibraries;
-    if (libraries.isEmpty) {
-      return 'restage:catalog/${stamp.catalogContentVersion}';
-    }
-    final librarySuffix =
-        libraries.map((l) => '${l.namespace}@${l.version}').join('_');
-    return 'restage:catalog/${stamp.catalogContentVersion}+$librarySuffix';
-  }
+  /// capability decisions read [stamp], not this string. The SHA-256 digest
+  /// covers the complete predefined registration contract.
+  late final String documentId = 'restage:catalog/sha256/'
+      '${sha256.convert(utf8.encode(canonicalDigestPreimage))}';
+
+  /// Prompt fragments exactly as the producer receives them: the finalized
+  /// identity instruction followed by deterministic non-identity guidance.
+  late final List<String> systemPromptFragments = List.unmodifiable([
+    a2uiCatalogIdentityInstruction(documentId),
+    ...nonIdentitySystemPromptFragments,
+  ]);
 
   /// JSON wire form — `{ restageCapability, a2uiCatalog }`.
   Map<String, Object?> toJson() {
-    final sorted = [...components]..sort((a, b) => a.name.compareTo(b.name));
     final id = documentId;
     return {
       'restageCapability': stamp.toJson(),
@@ -194,16 +248,65 @@ final class RestageStampedA2uiCatalog {
             'A2UI component catalog generated from Restage widget source.',
         'catalogId': id,
         'a2uiProtocolVersion': kA2uiProtocolVersion,
-        'components': {for (final c in sorted) c.name: c.dataSchema},
-        'functions': <String, Object?>{},
-        // Omitted-when-empty is a COMPATIBILITY rule, not a schema
-        // principle: it keeps a pre-metadata (fragment-free) stamp
-        // byte-identical to before this field existed. Don't "normalize"
-        // this to always-emit (an empty list) or to drop the field — either
-        // change would perturb every already-committed fragment-free golden.
-        if (systemPromptFragments.isNotEmpty)
-          'systemPromptFragments': List<String>.of(systemPromptFragments),
+        'components': {for (final c in components) c.name: c.dataSchema},
+        'functions': functions,
+        'systemPromptFragments': List<String>.of(systemPromptFragments),
       },
     };
   }
+}
+
+Map<String, Object?> _registrationContract({
+  required RestageCapabilityStamp stamp,
+  required List<A2uiComponent> components,
+  required Map<String, Object?> functions,
+  required String identityCatalogId,
+  required List<String> nonIdentitySystemPromptFragments,
+}) =>
+    {
+      'restageCapability': stamp.toJson(),
+      'a2uiCatalog': {
+        r'$schema': kA2uiSchemaDialect,
+        'a2uiProtocolVersion': kA2uiProtocolVersion,
+        'components': {
+          for (final component in components)
+            component.name: component.dataSchema,
+        },
+        'functions': functions,
+        'systemPromptFragments': [
+          a2uiCatalogIdentityInstruction(identityCatalogId),
+          ...nonIdentitySystemPromptFragments,
+        ],
+      },
+    };
+
+Map<String, Object?> _freezeJsonMap(Map<Object?, Object?> value) {
+  final frozen = <String, Object?>{};
+  for (final entry in value.entries) {
+    final key = entry.key;
+    if (key is! String) {
+      throw ArgumentError.value(
+        key,
+        'json',
+        'A2UI registration object keys must be strings.',
+      );
+    }
+    frozen[key] = _freezeJsonValue(entry.value);
+  }
+  return Map.unmodifiable(frozen);
+}
+
+Object? _freezeJsonValue(Object? value) {
+  if (value == null || value is bool || value is num || value is String) {
+    return value;
+  }
+  if (value is List<Object?>) {
+    return List<Object?>.unmodifiable(value.map<Object?>(_freezeJsonValue));
+  }
+  if (value is Map<Object?, Object?>) return _freezeJsonMap(value);
+  throw ArgumentError.value(
+    value,
+    'json',
+    'A2UI registration content must be JSON-safe.',
+  );
 }

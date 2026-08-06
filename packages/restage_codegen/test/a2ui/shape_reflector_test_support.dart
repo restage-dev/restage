@@ -29,7 +29,13 @@ Future<DartType> resolveFieldType(
 
 /// Resolves [source] in-memory, returning the [ClassElement] for [className].
 Future<ClassElement> resolveClass(String source, String className) async {
-  final dir = Directory.systemTemp.createTempSync('a2ui_shape_reflector_test');
+  // Keep the fixture beneath the workspace so analyzer can discover the
+  // workspace package_config when a test imports a real Restage annotation.
+  final workspaceRoot = Directory.current.parent.parent;
+  final dir = Directory(
+    '${workspaceRoot.path}/.dart_tool/a2ui_shape_reflector_test_'
+    '${DateTime.now().microsecondsSinceEpoch}',
+  )..createSync(recursive: true);
   try {
     final file = File('${dir.path}/fixture.dart')..writeAsStringSync(source);
     final collection = AnalysisContextCollection(includedPaths: [file.path]);

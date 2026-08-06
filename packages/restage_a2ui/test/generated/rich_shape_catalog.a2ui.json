@@ -13,21 +13,20 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/1",
+    "$id": "restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/1",
+    "catalogId": "restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "CommentThread": {
         "$defs": {
           "Comment": {
             "type": "object",
+            "description": "A comment that may link to one nested reply.",
             "properties": {
-              "text": {
-                "type": "string"
-              },
               "reply": {
+                "description": "The next reply in the thread.",
                 "anyOf": [
                   {
                     "$ref": "#/$defs/Comment"
@@ -36,6 +35,10 @@
                     "type": "null"
                   }
                 ]
+              },
+              "text": {
+                "type": "string",
+                "description": "The comment text."
               }
             },
             "required": [
@@ -76,17 +79,18 @@
             "type": "array",
             "items": {
               "type": "object",
+              "description": "A list-of-objects element.",
               "properties": {
-                "label": {
-                  "type": "string"
-                },
                 "included": {
                   "type": "boolean"
+                },
+                "label": {
+                  "type": "string"
                 }
               },
               "required": [
-                "label",
-                "included"
+                "included",
+                "label"
               ]
             }
           },
@@ -128,17 +132,18 @@
         "properties": {
           "link": {
             "type": "object",
+            "description": "A nested object whose own field is named `path` — the exact shape genui's BoundObject would have misread as a `{path: ...}` binding. Direct reconstruction reads the field by name, so it renders correctly.",
             "properties": {
-              "path": {
+              "label": {
                 "type": "string"
               },
-              "label": {
+              "path": {
                 "type": "string"
               }
             },
             "required": [
-              "path",
-              "label"
+              "label",
+              "path"
             ]
           },
           "component": {
@@ -184,18 +189,11 @@
         ]
       },
       "PlanCard": {
-        "type": "object",
-        "properties": {
-          "plan": {
+        "$defs": {
+          "PlanTier": {
             "type": "object",
-            "description": "The plan tier this card presents.",
+            "description": "A nested data class: required scalars + a nullable enum + a nullable string.",
             "properties": {
-              "name": {
-                "type": "string"
-              },
-              "price": {
-                "type": "number"
-              },
               "badge": {
                 "anyOf": [
                   {
@@ -210,6 +208,12 @@
                     "type": "null"
                   }
                 ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "price": {
+                "type": "number"
               },
               "tagline": {
                 "anyOf": [
@@ -227,6 +231,21 @@
               "price"
             ]
           },
+          "__a2ui_root__": {
+            "type": "object",
+            "properties": {
+              "plan": {
+                "description": "The plan tier this card presents.",
+                "$ref": "#/$defs/PlanTier"
+              }
+            },
+            "required": [
+              "plan"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
           "component": {
             "type": "string",
             "enum": [
@@ -235,13 +254,13 @@
           }
         },
         "required": [
-          "component",
-          "plan"
+          "component"
         ]
       }
     },
     "functions": {},
     "systemPromptFragments": [
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31\".",
       "FeatureGrid: A grid of plan features with inclusion flags."
     ]
   }

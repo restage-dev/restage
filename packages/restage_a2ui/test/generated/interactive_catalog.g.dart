@@ -4,9 +4,14 @@
 
 import 'interactive_fixture.dart' as p0;
 import 'package:flutter/widgets.dart';
+import 'dart:async';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+/// Items for the generated custom-only catalog.
+/// A composed Catalog must use a new application-owned catalog ID;
+/// do not reuse the generated catalog ID for a different
+/// item or schema set.
 List<CatalogItem> buildRestageCatalogItems() {
   return <CatalogItem>[
     CatalogItem(
@@ -16,7 +21,7 @@ List<CatalogItem> buildRestageCatalogItems() {
           'selected': S.combined(
               description: 'The currently selected option index.',
               oneOf: [
-                S.number(),
+                S.integer(),
                 S.object(
                     properties: {'path': S.string()},
                     required: <String>['path']),
@@ -32,19 +37,26 @@ List<CatalogItem> buildRestageCatalogItems() {
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiRef_selected = data['selected'];
-        final _restageA2uiPath_selected = (_restageA2uiRef_selected is Map &&
-                _restageA2uiRef_selected.containsKey('path'))
-            ? _restageA2uiRef_selected['path'] as String
-            : '${itemContext.id}.selected';
-        return BoundNumber(
+        final restageA2uiSelfPathSelected = '${itemContext.id}.selected';
+        return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          value: {'path': _restageA2uiPath_selected},
-          builder: (context, selected) => p0.QuickCheckFixture(
-            selected: (selected ?? 0).toInt(),
-            onSelected: (_restageA2uiNext) => itemContext.dataContext
-                .update(DataPath(_restageA2uiPath_selected), _restageA2uiNext),
-          ),
+          source: data['selected'],
+          sourcePresent: data.containsKey('selected'),
+          surfaceId: itemContext.surfaceId,
+          catalogId: restageA2uiCatalogId,
+          componentId: itemContext.id,
+          field: 'selected',
+          selfPath: restageA2uiSelfPathSelected,
+          reportError: itemContext.reportError,
+          builder: (context, restageA2uiRawSelected, restageA2uiPresentSelected,
+              restageA2uiKindSelected, restageA2uiWriteSelected) {
+            final selected = _restageA2uiNumber(
+                restageA2uiRawSelected, restageA2uiKindSelected);
+            return p0.QuickCheckFixture(
+              selected: (selected ?? 0).toInt(),
+              onSelected: restageA2uiWriteSelected,
+            );
+          },
         );
       },
     ),
@@ -68,22 +80,28 @@ List<CatalogItem> buildRestageCatalogItems() {
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiRef_chosen = data['chosen'];
-        final _restageA2uiPath_chosen = (_restageA2uiRef_chosen is Map &&
-                _restageA2uiRef_chosen.containsKey('path'))
-            ? _restageA2uiRef_chosen['path'] as String
-            : '${itemContext.id}.chosen';
-        return BoundObject(
+        final restageA2uiSelfPathChosen = '${itemContext.id}.chosen';
+        return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          value: {'path': _restageA2uiPath_chosen},
-          builder: (context, chosen) => p0.MultiSelectFixture(
-            chosen: ((chosen is List ? chosen.cast<Object?>() : null) ??
-                    const <Object?>[])
-                .whereType<String>()
-                .toList(growable: false),
-            onChosen: (_restageA2uiNext) => itemContext.dataContext
-                .update(DataPath(_restageA2uiPath_chosen), _restageA2uiNext),
-          ),
+          source: data['chosen'],
+          sourcePresent: data.containsKey('chosen'),
+          surfaceId: itemContext.surfaceId,
+          catalogId: restageA2uiCatalogId,
+          componentId: itemContext.id,
+          field: 'chosen',
+          selfPath: restageA2uiSelfPathChosen,
+          reportError: itemContext.reportError,
+          builder: (context, restageA2uiRawChosen, restageA2uiPresentChosen,
+              restageA2uiKindChosen, restageA2uiWriteChosen) {
+            final chosen = restageA2uiRawChosen;
+            return p0.MultiSelectFixture(
+              chosen: ((chosen is List ? chosen.cast<Object?>() : null) ??
+                      const <Object?>[])
+                  .whereType<String>()
+                  .toList(growable: false),
+              onChosen: restageA2uiWriteChosen,
+            );
+          },
         );
       },
     ),
@@ -111,7 +129,7 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         properties: {
           'low': S.combined(oneOf: [
-            S.number(),
+            S.integer(),
             S.object(
                 properties: {'path': S.string()}, required: <String>['path']),
             S.object(properties: {
@@ -122,7 +140,7 @@ List<CatalogItem> buildRestageCatalogItems() {
             ])
           ]),
           'high': S.combined(oneOf: [
-            S.number(),
+            S.integer(),
             S.object(
                 properties: {'path': S.string()}, required: <String>['path']),
             S.object(properties: {
@@ -137,44 +155,72 @@ List<CatalogItem> buildRestageCatalogItems() {
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final _restageA2uiRef_low = data['low'];
-        final _restageA2uiPath_low = (_restageA2uiRef_low is Map &&
-                _restageA2uiRef_low.containsKey('path'))
-            ? _restageA2uiRef_low['path'] as String
-            : '${itemContext.id}.low';
-        final _restageA2uiRef_high = data['high'];
-        final _restageA2uiPath_high = (_restageA2uiRef_high is Map &&
-                _restageA2uiRef_high.containsKey('path'))
-            ? _restageA2uiRef_high['path'] as String
-            : '${itemContext.id}.high';
-        return BoundNumber(
+        final restageA2uiSelfPathLow = '${itemContext.id}.low';
+        final restageA2uiSelfPathHigh = '${itemContext.id}.high';
+        return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          value: {'path': _restageA2uiPath_low},
-          builder: (context, low) => BoundNumber(
-            dataContext: itemContext.dataContext,
-            value: {'path': _restageA2uiPath_high},
-            builder: (context, high) => p0.RangeFixture(
-              low: (low ?? 0).toInt(),
-              high: (high ?? 0).toInt(),
-              onLow: (_restageA2uiNext) => itemContext.dataContext
-                  .update(DataPath(_restageA2uiPath_low), _restageA2uiNext),
-              onHigh: (_restageA2uiNext) => itemContext.dataContext
-                  .update(DataPath(_restageA2uiPath_high), _restageA2uiNext),
-            ),
-          ),
+          source: data['low'],
+          sourcePresent: data.containsKey('low'),
+          surfaceId: itemContext.surfaceId,
+          catalogId: restageA2uiCatalogId,
+          componentId: itemContext.id,
+          field: 'low',
+          selfPath: restageA2uiSelfPathLow,
+          reportError: itemContext.reportError,
+          builder: (context, restageA2uiRawLow, restageA2uiPresentLow,
+              restageA2uiKindLow, restageA2uiWriteLow) {
+            final low =
+                _restageA2uiNumber(restageA2uiRawLow, restageA2uiKindLow);
+            return _RestageA2uiControlledValue(
+              dataContext: itemContext.dataContext,
+              source: data['high'],
+              sourcePresent: data.containsKey('high'),
+              surfaceId: itemContext.surfaceId,
+              catalogId: restageA2uiCatalogId,
+              componentId: itemContext.id,
+              field: 'high',
+              selfPath: restageA2uiSelfPathHigh,
+              reportError: itemContext.reportError,
+              builder: (context, restageA2uiRawHigh, restageA2uiPresentHigh,
+                  restageA2uiKindHigh, restageA2uiWriteHigh) {
+                final high =
+                    _restageA2uiNumber(restageA2uiRawHigh, restageA2uiKindHigh);
+                return p0.RangeFixture(
+                  low: (low ?? 0).toInt(),
+                  high: (high ?? 0).toInt(),
+                  onLow: restageA2uiWriteLow,
+                  onHigh: restageA2uiWriteHigh,
+                );
+              },
+            );
+          },
         );
       },
     ),
   ];
 }
 
-const List<String> _restageA2uiSystemPromptFragments = <String>[];
+/// Content address for exactly the generated custom-only catalog.
+/// Default A2A supportedCatalogIds use requires server registration
+/// of this exact predefined catalog contract.
+/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// no end-to-end inline server interoperability is claimed.
+const String restageA2uiCatalogId =
+    'restage:catalog/sha256/121f5e42451000cb3918397f9a4213c2753cc511c595bd7247238d98bfb7b506';
 
-/// The fully-assembled genui catalog: the generated items
-/// plus the system-prompt fragments composed from each
-/// widget's usage note (falling back to its description).
+const List<String> _restageA2uiSystemPromptFragments = <String>[
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/121f5e42451000cb3918397f9a4213c2753cc511c595bd7247238d98bfb7b506".',
+];
+
+/// Builds the generated custom-only GenUI catalog identified by
+/// [restageA2uiCatalogId].
+///
+/// To compose a different catalog, use
+/// [buildRestageCatalogItems] and assign the new Catalog an
+/// application-owned catalog ID.
 Catalog buildRestageCatalog() => Catalog(
       buildRestageCatalogItems(),
+      catalogId: restageA2uiCatalogId,
       systemPromptFragments: _restageA2uiSystemPromptFragments,
     );
 
@@ -182,6 +228,53 @@ Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;
   return itemContext.buildChild(childId);
+}
+
+Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
+  final String reason;
+  if (childId == null) {
+    reason = 'the value was null or missing';
+  } else if (childId is! String) {
+    reason = 'the value had runtime type ${childId.runtimeType}, '
+        'but a String component id is required';
+  } else if (childId.isEmpty) {
+    reason = 'the value was the empty string';
+  } else {
+    reason = 'component id "$childId" is not registered';
+  }
+  throw StateError(
+    'Required A2UI child "$propertyContext" could not resolve: '
+    '$reason. Provide a non-empty String id for a component '
+    'registered on this surface.',
+  );
+}
+
+Never _restageA2uiRequiredChildBuildError(
+    String childId, String propertyContext, Object error) {
+  throw StateError(
+    'Required A2UI child "$propertyContext" with component id '
+    '"$childId" failed to build (${error.runtimeType}).',
+  );
+}
+
+Widget _restageA2uiRequireChild(
+    CatalogItemContext itemContext, Object? childId, String propertyContext) {
+  if (childId is! String || childId.isEmpty) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  if (itemContext.getComponent(childId) == null) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  late final Widget child;
+  try {
+    child = itemContext.buildChild(childId);
+  } catch (error) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, error);
+  }
+  if (child is FallbackWidget && child.error != null) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, child.error!);
+  }
+  return child;
 }
 
 List<Widget> _restageA2uiBuildChildren(
@@ -220,3 +313,381 @@ FontWeight _restageA2uiFontWeight(
   }
   return FontWeight.values[index];
 }
+
+enum _RestageA2uiSourceKind { literal, path, call, localOverride }
+
+typedef _RestageA2uiControlledBuilder = Widget Function(
+  BuildContext context,
+  Object? rawValue,
+  bool sourcePresent,
+  _RestageA2uiSourceKind sourceKind,
+  ValueChanged<Object?> write,
+);
+
+final class _RestageA2uiControlledValue extends StatefulWidget {
+  const _RestageA2uiControlledValue({
+    required this.dataContext,
+    required this.source,
+    required this.sourcePresent,
+    required this.surfaceId,
+    required this.catalogId,
+    required this.componentId,
+    required this.field,
+    required this.selfPath,
+    required this.reportError,
+    required this.builder,
+  });
+
+  final DataContext dataContext;
+  final Object? source;
+  final bool sourcePresent;
+  final String surfaceId;
+  final String? catalogId;
+  final String componentId;
+  final String field;
+  final String selfPath;
+  final void Function(Object error, StackTrace? stack) reportError;
+  final _RestageA2uiControlledBuilder builder;
+
+  @override
+  State<_RestageA2uiControlledValue> createState() =>
+      _RestageA2uiControlledValueState();
+}
+
+final class _RestageA2uiControlledValueState
+    extends State<_RestageA2uiControlledValue> {
+  StreamSubscription<Object?>? _subscription;
+  void Function(Object error, StackTrace? stack)? _subscriptionReportError;
+  var _epoch = 0;
+  late _RestageA2uiSourceDescriptor _descriptor;
+  late _RestageA2uiSemanticIdentity _semanticIdentity;
+  Object? _sourceValue;
+  var _sourcePresent = false;
+  var _hasOverride = false;
+  Object? _overrideValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _adoptBinding(
+      _RestageA2uiSourceDescriptor.from(widget.source),
+      _RestageA2uiSemanticIdentity.from(widget),
+    );
+    _subscribe();
+  }
+
+  @override
+  void didUpdateWidget(_RestageA2uiControlledValue oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final nextDescriptor = _RestageA2uiSourceDescriptor.from(widget.source);
+    final nextSemantic = _RestageA2uiSemanticIdentity.from(widget);
+    final bindingChanged = !_descriptor.sameBinding(nextDescriptor) ||
+        _semanticIdentity != nextSemantic ||
+        oldWidget.componentId != widget.componentId ||
+        oldWidget.field != widget.field ||
+        oldWidget.selfPath != widget.selfPath;
+    if (bindingChanged) {
+      _invalidateSubscription();
+      _adoptBinding(nextDescriptor, nextSemantic);
+      _subscribe();
+      return;
+    }
+
+    final literalPayloadChanged =
+        nextDescriptor.kind == _RestageA2uiSourceKind.literal &&
+            (!_restageA2uiLiteralEqual(oldWidget.source, widget.source) ||
+                oldWidget.sourcePresent != widget.sourcePresent);
+    if (literalPayloadChanged && !_hasOverride) {
+      _invalidateSubscription();
+      _sourceValue = widget.source;
+      _sourcePresent = widget.sourcePresent;
+      _subscribe();
+    }
+  }
+
+  void _adoptBinding(
+    _RestageA2uiSourceDescriptor descriptor,
+    _RestageA2uiSemanticIdentity semanticIdentity,
+  ) {
+    _descriptor = descriptor;
+    _semanticIdentity = semanticIdentity;
+    _sourceValue = switch (descriptor.kind) {
+      _RestageA2uiSourceKind.literal => widget.source,
+      _RestageA2uiSourceKind.path =>
+        widget.dataContext.getValue<Object?>(DataPath(descriptor.path!)),
+      _RestageA2uiSourceKind.call ||
+      _RestageA2uiSourceKind.localOverride =>
+        null,
+    };
+    _sourcePresent = widget.sourcePresent;
+    _hasOverride = false;
+    _overrideValue = null;
+  }
+
+  void _subscribe() {
+    final subscribedEpoch = _epoch;
+    final literalPresence = widget.sourcePresent;
+    final reportError = widget.reportError;
+    _subscriptionReportError = reportError;
+    _subscription = widget.dataContext.resolve(widget.source).listen(
+      (value) {
+        if (!mounted || subscribedEpoch != _epoch || _hasOverride) return;
+        setState(() {
+          _sourceValue = value;
+          _sourcePresent = _descriptor.kind == _RestageA2uiSourceKind.literal
+              ? literalPresence
+              : true;
+        });
+      },
+      onError: (Object error, StackTrace stack) {
+        if (!mounted || subscribedEpoch != _epoch) return;
+        reportError(error, stack);
+      },
+    );
+  }
+
+  void _invalidateSubscription() {
+    final previous = _subscription;
+    final reportError = _subscriptionReportError ?? widget.reportError;
+    _subscription = null;
+    _subscriptionReportError = null;
+    _epoch += 1;
+    if (previous == null) return;
+    Future<void> cancellation;
+    try {
+      cancellation = previous.cancel();
+    } catch (error, stack) {
+      reportError(error, stack);
+      return;
+    }
+    unawaited(
+      cancellation.then<void>(
+        (_) {},
+        onError: (Object error, StackTrace stack) {
+          reportError(error, stack);
+        },
+      ),
+    );
+  }
+
+  void _write(Object? next) {
+    if (!mounted) return;
+    if (_descriptor.kind == _RestageA2uiSourceKind.path) {
+      widget.dataContext.update(DataPath(_descriptor.path!), next);
+      return;
+    }
+
+    _invalidateSubscription();
+    _hasOverride = true;
+    _overrideValue = next;
+    widget.dataContext.update(DataPath(widget.selfPath), next);
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final overridden = _hasOverride;
+    return widget.builder(
+      context,
+      overridden ? _overrideValue : _sourceValue,
+      overridden ? true : _sourcePresent,
+      overridden ? _RestageA2uiSourceKind.localOverride : _descriptor.kind,
+      _write,
+    );
+  }
+
+  @override
+  void dispose() {
+    _invalidateSubscription();
+    super.dispose();
+  }
+}
+
+final class _RestageA2uiSourceDescriptor {
+  const _RestageA2uiSourceDescriptor._(
+    this.kind, {
+    this.path,
+    this.callName,
+    this.callArgs,
+  });
+
+  factory _RestageA2uiSourceDescriptor.from(Object? source) {
+    if (source is Map && source.containsKey('path')) {
+      final path = source['path'];
+      if (path is! String) {
+        throw ArgumentError.value(
+          path,
+          'source.path',
+          'A controlled A2UI path must be a String.',
+        );
+      }
+      return _RestageA2uiSourceDescriptor._(
+        _RestageA2uiSourceKind.path,
+        path: path,
+      );
+    }
+    if (source is Map && source.containsKey('call')) {
+      final callName = source['call'];
+      if (callName != null && callName is! String) {
+        throw ArgumentError.value(
+          callName,
+          'source.call',
+          'A controlled A2UI call name must be a String or null.',
+        );
+      }
+      final args = source['args'];
+      return _RestageA2uiSourceDescriptor._(
+        _RestageA2uiSourceKind.call,
+        callName: callName as String?,
+        callArgs: args is Map ? args : const <String, Object?>{},
+      );
+    }
+    return const _RestageA2uiSourceDescriptor._(
+      _RestageA2uiSourceKind.literal,
+    );
+  }
+
+  final _RestageA2uiSourceKind kind;
+  final String? path;
+  final String? callName;
+  final Map<Object?, Object?>? callArgs;
+
+  bool sameBinding(_RestageA2uiSourceDescriptor other) {
+    if (kind != other.kind) return false;
+    return switch (kind) {
+      _RestageA2uiSourceKind.literal => true,
+      _RestageA2uiSourceKind.path => path == other.path,
+      _RestageA2uiSourceKind.call => callName == other.callName &&
+          _restageA2uiCallIdentityEqual(callArgs, other.callArgs),
+      _RestageA2uiSourceKind.localOverride => false,
+    };
+  }
+}
+
+final class _RestageA2uiSemanticIdentity {
+  const _RestageA2uiSemanticIdentity(
+    this.surfaceId,
+    this.catalogId,
+    this.dataModel,
+    this.contextPath,
+  );
+
+  factory _RestageA2uiSemanticIdentity.from(
+    _RestageA2uiControlledValue widget,
+  ) =>
+      _RestageA2uiSemanticIdentity(
+        widget.surfaceId,
+        widget.catalogId,
+        widget.dataContext.dataModel,
+        widget.dataContext.path,
+      );
+
+  final String surfaceId;
+  final String? catalogId;
+  final Object dataModel;
+  final DataPath contextPath;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _RestageA2uiSemanticIdentity &&
+      surfaceId == other.surfaceId &&
+      catalogId == other.catalogId &&
+      identical(dataModel, other.dataModel) &&
+      contextPath == other.contextPath;
+
+  @override
+  int get hashCode => Object.hash(
+        surfaceId,
+        catalogId,
+        identityHashCode(dataModel),
+        contextPath,
+      );
+}
+
+bool _restageA2uiCallIdentityEqual(Object? left, Object? right) {
+  if (identical(left, right)) return true;
+  if (left is num && right is num) return left == right;
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      if (!_restageA2uiCallIdentityEqual(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (!right.containsKey(entry.key) ||
+          !_restageA2uiCallIdentityEqual(entry.value, right[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left == right;
+}
+
+bool _restageA2uiLiteralEqual(Object? left, Object? right) {
+  if (identical(left, right)) return true;
+  if (left == null || right == null) return false;
+  if (left is num && right is num) {
+    return left.runtimeType == right.runtimeType && left == right;
+  }
+  if (left is List && right is List) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index += 1) {
+      if (!_restageA2uiLiteralEqual(left[index], right[index])) return false;
+    }
+    return true;
+  }
+  if (left is Map && right is Map) {
+    if (left.length != right.length) return false;
+    for (final entry in left.entries) {
+      if (!right.containsKey(entry.key) ||
+          !_restageA2uiLiteralEqual(entry.value, right[entry.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left.runtimeType == right.runtimeType && left == right;
+}
+
+num? _restageA2uiNumber(
+  Object? rawValue,
+  _RestageA2uiSourceKind sourceKind,
+) {
+  if (rawValue is num) return rawValue;
+  if ((sourceKind == _RestageA2uiSourceKind.path ||
+          sourceKind == _RestageA2uiSourceKind.call) &&
+      rawValue is String) {
+    return num.tryParse(rawValue);
+  }
+  return null;
+}
+
+bool? _restageA2uiBool(
+  Object? rawValue,
+  _RestageA2uiSourceKind sourceKind,
+) {
+  if (rawValue is bool) return rawValue;
+  if (sourceKind == _RestageA2uiSourceKind.path) {
+    if (rawValue is String) {
+      final normalized = rawValue.toLowerCase();
+      if (normalized == 'true') return true;
+      if (normalized == 'false') return false;
+    }
+    if (rawValue is num) return rawValue != 0;
+  }
+  if (sourceKind == _RestageA2uiSourceKind.call) {
+    return rawValue != null;
+  }
+  return null;
+}
+
+String? _restageA2uiString(Object? rawValue) => rawValue?.toString();
+
+String? _restageA2uiEnumName(Object? rawValue) =>
+    rawValue is Enum ? rawValue.name : rawValue?.toString();

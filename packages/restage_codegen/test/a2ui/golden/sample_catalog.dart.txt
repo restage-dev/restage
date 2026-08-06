@@ -68,7 +68,7 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'StyledText',
       dataSchema: S.object(
-        properties: {'text': S.string(), 'maxLines': S.number()},
+        properties: {'text': S.string(), 'maxLines': S.integer()},
         required: <String>['text'],
       ),
       widgetBuilder: (itemContext) {
@@ -109,7 +109,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[];
 
-/// The fully-assembled genui catalog: the generated items
+/// The fully-assembled GenUI catalog: the generated items
 /// plus the system-prompt fragments composed from each
 /// widget's usage note (falling back to its description).
 Catalog buildRestageCatalog() => Catalog(
@@ -121,6 +121,53 @@ Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;
   return itemContext.buildChild(childId);
+}
+
+Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
+  final String reason;
+  if (childId == null) {
+    reason = 'the value was null or missing';
+  } else if (childId is! String) {
+    reason = 'the value had runtime type ${childId.runtimeType}, '
+        'but a String component id is required';
+  } else if (childId.isEmpty) {
+    reason = 'the value was the empty string';
+  } else {
+    reason = 'component id "$childId" is not registered';
+  }
+  throw StateError(
+    'Required A2UI child "$propertyContext" could not resolve: '
+    '$reason. Provide a non-empty String id for a component '
+    'registered on this surface.',
+  );
+}
+
+Never _restageA2uiRequiredChildBuildError(
+    String childId, String propertyContext, Object error) {
+  throw StateError(
+    'Required A2UI child "$propertyContext" with component id '
+    '"$childId" failed to build (${error.runtimeType}).',
+  );
+}
+
+Widget _restageA2uiRequireChild(
+    CatalogItemContext itemContext, Object? childId, String propertyContext) {
+  if (childId is! String || childId.isEmpty) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  if (itemContext.getComponent(childId) == null) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  late final Widget child;
+  try {
+    child = itemContext.buildChild(childId);
+  } catch (error) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, error);
+  }
+  if (child is FallbackWidget && child.error != null) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, child.error!);
+  }
+  return child;
 }
 
 List<Widget> _restageA2uiBuildChildren(

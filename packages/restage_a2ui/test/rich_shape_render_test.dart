@@ -80,6 +80,34 @@ void main() {
     );
   });
 
+  test('recursive documentation survives the generated catalog', () {
+    final schema = items
+        .singleWhere((item) => item.name == 'CommentThread')
+        .dataSchema
+        .value;
+    final definitions = (schema[r'$defs']! as Map).cast<String, Object?>();
+    final comment = (definitions['Comment']! as Map).cast<String, Object?>();
+    final properties = (comment['properties']! as Map).cast<String, Object?>();
+
+    expect(
+      comment['description'],
+      'A comment that may link to one nested reply.',
+    );
+    expect((properties['text']! as Map)['description'], 'The comment text.');
+    expect(
+      (properties['reply']! as Map)['description'],
+      'The next reply in the thread.',
+    );
+    final encoded = jsonEncode(schema);
+    for (final description in const [
+      'A comment that may link to one nested reply.',
+      'The comment text.',
+      'The next reply in the thread.',
+    ]) {
+      expect(description.allMatches(encoded), hasLength(1));
+    }
+  });
+
   testWidgets('a nested data class reconstructs (with a nullable enum + '
       'nullable string) and renders', (tester) async {
     await _pumpCatalogItem(

@@ -15,6 +15,7 @@ import 'package:rfw_catalog_compiler/src/walker/dart_ui_doc_fallbacks.dart';
 import 'package:rfw_catalog_compiler/src/walker/dartdoc.dart';
 import 'package:rfw_catalog_compiler/src/walker/element_fqn.dart';
 import 'package:rfw_catalog_compiler/src/walker/factory_variant_enumerator.dart';
+import 'package:rfw_catalog_compiler/src/walker/structured_description_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/structured_type_predicate.dart';
 import 'package:rfw_catalog_compiler/src/walker/value_shape_resolver.dart';
 import 'package:rfw_catalog_compiler/src/walker/walker_issue_codes.dart'
@@ -148,6 +149,18 @@ StructuredWalkResult _walkConcrete({
   // Surfaced on the resulting IR so a later pass can resolve each into a
   // discriminated union; the walker itself records only the FQN.
   final referencedUnionFqns = <String>{};
+  final descriptionModel = resolveStructuredDescriptions(element.thisType);
+  diagnostics.addAll(
+    descriptionModel.conflicts.map(
+      (fact) => DiagnosticIR(
+        code: issue_codes.structuredDescriptionConflict,
+        message: '${fact.message} ${fact.anchors.join(', ')}',
+        location: fact.anchors.isEmpty ? fqn : fact.anchors.first,
+        severity: DiagnosticSeverity.error,
+        target: element.name,
+      ),
+    ),
+  );
 
   // The constructible state of a value type is what its public *generative*
   // constructors accept. A getter-backed member (Offset exposes dx/dy as
@@ -201,6 +214,7 @@ StructuredWalkResult _walkConcrete({
       fields.add(
         _structuredField(
           field,
+          descriptionModel: descriptionModel,
           ownerSourceType: fqn,
           kind: scalarKind,
           valueShape: _scalarValueShape(scalarKind, field.type),
@@ -227,6 +241,7 @@ StructuredWalkResult _walkConcrete({
         fields.add(
           _structuredField(
             field,
+            descriptionModel: descriptionModel,
             ownerSourceType: fqn,
             structuredRef: structuredRef,
             structuredRefFqn: descendantFqn,
@@ -285,6 +300,7 @@ StructuredWalkResult _walkConcrete({
         fields.add(
           _structuredField(
             field,
+            descriptionModel: descriptionModel,
             ownerSourceType: fqn,
             kind: kind,
             unionRef: unionRef,
@@ -343,6 +359,7 @@ StructuredWalkResult _walkConcrete({
           fields.add(
             _structuredField(
               field,
+              descriptionModel: descriptionModel,
               ownerSourceType: fqn,
               kind: ResolvedTypeKind.listOfStructured,
               structuredRefFqn: descendantFqn,
@@ -361,6 +378,7 @@ StructuredWalkResult _walkConcrete({
           fields.add(
             _structuredField(
               field,
+              descriptionModel: descriptionModel,
               ownerSourceType: fqn,
               kind: _resolvedKindForPropertyType(resolved.propertyType),
               valueShape: resolved,
@@ -477,6 +495,7 @@ void _addDescendantStub(
 StructuredFieldIR _structuredField(
   FieldElement field, {
   required String ownerSourceType,
+  required StructuredDescriptionResolution descriptionModel,
   ResolvedTypeKind kind = ResolvedTypeKind.structured,
   WireIdRef? structuredRef,
   WireIdRef? unionRef,
@@ -485,6 +504,10 @@ StructuredFieldIR _structuredField(
   CatalogValueShape? valueShape,
   List<DiagnosticIR> diagnostics = const [],
 }) {
+  final description = descriptionModel.descriptionForField(field) ??
+      stripDartdocSlashes(field.documentationComment) ??
+      dartUiFieldDescription(ownerSourceType, field.name ?? '') ??
+      '';
   return StructuredFieldIR(
     wireId: WireId.unallocatedProperty,
     source: field,
@@ -496,9 +519,7 @@ StructuredFieldIR _structuredField(
       unionRef: unionRef,
       valueShape: valueShape,
     ),
-    description: stripDartdocSlashes(field.documentationComment) ??
-        dartUiFieldDescription(ownerSourceType, field.name ?? '') ??
-        '',
+    description: description,
     defaultSource: null,
     metadata: const PropertyMetadataIR(),
     diagnostics: diagnostics,

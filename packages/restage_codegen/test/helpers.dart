@@ -263,7 +263,7 @@ Future<OnboardingVisitorResult> runOnboardingVisitorOn(
 Future<WidgetVisitorResult> runWidgetVisitorOn(
   Map<String, String> sources, {
   String packageName = 'apps_examples',
-  bool includeA2uiScalarLists = false,
+  WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
 }) async {
   final results = await _runOnLibraries<WidgetVisitorResult>(
     sources,
@@ -271,7 +271,7 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
     onLibrary: (library, assetId) async => visitRestageWidgets(
       library,
       assetId,
-      includeA2uiScalarLists: includeA2uiScalarLists,
+      target: target,
     ),
   );
   return results.fold<WidgetVisitorResult>(

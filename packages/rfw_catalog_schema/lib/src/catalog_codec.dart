@@ -14,6 +14,7 @@ import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_entry.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
+import 'package:rfw_catalog_schema/src/restage_constraints.dart';
 import 'package:rfw_catalog_schema/src/stability.dart';
 import 'package:rfw_catalog_schema/src/structured_entry.dart';
 import 'package:rfw_catalog_schema/src/union_entry.dart';
@@ -135,6 +136,7 @@ void _validateWidget(WidgetEntry widget, String path) {
 void _validateProperty(PropertyEntry property, String path) {
   _expectWireIdKind(property.wireId, WireIdKind.property, '$path.wireId');
   _validateDefaultSource(property.defaultSource, '$path.defaultSource');
+  _validateConstraints(property, path);
   final mutex = property.mutuallyExclusiveWith;
   if (mutex != null) {
     for (var i = 0; i < mutex.length; i++) {
@@ -156,6 +158,276 @@ void _validateProperty(PropertyEntry property, String path) {
   _requireEnumIdentity(property, path);
   _validateValueShape(property.valueShape, '$path.valueShape');
   _validateDeprecation(property.deprecated, '$path.deprecated');
+}
+
+const Set<String> _knownConstraintKeywords = {
+  'minimum',
+  'exclusiveMinimum',
+  'maximum',
+  'exclusiveMaximum',
+  'enum',
+  'pattern',
+  'minLength',
+  'maxLength',
+  'minItems',
+  'maxItems',
+};
+
+const Set<PropertyType> _numericConstraintTypes = {
+  PropertyType.integer,
+  PropertyType.real,
+  PropertyType.length,
+  PropertyType.duration,
+  PropertyType.fontWeight,
+};
+
+const Set<PropertyType> _stringConstraintTypes = {
+  PropertyType.string,
+  PropertyType.color,
+  PropertyType.enumValue,
+};
+
+const Set<PropertyType> _dataListConstraintTypes = {
+  PropertyType.stringList,
+  PropertyType.booleanList,
+  PropertyType.boxShadowList,
+  PropertyType.shadowList,
+  PropertyType.fontFeatureList,
+  PropertyType.fontVariationList,
+  PropertyType.selectionOptionList,
+};
+
+void _validateConstraints(PropertyEntry property, String path) {
+  final constraints = property.constraints;
+  final constraintsPath = '$path.constraints';
+  _validateConstraintValues(constraints, constraintsPath);
+  if (constraints.isEmpty) return;
+  if (property.validationRule != null) {
+    throw CatalogSchemaException(
+      '$path: validationRule and typed constraints are mutually exclusive',
+    );
+  }
+
+  final hasNumeric = constraints.minimum != null ||
+      constraints.exclusiveMinimum != null ||
+      constraints.maximum != null ||
+      constraints.exclusiveMaximum != null;
+  if (hasNumeric && !_numericConstraintTypes.contains(property.type)) {
+    throw CatalogSchemaException(
+      '$constraintsPath: numeric constraints are not valid for '
+      'PropertyType.${property.type.name}',
+    );
+  }
+
+  final hasString = constraints.pattern != null ||
+      constraints.minLength != null ||
+      constraints.maxLength != null;
+  if (hasString && !_stringConstraintTypes.contains(property.type)) {
+    throw CatalogSchemaException(
+      '$constraintsPath: string constraints are not valid for '
+      'PropertyType.${property.type.name}',
+    );
+  }
+
+  final hasItems = constraints.minItems != null || constraints.maxItems != null;
+  final valueShape = property.valueShape;
+  final hasProvenDataListShape = property.type == PropertyType.unknown &&
+      valueShape is ListShape &&
+      valueShape.isOpaqueStructuredList;
+  if (hasItems &&
+      !_dataListConstraintTypes.contains(property.type) &&
+      !hasProvenDataListShape) {
+    throw CatalogSchemaException(
+      '$constraintsPath: item constraints require a proven data-list type; '
+      'got PropertyType.${property.type.name}',
+    );
+  }
+
+  final allowedValues = constraints.allowedValues;
+  if (allowedValues == null) return;
+  for (var i = 0; i < allowedValues.length; i++) {
+    final value = allowedValues[i];
+    if (value == null) continue;
+    final compatible = switch (property.type) {
+      PropertyType.boolean => value is bool,
+      PropertyType.integer => value is int,
+      PropertyType.real ||
+      PropertyType.length ||
+      PropertyType.duration ||
+      PropertyType.fontWeight =>
+        value is num && value.isFinite,
+      PropertyType.string ||
+      PropertyType.color ||
+      PropertyType.enumValue =>
+        value is String,
+      _ => false,
+    };
+    if (!compatible) {
+      throw CatalogSchemaException(
+        '$constraintsPath.allowedValues[$i]: value $value '
+        '(${value.runtimeType}) is not compatible with '
+        'PropertyType.${property.type.name}',
+      );
+    }
+  }
+  if (!_numericConstraintTypes.contains(property.type) &&
+      !_stringConstraintTypes.contains(property.type) &&
+      property.type != PropertyType.boolean) {
+    throw CatalogSchemaException(
+      '$constraintsPath.allowedValues: requires a supported scalar property; '
+      'got PropertyType.${property.type.name}',
+    );
+  }
+}
+
+void _validateConstraintValues(
+  RestageConstraints constraints,
+  String path,
+) {
+  if (constraints.minimum != null && constraints.exclusiveMinimum != null) {
+    throw CatalogSchemaException(
+      '$path: minimum and exclusiveMinimum are mutually exclusive',
+    );
+  }
+  if (constraints.maximum != null && constraints.exclusiveMaximum != null) {
+    throw CatalogSchemaException(
+      '$path: maximum and exclusiveMaximum are mutually exclusive',
+    );
+  }
+
+  for (final entry in <String, num?>{
+    'minimum': constraints.minimum,
+    'exclusiveMinimum': constraints.exclusiveMinimum,
+    'maximum': constraints.maximum,
+    'exclusiveMaximum': constraints.exclusiveMaximum,
+  }.entries) {
+    final value = entry.value;
+    if (value != null && !value.isFinite) {
+      throw CatalogSchemaException('$path.${entry.key}: must be finite');
+    }
+  }
+
+  final lower = constraints.minimum ?? constraints.exclusiveMinimum;
+  final upper = constraints.maximum ?? constraints.exclusiveMaximum;
+  if (lower != null && upper != null) {
+    final equalWithExclusive = lower == upper &&
+        (constraints.exclusiveMinimum != null ||
+            constraints.exclusiveMaximum != null);
+    if (lower > upper || equalWithExclusive) {
+      throw CatalogSchemaException(
+        '$path: contradictory numeric lower and upper bounds',
+      );
+    }
+  }
+
+  final allowedValues = constraints.allowedValues;
+  if (allowedValues != null) {
+    if (allowedValues.isEmpty) {
+      throw CatalogSchemaException('$path.allowedValues: must not be empty');
+    }
+    for (var i = 0; i < allowedValues.length; i++) {
+      final value = allowedValues[i];
+      if (value is! String &&
+          value is! num &&
+          value is! bool &&
+          value != null) {
+        throw CatalogSchemaException(
+          '$path.allowedValues[$i]: must be a JSON scalar; '
+          'got ${value.runtimeType}',
+        );
+      }
+      if (value is num && !value.isFinite) {
+        throw CatalogSchemaException(
+          '$path.allowedValues[$i]: numeric values must be finite',
+        );
+      }
+      for (var previous = 0; previous < i; previous++) {
+        if (allowedValues[previous] == value) {
+          throw CatalogSchemaException(
+            '$path.allowedValues[$i]: duplicate value $value',
+          );
+        }
+      }
+    }
+  }
+
+  _validateNonNegativePair(
+    constraints.minLength,
+    constraints.maxLength,
+    path: path,
+    minimumName: 'minLength',
+    maximumName: 'maxLength',
+  );
+  _validateNonNegativePair(
+    constraints.minItems,
+    constraints.maxItems,
+    path: path,
+    minimumName: 'minItems',
+    maximumName: 'maxItems',
+  );
+
+  for (final entry in constraints.extensions.entries) {
+    if (_knownConstraintKeywords.contains(entry.key)) {
+      throw CatalogSchemaException(
+        '$path.extensions["${entry.key}"]: collides with a known keyword',
+      );
+    }
+    _validateJsonSafeExtension(
+      entry.value,
+      '$path.extensions["${entry.key}"]',
+    );
+  }
+}
+
+void _validateNonNegativePair(
+  int? minimum,
+  int? maximum, {
+  required String path,
+  required String minimumName,
+  required String maximumName,
+}) {
+  if (minimum != null && minimum < 0) {
+    throw CatalogSchemaException('$path.$minimumName: must be non-negative');
+  }
+  if (maximum != null && maximum < 0) {
+    throw CatalogSchemaException('$path.$maximumName: must be non-negative');
+  }
+  if (minimum != null && maximum != null && minimum > maximum) {
+    throw CatalogSchemaException(
+      '$path: $minimumName must not exceed $maximumName',
+    );
+  }
+}
+
+void _validateJsonSafeExtension(Object? value, String path) {
+  if (value == null || value is String || value is bool) return;
+  if (value is num) {
+    if (!value.isFinite) {
+      throw CatalogSchemaException('$path: numeric values must be finite');
+    }
+    return;
+  }
+  if (value is List) {
+    for (var i = 0; i < value.length; i++) {
+      _validateJsonSafeExtension(value[i], '$path[$i]');
+    }
+    return;
+  }
+  if (value is Map) {
+    for (final entry in value.entries) {
+      if (entry.key is! String) {
+        throw CatalogSchemaException('$path: JSON objects require string keys');
+      }
+      _validateJsonSafeExtension(
+        entry.value,
+        '$path["${entry.key}"]',
+      );
+    }
+    return;
+  }
+  throw CatalogSchemaException(
+    '$path: value of type ${value.runtimeType} is not JSON-safe',
+  );
 }
 
 /// An `enumValue`-typed property must carry enum identity so the catalog
@@ -881,12 +1153,30 @@ Map<String, dynamic> _propertyToJson(PropertyEntry p) {
     if (p.priority != null) 'priority': p.priority!.name,
     if (p.validationRule != null)
       'validationRule': validationExprToJson(p.validationRule!),
+    if (!p.constraints.isEmpty)
+      'constraints': _constraintsToJson(p.constraints),
     if (p.deprecated != null) 'deprecated': _deprecationToJson(p.deprecated!),
     if (p.structuredRef != null)
       'structuredRef': wireIdRefToJson(p.structuredRef!),
     if (p.valueShape != null) 'valueShape': _valueShapeToJson(p.valueShape!),
   };
 }
+
+Map<String, Object?> _constraintsToJson(RestageConstraints constraints) => {
+      if (constraints.minimum != null) 'minimum': constraints.minimum,
+      if (constraints.exclusiveMinimum != null)
+        'exclusiveMinimum': constraints.exclusiveMinimum,
+      if (constraints.maximum != null) 'maximum': constraints.maximum,
+      if (constraints.exclusiveMaximum != null)
+        'exclusiveMaximum': constraints.exclusiveMaximum,
+      if (constraints.allowedValues != null) 'enum': constraints.allowedValues,
+      if (constraints.pattern != null) 'pattern': constraints.pattern,
+      if (constraints.minLength != null) 'minLength': constraints.minLength,
+      if (constraints.maxLength != null) 'maxLength': constraints.maxLength,
+      if (constraints.minItems != null) 'minItems': constraints.minItems,
+      if (constraints.maxItems != null) 'maxItems': constraints.maxItems,
+      ...constraints.extensions,
+    };
 
 Map<String, dynamic> _decompositionToJson(DecompositionRecipe r) => {
       'structuredRef': wireIdRefToJson(r.structuredRef),
@@ -1884,6 +2174,72 @@ WidgetEntry _widgetFromJson(Map<String, dynamic> j, String path) {
   );
 }
 
+RestageConstraints _constraintsFromJson(Object? raw, String path) {
+  final json = _jsonObject(raw, path);
+
+  num? number(String keyword) {
+    if (!json.containsKey(keyword)) return null;
+    final value = json[keyword];
+    if (value is! num) {
+      throw CatalogSchemaException(
+        '$path.$keyword: expected a number, got ${value.runtimeType}',
+      );
+    }
+    return value;
+  }
+
+  int? integer(String keyword) {
+    if (!json.containsKey(keyword)) return null;
+    final value = json[keyword];
+    if (value is! int) {
+      throw CatalogSchemaException(
+        '$path.$keyword: expected an integer, got ${value.runtimeType}',
+      );
+    }
+    return value;
+  }
+
+  String? string(String keyword) {
+    if (!json.containsKey(keyword)) return null;
+    final value = json[keyword];
+    if (value is! String) {
+      throw CatalogSchemaException(
+        '$path.$keyword: expected a string, got ${value.runtimeType}',
+      );
+    }
+    return value;
+  }
+
+  List<Object?>? allowedValues;
+  if (json.containsKey('enum')) {
+    final enumValue = json['enum'];
+    if (enumValue is! List) {
+      throw CatalogSchemaException(
+        '$path.enum: expected an array, got ${enumValue.runtimeType}',
+      );
+    }
+    allowedValues = List<Object?>.from(enumValue);
+  }
+
+  return RestageConstraints.withExtensions(
+    minimum: number('minimum'),
+    exclusiveMinimum: number('exclusiveMinimum'),
+    maximum: number('maximum'),
+    exclusiveMaximum: number('exclusiveMaximum'),
+    allowedValues: allowedValues,
+    pattern: string('pattern'),
+    minLength: integer('minLength'),
+    maxLength: integer('maxLength'),
+    minItems: integer('minItems'),
+    maxItems: integer('maxItems'),
+    extensions: {
+      for (final entry in json.entries)
+        if (!_knownConstraintKeywords.contains(entry.key))
+          entry.key: entry.value,
+    },
+  );
+}
+
 PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
   if (j['name'] is! String) {
     throw CatalogSchemaException(
@@ -1919,7 +2275,7 @@ PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
     ]);
   }
   final validationRuleRaw = j['validationRule'];
-  return PropertyEntry(
+  final property = PropertyEntry(
     wireId: wireId,
     name: j['name'] as String,
     // Forward-compat: unknown PropertyType names fall back to the
@@ -1962,6 +2318,9 @@ PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
             _jsonObject(validationRuleRaw, '$path.validationRule'),
             '$path.validationRule',
           ),
+    constraints: j.containsKey('constraints')
+        ? _constraintsFromJson(j['constraints'], '$path.constraints')
+        : RestageConstraints.empty,
     deprecated: _deprecationFromJson(j['deprecated'], '$path.deprecated'),
     structuredRef: j['structuredRef'] == null
         ? null
@@ -1972,6 +2331,8 @@ PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
           ),
     valueShape: _valueShapeFromJson(j['valueShape'], '$path.valueShape'),
   );
+  _validateConstraints(property, path);
+  return property;
 }
 
 DecompositionRecipe _decompositionFromJson(

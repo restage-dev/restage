@@ -585,6 +585,7 @@ PropertyEntry _copyProperty(
     category: property.category,
     priority: property.priority,
     validationRule: property.validationRule,
+    constraints: property.constraints,
     deprecated: property.deprecated,
     structuredRef: structuredRef ?? property.structuredRef,
     valueShape: valueShape ?? property.valueShape,

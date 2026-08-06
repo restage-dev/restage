@@ -315,6 +315,15 @@ enum IssueCode {
   /// stripped in release builds.
   conflictingDefaultStrategy,
 
+  /// A `@RestageProperty` supplies both non-empty typed `RestageConstraints`
+  /// and the legacy `validationRule`. The two authoring strategies are
+  /// mutually exclusive, so carrying both would produce an invalid catalog.
+  conflictingValidationStrategy,
+
+  /// A typed constraint's `allowedValues` list contains a const value that
+  /// cannot be represented as a JSON scalar without coercion or loss.
+  invalidConstraintValue,
+
   /// A constructor parameter's default could not be mechanically resolved
   /// into a catalog default — the catalog records no claim about it.
   /// Informational, not fatal: this is a catalog-completeness gap (a
@@ -532,6 +541,8 @@ enum IssueCode {
         IssueCode.invalidDefault ||
         IssueCode.invalidSynthetic ||
         IssueCode.conflictingDefaultStrategy ||
+        IssueCode.conflictingValidationStrategy ||
+        IssueCode.invalidConstraintValue ||
         IssueCode.unsupportedPropertyType ||
         IssueCode.structuredFactoryUnsupportedParam ||
         IssueCode.duplicateWidgetName ||

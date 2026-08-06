@@ -4,6 +4,7 @@ import 'package:genui/genui.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_a2ui_example/lessons.dart';
 import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
+import 'package:restage_a2ui_example/restage_imports.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilityManifest, LibraryRequirement;
 
@@ -149,5 +150,64 @@ void main() {
     expect(find.textContaining('Watch the ending'), findsOneWidget);
     expect(find.text('Details'), findsOneWidget);
     expect(find.textContaining('Is this right?'), findsOneWidget);
+  });
+
+  testWidgets('real Surface retains an IntegerListPicker literal override for '
+      'the same component identity', (tester) async {
+    const surfaceId = 'integer-list-surface';
+    final controller = SurfaceController(catalogs: [buildRestageCatalog()]);
+    addTearDown(controller.dispose);
+    controller
+      ..handleMessage(
+        const CreateSurface(
+          surfaceId: surfaceId,
+          catalogId: restageA2uiCatalogId,
+        ),
+      )
+      ..handleMessage(
+        const UpdateComponents(
+          surfaceId: surfaceId,
+          components: [
+            Component(
+              id: 'root',
+              type: 'IntegerListPicker',
+              properties: {
+                'selected': <int>[1, 2],
+              },
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Surface(surfaceContext: controller.contextFor(surfaceId)),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(IntegerListPicker), findsOneWidget);
+    expect(find.text('selected:1,2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('integer-list-add')));
+    await tester.pump();
+    expect(find.text('selected:1,2,3'), findsOneWidget);
+
+    controller.handleMessage(
+      const UpdateComponents(
+        surfaceId: surfaceId,
+        components: [
+          Component(
+            id: 'root',
+            type: 'IntegerListPicker',
+            properties: {
+              'selected': <int>[9],
+            },
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+    expect(find.text('selected:1,2,3'), findsOneWidget);
+    expect(find.byType(FallbackWidget), findsNothing);
   });
 }

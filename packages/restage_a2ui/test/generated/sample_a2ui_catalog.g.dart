@@ -7,6 +7,10 @@ import 'package:flutter/widgets.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+/// Items for the generated custom-only catalog.
+/// A composed Catalog must use a new application-owned catalog ID;
+/// do not reuse the generated catalog ID for a different
+/// item or schema set.
 List<CatalogItem> buildRestageCatalogItems() {
   return <CatalogItem>[
     CatalogItem(
@@ -61,7 +65,8 @@ List<CatalogItem> buildRestageCatalogItems() {
           value: data['visible'],
           builder: (context, visible) => Visibility(
             visible: visible ?? false,
-            child: _restageA2uiBuildChild(itemContext, data['child'])!,
+            child: _restageA2uiRequireChild(
+                itemContext, data['child'], 'Visibility.child'),
           ),
         );
       },
@@ -90,13 +95,27 @@ List<CatalogItem> buildRestageCatalogItems() {
   ];
 }
 
-const List<String> _restageA2uiSystemPromptFragments = <String>[];
+/// Content address for exactly the generated custom-only catalog.
+/// Default A2A supportedCatalogIds use requires server registration
+/// of this exact predefined catalog contract.
+/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// no end-to-end inline server interoperability is claimed.
+const String restageA2uiCatalogId =
+    'restage:catalog/sha256/2734678662295b480a218ba6bf809e0fc3fa1cbda2179388dc5be469a9eabf1f';
 
-/// The fully-assembled genui catalog: the generated items
-/// plus the system-prompt fragments composed from each
-/// widget's usage note (falling back to its description).
+const List<String> _restageA2uiSystemPromptFragments = <String>[
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/2734678662295b480a218ba6bf809e0fc3fa1cbda2179388dc5be469a9eabf1f".',
+];
+
+/// Builds the generated custom-only GenUI catalog identified by
+/// [restageA2uiCatalogId].
+///
+/// To compose a different catalog, use
+/// [buildRestageCatalogItems] and assign the new Catalog an
+/// application-owned catalog ID.
 Catalog buildRestageCatalog() => Catalog(
       buildRestageCatalogItems(),
+      catalogId: restageA2uiCatalogId,
       systemPromptFragments: _restageA2uiSystemPromptFragments,
     );
 
@@ -104,6 +123,53 @@ Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;
   return itemContext.buildChild(childId);
+}
+
+Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
+  final String reason;
+  if (childId == null) {
+    reason = 'the value was null or missing';
+  } else if (childId is! String) {
+    reason = 'the value had runtime type ${childId.runtimeType}, '
+        'but a String component id is required';
+  } else if (childId.isEmpty) {
+    reason = 'the value was the empty string';
+  } else {
+    reason = 'component id "$childId" is not registered';
+  }
+  throw StateError(
+    'Required A2UI child "$propertyContext" could not resolve: '
+    '$reason. Provide a non-empty String id for a component '
+    'registered on this surface.',
+  );
+}
+
+Never _restageA2uiRequiredChildBuildError(
+    String childId, String propertyContext, Object error) {
+  throw StateError(
+    'Required A2UI child "$propertyContext" with component id '
+    '"$childId" failed to build (${error.runtimeType}).',
+  );
+}
+
+Widget _restageA2uiRequireChild(
+    CatalogItemContext itemContext, Object? childId, String propertyContext) {
+  if (childId is! String || childId.isEmpty) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  if (itemContext.getComponent(childId) == null) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  late final Widget child;
+  try {
+    child = itemContext.buildChild(childId);
+  } catch (error) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, error);
+  }
+  if (child is FallbackWidget && child.error != null) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, child.error!);
+  }
+  return child;
 }
 
 List<Widget> _restageA2uiBuildChildren(

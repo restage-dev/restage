@@ -33,19 +33,19 @@ import 'generated/rich_shape_catalog.g.dart' as rich;
 void main() {
   _tieGroup(
     label: 'rich-shape',
-    items: rich.buildRestageCatalogItems(),
+    catalog: rich.buildRestageCatalog(),
     documentPath: 'test/generated/rich_shape_catalog.a2ui.json',
   );
   _tieGroup(
     label: 'interactive',
-    items: interactive.buildRestageCatalogItems(),
+    catalog: interactive.buildRestageCatalog(),
     documentPath: 'test/generated/interactive_catalog.a2ui.json',
   );
 }
 
 void _tieGroup({
   required String label,
-  required List<CatalogItem> items,
+  required Catalog catalog,
   required String documentPath,
 }) {
   test('$label: every document component schema == its genui '
@@ -55,8 +55,13 @@ void _tieGroup({
             as Map<String, Object?>;
     final components = ((document['a2uiCatalog']! as Map)['components']! as Map)
         .cast<String, Object?>();
+    final standalone = (document['a2uiCatalog']! as Map)
+        .cast<String, Object?>();
+    final items = catalog.items.toList();
 
     expect(items, isNotEmpty);
+    expect(catalog.catalogId, standalone[r'$id']);
+    expect(catalog.catalogId, standalone['catalogId']);
     expect(
       components.keys.toSet(),
       {for (final item in items) item.name},

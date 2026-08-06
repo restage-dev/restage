@@ -5,6 +5,7 @@ import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
@@ -221,16 +222,30 @@ Catalog _proofCatalog(String fixtureUri) => catalogWith([
 
 /// The production-emitted interactive catalog, normalized at the test boundary
 /// (the resolved `file://` fixture URI → the committed relative import).
-String _emitNormalized(ResolvedLibraryResult library) {
+({String source, RestageStampedA2uiCatalog registration}) _emitNormalized(
+  ResolvedLibraryResult library,
+) {
   final fixtureUri = _fixtureUri(library);
-  final emitted = emitA2uiCatalogDart(
-    _proofCatalog(fixtureUri),
-    eventSeam: _eventSeam(library),
-    pairingSeam: _pairingSeam(library),
+  final catalog = _proofCatalog(fixtureUri);
+  final eventSeam = _eventSeam(library);
+  final pairingSeam = _pairingSeam(library);
+  final registration = emitA2uiCatalog(
+    catalog,
+    eventSeam: eventSeam,
+    pairingSeam: pairingSeam,
   );
-  return formatGeneratedDart(
-    emitted.replaceAll(fixtureUri, _fixtureImport),
-  ).trimRight();
+  final emitted = emitA2uiCatalogDart(
+    catalog,
+    registration: registration,
+    eventSeam: eventSeam,
+    pairingSeam: pairingSeam,
+  );
+  return (
+    source: formatGeneratedDart(
+      emitted.replaceAll(fixtureUri, _fixtureImport),
+    ).trimRight(),
+    registration: registration,
+  );
 }
 
 void main() {
@@ -298,7 +313,8 @@ void main() {
       () {
     test('the committed generated interactive catalog is current (drift guard)',
         () {
-      final normalized = _emitNormalized(library);
+      final emission = _emitNormalized(library);
+      final normalized = emission.source;
 
       expect(
         normalized,
@@ -335,13 +351,7 @@ void main() {
       // against real genui. No URI normalization (the document carries no
       // import URIs).
       const encoder = JsonEncoder.withIndent('  ');
-      final fixtureUri = _fixtureUri(library);
-      final manifest = emitA2uiCatalog(
-        _proofCatalog(fixtureUri),
-        eventSeam: _eventSeam(library),
-        pairingSeam: _pairingSeam(library),
-      );
-      final manifestJson = encoder.convert(manifest.toJson());
+      final manifestJson = encoder.convert(emission.registration.toJson());
       final manifestFile = File(_manifestPath);
       if (Platform.environment['REGEN_A2UI_GOLDEN'] == '1') {
         manifestFile.parent.createSync(recursive: true);
@@ -364,8 +374,8 @@ void main() {
   group('interactive proof — scope-correctness vocabulary (the inert subset)',
       () {
     // A codegen-correctness guard: the emitter produces EXACTLY the designed
-    // Phase-2 interactive vocabulary — write-back
-    // (`dataContext.update` on a `{path}` binding), dispatch (a compile-fixed
+    // Phase-2 interactive vocabulary — controlled write-back through the
+    // shared source/override helper, dispatch (a compile-fixed
     // `dispatchEvent(UserActionEvent)`), and the value-reference oneOf schema —
     // and NONE of the genui producer-driven action surface (a genui `action()`
     // schema, a producer `functionCall` action, or a dynamic/producer-supplied
@@ -373,16 +383,15 @@ void main() {
     late String source;
 
     setUpAll(() {
-      source = _emitNormalized(library);
+      source = _emitNormalized(library).source;
     });
 
-    test('it emits the write-back vocabulary (path-bound read + update)', () {
-      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
+    test('it emits the shared controlled write-back vocabulary', () {
+      expect(source, contains("source: data['selected']"));
+      expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
       expect(
         source,
-        contains(
-          'update(DataPath(_restageA2uiPath_selected), _restageA2uiNext)',
-        ),
+        contains('onSelected: restageA2uiWriteSelected'),
       );
     });
 
@@ -421,25 +430,25 @@ void main() {
         eventSeam: _eventSeam(library),
         pairingSeam: _pairingSeam(library),
       );
-      source = _emitNormalized(library);
+      source = _emitNormalized(library).source;
     });
 
     test('the multi-control widget allocates two DISTINCT write-back paths',
         () {
-      // The explicit pairings (low/high) resolve to two distinct data paths —
+      // The explicit pairings (low/high) resolve to two distinct self paths —
       // no cross-wiring. (A duplicate path is a fail-loud throw by construction
       // — see _writeBackPreludeStatements.)
       expect(source, contains(r"'${itemContext.id}.low'"));
       expect(source, contains(r"'${itemContext.id}.high'"));
-      expect(source, contains("value: {'path': _restageA2uiPath_low}"));
-      expect(source, contains("value: {'path': _restageA2uiPath_high}"));
+      expect(source, contains('selfPath: restageA2uiSelfPathLow'));
+      expect(source, contains('selfPath: restageA2uiSelfPathHigh'));
       expect(
         source,
-        contains('update(DataPath(_restageA2uiPath_low), _restageA2uiNext)'),
+        contains('onLow: restageA2uiWriteLow'),
       );
       expect(
         source,
-        contains('update(DataPath(_restageA2uiPath_high), _restageA2uiNext)'),
+        contains('onHigh: restageA2uiWriteHigh'),
       );
     });
 

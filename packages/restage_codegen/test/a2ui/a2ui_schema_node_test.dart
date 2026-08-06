@@ -66,6 +66,29 @@ void main() {
       );
     });
 
+    test('EnumNode occurrence descriptions participate in value identity', () {
+      final first = EnumNode(
+        members: const ['a', 'b'],
+        dartTypeName: 'E',
+        occurrenceDescription: 'Selected tone.',
+      );
+      final second = EnumNode(
+        members: const ['a', 'b'],
+        dartTypeName: 'E',
+        occurrenceDescription: 'Selected tone.',
+      );
+
+      expect(first.occurrenceDescription, 'Selected tone.');
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+      expect(
+        first,
+        isNot(
+          equals(EnumNode(members: const ['a', 'b'], dartTypeName: 'E')),
+        ),
+      );
+    });
+
     test('ListNode nests an element node and equals deeply', () {
       const stringList = ListNode(element: ScalarNode(A2uiScalarType.string));
       const numberList = ListNode(element: ScalarNode(A2uiScalarType.number));
@@ -75,6 +98,29 @@ void main() {
         equals(const ListNode(element: ScalarNode(A2uiScalarType.string))),
       );
       expect(stringList, isNot(equals(numberList)));
+    });
+
+    test('ListNode occurrence descriptions participate in value identity', () {
+      const first = ListNode(
+        element: ScalarNode(A2uiScalarType.string),
+        occurrenceDescription: 'Visible tags.',
+      );
+      const second = ListNode(
+        element: ScalarNode(A2uiScalarType.string),
+        occurrenceDescription: 'Visible tags.',
+      );
+
+      expect(first.occurrenceDescription, 'Visible tags.');
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+      expect(
+        first,
+        isNot(
+          equals(
+            const ListNode(element: ScalarNode(A2uiScalarType.string)),
+          ),
+        ),
+      );
     });
 
     test('ObjectNode carries fields + required and equals deeply', () {
@@ -129,6 +175,29 @@ void main() {
       );
     });
 
+    test('MapNode occurrence descriptions participate in value identity', () {
+      const first = MapNode(
+        valueType: ScalarNode(A2uiScalarType.string),
+        occurrenceDescription: 'Labels by locale.',
+      );
+      const second = MapNode(
+        valueType: ScalarNode(A2uiScalarType.string),
+        occurrenceDescription: 'Labels by locale.',
+      );
+
+      expect(first.occurrenceDescription, 'Labels by locale.');
+      expect(first, second);
+      expect(first.hashCode, second.hashCode);
+      expect(
+        first,
+        isNot(
+          equals(
+            const MapNode(valueType: ScalarNode(A2uiScalarType.string)),
+          ),
+        ),
+      );
+    });
+
     test('UnionNode carries variants + discriminator and equals deeply', () {
       UnionNode build() => UnionNode(
             variants: [
@@ -138,10 +207,30 @@ void main() {
               ),
             ],
             discriminatorField: 'type',
+            defId: 'package:example/example.dart#Result',
+            definitionDescription: 'Canonical result.',
+            occurrenceDescription: 'Checkout result.',
           );
       expect(build().discriminatorField, 'type');
       expect(build().variants, hasLength(1));
+      expect(build().definitionDescription, 'Canonical result.');
+      expect(build().occurrenceDescription, 'Checkout result.');
       expect(build(), equals(build()));
+      expect(build().hashCode, build().hashCode);
+      expect(
+        build(),
+        isNot(
+          equals(
+            UnionNode(
+              variants: build().variants,
+              discriminatorField: 'type',
+              defId: 'package:example/example.dart#Result',
+              definitionDescription: 'Canonical result.',
+              occurrenceDescription: 'Another result.',
+            ),
+          ),
+        ),
+      );
     });
 
     test('RefNode carries its definition id and equals deeply', () {

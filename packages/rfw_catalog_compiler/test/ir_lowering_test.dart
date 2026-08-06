@@ -34,6 +34,11 @@ void main() {
             metadata: const PropertyMetadataIR(
               category: PropertyCategory.data,
               priority: PropertyPriority.primary,
+              constraints: RestageConstraints(
+                allowedValues: ['headline', 'body', null],
+                minLength: 1,
+                maxLength: 80,
+              ),
             ),
             policyTrace: const [],
             diagnostics: const [],
@@ -62,6 +67,14 @@ void main() {
       expect(widget.properties, hasLength(1));
       expect(widget.properties.single.wireId, WireId('p0001'));
       expect(widget.properties.single.type, PropertyType.string);
+      expect(
+        widget.properties.single.constraints,
+        const RestageConstraints(
+          allowedValues: ['headline', 'body', null],
+          minLength: 1,
+          maxLength: 80,
+        ),
+      );
 
       final catalog = Catalog(
         schemaVersion: kSupportedSchemaVersion,

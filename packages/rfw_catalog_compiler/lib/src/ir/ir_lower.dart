@@ -95,6 +95,7 @@ PropertyEntry lowerProperty(PropertyIR ir) {
     category: ir.metadata.category,
     priority: ir.metadata.priority,
     validationRule: ir.metadata.validationRule,
+    constraints: ir.metadata.constraints,
     deprecated: ir.metadata.deprecated,
     structuredRef: ir.type.structuredRef,
     valueShape: ir.type.valueShape,

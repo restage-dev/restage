@@ -40,7 +40,10 @@ enum A2uiScalarType {
 /// then the emitter fails loud rather than guessing on them).
 @immutable
 sealed class A2uiSchemaNode {
-  const A2uiSchemaNode({this.nullable = false});
+  const A2uiSchemaNode({
+    this.nullable = false,
+    this.occurrenceDescription,
+  });
 
   /// Whether this node accepts a JSON `null`.
   ///
@@ -48,6 +51,11 @@ sealed class A2uiSchemaNode {
   /// field may still be non-nullable when present, and a required field may
   /// still be nullable.
   final bool nullable;
+
+  /// Documentation for this use of the value in its owning member.
+  ///
+  /// Distinct from a named type's canonical definition documentation.
+  final String? occurrenceDescription;
 }
 
 /// A scalar value (string, number, integer, or boolean).
@@ -57,6 +65,7 @@ final class ScalarNode extends A2uiSchemaNode {
   const ScalarNode(
     this.type, {
     this.preserveNumericRuntimeType = false,
+    super.occurrenceDescription,
     super.nullable,
   });
 
@@ -74,10 +83,16 @@ final class ScalarNode extends A2uiSchemaNode {
       other is ScalarNode &&
       other.type == type &&
       other.preserveNumericRuntimeType == preserveNumericRuntimeType &&
+      other.occurrenceDescription == occurrenceDescription &&
       other.nullable == nullable;
 
   @override
-  int get hashCode => Object.hash(type, preserveNumericRuntimeType, nullable);
+  int get hashCode => Object.hash(
+        type,
+        preserveNumericRuntimeType,
+        occurrenceDescription,
+        nullable,
+      );
 }
 
 /// A closed set of string-valued members, resolved from a Dart enum.
@@ -92,6 +107,7 @@ final class EnumNode extends A2uiSchemaNode {
     required List<String> members,
     required this.dartTypeName,
     this.libraryUri,
+    super.occurrenceDescription,
     super.nullable,
   }) : members = List.unmodifiable(members);
 
@@ -110,6 +126,7 @@ final class EnumNode extends A2uiSchemaNode {
       const ListEquality<String>().equals(other.members, members) &&
       other.dartTypeName == dartTypeName &&
       other.libraryUri == libraryUri &&
+      other.occurrenceDescription == occurrenceDescription &&
       other.nullable == nullable;
 
   @override
@@ -117,6 +134,7 @@ final class EnumNode extends A2uiSchemaNode {
         const ListEquality<String>().hash(members),
         dartTypeName,
         libraryUri,
+        occurrenceDescription,
         nullable,
       );
 }
@@ -125,7 +143,11 @@ final class EnumNode extends A2uiSchemaNode {
 @immutable
 final class ListNode extends A2uiSchemaNode {
   /// Creates a list node over [element].
-  const ListNode({required this.element, super.nullable});
+  const ListNode({
+    required this.element,
+    super.occurrenceDescription,
+    super.nullable,
+  });
 
   /// The shape of each list item.
   final A2uiSchemaNode element;
@@ -134,10 +156,11 @@ final class ListNode extends A2uiSchemaNode {
   bool operator ==(Object other) =>
       other is ListNode &&
       other.element == element &&
+      other.occurrenceDescription == occurrenceDescription &&
       other.nullable == nullable;
 
   @override
-  int get hashCode => Object.hash(element, nullable);
+  int get hashCode => Object.hash(element, occurrenceDescription, nullable);
 }
 
 /// A nested object whose named [fields] each carry their own shape.
@@ -155,6 +178,8 @@ final class ObjectNode extends A2uiSchemaNode {
     required Set<String> required,
     this.defId,
     this.construction,
+    this.definitionDescription,
+    super.occurrenceDescription,
     super.nullable,
   })  : fields = Map.unmodifiable(fields),
         required = Set.unmodifiable(required);
@@ -171,6 +196,12 @@ final class ObjectNode extends A2uiSchemaNode {
   /// How the Dart value is reconstructed from decoded JSON, when known.
   final A2uiObjectConstruction? construction;
 
+  /// Canonical documentation for the named type represented by [defId].
+  ///
+  /// This is distinct from [occurrenceDescription], which documents one
+  /// owning member that uses the type.
+  final String? definitionDescription;
+
   @override
   bool operator ==(Object other) =>
       other is ObjectNode &&
@@ -179,6 +210,8 @@ final class ObjectNode extends A2uiSchemaNode {
       const SetEquality<String>().equals(other.required, required) &&
       other.defId == defId &&
       other.construction == construction &&
+      other.definitionDescription == definitionDescription &&
+      other.occurrenceDescription == occurrenceDescription &&
       other.nullable == nullable;
 
   @override
@@ -187,6 +220,8 @@ final class ObjectNode extends A2uiSchemaNode {
         const SetEquality<String>().hash(required),
         defId,
         construction,
+        definitionDescription,
+        occurrenceDescription,
         nullable,
       );
 }
@@ -285,7 +320,11 @@ final class A2uiConstructorParameter {
 @immutable
 final class MapNode extends A2uiSchemaNode {
   /// Creates a map node whose values carry [valueType].
-  const MapNode({required this.valueType, super.nullable});
+  const MapNode({
+    required this.valueType,
+    super.occurrenceDescription,
+    super.nullable,
+  });
 
   /// The shape of every value in the dictionary.
   final A2uiSchemaNode valueType;
@@ -294,10 +333,11 @@ final class MapNode extends A2uiSchemaNode {
   bool operator ==(Object other) =>
       other is MapNode &&
       other.valueType == valueType &&
+      other.occurrenceDescription == occurrenceDescription &&
       other.nullable == nullable;
 
   @override
-  int get hashCode => Object.hash(valueType, nullable);
+  int get hashCode => Object.hash(valueType, occurrenceDescription, nullable);
 }
 
 /// A discriminated union over a closed set of [variants].
@@ -311,6 +351,8 @@ final class UnionNode extends A2uiSchemaNode {
     required List<A2uiSchemaNode> variants,
     required this.discriminatorField,
     this.defId,
+    this.definitionDescription,
+    super.occurrenceDescription,
     super.nullable,
   }) : variants = List.unmodifiable(variants);
 
@@ -323,12 +365,20 @@ final class UnionNode extends A2uiSchemaNode {
   /// The shared-definition id when this union is emitted into `$defs`.
   final String? defId;
 
+  /// Canonical documentation for the named union represented by [defId].
+  ///
+  /// This is distinct from [occurrenceDescription], which documents one
+  /// owning member that uses the union.
+  final String? definitionDescription;
+
   @override
   bool operator ==(Object other) =>
       other is UnionNode &&
       const ListEquality<A2uiSchemaNode>().equals(other.variants, variants) &&
       other.discriminatorField == discriminatorField &&
       other.defId == defId &&
+      other.definitionDescription == definitionDescription &&
+      other.occurrenceDescription == occurrenceDescription &&
       other.nullable == nullable;
 
   @override
@@ -336,6 +386,8 @@ final class UnionNode extends A2uiSchemaNode {
         const ListEquality<A2uiSchemaNode>().hash(variants),
         discriminatorField,
         defId,
+        definitionDescription,
+        occurrenceDescription,
         nullable,
       );
 }
@@ -345,17 +397,24 @@ final class UnionNode extends A2uiSchemaNode {
 @immutable
 final class RefNode extends A2uiSchemaNode {
   /// Creates a reference to the shared definition [defId].
-  const RefNode(this.defId, {super.nullable});
+  const RefNode(
+    this.defId, {
+    super.occurrenceDescription,
+    super.nullable,
+  });
 
   /// The id of the referenced shared definition.
   final String defId;
 
   @override
   bool operator ==(Object other) =>
-      other is RefNode && other.defId == defId && other.nullable == nullable;
+      other is RefNode &&
+      other.defId == defId &&
+      other.occurrenceDescription == occurrenceDescription &&
+      other.nullable == nullable;
 
   @override
-  int get hashCode => Object.hash(defId, nullable);
+  int get hashCode => Object.hash(defId, occurrenceDescription, nullable);
 }
 
 /// A widget child slot.
@@ -365,31 +424,36 @@ final class RefNode extends A2uiSchemaNode {
 /// from [A2uiSchemaNode].
 @immutable
 sealed class A2uiChildSlot {
-  const A2uiChildSlot();
+  const A2uiChildSlot({this.nullable = false});
+
+  /// Whether the child-id value itself accepts JSON `null`.
+  final bool nullable;
 }
 
 /// A single child slot (one child id).
 @immutable
 final class A2uiChildNode extends A2uiChildSlot {
   /// Creates a single-child slot.
-  const A2uiChildNode();
+  const A2uiChildNode({super.nullable});
 
   @override
-  bool operator ==(Object other) => other is A2uiChildNode;
+  bool operator ==(Object other) =>
+      other is A2uiChildNode && other.nullable == nullable;
 
   @override
-  int get hashCode => (A2uiChildNode).hashCode;
+  int get hashCode => Object.hash(A2uiChildNode, nullable);
 }
 
 /// A list child slot (a list of child ids).
 @immutable
 final class A2uiChildrenNode extends A2uiChildSlot {
   /// Creates a list-child slot.
-  const A2uiChildrenNode();
+  const A2uiChildrenNode({super.nullable});
 
   @override
-  bool operator ==(Object other) => other is A2uiChildrenNode;
+  bool operator ==(Object other) =>
+      other is A2uiChildrenNode && other.nullable == nullable;
 
   @override
-  int get hashCode => (A2uiChildrenNode).hashCode;
+  int get hashCode => Object.hash(A2uiChildrenNode, nullable);
 }

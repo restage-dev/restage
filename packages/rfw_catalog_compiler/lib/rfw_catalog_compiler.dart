@@ -30,6 +30,11 @@ export 'src/walker/element_fqn.dart'
         typeFqn;
 export 'src/walker/library_walker.dart'
     show LibraryWalkResult, RestageLibraryDeclaration, walkRestageLibrary;
+export 'src/walker/structured_description_resolver.dart'
+    show
+        StructuredDescriptionConflict,
+        StructuredDescriptionResolution,
+        resolveStructuredDescriptions;
 export 'src/walker/structured_type_predicate.dart'
     show StructuredKind, classifyStructured;
 export 'src/walker/structured_walker.dart'
@@ -47,6 +52,7 @@ export 'src/walker/walker_issue_codes.dart'
         restageLibraryUnexportedWidget,
         structuredCycle,
         structuredDepthExceeded,
+        structuredDescriptionConflict,
         structuredFactoryUnsupportedParam,
         unionMemberInvalid,
         unionMemberUnresolved;

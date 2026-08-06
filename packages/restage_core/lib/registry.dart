@@ -7377,8 +7377,7 @@ final Catalog kRegistry = Catalog(
           wireId: WireId('p0192'),
           name: 'fontFamily',
           type: PropertyType.string,
-          description:
-              'The name of the font to use when painting the text (e.g., Roboto).',
+          description: 'Primary font family.',
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:

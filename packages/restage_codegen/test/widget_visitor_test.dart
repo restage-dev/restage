@@ -1,4 +1,5 @@
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -171,7 +172,7 @@ void main() {
             }
           ''',
         },
-        includeA2uiScalarLists: true,
+        target: WidgetVisitorTarget.a2ui,
       );
 
       expect(result.issues, isEmpty);
@@ -205,6 +206,173 @@ void main() {
       );
     });
 
+    test('named A2UI target derives the complete constructor-required matrix',
+        () async {
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/requiredness.dart': '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+            class Widget {}
+            enum Tone { warm, cool }
+            class Details {
+              const Details({required this.count});
+              final int count;
+            }
+
+            @RestageWidget(
+              name: 'Requiredness',
+              library: WidgetLibrary.custom('acme.design_system'),
+              category: WidgetCategory.layout,
+              description: 'Requiredness proof.',
+            )
+            class Requiredness {
+              const Requiredness({
+                required this.title,
+                required this.tone,
+                required this.counts,
+                required this.details,
+                required this.child,
+                required this.children,
+                required this.maybeTitle,
+                this.optionalLabel,
+                this.defaultedCount = 3,
+                required this.onTap,
+              });
+
+              @RestageProperty(description: 'Title.')
+              final String title;
+              @RestageProperty(description: 'Tone.')
+              final Tone tone;
+              @RestageProperty(description: 'Counts.')
+              final List<int> counts;
+              @RestageProperty(description: 'Details.')
+              final Details details;
+              @RestageProperty(description: 'Child.')
+              final Widget child;
+              @RestageProperty(description: 'Children.')
+              final List<Widget> children;
+              @RestageProperty(description: 'Required nullable title.')
+              final String? maybeTitle;
+              @RestageProperty(description: 'Optional label.')
+              final String? optionalLabel;
+              @RestageProperty(description: 'Defaulted count.')
+              final int defaultedCount;
+              @RestageProperty(description: 'Tap callback.')
+              final void Function() onTap;
+            }
+          ''',
+        },
+        target: WidgetVisitorTarget.a2ui,
+      );
+
+      expect(result.issues, isEmpty);
+      final properties = {
+        for (final property in result.widgets.single.properties)
+          property.name: property,
+      };
+      for (final name in [
+        'title',
+        'tone',
+        'counts',
+        'details',
+        'child',
+        'children',
+        'maybeTitle',
+      ]) {
+        expect(properties[name]!.required, isTrue, reason: name);
+      }
+      expect(properties['optionalLabel']!.required, isFalse);
+      expect(properties['defaultedCount']!.required, isFalse);
+      expect(properties['onTap']!.required, isFalse);
+      expect(properties['onTap']!.type, PropertyType.event);
+      expect(properties['tone']!.enumType, 'Tone');
+      expect(properties['tone']!.valueShape, isA<EnumShape>());
+      expect(properties['counts']!.type, PropertyType.structured);
+      expect(properties['details']!.type, PropertyType.structured);
+      expect(properties['child']!.type, PropertyType.widget);
+      expect(properties['children']!.type, PropertyType.widgetList);
+    });
+
+    test('the named RFW target is byte-neutral with the legacy default',
+        () async {
+      const sources = <String, String>{
+        'lib/rfw_requiredness.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          class Widget {}
+          enum Tone { warm, cool }
+
+          @RestageWidget(
+            name: 'RfwRequiredness',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.layout,
+            description: 'RFW no-change proof.',
+          )
+          class RfwRequiredness {
+            const RfwRequiredness({
+              required this.title,
+              required this.tone,
+              required this.child,
+              required this.children,
+              required this.onTap,
+            });
+
+            @RestageProperty(description: 'Title.')
+            final String title;
+            @RestageProperty(description: 'Tone.')
+            final Tone tone;
+            @RestageProperty(description: 'Child.')
+            final Widget child;
+            @RestageProperty(description: 'Children.')
+            final List<Widget> children;
+            @RestageProperty(description: 'Tap callback.')
+            final void Function() onTap;
+          }
+        ''',
+      };
+
+      final legacy = await runWidgetVisitorOn(sources);
+      final named = await runWidgetVisitorOn(
+        sources,
+        // Explicit target is the contract under test, despite matching default.
+        // ignore: avoid_redundant_argument_values
+        target: WidgetVisitorTarget.rfw,
+      );
+      List<(String, PropertyType, bool, bool)> snapshot(
+        WidgetVisitorResult result,
+      ) =>
+          [
+            for (final property in result.widgets.single.properties)
+              (
+                property.name,
+                property.type,
+                property.required,
+                property.positional,
+              ),
+          ];
+
+      expect(
+        named.issues.map((issue) => issue.code),
+        legacy.issues.map((issue) => issue.code),
+      );
+      expect(snapshot(named), snapshot(legacy));
+      final namedTone = named.widgets.single.properties
+          .singleWhere((property) => property.name == 'tone');
+      expect(namedTone.enumType, isNull);
+      expect(namedTone.valueShape, isNull);
+      expect(
+        snapshot(named),
+        [
+          ('title', PropertyType.string, false, false),
+          ('tone', PropertyType.enumValue, false, false),
+          ('child', PropertyType.widget, false, false),
+          ('children', PropertyType.widgetList, false, false),
+          ('onTap', PropertyType.event, false, false),
+        ],
+      );
+    });
+
     test('A2UI mode still rejects a list whose element is not a scalar',
         () async {
       final result = await runWidgetVisitorOn(
@@ -226,7 +394,7 @@ void main() {
             }
           ''',
         },
-        includeA2uiScalarLists: true,
+        target: WidgetVisitorTarget.a2ui,
       );
 
       expect(result.widgets.single.properties, isEmpty);
@@ -460,6 +628,305 @@ void main() {
           ),
         ),
       );
+    });
+
+    test('decodes typed constraints and legacy validation without loss',
+        () async {
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/constrained.dart': '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+            @RestageWidget(
+              name: 'Constrained',
+              library: WidgetLibrary.custom('acme.design_system'),
+              category: WidgetCategory.input,
+              description: 'Constraint propagation proof.',
+            )
+            class Constrained {
+              const Constrained({
+                required this.count,
+                required this.ratio,
+                required this.label,
+                required this.options,
+                required this.legacy,
+              });
+
+              @RestageProperty(
+                description: 'Count.',
+                constraints: RestageConstraints(
+                  minimum: 1,
+                  exclusiveMaximum: 11,
+                  allowedValues: [1, 2, null],
+                ),
+              )
+              final int count;
+
+              @RestageProperty(
+                description: 'Ratio.',
+                constraints: RestageConstraints(
+                  exclusiveMinimum: 0.5,
+                  maximum: 9.5,
+                ),
+              )
+              final double ratio;
+
+              @RestageProperty(
+                description: 'Label.',
+                constraints: RestageConstraints(
+                  allowedValues: ['short', 'long', null],
+                  pattern: r'^[a-z]+',
+                  minLength: 2,
+                  maxLength: 8,
+                ),
+              )
+              final String label;
+
+              @RestageProperty(
+                description: 'Options.',
+                constraints: RestageConstraints(minItems: 1, maxItems: 4),
+              )
+              final List<String> options;
+
+              @RestageProperty(
+                description: 'Legacy.',
+                validationRule: ValidationExpr(
+                  expression: 'legacy(value) == true',
+                  message: 'Keep this message exactly.',
+                ),
+              )
+              final String legacy;
+            }
+          ''',
+        },
+        target: WidgetVisitorTarget.a2ui,
+      );
+
+      expect(result.issues, isEmpty);
+      final properties = {
+        for (final property in result.widgets.single.properties)
+          property.name: property,
+      };
+      expect(
+        properties['count']!.constraints,
+        const RestageConstraints(
+          minimum: 1,
+          exclusiveMaximum: 11,
+          allowedValues: [1, 2, null],
+        ),
+      );
+      expect(properties['count']!.constraints.minimum, isA<int>());
+      expect(properties['count']!.constraints.exclusiveMaximum, isA<int>());
+      expect(
+        () => properties['count']!.constraints.allowedValues!.add(3),
+        throwsUnsupportedError,
+      );
+      expect(
+        properties['ratio']!.constraints,
+        const RestageConstraints(exclusiveMinimum: 0.5, maximum: 9.5),
+      );
+      expect(
+        properties['ratio']!.constraints.exclusiveMinimum,
+        isA<double>(),
+      );
+      expect(properties['ratio']!.constraints.maximum, isA<double>());
+      expect(
+        properties['label']!.constraints,
+        const RestageConstraints(
+          allowedValues: ['short', 'long', null],
+          pattern: '^[a-z]+',
+          minLength: 2,
+          maxLength: 8,
+        ),
+      );
+      expect(
+        properties['options']!.constraints,
+        const RestageConstraints(minItems: 1, maxItems: 4),
+      );
+      expect(
+        properties['legacy']!.validationRule,
+        const ValidationExpr(
+          expression: 'legacy(value) == true',
+          message: 'Keep this message exactly.',
+        ),
+      );
+    });
+
+    test('rejects typed constraints combined with legacy validation', () async {
+      final result = await runWidgetVisitorOn({
+        'lib/conflict.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageWidget(
+            name: 'ConflictedWidget',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.input,
+            description: 'Conflict proof.',
+          )
+          class ConflictedWidget {
+            const ConflictedWidget({required this.value});
+
+            @RestageProperty(
+              description: 'Conflicted property.',
+              validationRule: ValidationExpr(
+                expression: 'legacy(value)',
+                message: 'Legacy rule.',
+              ),
+              constraints: RestageConstraints(minLength: 1),
+            )
+            final String value;
+          }
+        ''',
+      });
+
+      expect(result.widgets.single.properties, isEmpty);
+      expect(
+        result.issues,
+        contains(
+          isA<Issue>()
+              .having(
+                (issue) => issue.code,
+                'code',
+                IssueCode.conflictingValidationStrategy,
+              )
+              .having(
+                (issue) => issue.message,
+                'message',
+                allOf(contains('ConflictedWidget'), contains('value')),
+              )
+              .having(
+                (issue) => issue.location,
+                'location',
+                contains('ConflictedWidget.value'),
+              ),
+        ),
+      );
+    });
+
+    test('rejects typed constraints with non-JSON allowed values', () async {
+      final result = await runWidgetVisitorOn({
+        'lib/invalid_allowed_values.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageWidget(
+            name: 'InvalidAllowedValues',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.input,
+            description: 'Representation admission proof.',
+          )
+          class InvalidAllowedValues {
+            const InvalidAllowedValues({
+              required this.duration,
+              required this.infinity,
+            });
+
+            @RestageProperty(
+              description: 'Duration value.',
+              constraints: RestageConstraints(
+                allowedValues: [Duration(seconds: 1)],
+              ),
+            )
+            final String duration;
+
+            @RestageProperty(
+              description: 'Infinite value.',
+              constraints: RestageConstraints(
+                allowedValues: [double.infinity],
+              ),
+            )
+            final double infinity;
+          }
+        ''',
+      });
+
+      expect(result.widgets.single.properties, isEmpty);
+      final invalid = result.issues
+          .where((issue) => issue.code == IssueCode.invalidConstraintValue)
+          .toList();
+      expect(invalid, hasLength(2));
+      expect(
+        invalid.map((issue) => issue.message),
+        everyElement(contains('allowedValues[0]')),
+      );
+      expect(invalid[0].message, contains('InvalidAllowedValues.duration'));
+      expect(invalid[0].message, contains('Duration'));
+      expect(invalid[1].message, contains('InvalidAllowedValues.infinity'));
+      expect(invalid[1].message, contains('double'));
+    });
+
+    test('rejects non-finite numeric constraint bounds with bound context',
+        () async {
+      final result = await runWidgetVisitorOn({
+        'lib/non_finite_bounds.dart': '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+          @RestageWidget(
+            name: 'NonFiniteBounds',
+            library: WidgetLibrary.custom('acme.design_system'),
+            category: WidgetCategory.input,
+            description: 'Finite-bound admission proof.',
+          )
+          class NonFiniteBounds {
+            const NonFiniteBounds({
+              required this.minimum,
+              required this.exclusiveMinimum,
+              required this.maximum,
+              required this.exclusiveMaximum,
+            });
+
+            @RestageProperty(
+              description: 'Infinite minimum.',
+              constraints: RestageConstraints(minimum: double.infinity),
+            )
+            final double minimum;
+
+            @RestageProperty(
+              description: 'Negative infinite exclusive minimum.',
+              constraints: RestageConstraints(
+                exclusiveMinimum: -double.infinity,
+              ),
+            )
+            final double exclusiveMinimum;
+
+            @RestageProperty(
+              description: 'NaN maximum.',
+              constraints: RestageConstraints(maximum: double.nan),
+            )
+            final double maximum;
+
+            @RestageProperty(
+              description: 'Infinite exclusive maximum.',
+              constraints: RestageConstraints(
+                exclusiveMaximum: double.infinity,
+              ),
+            )
+            final double exclusiveMaximum;
+          }
+        ''',
+      });
+
+      expect(result.widgets.single.properties, isEmpty);
+      final invalid = result.issues
+          .where((issue) => issue.code == IssueCode.invalidConstraintValue)
+          .toList();
+      expect(invalid, hasLength(4));
+      for (final bound in const [
+        'minimum',
+        'exclusiveMinimum',
+        'maximum',
+        'exclusiveMaximum',
+      ]) {
+        expect(
+          invalid.map((issue) => issue.message),
+          contains(
+            allOf(
+              contains('constraints.$bound'),
+              contains('NonFiniteBounds.$bound'),
+              contains('finite compile-time constant int or double'),
+            ),
+          ),
+        );
+      }
     });
 
     test(

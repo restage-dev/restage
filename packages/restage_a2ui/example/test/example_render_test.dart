@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
 import 'package:restage_a2ui_example/restage_imports.dart';
 
@@ -55,6 +57,28 @@ Future<void> _pump(
 /// `Map<String, dynamic>` genui delivers from a decoded payload.
 Map<String, Object?> _asDelivered(Map<String, Object?> data) =>
     jsonDecode(jsonEncode(data)) as Map<String, Object?>;
+
+final class _CurrentIntegerListFunction implements ClientFunction {
+  _CurrentIntegerListFunction(this.controller);
+
+  final StreamController<Object?> controller;
+
+  @override
+  String get name => 'currentIntegerList';
+
+  @override
+  String get description => 'Emits the current integer list.';
+
+  @override
+  Schema get argumentSchema => S.object(properties: const {});
+
+  @override
+  ClientFunctionReturnType get returnType => ClientFunctionReturnType.array;
+
+  @override
+  Stream<Object?> execute(JsonMap args, ExecutionContext context) =>
+      controller.stream;
+}
 
 void main() {
   // Reference the barrel's library sentinel so the generated catalog's source
@@ -239,6 +263,77 @@ void main() {
     ]);
   });
 
+  testWidgets('integer-list literal renders and becomes a retained local '
+      'override after write', (tester) async {
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'IntegerListPicker',
+      data: _asDelivered(const {
+        'selected': <Object?>[1, 2.8, 'x'],
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+    expect(find.text('selected:1,2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('integer-list-add')));
+    await tester.pump();
+    expect(find.text('selected:1,2,3'), findsOneWidget);
+    expect(
+      dataContext.getValue<List<Object?>>(DataPath('root.selected')),
+      <int>[1, 2, 3],
+    );
+
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'IntegerListPicker',
+      data: _asDelivered(const {
+        'selected': <int>[9],
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+    expect(find.text('selected:1,2,3'), findsOneWidget);
+  });
+
+  testWidgets('integer-list call stays reactive until write and rejects later '
+      'output after immediate cancellation', (tester) async {
+    final controller = StreamController<Object?>.broadcast(sync: true);
+    addTearDown(controller.close);
+    final function = _CurrentIntegerListFunction(controller);
+    dataContext = DataContext(
+      dataContext.dataModel,
+      DataPath.root,
+      functions: <ClientFunction>[function],
+    );
+    await _pump(
+      tester,
+      catalog: catalog,
+      type: 'IntegerListPicker',
+      data: _asDelivered(const {
+        'selected': {'call': 'currentIntegerList'},
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+    await tester.pump();
+    expect(controller.hasListener, isTrue);
+
+    controller.add(<Object?>[4, 5.8, 'x']);
+    await tester.pump();
+    expect(find.text('selected:4,5'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('integer-list-add')));
+    expect(controller.hasListener, isFalse);
+    await tester.pump();
+    expect(find.text('selected:4,5,3'), findsOneWidget);
+    controller.add(<int>[99]);
+    await tester.pump();
+    expect(find.text('selected:4,5,3'), findsOneWidget);
+  });
+
   testWidgets('rich data: a structured Product (nested object + scalar list + '
       'list-of-objects + map + record) reconstructs and renders', (
     tester,
@@ -274,8 +369,8 @@ void main() {
     expect(find.text('✓ Unlimited'), findsOneWidget); // list-of-objects
     expect(find.text('✗ Priority support'), findsOneWidget);
     expect(find.text('tier: gold'), findsOneWidget); // String-keyed map
-    // The record-typed `size` drives the card width (300), proving the record
-    // reconstructed.
+    // The record-typed `size` drives the visible card dimensions, proving the
+    // record reconstructed without hiding its footprint in an invisible box.
     final card = tester.widget<SizedBox>(
       find.ancestor(
         of: find.byKey(const ValueKey('product-card')),
@@ -283,6 +378,11 @@ void main() {
       ),
     );
     expect(card.width, 300.0);
+    expect(card.height, 200.0);
+    expect(
+      find.descendant(of: find.byWidget(card), matching: find.byType(Card)),
+      findsOneWidget,
+    );
   });
 
   testWidgets(

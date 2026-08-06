@@ -59,7 +59,7 @@ typedef RestageCatalogDeprecationResolver = DeprecationInfo? Function(
   DeprecationInfo? existing,
 );
 
-/// Optional wire-ID hooks for the transitional restage_catalog_gen adapter.
+/// Optional wire-ID hooks for the transitional catalog-generator adapter.
 ///
 /// With no hooks supplied, the reflected entries keep their existing sentinel
 /// IDs. Supplying resolvers backed by event-log replay and allocation swaps in
@@ -102,7 +102,7 @@ final class RestageCatalogGenWireIdHooks {
   final RestageCatalogDeprecationResolver? deprecation;
 }
 
-/// Adapter from restage_catalog_gen's reflected schema entries into compiler
+/// Adapter from the catalog generator's reflected schema entries into compiler
 /// IR.
 ///
 /// The current reflector already returns public schema entries, but this
@@ -232,6 +232,7 @@ final class RestageCatalogGenAdapter {
         category: property.category,
         priority: property.priority,
         validationRule: property.validationRule,
+        constraints: property.constraints,
         deprecated: _resolveDeprecation(resolvedId, property.deprecated),
         synthetic: property.synthetic,
         firesAs: property.firesAs,

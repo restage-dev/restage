@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0
+
+- Re-export the typed constraint model and the canonical A2UI example and
+  nested-data annotations from `rfw_catalog_schema` 1.2.0.
+
 ## 1.1.0
 
 - Additive schema support for upcoming surface work; no breaking changes.

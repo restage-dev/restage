@@ -2,6 +2,7 @@ import 'package:meta/meta.dart';
 
 import 'package:rfw_catalog_schema/src/default_value_source.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
+import 'package:rfw_catalog_schema/src/restage_constraints.dart';
 import 'package:rfw_catalog_schema/src/validation_expr.dart';
 
 /// Marks a field on a `@RestageWidget`-annotated class as a catalog
@@ -54,6 +55,7 @@ final class RestageProperty {
     this.category,
     this.priority,
     this.validationRule,
+    this.constraints = RestageConstraints.empty,
     this.minSchemaVersion = 1,
     this.writeBackValue,
   }) : assert(
@@ -102,6 +104,13 @@ final class RestageProperty {
 
   /// Validation rule applied to authored values.
   final ValidationExpr? validationRule;
+
+  /// Typed JSON-Schema-shaped constraints applied to authored values.
+  ///
+  /// Typed constraints and [validationRule] are mutually exclusive. The
+  /// code-generation and catalog codec boundaries enforce that invariant with
+  /// actionable diagnostics.
+  final RestageConstraints constraints;
 
   /// Catalog schema version that introduced this property. Defaults
   /// to 1.
