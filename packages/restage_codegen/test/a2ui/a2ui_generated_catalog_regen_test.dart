@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -82,7 +83,12 @@ const _generatedPath =
 
 void main() {
   test('generated A2UI catalog fixture is current (drift guard)', () {
-    final actual = emitA2uiCatalogDart(_fixtureCatalog());
+    final catalog = _fixtureCatalog();
+    final registration = emitA2uiCatalog(catalog);
+    final actual = emitA2uiCatalogDart(
+      catalog,
+      registration: registration,
+    );
 
     final file = File(_generatedPath);
     if (Platform.environment['REGEN_A2UI_DART_GOLDEN'] == '1') {

@@ -28,6 +28,9 @@ class _FakeInterfaceType implements InterfaceType {
   InterfaceElement get element => _element;
 
   @override
+  List<ConstructorElement> get constructors => _element.constructors;
+
+  @override
   List<DartType> get typeArguments => _typeArguments;
 
   @override
@@ -263,6 +266,9 @@ class _FakeClassElement implements ClassElement {
   final String? documentationComment;
 
   @override
+  Metadata get metadata => const _FakeMetadata();
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
         'Fake ClassElement: ${invocation.memberName}',
       );
@@ -299,6 +305,9 @@ class _FakeFieldElement implements FieldElement {
   final String name;
 
   @override
+  FieldElement get baseElement => this;
+
+  @override
   final DartType type;
 
   @override
@@ -311,6 +320,9 @@ class _FakeFieldElement implements FieldElement {
   final bool isOriginGetterSetter;
 
   @override
+  bool get isOriginDeclaration => true;
+
+  @override
   final bool isPublic;
 
   @override
@@ -318,6 +330,9 @@ class _FakeFieldElement implements FieldElement {
 
   @override
   final String? documentationComment;
+
+  @override
+  Metadata get metadata => const _FakeMetadata();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
@@ -418,6 +433,12 @@ class _FakeGetterElement implements GetterElement {
   final String name;
 
   @override
+  GetterElement get baseElement => this;
+
+  @override
+  bool get isOriginDeclaration => true;
+
+  @override
   final DartType returnType;
 
   @override
@@ -431,6 +452,9 @@ class _FakeGetterElement implements GetterElement {
 
   @override
   final String? documentationComment;
+
+  @override
+  Metadata get metadata => const _FakeMetadata();
 
   @override
   List<FormalParameterElement> get formalParameters => const [];
@@ -492,12 +516,32 @@ class _FakeFormalParameter implements FormalParameterElement {
   final String name;
 
   @override
+  FormalParameterElement get baseElement => this;
+
+  @override
   final DartType type;
+
+  @override
+  String? get documentationComment => null;
+
+  @override
+  Metadata get metadata => const _FakeMetadata();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
         'Fake FormalParameterElement: ${invocation.memberName}',
       );
+}
+
+class _FakeMetadata implements Metadata {
+  const _FakeMetadata();
+
+  @override
+  List<ElementAnnotation> get annotations => const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('Fake Metadata: ${invocation.memberName}');
 }
 
 class _FakeRecordPositionalField implements RecordTypePositionalField {

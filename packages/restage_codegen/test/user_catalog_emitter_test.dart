@@ -215,6 +215,119 @@ void main() {
       expect(src, contains('required: true'));
     });
 
+    test('allocation and user emitter preserve constraint metadata', () {
+      final allocation = allocateUserCatalogFromWidgets(
+        package: 'acme.design_system',
+        widgets: [
+          _widgetEntry(
+            name: 'ConstrainedWidget',
+            properties: [
+              const PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'count',
+                type: PropertyType.integer,
+                description: 'Count.',
+                constraints: RestageConstraints(
+                  minimum: 1,
+                  maximum: 10,
+                  allowedValues: [1, 2, null],
+                ),
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'label',
+                type: PropertyType.string,
+                description: 'Label.',
+                constraints: RestageConstraints.withExtensions(
+                  allowedValues: const ['short', 'long', null],
+                  pattern: r'^[a-z]+$',
+                  extensions: const {
+                    'x-nested': {
+                      'ordered': [1, 1.5, true, 'text', null],
+                    },
+                    'x-null': null,
+                  },
+                ),
+              ),
+              const PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'legacy',
+                type: PropertyType.string,
+                description: 'Legacy.',
+                validationRule: ValidationExpr(
+                  expression: 'legacy(value) == true',
+                  message: 'Exact legacy message.',
+                ),
+              ),
+              const PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'plain',
+                type: PropertyType.string,
+                description: 'Plain.',
+              ),
+            ],
+          ),
+        ],
+      );
+      final allocatedProperties = {
+        for (final property in allocation.catalog.widgets.single.properties)
+          property.name: property,
+      };
+      expect(
+        allocatedProperties['count']!.constraints,
+        const RestageConstraints(
+          minimum: 1,
+          maximum: 10,
+          allowedValues: [1, 2, null],
+        ),
+      );
+      expect(
+        allocatedProperties['legacy']!.validationRule,
+        const ValidationExpr(
+          expression: 'legacy(value) == true',
+          message: 'Exact legacy message.',
+        ),
+      );
+      expect(
+        allocatedProperties['plain']!.constraints,
+        RestageConstraints.empty,
+      );
+
+      final decoded = decodeCatalog(encodeCatalog(allocation.catalog));
+      final source = emitUserCatalogDart(decoded);
+      final collapsed = source.replaceAll(RegExp(r'\s+'), ' ');
+      final normalized = collapsed
+          .replaceAll('( ', '(')
+          .replaceAll('{ ', '{')
+          .replaceAll(' }', '}');
+
+      expect(
+        normalized,
+        contains(
+          'constraints: RestageConstraints(minimum: 1, maximum: 10, '
+          'allowedValues: [1, 2, null])',
+        ),
+      );
+      expect(
+        normalized,
+        contains(
+          'constraints: RestageConstraints.withExtensions(allowedValues: '
+          "['short', 'long', null], "
+          r"pattern: '^[a-z]+\$', "
+          "extensions: {'x-nested': {'ordered': "
+          "[1, 1.5, true, 'text', null]}, 'x-null': null})",
+        ),
+      );
+      expect(
+        normalized,
+        contains(
+          'validationRule: ValidationExpr(expression: '
+          "'legacy(value) == true', message: 'Exact legacy message.')",
+        ),
+      );
+      expect(RegExp('constraints:').allMatches(source), hasLength(2));
+    });
+
     test('output is dart-format clean', () {
       final src = emitUserCatalogDart(
         userCatalogFromWidgets([

@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_compiler/src/ir/ir_lower.dart'
@@ -14,6 +18,400 @@ void main() {
   const policy = PolicyLedger.builtIn();
 
   group('walkStructuredType', () {
+    test('uses the shared resolver for one scalar field description', () async {
+      final root = Directory.current.parent.parent.path;
+      final dir =
+          Directory('$root/.dart_tool/structured_description_walker_test')
+            ..createSync(recursive: true);
+      final file = File('${dir.path}/fixture.dart')..writeAsStringSync('''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+class Data {
+  const Data({required this.label});
+
+  @RestageDataField(description: 'Nested label.')
+  final String label;
+}
+''');
+      try {
+        final collection = AnalysisContextCollection(
+          includedPaths: [file.path],
+        );
+        final context = collection.contextFor(file.path);
+        final resolved =
+            await context.currentSession.getResolvedLibrary(file.path);
+        expect(resolved, isA<ResolvedLibraryResult>());
+        final element = (resolved as ResolvedLibraryResult)
+            .element
+            .classes
+            .singleWhere((candidate) => candidate.name == 'Data');
+        final fqn = elementFqn(element);
+        final ledger = policy.extend(
+          structuredWalk: StructuredWalkPolicy(
+            concreteTypes: {fqn},
+            abstractTypes: const {},
+          ),
+        );
+
+        final result = walkStructuredType(
+          element: element,
+          library: const WidgetLibrary.custom('fixture'),
+          policy: ledger,
+          location: '${file.path}#Data',
+          visited: <String>{},
+          depth: 0,
+        );
+
+        expect(result.ir!.fields.single.description, 'Nested label.');
+        expect(
+          lowerStructured(result.ir!).fields.single.description,
+          'Nested label.',
+        );
+      } finally {
+        file.deleteSync();
+      }
+    });
+
+    test(
+        'keeps member Dartdoc when constructor association is unresolved or '
+        'ambiguous', () async {
+      final root = Directory.current.parent.parent.path;
+      final dir =
+          Directory('$root/.dart_tool/structured_description_walker_test')
+            ..createSync(recursive: true);
+      final file = File('${dir.path}/member_dartdoc_fallback_fixture.dart')
+        ..writeAsStringSync('''
+class InitializerAssigned {
+  const InitializerAssigned({required String label}) : label = label;
+
+  /// Initializer-list member description.
+  final String label;
+}
+
+class AmbiguousConstructors {
+  const AmbiguousConstructors.primary(String label) : label = label;
+  const AmbiguousConstructors.secondary(String label) : label = label;
+
+  /// Multi-constructor member description.
+  final String label;
+}
+''');
+      try {
+        final collection =
+            AnalysisContextCollection(includedPaths: [file.path]);
+        final context = collection.contextFor(file.path);
+        final resolved =
+            await context.currentSession.getResolvedLibrary(file.path);
+        expect(resolved, isA<ResolvedLibraryResult>());
+        final library = (resolved as ResolvedLibraryResult).element;
+
+        StructuredWalkResult walk(String className) {
+          final element = library.classes.singleWhere(
+            (candidate) => candidate.name == className,
+          );
+          final fqn = elementFqn(element);
+          return walkStructuredType(
+            element: element,
+            library: const WidgetLibrary.custom('fixture'),
+            policy: policy.extend(
+              structuredWalk: StructuredWalkPolicy(
+                concreteTypes: {fqn},
+                abstractTypes: const {},
+              ),
+            ),
+            location: '${file.path}#$className',
+            visited: <String>{},
+            depth: 0,
+          );
+        }
+
+        expect(
+          walk('InitializerAssigned').ir!.fields.single.description,
+          'Initializer-list member description.',
+        );
+        expect(
+          walk('AmbiguousConstructors').ir!.fields.single.description,
+          'Multi-constructor member description.',
+        );
+      } finally {
+        file.deleteSync();
+      }
+    });
+
+    test('enforces conservative analyzer-linked description associations',
+        () async {
+      final root = Directory.current.parent.parent.path;
+      final dir =
+          Directory('$root/.dart_tool/structured_description_walker_test')
+            ..createSync(recursive: true);
+      final file = File('${dir.path}/conflict_fixture.dart')
+        ..writeAsStringSync('''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+class OrdinaryAbsent {
+  const OrdinaryAbsent({required String label}) : label = label;
+  final String label;
+}
+
+class OrdinaryExplicit {
+  const OrdinaryExplicit({
+    @RestageDataField(description: 'Do not attach by name.')
+    required String label,
+  }) : label = label;
+  final String label;
+}
+
+class GetterExplicit {
+  const GetterExplicit(String label) : _label = label;
+  final String _label;
+
+  @RestageDataField(description: 'Do not attach a computed getter.')
+  String get label => _label;
+}
+
+class LinkedBase {
+  const LinkedBase({required this.label});
+
+  @RestageDataField(description: 'Linked base label.')
+  final String label;
+}
+
+class LinkedMiddle extends LinkedBase {
+  const LinkedMiddle({required super.label});
+}
+
+class LinkedLeaf extends LinkedMiddle {
+  const LinkedLeaf({required super.label});
+}
+
+class OrdinaryBase {
+  const OrdinaryBase({required String label}) : label = label;
+  final String label;
+}
+
+class UnlinkedSuper extends OrdinaryBase {
+  const UnlinkedSuper({
+    @RestageDataField(description: 'Still unresolved.') required super.label,
+  });
+}
+''');
+      try {
+        final collection = AnalysisContextCollection(
+          includedPaths: [file.path],
+        );
+        final context = collection.contextFor(file.path);
+        final resolved =
+            await context.currentSession.getResolvedLibrary(file.path);
+        expect(resolved, isA<ResolvedLibraryResult>());
+        final library = (resolved as ResolvedLibraryResult).element;
+        StructuredWalkResult walk(String className) {
+          final element = library.classes.singleWhere(
+            (candidate) => candidate.name == className,
+          );
+          final fqn = elementFqn(element);
+          return walkStructuredType(
+            element: element,
+            library: const WidgetLibrary.custom('fixture'),
+            policy: policy.extend(
+              structuredWalk: StructuredWalkPolicy(
+                concreteTypes: {fqn},
+                abstractTypes: const {},
+              ),
+            ),
+            location: '${file.path}#$className',
+            visited: <String>{},
+            depth: 0,
+          );
+        }
+
+        Iterable<DiagnosticIR> conflicts(StructuredWalkResult result) =>
+            result.ir!.diagnostics.where(
+              (diagnostic) =>
+                  diagnostic.code == issue_codes.structuredDescriptionConflict,
+            );
+
+        final absent = walk('OrdinaryAbsent');
+        expect(absent.ir!.fields.single.description, isEmpty);
+        expect(conflicts(absent), isEmpty);
+
+        final ordinary = conflicts(walk('OrdinaryExplicit')).single;
+        expect(ordinary.message, contains('no analyzer identity link'));
+        expect(ordinary.message, contains('constructor parameter'));
+        expect(ordinary.message, contains('`this.field`'));
+        expect(ordinary.message, contains('super-formal chain'));
+        expect(ordinary.message, contains('canonical wire DTO'));
+
+        final getter = conflicts(walk('GetterExplicit')).single;
+        expect(getter.message, contains('no analyzer identity link'));
+        expect(getter.message, contains('getter'));
+        expect(getter.message, contains('canonical wire DTO'));
+
+        expect(conflicts(walk('LinkedLeaf')), isEmpty);
+
+        final unlinkedSuper = conflicts(walk('UnlinkedSuper')).single;
+        expect(unlinkedSuper.message, contains('no analyzer identity link'));
+        expect(unlinkedSuper.message, contains('canonical wire DTO'));
+      } finally {
+        file.deleteSync();
+      }
+    });
+
+    test('matches a generic instantiated member to the base walker field',
+        () async {
+      final root = Directory.current.parent.parent.path;
+      final dir =
+          Directory('$root/.dart_tool/structured_description_walker_test')
+            ..createSync(recursive: true);
+      final file = File('${dir.path}/generic_fixture.dart')
+        ..writeAsStringSync('''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+class Box<T> {
+  const Box({required this.value});
+
+  @RestageDataField(description: 'Generic walker value.')
+  final String value;
+}
+''');
+      try {
+        final collection =
+            AnalysisContextCollection(includedPaths: [file.path]);
+        final context = collection.contextFor(file.path);
+        final resolved =
+            await context.currentSession.getResolvedLibrary(file.path);
+        expect(resolved, isA<ResolvedLibraryResult>());
+        final element = (resolved as ResolvedLibraryResult)
+            .element
+            .classes
+            .singleWhere((candidate) => candidate.name == 'Box');
+        final fqn = elementFqn(element);
+        final result = walkStructuredType(
+          element: element,
+          library: const WidgetLibrary.custom('fixture'),
+          policy: policy.extend(
+            structuredWalk: StructuredWalkPolicy(
+              concreteTypes: {fqn},
+              abstractTypes: const {},
+            ),
+          ),
+          location: '${file.path}#Box',
+          visited: <String>{},
+          depth: 0,
+        );
+
+        expect(result.ir!.fields.single.description, 'Generic walker value.');
+      } finally {
+        file.deleteSync();
+      }
+    });
+
+    test('same-site duplicate metadata fails loud with both anchors', () async {
+      final root = Directory.current.parent.parent.path;
+      final dir =
+          Directory('$root/.dart_tool/structured_description_walker_test')
+            ..createSync(recursive: true);
+      final file = File('${dir.path}/duplicate_fixture.dart')
+        ..writeAsStringSync('''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+class Data {
+  const Data({required this.label});
+
+  @RestageDataField(description: 'Same.')
+  @RestageDataField(description: 'Same.')
+  final String label;
+}
+''');
+      try {
+        final collection =
+            AnalysisContextCollection(includedPaths: [file.path]);
+        final context = collection.contextFor(file.path);
+        final resolved =
+            await context.currentSession.getResolvedLibrary(file.path);
+        expect(resolved, isA<ResolvedLibraryResult>());
+        final element = (resolved as ResolvedLibraryResult)
+            .element
+            .classes
+            .singleWhere((candidate) => candidate.name == 'Data');
+        final fqn = elementFqn(element);
+        final result = walkStructuredType(
+          element: element,
+          library: const WidgetLibrary.custom('fixture'),
+          policy: policy.extend(
+            structuredWalk: StructuredWalkPolicy(
+              concreteTypes: {fqn},
+              abstractTypes: const {},
+            ),
+          ),
+          location: '${file.path}#Data',
+          visited: <String>{},
+          depth: 0,
+        );
+
+        final duplicateDiagnostics = result.ir!.diagnostics.where(
+          (diagnostic) =>
+              diagnostic.code == issue_codes.structuredDescriptionConflict,
+        );
+        expect(duplicateDiagnostics, isNotEmpty);
+        expect(duplicateDiagnostics.first.message, contains('metadata #1'));
+        expect(duplicateDiagnostics.first.message, contains('metadata #2'));
+      } finally {
+        file.deleteSync();
+      }
+    });
+
+    test('explicit metadata wins over both Dartdoc fallbacks', () async {
+      final root = Directory.current.parent.parent.path;
+      final dir =
+          Directory('$root/.dart_tool/structured_description_walker_test')
+            ..createSync(recursive: true);
+      final file = File('${dir.path}/precedence_fixture.dart')
+        ..writeAsStringSync('''
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+class Data {
+  const Data({
+    /// Parameter fallback.
+    @RestageDataField(description: 'Explicit walker value.')
+    required this.value,
+  });
+
+  /// Member fallback.
+  final String value;
+}
+''');
+      try {
+        final collection =
+            AnalysisContextCollection(includedPaths: [file.path]);
+        final context = collection.contextFor(file.path);
+        final resolved =
+            await context.currentSession.getResolvedLibrary(file.path);
+        expect(resolved, isA<ResolvedLibraryResult>());
+        final element = (resolved as ResolvedLibraryResult)
+            .element
+            .classes
+            .singleWhere((candidate) => candidate.name == 'Data');
+        final fqn = elementFqn(element);
+        final result = walkStructuredType(
+          element: element,
+          library: const WidgetLibrary.custom('fixture'),
+          policy: policy.extend(
+            structuredWalk: StructuredWalkPolicy(
+              concreteTypes: {fqn},
+              abstractTypes: const {},
+            ),
+          ),
+          location: '${file.path}#Data',
+          visited: <String>{},
+          depth: 0,
+        );
+
+        expect(result.ir!.fields.single.description, 'Explicit walker value.');
+      } finally {
+        file.deleteSync();
+      }
+    });
+
     test('walks a concrete BoxDecoration-like type', () {
       final borderRadius = fakes.fakeClassElement(
         'BorderRadius',

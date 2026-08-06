@@ -4,9 +4,14 @@ import 'dart:isolate';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_example_discovery.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_example_loader.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_example_validator.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -66,6 +71,7 @@ typedef _ExampleSources = ({
   List<A2uiWidgetElement> widgets,
   Map<WidgetLibrary, int?> capabilityVersions,
   Map<String, String> usageByWidget,
+  List<LoadedA2uiExample> examples,
 });
 
 /// Walks the example `lib/` for every `@RestageWidget`, resolved off the real
@@ -87,6 +93,7 @@ Future<_ExampleSources> _discoverExampleSources() async {
   final widgets = <A2uiWidgetElement>[];
   final capabilityVersions = <WidgetLibrary, int?>{};
   final usageByWidget = <String, String>{};
+  final examples = <LoadedA2uiExample>[];
   for (final path in dartFiles) {
     final abs = File(path).resolveSymbolicLinksSync();
     final collection = AnalysisContextCollection(includedPaths: [abs]);
@@ -98,14 +105,16 @@ Future<_ExampleSources> _discoverExampleSources() async {
     final entries = visitRestageWidgets(
       resolved.element,
       assetId,
-      includeA2uiScalarLists: true,
+      target: WidgetVisitorTarget.a2ui,
     ).widgets;
+    final widgetNamesByClass = <ClassElement, String>{};
     for (final entry in entries) {
       final element = resolved.element.classes.firstWhere(
         (c) => c.name == entry.flutterType.split('#').last,
         orElse: () => throw StateError('no class for ${entry.name}'),
       );
       widgets.add((entry: entry, element: element));
+      widgetNamesByClass[element] = entry.name;
 
       // Read the `usage` producer note the same way the production builder
       // does — straight off the annotation, since it is not part of the
@@ -116,6 +125,24 @@ Future<_ExampleSources> _discoverExampleSources() async {
       if (usage != null && usage.isNotEmpty) {
         usageByWidget[entry.name] = usage;
       }
+    }
+    for (final anchor in discoverA2uiExampleAnchors(
+      resolvedLibrary: resolved,
+      widgetNamesByClass: widgetNamesByClass,
+    )) {
+      final sidecar = File.fromUri(
+        libDir.parent.uri.resolve(anchor.asset),
+      );
+      examples.add(
+        LoadedA2uiExample(
+          anchor: anchor,
+          assetId: AssetId('restage_a2ui_example', anchor.asset),
+          components: decodeA2uiExampleComponents(
+            sidecar.readAsStringSync(),
+            anchor,
+          ),
+        ),
+      );
     }
     final declaration =
         walkRestageLibrary(barrel: resolved.element, barrelAssetId: assetId)
@@ -134,6 +161,7 @@ Future<_ExampleSources> _discoverExampleSources() async {
     widgets: widgets,
     capabilityVersions: capabilityVersions,
     usageByWidget: usageByWidget,
+    examples: examples,
   );
 }
 
@@ -170,10 +198,18 @@ String _body(String source) {
   return source.substring(index).trimRight();
 }
 
+void _expectOccurrenceDescription(
+  A2uiSchemaNode node,
+  String description, {
+  String? reason,
+}) {
+  expect(node.occurrenceDescription, description, reason: reason);
+}
+
 void main() {
   test(
-    'the committed example catalog body regenerates byte-identical from the '
-    'production emit path (binding-tie)',
+    'the committed example artifacts regenerate from one production '
+    'registration (binding-tie)',
     () async {
       final sources = await _discoverExampleSources();
       expect(
@@ -183,10 +219,94 @@ void main() {
       );
       final catalog = _customerCatalog(sources);
       final seams = assembleA2uiSeams(sources.widgets);
+      final product = seams.richShapes[('ProductCard', 'product')];
+      expect(product, isA<ObjectNode>());
+      final productObject = product! as ObjectNode;
+      expect(
+        productObject.definitionDescription,
+        'A product with pricing, feature, attribute, and display metadata.',
+      );
+      _expectOccurrenceDescription(
+        productObject.fields['name']!,
+        'The customer-facing product name.',
+        reason: 'the field-formal annotation must override member Dartdoc',
+      );
+      _expectOccurrenceDescription(
+        productObject.fields['price']!,
+        'The price — a nested data class.',
+      );
+      final price = productObject.fields['price']! as ObjectNode;
+      expect(
+        price.definitionDescription,
+        'A monetary amount in a specific currency.',
+      );
+      _expectOccurrenceDescription(
+        price.fields['amount']!,
+        'The numeric amount.',
+      );
+      _expectOccurrenceDescription(
+        price.fields['currency']!,
+        "The ISO currency code (e.g. `'USD'`).",
+      );
+      _expectOccurrenceDescription(
+        productObject.fields['tags']!,
+        'Marketing tags — a scalar list.',
+      );
+      final features = productObject.fields['features']! as ListNode;
+      _expectOccurrenceDescription(
+        features,
+        'Feature rows — a list of objects.',
+      );
+      final feature = features.element as ObjectNode;
+      expect(
+        feature.definitionDescription,
+        'One feature included in or excluded from a product.',
+      );
+      _expectOccurrenceDescription(
+        feature.fields['label']!,
+        'The feature label.',
+      );
+      _expectOccurrenceDescription(
+        feature.fields['included']!,
+        'Whether this plan includes the feature.',
+      );
+      _expectOccurrenceDescription(
+        productObject.fields['attributes']!,
+        'Arbitrary attributes — a String-keyed map.',
+      );
+      final size = productObject.fields['size']! as ObjectNode;
+      _expectOccurrenceDescription(
+        size,
+        'The display size — a named record.',
+      );
+      expect(
+        size.fields.values
+            .every((field) => field.occurrenceDescription == null),
+        isTrue,
+        reason: 'record labels do not invent member descriptions',
+      );
+      final registration = emitA2uiCatalog(
+        catalog,
+        richShapes: seams.richShapes,
+        eventSeam: seams.eventSeam,
+        pairingSeam: seams.pairingSeam,
+        usageByWidget: sources.usageByWidget,
+      );
+      final plan = classifyA2uiCatalogDart(
+        catalog,
+        richShapes: seams.richShapes,
+        eventSeam: seams.eventSeam,
+        pairingSeam: seams.pairingSeam,
+      );
+      final exampleRegistry = buildA2uiExampleRegistry(
+        validateA2uiExamples(plan: plan, examples: sources.examples),
+      );
 
-      final emitted = formatGeneratedDart(
-        emitA2uiCatalogDart(
+      final emittedDart = formatGeneratedDart(
+        emitA2uiCatalogDartWithExampleRegistry(
           catalog,
+          exampleRegistry: exampleRegistry,
+          registration: registration,
           richShapes: seams.richShapes,
           eventSeam: seams.eventSeam,
           pairingSeam: seams.pairingSeam,
@@ -194,50 +314,29 @@ void main() {
         ),
       );
 
-      final committed = File.fromUri(
-        (await _exampleLibDirUri()).resolve('restage_a2ui_catalog.g.dart'),
+      final exampleLibDir = await _exampleLibDirUri();
+      final committedDart = File.fromUri(
+        exampleLibDir.resolve('restage_a2ui_catalog.g.dart'),
       ).readAsStringSync();
 
       expect(
-        _body(emitted),
-        _body(committed),
+        _body(emittedDart),
+        _body(committedDart),
         reason: 'the committed example catalog body must regenerate '
             'byte-for-byte from the example @RestageWidget source through the '
             'production emit path — the shipped lowering is traceable',
       );
-    },
-  );
-
-  test(
-    'the committed example capability stamp regenerates byte-identical from '
-    'the production emit path (binding-tie)',
-    () async {
-      final sources = await _discoverExampleSources();
-      expect(
-        sources.widgets,
-        isNotEmpty,
-        reason: 'the example must declare at least one @RestageWidget',
-      );
-      final catalog = _customerCatalog(sources);
-      final seams = assembleA2uiSeams(sources.widgets);
-
-      final stamp = emitA2uiCatalog(
-        catalog,
-        richShapes: seams.richShapes,
-        eventSeam: seams.eventSeam,
-        pairingSeam: seams.pairingSeam,
-        usageByWidget: sources.usageByWidget,
-      ).toJson();
+      final stamp = registration.toJson();
       // The builder's exact serialization of the stamp document.
-      final emitted = const JsonEncoder.withIndent('  ').convert(stamp);
+      final emittedStamp = const JsonEncoder.withIndent('  ').convert(stamp);
 
-      final committed = File.fromUri(
-        (await _exampleLibDirUri()).resolve('restage_a2ui_catalog.a2ui.json'),
+      final committedStamp = File.fromUri(
+        exampleLibDir.resolve('restage_a2ui_catalog.a2ui.json'),
       ).readAsStringSync();
 
       expect(
-        emitted,
-        committed,
+        emittedStamp,
+        committedStamp,
         reason: 'the committed example capability stamp must regenerate '
             'byte-for-byte from the example @RestageWidget source through the '
             'production emit path — the shipped capability surface is '

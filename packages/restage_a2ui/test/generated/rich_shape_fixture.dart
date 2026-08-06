@@ -124,13 +124,14 @@ class LinkCardFixture extends StatelessWidget {
   }
 }
 
-/// A self-recursive data class with a DIRECT nested-class field (`reply`, of its
-/// own type) that is also nullable — the recursion proof (`$defs`/`$ref` schema
-/// + a depth-bounded recursive reconstruction helper).
+/// A comment that may link to one nested reply.
 class Comment {
   const Comment({required this.text, this.reply});
 
+  /// The comment text.
   final String text;
+
+  /// The next reply in the thread.
   final Comment? reply;
 }
 

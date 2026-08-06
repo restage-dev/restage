@@ -7,28 +7,38 @@ import 'package:flutter/widgets.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
+/// Items for the generated custom-only catalog.
+/// A composed Catalog must use a new application-owned catalog ID;
+/// do not reuse the generated catalog ID for a different
+/// item or schema set.
 List<CatalogItem> buildRestageCatalogItems() {
   return <CatalogItem>[
     CatalogItem(
       name: 'PlanCard',
-      dataSchema: S.object(
-        properties: {
-          'plan': S.object(
-            description: 'The plan tier this card presents.',
-            properties: {
-              'name': S.string(),
-              'price': S.number(),
-              'badge': S.combined(anyOf: [
-                S.string(enumValues: <Object?>['none', 'popular', 'bestValue']),
-                S.nil()
-              ]),
-              'tagline': S.combined(anyOf: [S.string(), S.nil()])
-            },
-            required: <String>['name', 'price'],
-          )
-        },
-        required: <String>['plan'],
-      ),
+      dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
+        'PlanTier': S.object(
+          description:
+              'A nested data class: required scalars + a nullable enum + a nullable string.',
+          properties: {
+            'badge': S.combined(anyOf: [
+              S.string(enumValues: <Object?>['none', 'popular', 'bestValue']),
+              S.nil()
+            ]),
+            'name': S.string(),
+            'price': S.number(),
+            'tagline': S.combined(anyOf: [S.string(), S.nil()])
+          },
+          required: <String>['name', 'price'],
+        ),
+        '__a2ui_root__': S.object(
+          properties: {
+            'plan': S.combined(
+                description: 'The plan tier this card presents.',
+                $ref: '#/\$defs/PlanTier')
+          },
+          required: <String>['plan'],
+        )
+      }),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
         final _restageA2uiArg_plan =
@@ -46,8 +56,9 @@ List<CatalogItem> buildRestageCatalogItems() {
         properties: {
           'features': S.list(
               items: S.object(
-            properties: {'label': S.string(), 'included': S.boolean()},
-            required: <String>['label', 'included'],
+            description: 'A list-of-objects element.',
+            properties: {'included': S.boolean(), 'label': S.string()},
+            required: <String>['included', 'label'],
           ))
         },
         required: <String>['features'],
@@ -119,8 +130,10 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         properties: {
           'link': S.object(
-            properties: {'path': S.string(), 'label': S.string()},
-            required: <String>['path', 'label'],
+            description:
+                'A nested object whose own field is named `path` — the exact shape genui\'s BoundObject would have misread as a `{path: ...}` binding. Direct reconstruction reads the field by name, so it renders correctly.',
+            properties: {'label': S.string(), 'path': S.string()},
+            required: <String>['label', 'path'],
           )
         },
         required: <String>['link'],
@@ -139,10 +152,12 @@ List<CatalogItem> buildRestageCatalogItems() {
       name: 'CommentThread',
       dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
         'Comment': S.object(
+          description: 'A comment that may link to one nested reply.',
           properties: {
-            'text': S.string(),
             'reply': S.combined(
-                anyOf: [S.combined($ref: '#/\$defs/Comment'), S.nil()])
+                description: 'The next reply in the thread.',
+                anyOf: [S.combined($ref: '#/\$defs/Comment'), S.nil()]),
+            'text': S.string(description: 'The comment text.')
           },
           required: <String>['text'],
         ),
@@ -167,15 +182,28 @@ List<CatalogItem> buildRestageCatalogItems() {
   ];
 }
 
+/// Content address for exactly the generated custom-only catalog.
+/// Default A2A supportedCatalogIds use requires server registration
+/// of this exact predefined catalog contract.
+/// GenUI 0.9.2 inline catalogs are serialization-only here;
+/// no end-to-end inline server interoperability is claimed.
+const String restageA2uiCatalogId =
+    'restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31';
+
 const List<String> _restageA2uiSystemPromptFragments = <String>[
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31".',
   'FeatureGrid: A grid of plan features with inclusion flags.',
 ];
 
-/// The fully-assembled genui catalog: the generated items
-/// plus the system-prompt fragments composed from each
-/// widget's usage note (falling back to its description).
+/// Builds the generated custom-only GenUI catalog identified by
+/// [restageA2uiCatalogId].
+///
+/// To compose a different catalog, use
+/// [buildRestageCatalogItems] and assign the new Catalog an
+/// application-owned catalog ID.
 Catalog buildRestageCatalog() => Catalog(
       buildRestageCatalogItems(),
+      catalogId: restageA2uiCatalogId,
       systemPromptFragments: _restageA2uiSystemPromptFragments,
     );
 
@@ -183,6 +211,53 @@ Widget? _restageA2uiBuildChild(
     CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;
   return itemContext.buildChild(childId);
+}
+
+Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
+  final String reason;
+  if (childId == null) {
+    reason = 'the value was null or missing';
+  } else if (childId is! String) {
+    reason = 'the value had runtime type ${childId.runtimeType}, '
+        'but a String component id is required';
+  } else if (childId.isEmpty) {
+    reason = 'the value was the empty string';
+  } else {
+    reason = 'component id "$childId" is not registered';
+  }
+  throw StateError(
+    'Required A2UI child "$propertyContext" could not resolve: '
+    '$reason. Provide a non-empty String id for a component '
+    'registered on this surface.',
+  );
+}
+
+Never _restageA2uiRequiredChildBuildError(
+    String childId, String propertyContext, Object error) {
+  throw StateError(
+    'Required A2UI child "$propertyContext" with component id '
+    '"$childId" failed to build (${error.runtimeType}).',
+  );
+}
+
+Widget _restageA2uiRequireChild(
+    CatalogItemContext itemContext, Object? childId, String propertyContext) {
+  if (childId is! String || childId.isEmpty) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  if (itemContext.getComponent(childId) == null) {
+    _restageA2uiRequiredChildError(childId, propertyContext);
+  }
+  late final Widget child;
+  try {
+    child = itemContext.buildChild(childId);
+  } catch (error) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, error);
+  }
+  if (child is FallbackWidget && child.error != null) {
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, child.error!);
+  }
+  return child;
 }
 
 List<Widget> _restageA2uiBuildChildren(

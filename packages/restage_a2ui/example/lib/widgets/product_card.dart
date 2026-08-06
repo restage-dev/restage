@@ -1,9 +1,7 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// A money value — a nested data class inside [Product]. Demonstrates that a
-/// `@RestageWidget` property typed as a customer data class auto-generates a
-/// rich A2UI schema (no shim types, no hand-authored schema).
+/// A monetary amount in a specific currency.
 class Money {
   /// Creates a money value.
   const Money({required this.amount, required this.currency});
@@ -15,7 +13,7 @@ class Money {
   final String currency;
 }
 
-/// One product feature — a data class held in a list-of-objects on [Product].
+/// One feature included in or excluded from a product.
 class Feature {
   /// Creates a feature row.
   const Feature({required this.label, required this.included});
@@ -27,13 +25,11 @@ class Feature {
   final bool included;
 }
 
-/// A product — a customer data class exercising the rich A2UI data vocabulary
-/// as nested fields: a nested data class ([price]), a scalar list ([tags]), a
-/// list-of-objects ([features]), a String-keyed map ([attributes]), and a
-/// named record ([size]). All reconstruct directly from the wire map.
+/// A product with pricing, feature, attribute, and display metadata.
 class Product {
   /// Creates a product.
   const Product({
+    @RestageDataField(description: 'The customer-facing product name.')
     required this.name,
     required this.price,
     required this.tags,
@@ -42,7 +38,7 @@ class Product {
     required this.size,
   });
 
-  /// The product name.
+  /// The internal product name.
   final String name;
 
   /// The price — a nested data class.
@@ -65,6 +61,10 @@ class Product {
 /// one `@RestageProperty`; the generated A2UI catalog carries a schema rich
 /// enough to reconstruct it (nested object + scalar list + list-of-objects +
 /// map + record) and render it.
+@RestageA2uiExample(
+  name: 'Default',
+  asset: 'lib/a2ui_examples/product_card/default.json',
+)
 @RestageWidget(
   name: 'ProductCard',
   library: WidgetLibrary.custom('acme.widgets'),
@@ -87,25 +87,34 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: product.size.width,
-      child: Column(
-        key: const ValueKey('product-card'),
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(product.name, style: const TextStyle(fontSize: 20)),
-          Text('${product.price.amount} ${product.price.currency}'),
-          Row(
+      height: product.size.height,
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            key: const ValueKey('product-card'),
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final tag in product.tags)
-                Padding(padding: const EdgeInsets.all(2), child: Text('#$tag')),
+              Text(product.name, style: const TextStyle(fontSize: 20)),
+              Text('${product.price.amount} ${product.price.currency}'),
+              Wrap(
+                children: [
+                  for (final tag in product.tags)
+                    Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Text('#$tag'),
+                    ),
+                ],
+              ),
+              for (final feature in product.features)
+                Text('${feature.included ? '✓' : '✗'} ${feature.label}'),
+              for (final entry in product.attributes.entries)
+                Text('${entry.key}: ${entry.value}'),
             ],
           ),
-          for (final feature in product.features)
-            Text('${feature.included ? '✓' : '✗'} ${feature.label}'),
-          for (final entry in product.attributes.entries)
-            Text('${entry.key}: ${entry.value}'),
-        ],
+        ),
       ),
     );
   }

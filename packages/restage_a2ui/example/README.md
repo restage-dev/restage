@@ -13,13 +13,16 @@ Two custom widget libraries, authored as ordinary annotated Flutter widgets, are
 compiled by the build-time toolchain into a single genui A2UI catalog — no
 hand-written `CatalogItem`s, no hand-authored JSON schemas:
 
-- **`acme.widgets` (capability version 2)** — `CtaButton`, `ProductCard`, `RatingPicker`.
+- **`acme.widgets` (capability version 2)** — `CtaButton`, `IntegerListPicker`,
+  `ProductCard`, `RatingPicker`, and `ScalarListPanel`.
 - **`acme.lessons` (capability version 1)** — `SectionHeader`, `Callout`, `ComparisonPanel`, `QuizCheck`.
 
 The generated catalog contains exactly these widgets — it is your own widgets, not
 Flutter built-ins. Each library carries its own capability version in the emitted
 stamp. The two outputs (`restage_a2ui_catalog.g.dart` + `restage_a2ui_catalog.a2ui.json`)
-are regenerated from the annotated source; the example has no app entrypoint:
+are regenerated from the annotated source. Ten validated JSON sidecars provide
+canonical examples for all nine components, including controlled values, nullable
+lists, nested data, and child references. The example has no app entrypoint:
 
 ```bash
 dart run build_runner build   # regenerate the catalog + stamp from the @RestageWidget source
@@ -59,9 +62,10 @@ Widget? renderCached(Map<String, Object?> payload) {
 }
 ```
 
-The check fails **closed** at every path — a malformed envelope, an unknown
-component, an unmet version, or an unverifiable stamped payload all yield an
-`A2uiRejected`, never a throw at the render seam.
+The check fails **closed** for a malformed Restage sidecar envelope, an unknown
+component type in a well-formed `{id, component}` entry, an unmet version, or
+an unverifiable stamped payload. It does not validate every inner A2UI
+component shape; malformed entries can still fail when genui parses them.
 
 See the [package README](../README.md) for the capability sidecar, the version
 satisfaction rules, and how the catalog and stamp are produced.

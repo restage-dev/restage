@@ -5,7 +5,9 @@
 /// what it deliberately leaves to consumer packages.
 library;
 
+export 'src/annotations/restage_a2ui_example.dart';
 export 'src/annotations/restage_builtin_library.dart';
+export 'src/annotations/restage_data_field.dart';
 export 'src/annotations/restage_factory_variant.dart';
 export 'src/annotations/restage_library.dart';
 export 'src/annotations/restage_property.dart';
@@ -31,6 +33,7 @@ export 'src/native_decompose.dart';
 export 'src/property_entry.dart';
 export 'src/property_metadata.dart';
 export 'src/property_type.dart';
+export 'src/restage_constraints.dart';
 export 'src/stability.dart';
 export 'src/structured_entry.dart';
 export 'src/theme_binding.dart';

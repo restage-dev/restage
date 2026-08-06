@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
+    show a2uiWidgetDataSchemaMapForPlan, classifyA2uiCatalogDart;
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
@@ -18,16 +20,17 @@ import '../helpers.dart';
 /// `WidgetEntry` property, an `event` property reflects its constructor
 /// parameter into the event seam (+ reads `@RestageProperty(writeBackValue:)`
 /// into the pairing seam), a `structured` property reflects into the rich-shape
-/// seam, and every other property type is handled by the catalog (no seam).
+/// seam, and catalog-fed leaves/children retain analyzer-known nullability.
 ///
 /// These tests resolve the REAL committed interactive + rich-shape fixtures
 /// (the same fixtures the regen proofs reflect) via the analyzer and assert the
-/// assembled seams match the regen proofs' known values — proving the unified
-/// function reproduces the proven inline legs.
+/// assembled seams match the regen proofs' known values — including ordinary
+/// leaf/child nullability retained alongside the catalog-fed kind.
 const _interactiveFixture =
     '../restage_a2ui/test/generated/interactive_fixture.dart';
 const _richShapeFixture =
     '../restage_a2ui/test/generated/rich_shape_fixture.dart';
+const _enumSeamFixture = 'test/a2ui/fixtures/a2ui_enum_seam_fixture.dart';
 
 Future<ResolvedLibraryResult> _resolve(String relativePath) async {
   final abs = File('${Directory.current.path}/$relativePath')
@@ -86,8 +89,12 @@ void main() {
           isList: false,
         ),
       );
-      // A scalar value property is carried by the catalog, never the rich seam.
-      expect(seams.richShapes, isEmpty);
+      // The catalog still supplies the integer kind; the analyzer seam retains
+      // its source nullability without turning it into a rich reconstruction.
+      expect(
+        seams.richShapes[('QuickCheck', 'selected')],
+        const ScalarNode(A2uiScalarType.integer),
+      );
       // An auto-pair callback carries no writeBackValue annotation.
       expect(seams.pairingSeam, isEmpty);
     });
@@ -112,12 +119,16 @@ void main() {
     });
 
     test('a list callback retains nullability and numeric reconstruction', () {
-      final seams = assembleA2uiSeams([
-        _widget(library, 'NullableNums', 'NullableNumListFixture', [
-          prop('values', PropertyType.structured),
-          prop('onChanged', PropertyType.event, required: true),
-        ]),
-      ]);
+      final widget = _widget(
+        library,
+        'NullableNums',
+        'NullableNumListFixture',
+        [
+          prop('values', PropertyType.structured, required: true),
+          prop('onChanged', PropertyType.event),
+        ],
+      );
+      final seams = assembleA2uiSeams([widget]);
 
       expect(
         seams.eventSeam[('NullableNums', 'onChanged')],
@@ -129,6 +140,31 @@ void main() {
           preserveNumericRuntimeType: true,
         ),
       );
+
+      final plan = classifyA2uiCatalogDart(
+        catalogWith([widget.entry]),
+        richShapes: seams.richShapes,
+        eventSeam: seams.eventSeam,
+      );
+      final schema = a2uiWidgetDataSchemaMapForPlan(plan.widgets.single);
+      expect(schema['required'], ['values']);
+      final properties = schema['properties']! as Map<String, Object?>;
+      final value = properties['values']! as Map<String, Object?>;
+      final literal = (value['oneOf']! as List<Object?>).first;
+      expect(literal, {
+        'anyOf': [
+          {
+            'type': 'array',
+            'items': {
+              'anyOf': [
+                {'type': 'number'},
+                {'type': 'null'},
+              ],
+            },
+          },
+          {'type': 'null'},
+        ],
+      });
     });
 
     test('a void callback reflects as a dispatch', () {
@@ -232,6 +268,130 @@ void main() {
       // A structured property produces no event/pairing seam.
       expect(seams.eventSeam, isEmpty);
       expect(seams.pairingSeam, isEmpty);
+    });
+  });
+
+  group('assembleA2uiSeams — ordinary customer enum leaves', () {
+    late ResolvedLibraryResult library;
+
+    setUpAll(() async {
+      library = await _resolve(_enumSeamFixture);
+    });
+
+    PropertyEntry enumProperty(
+      String name, {
+      RestageConstraints constraints = RestageConstraints.empty,
+      ValidationExpr? validationRule,
+    }) =>
+        PropertyEntry(
+          wireId: WireId.unallocatedProperty,
+          name: name,
+          type: PropertyType.enumValue,
+          description: '',
+          required: true,
+          enumType: 'SeamMode',
+          constraints: constraints,
+          validationRule: validationRule,
+        );
+
+    test('populates enum members and validates typed plus legacy subsets', () {
+      final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
+        enumProperty(
+          'typedMode',
+          constraints: const RestageConstraints(
+            allowedValues: ['compact'],
+          ),
+        ),
+        enumProperty(
+          'legacyMode',
+          validationRule: const ValidationExpr(
+            expression: 'oneOf("expanded")',
+            message: 'Choose an available mode.',
+          ),
+        ),
+      ]);
+
+      final seams = assembleA2uiSeams([widget]);
+      final typedNode =
+          seams.richShapes[('EnumSeam', 'typedMode')]! as EnumNode;
+      final legacyNode =
+          seams.richShapes[('EnumSeam', 'legacyMode')]! as EnumNode;
+      expect(typedNode.members, ['compact', 'expanded']);
+      expect(legacyNode.members, ['compact', 'expanded']);
+
+      final plan = classifyA2uiCatalogDart(
+        catalogWith([widget.entry]),
+        richShapes: seams.richShapes,
+      ).widgets.single;
+      final properties =
+          a2uiWidgetDataSchemaMapForPlan(plan)['properties']! as Map;
+      expect(properties['typedMode'], {
+        'type': 'string',
+        'enum': ['compact'],
+      });
+      expect(properties['legacyMode'], {
+        'type': 'string',
+        'enum': ['expanded'],
+      });
+    });
+
+    test('rejects an invalid typed enum member through the production seam',
+        () {
+      final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
+        enumProperty(
+          'typedMode',
+          constraints: const RestageConstraints(
+            allowedValues: ['ghost'],
+          ),
+        ),
+      ]);
+      final seams = assembleA2uiSeams([widget]);
+
+      expect(
+        () => classifyA2uiCatalogDart(
+          catalogWith([widget.entry]),
+          richShapes: seams.richShapes,
+        ),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (error) => error.message,
+            'message',
+            allOf(contains('typedMode'), contains('ghost')),
+          ),
+        ),
+      );
+    });
+
+    test('rejects an invalid legacy enum member through the production seam',
+        () {
+      final widget = _widget(library, 'EnumSeam', 'EnumSeamFixture', [
+        enumProperty(
+          'legacyMode',
+          validationRule: const ValidationExpr(
+            expression: 'oneOf("ghost")',
+            message: 'Choose an available mode.',
+          ),
+        ),
+      ]);
+      final seams = assembleA2uiSeams([widget]);
+
+      expect(
+        () => classifyA2uiCatalogDart(
+          catalogWith([widget.entry]),
+          richShapes: seams.richShapes,
+        ),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('legacyMode'),
+              contains('oneOf("ghost")'),
+              contains('ghost'),
+            ),
+          ),
+        ),
+      );
     });
   });
 }

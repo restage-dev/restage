@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0
+
+- Give generated A2UI catalogs a deterministic content-derived catalog ID and
+  carry that same identity through the generated Dart and standalone document.
+- Project typed constraints onto literal schema arms, preserve controlled
+  literal, path, and call value sources, and keep application-side runtime
+  validation responsible for resolved values.
+- Preserve nested structured-data descriptions and emit deterministic
+  definition/reference documentation.
+- Validate canonical `@RestageA2uiExample` sidecars and emit an ordered neutral
+  example registry alongside genui `CatalogItem.exampleData` callbacks.
+
 ## 1.2.0
 
 - Compile customer `@RestageWidget` code into a standalone A2UI catalog: the

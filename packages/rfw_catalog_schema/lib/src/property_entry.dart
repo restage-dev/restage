@@ -5,6 +5,7 @@ import 'package:rfw_catalog_schema/src/deprecation_info.dart';
 import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
+import 'package:rfw_catalog_schema/src/restage_constraints.dart';
 import 'package:rfw_catalog_schema/src/validation_expr.dart';
 import 'package:rfw_catalog_schema/src/wire_id.dart';
 
@@ -45,6 +46,7 @@ final class PropertyEntry {
     this.category,
     this.priority,
     this.validationRule,
+    this.constraints = RestageConstraints.empty,
     this.deprecated,
     this.structuredRef,
     this.valueShape,
@@ -220,6 +222,12 @@ final class PropertyEntry {
 
   /// Validation rule applied to authored values.
   final ValidationExpr? validationRule;
+
+  /// Typed JSON-Schema-shaped constraints applied to this property.
+  ///
+  /// Empty by default. Non-empty typed constraints and [validationRule] are
+  /// mutually exclusive at production codec boundaries.
+  final RestageConstraints constraints;
 
   /// Two-layer deprecation status (source + catalog lifecycle).
   final DeprecationInfo? deprecated;

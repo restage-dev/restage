@@ -23,7 +23,11 @@ or transmits an RFW-targeted widget catalog.
 - **Annotations.** `@RestageWidget`, `@RestageProperty`,
   `@RestageBuiltinLibrary`, `@RestageLibrary`, `@RestageStructuredType`,
   `@RestageUnionVariant`, `@RestageFactoryVariant`, `@StableWidget`,
-  `@StableProperty`, `@RfwIncompatible`, `@RestagePropertyPreview`.
+  `@StableProperty`, `@RfwIncompatible`, `@RestagePropertyPreview`,
+  `@RestageDataField`, and `@RestageA2uiExample`.
+- **Typed constraints.** `RestageConstraints` carries numeric bounds, allowed
+  values, patterns, string lengths, and list lengths on `RestageProperty` and
+  `PropertyEntry`, while preserving unknown wire keywords for newer readers.
 - **Hand-written JSON codecs.** `encodeCatalog` and `decodeCatalog`.
 - **Lifecycle types.** `DeprecationInfo` (two-layer: source vs catalog),
   `CompatRule` for forwarding/breaking changes, `ValidationExpr`.

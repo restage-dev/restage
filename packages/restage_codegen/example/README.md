@@ -12,11 +12,11 @@ in-app messages, surveys, paywalls, and any full screen you author.
 ```yaml
 # pubspec.yaml
 dependencies:
-  restage: ^1.0.0          # runtime SDK + the surface annotations
+  restage: ^1.3.0          # runtime SDK + the surface annotations
 
 dev_dependencies:
   build_runner: ^2.4.0
-  restage_codegen: ^1.0.1  # the build-time compiler (this package)
+  restage_codegen: ^1.3.0  # the build-time compiler (this package)
 ```
 
 ## 2. Author a surface in vanilla Flutter

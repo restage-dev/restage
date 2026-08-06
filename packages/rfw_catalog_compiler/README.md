@@ -50,9 +50,9 @@ server-driven UI surface, independent of which surface is being rendered.
 
 ## Status
 
-The package is at `1.0.0`. The barrel re-exports the walker, lowering,
-wire-ID, diff, link, policy, and adapter entry points used for reflector
-integration; the full IR remains internal under `src/ir`.
+The barrel re-exports the walker, lowering, wire-ID, diff, link, policy, and
+adapter entry points used for reflector integration; the full IR remains
+internal under `src/ir`.
 
 ## License
 

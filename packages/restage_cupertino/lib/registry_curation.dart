@@ -281,6 +281,9 @@ const List<BuiltinWidgetCuration> kCuration = [
       'scribbleEnabled',
       'stylusHandwritingEnabled',
       'enableIMEPersonalizedLearning',
+      // Opt-in iOS inline prediction is intentionally outside the current
+      // curated text-input vocabulary.
+      'enableInlinePrediction',
     ],
   ),
   // Same `required this.onChanged but typed `ValueChanged<T>?`` shape

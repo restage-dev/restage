@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 
 import 'generated/interactive_catalog.g.dart';
 import 'generated/interactive_fixture.dart';
@@ -65,6 +67,28 @@ Future<void> _pumpInteractive(
 Map<String, Object?> _asDelivered(Map<String, Object?> data) =>
     jsonDecode(jsonEncode(data)) as Map<String, Object?>;
 
+final class _CurrentChoicesFunction implements ClientFunction {
+  _CurrentChoicesFunction(this.controller);
+
+  final StreamController<Object?> controller;
+
+  @override
+  String get name => 'currentChoices';
+
+  @override
+  String get description => 'Emits the current choices.';
+
+  @override
+  Schema get argumentSchema => S.object(properties: const {});
+
+  @override
+  ClientFunctionReturnType get returnType => ClientFunctionReturnType.array;
+
+  @override
+  Stream<Object?> execute(JsonMap args, ExecutionContext context) =>
+      controller.stream;
+}
+
 void main() {
   late List<CatalogItem> items;
   late Catalog catalog;
@@ -117,7 +141,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('quickcheck-option-2')));
     await tester.pump();
 
-    // The callback wrote 2 back to the bound path -> the BoundNumber re-renders.
+    // The callback wrote 2 back to the bound path and the shared controlled
+    // helper re-renders from the path subscription.
     expect(find.text('quickcheck-selected:2'), findsOneWidget);
     expect(dataContext.getValue<num>(DataPath('answer')), 2);
   });
@@ -149,6 +174,96 @@ void main() {
     expect(dataContext.getValue<List<Object?>>(DataPath('picks')), <String>[
       'b',
     ]);
+  });
+
+  testWidgets(
+    'a list literal renders, refreshes before write, then retains its '
+    'component-scoped override',
+    (tester) async {
+      await _pumpInteractive(
+        tester,
+        catalog: catalog,
+        items: items,
+        type: 'MultiSelect',
+        data: _asDelivered(const {
+          'chosen': <Object?>['a', 1, null],
+        }),
+        dataContext: dataContext,
+        dispatchEvent: dispatched.add,
+      );
+      expect(find.text('multiselect-chosen:a'), findsOneWidget);
+
+      await _pumpInteractive(
+        tester,
+        catalog: catalog,
+        items: items,
+        type: 'MultiSelect',
+        data: _asDelivered(const {
+          'chosen': <String>['fresh'],
+        }),
+        dataContext: dataContext,
+        dispatchEvent: dispatched.add,
+      );
+      expect(find.text('multiselect-chosen:fresh'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('multiselect-add-b')));
+      await tester.pump();
+      expect(find.text('multiselect-chosen:fresh,b'), findsOneWidget);
+      expect(
+        dataContext.getValue<List<Object?>>(DataPath('root.chosen')),
+        <String>['fresh', 'b'],
+      );
+
+      await _pumpInteractive(
+        tester,
+        catalog: catalog,
+        items: items,
+        type: 'MultiSelect',
+        data: _asDelivered(const {
+          'chosen': <String>['late'],
+        }),
+        dataContext: dataContext,
+        dispatchEvent: dispatched.add,
+      );
+      expect(find.text('multiselect-chosen:fresh,b'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a list call stays reactive until write, cancels immediately, '
+      'and rejects later output', (tester) async {
+    final controller = StreamController<Object?>.broadcast(sync: true);
+    addTearDown(controller.close);
+    final function = _CurrentChoicesFunction(controller);
+    dataContext = DataContext(
+      model,
+      DataPath.root,
+      functions: <ClientFunction>[function],
+    );
+    await _pumpInteractive(
+      tester,
+      catalog: catalog,
+      items: items,
+      type: 'MultiSelect',
+      data: _asDelivered(const {
+        'chosen': {'call': 'currentChoices'},
+      }),
+      dataContext: dataContext,
+      dispatchEvent: dispatched.add,
+    );
+    await tester.pump();
+    expect(controller.hasListener, isTrue);
+
+    controller.add(<Object?>['call', 1]);
+    await tester.pump();
+    expect(find.text('multiselect-chosen:call'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('multiselect-add-b')));
+    expect(controller.hasListener, isFalse);
+    await tester.pump();
+    expect(find.text('multiselect-chosen:call,b'), findsOneWidget);
+    controller.add(<String>['late']);
+    await tester.pump();
+    expect(find.text('multiselect-chosen:call,b'), findsOneWidget);
   });
 
   testWidgets(

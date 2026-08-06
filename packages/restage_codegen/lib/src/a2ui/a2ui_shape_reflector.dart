@@ -2,10 +2,10 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
-
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/json_scalar_type.dart';
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 
 /// Why the reflector could not carry a Dart type as an A2UI data shape.
 ///
@@ -234,9 +234,15 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
     return _objectFromFields(
       [
         for (final f in type.namedFields)
-          (name: f.name, type: f.type, required: true),
+          (
+            name: f.name,
+            type: f.type,
+            required: true,
+            occurrenceDescription: null,
+          ),
       ],
       defId: null,
+      definitionDescription: null,
       construction: const A2uiRecordConstruction(),
       nullable: nullable,
       path: path,
@@ -364,18 +370,37 @@ A2uiShapeResult _objectFromClass(
       'private type or an unbound type argument)',
     );
   }
-  final ctor = _usableGenerativeConstructor(type);
+  final descriptionModel = resolveStructuredDescriptions(type);
+  if (descriptionModel.conflicts.isNotEmpty) {
+    return A2uiShapeScopedOut(
+      A2uiShapeScopeOutReason.unsupported,
+      descriptionModel.conflicts
+          .map((fact) => '${fact.message} ${fact.anchors.join(', ')}')
+          .join('; '),
+    );
+  }
+  final ctor = descriptionModel.constructor;
   if (ctor == null) {
     return A2uiShapeScopedOut(
       A2uiShapeScopeOutReason.unsupported,
       '${type.getDisplayString()} (no unambiguous generative constructor)',
     );
   }
-  final entries = <({String name, DartType type, bool required})>[];
+  final entries = <({
+    String name,
+    DartType type,
+    bool required,
+    String? occurrenceDescription,
+  })>[];
   final parameters = <A2uiConstructorParameter>[];
   var skippedPositional = false;
   for (final p in ctor.formalParameters) {
-    final name = p.name;
+    final sourceName = p.name;
+    final name = p is FieldFormalParameterElement &&
+            p.isNamed &&
+            (sourceName?.startsWith('_') ?? false)
+        ? sourceName!.replaceFirst(RegExp('^_+'), '')
+        : sourceName;
     if (name == null || name.isEmpty || name.startsWith('_')) {
       // A private/unnameable param the generated (separate-library) code cannot
       // supply: skippable only when optional; a REQUIRED one makes the object
@@ -407,13 +432,22 @@ A2uiShapeResult _objectFromClass(
     final fieldType = p is SuperFormalParameterElement
         ? (_inheritedFieldType(type, name) ?? p.type)
         : p.type;
-    entries.add((name: name, type: fieldType, required: p.isRequired));
+    final description = descriptionModel.descriptionForParameter(p);
+    entries.add(
+      (
+        name: name,
+        type: fieldType,
+        required: p.isRequired,
+        occurrenceDescription: description,
+      ),
+    );
     parameters.add(A2uiConstructorParameter(name: name, named: p.isNamed));
   }
   final ctorName = ctor.name;
   return _objectFromFields(
     entries,
     defId: id,
+    definitionDescription: descriptionModel.definitionDescription,
     construction: A2uiClassConstruction(
       dartTypeName: _instantiatedTypeName(type),
       libraryUri: type.element.library.identifier,
@@ -474,30 +508,20 @@ DartType? _inheritedFieldType(InterfaceType type, String name) {
   return null;
 }
 
-/// The canonical generative constructor for a data class, or null when there is
-/// no unambiguous choice (factory-only / none, or several named generatives
-/// with no default). Never picks arbitrarily.
-ConstructorElement? _usableGenerativeConstructor(InterfaceType type) {
-  final generative = [
-    // Exclude factories (not a settable shape) and PRIVATE constructors (the
-    // generated, separate-library code cannot call a private constructor).
-    for (final c in type.constructors)
-      if (!c.isFactory && !(c.name?.startsWith('_') ?? false)) c,
-  ];
-  if (generative.isEmpty) return null;
-  for (final c in generative) {
-    final name = c.name;
-    if (name == null || name.isEmpty || name == 'new') return c;
-  }
-  return generative.length == 1 ? generative.single : null;
-}
-
 /// Builds an [ObjectNode] from named field entries (each with its required
 /// flag), reflecting every field type. A scoped-out field fails the whole
 /// object closed (loud); a callback field is excluded (the event surface).
 A2uiShapeResult _objectFromFields(
-  List<({String name, DartType type, bool required})> entries, {
+  List<
+          ({
+            String name,
+            DartType type,
+            bool required,
+            String? occurrenceDescription,
+          })>
+      entries, {
   required String? defId,
+  required String? definitionDescription,
   required A2uiObjectConstruction construction,
   required bool nullable,
   required Set<String> path,
@@ -511,7 +535,11 @@ A2uiShapeResult _objectFromFields(
       case A2uiShapeResolved(:final node):
         final unbuildable = _buildabilityScopeOut(construction, entry, node);
         if (unbuildable != null) return unbuildable;
-        fields[entry.name] = node;
+        final described = _withOccurrenceDescription(
+          node,
+          entry.occurrenceDescription,
+        );
+        fields[entry.name] = described;
         if (entry.required) required.add(entry.name);
       case A2uiShapeScopedOut():
         return result;
@@ -533,6 +561,7 @@ A2uiShapeResult _objectFromFields(
       required: required,
       defId: defId,
       construction: construction,
+      definitionDescription: definitionDescription,
       nullable: nullable,
     ),
   );
@@ -544,7 +573,12 @@ A2uiShapeResult _objectFromFields(
 /// divergence). Returns null when the field is buildable.
 A2uiShapeScopedOut? _buildabilityScopeOut(
   A2uiObjectConstruction construction,
-  ({String name, DartType type, bool required}) entry,
+  ({
+    String name,
+    DartType type,
+    bool required,
+    String? occurrenceDescription,
+  }) entry,
   A2uiSchemaNode node,
 ) {
   // R-a: a RECORD is reconstructed inline with per-field fallbacks (no helper,
@@ -571,6 +605,88 @@ A2uiShapeScopedOut? _buildabilityScopeOut(
     );
   }
   return null;
+}
+
+/// Adds an occurrence description to a reflected node without moving metadata
+/// onto any child/member schema.
+A2uiSchemaNode _withOccurrenceDescription(
+  A2uiSchemaNode node,
+  String? description,
+) {
+  if (description == null) return node;
+  return switch (node) {
+    ScalarNode(
+      :final type,
+      :final preserveNumericRuntimeType,
+      :final nullable,
+    ) =>
+      ScalarNode(
+        type,
+        preserveNumericRuntimeType: preserveNumericRuntimeType,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+    EnumNode(
+      :final members,
+      :final dartTypeName,
+      :final libraryUri,
+      :final nullable,
+    ) =>
+      EnumNode(
+        members: members,
+        dartTypeName: dartTypeName,
+        libraryUri: libraryUri,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+    ListNode(:final element, :final nullable) => ListNode(
+        element: element,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+    ObjectNode(
+      :final fields,
+      :final required,
+      :final defId,
+      :final construction,
+      :final definitionDescription,
+      :final nullable,
+    ) =>
+      ObjectNode(
+        fields: fields,
+        required: required,
+        defId: defId,
+        construction: construction,
+        definitionDescription: definitionDescription,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+    MapNode(:final valueType, :final nullable) => MapNode(
+        valueType: valueType,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+    UnionNode(
+      :final variants,
+      :final discriminatorField,
+      :final defId,
+      :final definitionDescription,
+      :final nullable,
+    ) =>
+      UnionNode(
+        variants: variants,
+        discriminatorField: discriminatorField,
+        defId: defId,
+        definitionDescription: definitionDescription,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+    RefNode(:final defId, :final nullable) => RefNode(
+        defId,
+        nullable: nullable,
+        occurrenceDescription: description,
+      ),
+  };
 }
 
 /// Classifies a callback [type] into the disposition the lowering reads.

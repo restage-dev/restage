@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Add typed `RestageConstraints` to property annotations and catalog entries,
+  with deterministic schema-v4 encoding and structural preservation of unknown
+  constraint keywords.
+- Add `RestageDataField` for nested data documentation and the repeatable
+  `RestageA2uiExample` annotation for canonical A2UI examples.
+
 ## 1.1.0
 
 - Add the optional `usage` parameter to `@RestageWidget`: producer-facing

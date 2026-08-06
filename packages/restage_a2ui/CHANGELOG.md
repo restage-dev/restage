@@ -1,3 +1,10 @@
+## 0.1.6
+
+- Update the bundled generated catalog and documentation for content-derived
+  catalog identity, typed constraints, controlled values, nested data
+  descriptions, and canonical authored examples.
+- Keep genui pinned to 0.9.2. The package runtime is unchanged.
+
 ## 0.1.5
 
 - Document the producer-facing catalog metadata: widget and property

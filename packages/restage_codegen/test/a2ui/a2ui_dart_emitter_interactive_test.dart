@@ -89,30 +89,17 @@ void main() {
         eventSeam: _writeBackSeam(A2uiScalarType.boolean),
       );
 
-      // The value prop's READ is rewritten to a data-model path (not the raw
-      // value), so the Bound* is subscribed to the exact path the callback
-      // writes — the genui controlled-component pattern.
-      expect(source, contains("value: {'path': _restageA2uiPath_value}"));
-      expect(source, isNot(contains("value: data['value']")));
+      // The shared controlled helper retains the raw producer descriptor, so
+      // literal/path/call sources follow one state machine.
+      expect(source, contains("source: data['value']"));
+      expect(source, contains("sourcePresent: data.containsKey('value')"));
 
-      // The path is derived at runtime: the producer's `{path}` binding when
-      // supplied, else the Restage self-scoped allocation rule
-      // (`${itemContext.id}.<valuePropertyName>`).
-      expect(source, contains("final _restageA2uiRef_value = data['value'];"));
-      expect(source, contains("_restageA2uiRef_value.containsKey('path')"));
-      expect(source, contains("_restageA2uiRef_value['path'] as String"));
+      // Literal/call writes allocate the component-and-field self path; an
+      // explicit producer path remains inside the raw source descriptor.
       expect(source, contains(r"'${itemContext.id}.value'"));
+      expect(source, contains('selfPath: restageA2uiSelfPathValue'));
 
-      // The callback writes the new value back into the data model at the same
-      // path (inert: a path + the runtime value). The formatter may wrap the
-      // long expression, so assert its two stable halves.
-      expect(source, contains('onChanged: (_restageA2uiNext) =>'));
-      expect(
-        source,
-        contains(
-          'update(DataPath(_restageA2uiPath_value), _restageA2uiNext)',
-        ),
-      );
+      expect(source, contains('onChanged: restageA2uiWriteValue'));
 
       // The callback is behaviour, not producer-supplied data — it never enters
       // the data schema.
@@ -152,6 +139,41 @@ void main() {
       expect(source, contains('additionalProperties: true'));
     });
 
+    test('an integer write-back keeps integer in the value-reference literal',
+        () {
+      final catalog = catalogWith([
+        entry(
+          name: 'Counter',
+          flutterType: 'package:fixture/fixture.dart#Counter',
+          properties: [
+            prop('value', PropertyType.integer, required: true),
+            prop('onChanged', PropertyType.event, required: true),
+          ],
+        ),
+      ]);
+      const seam = <(String, String), A2uiCallbackSignature>{
+        ('Counter', 'onChanged'): A2uiCallbackWriteBack(
+          A2uiScalarType.integer,
+          nullable: false,
+          isList: false,
+        ),
+      };
+
+      final source = emitA2uiCatalogDart(catalog, eventSeam: seam);
+      expect(source, contains("'value': S.combined(oneOf:"));
+      expect(source, contains('S.integer()'));
+      expect(source, contains('_restageA2uiNumber(restageA2uiRawValue'));
+      expect(source, contains('return p0.Counter('));
+      expect(source, contains('value: (value ?? 0).toInt()'));
+
+      final standalone = emitA2uiCatalog(catalog, eventSeam: seam);
+      final schema = standalone.components.single.dataSchema;
+      final properties = schema['properties']! as Map<String, Object?>;
+      final value = properties['value']! as Map<String, Object?>;
+      final alternatives = value['oneOf']! as List<Object?>;
+      expect(alternatives.first, {'type': 'integer'});
+    });
+
     test('the self-scoped path uses the value property name (allocation rule)',
         () {
       final source = emitA2uiCatalogDart(
@@ -173,7 +195,7 @@ void main() {
       );
       // `${itemContext.id}.<valuePropertyName>`, not a hardcoded `.value`.
       expect(source, contains(r"'${itemContext.id}.selected'"));
-      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
+      expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
     });
   });
 
@@ -202,24 +224,14 @@ void main() {
     test('a ValueChanged<List<String>> + stringList value pair lowers', () {
       final source = emitA2uiCatalogDart(chipsCatalog(), eventSeam: listSeam());
 
-      // The list value prop's safe object-binding READ is rewritten to the path
-      // (not the raw value) — the genui controlled-component pattern.
-      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
-      expect(source, isNot(contains("value: data['selected']")));
+      // The list value prop retains its raw source for the shared helper.
+      expect(source, contains("source: data['selected']"));
 
       // The path is derived at runtime exactly as for a scalar (the producer's
       // `{path}` binding, else the self-scoped allocation rule).
       expect(source, contains(r"'${itemContext.id}.selected'"));
 
-      // The callback writes the SETTLED list back into the data model at the
-      // same path (inert: a path + the runtime list value).
-      expect(source, contains('onSelected: (_restageA2uiNext) =>'));
-      expect(
-        source,
-        contains(
-          'update(DataPath(_restageA2uiPath_selected), _restageA2uiNext)',
-        ),
-      );
+      expect(source, contains('onSelected: restageA2uiWriteSelected'));
 
       // The callback is behaviour, not data — it never enters the data schema.
       expect(source, isNot(contains("'onSelected':")));
@@ -285,7 +297,7 @@ void main() {
       );
       final compactSource = source.replaceAll(RegExp(r'\s+'), ' ');
 
-      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
+      expect(source, contains("source: data['selected']"));
       expect(
         compactSource,
         contains(
@@ -347,15 +359,9 @@ void main() {
         eventSeam: eventSeam,
       );
 
-      expect(source, contains("value: {'path': _restageA2uiPath_selected}"));
+      expect(source, contains("source: data['selected']"));
       expect(source, contains('value is num ? value.toInt() : null'));
-      expect(source, contains('onSelected: (_restageA2uiNext) =>'));
-      expect(
-        source,
-        contains(
-          'update(DataPath(_restageA2uiPath_selected), _restageA2uiNext)',
-        ),
-      );
+      expect(source, contains('onSelected: restageA2uiWriteSelected'));
       final plan = classifyA2uiCatalogDart(
         catalog,
         richShapes: richShapes,
@@ -739,7 +745,12 @@ void main() {
         _toggleCatalog(callbackRequired: false),
         eventSeam: _writeBackSeam(A2uiScalarType.boolean),
         richShapes: <(String, String), A2uiSchemaNode>{
-          ('Toggle', 'value'): const ScalarNode(A2uiScalarType.boolean),
+          ('Toggle', 'value'): ObjectNode(
+            fields: const {
+              'enabled': ScalarNode(A2uiScalarType.boolean),
+            },
+            required: const {'enabled'},
+          ),
         },
       );
       expect(plan.widgets.single.writeBacks, isEmpty);
@@ -859,18 +870,10 @@ void main() {
         eventSeam: seam,
         pairingSeam: pairing,
       );
-      expect(source, contains("value: {'path': _restageA2uiPath_low}"));
-      expect(source, contains("value: {'path': _restageA2uiPath_high}"));
-      expect(source, contains('onLow: (_restageA2uiNext) =>'));
-      expect(source, contains('onHigh: (_restageA2uiNext) =>'));
-      expect(
-        source,
-        contains('update(DataPath(_restageA2uiPath_low), _restageA2uiNext)'),
-      );
-      expect(
-        source,
-        contains('update(DataPath(_restageA2uiPath_high), _restageA2uiNext)'),
-      );
+      expect(source, contains('selfPath: restageA2uiSelfPathLow'));
+      expect(source, contains('selfPath: restageA2uiSelfPathHigh'));
+      expect(source, contains('onLow: restageA2uiWriteLow'));
+      expect(source, contains('onHigh: restageA2uiWriteHigh'));
 
       final plan = classifyA2uiCatalogDart(
         catalog,
@@ -890,8 +893,8 @@ void main() {
           ('Toggle', 'onChanged'): 'value',
         },
       );
-      expect(source, contains("value: {'path': _restageA2uiPath_value}"));
-      expect(source, contains('onChanged: (_restageA2uiNext) =>'));
+      expect(source, contains("source: data['value']"));
+      expect(source, contains('onChanged: restageA2uiWriteValue'));
     });
 
     test('an un-annotated callback in a multi-control widget → #pair', () {
@@ -1086,9 +1089,9 @@ void main() {
         reason: 'emitted source has syntax errors:\n'
             '${parsed.errors.join('\n')}',
       );
-      // The write-back wiring is present in the complex widget.
-      expect(source, contains("value: {'path': _restageA2uiPath_value}"));
-      expect(source, contains('onChanged: (_restageA2uiNext) =>'));
+      // The controlled write-back wiring is present in the complex widget.
+      expect(source, contains("source: data['value']"));
+      expect(source, contains('onChanged: restageA2uiWriteValue'));
     });
   });
 }

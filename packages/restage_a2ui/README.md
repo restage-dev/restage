@@ -8,8 +8,9 @@ The app-side half of Restage's [A2UI](https://github.com/google/genui) emit targ
 Restage's build-time toolchain can emit your widget catalog as an A2UI component catalog (a catalog of
 widget schemas a generative-UI model renders against, via Google's [`genui`](https://pub.dev/packages/genui)
 SDK). `restage_a2ui` is what an app uses on the *other* end: it checks an A2UI payload against the catalog
-the app actually registered **before** handing it to genui, so a payload your build can't render faithfully
-fails with a clean, actionable diagnostic instead of throwing mid-render.
+the app actually registered **before** handing it to genui, so missing catalog components and capability
+gaps fail with a clean, actionable diagnostic instead of throwing mid-render. This is a capability check,
+not a general validator for every malformed inner A2UI component shape.
 
 ## What this is (and is not)
 
@@ -41,12 +42,12 @@ renderer; `rfw_catalog_schema` holds the annotations.
 dependencies:
   genui: ^0.9.2                 # the renderer the generated catalog targets
   json_schema_builder: ^0.1.3   # the generated catalog's data schemas are built with this
-  rfw_catalog_schema: ^1.0.1    # the @RestageWidget / @RestageProperty / @RestageLibrary annotations
+  rfw_catalog_schema: ^1.2.0    # the widget, data-field, and example annotations
   # Production-safe path only — the app-side pre-render check + capability sidecar (step 8):
-  # restage_a2ui: ^0.1.2
+  # restage_a2ui: ^0.1.6
 
 dev_dependencies:
-  restage_codegen: ^1.0.3       # the build-time A2UI emitter (not shipped in your app)
+  restage_codegen: ^1.3.0       # the build-time A2UI emitter (not shipped in your app)
   build_runner: ^2.4.0
 ```
 
@@ -104,8 +105,9 @@ const restageLibrary = 0;
 ```
 
 **4. Enable the A2UI builder.** It is opt-in (`auto_apply: none`) because the generated catalog imports
-`genui`. If you target A2UI only (not RFW delivery), also turn the two RFW builders **off** — otherwise
-they emit unused `.g.dart` files and a spurious "not mechanically generatable for RFW" warning.
+`genui`. If you target A2UI only (not RFW delivery), also turn the three RFW customer builders **off** —
+otherwise they emit unused RFW catalog/factory artifacts and may reject fields that only the A2UI target
+supports.
 
 ```yaml
 # build.yaml in the package that declares your @RestageWidget libraries
@@ -114,9 +116,11 @@ targets:
     builders:
       restage_codegen:user_a2ui_catalog:
         enabled: true
-      restage_codegen:user_catalog:    # RFW builder — off for an A2UI-only target
+      restage_codegen:user_catalog:       # RFW builders — off for an A2UI-only target
         enabled: false
-      restage_codegen:user_factories:  # RFW builder — off for an A2UI-only target
+      restage_codegen:user_catalog_json:
+        enabled: false
+      restage_codegen:user_factories:
         enabled: false
 ```
 
@@ -129,7 +133,8 @@ dart run build_runner build
 **6. Your two outputs appear** (under `lib/`):
 
 - `…catalog.g.dart` — `buildRestageCatalogItems()`: the genui `CatalogItem`s (each with its data schema and
-  widget builder) that genui renders against.
+  widget builder) that genui renders against, plus the content-derived `restageA2uiCatalogId` and any
+  validated canonical example registry.
 - `…catalog.a2ui.json` — the A2UI-standard catalog document (`{ restageCapability, a2uiCatalog }`). Each
   `a2uiCatalog.components.<Name>` carries that component's full data schema — the *same* schema genui's own
   `Catalog.toCapabilitiesJson()` would emit (the data fields plus the injected `component` discriminator) — so
@@ -138,6 +143,25 @@ dart run build_runner build
   `#/$defs/…` pointers, so resolve `$ref` *within* the component schema, not against the whole file); and `id` +
   `component` are **reserved A2UI envelope keys** — genui strips them from a component's data, so don't name a
   top-level `@RestageWidget` field either (nest it in a data class if you need that name).
+
+Typed `RestageConstraints` are projected onto the literal arm of a generated field schema. They describe
+the accepted literal catalog shape; values resolved from `{path}` or `{call}` remain application data, so
+the widget or app still enforces its runtime domain rules.
+
+To ship a canonical example, add repeatable `@RestageA2uiExample` annotations to a
+`@RestageWidget` class and point each one at a JSON sidecar containing an A2UI component array:
+
+```dart
+@RestageA2uiExample(
+  name: 'Default',
+  asset: 'lib/a2ui_examples/rating_picker/default.json',
+)
+@RestageWidget(/* … */)
+class RatingPicker extends StatelessWidget { /* … */ }
+```
+
+Generation validates every sidecar against the component catalog and emits the exact example through both
+genui `CatalogItem.exampleData` and the ordered `restageA2uiExampleRegistry`.
 
 **7. Render with genui:**
 
@@ -158,9 +182,9 @@ package** — `restage_codegen` is build-time only. You've replaced hand-written
 auto-generated ones, with zero runtime lock-in.
 
 **8. (Production-safe) Add the fail-closed pre-render check.** If you render payloads you did not author,
-add `restage_a2ui` (uncomment it in step 1) and gate each payload before handing it to genui — a bad
-payload then fails *closed* with a diagnostic instead of throwing mid-render, and you get the
-capability-version check. That is the [Quickstart](#quickstart) below.
+add `restage_a2ui` (uncomment it in step 1) and gate each payload before handing it to genui — unknown
+component types in well-formed entries and capability-version gaps then fail *closed* with a diagnostic
+instead of throwing mid-render. That is the [Quickstart](#quickstart) below.
 
 A worked version of steps 1–7 lives in [`example/`](example/) — the annotated widgets, the library barrel,
 the `build.yaml`, the committed generated catalog, and a test that renders them against genui 0.9.2. It has
@@ -173,7 +197,7 @@ Add the dependency:
 
 ```yaml
 dependencies:
-  restage_a2ui: ^0.1.2
+  restage_a2ui: ^0.1.6
   genui: ^0.9.2
 ```
 
@@ -222,9 +246,10 @@ Widget? renderCached(String cachedJson) {
 }
 ```
 
-The check fails **closed** at every path: a malformed envelope, an unknown component, an unmet version, or
-a stamped payload with no `installed` descriptor all yield an `A2uiRejected` — never a throw at the render
-seam.
+The check fails **closed** for a malformed Restage sidecar envelope, an unknown component type in a
+well-formed `{id, component}` entry, an unmet version, or a stamped payload with no `installed` descriptor:
+each yields an `A2uiRejected`. It is not a general validator for the inner A2UI payload shape; a malformed
+component entry can still fail when genui parses it at the render seam.
 
 If you do not cache the sidecar and only have raw A2UI payloads, you can omit `installed`; then only the
 existence walk runs and any Restage-stamped payload is rejected as unverifiable (fail-closed). Caching the
@@ -291,6 +316,10 @@ reconstructs the value at render. The supported rich shapes are:
 - **named records** (`({double width, double height})`),
 - alongside scalars, enums, scalar lists, and the two-way value/event interactivity.
 
+Annotate a nested field with `@RestageDataField(description: '...')` when its schema should carry an
+explicit description. Descriptions are attached to the corresponding nested occurrence or shared
+definition without changing the reconstructed Dart value.
+
 ```dart
 class Money {
   const Money({required this.amount, required this.currency});
@@ -335,8 +364,10 @@ A2UI JSON yourself).
    version — across both the built-in content floor and any custom widget libraries — so a payload that needs
    more than your build provides is rejected up front rather than rendered wrong.
 
-Both fail **closed**: a malformed payload, an unknown component, or an unmet version yields a `Rejected`
-result with a diagnostic. The check never throws at the render seam.
+Both return a `Rejected` result with a diagnostic for malformed Restage sidecar envelopes, unknown
+component types in well-formed `{id, component}` entries, and unmet versions. They do not validate every
+inner A2UI component shape; malformed component entries can still fail when genui parses them at the
+render seam.
 
 ## The capability sidecar
 

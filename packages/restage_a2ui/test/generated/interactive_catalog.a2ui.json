@@ -11,10 +11,10 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/1",
+    "$id": "restage:catalog/sha256/121f5e42451000cb3918397f9a4213c2753cc511c595bd7247238d98bfb7b506",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/1",
+    "catalogId": "restage:catalog/sha256/121f5e42451000cb3918397f9a4213c2753cc511c595bd7247238d98bfb7b506",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "ActionButton": {
@@ -93,7 +93,7 @@
             "description": "The currently selected option index.",
             "oneOf": [
               {
-                "type": "number"
+                "type": "integer"
               },
               {
                 "type": "object",
@@ -141,7 +141,7 @@
           "low": {
             "oneOf": [
               {
-                "type": "number"
+                "type": "integer"
               },
               {
                 "type": "object",
@@ -174,7 +174,7 @@
           "high": {
             "oneOf": [
               {
-                "type": "number"
+                "type": "integer"
               },
               {
                 "type": "object",
@@ -218,6 +218,9 @@
         ]
       }
     },
-    "functions": {}
+    "functions": {},
+    "systemPromptFragments": [
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/121f5e42451000cb3918397f9a4213c2753cc511c595bd7247238d98bfb7b506\"."
+    ]
   }
 }

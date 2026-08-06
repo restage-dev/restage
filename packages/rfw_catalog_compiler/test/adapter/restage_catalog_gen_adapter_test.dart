@@ -28,6 +28,12 @@ void main() {
             type: PropertyType.string,
             description: 'Image URL.',
             positional: true,
+            constraints: RestageConstraints(
+              allowedValues: ['https://example.test/image.png', null],
+              pattern: '^https://',
+              minLength: 8,
+              maxLength: 2048,
+            ),
           ),
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -155,6 +161,16 @@ void main() {
       };
       expect(byName['child']!.widgetType, 'PreferredSizeWidget');
       expect(byName['url']!.positional, isTrue);
+      expect(
+        byName['url']!.constraints,
+        const RestageConstraints(
+          allowedValues: ['https://example.test/image.png', null],
+          pattern: '^https://',
+          minLength: 8,
+          maxLength: 2048,
+        ),
+      );
+      expect(byName['child']!.constraints, RestageConstraints.empty);
       expect(byName['color']!.defaultValue, 0xFF000000);
       expect(
         byName['color']!.defaultSource,

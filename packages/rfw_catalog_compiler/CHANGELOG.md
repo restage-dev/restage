@@ -1,3 +1,11 @@
+# 1.2.0
+
+- Preserve typed property constraints through compiler IR, linking, adapters,
+  and schema lowering.
+- Resolve deterministic nested field descriptions for structured catalog
+  shapes.
+- Require `rfw_catalog_schema` ^1.2.0.
+
 # 1.1.0
 
 - Resolve a property typed as a list of structured values to the opaque

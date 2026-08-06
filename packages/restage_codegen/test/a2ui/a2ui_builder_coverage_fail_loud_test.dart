@@ -120,6 +120,122 @@ void main() {
       expect(logs, contains('reserved identifier'));
     });
 
+    for (final fieldName in const ['id', 'component']) {
+      final sourceShapes = <String, ({String declarations, String type})>{
+        'scalar': (declarations: '', type: 'String'),
+        'rich-data': (
+          declarations: '''
+          class Details {
+            const Details({required this.label});
+            final String label;
+          }
+        ''',
+          type: 'Details',
+        ),
+        'child': (
+          declarations: '''
+          class Widget {
+            const Widget();
+          }
+        ''',
+          type: 'Widget',
+        ),
+      };
+
+      for (final sourceShape in sourceShapes.entries) {
+        test(
+            "top-level envelope field '$fieldName' fails loud before "
+            '${sourceShape.key} admission', () async {
+          final source = '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+            ${sourceShape.value.declarations}
+            @RestageWidget(
+              name: 'EnvelopeCollision',
+              library: WidgetLibrary.custom('acme.widgets'),
+              category: WidgetCategory.decoration,
+              description: 'a widget with an envelope-name collision',
+            )
+            class EnvelopeCollision {
+              const EnvelopeCollision({required this.$fieldName});
+              @RestageProperty(description: 'an envelope-name collision')
+              final ${sourceShape.value.type} $fieldName;
+            }
+          ''';
+
+          final (succeeded, logs) = await _runBuilder({
+            'lib/lib.dart': _libraryDeclaration,
+            'lib/envelope_collision.dart': source,
+          });
+
+          expect(succeeded, isFalse);
+          expect(logs, contains('EnvelopeCollision'));
+          expect(logs, contains("'$fieldName'"));
+          expect(logs, contains('GenUI component envelope'));
+          expect(logs, contains('rename the property'));
+        });
+      }
+
+      test(
+          "optional top-level envelope field '$fieldName' is fatal, not a "
+          'coverage warning', () async {
+        final source = '''
+          import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+          @RestageWidget(
+            name: 'OptionalEnvelopeCollision',
+            library: WidgetLibrary.custom('acme.widgets'),
+            category: WidgetCategory.decoration,
+            description: 'a widget with an optional envelope collision',
+          )
+          class OptionalEnvelopeCollision {
+            const OptionalEnvelopeCollision({this.$fieldName});
+            @RestageProperty(description: 'an optional collision')
+            final String? $fieldName;
+          }
+        ''';
+
+        final (succeeded, logs) = await _runBuilder({
+          'lib/lib.dart': _libraryDeclaration,
+          'lib/optional_envelope_collision.dart': source,
+        });
+
+        expect(succeeded, isFalse);
+        expect(logs, contains('OptionalEnvelopeCollision'));
+        expect(logs, contains("'$fieldName'"));
+        expect(logs, contains('GenUI component envelope'));
+        expect(logs, isNot(contains('WARNING')));
+      });
+    }
+
+    test('nested rich-data id and component members remain legal', () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        class Details {
+          const Details({required this.id, required this.component});
+          final String id;
+          final String component;
+        }
+        @RestageWidget(
+          name: 'NestedEnvelopeNames',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.decoration,
+          description: 'a widget with legal nested envelope names',
+        )
+        class NestedEnvelopeNames {
+          const NestedEnvelopeNames({required this.details});
+          @RestageProperty(description: 'the nested details')
+          final Details details;
+        }
+      ''';
+
+      final (succeeded, logs) = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/nested_envelope_names.dart': source,
+      });
+
+      expect(succeeded, isTrue, reason: logs);
+      expect(logs, isNot(contains('GenUI component envelope')));
+    });
+
     test(
         'two unannotated write-back callbacks the constructor requires fail '
         'loud as an ambiguous pairing (never an emit missing required '
@@ -164,12 +280,12 @@ void main() {
     });
 
     test(
-        'a non-nullable single-child slot the catalog does not mark required '
-        'fails loud (the generated child argument is nullable)', () async {
-      // The generated single-child lookup is nullable (an A2UI child is a
-      // component-id reference that need not resolve), so a non-nullable
-      // `Widget child` parameter without `@RestageProperty(required: true)`
-      // would receive a nullable expression and fail to compile.
+        'the A2UI target derives a required non-nullable child from its '
+        'constructor even without annotation duplication', () async {
+      // The named A2UI visitor target marks this constructor-required child as
+      // schema-required and the emitter therefore null-asserts the child
+      // lookup. The old annotation-only gap must no longer trip the coverage
+      // guard or emit an uncompilable nullable argument.
       const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         class Widget {
@@ -193,10 +309,8 @@ void main() {
         'lib/framed.dart': source,
       });
 
-      expect(succeeded, isFalse);
-      expect(logs, contains('Framed'));
-      expect(logs, contains("'child'"));
-      expect(logs, contains("Declare the parameter 'Widget?'"));
+      expect(succeeded, isTrue, reason: logs);
+      expect(logs, isNot(contains("Declare the parameter 'Widget?'")));
     });
 
     test(

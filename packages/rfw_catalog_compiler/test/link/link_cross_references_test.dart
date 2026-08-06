@@ -33,6 +33,26 @@ void main() {
       expect(linked.widgets.single.sinceVersion, 2);
     });
 
+    test('preserves constraints while rebuilding a property valueShape', () {
+      const constraints = RestageConstraints(
+        minimum: 0,
+        maximum: 24,
+        allowedValues: [0, 8, 16, 24, null],
+      );
+      final linked = linkCrossReferences(
+        _nativeCatalog(
+          mappingTransform: const IdentityTransform(),
+          omitPropertyValueShape: true,
+        ),
+        const CrossRefResolutionIndex(),
+      );
+
+      final property = linked.widgets.single.properties.single;
+      expect(property.constraints, constraints);
+      expect(property.validationRule, isNull);
+      expect(property.valueShape, isA<StructuredShape>());
+    });
+
     test('R1 resolves union member refs by memberSourceTypes', () {
       final linked = linkCrossReferences(_catalog(), _fullIndex);
 
@@ -770,6 +790,11 @@ Catalog _nativeCatalog({
             name: 'radius',
             type: PropertyType.real,
             description: '',
+            constraints: const RestageConstraints(
+              minimum: 0,
+              maximum: 24,
+              allowedValues: [0, 8, 16, 24, null],
+            ),
             valueShape: omitPropertyValueShape
                 ? null
                 : propertyValueShapeStructuredRef == null

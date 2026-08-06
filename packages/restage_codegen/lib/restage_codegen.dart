@@ -55,4 +55,5 @@ export 'src/factory_emitter.dart' show kSupportedSyntheticStrategies;
 export 'src/issue.dart' show Issue, IssueCode;
 export 'src/type_inference.dart' show inferPropertyType;
 export 'src/user_catalog_emitter.dart' show emitUserCatalogDart;
-export 'src/widget_visitor.dart' show WidgetVisitorResult, visitRestageWidgets;
+export 'src/widget_visitor.dart'
+    show WidgetVisitorResult, WidgetVisitorTarget, visitRestageWidgets;

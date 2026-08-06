@@ -109,6 +109,199 @@ void main() {
       );
     });
 
+    test('propagates source constraint metadata into generated user catalog',
+        () async {
+      const widgetSource = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        @RestageWidget(
+          name: 'ConstrainedCard',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.input,
+          description: 'Constraint propagation proof.',
+        )
+        class ConstrainedCard {
+          const ConstrainedCard({
+            required this.count,
+            required this.label,
+            required this.legacy,
+          });
+
+          @RestageProperty(
+            description: 'Count.',
+            constraints: RestageConstraints(
+              minimum: 1,
+              maximum: 10,
+              allowedValues: [1, 2, null],
+            ),
+          )
+          final int count;
+
+          @RestageProperty(
+            description: 'Label.',
+            constraints: RestageConstraints(
+              allowedValues: ['short', 'long', null],
+              pattern: r'^[a-z]+',
+              minLength: 2,
+              maxLength: 8,
+            ),
+          )
+          final String label;
+
+          @RestageProperty(
+            description: 'Legacy.',
+            validationRule: ValidationExpr(
+              expression: 'legacy(value) == true',
+              message: 'Exact legacy message.',
+            ),
+          )
+          final String legacy;
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'restage_codegen',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets/constrained_card.dart'),
+        widgetSource,
+      );
+
+      await testBuilder(
+        const UserCatalogBuilder(BuilderOptions.empty),
+        {
+          'apps_examples|lib/widgets/constrained_card.dart': widgetSource,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/user_catalog.g.dart': decodedMatches(
+            predicate<String>(
+              (source) {
+                final normalized = source
+                    .replaceAll(RegExp(r'\s+'), ' ')
+                    .replaceAll('( ', '(')
+                    .replaceAll('[ ', '[')
+                    .replaceAll(' ]', ']');
+                return normalized.contains(
+                      'constraints: RestageConstraints(minimum: 1, '
+                      'maximum: 10, allowedValues: [1, 2, null])',
+                    ) &&
+                    normalized.contains(
+                      'constraints: RestageConstraints(allowedValues: '
+                      "['short', 'long', null], pattern: '^[a-z]+', "
+                      'minLength: 2, maxLength: 8)',
+                    ) &&
+                    normalized.contains(
+                      'validationRule: ValidationExpr(expression: '
+                      "'legacy(value) == true', message: "
+                      "'Exact legacy message.')",
+                    );
+              },
+              'emits exact source constraints and legacy message',
+            ),
+          ),
+        },
+      );
+    });
+
+    test('rejects mixed source constraint metadata at production boundary',
+        () async {
+      const widgetSource = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        @RestageWidget(
+          name: 'ConflictedCard',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.input,
+          description: 'Conflict proof.',
+        )
+        class ConflictedCard {
+          const ConflictedCard({required this.label});
+
+          @RestageProperty(
+            description: 'Label.',
+            constraints: RestageConstraints(minLength: 1),
+            validationRule: ValidationExpr(
+              expression: 'legacy(value)',
+              message: 'Legacy message.',
+            ),
+          )
+          final String label;
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'restage_codegen',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets/conflicted_card.dart'),
+        widgetSource,
+      );
+      final logs = <String>[];
+
+      final result = await testBuilder(
+        const UserCatalogBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/widgets/conflicted_card.dart': widgetSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: (record) => logs.add(record.message),
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.join('\n'),
+        allOf(contains('ConflictedCard.label'), contains('validationRule')),
+      );
+    });
+
+    test('rejects invalid source constraint metadata before output', () async {
+      const widgetSource = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        @RestageWidget(
+          name: 'InvalidBoundsCard',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.input,
+          description: 'Invalid bounds proof.',
+        )
+        class InvalidBoundsCard {
+          const InvalidBoundsCard({required this.count});
+
+          @RestageProperty(
+            description: 'Count.',
+            constraints: RestageConstraints(minimum: 10, maximum: 1),
+          )
+          final int count;
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'restage_codegen',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets/invalid_bounds_card.dart'),
+        widgetSource,
+      );
+
+      final result = await testBuilder(
+        const UserCatalogBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/widgets/invalid_bounds_card.dart': widgetSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        result.errors.join('\n'),
+        allOf(
+          contains('InvalidBoundsCard'),
+          contains('properties[0]'),
+          contains('contradictory'),
+        ),
+      );
+    });
+
     test('does not emit user_catalog.g.dart when no @RestageWidget classes',
         () async {
       const plainSource = '''

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 
 import 'generated/sample_a2ui_catalog.g.dart';
 
@@ -21,6 +22,10 @@ Future<void> _pumpCatalogItem(
   required List<CatalogItem> items,
   required String type,
   required Map<String, Object?> data,
+  Set<String> componentIds = const {'c1', 'c2'},
+  Widget Function(String childId)? buildChild,
+  void Function(String childId)? onBuildChild,
+  void Function(String childId)? onGetComponent,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -30,11 +35,22 @@ Future<void> _pumpCatalogItem(
             data: data,
             id: 'root',
             type: type,
-            buildChild: (childId, [dataContext]) => Text('child-$childId'),
+            buildChild: (childId, [dataContext]) {
+              onBuildChild?.call(childId);
+              return buildChild?.call(childId) ?? Text('child-$childId');
+            },
             dispatchEvent: (_) {},
             buildContext: context,
             dataContext: DataContext(InMemoryDataModel(), DataPath.root),
-            getComponent: (_) => null,
+            getComponent: (childId) {
+              onGetComponent?.call(childId);
+              if (!componentIds.contains(childId)) return null;
+              return Component(
+                id: childId,
+                type: 'TestChild',
+                properties: const {},
+              );
+            },
             getCatalogItem: (t) {
               for (final item in items) {
                 if (item.name == t) return item;
@@ -56,8 +72,8 @@ void main() {
   late Catalog catalog;
 
   setUp(() {
-    items = buildRestageCatalogItems();
-    catalog = Catalog(items);
+    catalog = buildRestageCatalog();
+    items = catalog.items.toList();
   });
 
   test('the generated catalog exposes the fixture items', () {
@@ -70,18 +86,218 @@ void main() {
   testWidgets('Visibility renders — BoundBool value + single child slot', (
     tester,
   ) async {
+    var buildChildCalls = 0;
+    var getComponentCalls = 0;
     await _pumpCatalogItem(
       tester,
       catalog: catalog,
       items: items,
       type: 'Visibility',
       data: const {'visible': true, 'child': 'c1'},
+      onBuildChild: (_) => buildChildCalls++,
+      onGetComponent: (_) => getComponentCalls++,
     );
     // The BoundBool value resolved to `visible: true` and the child rendered.
     expect(find.byType(Visibility), findsOneWidget);
     expect(tester.widget<Visibility>(find.byType(Visibility)).visible, isTrue);
     expect(find.text('child-c1'), findsOneWidget);
+    expect(getComponentCalls, 1);
+    expect(buildChildCalls, 1);
   });
+
+  for (final scenario
+      in <
+        ({
+          String label,
+          Map<String, Object?> data,
+          List<String> messageParts,
+          int getComponentCalls,
+          bool hidesRawValue,
+        })
+      >[
+        (
+          label: 'a missing value',
+          data: const {'visible': true},
+          messageParts: const ['the value was null or missing'],
+          getComponentCalls: 0,
+          hidesRawValue: false,
+        ),
+        (
+          label: 'an explicit null',
+          data: const {'visible': true, 'child': null},
+          messageParts: const ['the value was null or missing'],
+          getComponentCalls: 0,
+          hidesRawValue: false,
+        ),
+        (
+          label: 'a non-String value',
+          data: const {'visible': true, 'child': 42},
+          messageParts: const ['runtime type int', 'String component id'],
+          getComponentCalls: 0,
+          hidesRawValue: true,
+        ),
+        (
+          label: 'an empty id',
+          data: const {'visible': true, 'child': ''},
+          messageParts: const ['the value was the empty string'],
+          getComponentCalls: 0,
+          hidesRawValue: false,
+        ),
+        (
+          label: 'a dangling id',
+          data: const {'visible': true, 'child': 'dangling'},
+          messageParts: const ['component id "dangling" is not registered'],
+          getComponentCalls: 1,
+          hidesRawValue: false,
+        ),
+      ]) {
+    testWidgets('Visibility rejects ${scenario.label} before child build', (
+      tester,
+    ) async {
+      var buildChildCalls = 0;
+      var getComponentCalls = 0;
+      await _pumpCatalogItem(
+        tester,
+        catalog: catalog,
+        items: items,
+        type: 'Visibility',
+        data: scenario.data,
+        onBuildChild: (_) => buildChildCalls++,
+        onGetComponent: (_) => getComponentCalls++,
+      );
+
+      final error = tester.takeException();
+      expect(error, isA<StateError>());
+      final message = error.toString();
+      expect(message, contains('Required A2UI child "Visibility.child"'));
+      expect(
+        message,
+        contains('Provide a non-empty String id for a component'),
+      );
+      for (final part in scenario.messageParts) {
+        expect(message, contains(part));
+      }
+      if (scenario.hidesRawValue) {
+        expect(message, isNot(contains('42')));
+      }
+      expect(getComponentCalls, scenario.getComponentCalls);
+      expect(buildChildCalls, 0);
+    });
+  }
+
+  testWidgets('Visibility wraps a direct child builder failure with context', (
+    tester,
+  ) async {
+    var buildChildCalls = 0;
+    await _pumpCatalogItem(
+      tester,
+      catalog: catalog,
+      items: items,
+      type: 'Visibility',
+      data: const {'visible': true, 'child': 'c1'},
+      buildChild: (_) => throw const FormatException('fixture failure'),
+      onBuildChild: (_) => buildChildCalls++,
+    );
+
+    final error = tester.takeException();
+    expect(error, isA<StateError>());
+    expect(
+      error.toString(),
+      allOf(
+        contains('Required A2UI child "Visibility.child"'),
+        contains('component id "c1"'),
+        contains('failed to build'),
+      ),
+    );
+    expect(buildChildCalls, 1);
+  });
+
+  testWidgets('Visibility preserves a non-error fallback child', (
+    tester,
+  ) async {
+    await _pumpCatalogItem(
+      tester,
+      catalog: catalog,
+      items: items,
+      type: 'Visibility',
+      data: const {'visible': true, 'child': 'c1'},
+      buildChild: (_) => const FallbackWidget(isLoading: true),
+    );
+
+    expect(tester.takeException(), isNull);
+    final fallback = tester.widget<FallbackWidget>(find.byType(FallbackWidget));
+    expect(fallback.error, isNull);
+    expect(fallback.isLoading, isTrue);
+  });
+
+  testWidgets(
+    'real Surface contextualizes a registered child builder failure',
+    (tester) async {
+      const catalogId = 'required-child-runtime-test';
+      final runtimeCatalog = Catalog(<CatalogItem>[
+        ...catalog.items,
+        CatalogItem(
+          name: 'FailingChild',
+          dataSchema: S.object(),
+          widgetBuilder: (_) => throw const FormatException('fixture failure'),
+        ),
+      ], catalogId: catalogId);
+      final controller = SurfaceController(catalogs: [runtimeCatalog]);
+      final submissions = <ChatMessage>[];
+      final submissionSubscription = controller.onSubmit.listen(
+        submissions.add,
+      );
+      addTearDown(submissionSubscription.cancel);
+      addTearDown(controller.dispose);
+      controller
+        ..handleMessage(
+          const CreateSurface(surfaceId: 'surface', catalogId: catalogId),
+        )
+        ..handleMessage(
+          const UpdateComponents(
+            surfaceId: 'surface',
+            components: [
+              Component(
+                id: 'root',
+                type: 'Visibility',
+                properties: {'visible': true, 'child': 'broken-child'},
+              ),
+              Component(
+                id: 'broken-child',
+                type: 'FailingChild',
+                properties: {},
+              ),
+            ],
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Surface(surfaceContext: controller.contextFor('surface')),
+        ),
+      );
+      await tester.pump();
+
+      final frameworkError = tester.takeException();
+      expect(frameworkError, isA<StateError>());
+      expect(
+        frameworkError.toString(),
+        allOf(
+          contains('Required A2UI child "Visibility.child"'),
+          contains('component id "broken-child"'),
+          contains('failed to build'),
+        ),
+      );
+      expect(submissions, hasLength(1));
+      final interaction =
+          submissions.single.parts.uiInteractionParts.single.interaction;
+      final payload = jsonDecode(interaction) as Map<String, Object?>;
+      final reportedError =
+          (payload['error']! as Map<String, Object?>)['message']! as String;
+      expect(reportedError, contains('FormatException: fixture failure'));
+      expect(find.byType(FallbackWidget), findsNothing);
+    },
+  );
 
   testWidgets('Wrap renders — BoundNumber value + list child slot', (
     tester,

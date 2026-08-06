@@ -3,6 +3,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
     show
         A2uiDartWidgetPlan,
         A2uiRichShapes,
+        a2uiCatalogComponentSchemaMapForPlan,
         a2uiWidgetDataSchemaMapForPlan,
         classifyA2uiCatalogDart,
         composeSystemPromptFragments;
@@ -193,7 +194,8 @@ String _duplicateNameMessage(WidgetEntry widget, WidgetEntry existing) {
 /// component's fields from the standalone document alone — not only from the
 /// generated `.g.dart`.
 ///
-/// This REPLICATES genui's `CatalogItem.dataSchema` getter exactly — its
+/// [a2uiCatalogComponentSchemaMapForPlan] replicates genui's
+/// `CatalogItem.dataSchema` getter exactly — its
 /// canonical component-schema format (the same shape genui's own
 /// `Catalog.toCapabilitiesJson()` emits per component): the data schema is
 /// spread, then `properties` is overlaid with the existing data properties plus
@@ -217,19 +219,5 @@ String _duplicateNameMessage(WidgetEntry widget, WidgetEntry existing) {
 /// component `dataSchema.value` under `components`); we deliberately match it
 /// rather than rewriting refs.
 Map<String, Object?> _componentSchema(A2uiDartWidgetPlan plan) {
-  final data = a2uiWidgetDataSchemaMapForPlan(plan);
-  final dataProps = (data['properties'] as Map?)?.cast<String, Object?>() ??
-      const <String, Object?>{};
-  final dataRequired = (data['required'] as List?) ?? const <Object?>[];
-  return <String, Object?>{
-    ...data,
-    'properties': <String, Object?>{
-      ...dataProps,
-      'component': <String, Object?>{
-        'type': 'string',
-        'enum': [plan.entry.name],
-      },
-    },
-    'required': <Object?>['component', ...dataRequired],
-  };
+  return a2uiCatalogComponentSchemaMapForPlan(plan);
 }

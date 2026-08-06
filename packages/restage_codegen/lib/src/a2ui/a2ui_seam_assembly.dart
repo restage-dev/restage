@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
-    show A2uiRichShapes;
+    show A2uiRichShapes, a2uiCatalogDataNodeForProperty;
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_shape_reflector.dart';
@@ -36,9 +37,11 @@ typedef A2uiSeams = ({
 ///  * a `structured` property reflects its constructor parameter into the
 ///    analyzer-fed shape seam. This includes A2UI-targeted direct scalar lists,
 ///    which use `structured` only as a target-local carrier;
-///  * every other property type (scalar / enum / list / widget / theme value
-///    props) is carried by the catalog property type itself — no analyzer-fed
-///    seam.
+///  * ordinary enum leaves reflect their analyzer-resolved member set and
+///    identity, while other data leaves retain their catalog-fed scalar kind
+///    and add analyzer-known nullability;
+///  * `Widget` / `List<Widget>` child slots carry analyzer-known nullability on
+///    an id-shaped seam node so schema and construction agree.
 ///
 /// Seam keys are `(widget catalog name, property name)`, matching what the
 /// emitter consumes. The constructor parameter / field is matched to the
@@ -55,21 +58,20 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
     final name = widget.entry.name;
     final ctor = _defaultConstructor(widget.element);
     for (final property in widget.entry.properties) {
-      // Only `event` and `structured` properties carry an analyzer-fed seam;
-      // scalar / enum / list / widget / theme value props are carried by the
-      // catalog property type itself.
-      if (property.type != PropertyType.event &&
-          property.type != PropertyType.structured) {
+      // Theme/synthetic values stay on their existing classifier paths; they
+      // are not ordinary constructor-bound A2UI leaves.
+      if (property.defaultSource is ThemeBindingDefault ||
+          property.synthetic != null) {
         continue;
       }
-      // A catalog event/structured property MUST bind a default-constructor
-      // parameter. A missing one is a catalog/constructor inconsistency (the
-      // emitter could not construct the widget faithfully), so fail LOUD rather
-      // than silently drop the widget's seam — distinct from a supported-shape
-      // that simply reflects to a scope-out below.
+
+      // Every A2UI-emitted property MUST bind a default-constructor parameter.
+      // A missing one is a catalog/constructor inconsistency (the emitter could
+      // not construct the widget faithfully), so fail LOUD rather than silently
+      // lose its source shape.
       final formal = _requireFormal(ctor, name, property);
-      final result = reflectType(formal.type);
       if (property.type == PropertyType.event) {
+        final result = reflectType(formal.type);
         // The value pairing is meaningful only for a lowered callback — read it
         // inside the event-surface branch so a non-lowered callback never
         // leaves an orphan pairing entry.
@@ -80,7 +82,11 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
             pairingSeam[(name, property.name)] = writeBack;
           }
         }
-      } else {
+        continue;
+      }
+
+      if (property.type == PropertyType.structured) {
+        final result = reflectType(formal.type);
         // A structured property is reflected into the analyzer-fed shape seam.
         // Exhaustive over the reflector result so a non-Resolved shape can
         // NEVER be silently dropped — the governing fail-closed-LOUD invariant
@@ -119,6 +125,36 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
               ),
             );
         }
+        continue;
+      }
+
+      final nullable =
+          formal.type.nullabilitySuffix == NullabilitySuffix.question;
+      if (property.type == PropertyType.enumValue) {
+        final result = reflectType(formal.type);
+        if (result is A2uiShapeResolved && result.node is EnumNode) {
+          richShapes[(name, property.name)] = result.node;
+          continue;
+        }
+        throw StateError(
+          'A2UI seam assembly: the catalog enumValue property '
+          '"${property.name}" on widget "$name" does not resolve to an '
+          'importable Dart enum: $result.',
+        );
+      } else if (property.type == PropertyType.widget) {
+        richShapes[(name, property.name)] =
+            ScalarNode(A2uiScalarType.string, nullable: nullable);
+      } else if (property.type == PropertyType.widgetList) {
+        richShapes[(name, property.name)] = ListNode(
+          element: const ScalarNode(A2uiScalarType.string),
+          nullable: nullable,
+        );
+      } else {
+        final node = a2uiCatalogDataNodeForProperty(
+          property,
+          nullable: nullable,
+        );
+        if (node != null) richShapes[(name, property.name)] = node;
       }
     }
   }
@@ -132,16 +168,16 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
 }
 
 /// The unnamed/default generative constructor — the same canonical choice the
-/// proof harnesses make. Returns `null` when absent (the caller skips the
-/// widget's reflected seams; the catalog path still carries it).
+/// proof harnesses make. Returns `null` when absent so [_requireFormal] can
+/// fail loud for any constructor-bound property.
 ConstructorElement? _defaultConstructor(ClassElement element) =>
     element.constructors
         .where((c) => c.name == null || c.name!.isEmpty || c.name == 'new')
         .firstOrNull;
 
 /// The default-constructor formal that binds [property], or a LOUD failure when
-/// it is absent — a catalog/constructor inconsistency (the catalog declares an
-/// event/structured property the widget's default constructor cannot receive).
+/// it is absent — a catalog/constructor inconsistency (the catalog declares a
+/// property the widget's default constructor cannot receive).
 FormalParameterElement _requireFormal(
   ConstructorElement? ctor,
   String widgetName,

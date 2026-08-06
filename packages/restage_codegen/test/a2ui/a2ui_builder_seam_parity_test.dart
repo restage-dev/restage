@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -177,9 +178,16 @@ void main() {
       ];
       final catalog = catalogWith([for (final w in widgets) w.entry]);
       final seams = assembleA2uiSeams(widgets);
+      final registration = emitA2uiCatalog(
+        catalog,
+        eventSeam: seams.eventSeam,
+        pairingSeam: seams.pairingSeam,
+        richShapes: seams.richShapes,
+      );
 
       final emitted = emitA2uiCatalogDart(
         catalog,
+        registration: registration,
         eventSeam: seams.eventSeam,
         pairingSeam: seams.pairingSeam,
         richShapes: seams.richShapes,
@@ -238,9 +246,16 @@ void main() {
       ];
       final catalog = catalogWith([for (final w in widgets) w.entry]);
       final seams = assembleA2uiSeams(widgets);
+      final registration = emitA2uiCatalog(
+        catalog,
+        richShapes: seams.richShapes,
+      );
 
-      final emitted =
-          emitA2uiCatalogDart(catalog, richShapes: seams.richShapes);
+      final emitted = emitA2uiCatalogDart(
+        catalog,
+        registration: registration,
+        richShapes: seams.richShapes,
+      );
       final normalized = formatGeneratedDart(
         emitted.replaceAll(fixtureUri, _richShapeFixtureImport),
       ).trimRight();

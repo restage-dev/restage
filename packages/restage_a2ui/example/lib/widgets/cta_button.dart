@@ -4,6 +4,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// A call-to-action button — a [label] plus a [onPressed] `VoidCallback` that
 /// dispatches an outward action (no value to write back). The A2UI catalog
 /// lowers the callback to an event the surface can handle.
+@RestageA2uiExample(
+  name: 'Interaction',
+  asset: 'lib/a2ui_examples/cta_button/interaction.json',
+)
 @RestageWidget(
   name: 'CtaButton',
   library: WidgetLibrary.custom('acme.widgets'),

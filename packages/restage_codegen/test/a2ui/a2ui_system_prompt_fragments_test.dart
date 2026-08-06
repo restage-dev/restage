@@ -61,6 +61,92 @@ Catalog _noMetadataWidget() {
 }
 
 void main() {
+  test('emits one reviewed catalog ID across the constant and Catalog wiring',
+      () {
+    final catalog = _threeWidgets();
+    final registration = emitA2uiCatalog(
+      catalog,
+      usageByWidget: const {'Alpha': 'Use Alpha for X.'},
+    );
+    final dart = emitA2uiCatalogDart(
+      catalog,
+      registration: registration,
+      usageByWidget: const {'Alpha': 'Use Alpha for X.'},
+    );
+
+    expect(
+      dart,
+      matches(
+        RegExp(
+          r'const String restageA2uiCatalogId =\s*'
+          "'${RegExp.escape(registration.documentId)}';",
+        ),
+      ),
+    );
+    expect(
+      dart,
+      contains(registration.systemPromptFragments.first),
+    );
+    expect(dart, contains('catalogId: restageA2uiCatalogId'));
+
+    final standalone =
+        registration.toJson()['a2uiCatalog']! as Map<String, Object?>;
+    expect(standalone[r'$id'], registration.documentId);
+    expect(standalone['catalogId'], registration.documentId);
+    expect(
+      standalone['systemPromptFragments'],
+      registration.systemPromptFragments,
+    );
+  });
+
+  test('documents the generated identity and integration boundaries', () {
+    final catalog = _threeWidgets();
+    final registration = emitA2uiCatalog(catalog);
+    final dart = emitA2uiCatalogDart(catalog, registration: registration);
+
+    expect(
+      dart,
+      contains('/// Items for the generated custom-only catalog.'),
+    );
+    expect(
+      dart,
+      contains(
+        '/// A composed Catalog must use a new application-owned catalog ID;',
+      ),
+    );
+    expect(
+      dart,
+      contains(
+        '/// Content address for exactly the generated custom-only catalog.',
+      ),
+    );
+    expect(
+      dart,
+      contains(
+        '/// Default A2A supportedCatalogIds use requires server registration',
+      ),
+    );
+    expect(
+      dart,
+      contains('/// of this exact predefined catalog contract.'),
+    );
+    expect(
+      dart,
+      contains('/// GenUI 0.9.2 inline catalogs are serialization-only here;'),
+    );
+    expect(
+      dart,
+      contains('/// no end-to-end inline server interoperability is claimed.'),
+    );
+    expect(
+      dart,
+      contains(
+        '/// Builds the generated custom-only GenUI catalog identified by',
+      ),
+    );
+    expect(dart, contains('/// [restageA2uiCatalogId].'));
+  });
+
   test(
       'usage overrides description; description is the fallback; '
       'both-absent skips the widget', () {
@@ -79,14 +165,40 @@ void main() {
   });
 
   test('the same fragments land in the .a2ui.json stamp', () {
-    final stamp = emitA2uiCatalog(
+    final registration = emitA2uiCatalog(
       _threeWidgets(),
       usageByWidget: const {'Alpha': 'Use Alpha for X.'},
-    ).toJson();
+    );
+    final stamp = registration.toJson();
     final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
     expect(
       a2uiCatalog['systemPromptFragments'],
+      registration.systemPromptFragments,
+    );
+    expect(
+      registration.nonIdentitySystemPromptFragments,
       <String>['Alpha: Use Alpha for X.', 'Beta: Beta desc'],
+    );
+  });
+
+  test('Dart emission rejects a registration from a different contract', () {
+    final wrongSchema = emitA2uiCatalog(_noMetadataWidget());
+    expect(
+      () => emitA2uiCatalogDart(_threeWidgets(), registration: wrongSchema),
+      throwsStateError,
+    );
+
+    final wrongPrompt = emitA2uiCatalog(
+      _threeWidgets(),
+      usageByWidget: const {'Alpha': 'Use Alpha for X.'},
+    );
+    expect(
+      () => emitA2uiCatalogDart(
+        _threeWidgets(),
+        registration: wrongPrompt,
+        usageByWidget: const {'Alpha': 'Use Alpha differently.'},
+      ),
+      throwsStateError,
     );
   });
 
@@ -107,11 +219,15 @@ void main() {
     );
   });
 
-  test(
-      'a catalog with no usage and no descriptions omits '
-      'systemPromptFragments from the stamp entirely', () {
-    final stamp = emitA2uiCatalog(_noMetadataWidget()).toJson();
+  test('a catalog with no metadata carries only its identity fragment', () {
+    final registration = emitA2uiCatalog(_noMetadataWidget());
+    final stamp = registration.toJson();
     final a2uiCatalog = stamp['a2uiCatalog']! as Map<String, Object?>;
-    expect(a2uiCatalog.containsKey('systemPromptFragments'), isFalse);
+    expect(registration.nonIdentitySystemPromptFragments, isEmpty);
+    expect(
+      a2uiCatalog['systemPromptFragments'],
+      registration.systemPromptFragments,
+    );
+    expect(registration.systemPromptFragments, hasLength(1));
   });
 }

@@ -60,6 +60,14 @@ const IssueCode unsupportedPropertyType = _WalkerIssueCode(
   problemMessage: 'Structured-type field has no catalog representation.',
 );
 
+/// Nested data-member documentation is invalid or contradictory.
+const IssueCode structuredDescriptionConflict = _WalkerIssueCode(
+  name: 'structuredDescriptionConflict',
+  uniqueName: 'rfwCatalogCompiler.structuredDescriptionConflict',
+  problemMessage: 'Nested data-member documentation is invalid or '
+      'contradictory.',
+);
+
 /// A union member named in the registry did not resolve to a class element.
 const IssueCode unionMemberUnresolved = _WalkerIssueCode(
   name: 'unionMemberUnresolved',

@@ -1528,6 +1528,9 @@ const List<BuiltinWidgetCuration> kCuration = [
       'scribbleEnabled',
       'stylusHandwritingEnabled',
       'enableIMEPersonalizedLearning',
+      // Opt-in iOS inline prediction is intentionally outside the current
+      // curated text-input vocabulary.
+      'enableInlinePrediction',
       'canRequestFocus',
       'hintLocales',
     ],

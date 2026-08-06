@@ -2,7 +2,7 @@ name: restage_codegen
 description: >-
   Write your UI as real Flutter widgets — your own design system, not a dialect —
   and restage_codegen compiles it into the blobs the Restage SDK ships over the air.
-version: 1.2.0
+version: 1.3.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
@@ -31,6 +31,7 @@ dependencies:
   analyzer: ">=10.0.0 <13.0.0"
   build: ">=2.4.0 <5.0.0"
   collection: ^1.18.0
+  crypto: ^3.0.7
   dart_style: ">=2.3.0 <4.0.0"
   glob: ^2.1.2
   meta: ^1.16.0
@@ -50,6 +51,8 @@ dev_dependencies:
   # constructions parse as resolved InstanceCreationExpressions (the
   # element-gated recognition path); not a runtime dependency of the toolchain.
   intl: ^0.20.2
+  # Test-only standards oracle for emitted Draft 2020-12 constraint keywords.
+  json_schema: 5.2.2
   logging: ^1.2.0
   test: ^1.25.0
   # Parses build.yaml in the build.yaml ↔ Builder.buildExtensions consistency

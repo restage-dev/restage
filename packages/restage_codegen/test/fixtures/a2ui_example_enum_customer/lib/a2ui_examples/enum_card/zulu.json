@@ -1,0 +1,9 @@
+[
+  {
+    "id": "root",
+    "component": "EnumCard",
+    "tone": "loud",
+    "measurements": [3.0, 4],
+    "labels": ["zulu", "omega"]
+  }
+]

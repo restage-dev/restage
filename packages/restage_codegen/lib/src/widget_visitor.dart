@@ -75,6 +75,15 @@ final class WidgetVisitorResult {
   final Map<String, ReconstructionPlan> reconstructionPlans;
 }
 
+/// Chooses the format-specific projection rules for [visitRestageWidgets].
+enum WidgetVisitorTarget {
+  /// Preserve the existing RFW catalog vocabulary and requiredness semantics.
+  rfw,
+
+  /// Preserve A2UI scalar lists and constructor-derived data requiredness.
+  a2ui,
+}
+
 /// Walks [library] for classes annotated with `@RestageWidget`. For each:
 /// - Extracts the annotation's catalog metadata (name, library, category,
 ///   description, fires, childrenSlot, deprecatedSince).
@@ -83,17 +92,17 @@ final class WidgetVisitorResult {
 /// - Walks `@RestageProperty`-annotated fields, infers each property type
 ///   from the field's static Dart type, and decodes literal defaults.
 ///
-/// When [includeA2uiScalarLists] is true, direct `List<String>`, `List<int>`,
-/// `List<double>`, `List<num>`, and `List<bool>` properties are admitted
-/// through the A2UI analyzer seam. The default remains false so the shared RFW
-/// catalog vocabulary and its callers are unchanged.
+/// When [target] is [WidgetVisitorTarget.a2ui], direct `List<String>`,
+/// `List<int>`, `List<double>`, `List<num>`, and `List<bool>` properties are
+/// admitted through the analyzer seam. The default remains the RFW target so
+/// existing RFW catalog bytes and callers are unchanged.
 ///
 /// At end-of-pass, detects within-library duplicate widget names (same
 /// `(library namespace, name)`) and emits [IssueCode.duplicateWidgetName].
 WidgetVisitorResult visitRestageWidgets(
   LibraryElement library,
   AssetId assetId, {
-  bool includeA2uiScalarLists = false,
+  WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
 }) {
   final widgets = <WidgetEntry>[];
   final issues = <Issue>[];
@@ -122,7 +131,7 @@ WidgetVisitorResult visitRestageWidgets(
       assetId,
       issues,
       structured,
-      includeA2uiScalarLists: includeA2uiScalarLists,
+      target: target,
     );
     if (entry == null) continue;
     widgets.add(entry);
@@ -183,7 +192,7 @@ WidgetEntry? _readWidgetAnnotation(
   AssetId assetId,
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
-  required bool includeA2uiScalarLists,
+  required WidgetVisitorTarget target,
 }) {
   final value = annotation.computeConstantValue();
   final className = cls.name ?? '<unnamed>';
@@ -274,7 +283,7 @@ WidgetEntry? _readWidgetAnnotation(
       assetId,
       issues,
       structured,
-      includeA2uiScalarLists: includeA2uiScalarLists,
+      target: target,
     );
     // A bad property emits its own issue; keep collecting so a typo on one
     // field doesn't silently drop the entire widget from the catalog.
@@ -367,7 +376,7 @@ PropertyEntry? _readPropertyAnnotation(
   AssetId assetId,
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
-  required bool includeA2uiScalarLists,
+  required WidgetVisitorTarget target,
 }) {
   final value = annotation.computeConstantValue();
   final fieldName = field.name ?? '<unnamed>';
@@ -398,6 +407,23 @@ PropertyEntry? _readPropertyAnnotation(
     issues,
     propertyLocation,
   );
+  final decodedValidationRule = _decodeValidationRule(
+    value.getField('validationRule'),
+    issues: issues,
+    location: propertyLocation,
+    ownerName: ownerName,
+    fieldName: fieldName,
+  );
+  if (!decodedValidationRule.valid) return null;
+  final validationRule = decodedValidationRule.value;
+  final constraints = _decodeConstraints(
+    value.getField('constraints'),
+    issues: issues,
+    location: propertyLocation,
+    ownerName: ownerName,
+    fieldName: fieldName,
+  );
+  if (constraints == null) return null;
 
   final declaredDefaults = (defaultValue == null ? 0 : 1) +
       (defaultBrandToken == null ? 0 : 1) +
@@ -410,6 +436,19 @@ PropertyEntry? _readPropertyAnnotation(
             '@RestageProperty on $ownerName.$fieldName supplies more than one '
             'of defaultValue / defaultBrandToken / defaultSource. Use at most '
             'one defaulting strategy.',
+        location: propertyLocation,
+      ),
+    );
+    return null;
+  }
+
+  if (validationRule != null && !constraints.isEmpty) {
+    issues.add(
+      Issue(
+        code: IssueCode.conflictingValidationStrategy,
+        message: '@RestageProperty on $ownerName.$fieldName supplies both '
+            'typed constraints and validationRule. Use exactly one validation '
+            'strategy.',
         location: propertyLocation,
       ),
     );
@@ -432,8 +471,8 @@ PropertyEntry? _readPropertyAnnotation(
   // one, or a sealed union) is resolved by the structured pre-pass; a scalar /
   // enum / widget / event falls through to the legacy type inference.
   final structuredShape = structured.shapeFor(field.type);
-  final a2uiScalarList =
-      includeA2uiScalarLists && _isA2uiScalarList(field.type);
+  final isA2ui = target == WidgetVisitorTarget.a2ui;
+  final a2uiScalarList = isA2ui && _isA2uiScalarList(field.type);
   // The A2UI target preserves each scalar-list element type through its
   // analyzer seam without widening the shared RFW catalog taxonomy.
   // `structured` is the target-local carrier; seam assembly reflects the real
@@ -449,7 +488,7 @@ PropertyEntry? _readPropertyAnnotation(
       field,
       assetId,
       issues,
-      includeA2uiScalarLists: includeA2uiScalarLists,
+      target: target,
     );
   }
   if (type == null) return null;
@@ -458,17 +497,20 @@ PropertyEntry? _readPropertyAnnotation(
   // for its required-ness and positional-ness.
   final ctorFormal = _defaultConstructorFormalFor(field);
 
-  // The constructor is the source of truth for whether a STRUCTURED property is
-  // required: a structured argument the constructor requires must be marked
-  // required, or the rich-field emit omits a non-nullable optional field and
-  // the generated reconstruction cannot supply the required constructor
-  // argument. A genuinely-optional structured property stays optional (the
-  // constructor default applies — the documented fail-safe). Scoped to
-  // structured so it never forces a required event (which would drop the
-  // widget) or perturb a scalar/built-in catalog.
-  final required = structuredShape != null || a2uiScalarList
-      ? (annotationRequired || (ctorFormal?.isRequired ?? false))
-      : annotationRequired;
+  // RFW retains its historical annotation-only rule for ordinary properties,
+  // with constructor-derived requiredness only for structured data. A2UI uses
+  // the constructor for every data-bearing property because its JSON Schema
+  // must describe what generated construction actually requires. Events are
+  // excluded from the A2UI data schema even when their constructor formal is
+  // required; the builder's separate loud-coverage gate still verifies that a
+  // required callback can be lowered.
+  final required = switch (target) {
+    WidgetVisitorTarget.rfw => structuredShape != null
+        ? (annotationRequired || (ctorFormal?.isRequired ?? false))
+        : annotationRequired,
+    WidgetVisitorTarget.a2ui => type != PropertyType.event &&
+        (annotationRequired || (ctorFormal?.isRequired ?? false)),
+  };
 
   // A POSITIONAL constructor argument must emit positionally — `Widget(arg)`,
   // not `Widget(name: arg)` — or the generated factory / A2UI reconstruction
@@ -483,6 +525,28 @@ PropertyEntry? _readPropertyAnnotation(
   final resolvedSource = defaultSource ??
       (defaultValue != null ? LiteralDefault(defaultValue) : null);
 
+  // The shared RFW visitor output remains byte-neutral. The A2UI target alone
+  // retains a source-qualified enum identity so generated code can import and
+  // spell customer enums instead of dropping an otherwise representable
+  // required enum at the emitter boundary.
+  final EnumShape? a2uiEnumShape;
+  final fieldType = field.type;
+  if (isA2ui &&
+      type == PropertyType.enumValue &&
+      fieldType is InterfaceType &&
+      fieldType.element is EnumElement) {
+    final element = fieldType.element as EnumElement;
+    a2uiEnumShape = EnumShape(
+      propertyType: PropertyType.enumValue,
+      enumRef: DartTypeRef(
+        libraryUri: element.library.identifier,
+        symbolName: element.name ?? field.type.getDisplayString(),
+      ),
+    );
+  } else {
+    a2uiEnumShape = null;
+  }
+
   return PropertyEntry(
     wireId: WireId.unallocatedProperty,
     name: fieldName,
@@ -492,9 +556,147 @@ PropertyEntry? _readPropertyAnnotation(
     positional: positional,
     defaultBrandToken: defaultBrandToken,
     defaultSource: resolvedSource,
+    enumType: a2uiEnumShape?.enumRef.symbolName,
     structuredRef: structuredShape?.structuredRef,
-    valueShape: structuredShape?.valueShape,
+    valueShape: structuredShape?.valueShape ?? a2uiEnumShape,
+    validationRule: validationRule,
+    constraints: constraints,
   );
+}
+
+({bool valid, ValidationExpr? value}) _decodeValidationRule(
+  DartObject? value, {
+  required List<Issue> issues,
+  required String location,
+  required String ownerName,
+  required String fieldName,
+}) {
+  if (value == null || value.isNull) return (valid: true, value: null);
+  final expression = value.getField('expression')?.toStringValue();
+  final message = value.getField('message')?.toStringValue();
+  if (expression == null || message == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingAnnotationField,
+        message: '@RestageProperty validationRule on $ownerName.$fieldName '
+            'has an expression or message that could not be read as a '
+            'compile-time constant String. Use compile-time constant Strings '
+            'for both fields.',
+        location: location,
+      ),
+    );
+    return (valid: false, value: null);
+  }
+  return (
+    valid: true,
+    value: ValidationExpr(expression: expression, message: message),
+  );
+}
+
+RestageConstraints? _decodeConstraints(
+  DartObject? value, {
+  required List<Issue> issues,
+  required String location,
+  required String ownerName,
+  required String fieldName,
+}) {
+  if (value == null || value.isNull) return RestageConstraints.empty;
+  final allowedValues = value.getField('allowedValues')?.toListValue();
+  final decodedAllowedValues = <Object?>[];
+  if (allowedValues != null) {
+    for (var index = 0; index < allowedValues.length; index++) {
+      final decoded = _decodeConstraintScalar(allowedValues[index]);
+      if (!decoded.valid) {
+        final typeName =
+            allowedValues[index].type?.getDisplayString() ?? '<unknown>';
+        issues.add(
+          Issue(
+            code: IssueCode.invalidConstraintValue,
+            message: '@RestageProperty constraints.allowedValues[$index] on '
+                '$ownerName.$fieldName has non-JSON const type '
+                '$typeName. '
+                'Use null, a finite int/double, bool, or String.',
+            location: location,
+          ),
+        );
+        return null;
+      }
+      decodedAllowedValues.add(decoded.value);
+    }
+  }
+  final minimum = _decodeNum(value.getField('minimum'));
+  final exclusiveMinimum = _decodeNum(value.getField('exclusiveMinimum'));
+  final maximum = _decodeNum(value.getField('maximum'));
+  final exclusiveMaximum = _decodeNum(value.getField('exclusiveMaximum'));
+  final bounds = <({String name, ({bool valid, num? value}) decoded})>[
+    (
+      name: 'minimum',
+      decoded: minimum,
+    ),
+    (
+      name: 'exclusiveMinimum',
+      decoded: exclusiveMinimum,
+    ),
+    (
+      name: 'maximum',
+      decoded: maximum,
+    ),
+    (
+      name: 'exclusiveMaximum',
+      decoded: exclusiveMaximum,
+    ),
+  ];
+  var validBounds = true;
+  for (final bound in bounds) {
+    if (bound.decoded.valid) continue;
+    validBounds = false;
+    issues.add(
+      Issue(
+        code: IssueCode.invalidConstraintValue,
+        message: '@RestageProperty constraints.${bound.name} on '
+            '$ownerName.$fieldName must be a finite compile-time constant int '
+            'or double.',
+        location: location,
+      ),
+    );
+  }
+  if (!validBounds) return null;
+  return RestageConstraints(
+    minimum: minimum.value,
+    exclusiveMinimum: exclusiveMinimum.value,
+    maximum: maximum.value,
+    exclusiveMaximum: exclusiveMaximum.value,
+    allowedValues: allowedValues == null
+        ? null
+        : List<Object?>.unmodifiable(decodedAllowedValues),
+    pattern: value.getField('pattern')?.toStringValue(),
+    minLength: value.getField('minLength')?.toIntValue(),
+    maxLength: value.getField('maxLength')?.toIntValue(),
+    minItems: value.getField('minItems')?.toIntValue(),
+    maxItems: value.getField('maxItems')?.toIntValue(),
+  );
+}
+
+({bool valid, Object? value}) _decodeConstraintScalar(DartObject value) {
+  if (value.isNull) return (valid: true, value: null);
+  final integer = value.toIntValue();
+  if (integer != null) return (valid: true, value: integer);
+  final real = value.toDoubleValue();
+  if (real != null && real.isFinite) return (valid: true, value: real);
+  final boolean = value.toBoolValue();
+  if (boolean != null) return (valid: true, value: boolean);
+  final string = value.toStringValue();
+  if (string != null) return (valid: true, value: string);
+  return (valid: false, value: null);
+}
+
+({bool valid, num? value}) _decodeNum(DartObject? value) {
+  if (value == null || value.isNull) return (valid: true, value: null);
+  final integer = value.toIntValue();
+  if (integer != null) return (valid: true, value: integer);
+  final real = value.toDoubleValue();
+  if (real != null && real.isFinite) return (valid: true, value: real);
+  return (valid: false, value: null);
 }
 
 PropertyType? _inferPropertyType(
@@ -502,13 +704,13 @@ PropertyType? _inferPropertyType(
   FieldElement field,
   AssetId assetId,
   List<Issue> issues, {
-  required bool includeA2uiScalarLists,
+  required WidgetVisitorTarget target,
 }) {
   final inferred = type_inference.inferPropertyType(t);
   if (inferred != null) return inferred;
   final fieldName = field.name ?? '<unnamed>';
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
-  final a2uiListHint = includeA2uiScalarLists
+  final a2uiListHint = target == WidgetVisitorTarget.a2ui
       ? ', and List<scalar> (String, int, double, num, or bool)'
       : '';
   issues.add(

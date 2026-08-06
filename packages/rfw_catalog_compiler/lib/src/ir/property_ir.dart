@@ -149,6 +149,7 @@ final class PropertyMetadataIR {
     this.category,
     this.priority,
     this.validationRule,
+    this.constraints = RestageConstraints.empty,
     this.deprecated,
     this.synthetic,
     this.firesAs,
@@ -168,6 +169,9 @@ final class PropertyMetadataIR {
 
   /// Validation rule for authored values.
   final ValidationExpr? validationRule;
+
+  /// Typed constraints for authored values.
+  final RestageConstraints constraints;
 
   /// Deprecation metadata.
   final DeprecationInfo? deprecated;

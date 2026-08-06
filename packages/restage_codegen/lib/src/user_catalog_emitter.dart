@@ -332,6 +332,11 @@ void _writePropertyEntry(
       '$indent  validationRule: ${_validationExprLiteral(p.validationRule!)},',
     );
   }
+  if (!p.constraints.isEmpty) {
+    buf.writeln(
+      '$indent  constraints: ${_constraintsLiteral(p.constraints)},',
+    );
+  }
   if (p.deprecated != null) {
     buf.writeln('$indent  deprecated: ${_deprecationLiteral(p.deprecated!)},');
   }
@@ -920,6 +925,33 @@ String _discriminatorSpecLiteral(DiscriminatorSpec spec) {
 String _validationExprLiteral(ValidationExpr expr) {
   return 'ValidationExpr(expression: ${_escapeDart(expr.expression)}, '
       'message: ${_escapeDart(expr.message)})';
+}
+
+String _constraintsLiteral(RestageConstraints constraints) {
+  final arguments = <String>[
+    if (constraints.minimum != null)
+      'minimum: ${_dartLiteral(constraints.minimum)}',
+    if (constraints.exclusiveMinimum != null)
+      'exclusiveMinimum: ${_dartLiteral(constraints.exclusiveMinimum)}',
+    if (constraints.maximum != null)
+      'maximum: ${_dartLiteral(constraints.maximum)}',
+    if (constraints.exclusiveMaximum != null)
+      'exclusiveMaximum: ${_dartLiteral(constraints.exclusiveMaximum)}',
+    if (constraints.allowedValues != null)
+      'allowedValues: ${_dartLiteral(constraints.allowedValues)}',
+    if (constraints.pattern != null)
+      'pattern: ${_escapeDart(constraints.pattern!)}',
+    if (constraints.minLength != null) 'minLength: ${constraints.minLength}',
+    if (constraints.maxLength != null) 'maxLength: ${constraints.maxLength}',
+    if (constraints.minItems != null) 'minItems: ${constraints.minItems}',
+    if (constraints.maxItems != null) 'maxItems: ${constraints.maxItems}',
+    if (constraints.extensions.isNotEmpty)
+      'extensions: ${_dartLiteral(constraints.extensions)}',
+  ];
+  final constructor = constraints.extensions.isEmpty
+      ? 'RestageConstraints'
+      : 'RestageConstraints.withExtensions';
+  return '$constructor(${arguments.join(', ')})';
 }
 
 String _themeBindingPathLiteral(ThemeBindingPath path) {

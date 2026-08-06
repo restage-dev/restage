@@ -52,6 +52,9 @@ The builders are:
   (`.rsflow.g.dart`) and flow document for a multi-screen flow.
 - **`userCatalogBuilder`** walks a package for `@RestageWidget`-annotated
   classes and emits a single aggregated customer catalog.
+- **`userA2uiCatalogBuilder`** is the opt-in A2UI target. It emits generated
+  genui `CatalogItem`s and a standalone catalog document from the same
+  annotated customer widgets.
 
 (Two further internal builders register catalog factory functions and the
 customer's widget factories for the runtime; these support the SDK's own
@@ -80,10 +83,11 @@ border radii, gradients, and others), folds constants, lowers theme reads to
 declarative theme bindings, and derives the capability manifest from the
 widgets a surface actually references.
 
-It also has an **A2UI emit target**: from the same Flutter source it lowers to
-RFW, it can project a versioned A2UI (genui) catalog carrying the same
-capability contract. RFW remains the delivery wire; the A2UI projection is an
-additional, optional emit target. For the full opt-in setup, see the
+It also has an **A2UI emit target**: from annotated Flutter widgets it projects
+a content-addressed A2UI (genui) catalog with typed literal constraints, nested
+data documentation, controlled value sources, and validated canonical
+examples. RFW remains Restage's native delivery wire; the A2UI projection is
+an additional, optional emit target. For the full opt-in setup, see the
 [step-by-step A2UI walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step).
 
 ## License

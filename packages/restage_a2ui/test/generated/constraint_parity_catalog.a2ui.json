@@ -1,0 +1,705 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 1,
+    "availableLibraries": [],
+    "perItemSinceVersion": {
+      "ConstraintParity": 1,
+      "PatternCorpus00": 1,
+      "PatternCorpus01": 1,
+      "PatternCorpus02": 1,
+      "PatternCorpus03": 1,
+      "PatternCorpus04": 1,
+      "PatternCorpus05": 1,
+      "PatternCorpus06": 1,
+      "PatternCorpus07": 1,
+      "PatternCorpus08": 1,
+      "PatternCorpus09": 1,
+      "PatternCorpus10": 1,
+      "PatternCorpus11": 1,
+      "PatternCorpus12": 1,
+      "PatternCorpus13": 1,
+      "PatternCorpus14": 1,
+      "PatternCorpus15": 1,
+      "PatternCorpus16": 1,
+      "PatternCorpus17": 1,
+      "PatternCorpus18": 1,
+      "PatternCorpus19": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "ConstraintParity": {
+        "$defs": {
+          "ConstraintRecursiveItem": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "children": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ConstraintRecursiveItem"
+                }
+              }
+            },
+            "required": [
+              "label",
+              "children"
+            ]
+          },
+          "__a2ui_root__": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "oneOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0.5,
+                        "maximum": 9.5,
+                        "enum": [
+                          1,
+                          2
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "tags": {
+                "oneOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 3
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "ratio": {
+                "type": "number",
+                "exclusiveMinimum": 0.25,
+                "exclusiveMaximum": 0.75
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z]{2}[0-9]+$",
+                "minLength": 3,
+                "maxLength": 8
+              },
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/ConstraintRecursiveItem"
+                    },
+                    "minItems": 1,
+                    "maxItems": 4
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "legacyCount": {
+                "type": "number",
+                "minimum": -10,
+                "maximum": 10
+              },
+              "legacyMode": {
+                "type": "string",
+                "enum": [
+                  "compact",
+                  "expanded"
+                ]
+              },
+              "legacyCode": {
+                "type": "string",
+                "pattern": "^[a-z]+$"
+              }
+            },
+            "required": [
+              "count",
+              "tags",
+              "ratio",
+              "code",
+              "items",
+              "legacyCount",
+              "legacyMode",
+              "legacyCode"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "ConstraintParity"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "PatternCorpus00": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": ""
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": ""
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus00"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus01": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus01"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus02": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "abc"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "abc"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus02"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus03": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a\\+b$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a\\+b$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus03"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus04": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}[0-9]+$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}[0-9]+$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus04"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus05": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "[^0-9]{1,3}"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "[^0-9]{1,3}"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus05"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus06": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^colou?r$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^colou?r$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus06"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus07": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^ab*c+$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^ab*c+$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus07"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus08": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^x{2}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^x{2}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus08"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus09": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^x{2,}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^x{2,}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus09"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus10": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^x{2,4}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^x{2,4}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus10"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus11": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^[\\]\\-\\\\.]+$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^[\\]\\-\\\\.]+$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus11"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus12": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "a\\$b"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "a\\$b"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus12"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus13": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a-b$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a-b$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus13"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus14": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^[a^]+$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^[a^]+$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus14"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus15": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a{65535}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a{65535}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus15"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus16": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a{65535,}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a{65535,}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus16"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus17": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a{1,65535}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a{1,65535}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus17"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus18": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a{00001}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a{00001}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus18"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      },
+      "PatternCorpus19": {
+        "type": "object",
+        "properties": {
+          "typedPattern": {
+            "type": "string",
+            "pattern": "^a{00065535}$"
+          },
+          "legacyPattern": {
+            "type": "string",
+            "pattern": "^a{00065535}$"
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PatternCorpus19"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "typedPattern",
+          "legacyPattern"
+        ]
+      }
+    },
+    "functions": {},
+    "systemPromptFragments": [
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273\"."
+    ]
+  }
+}

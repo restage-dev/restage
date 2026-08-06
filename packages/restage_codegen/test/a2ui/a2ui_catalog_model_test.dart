@@ -70,8 +70,15 @@ void main() {
     RestageStampedA2uiCatalog stamped({
       required RestageCapabilityStamp stamp,
       required List<A2uiComponent> components,
+      Map<String, Object?> functions = const {},
+      List<String> systemPromptFragments = const [],
     }) =>
-        RestageStampedA2uiCatalog(stamp: stamp, components: components);
+        RestageStampedA2uiCatalog(
+          stamp: stamp,
+          components: components,
+          functions: functions,
+          systemPromptFragments: systemPromptFragments,
+        );
 
     test('emits the Restage-stamped A2UI catalog wrapper', () {
       final catalog = stamped(
@@ -99,7 +106,7 @@ void main() {
       expect(a2ui['functions'], <String, Object?>{});
     });
 
-    test('document id for a built-in-only catalog is the content version', () {
+    test('document id is a lowercase SHA-256 content address', () {
       final catalog = stamped(
         stamp: RestageCapabilityStamp(
           catalogContentVersion: 2,
@@ -110,13 +117,17 @@ void main() {
           A2uiComponent(name: 'Text', dataSchema: {}),
         ],
       );
-      expect(catalog.documentId, 'restage:catalog/2');
+      expect(
+        catalog.documentId,
+        matches(RegExp(r'^restage:catalog/sha256/[0-9a-f]{64}$')),
+      );
       final a2ui = catalog.toJson()['a2uiCatalog']! as Map<String, Object?>;
-      expect(a2ui[r'$id'], 'restage:catalog/2');
-      expect(a2ui['catalogId'], 'restage:catalog/2');
+      expect(a2ui[r'$id'], catalog.documentId);
+      expect(a2ui['catalogId'], catalog.documentId);
     });
 
-    test('document id incorporates the custom-library capability vector', () {
+    test('digest preimage is non-self-referential and substitutes post-hash',
+        () {
       final catalog = stamped(
         stamp: RestageCapabilityStamp(
           catalogContentVersion: 2,
@@ -130,9 +141,40 @@ void main() {
           A2uiComponent(name: 'AcmeBanner', dataSchema: {}),
         ],
       );
-      // Deterministic + unique per distinct capability vector; libraries are
-      // already canonically sorted by the stamp.
-      expect(catalog.documentId, 'restage:catalog/2+acme.widgets@3_zed.lib@1');
+      final preimage = catalog.canonicalDigestPreimage;
+      final expectedPreimage = <String>[
+        r'{"a2uiCatalog":{"$schema":"https://json-schema.org/draft/2020-12/schema",',
+        '"a2uiProtocolVersion":"0.9.1","components":{"AcmeBanner":{}},',
+        '"functions":{},"systemPromptFragments":[',
+        r'"For every A2UI createSurface message, set catalogId to \"',
+        r'{{RESTAGE_A2UI_CATALOG_ID_SHA256}}\"."]},',
+        '"restageCapability":{"availableLibraries":',
+        '[{"namespace":"acme.widgets","version":3},',
+        '{"namespace":"zed.lib","version":1}],',
+        '"catalogContentVersion":2,',
+        '"perItemSinceVersion":{"AcmeBanner":1}}}',
+      ].join();
+      expect(preimage, expectedPreimage);
+      expect(
+        catalog.documentId,
+        'restage:catalog/sha256/'
+        '13e1d1d8498b8b87c6ebf6228e1d390d702ddd52e8322e9fddfc30865079ffbf',
+      );
+      expect(
+        preimage.split(kA2uiCatalogIdentitySentinel),
+        hasLength(2),
+        reason: 'the frozen identity sentinel must occur exactly once',
+      );
+      expect(preimage, isNot(contains(catalog.documentId)));
+      expect(preimage, isNot(contains(r'"$id"')));
+      expect(preimage, isNot(contains('"catalogId":')));
+      expect(
+        catalog.systemPromptFragments.single,
+        allOf(
+          contains(catalog.documentId),
+          isNot(contains(kA2uiCatalogIdentitySentinel)),
+        ),
+      );
     });
 
     test('components are emitted in sorted-name order', () {
@@ -149,6 +191,177 @@ void main() {
       );
       final a2ui = catalog.toJson()['a2uiCatalog']! as Map<String, Object?>;
       expect((a2ui['components']! as Map).keys.toList(), ['A', 'B']);
+    });
+
+    test('recursive object-key reordering retains the content address', () {
+      final stamp = RestageCapabilityStamp(
+        catalogContentVersion: 1,
+        availableLibraries: const [],
+        perItemSinceVersion: const {'Card': 1},
+      );
+      final first = stamped(
+        stamp: stamp,
+        components: const [
+          A2uiComponent(
+            name: 'Card',
+            dataSchema: {
+              'type': 'object',
+              'properties': {
+                'title': {'type': 'string', 'description': 'Title'},
+                'count': {'type': 'integer'},
+              },
+              'required': ['title'],
+            },
+          ),
+        ],
+      );
+      final reordered = stamped(
+        stamp: stamp,
+        components: const [
+          A2uiComponent(
+            name: 'Card',
+            dataSchema: {
+              'required': ['title'],
+              'properties': {
+                'count': {'type': 'integer'},
+                'title': {'description': 'Title', 'type': 'string'},
+              },
+              'type': 'object',
+            },
+          ),
+        ],
+      );
+
+      expect(reordered.documentId, first.documentId);
+      expect(reordered.canonicalDigestPreimage, first.canonicalDigestPreimage);
+    });
+
+    test('every registration-contract axis changes the content address', () {
+      RestageStampedA2uiCatalog catalog({
+        int contentVersion = 1,
+        String scalarType = 'string',
+        Map<String, Object?> functions = const {},
+        List<String> fragments = const ['Card: Use for a card.'],
+      }) =>
+          stamped(
+            stamp: RestageCapabilityStamp(
+              catalogContentVersion: contentVersion,
+              availableLibraries: const [],
+              perItemSinceVersion: const {'Card': 1},
+            ),
+            components: [
+              A2uiComponent(
+                name: 'Card',
+                dataSchema: {
+                  'type': 'object',
+                  'properties': {
+                    'value': {'type': scalarType},
+                  },
+                  'required': const ['value'],
+                },
+              ),
+            ],
+            functions: functions,
+            systemPromptFragments: fragments,
+          );
+
+      final base = catalog();
+      expect(catalog(contentVersion: 2).documentId, isNot(base.documentId));
+      expect(catalog(scalarType: 'integer').documentId, isNot(base.documentId));
+      expect(
+        catalog(
+          functions: const {
+            'lookup': {
+              'description': 'Lookup a value.',
+              'parameters': {'type': 'object'},
+              'returnType': {'type': 'string'},
+            },
+          },
+        ).documentId,
+        isNot(base.documentId),
+      );
+      expect(
+        catalog(fragments: const ['Card: Use for a compact card.']).documentId,
+        isNot(base.documentId),
+      );
+    });
+
+    test('old-vector-equal requiredness and scalar contracts cannot alias', () {
+      RestageStampedA2uiCatalog catalog({
+        required String type,
+        required List<String> required,
+      }) =>
+          stamped(
+            stamp: RestageCapabilityStamp(
+              catalogContentVersion: 1,
+              availableLibraries: const [],
+              perItemSinceVersion: const {'Card': 1},
+            ),
+            components: [
+              A2uiComponent(
+                name: 'Card',
+                dataSchema: {
+                  'type': 'object',
+                  'properties': {
+                    'value': {'type': type},
+                  },
+                  'required': required,
+                },
+              ),
+            ],
+          );
+
+      final requiredString = catalog(type: 'string', required: ['value']);
+      final optionalString = catalog(type: 'string', required: const []);
+      final requiredInteger = catalog(type: 'integer', required: ['value']);
+      expect(optionalString.documentId, isNot(requiredString.documentId));
+      expect(requiredInteger.documentId, isNot(requiredString.documentId));
+    });
+
+    test('lossy integer registrations fail instead of aliasing an exact one',
+        () {
+      RestageStampedA2uiCatalog catalog(int value) => stamped(
+            stamp: RestageCapabilityStamp(
+              catalogContentVersion: 1,
+              availableLibraries: const [],
+              perItemSinceVersion: const {'Card': 1},
+            ),
+            components: [
+              A2uiComponent(
+                name: 'Card',
+                dataSchema: {
+                  'type': 'object',
+                  'properties': {
+                    'value': {'const': value},
+                  },
+                },
+              ),
+            ],
+          );
+
+      final exact = catalog(int.parse('9007199254740992'));
+      expect(exact.documentId, startsWith('restage:catalog/sha256/'));
+      expect(
+        () => catalog(int.parse('9007199254740993')),
+        throwsFormatException,
+      );
+    });
+
+    test('a non-identity fragment colliding with the sentinel fails loud', () {
+      expect(
+        () => stamped(
+          stamp: RestageCapabilityStamp(
+            catalogContentVersion: 1,
+            availableLibraries: const [],
+            perItemSinceVersion: const {'Card': 1},
+          ),
+          components: const [A2uiComponent(name: 'Card', dataSchema: {})],
+          systemPromptFragments: const [
+            'Card: reserved $kA2uiCatalogIdentitySentinel collision',
+          ],
+        ),
+        throwsArgumentError,
+      );
     });
   });
 }

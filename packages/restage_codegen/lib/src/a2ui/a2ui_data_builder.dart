@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/a2ui/a2ui_definition_registry.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 
 /// Whether [uri] is a CUSTOMER library that the generated file imports with a
@@ -52,7 +53,15 @@ class A2uiDataBuilder {
     Iterable<A2uiSchemaNode> roots, {
     Map<String, String> prefixes = const {},
   }) : _prefixes = prefixes {
-    roots.forEach(_walk);
+    final rootList = roots.toList();
+    final registry = A2uiDefinitionRegistry(rootList);
+    _classes.addAll({
+      for (final entry in registry.definitions.entries)
+        if (entry.value case final ObjectNode object
+            when object.construction is A2uiClassConstruction)
+          entry.key: object,
+    });
+    rootList.forEach(_walk);
     _assignClassHelpers();
   }
 
@@ -76,6 +85,8 @@ class A2uiDataBuilder {
   /// `defId` (deduped — a shared/recursive class registers once). Records carry
   /// no `defId` and are reconstructed inline, so they are not registered here.
   final Map<String, ObjectNode> _classes = {};
+
+  final Set<String> _walkedClassIds = {};
 
   /// The collision-safe helper name per class `defId`.
   final Map<String, String> _classHelperNames = {};
@@ -101,11 +112,10 @@ class A2uiDataBuilder {
       case ObjectNode(:final construction, :final fields, :final defId):
         _usesTypedCast = true;
         if (construction is A2uiClassConstruction && defId != null) {
-          // Register each class once; its fields (and any recursion, broken by
-          // a RefNode leaf) are walked once.
-          if (!_classes.containsKey(defId)) {
-            _classes[defId] = node;
-            fields.values.forEach(_walk);
+          // The shared registry already reconciled every definition. Walk the
+          // canonical class once (recursion is broken by a RefNode leaf).
+          if (_walkedClassIds.add(defId)) {
+            _classes[defId]!.fields.values.forEach(_walk);
           }
         } else {
           // A record is reconstructed inline — walk its (scalar/enum) fields.

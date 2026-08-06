@@ -8,7 +8,11 @@ import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_example_discovery.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_example_loader.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_example_validator.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_schema_semantics.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
@@ -113,27 +117,58 @@ final class UserA2uiCatalogBuilder implements Builder {
     );
     _enforceLoudCoverage(plan, walk.widgets);
 
-    final dart = formatGeneratedDart(
-      emitA2uiCatalogDart(
-        catalog,
-        richShapes: seams.richShapes,
-        eventSeam: seams.eventSeam,
-        pairingSeam: seams.pairingSeam,
-        usageByWidget: walk.usageByWidget,
-      ),
-    );
-    await buildStep.writeAsString(
-      AssetId(buildStep.inputId.package, 'lib/$_catalogAssetName'),
-      dart,
-    );
+    // Canonical examples must be proved against the exact classified plan
+    // before either output is written. A sidecar error therefore cannot leave
+    // a generated Dart catalog and capability stamp that disagree with it.
+    final Map<String, Map<String, String>> exampleRegistry;
+    try {
+      final validatedExamples = validateA2uiExamples(
+        plan: plan,
+        examples: walk.examples,
+      );
+      exampleRegistry = buildA2uiExampleRegistry(validatedExamples);
+    } on A2uiExampleException catch (error) {
+      log.severe(error.toString());
+      throw StateError(
+        'canonical A2UI example validation failed; see log above.',
+      );
+    }
 
-    final stamp = emitA2uiCatalog(
+    // Build the complete stamped registration contract once. Its content
+    // address and finalized producer guidance are then shared by both emitted
+    // artifacts, so runtime and standalone identity cannot diverge.
+    final registration = emitA2uiCatalog(
       catalog,
       richShapes: seams.richShapes,
       eventSeam: seams.eventSeam,
       pairingSeam: seams.pairingSeam,
       usageByWidget: walk.usageByWidget,
-    ).toJson();
+    );
+    final emittedDart = exampleRegistry.isEmpty
+        ? emitA2uiCatalogDart(
+            catalog,
+            registration: registration,
+            richShapes: seams.richShapes,
+            eventSeam: seams.eventSeam,
+            pairingSeam: seams.pairingSeam,
+            usageByWidget: walk.usageByWidget,
+          )
+        : emitA2uiCatalogDartWithExampleRegistry(
+            catalog,
+            exampleRegistry: exampleRegistry,
+            registration: registration,
+            richShapes: seams.richShapes,
+            eventSeam: seams.eventSeam,
+            pairingSeam: seams.pairingSeam,
+            usageByWidget: walk.usageByWidget,
+          );
+    final dart = formatGeneratedDart(emittedDart);
+    await buildStep.writeAsString(
+      AssetId(buildStep.inputId.package, 'lib/$_catalogAssetName'),
+      dart,
+    );
+
+    final stamp = registration.toJson();
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/$_stampAssetName'),
       const JsonEncoder.withIndent('  ').convert(stamp),
@@ -151,6 +186,7 @@ final class UserA2uiCatalogBuilder implements Builder {
     final widgets = <A2uiWidgetElement>[];
     final capabilityVersions = <WidgetLibrary, int?>{};
     final usageByWidget = <String, String>{};
+    final examples = <LoadedA2uiExample>[];
     final issues = <Issue>[];
 
     await for (final assetId in buildStep.findAssets(Glob('lib/**.dart'))) {
@@ -167,9 +203,10 @@ final class UserA2uiCatalogBuilder implements Builder {
       final result = visitRestageWidgets(
         library,
         assetId,
-        includeA2uiScalarLists: true,
+        target: WidgetVisitorTarget.a2ui,
       );
       issues.addAll(result.issues);
+      final widgetNamesByClass = <ClassElement, String>{};
       for (final entry in result.widgets) {
         // A customer `@RestageWidget` must not claim a built-in namespace — it
         // would bypass the custom-library capability axis (built-in namespaces
@@ -202,6 +239,7 @@ final class UserA2uiCatalogBuilder implements Builder {
           continue;
         }
         widgets.add((entry: entry, element: element));
+        widgetNamesByClass[element] = entry.name;
 
         // Read the `usage` producer-facing note straight off the annotation
         // (it is not part of the WidgetEntry projection): the same
@@ -233,6 +271,23 @@ final class UserA2uiCatalogBuilder implements Builder {
       );
       if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
         issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
+        try {
+          examples.addAll(
+            await discoverA2uiExamples(
+              buildStep: buildStep,
+              resolvedLibrary: resolved,
+              widgetNamesByClass: widgetNamesByClass,
+            ),
+          );
+        } on A2uiExampleException catch (error) {
+          issues.add(
+            Issue(
+              code: IssueCode.invalidWidgetClass,
+              message: error.toString(),
+              location: '${assetId.path}#@RestageA2uiExample',
+            ),
+          );
+        }
       }
 
       // Read the `@RestageLibrary` capability version, surfacing the walk's own
@@ -316,6 +371,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       widgets: widgets,
       capabilityVersions: capabilityVersions,
       usageByWidget: usageByWidget,
+      examples: examples,
     );
   }
 
@@ -476,6 +532,7 @@ typedef _CustomerWalk = ({
   List<A2uiWidgetElement> widgets,
   Map<WidgetLibrary, int?> capabilityVersions,
   Map<String, String> usageByWidget,
+  List<LoadedA2uiExample> examples,
 });
 
 /// A customer-actionable explanation for a classifier coverage [reason]: what
@@ -505,6 +562,12 @@ String _coverageReasonHint(A2uiDartCoverageReason reason, String? fieldName) {
           'matching-type bindable value property on the widget.';
     case A2uiDartCoverageReason.requiredUnsupportedPropertyType:
     case A2uiDartCoverageReason.optionalUnsupportedPropertyType:
+      if (fieldName != null &&
+          isReservedA2uiComponentEnvelopeField(fieldName)) {
+        return 'the property name is reserved by the flattened GenUI '
+            "component envelope ('id', 'component'); rename the property. "
+            'Nested rich-data members may keep either name.';
+      }
       if (fieldName != null && isReservedA2uiBuilderIdentifier(fieldName)) {
         return 'the property name collides with a reserved identifier in the '
             "generated catalog ('data', 'context', 'itemContext'); rename "

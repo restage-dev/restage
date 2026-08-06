@@ -1,0 +1,12 @@
+[
+  {
+    "id": "root",
+    "component": "ScalarListPanel",
+    "labels": [],
+    "counts": [],
+    "weights": [],
+    "measurements": [],
+    "flags": [],
+    "maybeCounts": null
+  }
+]
