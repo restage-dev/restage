@@ -82,7 +82,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///     (`Image.network(String src, ...)`, `Icon(IconData icon, ...)`,
 ///     `Text(String data, ...)`).
 ///   * `PropertyType.enumValue` properties carrying `enumType` emit
-///     as `ArgumentDecoders.enumValue<T>(T.values, source, path)`.
+///     as `RestageDecoders.enumByName<T>(T.values, source, path)`.
 ///     A literal `defaultValue` string (e.g. `'start'`) renders as
 ///     `T.<value>` for the `??` fallback so the emitted code
 ///     satisfies non-nullable Flutter ctor parameters. The named
@@ -1559,7 +1559,7 @@ bool _isEmittableProperty(
     case PropertyType.booleanList:
       return true;
     case PropertyType.enumValue:
-      // The decoder calls `ArgumentDecoders.enumValue<T>(T.values, ...)`,
+      // The decoder calls `RestageDecoders.enumByName<T>(T.values, ...)`,
       // which needs the runtime enum type. That type is carried on the
       // canonical value shape, with the property's `enumType` as a
       // fallback.
@@ -2095,7 +2095,7 @@ String _customerMapValue(
         _qualifyName(keyEnumRef.symbolName, keyEnumRef.libraryUri, ctx.aliases);
     // A defaulted field changes one value. Defaulting a key can discard the
     // author's entry and insert a different entry that was never sent.
-    keyRead = 'ArgumentDecoders.enumValue<$qualified>('
+    keyRead = 'RestageDecoders.enumByName<$qualified>('
         '$qualified.values, source, ${_pathLiteral(keyPath)}) ?? '
         "(throw ArgumentError('$ownerLabel entry key is not a known "
         "member.'))";
@@ -2662,6 +2662,8 @@ String _decoderCallFor(
     case PropertyType.offset:
       return 'RestageDecoders.offset(source, $path)';
     case PropertyType.fontWeight:
+      // FontWeight is a class with static const instances, not an enum, so it
+      // cannot use the Enum.name-based decoder's `T extends Enum` bound.
       return 'ArgumentDecoders.enumValue<FontWeight>('
           'FontWeight.values, source, $path)';
     case PropertyType.duration:
@@ -2743,7 +2745,7 @@ String _decoderCallFor(
       // resolves through the uniform-prefix import; a built-in (Flutter) enum
       // stays bare (it comes through the `widgets.dart` re-exports).
       final e = _qualifyName(t, _enumLibraryUri(prop), aliases);
-      return 'ArgumentDecoders.enumValue<$e>($e.values, source, $path)';
+      return 'RestageDecoders.enumByName<$e>($e.values, source, $path)';
     case PropertyType.event:
       final signature = prop.callbackSignature;
       if (signature == null) {

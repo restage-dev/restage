@@ -539,7 +539,7 @@ void main() {
       );
       expect(
         flat,
-        contains('ArgumentDecoders.enumValue<s0.Tone>('),
+        contains('RestageDecoders.enumByName<s0.Tone>('),
       );
       expect(
         flat,
@@ -562,7 +562,7 @@ void main() {
       );
       expect(
         flat,
-        isNot(contains('ArgumentDecoders.enumValue<Tone>(')),
+        isNot(contains('RestageDecoders.enumByName<Tone>(')),
       );
 
       const headingGuard = "source.isMap(<Object>['heading'])";
@@ -625,7 +625,7 @@ void main() {
         flat,
         contains(
           RegExp(
-            r'ArgumentDecoders\.enumValue<s0\.Tone>\(\s*s0\.Tone\.values, '
+            r'RestageDecoders\.enumByName<s0\.Tone>\(\s*s0\.Tone\.values, '
             r"source, <Object>\['entry', 'meta', 'tone'\]\) \?\?",
           ),
         ),

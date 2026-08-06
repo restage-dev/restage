@@ -67,7 +67,7 @@ Widget _buildCupertinoListSection(BuildContext context, DataSource source) {
   return CupertinoListSection(
     header: source.optionalChild(<Object>['header']),
     footer: source.optionalChild(<Object>['footer']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     children: source.childList(<Object>['children']),
@@ -79,7 +79,7 @@ Widget _buildCupertinoListSectionInsetGrouped(
   return CupertinoListSection.insetGrouped(
     header: source.optionalChild(<Object>['header']),
     footer: source.optionalChild(<Object>['footer']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     children: source.childList(<Object>['children']),
@@ -143,7 +143,7 @@ Widget _buildCupertinoTextField(BuildContext context, DataSource source) {
         <Object>['onSubmitted'],
         (HandlerTrigger trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
   );
@@ -166,7 +166,7 @@ Widget _buildCupertinoSlider(BuildContext context, DataSource source) {
 
 Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
   return CupertinoDatePicker(
-    mode: ArgumentDecoders.enumValue<CupertinoDatePickerMode>(
+    mode: RestageDecoders.enumByName<CupertinoDatePickerMode>(
             CupertinoDatePickerMode.values, source, <Object>['mode']) ??
         CupertinoDatePickerMode.dateAndTime,
     onDateTimeChanged: source.handler<ValueChanged<DateTime>>(
@@ -178,7 +178,7 @@ Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
     maximumYear: source.v<int>(<Object>['maximumYear']),
     minuteInterval: source.v<int>(<Object>['minuteInterval']) ?? 1,
     use24hFormat: source.v<bool>(<Object>['use24hFormat']) ?? false,
-    dateOrder: ArgumentDecoders.enumValue<DatePickerDateOrder>(
+    dateOrder: RestageDecoders.enumByName<DatePickerDateOrder>(
         DatePickerDateOrder.values, source, <Object>['dateOrder']),
     backgroundColor:
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
@@ -186,7 +186,7 @@ Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
     showTimeSeparator: source.v<bool>(<Object>['showTimeSeparator']) ?? false,
     itemExtent: source.v<double>(<Object>['itemExtent']) ?? 32.0,
     changeReportingBehavior:
-        ArgumentDecoders.enumValue<ChangeReportingBehavior>(
+        RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
                 source,
                 <Object>['changeReportingBehavior']) ??
@@ -196,7 +196,7 @@ Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
 
 Widget _buildCupertinoTimerPicker(BuildContext context, DataSource source) {
   return CupertinoTimerPicker(
-    mode: ArgumentDecoders.enumValue<CupertinoTimerPickerMode>(
+    mode: RestageDecoders.enumByName<CupertinoTimerPickerMode>(
             CupertinoTimerPickerMode.values, source, <Object>['mode']) ??
         CupertinoTimerPickerMode.hms,
     minuteInterval: source.v<int>(<Object>['minuteInterval']) ?? 1,
@@ -212,7 +212,7 @@ Widget _buildCupertinoTimerPicker(BuildContext context, DataSource source) {
                 trigger(<String, Object?>{'value': value})) ??
         (Duration _) {},
     changeReportingBehavior:
-        ArgumentDecoders.enumValue<ChangeReportingBehavior>(
+        RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
                 source,
                 <Object>['changeReportingBehavior']) ??
@@ -230,7 +230,7 @@ Widget _buildCupertinoPicker(BuildContext context, DataSource source) {
     magnification: source.v<double>(<Object>['magnification']) ?? 1.0,
     squeeze: source.v<double>(<Object>['squeeze']) ?? 1.45,
     changeReportingBehavior:
-        ArgumentDecoders.enumValue<ChangeReportingBehavior>(
+        RestageDecoders.enumByName<ChangeReportingBehavior>(
                 ChangeReportingBehavior.values,
                 source,
                 <Object>['changeReportingBehavior']) ??

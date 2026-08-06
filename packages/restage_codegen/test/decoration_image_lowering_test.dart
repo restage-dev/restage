@@ -99,7 +99,7 @@ void main() {
         contains('image: {kind: "network", src: "https://x/h.jpg"}'),
       );
       // The enum member lowers to its name as a quoted string — the shape the
-      // runtime `ArgumentDecoders.enumValue<BoxFit>(BoxFit.values, …)` reads.
+      // runtime `RestageDecoders.enumByName<BoxFit>(BoxFit.values, …)` reads.
       expect(r.dsl, contains('fit: "cover"'));
       expect(r.dsl, contains('alignment: {x: 0.0, y: -1.0}'));
     });

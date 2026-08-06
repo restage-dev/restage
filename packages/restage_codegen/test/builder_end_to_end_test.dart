@@ -653,7 +653,7 @@ widget Paywall = AcmeBanner();
         'Card(clipBehavior:) lowers — the clip slot is surfaced library-wide '
         '(Material), reusing the enum decoder', () async {
       // Representative proof that the `clipBehavior` drain generalizes across
-      // libraries: the same `enumValue<Clip>` slot is now surfaced on every
+      // libraries: the same `enumByName<Clip>` slot is now surfaced on every
       // clip-capable widget (here a Material `Card`), not just the core
       // Container seed — curation-only, no translator change.
       const source = '''

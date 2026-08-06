@@ -1534,7 +1534,7 @@ void main() {
 
     test('skips enumValue properties that omit enumType', () {
       // Without enumType, the emitter has no Flutter enum to thread
-      // through `ArgumentDecoders.enumValue<T>(T.values, ...)`. The
+      // through `RestageDecoders.enumByName<T>(T.values, ...)`. The
       // catalog validator rejects this earlier; the emitter rejects
       // again as defense-in-depth.
       const entry = WidgetEntry(
@@ -1559,7 +1559,7 @@ void main() {
     });
 
     test(
-      'emits ArgumentDecoders.enumValue<T> for enumType-bearing properties',
+      'emits RestageDecoders.enumByName<T> for enumType-bearing properties',
       () {
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
@@ -1582,8 +1582,12 @@ void main() {
         );
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
-        expect(source, contains('fit: ArgumentDecoders.enumValue<BoxFit>'));
+        expect(source, contains('fit: RestageDecoders.enumByName<BoxFit>'));
         expect(source, contains("BoxFit.values, source, <Object>['fit']"));
+        expect(
+          source,
+          isNot(contains('fit: ArgumentDecoders.enumValue<BoxFit>')),
+        );
       },
     );
 
@@ -2927,7 +2931,7 @@ void main() {
           source,
           contains(
             [
-              'shape: ArgumentDecoders.enumValue<BoxShape>(',
+              'shape: RestageDecoders.enumByName<BoxShape>(',
               "BoxShape.values, source, <Object>['shape']) ?? ",
               'BoxShape.rectangle',
             ].join(),
@@ -3689,7 +3693,7 @@ void main() {
             source,
             contains(
               [
-                'shape: ArgumentDecoders.enumValue<BoxShape>(',
+                'shape: RestageDecoders.enumByName<BoxShape>(',
                 "BoxShape.values, source, <Object>['shape']) ?? ",
                 'BoxShape.rectangle',
               ].join(),

@@ -122,7 +122,7 @@ Widget _buildAnimatedContainer(BuildContext context, DataSource source) {
             : (source.v<double>(<Object>['borderRadius']) == null ? null : BorderRadius.circular(source.v<double>(<Object>['borderRadius'])!)),
         boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], ArgumentDecoders.boxShadow),
         gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
-        shape: ArgumentDecoders.enumValue<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
+        shape: RestageDecoders.enumByName<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
     constraints: RestageDecoders.safeConstraints(BoxConstraints(
         minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
         maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
@@ -135,7 +135,7 @@ Widget _buildAnimatedContainer(BuildContext context, DataSource source) {
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
@@ -156,14 +156,14 @@ Widget _buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
         fontSize: source.v<double>(<Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+        fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing: source.v<double>(<Object>['letterSpacing']),
         wordSpacing: source.v<double>(<Object>['wordSpacing']),
-        textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+        textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: source.v<double>(<Object>['height']),
-        leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
             <Object>['leadingDistribution']),
@@ -179,18 +179,18 @@ Widget _buildAnimatedDefaultTextStyle(BuildContext context, DataSource source) {
             RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor:
             ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: source.v<double>(<Object>['decorationThickness']),
         debugLabel: source.v<String>(<Object>['debugLabel']),
         fontFamily: source.v<String>(<Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(<Object>['fontPackage']),
-        overflow: ArgumentDecoders.enumValue<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip),
-    textAlign: ArgumentDecoders.enumValue<TextAlign>(
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip),
+    textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(<Object>['softWrap']) ?? true,
     maxLines: source.v<int>(<Object>['maxLines']),
-    textWidthBasis: ArgumentDecoders.enumValue<TextWidthBasis>(
+    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
             TextWidthBasis.values, source, <Object>['textWidthBasis']) ??
         TextWidthBasis.parent,
     curve: RestageDecoders.curve(source, <Object>['curve']) ?? Curves.linear,
@@ -280,7 +280,7 @@ Widget _buildAnimatedSize(BuildContext context, DataSource source) {
         (throw ArgumentError('AnimatedSize.duration is required.')),
     reverseDuration:
         RestageDecoders.duration(source, <Object>['reverseDuration']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     onEnd: source.voidHandler(<Object>['onEnd']),
@@ -312,7 +312,7 @@ Widget _buildBackdropFilter(BuildContext context, DataSource source) {
     filter: ImageFilter.blur(
         sigmaX: (source.v<double>(<Object>['blurSigmaX']) ?? 0.0),
         sigmaY: (source.v<double>(<Object>['blurSigmaY']) ?? 0.0)),
-    blendMode: ArgumentDecoders.enumValue<BlendMode>(
+    blendMode: RestageDecoders.enumByName<BlendMode>(
             BlendMode.values, source, <Object>['blendMode']) ??
         BlendMode.srcOver,
     enabled: source.v<bool>(<Object>['enabled']) ?? true,
@@ -330,7 +330,7 @@ Widget _buildCenter(BuildContext context, DataSource source) {
 
 Widget _buildClipOval(BuildContext context, DataSource source) {
   return ClipOval(
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.antiAlias,
     child: source.optionalChild(<Object>['child']),
@@ -339,7 +339,7 @@ Widget _buildClipOval(BuildContext context, DataSource source) {
 
 Widget _buildClipRRect(BuildContext context, DataSource source) {
   return ClipRRect(
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.antiAlias,
     borderRadius: (source.v<double>(<Object>['borderRadiusTopLeft']) ??
@@ -364,7 +364,7 @@ Widget _buildClipRRect(BuildContext context, DataSource source) {
 
 Widget _buildClipRect(BuildContext context, DataSource source) {
   return ClipRect(
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     child: source.optionalChild(<Object>['child']),
@@ -381,13 +381,13 @@ Widget _buildColoredBox(BuildContext context, DataSource source) {
 
 Widget _buildColumn(BuildContext context, DataSource source) {
   return Column(
-    mainAxisAlignment: ArgumentDecoders.enumValue<MainAxisAlignment>(
+    mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
             MainAxisAlignment.values, source, <Object>['mainAxisAlignment']) ??
         MainAxisAlignment.start,
-    mainAxisSize: ArgumentDecoders.enumValue<MainAxisSize>(
+    mainAxisSize: RestageDecoders.enumByName<MainAxisSize>(
             MainAxisSize.values, source, <Object>['mainAxisSize']) ??
         MainAxisSize.max,
-    crossAxisAlignment: ArgumentDecoders.enumValue<CrossAxisAlignment>(
+    crossAxisAlignment: RestageDecoders.enumByName<CrossAxisAlignment>(
             CrossAxisAlignment.values,
             source,
             <Object>['crossAxisAlignment']) ??
@@ -434,7 +434,7 @@ Widget _buildContainer(BuildContext context, DataSource source) {
             : (source.v<double>(<Object>['borderRadius']) == null ? null : BorderRadius.circular(source.v<double>(<Object>['borderRadius'])!)),
         boxShadow: ArgumentDecoders.list<BoxShadow>(source, <Object>['boxShadow'], ArgumentDecoders.boxShadow),
         gradient: ArgumentDecoders.gradient(source, <Object>['gradient']),
-        shape: ArgumentDecoders.enumValue<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
+        shape: RestageDecoders.enumByName<BoxShape>(BoxShape.values, source, <Object>['shape']) ?? BoxShape.rectangle),
     constraints: RestageDecoders.safeConstraints(BoxConstraints(
         minWidth: RestageDecoders.number(source, <Object>['minWidth']) ?? 0.0,
         maxWidth: RestageDecoders.number(source, <Object>['maxWidth']) ??
@@ -447,7 +447,7 @@ Widget _buildContainer(BuildContext context, DataSource source) {
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     child: source.optionalChild(<Object>['child']),
@@ -458,7 +458,7 @@ Widget _buildDecoratedBox(BuildContext context, DataSource source) {
   return DecoratedBox(
     decoration:
         BoxDecoration(color: ArgumentDecoders.color(source, <Object>['color'])),
-    position: ArgumentDecoders.enumValue<DecorationPosition>(
+    position: RestageDecoders.enumByName<DecorationPosition>(
             DecorationPosition.values, source, <Object>['position']) ??
         DecorationPosition.background,
     child: source.optionalChild(<Object>['child']),
@@ -475,14 +475,14 @@ Widget _buildDefaultTextStyle(BuildContext context, DataSource source) {
         fontSize: source.v<double>(<Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+        fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing: source.v<double>(<Object>['letterSpacing']),
         wordSpacing: source.v<double>(<Object>['wordSpacing']),
-        textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+        textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: source.v<double>(<Object>['height']),
-        leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
             <Object>['leadingDistribution']),
@@ -498,18 +498,18 @@ Widget _buildDefaultTextStyle(BuildContext context, DataSource source) {
             RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor:
             ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: source.v<double>(<Object>['decorationThickness']),
         debugLabel: source.v<String>(<Object>['debugLabel']),
         fontFamily: source.v<String>(<Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(<Object>['fontPackage']),
-        overflow: ArgumentDecoders.enumValue<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip),
-    textAlign: ArgumentDecoders.enumValue<TextAlign>(
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow']) ?? TextOverflow.clip),
+    textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(<Object>['softWrap']) ?? true,
     maxLines: source.v<int>(<Object>['maxLines']),
-    textWidthBasis: ArgumentDecoders.enumValue<TextWidthBasis>(
+    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
             TextWidthBasis.values, source, <Object>['textWidthBasis']) ??
         TextWidthBasis.parent,
     child: source.child(<Object>['child']),
@@ -533,23 +533,23 @@ Widget _buildFadeInImageAssetNetwork(BuildContext context, DataSource source) {
     imageScale: source.v<double>(<Object>['imageScale']) ?? 1.0,
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
-    fit: ArgumentDecoders.enumValue<BoxFit>(
+    fit: RestageDecoders.enumByName<BoxFit>(
         BoxFit.values, source, <Object>['fit']),
-    placeholderFit: ArgumentDecoders.enumValue<BoxFit>(
+    placeholderFit: RestageDecoders.enumByName<BoxFit>(
         BoxFit.values, source, <Object>['placeholderFit']),
-    placeholderFilterQuality: ArgumentDecoders.enumValue<FilterQuality>(
+    placeholderFilterQuality: RestageDecoders.enumByName<FilterQuality>(
         FilterQuality.values, source, <Object>['placeholderFilterQuality']),
   );
 }
 
 Widget _buildFittedBox(BuildContext context, DataSource source) {
   return FittedBox(
-    fit: ArgumentDecoders.enumValue<BoxFit>(
+    fit: RestageDecoders.enumByName<BoxFit>(
             BoxFit.values, source, <Object>['fit']) ??
         BoxFit.contain,
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     child: source.optionalChild(<Object>['child']),
@@ -559,7 +559,7 @@ Widget _buildFittedBox(BuildContext context, DataSource source) {
 Widget _buildFlexible(BuildContext context, DataSource source) {
   return Flexible(
     flex: source.v<int>(<Object>['flex']) ?? 1,
-    fit: ArgumentDecoders.enumValue<FlexFit>(
+    fit: RestageDecoders.enumByName<FlexFit>(
             FlexFit.values, source, <Object>['fit']) ??
         FlexFit.loose,
     child: source.child(<Object>['child']),
@@ -593,16 +593,16 @@ Widget _buildImage(BuildContext context, DataSource source) {
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    colorBlendMode: ArgumentDecoders.enumValue<BlendMode>(
+    colorBlendMode: RestageDecoders.enumByName<BlendMode>(
         BlendMode.values, source, <Object>['colorBlendMode']),
-    fit: ArgumentDecoders.enumValue<BoxFit>(
+    fit: RestageDecoders.enumByName<BoxFit>(
         BoxFit.values, source, <Object>['fit']),
     alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
         Alignment.center,
-    repeat: ArgumentDecoders.enumValue<ImageRepeat>(
+    repeat: RestageDecoders.enumByName<ImageRepeat>(
             ImageRepeat.values, source, <Object>['repeat']) ??
         ImageRepeat.noRepeat,
-    filterQuality: ArgumentDecoders.enumValue<FilterQuality>(
+    filterQuality: RestageDecoders.enumByName<FilterQuality>(
             FilterQuality.values, source, <Object>['filterQuality']) ??
         FilterQuality.medium,
   );
@@ -616,16 +616,16 @@ Widget _buildImageAsset(BuildContext context, DataSource source) {
     width: source.v<double>(<Object>['width']),
     height: source.v<double>(<Object>['height']),
     color: ArgumentDecoders.color(source, <Object>['color']),
-    colorBlendMode: ArgumentDecoders.enumValue<BlendMode>(
+    colorBlendMode: RestageDecoders.enumByName<BlendMode>(
         BlendMode.values, source, <Object>['colorBlendMode']),
-    fit: ArgumentDecoders.enumValue<BoxFit>(
+    fit: RestageDecoders.enumByName<BoxFit>(
         BoxFit.values, source, <Object>['fit']),
     alignment: RestageDecoders.alignmentXY(source, <Object>['alignment']) ??
         Alignment.center,
-    repeat: ArgumentDecoders.enumValue<ImageRepeat>(
+    repeat: RestageDecoders.enumByName<ImageRepeat>(
             ImageRepeat.values, source, <Object>['repeat']) ??
         ImageRepeat.noRepeat,
-    filterQuality: ArgumentDecoders.enumValue<FilterQuality>(
+    filterQuality: RestageDecoders.enumByName<FilterQuality>(
             FilterQuality.values, source, <Object>['filterQuality']) ??
         FilterQuality.medium,
   );
@@ -657,18 +657,18 @@ Widget _buildLimitedBox(BuildContext context, DataSource source) {
 
 Widget _buildListView(BuildContext context, DataSource source) {
   return ListView(
-    scrollDirection: ArgumentDecoders.enumValue<Axis>(
+    scrollDirection: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.vertical,
     reverse: source.v<bool>(<Object>['reverse']) ?? false,
     shrinkWrap: source.v<bool>(<Object>['shrinkWrap']) ?? false,
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
     keyboardDismissBehavior:
-        ArgumentDecoders.enumValue<ScrollViewKeyboardDismissBehavior>(
+        RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
             ScrollViewKeyboardDismissBehavior.values,
             source,
             <Object>['keyboardDismissBehavior']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     children: source.childList(<Object>['children']),
@@ -698,14 +698,14 @@ Widget _buildRestageFormattedNumber(BuildContext context, DataSource source) {
         fontSize: source.v<double>(<Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+        fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing: source.v<double>(<Object>['letterSpacing']),
         wordSpacing: source.v<double>(<Object>['wordSpacing']),
-        textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+        textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: source.v<double>(<Object>['height']),
-        leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
             <Object>['leadingDistribution']),
@@ -721,16 +721,16 @@ Widget _buildRestageFormattedNumber(BuildContext context, DataSource source) {
             RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor:
             ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: source.v<double>(<Object>['decorationThickness']),
         debugLabel: source.v<String>(<Object>['debugLabel']),
         fontFamily: source.v<String>(<Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(<Object>['fontPackage']),
-        overflow: ArgumentDecoders.enumValue<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
     value: source.v<double>(<Object>['value']),
     numberLocale: source.v<String>(<Object>['numberLocale']),
-    textAlign: ArgumentDecoders.enumValue<TextAlign>(
+    textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     maxLines: source.v<int>(<Object>['maxLines']),
   );
@@ -738,7 +738,7 @@ Widget _buildRestageFormattedNumber(BuildContext context, DataSource source) {
 
 Widget _buildRestageMotion(BuildContext context, DataSource source) {
   return RestageMotion(
-    spring: ArgumentDecoders.enumValue<RestageSpring>(
+    spring: RestageDecoders.enumByName<RestageSpring>(
             RestageSpring.values, source, <Object>['spring']) ??
         RestageSpring.smooth,
     duration: RestageDecoders.duration(source, <Object>['duration']),
@@ -763,14 +763,14 @@ Widget _buildRestagePrice(BuildContext context, DataSource source) {
         fontSize: source.v<double>(<Object>['fontSize']),
         fontWeight: ArgumentDecoders.enumValue<FontWeight>(
             FontWeight.values, source, <Object>['fontWeight']),
-        fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+        fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing: source.v<double>(<Object>['letterSpacing']),
         wordSpacing: source.v<double>(<Object>['wordSpacing']),
-        textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+        textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: source.v<double>(<Object>['height']),
-        leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
             <Object>['leadingDistribution']),
@@ -786,18 +786,18 @@ Widget _buildRestagePrice(BuildContext context, DataSource source) {
             RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor:
             ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: source.v<double>(<Object>['decorationThickness']),
         debugLabel: source.v<String>(<Object>['debugLabel']),
         fontFamily: source.v<String>(<Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(<Object>['fontPackage']),
-        overflow: ArgumentDecoders.enumValue<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
     value: source.v<double>(<Object>['value']),
     numberLocale: source.v<String>(<Object>['numberLocale']),
     symbol: source.v<String>(<Object>['symbol']),
     decimalDigits: source.v<int>(<Object>['decimalDigits']),
-    textAlign: ArgumentDecoders.enumValue<TextAlign>(
+    textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     maxLines: source.v<int>(<Object>['maxLines']),
   );
@@ -816,7 +816,7 @@ Widget _buildRestagePulse(BuildContext context, DataSource source) {
 Widget _buildRestageStagger(BuildContext context, DataSource source) {
   return RestageStagger(
     delayBetween: RestageDecoders.duration(source, <Object>['delayBetween']),
-    spring: ArgumentDecoders.enumValue<RestageSpring>(
+    spring: RestageDecoders.enumByName<RestageSpring>(
             RestageSpring.values, source, <Object>['spring']) ??
         RestageSpring.smooth,
     fromOffset:
@@ -866,13 +866,13 @@ Widget _buildPositioned(BuildContext context, DataSource source) {
 
 Widget _buildRow(BuildContext context, DataSource source) {
   return Row(
-    mainAxisAlignment: ArgumentDecoders.enumValue<MainAxisAlignment>(
+    mainAxisAlignment: RestageDecoders.enumByName<MainAxisAlignment>(
             MainAxisAlignment.values, source, <Object>['mainAxisAlignment']) ??
         MainAxisAlignment.start,
-    mainAxisSize: ArgumentDecoders.enumValue<MainAxisSize>(
+    mainAxisSize: RestageDecoders.enumByName<MainAxisSize>(
             MainAxisSize.values, source, <Object>['mainAxisSize']) ??
         MainAxisSize.max,
-    crossAxisAlignment: ArgumentDecoders.enumValue<CrossAxisAlignment>(
+    crossAxisAlignment: RestageDecoders.enumByName<CrossAxisAlignment>(
             CrossAxisAlignment.values,
             source,
             <Object>['crossAxisAlignment']) ??
@@ -904,16 +904,16 @@ Widget _buildSafeArea(BuildContext context, DataSource source) {
 
 Widget _buildSingleChildScrollView(BuildContext context, DataSource source) {
   return SingleChildScrollView(
-    scrollDirection: ArgumentDecoders.enumValue<Axis>(
+    scrollDirection: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.vertical,
     reverse: source.v<bool>(<Object>['reverse']) ?? false,
     padding: RestageDecoders.edgeInsets(source, <Object>['padding']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     keyboardDismissBehavior:
-        ArgumentDecoders.enumValue<ScrollViewKeyboardDismissBehavior>(
+        RestageDecoders.enumByName<ScrollViewKeyboardDismissBehavior>(
             ScrollViewKeyboardDismissBehavior.values,
             source,
             <Object>['keyboardDismissBehavior']),
@@ -939,10 +939,10 @@ Widget _buildStack(BuildContext context, DataSource source) {
   return Stack(
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.topStart,
-    fit: ArgumentDecoders.enumValue<StackFit>(
+    fit: RestageDecoders.enumByName<StackFit>(
             StackFit.values, source, <Object>['fit']) ??
         StackFit.loose,
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
     children: source.childList(<Object>['children']),
@@ -965,14 +965,14 @@ Widget _buildText(BuildContext context, DataSource source) {
                 FontWeight.values, source, <Object>['fontWeight']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
                 as FontWeight?,
-        fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+        fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing: source.v<double>(<Object>['letterSpacing']),
         wordSpacing: source.v<double>(<Object>['wordSpacing']),
-        textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+        textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: source.v<double>(<Object>['height']),
-        leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
             <Object>['leadingDistribution']),
@@ -984,19 +984,19 @@ Widget _buildText(BuildContext context, DataSource source) {
         fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
         decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: source.v<double>(<Object>['decorationThickness']),
         debugLabel: source.v<String>(<Object>['debugLabel']),
         fontFamily: source.v<String>(<Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(<Object>['fontPackage']),
-        overflow: ArgumentDecoders.enumValue<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
-    textAlign: ArgumentDecoders.enumValue<TextAlign>(
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+    textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(<Object>['softWrap']),
     maxLines: source.v<int>(<Object>['maxLines']),
     semanticsLabel: source.v<String>(<Object>['semanticsLabel']),
-    textWidthBasis: ArgumentDecoders.enumValue<TextWidthBasis>(
+    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
         TextWidthBasis.values, source, <Object>['textWidthBasis']),
   );
 }
@@ -1017,14 +1017,14 @@ Widget _buildTextRich(BuildContext context, DataSource source) {
                 FontWeight.values, source, <Object>['fontWeight']) ??
             resolveThemeBinding(context, path: 'defaultTextStyle.fontWeight')
                 as FontWeight?,
-        fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+        fontStyle: RestageDecoders.enumByName<FontStyle>(
             FontStyle.values, source, <Object>['fontStyle']),
         letterSpacing: source.v<double>(<Object>['letterSpacing']),
         wordSpacing: source.v<double>(<Object>['wordSpacing']),
-        textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+        textBaseline: RestageDecoders.enumByName<TextBaseline>(
             TextBaseline.values, source, <Object>['textBaseline']),
         height: source.v<double>(<Object>['height']),
-        leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+        leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
             TextLeadingDistribution.values,
             source,
             <Object>['leadingDistribution']),
@@ -1036,19 +1036,19 @@ Widget _buildTextRich(BuildContext context, DataSource source) {
         fontVariations: RestageDecoders.fontVariations(source, <Object>['fontVariations']),
         decoration: RestageDecoders.textDecoration(source, <Object>['decoration']),
         decorationColor: ArgumentDecoders.color(source, <Object>['decorationColor']),
-        decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
+        decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(TextDecorationStyle.values, source, <Object>['decorationStyle']),
         decorationThickness: source.v<double>(<Object>['decorationThickness']),
         debugLabel: source.v<String>(<Object>['debugLabel']),
         fontFamily: source.v<String>(<Object>['fontFamily']),
         fontFamilyFallback: RestageDecoders.stringList(source, <Object>['fontFamilyFallback']),
         package: source.v<String>(<Object>['fontPackage']),
-        overflow: ArgumentDecoders.enumValue<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
-    textAlign: ArgumentDecoders.enumValue<TextAlign>(
+        overflow: RestageDecoders.enumByName<TextOverflow>(TextOverflow.values, source, <Object>['overflow'])),
+    textAlign: RestageDecoders.enumByName<TextAlign>(
         TextAlign.values, source, <Object>['textAlign']),
     softWrap: source.v<bool>(<Object>['softWrap']),
     maxLines: source.v<int>(<Object>['maxLines']),
     semanticsLabel: source.v<String>(<Object>['semanticsLabel']),
-    textWidthBasis: ArgumentDecoders.enumValue<TextWidthBasis>(
+    textWidthBasis: RestageDecoders.enumByName<TextWidthBasis>(
         TextWidthBasis.values, source, <Object>['textWidthBasis']),
   );
 }
@@ -1061,7 +1061,7 @@ Widget _buildTransformRotate(BuildContext context, DataSource source) {
     alignment: ArgumentDecoders.alignment(source, <Object>['alignment']) ??
         AlignmentDirectional.center,
     transformHitTests: source.v<bool>(<Object>['transformHitTests']) ?? true,
-    filterQuality: ArgumentDecoders.enumValue<FilterQuality>(
+    filterQuality: RestageDecoders.enumByName<FilterQuality>(
         FilterQuality.values, source, <Object>['filterQuality']),
     child: source.optionalChild(<Object>['child']),
   );
@@ -1078,28 +1078,28 @@ Widget _buildVisibility(BuildContext context, DataSource source) {
 
 Widget _buildWrap(BuildContext context, DataSource source) {
   return Wrap(
-    direction: ArgumentDecoders.enumValue<Axis>(
+    direction: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['direction']) ??
         Axis.horizontal,
-    alignment: ArgumentDecoders.enumValue<WrapAlignment>(
+    alignment: RestageDecoders.enumByName<WrapAlignment>(
             WrapAlignment.values, source, <Object>['alignment']) ??
         WrapAlignment.start,
     spacing: source.v<double>(<Object>['spacing']) ?? 0.0,
-    runAlignment: ArgumentDecoders.enumValue<WrapAlignment>(
+    runAlignment: RestageDecoders.enumByName<WrapAlignment>(
             WrapAlignment.values, source, <Object>['runAlignment']) ??
         WrapAlignment.start,
     runSpacing: source.v<double>(<Object>['runSpacing']) ?? 0.0,
-    crossAxisAlignment: ArgumentDecoders.enumValue<WrapCrossAlignment>(
+    crossAxisAlignment: RestageDecoders.enumByName<WrapCrossAlignment>(
             WrapCrossAlignment.values,
             source,
             <Object>['crossAxisAlignment']) ??
         WrapCrossAlignment.start,
-    textDirection: ArgumentDecoders.enumValue<TextDirection>(
+    textDirection: RestageDecoders.enumByName<TextDirection>(
         TextDirection.values, source, <Object>['textDirection']),
-    verticalDirection: ArgumentDecoders.enumValue<VerticalDirection>(
+    verticalDirection: RestageDecoders.enumByName<VerticalDirection>(
             VerticalDirection.values, source, <Object>['verticalDirection']) ??
         VerticalDirection.down,
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     children: source.childList(<Object>['children']),

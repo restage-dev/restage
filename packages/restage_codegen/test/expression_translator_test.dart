@@ -4923,7 +4923,7 @@ Catalog _textAlignCatalog() => catalogWith([
 // `PageView(children: [SizedBox()])` aliases to a RestagePager node whose
 // child list lowers. Mirrors the real catalog's RestagePager surface
 // (children/initialPage/viewportFraction/scrollDirection/pageSnapping/
-// onPageChanged) including the `scrollDirection` enumValue<Axis> slot.
+// onPageChanged) including the `scrollDirection` enumByName<Axis> slot.
 Catalog _pagerCatalog() => catalogWith([
       WidgetEntry(
         wireId: WireId('w9400'),
