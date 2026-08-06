@@ -5863,7 +5863,7 @@ final class ExpressionTranslator {
   /// a catalog `enumValue` slot has enough identity to be stricter: the member
   /// must resolve to the enum type the catalog names, and the emitted name must
   /// be present on that same resolved declaration. The generated decoder uses
-  /// `ArgumentDecoders.enumValue<T>(T.values, ...)`, so the analyzer
+  /// `RestageDecoders.enumByName<T>(T.values, ...)`, so the analyzer
   /// declaration is the same-build decoder vocabulary; OTA capability skew is
   /// a delivery-side floor, not a per-blob guess.
   String? _enumValueSlot(

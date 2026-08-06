@@ -115,7 +115,7 @@ void main() {
       final dart = result.readerWriter.testing.readString(
         AssetId('apps_examples', 'lib/user_factories.g.dart'),
       );
-      expect(dart, contains('enumValue<'));
+      expect(dart, contains('enumByName<'));
       expect(dart, contains('Tone'));
     });
 

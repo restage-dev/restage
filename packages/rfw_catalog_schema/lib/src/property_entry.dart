@@ -128,7 +128,7 @@ final class PropertyEntry {
   /// When [type] is [PropertyType.enumValue], names the Dart enum
   /// declaration this property carries — e.g. `'BoxFit'`, `'TextAlign'`,
   /// `'MainAxisAlignment'`. Used by the codegen surface to emit
-  /// `ArgumentDecoders.enumValue<T>(T.values, source, path)` and resolve
+  /// `RestageDecoders.enumByName<T>(T.values, source, path)` and resolve
   /// the [defaultValue] string (when set) against `T.values`. The named
   /// enum must be reachable from the per-library Flutter import the
   /// codegen emits.

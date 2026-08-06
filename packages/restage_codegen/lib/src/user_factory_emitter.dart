@@ -112,7 +112,7 @@ String? emitUserFactoriesDart(
   // One import per referenced customer library: the source file of each
   // emittable `@RestageWidget`, the referenced structured types the inline
   // reconstructor NAMES, and every referenced enum's library (an
-  // `ArgumentDecoders.enumValue<Tone>(...)` needs `Tone`'s library). Derived
+  // `RestageDecoders.enumByName<Tone>(...)` needs `Tone`'s library). Derived
   // from the `<uri>#<name>` FQNs + enum shapes; the nameability predicate
   // already excluded any unnameable (private) referenced type, so every URI
   // here is importable. Emitted WITH the uniform-prefix alias, sorted for

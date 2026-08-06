@@ -80,7 +80,7 @@ Widget _buildActionChip(BuildContext context, DataSource source) {
     avatar: source.optionalChild(<Object>['avatar']),
     label: source.child(<Object>['label']),
     onPressed: source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     backgroundColor:
@@ -99,7 +99,7 @@ Widget _buildAppBar(BuildContext context, DataSource source) {
     foregroundColor:
         ArgumentDecoders.color(source, <Object>['foregroundColor']),
     centerTitle: source.v<bool>(<Object>['centerTitle']) ?? true,
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
   );
 }
@@ -124,7 +124,7 @@ Widget _buildCard(BuildContext context, DataSource source) {
     elevation: source.v<double>(<Object>['elevation']) ?? 1.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.optionalChild(<Object>['child']),
   );
@@ -136,7 +136,7 @@ Widget _buildCardFilled(BuildContext context, DataSource source) {
     elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.optionalChild(<Object>['child']),
   );
@@ -148,7 +148,7 @@ Widget _buildCardOutlined(BuildContext context, DataSource source) {
     elevation: source.v<double>(<Object>['elevation']) ?? 0.0,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     margin: RestageDecoders.edgeInsets(source, <Object>['margin']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.optionalChild(<Object>['child']),
   );
@@ -189,7 +189,7 @@ Widget _buildChip(BuildContext context, DataSource source) {
   return Chip(
     avatar: source.optionalChild(<Object>['avatar']),
     label: source.child(<Object>['label']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     backgroundColor:
@@ -208,7 +208,7 @@ Widget _buildChoiceChip(BuildContext context, DataSource source) {
             (bool value) => trigger(<String, Object?>{'value': value})),
     selected: source.v<bool>(<Object>['selected']) ??
         (throw ArgumentError('ChoiceChip.selected is required.')),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     backgroundColor:
@@ -256,7 +256,7 @@ Widget _buildElevatedButton(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.child(<Object>['child']),
   );
@@ -276,7 +276,7 @@ Widget _buildExpansionTile(BuildContext context, DataSource source) {
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     collapsedShape:
         RestageDecoders.shapeBorder(source, <Object>['collapsedShape']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     children: source.childList(<Object>['children']),
   );
@@ -285,7 +285,7 @@ Widget _buildExpansionTile(BuildContext context, DataSource source) {
 Widget _buildExpressCheckoutButton(BuildContext context, DataSource source) {
   return ExpressCheckoutButton(
     onPressed: source.voidHandler(<Object>['onPressed']),
-    paymentMethod: ArgumentDecoders.enumValue<ExpressPaymentMethod>(
+    paymentMethod: RestageDecoders.enumByName<ExpressPaymentMethod>(
             ExpressPaymentMethod.values, source, <Object>['paymentMethod']) ??
         ExpressPaymentMethod.auto,
     label: source.v<String>(<Object>['label']),
@@ -311,7 +311,7 @@ Widget _buildFilledButton(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     child: source.child(<Object>['child']),
@@ -336,7 +336,7 @@ Widget _buildFilledButtonTonal(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     child: source.child(<Object>['child']),
@@ -352,7 +352,7 @@ Widget _buildFilterChip(BuildContext context, DataSource source) {
         <Object>['onSelected'],
         (HandlerTrigger trigger) =>
             (bool value) => trigger(<String, Object?>{'value': value})),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     backgroundColor:
@@ -375,7 +375,7 @@ Widget _buildFloatingActionButton(BuildContext context, DataSource source) {
     onPressed: source.voidHandler(<Object>['onPressed']),
     mini: source.v<bool>(<Object>['mini']) ?? false,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     child: source.optionalChild(<Object>['child']),
@@ -458,7 +458,7 @@ Widget _buildRestageModalSheet(BuildContext context, DataSource source) {
         ArgumentDecoders.color(source, <Object>['backgroundColor']),
     elevation: source.v<double>(<Object>['elevation']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     useSafeArea: source.v<bool>(<Object>['useSafeArea']) ?? false,
     barrierColor: ArgumentDecoders.color(source, <Object>['barrierColor']),
@@ -468,7 +468,7 @@ Widget _buildRestageModalSheet(BuildContext context, DataSource source) {
     exitDuration: RestageDecoders.duration(source, <Object>['exitDuration']),
     enterCurve: RestageDecoders.curve(source, <Object>['enterCurve']),
     exitCurve: RestageDecoders.curve(source, <Object>['exitCurve']),
-    presentation: ArgumentDecoders.enumValue<RestageSheetPresentation>(
+    presentation: RestageDecoders.enumByName<RestageSheetPresentation>(
             RestageSheetPresentation.values,
             source,
             <Object>['presentation']) ??
@@ -483,7 +483,7 @@ Widget _buildRestagePager(BuildContext context, DataSource source) {
   return RestagePager(
     initialPage: source.v<int>(<Object>['initialPage']) ?? 0,
     viewportFraction: source.v<double>(<Object>['viewportFraction']) ?? 1.0,
-    scrollDirection: ArgumentDecoders.enumValue<Axis>(
+    scrollDirection: RestageDecoders.enumByName<Axis>(
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.horizontal,
     pageSnapping: source.v<bool>(<Object>['pageSnapping']) ?? true,
@@ -583,7 +583,7 @@ Widget _buildOutlinedButton(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.child(<Object>['child']),
   );
@@ -605,7 +605,7 @@ Widget _buildOutlinedButtonIcon(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     icon: source.child(<Object>['icon']),
     label: source.child(<Object>['label']),
@@ -702,7 +702,7 @@ Widget _buildTextButton(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     child: source.child(<Object>['child']),
   );
@@ -724,7 +724,7 @@ Widget _buildTextButtonIcon(BuildContext context, DataSource source) {
         shape: (RestageDecoders.shapeBorder(source, <Object>['shape'])
             as OutlinedBorder?)),
     onPressed: disabled ? null : source.voidHandler(<Object>['onPressed']),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
     icon: source.child(<Object>['icon']),
@@ -755,7 +755,7 @@ Widget _buildTextField(BuildContext context, DataSource source) {
         <Object>['onSubmitted'],
         (HandlerTrigger trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
-    clipBehavior: ArgumentDecoders.enumValue<Clip>(
+    clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
   );

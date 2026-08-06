@@ -37,6 +37,12 @@ WidgetEntry _widget(String propName) => WidgetEntry(
     );
 
 const MapKeyPlan _stringKey = (enumRef: null);
+const MapKeyPlan _toneKey = (
+  enumRef: DartTypeRef(
+    libraryUri: 'package:acme/widgets/field_notes.dart',
+    symbolName: 'Tone',
+  ),
+);
 
 String _emit(String propName, MapPlan plan) {
   final source = emitUserFactoriesDart(
@@ -63,6 +69,16 @@ String _emitNestedMap() => _emit(
       (
         keys: const [_stringKey, _stringKey],
         valueShape: const ScalarShape(propertyType: PropertyType.integer),
+        valueSourceType: null,
+      ),
+    );
+
+/// A `Map<Tone, String>` slot — one enum key layer, scalar value.
+String _emitEnumKeyedMap() => _emit(
+      'tones',
+      (
+        keys: const [_toneKey],
+        valueShape: const ScalarShape(propertyType: PropertyType.string),
         valueSourceType: null,
       ),
     );
@@ -102,6 +118,21 @@ void main() {
       // path's neighbouring convention defaults an absent scalar; a map key
       // may not, because a defaulted key silently merges two entries.
       expect(src, isNot(contains("'key']) ?? '")));
+    });
+
+    test('an enum entry key decodes by name and keeps its hard failure', () {
+      final src = _emitEnumKeyedMap();
+
+      expect(src, contains('RestageDecoders.enumByName<s0.Tone>('));
+      expect(src, contains('s0.Tone.values'));
+      expect(
+        src,
+        contains('FieldNotes.tones entry key is not a known member.'),
+      );
+      expect(
+        src,
+        isNot(contains('ArgumentDecoders.enumValue<s0.Tone>(')),
+      );
     });
 
     test('a duplicate key fails loudly rather than overwriting', () {

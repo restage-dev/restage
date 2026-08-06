@@ -90,7 +90,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: source
                           .v<String>(<Object>['plans', i0, 'value', 'badge']),
-                      tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                      tier: RestageDecoders.enumByName<s4.PlanTier>(
                               s4.PlanTier.values,
                               source,
                               <Object>['plans', i0, 'value', 'tier']) ??
@@ -109,7 +109,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                 throw ArgumentError(
                     'PlanBoard.highlights entry must be an object.');
               }
-              final k0 = ArgumentDecoders.enumValue<s4.PlanTier>(
+              final k0 = RestageDecoders.enumByName<s4.PlanTier>(
                       s4.PlanTier.values,
                       source,
                       <Object>['highlights', i0, 'key']) ??
@@ -130,7 +130,7 @@ Widget _buildPlanBoard(BuildContext context, DataSource source) {
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: source.v<String>(
                           <Object>['highlights', i0, 'value', 'badge']),
-                      tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                      tier: RestageDecoders.enumByName<s4.PlanTier>(
                               s4.PlanTier.values,
                               source,
                               <Object>['highlights', i0, 'value', 'tier']) ??
@@ -158,7 +158,7 @@ Widget _buildPricingCard(BuildContext context, DataSource source) {
                         'USD')
                 : (throw ArgumentError('Plan.price is required.')),
             badge: source.v<String>(<Object>['plan', 'badge']),
-            tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+            tier: RestageDecoders.enumByName<s4.PlanTier>(
                     s4.PlanTier.values, source, <Object>['plan', 'tier']) ??
                 s4.PlanTier.starter)
         : (throw ArgumentError('PricingCard.plan is required.')),
@@ -183,7 +183,7 @@ Widget _buildPricingTable(BuildContext context, DataSource source) {
                                   'USD')
                           : (throw ArgumentError('Plan.price is required.')),
                       badge: source.v<String>(<Object>['plans', i0, 'badge']),
-                      tier: ArgumentDecoders.enumValue<s4.PlanTier>(
+                      tier: RestageDecoders.enumByName<s4.PlanTier>(
                               s4.PlanTier.values,
                               source,
                               <Object>['plans', i0, 'tier']) ??
@@ -221,7 +221,7 @@ Widget _buildSectionHeader(BuildContext context, DataSource source) {
             title: source.v<String>(<Object>['heading', 'title']) ??
                 (throw ArgumentError(
                     'SectionHeader.heading.title is required.')),
-            tone: ArgumentDecoders.enumValue<s8.HeaderTone>(
+            tone: RestageDecoders.enumByName<s8.HeaderTone>(
                     s8.HeaderTone.values,
                     source,
                     <Object>['heading', 'tone']) ??

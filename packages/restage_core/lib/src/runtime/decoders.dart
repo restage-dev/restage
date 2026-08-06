@@ -55,6 +55,34 @@ import 'package:rfw/rfw.dart';
 /// any customer library generated via `@RestageWidget` can call into a
 /// single canonical implementation.
 abstract final class RestageDecoders {
+  /// Decodes an enum member by its declared name.
+  ///
+  /// [EnumName.name] is the declared member name by construction, while
+  /// `toString()` can be overridden — by the enum itself, or by a mixin it
+  /// applies. Returns `null` when [path] is absent, is not a string, or does
+  /// not name a member of [values].
+  ///
+  /// The `T extends Enum` bound is load-bearing for CORRECTNESS, not just for
+  /// reuse, and these two facts are one fact: `name` is not a member of [Enum]
+  /// at all — it comes from `extension EnumName on Enum`. Extension members
+  /// bind to the STATIC type, so inside this bound `value.name` resolves to the
+  /// extension and yields the declared name even for an enum that declares its
+  /// own `name` getter. Specialise this to a concrete type and that shadow
+  /// wins instead, which silently reopens the failure this exists to close: a
+  /// spelling the enum does not declare resolving to a real member.
+  static T? enumByName<T extends Enum>(
+    List<T> values,
+    DataSource source,
+    List<Object> path,
+  ) {
+    final name = source.v<String>(path);
+    if (name == null) return null;
+    for (final value in values) {
+      if (value.name == name) return value;
+    }
+    return null;
+  }
+
   /// Decodes a real scalar at [path], accepting either wire number shape.
   ///
   /// `DataSource.v<double>` is a strict type check: an `int` on the wire reads
@@ -365,14 +393,14 @@ abstract final class RestageDecoders {
     if (provider == null) return null;
     return DecorationImage(
       image: provider,
-      fit: ArgumentDecoders.enumValue<BoxFit>(
+      fit: RestageDecoders.enumByName<BoxFit>(
         BoxFit.values,
         source,
         [...path, 'fit'],
       ),
       alignment:
           alignmentXY(source, [...path, 'alignment']) ?? Alignment.center,
-      repeat: ArgumentDecoders.enumValue<ImageRepeat>(
+      repeat: RestageDecoders.enumByName<ImageRepeat>(
             ImageRepeat.values,
             source,
             [...path, 'repeat'],
@@ -556,20 +584,20 @@ abstract final class RestageDecoders {
         source,
         [...path, 'fontWeight'],
       ),
-      fontStyle: ArgumentDecoders.enumValue<FontStyle>(
+      fontStyle: RestageDecoders.enumByName<FontStyle>(
         FontStyle.values,
         source,
         [...path, 'fontStyle'],
       ),
       letterSpacing: _finiteNumber(source, [...path, 'letterSpacing']),
       wordSpacing: _finiteNumber(source, [...path, 'wordSpacing']),
-      textBaseline: ArgumentDecoders.enumValue<TextBaseline>(
+      textBaseline: RestageDecoders.enumByName<TextBaseline>(
         TextBaseline.values,
         source,
         [...path, 'textBaseline'],
       ),
       height: _finiteNumber(source, [...path, 'height']),
-      leadingDistribution: ArgumentDecoders.enumValue<TextLeadingDistribution>(
+      leadingDistribution: RestageDecoders.enumByName<TextLeadingDistribution>(
         TextLeadingDistribution.values,
         source,
         [...path, 'leadingDistribution'],
@@ -583,7 +611,7 @@ abstract final class RestageDecoders {
       decoration: textDecoration(source, [...path, 'decoration']),
       decorationColor:
           ArgumentDecoders.color(source, [...path, 'decorationColor']),
-      decorationStyle: ArgumentDecoders.enumValue<TextDecorationStyle>(
+      decorationStyle: RestageDecoders.enumByName<TextDecorationStyle>(
         TextDecorationStyle.values,
         source,
         [...path, 'decorationStyle'],
@@ -599,7 +627,7 @@ abstract final class RestageDecoders {
       // `_inlineSpan`) degrades instead of aborting the render.
       fontFamilyFallback: stringList(source, [...path, 'fontFamilyFallback']),
       package: source.v<String>([...path, 'fontPackage']),
-      overflow: ArgumentDecoders.enumValue<TextOverflow>(
+      overflow: RestageDecoders.enumByName<TextOverflow>(
         TextOverflow.values,
         source,
         [...path, 'overflow'],

@@ -1038,8 +1038,8 @@ void main() {
       );
     });
 
-    // H4 — a customer structured field of ENUM type whose enum is in a SEPARATE
-    // file. The reconstruction emits `ArgumentDecoders.enumValue<Tone>(...)`,
+    // A customer structured field of ENUM type whose enum is in a SEPARATE
+    // file emits `RestageDecoders.enumByName<Tone>(...)`,
     // so the enum's library must be in the import closure (it imported
     // structured-type libs but missed enum libs) or the factory won't compile.
     test(
