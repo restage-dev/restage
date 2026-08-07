@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased
+
+**Breaking.** `transactionId` is now nullable (`String?`) on `BillingGateway`'s
+purchase result and on `PurchasePlatformAdapter`. Some store purchases have no
+transaction identity — a Google Play promotional-code purchase has no order ID —
+and the field is now absent in those cases rather than carrying an invented
+value.
+
+If you read `transactionId` off a purchase result, handle null. If you
+*implement* `BillingGateway` and pass a non-null value, no change is required:
+the parameter widened, so existing calls still type-check.
+
+`RestageConversionEvent.transactionId` was already nullable and is unchanged.
+
+Other changes:
+
+- Purchase results carry the store-issued transaction identifier where one
+  exists: the StoreKit transaction ID on Apple, the Google Play order ID on
+  Android. For an external-provider gateway it is the per-transaction id that
+  provider surfaces.
+- Native purchases carry a durable purchase intent, so a purchase keeps its
+  association with the surface that initiated it even if the app dies between
+  the store call and the receipt arriving.
+- Experiment attribution is surface-general: onboarding, message and survey
+  surfaces attribute an experiment the same way a paywall does. Experiment
+  dimensions come only from an authoritative root binding; payload-claimed
+  assignments are scrubbed and never trusted.
+- Google Play prepaid base plans are not accepted through the bundled gateway.
+  Direct gateway calls keep their existing product behavior.
+
 ## 1.3.0
 
 - Add opt-in live refresh for mounted surfaces: pass a `liveRefresh` trigger
