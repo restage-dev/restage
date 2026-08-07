@@ -12,7 +12,7 @@ const String kBuiltInWireIdBackfillActor = 'rfw-catalog-compiler-phase-1';
 /// Timestamp recorded on the initial built-in catalog backfill events.
 const String kBuiltInWireIdBackfillTimestamp = '2026-05-11T19:00:00.000Z';
 
-/// Replayed event-log resolver for restage_catalog_gen's adapter.
+/// Replayed event-log resolver for the catalog generator's adapter.
 ///
 /// The resolver matches the current reflected catalog by advisory labels and
 /// source names, then supplies the stable IDs from `wire_ids.events.jsonl`.

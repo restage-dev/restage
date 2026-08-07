@@ -25,8 +25,8 @@ dependencies:
   # Used directly by the generated `lib/user_catalog.g.dart`.
   rfw_catalog_schema:
     path: ../../packages/rfw_catalog_schema
-  # Used by `main_server_onboarding_demo.dart` (the local server-delivery demo)
-  # to package a flow as a surface document and serve it from an in-app fake.
+  # Used by `main_hosted_paywall_demo.dart` to read the surface-document types
+  # that hosted delivery returns.
   restage_shared:
     path: ../../packages/restage_shared
   restage_preview_harness:

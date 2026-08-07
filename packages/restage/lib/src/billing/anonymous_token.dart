@@ -124,7 +124,7 @@ class AnonymousTokenStore {
   /// Generates a UUIDv4 from a CSPRNG (or the supplied [random] for
   /// tests). The output is the canonical 36-character string with the
   /// version nibble forced to 4 and the variant nibble forced to 8-b per
-  /// RFC 4122 §4.4.
+  /// RFC 4122 section 4.4.
   static String generateUuidV4({Random? random}) {
     final r = random ?? Random.secure();
     final bytes = List<int>.generate(16, (_) => r.nextInt(256));
