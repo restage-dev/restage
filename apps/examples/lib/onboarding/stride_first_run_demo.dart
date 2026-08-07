@@ -20,9 +20,7 @@ import 'flows/stride_first_run.dart';
 /// This demo ships the flow as a bundled asset (no backend). A production app
 /// delivers it over the air by injecting a `ServerFlowResolver` once at startup;
 /// general delivery lets the server recompose the graph without an app release,
-/// bounded to the vocabulary this app installs. See
-/// `main_stride_general_demo.dart` for the active-arm variant pointed at a
-/// backend.
+/// bounded to the vocabulary this app installs.
 class StrideFirstRunDemo extends StatefulWidget {
   /// Creates the Stride onboarding host.
   ///
