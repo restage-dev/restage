@@ -338,7 +338,7 @@ void main() {
 
   test('publish routes through surface publish command core', () async {
     final fixture = await _seedExecutorFixture(environment: 'staging');
-    await seedRfw(fixture.dir, 'pro', List<int>.generate(48, (index) => index));
+    await seedRfw(fixture.dir, 'pro', ordinaryRfwBlob());
 
     var saveCalls = 0;
     var publishCalls = 0;

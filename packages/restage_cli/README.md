@@ -76,6 +76,43 @@ Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts; missing required values without a default exit non-zero with a
 clear `required: --foo <value>` message.
 
+## Isolated render bundles
+
+The pre-release render-bundle lane deterministically builds a customer-widget
+renderer, uploads it through a pinned control origin, and advances one selected
+channel. Each immutable bundle executes on a separate derived origin:
+
+```sh
+restage build push \
+  --project <project-slug> \
+  --channel main
+```
+
+`--channel` accepts `main` or a canonical `user/<handle>` value. An invalid
+channel is rejected before credentials, build work, or network access. The
+command builds twice and requires byte-identical output before it uploads,
+then reports the selected channel's immutable version and content hash.
+
+Configure all three non-secret origins in `restage_config.yaml`:
+
+```yaml
+endpoint: http://api.restage.localhost:8080
+dashboardOrigin: http://dashboard.restage.localhost:8082
+renderBundleOrigin: http://bundles.restage.localhost:8081
+```
+
+Local use requires those exact three `restage.localhost` roles on distinct,
+explicit ports. `renderBundleOrigin` is the upload and control origin; an
+immutable bundle executes on its own derived origin, such as
+`http://b-42.restage.localhost:8081` for bundle 42. Deployed use requires three
+distinct direct HTTPS siblings under `restage.dev`. The dashboard origin is the
+default pinned parent origin. `--parent-origin` is accepted only when it exactly
+matches the configured dashboard origin; `--bundle-origin` may supply the
+bundle control member of the same validated triplet.
+
+This lane is pre-release and is not a public deployment or package-release
+signal.
+
 ## License
 
 BSD-3-Clause. See `LICENSE`.

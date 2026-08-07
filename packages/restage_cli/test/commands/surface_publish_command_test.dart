@@ -130,7 +130,7 @@ void main() {
           'mobile',
           defaultEnvironment: 'dev',
         );
-        await seedRfw(tempDir, 'pro_upgrade', List<int>.generate(48, (i) => i));
+        await seedRfw(tempDir, 'pro_upgrade', ordinaryRfwBlob());
 
         var saveCalls = 0;
         var publishCalls = 0;
@@ -334,7 +334,7 @@ void main() {
       );
       final custom = File(p.join(tempDir.path, 'custom', 'p.rfw'));
       await custom.parent.create(recursive: true);
-      await custom.writeAsBytes(List<int>.generate(16, (i) => i));
+      await custom.writeAsBytes(ordinaryRfwBlob());
       await seedCapabilitySidecar(custom.path);
 
       final client = scriptedHttpClient([

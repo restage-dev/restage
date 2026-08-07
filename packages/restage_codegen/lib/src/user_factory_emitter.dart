@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/customer_preview_reservation.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
@@ -36,6 +37,7 @@ String? emitUserFactoriesDart(
   Map<String, ReconstructionPlan> reconstructionPlans = const {},
   Map<String, int> stampedCapabilityVersions = const {},
 }) {
+  validateCustomerPreviewReservations(widgets);
   // Uniform-prefix import aliases: every referenced CUSTOMER library (a widget
   // class, a nested structured type, or a referenced enum) gets a unique alias
   // (`s0`, `s1`, ...), assigned over the sorted URIs for byte-deterministic

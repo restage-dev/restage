@@ -72,6 +72,8 @@ export 'package:restage_shared/restage_shared.dart'
         LessThanOrEqualsFlowPredicateCondition,
         LiteralFlowValueSource,
         NotEqualsFlowPredicateCondition,
+        kReservedPreviewConstructorName,
+        kReservedPreviewLibraryName,
         StateFlowOutboundRef,
         StateFlowValueSource,
         SubFlowResultFlowValueSource,
@@ -87,8 +89,10 @@ export 'src/resolver/restage_variant_resolver.dart';
 export 'src/secure_transport.dart' show InsecureBaseUrlException;
 export 'src/resolver/resolved_variant.dart';
 export 'src/resolver/variant_resolver.dart';
+export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
 export 'src/runtime/restage.dart';
 export 'src/runtime/restage_widget_factory.dart';
+export 'src/runtime/restage_widget_library_registration.dart';
 // RFW types host-side builder closures depend on. Re-exporting keeps
 // hand-written extensions (and generated factory bodies) free of a direct
 // `package:rfw` import.

@@ -195,10 +195,11 @@ void main() {
       );
     });
 
-    test('accepts http:// only for loopback hosts', () {
+    test('accepts http:// only for finite local and loopback hosts', () {
       for (final endpoint in const [
         'http://localhost:8080/',
         'http://localhost.:8080/',
+        'http://api.restage.localhost:8080/',
         'http://127.0.0.1:8080/',
         'http://127.0.0.2:8080/',
         'http://127.255.255.254:8080/',

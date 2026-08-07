@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/customer_preview_reservation.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -74,6 +75,7 @@ String emitUserCatalogDart(Catalog catalog) {
 /// fail here rather than emitting a catalog whose graph sections are silently
 /// empty.
 Catalog userCatalogFromWidgets(List<WidgetEntry> widgets) {
+  validateCustomerPreviewReservations(widgets);
   _rejectUnsupportedWidgetOnlyGraph(widgets);
   return Catalog(
     schemaVersion: kSupportedSchemaVersion,
@@ -94,6 +96,7 @@ Catalog userCatalogFromGraph({
   List<UnionEntry> unions = const [],
   Map<String, int> stampedCapabilityVersions = const {},
 }) {
+  validateCustomerPreviewReservations(widgets);
   _rejectUnsupportedFullGraph(
     widgets,
     hasStructuredGraph: structuredTypes.isNotEmpty,

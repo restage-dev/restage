@@ -33,6 +33,7 @@ import 'first_paint_lease_guard.dart';
 import 'restage_identity.dart';
 import 'restage_paywall.dart';
 import 'restage_widget_factory.dart';
+import 'restage_widget_library_registration.dart';
 
 /// Restage SDK static facade.
 ///
@@ -470,9 +471,9 @@ abstract final class Restage {
   /// registers unversioned. Omit it for an unversioned library (which then
   /// satisfies no positive requirement).
   ///
-  /// Asserts (debug only): [library] must not use a reserved built-in
-  /// namespace (`restage.core` / `restage.material` / `restage.cupertino`),
-  /// [widgets] must not contain duplicate names, and [capabilityVersion] (when
+  /// Asserts (debug only): [library] must not use a reserved built-in or
+  /// preview-only namespace, [widgets] must not claim a preview-only
+  /// constructor or contain duplicate names, and [capabilityVersion] (when
   /// provided) must be >= 1.
   static void registerWidgetLibrary(
     WidgetLibrary library, {
@@ -485,6 +486,14 @@ abstract final class Restage {
       capabilityVersion: capabilityVersion,
     );
   }
+
+  /// Immutable snapshot of the customer widget libraries registered so far.
+  ///
+  /// This lets a caller-owned RFW runtime use the same generated registration
+  /// calls as the main SDK runtime without creating a second registry.
+  static List<RestageWidgetLibraryRegistration>
+      get widgetLibraryRegistrations =>
+          LibraryRuntimeRegistry.registrationSnapshot();
 
   // --- Internal API used by RestagePaywall + billing layer ---
 

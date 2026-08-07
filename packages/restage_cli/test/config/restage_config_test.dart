@@ -36,6 +36,8 @@ app: my-app
       final config = RestageConfig.fromYaml(src);
       expect(config.organization, isNull);
       expect(config.endpoint, isNull);
+      expect(config.dashboardOrigin, isNull);
+      expect(config.renderBundleOrigin, isNull);
     });
 
     test('throws on missing required keys', () {
@@ -74,13 +76,15 @@ app: my-app
       expect(parsed.defaultEnvironment, 'dev');
     });
 
-    test('round-trips the optional organization and endpoint fields', () {
+    test('round-trips optional organization and trusted origins', () {
       const config = RestageConfig(
         project: 'p',
         app: 'a',
         defaultEnvironment: 'staging',
         organization: 'default',
-        endpoint: 'https://api.example.com/',
+        endpoint: 'https://api.restage.dev/',
+        dashboardOrigin: 'https://dashboard.restage.dev',
+        renderBundleOrigin: 'https://bundles.restage.dev',
       );
       final yaml = config.toYaml();
       final parsed = RestageConfig.fromYaml(yaml);
@@ -88,13 +92,148 @@ app: my-app
       expect(parsed.app, 'a');
       expect(parsed.defaultEnvironment, 'staging');
       expect(parsed.organization, 'default');
-      expect(parsed.endpoint, 'https://api.example.com/');
+      expect(parsed.endpoint, 'https://api.restage.dev/');
+      expect(parsed.dashboardOrigin, 'https://dashboard.restage.dev');
+      expect(parsed.renderBundleOrigin, 'https://bundles.restage.dev');
     });
 
     test('omits the defaultEnvironment key when null', () {
       const config = RestageConfig(project: 'p', app: 'a');
       final yaml = config.toYaml();
       expect(yaml, isNot(contains('defaultEnvironment')));
+    });
+  });
+
+  group('resolveRenderBundleOriginTriplet', () {
+    test('resolves one deployed config triplet to exact origins', () {
+      final origins = resolveRenderBundleOriginTriplet(
+        config: const RestageConfig(
+          project: 'p',
+          app: 'a',
+          endpoint: 'https://api.restage.dev/',
+          dashboardOrigin: 'https://dashboard.restage.dev/',
+          renderBundleOrigin: 'https://bundles.restage.dev/',
+        ),
+        apiEndpoint: Uri.parse('https://api.restage.dev/'),
+      );
+
+      expect(origins, isNotNull);
+      expect(origins!.apiOrigin, Uri.parse('https://api.restage.dev'));
+      expect(
+        origins.dashboardOrigin,
+        Uri.parse('https://dashboard.restage.dev'),
+      );
+      expect(origins.bundleOrigin, Uri.parse('https://bundles.restage.dev'));
+    });
+
+    test('resolves one local three-port config triplet', () {
+      final origins = resolveRenderBundleOriginTriplet(
+        config: const RestageConfig(
+          project: 'p',
+          app: 'a',
+          dashboardOrigin: 'http://dashboard.restage.localhost:8082',
+          renderBundleOrigin: 'http://bundles.restage.localhost:8081',
+        ),
+        apiEndpoint: Uri.parse('http://api.restage.localhost:8080/'),
+      );
+
+      expect(origins, isNotNull);
+      expect(
+        origins!.apiOrigin,
+        Uri.parse('http://api.restage.localhost:8080'),
+      );
+      expect(
+        origins.dashboardOrigin,
+        Uri.parse('http://dashboard.restage.localhost:8082'),
+      );
+      expect(
+        origins.bundleOrigin,
+        Uri.parse('http://bundles.restage.localhost:8081'),
+      );
+    });
+
+    test('rejects incomplete, malformed, colliding, or deceptive triplets', () {
+      for (final invalid
+          in <({String name, String api, String? dashboard, String? bundle})>[
+            (
+              name: 'missing dashboard',
+              api: 'https://api.restage.dev',
+              dashboard: null,
+              bundle: 'https://bundles.restage.dev',
+            ),
+            (
+              name: 'malformed dashboard',
+              api: 'https://api.restage.dev',
+              dashboard: 'https://[bad',
+              bundle: 'https://bundles.restage.dev',
+            ),
+            (
+              name: 'dashboard and bundle collide',
+              api: 'https://api.restage.dev',
+              dashboard: 'https://bundles.restage.dev',
+              bundle: 'https://bundles.restage.dev',
+            ),
+            (
+              name: 'deceptive deployment suffix',
+              api: 'https://api.restage.dev.evil.test',
+              dashboard: 'https://dashboard.restage.dev.evil.test',
+              bundle: 'https://bundles.restage.dev.evil.test',
+            ),
+            (
+              name: 'nested deployment host',
+              api: 'https://api.restage.dev',
+              dashboard: 'https://nested.dashboard.restage.dev',
+              bundle: 'https://bundles.restage.dev',
+            ),
+            (
+              name: 'non-origin dashboard URL',
+              api: 'https://api.restage.dev',
+              dashboard: 'https://dashboard.restage.dev/shell',
+              bundle: 'https://bundles.restage.dev',
+            ),
+            (
+              name: 'local port collision',
+              api: 'http://api.restage.localhost:8080',
+              dashboard: 'http://dashboard.restage.localhost:8081',
+              bundle: 'http://bundles.restage.localhost:8081',
+            ),
+            (
+              name: 'local host mismatch',
+              api: 'http://api.restage.localhost:8080',
+              dashboard: 'http://127.0.0.1:8082',
+              bundle: 'http://bundles.restage.localhost:8081',
+            ),
+            (
+              name: 'all-127 local topology',
+              api: 'http://127.0.0.1:8080',
+              dashboard: 'http://127.0.0.1:8082',
+              bundle: 'http://127.0.0.1:8081',
+            ),
+            (
+              name: 'bare-localhost topology',
+              api: 'http://localhost:8080',
+              dashboard: 'http://localhost:8082',
+              bundle: 'http://localhost:8081',
+            ),
+            (
+              name: 'local implicit port',
+              api: 'http://api.restage.localhost',
+              dashboard: 'http://dashboard.restage.localhost:8082',
+              bundle: 'http://bundles.restage.localhost:8081',
+            ),
+          ]) {
+        final origins = resolveRenderBundleOriginTriplet(
+          config: RestageConfig(
+            project: 'p',
+            app: 'a',
+            dashboardOrigin: invalid.dashboard,
+            renderBundleOrigin: invalid.bundle,
+          ),
+          apiEndpoint: Uri.parse(invalid.api),
+        );
+
+        expect(origins, isNull, reason: invalid.name);
+      }
     });
   });
 

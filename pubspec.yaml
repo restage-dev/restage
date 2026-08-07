@@ -12,6 +12,8 @@ workspace:
   - packages/rfw_catalog_compiler
   - packages/restage_shared
   - packages/restage
+  - packages/restage_preview_host
+  - packages/restage_preview_harness
   - packages/restage_codegen
   - packages/restage_cli
   - packages/restage_mcp
@@ -23,7 +25,7 @@ workspace:
   - apps/examples
 
 dev_dependencies:
-  melos: ^7.4.0
+  melos: ^8.2.2
   very_good_analysis: ^10.2.0
 
 melos:
