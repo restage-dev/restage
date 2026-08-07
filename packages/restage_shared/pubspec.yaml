@@ -23,5 +23,6 @@ dependencies:
     path: ../rfw_catalog_schema
 
 dev_dependencies:
+  archive: ^4.0.9
   lints: ^6.0.0
   test: ^1.25.0

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -58,11 +59,16 @@ final class FirstPaintLeaseTransaction {
   bool _rejectionProbeScheduled = false;
   bool _abandonmentReported = false;
   bool _paintReported = false;
-  bool _paintFailed = false;
+  bool _frameworkRenderFailed = false;
+  final Set<Object> _frameworkPaintFailureTokens = HashSet<Object>.identity();
 
   bool get isPending => _state == _FirstPaintLeaseState.pending;
   bool get isCommitted => _state == _FirstPaintLeaseState.committed;
   bool get isReady => _isReady();
+
+  /// Whether framework-owned rendering can still acknowledge success.
+  bool get canReportFrameworkRenderSuccess =>
+      !_frameworkRenderFailed && _frameworkPaintFailureTokens.isEmpty;
 
   /// Marks a descendant build failure before this frame reaches paint.
   void recordBuildFailure() {
@@ -106,7 +112,7 @@ final class FirstPaintLeaseTransaction {
   /// Registers the deferred host acknowledgement only after descendant paint
   /// returned normally. A paint exception therefore cannot report commitment.
   void _didPaint() {
-    if (!isCommitted) return;
+    if (!isCommitted || !canReportFrameworkRenderSuccess) return;
     if (!_paintReported) {
       _paintReported = true;
       _onPainted?.call();
@@ -136,14 +142,20 @@ final class FirstPaintLeaseTransaction {
     }
   }
 
-  /// Marks the synchronously painting transaction when Flutter reports a
-  /// descendant paint exception that its render pipeline then swallows.
-  static void reportFrameworkPaintError() {
-    for (final transaction in List<FirstPaintLeaseTransaction>.of(
-      _paintingTransactions,
-    )) {
-      transaction._paintFailed = true;
-    }
+  bool _holdFrameworkPaintError(Object token) {
+    if (!isPending && !isCommitted) return false;
+    _frameworkPaintFailureTokens.add(token);
+    return true;
+  }
+
+  void _releaseFrameworkPaintError(Object token) {
+    _frameworkPaintFailureTokens.remove(token);
+  }
+
+  void _commitFrameworkRenderFailure(Object token) {
+    if (!_frameworkPaintFailureTokens.contains(token)) return;
+    _frameworkRenderFailed = true;
+    _frameworkPaintFailureTokens.remove(token);
   }
 
   void _beginPaintObservation() {
@@ -155,7 +167,7 @@ final class FirstPaintLeaseTransaction {
       (transaction) => identical(transaction, this),
     );
     if (index != -1) _paintingTransactions.removeAt(index);
-    return !_paintFailed;
+    return canReportFrameworkRenderSuccess;
   }
 
   void _rejectAfterIdentityResetIfInvalid() {
@@ -181,7 +193,10 @@ final class FirstPaintLeaseTransaction {
   void _scheduleFollowUp(VoidCallback callback) {
     if (_followUpScheduled) return;
     _followUpScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) => callback());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_frameworkRenderFailed) return;
+      callback();
+    });
   }
 
   void _scheduleRejectionFollowUp() {
@@ -198,6 +213,34 @@ final class FirstPaintLeaseTransaction {
 
   static bool _alwaysReady() => true;
   static bool _neverInvalidated() => false;
+}
+
+/// Provisionally marks [transaction] when a structurally owned framework
+/// report occurs before or during its descendant paint.
+bool holdFrameworkPaintErrorForTransaction(
+  FirstPaintLeaseTransaction transaction,
+  Object token,
+) =>
+    transaction._holdFrameworkPaintError(token);
+
+/// Reverses a provisional framework-paint mark when the exact report is later
+/// claimed as a nested build failure or its captured owner becomes stale.
+void releaseFrameworkPaintErrorForTransaction(
+  FirstPaintLeaseTransaction transaction,
+  Object token,
+) {
+  transaction._releaseFrameworkPaintError(token);
+}
+
+/// Permanently prevents render success after definitive structural ownership.
+///
+/// The exact provisional [token] must still be held, so build claims and stale
+/// ownership cancellation cannot poison the transaction.
+void commitFrameworkRenderFailureForTransaction(
+  FirstPaintLeaseTransaction transaction,
+  Object token,
+) {
+  transaction._commitFrameworkRenderFailure(token);
 }
 
 /// Exposes [transaction] to nested runtime error boundaries without registering

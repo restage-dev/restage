@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:restage_cli/src/commands/surface_payload.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/rfw_formats.dart' as rfw_formats;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -21,6 +22,63 @@ void main() {
   });
 
   group('assembleSurfacePayloadBytes (real first_run fixture)', () {
+    test(
+      'rejects the reserved preview constructor in every flow screen',
+      () async {
+        final reserved = rfw_formats.encodeLibraryBlob(
+          rfw_formats.parseLibraryFile('''
+import restage.core;
+widget Preview = $kReservedPreviewConstructorName(
+  path: "[\\"main\\"]",
+  child: Text(text: "preview-only"),
+);
+'''),
+        );
+        final seeded = await seedSurfaceFlow(tempDir);
+        final document = FlowDocumentCodec.decodeJson(
+          await File(seeded).readAsString(),
+        );
+
+        for (final screenId in document.screenArtifacts.keys) {
+          final caseDir = Directory(p.join(tempDir.path, screenId));
+          final flowPath = await seedSurfaceFlow(caseDir);
+          final raw =
+              jsonDecode(await File(flowPath).readAsString())
+                  as Map<String, dynamic>;
+          final artifact = document.screenArtifacts[screenId]!;
+          final blobPath = p.join(
+            caseDir.path,
+            'assets',
+            'onboarding',
+            'screens',
+            artifact.path,
+          );
+          await File(blobPath).writeAsBytes(reserved);
+          final artifacts = raw['screenArtifacts'] as Map<String, dynamic>;
+          final rawArtifact = artifacts[screenId] as Map<String, dynamic>;
+          rawArtifact['contentHash'] = FlowContentHash.compute(reserved).value;
+          await File(flowPath).writeAsString(jsonEncode(raw));
+          await seedCapabilitySidecar(blobPath);
+
+          await expectLater(
+            () => assembleSurfacePayloadBytes(flowPath),
+            throwsA(
+              isA<SurfacePayloadException>().having(
+                (error) => error.message,
+                'message',
+                allOf(
+                  contains('preview'),
+                  contains(kReservedPreviewConstructorName),
+                  contains(artifact.path),
+                ),
+              ),
+            ),
+            reason: 'screen $screenId must be checked independently',
+          );
+        }
+      },
+    );
+
     test(
       'assembles canonical bytes that round-trip via SurfacePayload.decode',
       () async {
@@ -328,14 +386,42 @@ void main() {
       );
     }
 
+    test('rejects the reserved preview constructor before assembly', () async {
+      final rfwPath = p.join(tempDir.path, 'reserved.rfw');
+      final blob = rfw_formats.encodeLibraryBlob(
+        rfw_formats.parseLibraryFile('''
+import restage.core;
+widget Preview = $kReservedPreviewConstructorName(
+  path: "[\\"main\\"]",
+  child: Text(text: "preview-only"),
+);
+'''),
+      );
+      await File(rfwPath).writeAsBytes(blob);
+      await writeManifest(rfwPath, 3);
+
+      await expectLater(
+        () => assembleBlobSurfacePayloadBytes(rfwPath),
+        throwsA(
+          isA<SurfacePayloadException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains('preview'),
+              contains(kReservedPreviewConstructorName),
+              contains('reserved.rfw'),
+            ),
+          ),
+        ),
+      );
+    });
+
     test(
       'assembles canonical bytes that round-trip via SurfacePayload.decode, '
       'stamping the derived floor read from the capability sidecar',
       () async {
         final rfwPath = p.join(tempDir.path, 'serene.rfw');
-        final rfwBytes = Uint8List.fromList(
-          List<int>.generate(64, (i) => (i * 7) % 256),
-        );
+        final rfwBytes = ordinaryRfwBlob();
         await File(rfwPath).writeAsBytes(rfwBytes);
         await writeManifest(rfwPath, 3);
 
@@ -363,7 +449,7 @@ void main() {
       'stamps the derived floor and required libraries from the sidecar',
       () async {
         final rfwPath = p.join(tempDir.path, 'serene.rfw');
-        await File(rfwPath).writeAsBytes(Uint8List.fromList(const [1, 2, 3]));
+        await File(rfwPath).writeAsBytes(ordinaryRfwBlob());
         await writeManifest(
           rfwPath,
           5,

@@ -18,7 +18,7 @@ import 'package:restage_example/user_factories.g.dart';
 /// the iOS simulator therefore fails with `xcodebuild exited 70` (no iOS runner)
 /// — that is a missing-harness condition, not a paywall/test bug, and wiring an
 /// iOS runner onto a web demo app is out of scope. Run the autonomous gate on
-/// chrome; the founder iOS-device pass covers native / SF-Pro fit separately.
+/// chrome; a manual iOS-device pass covers native / SF-Pro fit separately.
 ///
 /// Run for the visual gate with a recorded capture that holds each state long
 /// enough to review as a distinct frame:

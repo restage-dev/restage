@@ -25,8 +25,8 @@ class RestageApiException implements Exception {
 
 /// Thrown when a caller asks for an endpoint that would transport
 /// bearer credentials over an insecure channel. The CLI refuses on
-/// principle — only `https://` and `http://` against loopback hosts
-/// are permitted.
+/// principle — only `https://` and `http://` against finite local-development
+/// hosts or loopback addresses are permitted.
 @experimental
 class InsecureEndpointException implements Exception {
   /// Construct with the offending [endpoint].
@@ -38,14 +38,14 @@ class InsecureEndpointException implements Exception {
   @override
   String toString() =>
       'Refusing to send credentials over an insecure endpoint: '
-      '$endpoint. Use https:// (or an http:// loopback URL for local '
+      '$endpoint. Use https:// (or an approved http:// local URL for '
       'development).';
 }
 
 /// Returns true when [endpoint] is safe to send credentials to.
 ///
-/// `https://` is always accepted; `http://` is accepted only when the
-/// host is a loopback IP address or a known loopback hostname.
+/// `https://` is always accepted; `http://` is accepted only when the host is
+/// a loopback IP address or a finite code-approved local hostname.
 /// Other schemes are rejected.
 @experimental
 bool isAcceptableTransport(Uri endpoint) {
@@ -56,12 +56,16 @@ bool isAcceptableTransport(Uri endpoint) {
     if (address != null) {
       return address.isLoopback || _isIpv4MappedLoopback(address);
     }
-    return _loopbackHostnames.contains(host);
+    return _localHttpHostnames.contains(host);
   }
   return false;
 }
 
-const _loopbackHostnames = {'localhost', 'localhost.'};
+const _localHttpHostnames = {
+  'localhost',
+  'localhost.',
+  'api.restage.localhost',
+};
 
 bool _isIpv4MappedLoopback(InternetAddress address) {
   final bytes = address.rawAddress;

@@ -1,4 +1,6 @@
 import 'package:restage_codegen/src/user_factory_emitter.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show kReservedPreviewConstructorName, kReservedPreviewLibraryName;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -29,6 +31,26 @@ void main() {
   group('emitUserFactoriesDart', () {
     test('returns null on an empty input list', () {
       expect(emitUserFactoriesDart(const []), isNull);
+    });
+
+    test('rejects preview-only namespace and constructor claims', () {
+      expect(
+        () => emitUserFactoriesDart([
+          _widgetEntry(
+            name: 'Badge',
+            library: const WidgetLibrary.custom(
+              kReservedPreviewLibraryName,
+            ),
+          ),
+        ]),
+        throwsArgumentError,
+      );
+      expect(
+        () => emitUserFactoriesDart([
+          _widgetEntry(name: kReservedPreviewConstructorName),
+        ]),
+        throwsArgumentError,
+      );
     });
 
     test(

@@ -17,3 +17,4 @@
 // SDK dependency would otherwise block resolution).
 
 export 'src/rfw_formats.dart';
+export 'src/rfw_preview_reservation.dart';

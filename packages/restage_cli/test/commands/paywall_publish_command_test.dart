@@ -76,7 +76,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      final bytes = <int>[1, 2, 3, 4];
+      final bytes = ordinaryRfwBlob();
       await seedRfw(tempDir, 'hello', bytes);
 
       var saveCalls = 0;
@@ -183,7 +183,8 @@ void main() {
       );
       final altPath = File(p.join(tempDir.path, 'custom', 'hello.rfw'));
       await altPath.parent.create(recursive: true);
-      await altPath.writeAsBytes(<int>[9, 9, 9]);
+      final bytes = ordinaryRfwBlob();
+      await altPath.writeAsBytes(bytes);
       await seedCapabilitySidecar(altPath.path);
 
       final client = scriptedHttpClient([
@@ -191,9 +192,9 @@ void main() {
           final body = jsonDecode(req.body) as Map<String, dynamic>;
           expect(body['method'], 'save');
           final wireBytes = body['bytes'] as String;
-          // The raw blob [9, 9, 9] is wrapped in the canonical blob-surface
-          // frame before upload; unwrap it back to assert the source bytes.
-          expect(_innerBlobOf(wireBytes), <int>[9, 9, 9]);
+          // The raw blob is wrapped in the canonical blob-surface frame before
+          // upload; unwrap it back to assert the source bytes.
+          expect(_innerBlobOf(wireBytes), bytes);
           return http.Response('null', 200);
         },
         (req) => http.Response('1', 200),
@@ -227,7 +228,7 @@ void main() {
         defaultEnvironment: 'dev',
         organization: 'restage',
       );
-      await seedRfw(tempDir, 'hello', <int>[1, 2, 3]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
 
       Map<String, dynamic>? saveBody;
       Map<String, dynamic>? publishBody;
@@ -322,7 +323,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob(), minClient: 1);
 
       late Map<String, dynamic> publishBody;
       final client = scriptedHttpClient([
@@ -361,7 +362,7 @@ void main() {
         'demo',
         'mobile',
       ); // no defaultEnvironment
-      await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob(), minClient: 1);
 
       final exitCode =
           await RestageCli(
@@ -385,7 +386,7 @@ void main() {
       await seedCredential(store);
       // No defaultEnvironment so the command must prompt.
       await seedRestageConfig(tempDir, 'demo', 'mobile');
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
 
       late Map<String, dynamic> publishBody;
       final client = scriptedHttpClient([
@@ -424,7 +425,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
 
       final client = scriptedHttpClient([
         (req) => http.Response('null', 200),
@@ -463,7 +464,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
 
       final client = scriptedHttpClient([
         (req) => http.Response('null', 200),
@@ -496,7 +497,7 @@ void main() {
           'mobile',
           defaultEnvironment: 'dev',
         );
-        await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
+        await seedRfw(tempDir, 'hello', ordinaryRfwBlob(), minClient: 1);
         const catalogJson = '{"schemaVersion":1,"widgets":[]}';
         await seedCatalog(catalogJson);
 
@@ -537,7 +538,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1], minClient: 1);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob(), minClient: 1);
 
       final client = scriptedHttpClient([
         (req) => http.Response('null', 200),
@@ -564,7 +565,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
       await seedCatalog('{"schemaVersion":1,"widgets":[]}');
 
       var catalogCalls = 0;
@@ -599,7 +600,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
 
       // Save returns null (success); publish reports the surface not found.
       // (Useful as a sanity check — the canonical not-found exit happens when
@@ -637,7 +638,7 @@ void main() {
         'mobile',
         defaultEnvironment: 'dev',
       );
-      await seedRfw(tempDir, 'hello', <int>[1]);
+      await seedRfw(tempDir, 'hello', ordinaryRfwBlob());
 
       final exitCode = await RestageCli(
         stdout: stdout,

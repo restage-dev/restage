@@ -1,13 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/rfw_formats.dart' as rfw_formats;
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
+
+/// Encode a small, ordinary, uninstrumented RFW library for publish tests.
+Uint8List ordinaryRfwBlob() => rfw_formats.encodeLibraryBlob(
+  rfw_formats.parseLibraryFile('''
+import restage.core;
+widget Preview = Text(text: "ordinary");
+'''),
+);
 
 /// Write a stub credential to [store]. Used by command tests that need
 /// the CLI to behave as signed-in.
@@ -34,6 +44,8 @@ Future<void> seedRestageConfig(
   String? defaultEnvironment,
   String? organization,
   String? endpoint,
+  String? dashboardOrigin,
+  String? renderBundleOrigin,
 }) async {
   final buffer = StringBuffer()
     ..writeln('project: $project')
@@ -46,6 +58,12 @@ Future<void> seedRestageConfig(
   }
   if (endpoint != null) {
     buffer.writeln('endpoint: $endpoint');
+  }
+  if (dashboardOrigin != null) {
+    buffer.writeln('dashboardOrigin: $dashboardOrigin');
+  }
+  if (renderBundleOrigin != null) {
+    buffer.writeln('renderBundleOrigin: $renderBundleOrigin');
   }
   await File(
     p.join(dir.path, 'restage_config.yaml'),

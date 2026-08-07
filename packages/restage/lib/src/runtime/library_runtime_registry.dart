@@ -3,6 +3,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
 
 import 'restage_widget_factory.dart';
+import 'restage_widget_library_registration.dart';
 
 /// Internal store of customer-registered widget libraries, keyed by
 /// namespace. Replace-on-conflict.
@@ -31,6 +32,19 @@ abstract final class LibraryRuntimeRegistry {
     List<RestageWidgetFactory> widgets, {
     int? capabilityVersion,
   }) {
+    if (library.namespace == kReservedPreviewLibraryName) {
+      assert(
+        false,
+        'Restage.registerWidgetLibrary: "$kReservedPreviewLibraryName" is '
+        'reserved for internal preview rendering and cannot be registered by '
+        'an application.',
+      );
+      debugPrint(
+        '[restage] registerWidgetLibrary: "$kReservedPreviewLibraryName" is '
+        'reserved for internal preview rendering — registration ignored.',
+      );
+      return;
+    }
     if (WidgetLibrary.builtInByNamespace(library.namespace) != null) {
       // Registering a reserved built-in namespace (restage.core / .material /
       // .cupertino) would shadow the genuine built-in library on every mount
@@ -54,13 +68,34 @@ abstract final class LibraryRuntimeRegistry {
       );
       return;
     }
+    if (widgets.any(
+      (widget) => widget.name == kReservedPreviewConstructorName,
+    )) {
+      assert(
+        false,
+        'Restage.registerWidgetLibrary: '
+        '"$kReservedPreviewConstructorName" is reserved for internal preview '
+        'rendering and cannot be registered by an application.',
+      );
+      debugPrint(
+        '[restage] registerWidgetLibrary: '
+        '"$kReservedPreviewConstructorName" is reserved for internal preview '
+        'rendering — registration ignored.',
+      );
+      return;
+    }
     assert(
       capabilityVersion == null || capabilityVersion >= 1,
       'Restage.registerWidgetLibrary: capabilityVersion must be a positive '
       'monotonic version (>= 1) when provided, got $capabilityVersion.',
     );
+    final registration = RestageWidgetLibraryRegistration(
+      library: library,
+      widgets: widgets,
+      capabilityVersion: capabilityVersion,
+    );
     final builders = <String, rfw.LocalWidgetBuilder>{};
-    for (final w in widgets) {
+    for (final w in registration.widgets) {
       assert(
         !builders.containsKey(w.name),
         'Restage.registerWidgetLibrary: duplicate widget name "${w.name}" in '
@@ -73,6 +108,7 @@ abstract final class LibraryRuntimeRegistry {
       libraryName: rfw.LibraryName(library.namespace.split('.')),
       widgets: rfw.LocalWidgetLibrary(builders),
       capabilityVersion: capabilityVersion,
+      registration: registration,
     );
   }
 
@@ -95,6 +131,12 @@ abstract final class LibraryRuntimeRegistry {
             version: entry.value.capabilityVersion,
           ),
       ];
+
+  /// Captures immutable customer registrations for a caller-owned runtime.
+  static List<RestageWidgetLibraryRegistration> registrationSnapshot() =>
+      List<RestageWidgetLibraryRegistration>.unmodifiable(
+        _entries.values.map((entry) => entry.registration),
+      );
 
   /// Whether the installed registry satisfies [requirement]: the namespace is
   /// registered AND was registered with a capability version at or above the
@@ -136,10 +178,12 @@ class _CustomLibraryEntry {
     required this.libraryName,
     required this.widgets,
     required this.capabilityVersion,
+    required this.registration,
   });
 
   final rfw.LibraryName libraryName;
   final rfw.LocalWidgetLibrary widgets;
+  final RestageWidgetLibraryRegistration registration;
 
   /// The library's declared monotonic capability version, or `null` when the
   /// registration omitted it (unversioned).

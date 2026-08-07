@@ -134,6 +134,7 @@ Future<Uint8List> assembleSurfacePayloadBytes(
         'mismatch). Re-run `dart run build_runner build`.',
       );
     }
+    _validatePublishableRfwBlob(blob, blobPath);
     perScreenRequired.add(sidecar.manifest.requiredLibraries);
   }
 
@@ -206,11 +207,23 @@ Future<Uint8List> assembleBlobSurfacePayloadBytes(String rfwPath) async {
       'Re-run `dart run build_runner build` to regenerate both together.',
     );
   }
+  _validatePublishableRfwBlob(blob, rfwPath);
   return BlobSurfacePayload(
     minClient: sidecar.manifest.builtInFloor,
     blob: blob,
     requiredLibraries: sidecar.manifest.requiredLibraries,
   ).canonicalBytes;
+}
+
+void _validatePublishableRfwBlob(Uint8List blob, String path) {
+  try {
+    validateRfwBlobForPublish(blob);
+  } on FormatException catch (error) {
+    throw SurfacePayloadException(
+      'The RFW blob at $path cannot be published: ${error.message} Re-run '
+      '`dart run build_runner build` and publish the uninstrumented output.',
+    );
+  }
 }
 
 /// The canonical surface-payload bytes to publish for a paywall, plus an

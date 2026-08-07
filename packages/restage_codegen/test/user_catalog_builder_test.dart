@@ -2,6 +2,8 @@ import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
+import 'package:restage_shared/restage_shared.dart'
+    show kReservedPreviewConstructorName, kReservedPreviewLibraryName;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -586,6 +588,36 @@ void main() {
   });
 
   group('UserCatalogAllocation', () {
+    test('rejects preview-only namespace and constructor claims', () {
+      expect(
+        () => allocateUserCatalogFromWidgets(
+          package: 'apps_examples',
+          widgets: [
+            entry(
+              name: 'Badge',
+              properties: const [],
+              library: const WidgetLibrary.custom(
+                kReservedPreviewLibraryName,
+              ),
+            ),
+          ],
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => allocateUserCatalogFromWidgets(
+          package: 'apps_examples',
+          widgets: [
+            entry(
+              name: kReservedPreviewConstructorName,
+              properties: const [],
+            ),
+          ],
+        ),
+        throwsArgumentError,
+      );
+    });
+
     test('replays its generated event log without minting new IDs', () {
       final widgets = [
         entry(

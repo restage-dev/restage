@@ -104,6 +104,32 @@ void main() {
     expect(LibraryRuntimeRegistry.registeredVersion('acme.widgets'), 2);
   });
 
+  test('reserved preview namespace asserts without being registered', () {
+    expect(
+      () => _registerOne(kReservedPreviewLibraryName, 'AcmeWidget'),
+      throwsAssertionError,
+    );
+    expect(
+      LibraryRuntimeRegistry.isRegistered(kReservedPreviewLibraryName),
+      isFalse,
+    );
+    expect(
+      _applyToFreshRuntime().libraries.keys,
+      isNot(
+        contains(const LibraryName(<String>['restage', 'editor'])),
+      ),
+    );
+  });
+
+  test('reserved preview constructor asserts without registering its library',
+      () {
+    expect(
+      () => _registerOne('acme.widgets', kReservedPreviewConstructorName),
+      throwsAssertionError,
+    );
+    expect(LibraryRuntimeRegistry.isRegistered('acme.widgets'), isFalse);
+  });
+
   test('register rejects duplicate widget names within one library', () {
     expect(
       () => LibraryRuntimeRegistry.register(

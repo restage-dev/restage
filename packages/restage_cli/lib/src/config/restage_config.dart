@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/credentials/credential.dart';
+// ignore: implementation_imports
+import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart';
 import 'package:yaml/yaml.dart';
 
 /// Default filename for the per-project config consumed by every
@@ -23,6 +25,8 @@ class RestageConfig {
     this.defaultEnvironment,
     this.organization,
     this.endpoint,
+    this.dashboardOrigin,
+    this.renderBundleOrigin,
   });
 
   /// Project slug the host repository belongs to.
@@ -42,6 +46,12 @@ class RestageConfig {
   /// Backend endpoint expected by this project. Optional for configs written
   /// by older CLI versions.
   final String? endpoint;
+
+  /// Exact dashboard shell origin trusted by an isolated render bundle.
+  final String? dashboardOrigin;
+
+  /// Exact render-bundle upload/control origin.
+  final String? renderBundleOrigin;
 
   /// Decode from a YAML string. Throws [RestageConfigFormatException] when
   /// required keys are missing or have the wrong shape.
@@ -63,12 +73,16 @@ class RestageConfig {
     final defaultEnvironment = _optionalString(map, 'defaultEnvironment');
     final organization = _optionalString(map, 'organization');
     final endpoint = _optionalString(map, 'endpoint');
+    final dashboardOrigin = _optionalString(map, 'dashboardOrigin');
+    final renderBundleOrigin = _optionalString(map, 'renderBundleOrigin');
     return RestageConfig(
       project: project,
       app: app,
       defaultEnvironment: defaultEnvironment,
       organization: organization,
       endpoint: endpoint,
+      dashboardOrigin: dashboardOrigin,
+      renderBundleOrigin: renderBundleOrigin,
     );
   }
 
@@ -88,6 +102,12 @@ class RestageConfig {
     if (endpoint != null) {
       buffer.writeln('endpoint: $endpoint');
     }
+    if (dashboardOrigin != null) {
+      buffer.writeln('dashboardOrigin: $dashboardOrigin');
+    }
+    if (renderBundleOrigin != null) {
+      buffer.writeln('renderBundleOrigin: $renderBundleOrigin');
+    }
     return buffer.toString();
   }
 }
@@ -102,6 +122,42 @@ class RestageConfigFormatException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Validated origins used by the isolated render-bundle build and upload lane.
+typedef RenderBundleOriginTriplet = ({
+  Uri apiOrigin,
+  Uri dashboardOrigin,
+  Uri bundleOrigin,
+});
+
+/// Resolve one complete render-bundle authority triplet.
+///
+/// Returns null unless all three values are exact origins and form either the
+/// code-approved deployed topology or the finite local dev-role topology.
+RenderBundleOriginTriplet? resolveRenderBundleOriginTriplet({
+  required RestageConfig? config,
+  required Uri apiEndpoint,
+  String? renderBundleOriginOverride,
+}) {
+  final dashboardOrigin = _tryParseUri(config?.dashboardOrigin);
+  final bundleOrigin = _tryParseUri(
+    renderBundleOriginOverride ?? config?.renderBundleOrigin,
+  );
+  if (dashboardOrigin == null ||
+      bundleOrigin == null ||
+      !isApprovedRenderBundleOriginTriplet(
+        apiEndpoint,
+        dashboardOrigin,
+        bundleOrigin,
+      )) {
+    return null;
+  }
+  return (
+    apiOrigin: Uri.parse(apiEndpoint.origin),
+    dashboardOrigin: Uri.parse(dashboardOrigin.origin),
+    bundleOrigin: Uri.parse(bundleOrigin.origin),
+  );
 }
 
 /// Thrown when a project config expects a different backend than the
@@ -222,6 +278,15 @@ String? _optionalString(Map<dynamic, dynamic> map, String key) {
     );
   }
   return value;
+}
+
+Uri? _tryParseUri(String? source) {
+  if (source == null || source.trim().isEmpty) return null;
+  try {
+    return Uri.parse(source.trim());
+  } on FormatException {
+    return null;
+  }
 }
 
 enum _EndpointSource { config, credential }

@@ -23,6 +23,7 @@ export 'src/api/discovery_api.dart';
 export 'src/api/discovery_models.dart';
 export 'src/api/paywall_api.dart';
 export 'src/api/paywall_models.dart';
+export 'src/api/render_bundle_api.dart';
 export 'src/api/surface_api.dart';
 export 'src/api/typed_error_models.dart';
 export 'src/api/surface_models.dart';
@@ -32,5 +33,13 @@ export 'src/api/restage_api.dart'
         RestageApiException,
         InsecureEndpointException,
         isAcceptableTransport;
+export 'src/config/restage_config.dart'
+    show
+        RestageConfig,
+        loadRestageConfig,
+        resolveApiEndpoint,
+        EndpointConfigurationException,
+        EndpointFormatException,
+        EndpointMismatchException;
 export 'src/credentials/credential.dart';
 export 'src/credentials/file_credential_store.dart';

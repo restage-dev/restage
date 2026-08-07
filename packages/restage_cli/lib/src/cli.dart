@@ -5,6 +5,7 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/audit_command.dart';
+import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
@@ -20,6 +21,7 @@ import 'package:restage_cli/src/commands/whoami_command.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
+import 'package:restage_cli/src/render_bundles/flutter_render_bundle_builder.dart';
 import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_repository.dart';
@@ -67,6 +69,7 @@ class RestageCli {
     bool Function()? hasTerminal,
     ConsoleLauncher? consoleLauncher,
     ConsoleController Function()? consoleControllerFactory,
+    RenderBundleArtifactBuilder? renderBundleBuilder,
   }) : _stdout = stdout ?? StringBuffer(),
        _stderr = stderr ?? StringBuffer(),
        _credentialStore = credentialStore,
@@ -80,6 +83,7 @@ class RestageCli {
        _previewLauncher = previewLauncher ?? _defaultPreviewLauncher,
        _hasTerminal = hasTerminal ?? stdioHasTerminal,
        _consoleLauncher = consoleLauncher ?? runRestageConsole,
+       _renderBundleBuilder = renderBundleBuilder,
        _consoleControllerFactory =
            consoleControllerFactory ??
            (() => ConsoleController(
@@ -106,6 +110,7 @@ class RestageCli {
   final bool Function() _hasTerminal;
   final ConsoleLauncher _consoleLauncher;
   final ConsoleController Function() _consoleControllerFactory;
+  final RenderBundleArtifactBuilder? _renderBundleBuilder;
 
   /// Dispatch [args] through the runner and return the exit code.
   Future<int> run(List<String> args) async {
@@ -204,6 +209,15 @@ class RestageCli {
           stderr: _stderr,
           credentialStore: _credentialStore,
           httpClient: _httpClient,
+        ),
+      )
+      ..addCommand(
+        BuildCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+          builder: _renderBundleBuilder,
         ),
       )
       ..addCommand(
