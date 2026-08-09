@@ -1,0 +1,12 @@
+# Public-bound BSD-3-Clause package — uses flutter_lints (matches pub.dev community
+# norms) instead of the workspace's stricter baseline.
+
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    todo: ignore
