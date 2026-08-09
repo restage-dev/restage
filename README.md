@@ -75,8 +75,9 @@ Prefer building from scratch? The [Quickstart](QUICKSTART.md) writes one step by
 ## What you get
 
 - **A 115-widget catalog** across `restage_core`, `restage_material`, and `restage_cupertino`. Extend it with your own widgets via `@RestageWidget`.
-- **Monetization** for commerce surfaces: a pluggable billing gateway, purchase and restore, promotional offers, and an entitlement stream. Receipt validation and revenue attribution run on a backend: yours, or the hosted one when it ships.
-- **A2UI (early):** the same source emits a genui A2UI catalog, so AI-generated UI builds from your real widgets.
+- **Monetization** for commerce surfaces: a pluggable billing gateway, purchase and restore, promotional offers, and an entitlement stream. Keep an existing RevenueCat purchase path through the optional adapter, or use your own backend while adopting Restage presentation.
+- **A2UI (early):** the same widget constructors emit a genui A2UI catalog, so AI-generated UI builds from your real widgets.
+- **Widgetbook:** generate stories from the same constructors and browse the resulting component catalog in a Widgetbook v4 workbench.
 
 ## Install
 
@@ -99,6 +100,7 @@ The `restage` CLI is optional: `dart pub global activate restage_cli`.
 | Package | What it is | License |
 |---|---|---|
 | [`restage`](packages/restage) | The Flutter SDK that renders surfaces on device | BSD-3 |
+| [`restage_revenuecat`](packages/restage_revenuecat) | Optional billing gateway for apps using RevenueCat; not yet published to pub.dev | BSD-3 |
 | [`restage_core`](packages/restage_core) | Cross-platform widget catalog | BSD-3 |
 | [`restage_material`](packages/restage_material) | Material widget catalog | BSD-3 |
 | [`restage_cupertino`](packages/restage_cupertino) | Cupertino widget catalog | BSD-3 |
@@ -109,12 +111,14 @@ The `restage` CLI is optional: `dart pub global activate restage_cli`.
 | [`restage_codegen`](packages/restage_codegen) | Build-time toolchain that lowers your Flutter into render blobs | FSL-1.1-ALv2 |
 | [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
 | [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |
+| [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
+| [`apps/widgetbook_example`](apps/widgetbook_example) | Runnable Widgetbook v4 workbench for the generated stories | BSD-3 |
 
 ## License
 
 Open source where it runs in your app. Fair-source where it builds your blobs.
 
-- **BSD-3-Clause:** the SDK, the catalog libraries, the schema, the CLI, the MCP server, the A2UI check, and the examples. The same license Flutter uses.
+- **BSD-3-Clause:** the SDK, the catalog libraries, the RevenueCat adapter, the schema, the CLI, the MCP server, the A2UI check, and the examples. The same license Flutter uses.
 - **FSL-1.1-ALv2:** the build-time toolchain (`restage_codegen`, `rfw_catalog_compiler`). Source-available, free for all use including inside your own company, and it converts to Apache-2.0 two years after each release.
 
 The hosted platform is proprietary. Every package carries its own `LICENSE`.

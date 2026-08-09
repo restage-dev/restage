@@ -8,7 +8,7 @@ toolchain, the CLI, and the examples. Contributions are welcome.
 
 Most of the SDK is open for pull requests right now — the widget catalog
 (`restage_core` / `restage_material` / `restage_cupertino`), the runtime SDK
-(`restage`), the CLI, and the examples.
+(`restage`), the RevenueCat adapter, the CLI, and the examples.
 
 **The two exceptions are the build-time toolchain packages, `restage_codegen` and
 `rfw_catalog_compiler`.** They're licensed FSL-1.1-ALv2 (with a scheduled
@@ -76,8 +76,12 @@ is the fastest way in.
 
 Other good areas:
 
-- **Examples** (`apps/examples`): new example surfaces, or improvements to the
-  existing ones. These ship with the SDK and are the first thing people copy.
+- **Examples** (`apps/examples`, `packages/restage_widgetbook_example`, and
+  `apps/widgetbook_example`): new example surfaces and widgets, or improvements
+  to the existing ones. They are maintained alongside the SDK and are the first
+  thing people copy.
+- **Optional integrations** (`packages/restage_revenuecat`): focused fixes and
+  compatibility improvements for apps keeping an existing commerce provider.
 - **The SDK and CLI** (`packages/restage`, `packages/restage_cli`): bug fixes
   and focused improvements. For anything larger, open an issue first so we can
   talk through the shape before you build it.
