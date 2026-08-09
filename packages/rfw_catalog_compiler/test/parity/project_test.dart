@@ -24,7 +24,6 @@ void main() {
             description: 'A button.',
             flutterType: 'package:flutter/widgets.dart#Button',
             childrenSlot: ChildrenSlot.none,
-            fires: [WidgetEventName.onTap],
             stability: Stability.stable,
             properties: [
               PropertyEntry(
@@ -148,7 +147,6 @@ void main() {
             description: 'A container.',
             flutterType: 'package:flutter/widgets.dart#Container',
             childrenSlot: ChildrenSlot.single,
-            fires: [],
             stability: Stability.stable,
             properties: [
               PropertyEntry(

@@ -1,8 +1,0 @@
-[
-  {
-    "id": "root",
-    "component": "QuizCheck",
-    "prompt": "I reviewed the lesson",
-    "selected": true
-  }
-]

@@ -5,8 +5,8 @@ import 'package:restage/restage.dart';
 /// so a server-driven surface can render it.
 ///
 /// The recipe is two steps:
-/// 1. Annotate the widget with [RestageWidget] and each configurable field with
-///    [RestageProperty].
+/// 1. Annotate the widget with [RestageWidget]. Its unnamed public generative
+///    constructor defines the configurable inputs.
 /// 2. Run `build_runner`.
 ///
 /// Because `StatBadge`'s `build` is pure composition (catalog primitives + theme
@@ -27,15 +27,13 @@ import 'package:restage/restage.dart';
   description: 'A labelled value pill, e.g. "Streak · 7 days".',
 )
 class StatBadge extends StatelessWidget {
-  /// Const constructor — custom widgets must be const-constructible.
+  /// The unnamed public generative catalog constructor.
   const StatBadge({super.key, required this.label, required this.value});
 
   /// The caption, e.g. `'Streak'`.
-  @RestageProperty(description: 'Caption text.', required: true)
   final String label;
 
   /// The value, e.g. `'7 days'`.
-  @RestageProperty(description: 'Value text.', required: true)
   final String value;
 
   @override

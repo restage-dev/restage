@@ -7,7 +7,7 @@ import 'dart:io';
 
 /// The committed A2UI structural stamp path (test cwd = package root). A single
 /// definition so a generated-artifact rename touches exactly one line.
-const stampPath = 'lib/restage_a2ui_catalog.a2ui.json';
+const stampPath = 'lib/generated/restage_a2ui_catalog.a2ui.json';
 
 /// Reads + decodes the committed structural stamp.
 Map<String, Object?> readStamp() =>

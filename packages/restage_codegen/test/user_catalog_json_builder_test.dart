@@ -28,15 +28,15 @@ void main() {
     }
   ''';
 
-  Future<Catalog> runJsonBuilder() async {
+  Future<Catalog> runJsonBuilder([String? src]) async {
+    final s = src ?? source;
     final rw =
         await readerWriterWithFilesystemSources(rootPackage: 'restage_codegen');
-    rw.testing
-        .writeString(AssetId('apps_examples', 'lib/widgets.dart'), source);
+    rw.testing.writeString(AssetId('apps_examples', 'lib/widgets.dart'), s);
     String? captured;
     await testBuilder(
       const UserCatalogJsonBuilder(BuilderOptions.empty),
-      {'apps_examples|lib/widgets.dart': source},
+      {'apps_examples|lib/widgets.dart': s},
       rootPackage: 'apps_examples',
       readerWriter: rw,
       outputs: {
@@ -94,5 +94,89 @@ void main() {
       expect(dartSource, contains(p.wireId.value),
           reason: 'property ${p.name} wire id must match user_catalog.g.dart');
     }
+  });
+
+  test(
+    'the emitted catalog.json records an optional input this target could not '
+    'decode',
+    () async {
+      const undecodableSource = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        @RestageLibrary(
+          library: WidgetLibrary.custom('acme.design_system'),
+          capabilityVersion: 1,
+        )
+        const restageLibrary = 0;
+
+        class Mystery {}
+
+        @RestageWidget(name: 'Badge',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.decoration, description: 'b')
+        class Badge {
+          const Badge({required this.label, this.weird});
+          @RestageProperty(description: 'l') final String label;
+          @RestageProperty(description: 'w') final Mystery? weird;
+        }
+      ''';
+
+      final catalog = await runJsonBuilder(undecodableSource);
+      final badge = catalog.widgets.singleWhere(
+        (widget) => widget.name == 'Badge',
+      );
+
+      // The report makes "what did this target drop" a query, not a log hunt.
+      final propertyNames = badge.properties.map((property) => property.name);
+      expect(propertyNames, contains('label'));
+      expect(propertyNames, isNot(contains('weird')));
+      expect(catalog.exclusions, hasLength(1));
+      final exclusion = catalog.exclusions.single;
+      expect(exclusion.widget, 'Badge');
+      expect(exclusion.property, 'weird');
+      expect(exclusion.target, 'rfw');
+      expect(exclusion.reason, contains('Mystery'));
+      expect(exclusion.location, contains('Badge.weird'));
+    },
+  );
+
+  test('exclusions are emitted in a deterministic order', () async {
+    const twoSource = '''
+      import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+      @RestageLibrary(
+        library: WidgetLibrary.custom('acme.design_system'),
+        capabilityVersion: 1,
+      )
+      const restageLibrary = 0;
+
+      class Mystery {}
+
+      @RestageWidget(name: 'Zebra',
+        library: WidgetLibrary.custom('acme.design_system'),
+        category: WidgetCategory.decoration, description: 'z')
+      class Zebra {
+        const Zebra({required this.label, this.zed});
+        @RestageProperty(description: 'l') final String label;
+        @RestageProperty(description: 'z') final Mystery? zed;
+      }
+
+      @RestageWidget(name: 'Alpha',
+        library: WidgetLibrary.custom('acme.design_system'),
+        category: WidgetCategory.decoration, description: 'a')
+      class Alpha {
+        const Alpha({required this.label, this.ay});
+        @RestageProperty(description: 'l') final String label;
+        @RestageProperty(description: 'a') final Mystery? ay;
+      }
+    ''';
+
+    final catalog = await runJsonBuilder(twoSource);
+
+    // Byte-stable regeneration requires report order, not asset-walk order.
+    expect(
+      catalog.exclusions
+          .map((exclusion) => '${exclusion.widget}.${exclusion.property}')
+          .toList(),
+      ['Alpha.ay', 'Zebra.zed'],
+    );
   });
 }

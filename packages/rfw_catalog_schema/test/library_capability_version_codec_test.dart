@@ -24,7 +24,6 @@ Catalog _catalog({required WidgetLibrary library, int? capabilityVersion}) =>
           description: 'A button.',
           flutterType: 'package:acme/acme_button.dart#AcmeButton',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: const [],
         ),
       ],

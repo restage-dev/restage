@@ -48,7 +48,6 @@ export 'package:restage_shared/restage_shared.dart'
         RestageProperty,
         RestageWidget,
         SurfaceType,
-        WidgetEventName,
         FlowActionSchema,
         FlowActionSchemaField,
         FlowBranchPredicate,
@@ -99,6 +98,7 @@ export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
 export 'src/runtime/restage.dart';
 export 'src/runtime/restage_widget_factory.dart';
 export 'src/runtime/restage_widget_library_registration.dart';
+export 'src/runtime/rfw_constructor_presence.dart';
 // RFW types host-side builder closures depend on. Re-exporting keeps
 // hand-written extensions (and generated factory bodies) free of a direct
 // `package:rfw` import.

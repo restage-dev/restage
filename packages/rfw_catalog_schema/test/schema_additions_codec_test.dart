@@ -400,6 +400,105 @@ void main() {
       expect(dep.catalog?.reason, 'Replaced by background token.');
     });
   });
+  group('the exclusion report round-trips as an additive optional field', () {
+    Catalog catalogWith(List<PropertyExclusion> exclusions) => Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '2026-05-11T12:00:00Z',
+          libraries: {
+            WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
+          },
+          widgets: const [],
+          exclusions: exclusions,
+        );
+
+    test('an excluded input survives encode -> decode with every field', () {
+      final decoded = decodeCatalog(
+        encodeCatalog(
+          catalogWith(
+            const [
+              PropertyExclusion(
+                widget: 'Foo',
+                property: 'weird',
+                target: 'rfw',
+                reason: 'No decoder exists for Mystery.',
+                location: 'lib/foo.dart#Foo.weird',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(decoded.exclusions, hasLength(1));
+      final exclusion = decoded.exclusions.single;
+      expect(exclusion.widget, 'Foo');
+      expect(exclusion.property, 'weird');
+      expect(exclusion.target, 'rfw');
+      expect(exclusion.reason, 'No decoder exists for Mystery.');
+      expect(exclusion.location, 'lib/foo.dart#Foo.weird');
+    });
+
+    test('a catalog with no exclusions omits the key entirely', () {
+      final json = encodeCatalog(catalogWith(const []));
+
+      // Conditional omission keeps already-committed catalogs byte-identical.
+      expect(json, isNot(contains('exclusions')));
+      expect(decodeCatalog(json).exclusions, isEmpty);
+    });
+
+    test('a catalog written before the field existed still decodes', () {
+      const source = '''
+      {
+        "schemaVersion": $kSupportedSchemaVersion,
+        "generatedAt": "2026-05-11T12:00:00Z",
+        "libraries": {
+          "restage.core": {"version": "0.1.0"}
+        },
+        "widgets": []
+      }
+      ''';
+
+      expect(() => decodeCatalog(source), returnsNormally);
+      expect(decodeCatalog(source).exclusions, isEmpty);
+    });
+
+    test('a non-array exclusions value is rejected', () {
+      const source = '''
+      {
+        "schemaVersion": $kSupportedSchemaVersion,
+        "generatedAt": "2026-05-11T12:00:00Z",
+        "libraries": {
+          "restage.core": {"version": "0.1.0"}
+        },
+        "widgets": [],
+        "exclusions": {}
+      }
+      ''';
+
+      expect(
+        () => decodeCatalog(source),
+        throwsA(isA<CatalogSchemaException>()),
+      );
+    });
+
+    test('an exclusion missing a required field is rejected', () {
+      const source = '''
+      {
+        "schemaVersion": $kSupportedSchemaVersion,
+        "generatedAt": "2026-05-11T12:00:00Z",
+        "libraries": {
+          "restage.core": {"version": "0.1.0"}
+        },
+        "widgets": [],
+        "exclusions": [{"widget": "Foo", "property": "weird"}]
+      }
+      ''';
+
+      expect(
+        () => decodeCatalog(source),
+        throwsA(isA<CatalogSchemaException>()),
+      );
+    });
+  });
 }
 
 // Small alias to avoid confusion between [CatalogDeprecationInfo] (the

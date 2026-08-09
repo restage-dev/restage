@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "1970-01-01T00:00:00Z",
   "libraries": {
     "restage.material": {
@@ -15,15 +15,13 @@
       "description": "A Material Design action chip.",
       "flutterType": "package:flutter/src/material/action_chip.dart#ActionChip",
       "childrenSlot": "none",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0001",
           "name": "avatar",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0002",
@@ -38,6 +36,7 @@
           "name": "onPressed",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -64,6 +63,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -79,6 +79,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -98,19 +99,20 @@
       "description": "A Material Design app bar.",
       "flutterType": "package:flutter/src/material/app_bar.dart#AppBar",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0006",
           "name": "title",
           "type": "widget",
-          "description": "{@template flutter.material.appbar.title} The primary widget displayed in the app bar."
+          "description": "{@template flutter.material.appbar.title} The primary widget displayed in the app bar.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0007",
           "name": "elevation",
           "type": "length",
           "description": "{@template flutter.material.appbar.elevation} The z-coordinate at which to place this app bar relative to its parent.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -124,13 +126,15 @@
           "wireId": "p0260",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "{@template flutter.material.appbar.shape} The shape of the app bar's [Material] as well as its shadow."
+          "description": "{@template flutter.material.appbar.shape} The shape of the app bar's [Material] as well as its shadow.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0008",
           "name": "backgroundColor",
           "type": "color",
           "description": "{@template flutter.material.appbar.backgroundColor} The fill color to use for an app bar's [Material].",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -146,6 +150,7 @@
           "name": "foregroundColor",
           "type": "color",
           "description": "{@template flutter.material.appbar.foregroundColor} The default color for [Text] and [Icon]s within the app bar.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -165,6 +170,7 @@
             "kind": "literal",
             "value": true
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -180,6 +186,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.material.Material.clipBehavior}",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -199,13 +206,13 @@
       "description": "A Material Design \"badge\".",
       "flutterType": "package:flutter/src/material/badge.dart#Badge",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0011",
           "name": "backgroundColor",
           "type": "color",
           "description": "The badge's fill color.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -221,6 +228,7 @@
           "name": "textColor",
           "type": "color",
           "description": "The color of the badge's [label] text.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -235,6 +243,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "The padding added to the badge's label.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -249,6 +258,7 @@
           "name": "alignment",
           "type": "alignment",
           "description": "Combined with [offset] to determine the location of the [label] relative to the [child].",
+          "constructorNullable": true,
           "category": "layout",
           "valueShape": {
             "kind": "scalar",
@@ -264,6 +274,7 @@
           "name": "offset",
           "type": "offset",
           "description": "Combined with [alignment] to determine the location of the [label] relative to the [child].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "offset",
@@ -277,7 +288,8 @@
           "wireId": "p0015",
           "name": "label",
           "type": "widget",
-          "description": "The badge's content, typically a [Text] widget that contains 1 to 4 characters."
+          "description": "The badge's content, typically a [Text] widget that contains 1 to 4 characters.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0016",
@@ -301,7 +313,8 @@
           "wireId": "p0017",
           "name": "child",
           "type": "widget",
-          "description": "The widget that the badge is stacked on top of."
+          "description": "The widget that the badge is stacked on top of.",
+          "constructorNullable": true
         }
       ]
     },
@@ -313,13 +326,13 @@
       "description": "A Material Design card: a panel with slightly rounded corners and an elevation shadow.",
       "flutterType": "package:flutter/src/material/card.dart#Card",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0018",
           "name": "color",
           "type": "color",
           "description": "The card's background color.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -339,6 +352,7 @@
             "kind": "literal",
             "value": 1.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -352,13 +366,15 @@
           "wireId": "p0261",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "The shape of the card's [Material]."
+          "description": "The shape of the card's [Material].",
+          "constructorNullable": true
         },
         {
           "wireId": "p0020",
           "name": "margin",
           "type": "edgeInsets",
           "description": "The empty space that surrounds the card.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -374,6 +390,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.material.Material.clipBehavior}",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -387,7 +404,8 @@
           "wireId": "p0021",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         }
       ]
     },
@@ -399,13 +417,13 @@
       "description": "An M3 filled card — flat surface tinted from the palette.",
       "flutterType": "package:flutter/src/material/card.dart#Card.filled",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0022",
           "name": "color",
           "type": "color",
           "description": "The card's background color.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -425,6 +443,7 @@
             "kind": "literal",
             "value": 0.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -438,13 +457,15 @@
           "wireId": "p0262",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "The shape of the card's [Material]."
+          "description": "The shape of the card's [Material].",
+          "constructorNullable": true
         },
         {
           "wireId": "p0024",
           "name": "margin",
           "type": "edgeInsets",
           "description": "The empty space that surrounds the card.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -460,6 +481,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.material.Material.clipBehavior}",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -473,7 +495,8 @@
           "wireId": "p0025",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         }
       ]
     },
@@ -485,13 +508,13 @@
       "description": "An M3 outlined card — transparent surface with a border.",
       "flutterType": "package:flutter/src/material/card.dart#Card.outlined",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0026",
           "name": "color",
           "type": "color",
           "description": "The card's background color.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -511,6 +534,7 @@
             "kind": "literal",
             "value": 0.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -524,13 +548,15 @@
           "wireId": "p0263",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "The shape of the card's [Material]."
+          "description": "The shape of the card's [Material].",
+          "constructorNullable": true
         },
         {
           "wireId": "p0028",
           "name": "margin",
           "type": "edgeInsets",
           "description": "The empty space that surrounds the card.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -546,6 +572,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.material.Material.clipBehavior}",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -559,7 +586,8 @@
           "wireId": "p0029",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         }
       ]
     },
@@ -571,9 +599,6 @@
       "description": "A Material Design checkbox.",
       "flutterType": "package:flutter/src/material/checkbox.dart#Checkbox",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0030",
@@ -581,6 +606,7 @@
           "type": "boolean",
           "description": "Whether this checkbox is checked.",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary",
           "valueShape": {
             "kind": "scalar",
@@ -598,6 +624,7 @@
           "description": "Called when the value of the checkbox should change.",
           "required": true,
           "callbackSignature": "ValueChanged<bool?>",
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -606,6 +633,7 @@
           "name": "activeColor",
           "type": "color",
           "description": "The color to use when this checkbox is checked.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -625,9 +653,6 @@
       "description": "A [ListTile] with a [Checkbox]. In other words, a checkbox with a label.",
       "flutterType": "package:flutter/src/material/checkbox_list_tile.dart#CheckboxListTile",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0033",
@@ -635,6 +660,7 @@
           "type": "boolean",
           "description": "Whether this checkbox is checked.",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary",
           "valueShape": {
             "kind": "scalar",
@@ -652,6 +678,7 @@
           "description": "Called when the value of the checkbox should change.",
           "required": true,
           "callbackSignature": "ValueChanged<bool?>",
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -660,6 +687,7 @@
           "name": "activeColor",
           "type": "color",
           "description": "The color to use when this checkbox is checked.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -673,25 +701,29 @@
           "wireId": "p0264",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "{@macro flutter.material.ListTile.shape}"
+          "description": "{@macro flutter.material.ListTile.shape}",
+          "constructorNullable": true
         },
         {
           "wireId": "p0036",
           "name": "title",
           "type": "widget",
-          "description": "The primary content of the list tile."
+          "description": "The primary content of the list tile.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0037",
           "name": "subtitle",
           "type": "widget",
-          "description": "Additional content displayed below the title."
+          "description": "Additional content displayed below the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0038",
           "name": "secondary",
           "type": "widget",
-          "description": "A widget to display on the opposite side of the tile from the checkbox."
+          "description": "A widget to display on the opposite side of the tile from the checkbox.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0039",
@@ -721,13 +753,13 @@
       "description": "A Material Design chip.",
       "flutterType": "package:flutter/src/material/chip.dart#Chip",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0040",
           "name": "avatar",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0041",
@@ -761,6 +793,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -776,6 +809,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -795,15 +829,13 @@
       "description": "A Material Design choice chip.",
       "flutterType": "package:flutter/src/material/choice_chip.dart#ChoiceChip",
       "childrenSlot": "none",
-      "fires": [
-        "onSelected"
-      ],
       "properties": [
         {
           "wireId": "p0044",
           "name": "avatar",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0045",
@@ -819,6 +851,7 @@
           "type": "event",
           "description": "",
           "callbackSignature": "ValueChanged<bool>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -861,6 +894,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -876,6 +910,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -905,13 +940,13 @@
       "description": "A Material Design circular progress indicator, which spins to indicate that the application is busy.",
       "flutterType": "package:flutter/src/material/progress_indicator.dart#CircularProgressIndicator",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0050",
           "name": "value",
           "type": "real",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -926,6 +961,7 @@
           "name": "color",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -945,6 +981,7 @@
             "kind": "literal",
             "value": 4.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -964,7 +1001,6 @@
       "description": "A thin horizontal line, with padding on either side.",
       "flutterType": "package:flutter/src/material/divider.dart#Divider",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0053",
@@ -975,6 +1011,7 @@
             "kind": "literal",
             "value": 16.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -993,6 +1030,7 @@
             "kind": "literal",
             "value": 1.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1007,6 +1045,7 @@
           "name": "color",
           "type": "color",
           "description": "{@template flutter.material.Divider.color} The color to use when painting the line.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -1027,9 +1066,6 @@
       "description": "A Material Design \"elevated button\".",
       "flutterType": "package:flutter/src/material/elevated_button.dart#ElevatedButton",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0056",
@@ -1037,6 +1073,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -1046,6 +1083,7 @@
           "type": "enumValue",
           "description": "",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -1061,6 +1099,7 @@
           "type": "widget",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary"
         },
         {
@@ -1311,15 +1350,13 @@
       "description": "A single-line [ListTile] with an expansion arrow icon that expands or collapses the tile to reveal or hide the [children].",
       "flutterType": "package:flutter/src/material/expansion_tile.dart#ExpansionTile",
       "childrenSlot": "list",
-      "fires": [
-        "onExpansionChanged"
-      ],
       "properties": [
         {
           "wireId": "p0063",
           "name": "leading",
           "type": "widget",
-          "description": "A widget to display before the title."
+          "description": "A widget to display before the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0064",
@@ -1333,7 +1370,8 @@
           "wireId": "p0065",
           "name": "subtitle",
           "type": "widget",
-          "description": "Additional content displayed below the title."
+          "description": "Additional content displayed below the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0066",
@@ -1341,6 +1379,7 @@
           "type": "event",
           "description": "Called when the tile expands or collapses.",
           "callbackSignature": "ValueChanged<bool>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1353,7 +1392,8 @@
           "wireId": "p0068",
           "name": "trailing",
           "type": "widget",
-          "description": "A widget to display after the title."
+          "description": "A widget to display after the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0069",
@@ -1377,13 +1417,15 @@
           "wireId": "p0267",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "The tile's border shape when the sublist is expanded."
+          "description": "The tile's border shape when the sublist is expanded.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0268",
           "name": "collapsedShape",
           "type": "shapeBorder",
-          "description": "The tile's border shape when the sublist is collapsed."
+          "description": "The tile's border shape when the sublist is collapsed.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0357",
@@ -1391,6 +1433,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.material.Material.clipBehavior}",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -1410,15 +1453,13 @@
       "description": "Conversion-CTA button for platform-native express-checkout flows.",
       "flutterType": "package:restage_material/src/widgets/express_checkout_button.dart#ExpressCheckoutButton",
       "childrenSlot": "none",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0070",
           "name": "onPressed",
           "type": "event",
           "description": "Fires when the user taps the button. Pass `null` (the default) to render the button in its disabled state.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1445,6 +1486,7 @@
           "name": "label",
           "type": "string",
           "description": "Overrides the platform-default label (for example `'Subscribe with Apple Pay'`). When `null`, a sensible default is chosen based on the resolved payment method.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -1464,9 +1506,6 @@
       "description": "A Material Design filled button.",
       "flutterType": "package:flutter/src/material/filled_button.dart#FilledButton",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0073",
@@ -1474,6 +1513,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -1487,6 +1527,7 @@
             "kind": "literal",
             "value": "none"
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -1502,6 +1543,7 @@
           "type": "widget",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary"
         },
         {
@@ -1752,9 +1794,6 @@
       "description": "An M3 secondary call-to-action button (tonal variant).",
       "flutterType": "package:flutter/src/material/filled_button.dart#FilledButton.tonal",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0080",
@@ -1762,6 +1801,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -1775,6 +1815,7 @@
             "kind": "literal",
             "value": "none"
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -1790,6 +1831,7 @@
           "type": "widget",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary"
         },
         {
@@ -2015,15 +2057,13 @@
       "description": "A Material Design filter chip.",
       "flutterType": "package:flutter/src/material/filter_chip.dart#FilterChip",
       "childrenSlot": "none",
-      "fires": [
-        "onSelected"
-      ],
       "properties": [
         {
           "wireId": "p0086",
           "name": "avatar",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0087",
@@ -2057,6 +2097,7 @@
           "type": "event",
           "description": "",
           "callbackSignature": "ValueChanged<bool>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -2083,6 +2124,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2098,6 +2140,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -2127,21 +2170,20 @@
       "description": "A Material Design floating action button.",
       "flutterType": "package:flutter/src/material/floating_action_button.dart#FloatingActionButton",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0092",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0093",
           "name": "tooltip",
           "type": "string",
           "description": "Text that describes the action that will occur when the button is pressed.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -2156,6 +2198,7 @@
           "name": "foregroundColor",
           "type": "color",
           "description": "The default foreground color for icons and text within the button.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2171,6 +2214,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "The button's background color.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2186,6 +2230,7 @@
           "name": "elevation",
           "type": "length",
           "description": "The z-coordinate at which to place this button relative to its parent.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2200,6 +2245,7 @@
           "name": "onPressed",
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -2224,7 +2270,8 @@
           "wireId": "p0272",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "The shape of the button's [Material]."
+          "description": "The shape of the button's [Material].",
+          "constructorNullable": true
         },
         {
           "wireId": "p0361",
@@ -2255,7 +2302,6 @@
       "description": "A graphical icon widget drawn with a glyph from a font described in an [IconData] such as material's predefined [IconData]s in [Icons].",
       "flutterType": "package:flutter/src/widgets/icon.dart#Icon",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0099",
@@ -2268,6 +2314,7 @@
               "path": "iconTheme.size"
             }
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2288,6 +2335,7 @@
               "path": "iconTheme.color"
             }
           },
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2318,9 +2366,6 @@
       "description": "A Material Design icon button.",
       "flutterType": "package:flutter/src/material/icon_button.dart#IconButton",
       "childrenSlot": "none",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0102",
@@ -2331,6 +2376,7 @@
             "kind": "literal",
             "value": 24.0
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2345,6 +2391,7 @@
           "name": "color",
           "type": "color",
           "description": "The color to use for the icon inside the button, if the icon is enabled. Defaults to leaving this up to the [icon] widget.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2361,6 +2408,7 @@
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -2369,6 +2417,7 @@
           "name": "tooltip",
           "type": "string",
           "description": "Text that describes the action that will occur when the button is pressed.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -2396,28 +2445,28 @@
       "description": "A rectangular area of a [Material] that responds to touch.",
       "flutterType": "package:flutter/src/material/ink_well.dart#InkWell",
       "childrenSlot": "single",
-      "fires": [
-        "onTap"
-      ],
       "properties": [
         {
           "wireId": "p0107",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0108",
           "name": "onTap",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
           "wireId": "p0273",
           "name": "customBorder",
           "type": "shapeBorder",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -2429,13 +2478,13 @@
       "description": "A Material Design linear progress indicator, also known as a progress bar.",
       "flutterType": "package:flutter/src/material/progress_indicator.dart#LinearProgressIndicator",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0109",
           "name": "value",
           "type": "real",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2450,6 +2499,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2465,6 +2515,7 @@
           "name": "color",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2480,6 +2531,7 @@
           "name": "minHeight",
           "type": "length",
           "description": "{@template flutter.material.LinearProgressIndicator.minHeight} The minimum height of the line used to draw the linear indicator.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2499,45 +2551,48 @@
       "description": "A single fixed-height row that typically contains some text as well as a leading or trailing icon.",
       "flutterType": "package:flutter/src/material/list_tile.dart#ListTile",
       "childrenSlot": "none",
-      "fires": [
-        "onTap"
-      ],
       "properties": [
         {
           "wireId": "p0112",
           "name": "leading",
           "type": "widget",
-          "description": "A widget to display before the title."
+          "description": "A widget to display before the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0113",
           "name": "title",
           "type": "widget",
-          "description": "The primary content of the list tile."
+          "description": "The primary content of the list tile.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0114",
           "name": "subtitle",
           "type": "widget",
-          "description": "Additional content displayed below the title."
+          "description": "Additional content displayed below the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0115",
           "name": "trailing",
           "type": "widget",
-          "description": "A widget to display after the title."
+          "description": "A widget to display after the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0274",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "{@template flutter.material.ListTile.shape} Defines the tile's [InkWell.customBorder] and [Ink.decoration] shape. {@endtemplate}"
+          "description": "{@template flutter.material.ListTile.shape} Defines the tile's [InkWell.customBorder] and [Ink.decoration] shape. {@endtemplate}",
+          "constructorNullable": true
         },
         {
           "wireId": "p0116",
           "name": "onTap",
           "type": "event",
           "description": "Called when the user taps this list tile.",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -2550,13 +2605,13 @@
       "description": "An application that uses Material Design.",
       "flutterType": "package:flutter/src/material/app.dart#MaterialApp",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0117",
           "name": "home",
           "type": "widget",
-          "description": "{@macro flutter.widgets.widgetsApp.home}"
+          "description": "{@macro flutter.widgets.widgetsApp.home}",
+          "constructorNullable": true
         },
         {
           "wireId": "p0118",
@@ -2567,6 +2622,7 @@
             "kind": "literal",
             "value": ""
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -2586,9 +2642,6 @@
       "description": "A modal bottom sheet that slides up over a scrim and can be dismissed by dragging it down or tapping the scrim — expressed as a purely declarative surface.",
       "flutterType": "package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet",
       "childrenSlot": "single",
-      "fires": [
-        "onSheetDismissed"
-      ],
       "properties": [
         {
           "wireId": "p0316",
@@ -2655,6 +2708,7 @@
           "name": "showDragHandle",
           "type": "boolean",
           "description": "Whether a grab handle is shown at the top of the sheet. Null defers to the ambient bottom-sheet theme.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -2669,6 +2723,7 @@
           "name": "dragHandleColor",
           "type": "color",
           "description": "The grab handle's color. Null defers to the theme default.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -2719,6 +2774,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "The sheet's background color. Null defers to the theme default.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2734,6 +2790,7 @@
           "name": "elevation",
           "type": "real",
           "description": "The sheet's elevation. Null defers to the theme default.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2747,7 +2804,8 @@
           "wireId": "p0326",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "The sheet's shape. Null defers to the theme default (rounded top corners under Material 3)."
+          "description": "The sheet's shape. Null defers to the theme default (rounded top corners under Material 3).",
+          "constructorNullable": true
         },
         {
           "wireId": "p0327",
@@ -2755,6 +2813,7 @@
           "type": "enumValue",
           "description": "How to clip the sheet's content. Null defers to the theme default.",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -2787,6 +2846,7 @@
           "name": "barrierColor",
           "type": "color",
           "description": "The scrim color. Null defaults to a translucent black.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -2801,6 +2861,7 @@
           "name": "barrierLabel",
           "type": "string",
           "description": "Semantic label for the scrim, announced by assistive technology.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -2815,6 +2876,7 @@
           "name": "anchorPoint",
           "type": "offset",
           "description": "The point used to disambiguate the sheet's placement on a display with hinges or folds. Null lets the framework choose.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "offset",
@@ -2829,6 +2891,7 @@
           "name": "enterDuration",
           "type": "duration",
           "description": "How long the slide-in takes on a programmatic open. Null uses the framework default (250ms).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -2843,6 +2906,7 @@
           "name": "exitDuration",
           "type": "duration",
           "description": "How long the slide-out takes on a programmatic close. Null uses the framework default (200ms).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -2857,6 +2921,7 @@
           "name": "enterCurve",
           "type": "curve",
           "description": "The easing curve for a programmatic open. Null uses the platform default (an eased curve); a drag always tracks the finger 1:1 regardless. Set it to tune the open feel.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "curve",
@@ -2871,6 +2936,7 @@
           "name": "exitCurve",
           "type": "curve",
           "description": "The easing curve for a programmatic close. Null uses the platform default. A drag always tracks the finger 1:1 regardless.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "curve",
@@ -2903,13 +2969,15 @@
           "wireId": "p0337",
           "name": "underlay",
           "type": "widget",
-          "description": "The surface shown *beneath* the sheet, owned by this widget. When non-null and the platform is iOS/macOS, it scales down and rounds as the sheet rises (the iOS card-sheet look); on other platforms it renders plain behind the sheet. Null (the default) is a pure overlay — the sheet floats over whatever is already behind it, with no owned surface and no scale-down."
+          "description": "The surface shown *beneath* the sheet, owned by this widget. When non-null and the platform is iOS/macOS, it scales down and rounds as the sheet rises (the iOS card-sheet look); on other platforms it renders plain behind the sheet. Null (the default) is a pure overlay — the sheet floats over whatever is already behind it, with no owned surface and no scale-down.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0332",
           "name": "onSheetDismissed",
           "type": "event",
           "description": "Fires when the sheet is dismissed by a downward drag or a scrim tap. Distinct from the paywall-level dismiss: this is the *sheet* closing, not the surface that hosts it. Wire it back to `open = false`.",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -2922,9 +2990,6 @@
       "description": "Multi-page surface that hosts a swipeable sequence of child widgets.",
       "flutterType": "package:restage_material/src/widgets/restage_pager.dart#RestagePager",
       "childrenSlot": "list",
-      "fires": [
-        "onPageChanged"
-      ],
       "properties": [
         {
           "wireId": "p0119",
@@ -3013,6 +3078,7 @@
           "type": "event",
           "description": "Fires with the new page index when the visible page changes.",
           "callbackSignature": "ValueChanged<int>",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -3025,9 +3091,6 @@
       "description": "A single-select radio group expressed as a purely declarative surface.",
       "flutterType": "package:restage_material/src/widgets/restage_radio_group.dart#RestageRadioGroup<String>",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0399",
@@ -3042,6 +3105,7 @@
           "name": "selected",
           "type": "string",
           "description": "The currently-selected option value. The row whose value equals this is checked; `null` (or a value matching no row) leaves the group unselected.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -3057,6 +3121,7 @@
           "type": "event",
           "description": "Fires with the newly-selected value when the user taps a row. `null` disables selection (the rows render but do not respond).",
           "callbackSignature": "ValueChanged<String?>",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ],
@@ -3070,9 +3135,6 @@
       "description": "A single-select dropdown expressed as a purely declarative surface.",
       "flutterType": "package:restage_material/src/widgets/restage_dropdown.dart#RestageDropdown<String>",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0402",
@@ -3087,6 +3149,7 @@
           "name": "selected",
           "type": "string",
           "description": "The currently-selected option value, shown as the field's current value. `null` (or a value matching no option) shows the [hint].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -3102,6 +3165,7 @@
           "type": "event",
           "description": "Fires with the newly-selected value when the user picks an option. `null` disables the dropdown (it renders but does not open).",
           "callbackSignature": "ValueChanged<String?>",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ],
@@ -3115,9 +3179,6 @@
       "description": "A horizontal set of mutually-independent toggle buttons expressed as a purely declarative surface.",
       "flutterType": "package:restage_material/src/widgets/restage_toggle_buttons.dart#RestageToggleButtons",
       "childrenSlot": "list",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0405",
@@ -3141,6 +3202,7 @@
           "type": "event",
           "description": "Fires with the pressed button's index when the user presses a button. `null` disables the set (the buttons render but do not respond).",
           "callbackSignature": "ValueChanged<int>",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ],
@@ -3154,9 +3216,6 @@
       "description": "A segmented button (single- or multi-select) expressed as a purely declarative surface.",
       "flutterType": "package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0408",
@@ -3171,6 +3230,7 @@
           "name": "selected",
           "type": "stringList",
           "description": "The currently-selected segment values. Segments whose value is in this list are shown selected; values absent from [items] are ignored. In single-select mode (the default) only the first (in segment order) is honored. `null` (or an empty list) is no initial selection.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "list",
             "propertyType": "stringList",
@@ -3190,6 +3250,7 @@
           "type": "event",
           "description": "Fires with the whole settled selection — a `List<T>` in **segment order** — when the user changes the selection. `null` leaves the button non-interactive (it renders the initial selection but does not respond).",
           "callbackSignature": "ValueChanged<List<String>>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -3257,7 +3318,6 @@
       "description": "A persistent, resizable bottom sheet the user drags between a peek size and a fully-expanded size — expressed as a purely declarative surface. Unlike [RestageModalSheet] it never dismisses: it bottoms out at [minChildSize] and stays in the layout.",
       "flutterType": "package:restage_material/src/widgets/restage_draggable_sheet.dart#RestageDraggableSheet",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0339",
@@ -3362,6 +3422,7 @@
           "name": "snapAnimationDuration",
           "type": "duration",
           "description": "The duration of a snap animation. Null lets the framework derive it from the fling velocity.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -3394,6 +3455,7 @@
           "name": "expandDuration",
           "type": "duration",
           "description": "How long the [expanded]-driven expand/collapse takes. Null uses the framework default (250ms).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -3408,6 +3470,7 @@
           "name": "expandCurve",
           "type": "curve",
           "description": "The easing curve for the [expanded]-driven expand/collapse. Null uses the framework default (an eased curve). A manual drag is unaffected.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "curve",
@@ -3427,9 +3490,6 @@
       "description": "A Material Design \"Outlined Button\"; essentially a [TextButton] with an outlined border.",
       "flutterType": "package:flutter/src/material/outlined_button.dart#OutlinedButton",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0125",
@@ -3437,6 +3497,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -3446,6 +3507,7 @@
           "type": "enumValue",
           "description": "",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -3461,6 +3523,7 @@
           "type": "widget",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary"
         },
         {
@@ -3664,9 +3727,6 @@
       "description": "A secondary call-to-action button with a leading icon.",
       "flutterType": "package:flutter/src/material/outlined_button.dart#OutlinedButton.icon",
       "childrenSlot": "none",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0130",
@@ -3674,6 +3734,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -3683,6 +3744,7 @@
           "type": "enumValue",
           "description": "",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -3698,6 +3760,7 @@
           "type": "widget",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary"
         },
         {
@@ -3909,7 +3972,6 @@
       "description": "Binds a child widget tree to a configured product slot.",
       "flutterType": "package:restage_material/src/widgets/package.dart#Package",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0136",
@@ -3945,19 +4007,20 @@
       "description": "Implements the basic Material Design visual layout structure.",
       "flutterType": "package:flutter/src/material/scaffold.dart#Scaffold",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0138",
           "name": "body",
           "type": "widget",
-          "description": "The primary content of the scaffold."
+          "description": "The primary content of the scaffold.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0139",
           "name": "backgroundColor",
           "type": "color",
           "description": "The color of the [Material] widget that underlies the entire Scaffold.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -3978,7 +4041,6 @@
       "description": "A Material Design scrollbar.",
       "flutterType": "package:flutter/src/material/scrollbar.dart#Scrollbar",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0140",
@@ -3993,6 +4055,7 @@
           "name": "thumbVisibility",
           "type": "boolean",
           "description": "{@macro flutter.widgets.Scrollbar.thumbVisibility}",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -4007,6 +4070,7 @@
           "name": "trackVisibility",
           "type": "boolean",
           "description": "{@macro flutter.widgets.Scrollbar.trackVisibility}",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -4021,6 +4085,7 @@
           "name": "thickness",
           "type": "length",
           "description": "The thickness of the scrollbar in the cross axis of the scrollable.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4035,6 +4100,7 @@
           "name": "interactive",
           "type": "boolean",
           "description": "{@macro flutter.widgets.Scrollbar.interactive}",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -4054,9 +4120,6 @@
       "description": "A Material Design slider.",
       "flutterType": "package:flutter/src/material/slider.dart#Slider",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0145",
@@ -4079,6 +4142,7 @@
           "name": "secondaryTrackValue",
           "type": "real",
           "description": "The secondary track value for this slider.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4094,6 +4158,7 @@
           "type": "event",
           "description": "Called during a drag when the user is selecting a new value for the slider by dragging.",
           "callbackSignature": "ValueChanged<double>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -4137,6 +4202,7 @@
           "name": "divisions",
           "type": "integer",
           "description": "The number of discrete divisions.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -4151,6 +4217,7 @@
           "name": "label",
           "type": "string",
           "description": "A label to show above the slider when the slider is active and [SliderThemeData.showValueIndicator] is satisfied.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -4170,9 +4237,6 @@
       "description": "A Material Design switch.",
       "flutterType": "package:flutter/src/material/switch.dart#Switch",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0152",
@@ -4197,6 +4261,7 @@
           "description": "Called when the user toggles the switch on or off.",
           "required": true,
           "callbackSignature": "ValueChanged<bool>",
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -4205,6 +4270,7 @@
           "name": "activeThumbColor",
           "type": "color",
           "description": "{@template flutter.material.switch.activeThumbColor} The color to use when this switch is on. {@endtemplate}",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -4224,9 +4290,6 @@
       "description": "A [ListTile] with a [Switch]. In other words, a switch with a label.",
       "flutterType": "package:flutter/src/material/switch_list_tile.dart#SwitchListTile",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0155",
@@ -4251,6 +4314,7 @@
           "description": "Called when the user toggles the switch on or off.",
           "required": true,
           "callbackSignature": "ValueChanged<bool>",
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -4259,6 +4323,7 @@
           "name": "activeThumbColor",
           "type": "color",
           "description": "{@macro flutter.material.switch.activeThumbColor}",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -4272,25 +4337,29 @@
           "wireId": "p0158",
           "name": "title",
           "type": "widget",
-          "description": "The primary content of the list tile."
+          "description": "The primary content of the list tile.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0159",
           "name": "subtitle",
           "type": "widget",
-          "description": "Additional content displayed below the title."
+          "description": "Additional content displayed below the title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0160",
           "name": "secondary",
           "type": "widget",
-          "description": "A widget to display on the opposite side of the tile from the switch."
+          "description": "A widget to display on the opposite side of the tile from the switch.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0277",
           "name": "shape",
           "type": "shapeBorder",
-          "description": "{@macro flutter.material.ListTile.shape}"
+          "description": "{@macro flutter.material.ListTile.shape}",
+          "constructorNullable": true
         }
       ]
     },
@@ -4302,9 +4371,6 @@
       "description": "A Material Design \"Text Button\".",
       "flutterType": "package:flutter/src/material/text_button.dart#TextButton",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0161",
@@ -4312,6 +4378,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -4321,6 +4388,7 @@
           "type": "enumValue",
           "description": "",
           "enumType": "Clip",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4539,9 +4607,6 @@
       "description": "A low-emphasis text-only button with a leading icon.",
       "flutterType": "package:flutter/src/material/text_button.dart#TextButton.icon",
       "childrenSlot": "none",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0166",
@@ -4549,6 +4614,7 @@
           "type": "event",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -4562,6 +4628,7 @@
             "kind": "literal",
             "value": "none"
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4577,6 +4644,7 @@
           "type": "widget",
           "description": "",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary"
         },
         {
@@ -4788,13 +4856,13 @@
       "description": "A Material Design [TabBar] tab.",
       "flutterType": "package:flutter/src/material/tabs.dart#Tab",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0172",
           "name": "text",
           "type": "string",
           "description": "The text to display as the tab's label.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -4808,13 +4876,15 @@
           "wireId": "p0173",
           "name": "icon",
           "type": "widget",
-          "description": "An icon to display as the tab's label."
+          "description": "An icon to display as the tab's label.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0174",
           "name": "iconMargin",
           "type": "edgeInsets",
           "description": "The margin added around the tab's icon.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -4829,6 +4899,7 @@
           "name": "height",
           "type": "length",
           "description": "The height of the [Tab].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4842,7 +4913,8 @@
           "wireId": "p0176",
           "name": "child",
           "type": "widget",
-          "description": "The widget to be used as the tab's label."
+          "description": "The widget to be used as the tab's label.",
+          "constructorNullable": true
         }
       ]
     },
@@ -4854,10 +4926,6 @@
       "description": "A Material Design text field.",
       "flutterType": "package:flutter/src/material/text_field.dart#TextField",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged",
-        "onSubmitted"
-      ],
       "properties": [
         {
           "wireId": "p0177",
@@ -4886,6 +4954,7 @@
             "kind": "literal",
             "value": 1
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -4900,6 +4969,7 @@
           "name": "maxLength",
           "type": "integer",
           "description": "The maximum number of characters (Unicode grapheme clusters) to allow in the text field.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -4915,6 +4985,7 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onChanged}",
           "callbackSignature": "ValueChanged<String>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -4923,6 +4994,7 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onSubmitted}",
           "callbackSignature": "ValueChanged<String>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -4954,7 +5026,6 @@
       "description": "A Material Design tooltip.",
       "flutterType": "package:flutter/src/material/tooltip.dart#Tooltip",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0182",
@@ -4962,6 +5033,7 @@
           "type": "string",
           "description": "The text to display in the tooltip.",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary",
           "valueShape": {
             "kind": "scalar",
@@ -4977,6 +5049,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "The amount of space by which to inset the [Tooltip]'s message.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -4991,6 +5064,7 @@
           "name": "margin",
           "type": "edgeInsets",
           "description": "The empty space that surrounds the tooltip.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -5005,6 +5079,7 @@
           "name": "preferBelow",
           "type": "boolean",
           "description": "Whether the tooltip defaults to being displayed below the widget.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -5018,7 +5093,8 @@
           "wireId": "p0186",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         }
       ]
     }

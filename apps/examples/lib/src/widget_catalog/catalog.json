@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "1970-01-01T00:00:00Z",
   "libraries": {
     "restage_example.widgets": {
@@ -16,7 +16,6 @@
       "description": "Wraps a single child in a colored border.",
       "flutterType": "package:restage_example/widgets/acme_border.dart#AcmeBorder",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
@@ -29,7 +28,8 @@
           "wireId": "p0002",
           "name": "color",
           "type": "color",
-          "description": "Border color. Defaults to the primary container."
+          "description": "Border color. Defaults to the primary container.",
+          "constructorNullable": true
         }
       ]
     },
@@ -41,13 +41,13 @@
       "description": "Overlays a list of children in z-order.",
       "flutterType": "package:restage_example/widgets/acme_stack.dart#AcmeStack",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0003",
           "name": "children",
           "type": "widgetList",
-          "description": "Overlay children, top-most last."
+          "description": "Overlay children, top-most last.",
+          "required": true
         }
       ]
     },
@@ -59,7 +59,6 @@
       "description": "Renders plans keyed by slug plus a highlighted plan per billing tier (map-of-data-class properties).",
       "flutterType": "package:restage_example/widgets/plan_board.dart#PlanBoard",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0045",
@@ -101,7 +100,6 @@
       "description": "Renders a subscription plan (a nested data-class property).",
       "flutterType": "package:restage_example/widgets/pricing_card.dart#PricingCard",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0024",
@@ -132,7 +130,6 @@
       "description": "Renders a list of subscription plans (a list-of-data-class property).",
       "flutterType": "package:restage_example/widgets/pricing_table.dart#PricingTable",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0035",
@@ -163,7 +160,6 @@
       "description": "Pill-shaped promotional label.",
       "flutterType": "package:restage_example/widgets/promo_badge.dart#PromoBadge",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0004",
@@ -176,7 +172,8 @@
           "wireId": "p0005",
           "name": "color",
           "type": "color",
-          "description": "Background color. Defaults to the primary container."
+          "description": "Background color. Defaults to the primary container.",
+          "constructorNullable": true
         }
       ]
     },
@@ -188,7 +185,6 @@
       "description": "A badge that pulses, driven by an AnimationController.",
       "flutterType": "package:restage_example/widgets/pulse_badge.dart#PulseBadge",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0033",
@@ -214,7 +210,6 @@
       "description": "Introduces a section with heading and entry metadata.",
       "flutterType": "package:restage_example/widgets/section_header.dart#SectionHeader",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0041",
@@ -260,20 +255,19 @@
       "description": "A labelled value pill, e.g. \"Streak · 7 days\".",
       "flutterType": "package:restage_example/widgets/minimal_custom_widget.dart#StatBadge",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0021",
           "name": "label",
           "type": "string",
-          "description": "Caption text.",
+          "description": "The caption, e.g. `'Streak'`.",
           "required": true
         },
         {
           "wireId": "p0022",
           "name": "value",
           "type": "string",
-          "description": "Value text.",
+          "description": "The value, e.g. `'7 days'`.",
           "required": true
         }
       ]
@@ -286,7 +280,6 @@
       "description": "A pill showing a streak count, its fill deepening with it.",
       "flutterType": "package:restage_example/widgets/streak_badge.dart#StreakBadge",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0031",
@@ -312,7 +305,6 @@
       "description": "Renders a list of pricing tiers, each with a nested feature list.",
       "flutterType": "package:restage_example/widgets/tier_board.dart#TierBoard",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0036",
@@ -338,6 +330,7 @@
           "name": "bonusTiers",
           "type": "unknown",
           "description": "Optional bonus tiers.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "list",
             "propertyType": "unknown",

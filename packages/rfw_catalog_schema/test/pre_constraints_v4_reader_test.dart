@@ -100,7 +100,6 @@ void main() {
             description: 'Legacy transform fixture.',
             flutterType: 'package:fixture/fixture.dart#LegacyTransformFixture',
             childrenSlot: ChildrenSlot.none,
-            fires: const [],
             properties: [
               PropertyEntry(
                 wireId: WireId('p0001'),
@@ -126,7 +125,7 @@ void main() {
     final expectedProperty = _singleProperty(expectedJson);
     final removedConstraints = expectedProperty.remove('constraints');
 
-    expect(sourceJson['schemaVersion'], 4);
+    expect(sourceJson['schemaVersion'], kSupportedSchemaVersion);
     expect(removedConstraints, {
       'minimum': 1,
       'maximum': 5,

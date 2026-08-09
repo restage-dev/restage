@@ -1,0 +1,7 @@
+targets:
+  $default:
+    builders:
+      restage_codegen:user_a2ui_catalog:
+        enabled: true
+      restage_codegen:widgetbook_stories:
+        enabled: true

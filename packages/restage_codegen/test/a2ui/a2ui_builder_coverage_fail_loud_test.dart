@@ -22,6 +22,7 @@ Future<(bool succeeded, String logs)> _runBuilder(
 ) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'restage_codegen',
+    includeFlutter: true,
   );
   for (final entry in sources.entries) {
     readerWriter.testing.writeString(
@@ -134,9 +135,7 @@ void main() {
         ),
         'child': (
           declarations: '''
-          class Widget {
-            const Widget();
-          }
+          import 'package:flutter/widgets.dart';
         ''',
           type: 'Widget',
         ),
@@ -288,9 +287,7 @@ void main() {
       // guard or emit an uncompilable nullable argument.
       const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-        class Widget {
-          const Widget();
-        }
+        import 'package:flutter/widgets.dart';
         @RestageWidget(
           name: 'Framed',
           library: WidgetLibrary.custom('acme.widgets'),
@@ -323,9 +320,7 @@ void main() {
       // narrowed out of the advertised contract.
       const source = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-        class Curve {
-          const Curve();
-        }
+        import 'package:flutter/widgets.dart';
         @RestageWidget(
           name: 'Fader',
           library: WidgetLibrary.custom('acme.widgets'),

@@ -61,7 +61,6 @@ void main() {
         description: 'Displays a text label.',
         flutterType: 'package:flutter/widgets.dart#Text',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,

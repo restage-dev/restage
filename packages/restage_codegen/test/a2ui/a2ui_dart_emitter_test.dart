@@ -15,6 +15,8 @@ PropertyEntry a2uiProp(
   bool required = false,
   bool positional = false,
   Object? literalDefault,
+  bool constructorNullable = false,
+  DartConstValue? constructorDefault,
   String? enumType,
   String? synthetic,
   CatalogValueShape? valueShape,
@@ -31,6 +33,8 @@ PropertyEntry a2uiProp(
     valueShape: valueShape,
     defaultSource:
         literalDefault == null ? null : LiteralDefault(literalDefault),
+    constructorNullable: constructorNullable,
+    constructorDefault: constructorDefault,
   );
 }
 
@@ -356,6 +360,44 @@ void main() {
       );
     });
 
+    test(
+        'constructor truth wins over annotation seed while native key presence '
+        'preserves omission versus null', () {
+      final catalog = catalogWith([
+        a2uiEntry(
+          name: 'ConstructorDefault',
+          properties: [
+            a2uiProp(
+              'label',
+              PropertyType.string,
+              literalDefault: 'preview-seed',
+              constructorNullable: true,
+              constructorDefault: const DartConstScalar('constructor-default'),
+            ),
+          ],
+        ),
+      ]);
+      const shapes = <(String, String), A2uiSchemaNode>{
+        ('ConstructorDefault', 'label'):
+            ScalarNode(A2uiScalarType.string, nullable: true),
+      };
+
+      final dense = emitA2uiCatalogDart(
+        catalog,
+        richShapes: shapes,
+      ).replaceAll(RegExp(r'\s+'), '');
+
+      expect(
+        dense,
+        contains(
+          "label:data.containsKey('label')?"
+          "(data['label']==null?null:(label??'constructor-default')):"
+          "'constructor-default',",
+        ),
+      );
+      expect(dense, isNot(contains('preview-seed')));
+    });
+
     test('a required nullable child is schema-required without a null assert',
         () {
       final catalog = catalogWith([
@@ -492,7 +534,7 @@ void main() {
       expect(
         compact,
         contains(
-          ": _restageA2uiBuildChildren(itemContext, data['children']),",
+          "_restageA2uiBuildChildren(itemContext, data['children'])) : null,",
         ),
       );
     });

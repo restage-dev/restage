@@ -86,7 +86,6 @@ WidgetEntry _widget(
       description: '',
       flutterType: flutterType,
       childrenSlot: ChildrenSlot.none,
-      fires: const [],
       properties: props,
     );
 

@@ -55,6 +55,9 @@ The builders are:
 - **`userA2uiCatalogBuilder`** is the opt-in A2UI target. It emits generated
   genui `CatalogItem`s and a standalone catalog document from the same
   annotated customer widgets.
+- **`widgetbookStoryBuilder`** is the opt-in Widgetbook v4 target. It emits
+  ordinary `*.stories.dart` source from those customer widgets; Widgetbook's
+  bundled generator owns generated story plumbing, discovery, and UI.
 
 (Two further internal builders register catalog factory functions and the
 customer's widget factories for the runtime; these support the SDK's own
@@ -73,9 +76,10 @@ From a single surface source, the generator emits:
 - **Generated Dart descriptors**: typed screen/flow accessors for
   onboarding-style flows.
 
-Everything it emits is inert data: references and literal values, never
-executable code. The widget capability set and event handlers ship in your app
-release.
+The OTA/runtime wire artifacts it emits contain only inert data: references
+and literal values, never executable code. Generated Dart descriptors and
+Widgetbook stories are ordinary build-time source. The widget capability set
+and event handlers ship in your app release.
 
 The generator transpiles standard Flutter widget trees, decomposes structured
 Flutter types (`TextStyle`, `ButtonStyle`, `EdgeInsets`, `BoxDecoration`,
@@ -85,10 +89,24 @@ widgets a surface actually references.
 
 It also has an **A2UI emit target**: from annotated Flutter widgets it projects
 a content-addressed A2UI (genui) catalog with typed literal constraints, nested
-data documentation, controlled value sources, and validated canonical
-examples. RFW remains Restage's native delivery wire; the A2UI projection is
+data documentation, and controlled value sources. RFW remains Restage's native
+delivery wire; the A2UI projection is
 an additional, optional emit target. For the full opt-in setup, see the
 [step-by-step A2UI walkthrough](https://pub.dev/packages/restage_a2ui#generate-an-a2ui-catalog-from-your-widgets--step-by-step).
+
+It can also emit **Widgetbook v4 story source** for the same customer widget
+catalog. Constructor inputs and Dartdoc are sufficient for one deterministic
+native story; no Restage story sidecar or second build command is involved.
+Enable `restage_codegen:widgetbook_stories` in `build.yaml`, keep Widgetbook's
+ordinary `runWidgetbook(Config(...))` bootstrap, and run the normal
+`build_runner` invocation. Restage does not generate stories for Flutter,
+Material, Cupertino, or Restage built-ins.
+
+In watch mode, adding or removing another `@RestageWidget` in a file that
+already contains one may require restarting `dart run build_runner watch` so
+the package-wide story output is rescanned. The initial release does not claim
+complete asset-graph invalidation for that annotation-set change. A normal
+`dart run build_runner build` performs the complete scan.
 
 ## License
 

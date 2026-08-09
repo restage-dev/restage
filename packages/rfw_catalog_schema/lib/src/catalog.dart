@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 import 'package:rfw_catalog_schema/src/compat_rule.dart';
 import 'package:rfw_catalog_schema/src/design_token.dart';
 import 'package:rfw_catalog_schema/src/library_info.dart';
+import 'package:rfw_catalog_schema/src/property_exclusion.dart';
 import 'package:rfw_catalog_schema/src/structured_entry.dart';
 import 'package:rfw_catalog_schema/src/union_entry.dart';
 import 'package:rfw_catalog_schema/src/widget_entry.dart';
@@ -36,6 +37,7 @@ final class Catalog {
     this.structuredTypes = const [],
     this.unions = const [],
     this.designTokens = const [],
+    this.exclusions = const [],
     this.flutterVersion,
     this.compatRules,
   });
@@ -64,6 +66,15 @@ final class Catalog {
 
   /// All design tokens. Empty when the catalog declares no design tokens.
   final List<DesignTokenEntry> designTokens;
+
+  /// Constructor inputs a target could not carry into this catalog, recorded
+  /// so an omission is queryable rather than silent. Empty when nothing was
+  /// dropped.
+  ///
+  /// Informational only: an exclusion records what is absent and never affects
+  /// how a widget is constructed, which is why a reader that does not know
+  /// about this field still builds correct widgets.
+  final List<PropertyExclusion> exclusions;
 
   /// Flutter SDK version captured at generation. Optional; recorded
   /// where the catalog producer can determine it.

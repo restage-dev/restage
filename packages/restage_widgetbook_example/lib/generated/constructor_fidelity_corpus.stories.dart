@@ -1,0 +1,277 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: library_private_types_in_public_api, unused_import
+
+import 'package:widgetbook/widgetbook.dart' as widgetbook;
+import 'package:widgetbook/widgetbook.dart';
+import 'dart:ui' as restage_native_0;
+import 'dart:ui' show Color;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+    as restage_source;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+    show ConstructorCorpusData, ConstructorCorpusMode;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+    show ConstructorFidelityCorpus;
+
+part 'constructor_fidelity_corpus.stories.g.dart';
+
+const List<Map<String, String>> restageExclusions = [
+  {
+    "widget": "ConstructorFidelityCorpus",
+    "property": "focusNode",
+    "target": "widgetbook",
+    "reason":
+        "Unsupported property type FocusNode? on ConstructorFidelityCorpus.focusNode. Supported types: Widget, List<Widget>, Color, EdgeInsets(Geometry|Directional), Alignment(Geometry|Directional), FontWeight, bool, int, double, String, VoidCallback (and similar function types), and any Dart enum. Target: widgetbook.",
+    "location":
+        "lib/widgets/constructor_fidelity_corpus.dart#ConstructorFidelityCorpus.focusNode",
+  },
+];
+
+enum _RestageChoice7 { value0, value1 }
+
+final class _RestageValue10 {
+  const _RestageValue10.absent() : hasValue = false, value = null;
+
+  const _RestageValue10(this.value) : hasValue = true;
+
+  final bool hasValue;
+  final restage_source.ConstructorCorpusData? value;
+}
+
+class ConstructorFidelityCorpusStoryInput {
+  const ConstructorFidelityCorpusStoryInput({
+    this.description =
+        "Broad reusable fixture for accepted named constructor shapes.",
+    this.usage =
+        "Use to verify accepted constructor, default, and callback families.",
+    this.value = "",
+    this.ordinaryLabel = "",
+    this.requiredNamed = "",
+    this.nullableText = null,
+    this.nullableSeed = "nullable-default",
+    this.enabled = true,
+    this.count = 7,
+    this.mode = _RestageChoice7.value0,
+    this.directColor = const restage_native_0.Color.new(4279312947),
+    this.publicColor = restage_source.ConstructorCorpusDefaults.publicColor,
+    this.data = const _RestageValue10.absent(),
+    this.resetProof = false,
+    this.whenEnabledChanges = false,
+    this.reportCount = false,
+  });
+
+  final String description;
+  final String usage;
+  final String value;
+  final String ordinaryLabel;
+  final String requiredNamed;
+  final String? nullableText;
+  final String? nullableSeed;
+  final bool enabled;
+  final int count;
+  final _RestageChoice7 mode;
+  final restage_native_0.Color directColor;
+  final restage_native_0.Color publicColor;
+  final _RestageValue10 data;
+  final bool resetProof;
+  final bool whenEnabledChanges;
+  final bool reportCount;
+}
+
+const meta = widgetbook.Meta(
+  restage_source.ConstructorFidelityCorpus.new,
+  argsType: ConstructorFidelityCorpusStoryInput.new,
+);
+
+const component = widgetbook.ComponentMeta(path: 'input');
+
+final defaults = _Defaults(
+  builder: (context, args) => restage_source.ConstructorFidelityCorpus(
+    value: args.value,
+    ordinaryLabel: args.ordinaryLabel,
+    requiredNamed: args.requiredNamed,
+    nullableText: args.nullableText,
+    nullableSeed: args.nullableSeed,
+    enabled: args.enabled,
+    count: args.count,
+    mode: switch (args.mode) {
+      _RestageChoice7.value0 => restage_source.ConstructorCorpusMode.ready,
+      _RestageChoice7.value1 => restage_source.ConstructorCorpusMode.processing,
+    },
+    directColor: args.directColor,
+    publicColor: args.publicColor,
+    data: args.data.hasValue
+        ? args.data.value!
+        : restage_source.ConstructorCorpusDefaults.publicData,
+    resetProof: () {},
+    whenEnabledChanges: (_) {},
+    reportCount: (_) {},
+  ),
+);
+
+final $RestageCatalog = _Story(
+  args: _Args(
+    description: _RestageMetadataArg(
+      "Broad reusable fixture for accepted named constructor shapes.",
+      name: 'description',
+    ),
+    usage: _RestageMetadataArg(
+      "Use to verify accepted constructor, default, and callback families.",
+      name: 'usage',
+    ),
+    value: _RestageStringArg(
+      "",
+      description: "Generic value inherited by the concrete customer widget.",
+    ),
+    ordinaryLabel: _RestageStringArg(
+      "",
+      description: "Ordinary one-to-one constructor binding.",
+    ),
+    requiredNamed: _RestageStringArg(
+      "",
+      description: "Required named field formal.",
+    ),
+    nullableText: _RestageNullableStringArg(
+      null,
+      description:
+          "Explicit nullable null default. Default: the widget constructor's Dart default.",
+    ),
+    nullableSeed: _RestageNullableStringArg(
+      "nullable-default",
+      description:
+          "Nullable input with a non-null constructor default. Default: the widget constructor's Dart default.",
+    ),
+    enabled: _RestageBoolArg(
+      true,
+      description:
+          "Scalar constructor default and write-back candidate. Default: the widget constructor's Dart default.",
+    ),
+    count: _RestageIntArg(
+      7,
+      description:
+          "Integer constructor default and second write-back candidate. Default: the widget constructor's Dart default.",
+    ),
+    mode: _RestageEnumArg<_RestageChoice7>(
+      _RestageChoice7.value0,
+      values: _RestageChoice7.values,
+      labelBuilder: (value) => switch (value) {
+        _RestageChoice7.value0 => "ready",
+        _RestageChoice7.value1 => "processing",
+      },
+      description:
+          "Enum constructor default. Default: the widget constructor's Dart default.",
+    ),
+    directColor: _RestageColorArg(
+      const restage_native_0.Color.new(4279312947),
+      description:
+          "Direct const invocation default. Default: the widget constructor's Dart default.",
+    ),
+    publicColor: _RestageColorArg(
+      restage_source.ConstructorCorpusDefaults.publicColor,
+      description:
+          "Public static constant reference default. Default: the widget constructor's Dart default.",
+    ),
+    data: _RestageConstArg<_RestageValue10>(
+      _RestageValue10(restage_source.ConstructorCorpusDefaults.publicData),
+      description:
+          "Nested customer-structured default. Default: the widget constructor's Dart default.",
+    ),
+    resetProof: _RestageBoolArg(
+      false,
+      description: "Arbitrarily named zero-argument callback.",
+    ),
+    whenEnabledChanges: _RestageBoolArg(
+      false,
+      description: "Arbitrarily named one-argument boolean callback.",
+    ),
+    reportCount: _RestageBoolArg(
+      false,
+      description: "Arbitrarily named one-argument integer callback.",
+    ),
+  ),
+);
+
+mixin _RestageArgDescription<T> on widgetbook.Arg<T> {
+  String get restageDescription;
+
+  @override
+  String? get description => restageDescription;
+}
+
+final class _RestageMetadataArg extends widgetbook.Arg<String>
+    with widgetbook.NoFields<String> {
+  _RestageMetadataArg(super.value, {required super.name});
+
+  @override
+  String get description => value;
+}
+
+final class _RestageStringArg extends widgetbook.StringArg
+    with _RestageArgDescription<String> {
+  _RestageStringArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageNullableStringArg extends widgetbook.NullableStringArg
+    with _RestageArgDescription<String?> {
+  _RestageNullableStringArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageBoolArg extends widgetbook.BoolArg
+    with _RestageArgDescription<bool> {
+  _RestageBoolArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageIntArg extends widgetbook.IntArg
+    with _RestageArgDescription<int> {
+  _RestageIntArg(
+    super.value, {
+    // ignore: unused_element_parameter
+    super.style,
+    required String description,
+  }) : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageColorArg extends widgetbook.ColorArg
+    with _RestageArgDescription<restage_native_0.Color> {
+  _RestageColorArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageEnumArg<T extends Enum> extends widgetbook.EnumArg<T>
+    with _RestageArgDescription<T> {
+  _RestageEnumArg(
+    super.value, {
+    required super.values,
+    required super.labelBuilder,
+    required String description,
+  }) : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageConstArg<T> extends widgetbook.ConstArg<T>
+    with _RestageArgDescription<T> {
+  _RestageConstArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}

@@ -146,6 +146,21 @@ const _recordReconstructionWidget = '''
   }
 ''';
 
+const _nullableRecordWidget = '''
+  @RestageWidget(
+    name: 'SectionHeader',
+    library: WidgetLibrary.custom('acme.design_system'),
+    category: WidgetCategory.decoration,
+    description: 'A section heading.',
+  )
+  class SectionHeader {
+    const SectionHeader({this.heading});
+
+    @RestageProperty(description: 'The optional heading values.')
+    final ({String title, int step, Tone tone})? heading;
+  }
+''';
+
 /// A widget whose only customer value slot is a map — the shape whose
 /// allocation passthrough is asserted below.
 const _mapWidget = '''
@@ -330,6 +345,7 @@ void main() {
           structuredTypes: collection.structuredTypes,
           slotTargets: collection.slotTargets,
           stampedCapabilityVersions: collection.stampedCapabilityVersions,
+          exclusions: collection.exclusions,
         );
       },
       returnsNormally,
@@ -383,6 +399,7 @@ void main() {
           structuredTypes: collection.structuredTypes,
           slotTargets: collection.slotTargets,
           stampedCapabilityVersions: collection.stampedCapabilityVersions,
+          exclusions: collection.exclusions,
         );
       },
       returnsNormally,
@@ -484,6 +501,44 @@ void main() {
   });
 
   group('generated record reconstruction', () {
+    test('an absent nullable record reconstructs as null', () async {
+      final run = await _collect(
+        _fixture(_nullableRecordWidget, capabilityVersion: 3),
+      );
+
+      expect(run.error, isNull);
+      final collection = run.collection!;
+      expect(
+        collection.nullableStructuredSlots,
+        contains(
+          structuredSlotKey(
+            'package:apps_examples/header.dart#SectionHeader',
+            'heading',
+          ),
+        ),
+      );
+      final source = emitUserFactoriesDart(
+        collection.widgets,
+        structuredTypes: collection.structuredTypes,
+        slotTargets: collection.slotTargets,
+        nullableStructuredSlots: collection.nullableStructuredSlots,
+        reconstructionPlans: collection.reconstructionPlans,
+        recordPlans: collection.recordPlans,
+        stampedCapabilityVersions: collection.stampedCapabilityVersions,
+      )!;
+      final flat = source.replaceAll(RegExp(r'\s+'), ' ');
+
+      expect(
+        flat,
+        contains("source.isMap(<Object>['heading']) ? ("),
+      );
+      expect(flat, contains(': null,'));
+      expect(
+        flat,
+        isNot(contains('SectionHeader.heading is required.')),
+      );
+    });
+
     test('emits direct and nested records as presence-guarded hard reads',
         () async {
       final run = await _collect(

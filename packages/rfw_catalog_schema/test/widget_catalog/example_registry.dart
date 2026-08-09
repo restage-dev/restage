@@ -22,7 +22,6 @@ final Catalog kExampleRegistry = Catalog(
       description: 'A box with explicit width and height.',
       flutterType: 'package:flutter/widgets.dart#SizedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: const [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),
@@ -47,7 +46,6 @@ final Catalog kExampleRegistry = Catalog(
           'properties.',
       flutterType: 'package:flutter/widgets.dart#Text',
       childrenSlot: ChildrenSlot.none,
-      fires: const [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0003'),
@@ -100,7 +98,6 @@ final Catalog kExampleRegistry = Catalog(
           'properties.',
       flutterType: 'package:flutter/widgets.dart#Container',
       childrenSlot: ChildrenSlot.single,
-      fires: const [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0007'),

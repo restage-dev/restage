@@ -185,13 +185,15 @@ CatalogValueShape? _unionValueShapeForDartType(
   final fqn = typeFqn(type);
   if (fqn == null || policy.unionRegistry.lookup(fqn) == null) return null;
   referencedUnionFqns?.add(fqn);
-  final propertyType = switch (_typeDisplayName(type)) {
-    'Gradient' => PropertyType.gradient,
-    'BoxBorder' => PropertyType.border,
-    'ShapeBorder' => PropertyType.shapeBorder,
-    'OutlinedBorder' => PropertyType.shapeBorder,
-    _ => abstractStructuredFallback(type),
-  };
+  final propertyType = _isFrameworkValueTypeLibrary(type.element)
+      ? switch (_typeDisplayName(type)) {
+          'Gradient' => PropertyType.gradient,
+          'BoxBorder' => PropertyType.border,
+          'ShapeBorder' => PropertyType.shapeBorder,
+          'OutlinedBorder' => PropertyType.shapeBorder,
+          _ => abstractStructuredFallback(type),
+        }
+      : abstractStructuredFallback(type);
   final wireCodec = switch (propertyType) {
     PropertyType.gradient => CatalogWireCodec.rfwGradient,
     PropertyType.border => CatalogWireCodec.rfwBorder,
@@ -210,6 +212,7 @@ CatalogValueShape? _unionValueShapeForDartType(
 }
 
 CatalogValueShape? _scalarShapeForDartType(DartType type) {
+  if (!_isFrameworkValueTypeLibrary(type.element)) return null;
   final propertyType = switch (_typeDisplayName(type)) {
     'bool' => PropertyType.boolean,
     'int' => PropertyType.integer,
@@ -310,4 +313,13 @@ String _typeDisplayName(DartType type) {
     return displayName.substring(0, displayName.length - 1);
   }
   return displayName;
+}
+
+// Deliberately mirrors the codegen-side framework value-type predicate. It
+// cannot currently be shared because restage_codegen depends on this package.
+bool _isFrameworkValueTypeLibrary(Element? element) {
+  if (element == null) return false;
+  final identifier = element.library?.identifier ?? '';
+  return identifier.startsWith('dart:') ||
+      identifier.startsWith('package:flutter/');
 }

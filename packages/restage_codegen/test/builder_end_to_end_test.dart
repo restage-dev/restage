@@ -2150,7 +2150,6 @@ Catalog _acmeCustomerCatalog() => Catalog(
           description: 'A custom banner.',
           flutterType: 'package:acme/banner.dart#AcmeBanner',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: const [],
         ),
       ],

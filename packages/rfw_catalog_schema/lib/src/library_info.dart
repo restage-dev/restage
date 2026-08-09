@@ -4,7 +4,7 @@ import 'package:meta/meta.dart';
 ///
 /// Per-kind entry counts are not stored here — they are denormalized
 /// caches of the catalog's own entry lists. Read them as computed values
-/// off [Catalog] instead (`catalog.widgetsIn(library).length`,
+/// off `Catalog` instead (`catalog.widgetsIn(library).length`,
 /// `structuredTypesIn`, `unionsIn`, `designTokensIn`).
 @immutable
 final class LibraryInfo {

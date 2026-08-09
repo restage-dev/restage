@@ -113,7 +113,6 @@ void main() {
           description: '',
           flutterType: 'package:acme/widgets.dart#Board',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             // A map widget property (hits _propertyToJson's assert).
             PropertyEntry(

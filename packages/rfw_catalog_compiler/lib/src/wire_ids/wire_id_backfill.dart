@@ -300,7 +300,7 @@ final class RestageCatalogGenEventLogWireIdResolver {
     );
   }
 
-  /// Leaves canonical v4 decomposition recipes unchanged.
+  /// Leaves canonical decomposition recipes unchanged.
   ///
   /// Recipe identity is now carried by canonical wire refs already present in
   /// the generated graph; this resolver only remains to satisfy the adapter

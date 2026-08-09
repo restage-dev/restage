@@ -18,7 +18,14 @@ void main() {
   Future<({String dsl, List<Issue> issues})> translateUnresolved(
     String source,
   ) async {
-    final r = translator.translate(await parseExpressionForTest(source));
+    final expression = await parseExpressionFromSourceForTest(
+      '''
+import 'package:flutter/material.dart';
+Object x() => $source;
+''',
+      rootPackage: 'apps_examples',
+    );
+    final r = translator.translate(expression);
     return (dsl: r.dsl, issues: r.issues);
   }
 

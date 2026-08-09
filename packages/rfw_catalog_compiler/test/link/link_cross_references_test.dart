@@ -21,7 +21,6 @@ void main() {
             description: '',
             flutterType: 'package:test/banner.dart#Banner',
             childrenSlot: ChildrenSlot.none,
-            fires: const [],
             properties: const [],
             sinceVersion: 2,
           ),
@@ -783,7 +782,6 @@ Catalog _nativeCatalog({
         description: '',
         flutterType: 'package:test/container.dart#Container',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p0001'),

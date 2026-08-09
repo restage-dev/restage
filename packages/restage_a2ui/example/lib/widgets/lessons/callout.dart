@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A lesson callout: a [message] plus an optional wrapped [child] slot.
@@ -6,16 +7,12 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// a customer widget) alongside a scalar. The child slot is nullable — an A2UI
 /// child is a component-id reference that need not resolve, so the generated
 /// catalog lowers the slot to an optional child.
-@RestageA2uiExample(
-  name: 'Optional child',
-  asset: 'lib/a2ui_examples/callout/optional_child.json',
-)
+@a2ui.Config.usage('Use for a short highlighted aside around optional content.')
 @RestageWidget(
   name: 'Callout',
   library: WidgetLibrary.custom('acme.lessons'),
   category: WidgetCategory.decoration,
   description: 'A message callout that wraps an optional child.',
-  usage: 'Use for a short highlighted aside around optional content.',
 )
 class Callout extends StatelessWidget {
   /// Creates a callout showing [message] above [child].

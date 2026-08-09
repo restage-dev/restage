@@ -14,7 +14,7 @@ ElementAnnotation? firstAnnotation(Element el, String name) {
   for (final a in el.metadata.annotations) {
     final c = a.computeConstantValue();
     if (c?.type?.element?.name == name) return a;
-    if (a.toSource().startsWith('@$name')) return a;
+    if (_sourceSpells(a.toSource(), name)) return a;
   }
   return null;
 }
@@ -27,6 +27,9 @@ ElementAnnotation? firstAnnotation(Element el, String name) {
 /// value inspection so malformed real SDK annotations still produce caller
 /// diagnostics, while local or fake-package lookalikes that happen to share a
 /// name are ignored at the contract boundary.
+/// An annotation that does not resolve at all is returned by spelling rather
+/// than skipped, so the caller can fail on it instead of treating it as
+/// absent.
 ElementAnnotation? firstAnnotationFromOriginAny(
   Element el,
   Set<String> names,
@@ -43,8 +46,47 @@ ElementAnnotation? firstAnnotationFromOriginAny(
       return annotation;
     }
   }
+  // Nothing resolved to ours. Before concluding the annotation is absent,
+  // look for one that did not resolve at all: it has no defining library, so
+  // origin can neither clear it nor condemn it, and reporting it as absent is
+  // the one answer that is unsafe in both directions — an unresolved exclusion
+  // would silently stop excluding, and an unresolved widget marker would
+  // silently drop the class. Return it by spelling so the caller fails on its
+  // unresolved value. A resolved annotation from another library is skipped
+  // here as well as above, so a genuine lookalike is still correctly ignored.
+  for (final annotation in el.metadata.annotations) {
+    if (_annotationClass(annotation) != null) continue;
+    final source = annotation.toSource();
+    for (final name in names) {
+      if (_sourceSpells(source, name)) return annotation;
+    }
+  }
   return null;
 }
+
+/// Whether [source] is an annotation written with [name]'s own spelling.
+///
+/// Accepts both forms Dart uses for a no-argument annotation — the class
+/// (`@Ignore()`) and its canonical const instance (`@ignore`) — and requires
+/// the identifier to end there, so `@ignoreOther` does not read as `@ignore`.
+bool _sourceSpells(String source, String name) {
+  if (name.isEmpty) return false;
+  final instanceName = name[0].toLowerCase() + name.substring(1);
+  for (final spelling in <String>{name, instanceName}) {
+    if (!source.startsWith('@$spelling')) continue;
+    final end = spelling.length + 1;
+    if (source.length == end) return true;
+    if (!_isIdentifierPart(source.codeUnitAt(end))) return true;
+  }
+  return false;
+}
+
+bool _isIdentifierPart(int unit) =>
+    (unit >= 0x30 && unit <= 0x39) || // 0-9
+    (unit >= 0x41 && unit <= 0x5A) || // A-Z
+    (unit >= 0x61 && unit <= 0x7A) || // a-z
+    unit == 0x5F || // _
+    unit == 0x24; // $
 
 InterfaceElement? _annotationClass(ElementAnnotation annotation) {
   final element = annotation.element;

@@ -18,7 +18,7 @@ import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 ///   required-flag, literal default).
 /// * **The fields on this curation entry** — design choices that cannot
 ///   be inferred from a constructor signature: the catalog [category],
-///   event mapping ([fires]), native structured-type decomposition metadata
+///   native structured-type decomposition metadata
 ///   ([nativeDecomposes]), brand-token defaults ([brandTokens]), parameter
 ///   exclusions ([excludeParams]), synthetic catalog properties
 ///   ([synthetics]), and per-property overrides ([propertyOverrides]).
@@ -68,7 +68,6 @@ final class BuiltinWidgetCuration<T extends Object> {
     this.constructorName,
     this.nameOverride,
     this.descriptionOverride,
-    this.fires = const [],
     this.childrenSlot,
     this.deprecatedSince,
     this.minSchemaVersion = 1,
@@ -99,9 +98,6 @@ final class BuiltinWidgetCuration<T extends Object> {
   /// Overrides the dartdoc-derived description. `null` keeps the
   /// inferred dartdoc description.
   final String? descriptionOverride;
-
-  /// Events this widget can fire.
-  final List<WidgetEventName> fires;
 
   /// Overrides the inferred [ChildrenSlot]. `null` infers from the
   /// constructor — a `child:` parameter selects [ChildrenSlot.single],
@@ -148,7 +144,7 @@ final class BuiltinWidgetCuration<T extends Object> {
   /// Native structured-type decomposition metadata authored from source names.
   ///
   /// The generator resolves these curation-only names against analyzer data and
-  /// lowers them into canonical v4 wire-ID refs, receiver-aware construction,
+  /// lowers them into canonical wire-ID refs, receiver-aware construction,
   /// field mappings, transforms, and factory-parameter metadata.
   final List<NativeDecompositionCuration> nativeDecomposes;
 
@@ -406,7 +402,6 @@ final class PropertyOverride {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
-    this.firesAs,
   }) : assert(
           defaultValue == null || defaultBrandToken == null,
           'Use either defaultValue or defaultBrandToken, not both',
@@ -475,8 +470,4 @@ final class PropertyOverride {
   /// catalog event slot needs a typed handler beyond `VoidCallback?`
   /// (e.g. `'ValueChanged<bool>'` for `Switch.onChanged`).
   final String? callbackSignature;
-
-  /// Replacement [PropertyEntry.firesAs]. Set when the ctor names an
-  /// event parameter differently from the catalog event taxonomy.
-  final String? firesAs;
 }

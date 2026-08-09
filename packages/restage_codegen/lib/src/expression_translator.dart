@@ -20,6 +20,7 @@ import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
 import 'package:restage_codegen/src/number_format_recognition.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
+import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
@@ -257,9 +258,6 @@ final class ExpressionTranslator {
     validateThemeValueForSlot: _validateThemeValueForSlot,
     locationOf: _locationOf,
   );
-
-  static final RegExp _rfwIdentifierPattern =
-      RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 
   /// The inlining mechanisms this codegen increment implements. A
   /// [ComposableWidget] is inlinable when its required mechanisms are a
@@ -989,7 +987,7 @@ final class ExpressionTranslator {
         // accidental name collisions outside that scope fall through.
         final stateFields = _walk.stateFields;
         if (stateFields != null && stateFields.containsKey(expr.name)) {
-          return 'state.${expr.name}';
+          return 'state${_rfwPathPart(expr.name)}';
         }
         if (_walk.argNames.contains(expr.name)) {
           // A constructor-parameter reference inside a custom-widget definition
@@ -997,7 +995,7 @@ final class ExpressionTranslator {
           // the State's `build()` reaches constructor params via `widget.X`
           // instead, but `_walk.argNames` is still populated so another
           // stateless-only path stays consistent.
-          return 'args.${expr.name}';
+          return 'args${_rfwPathPart(expr.name)}';
         }
       }
     }
@@ -1068,6 +1066,11 @@ final class ExpressionTranslator {
         .replaceAll('\n', r'\n');
     return '"$escaped"';
   }
+
+  String _rfwMapKey(String name) =>
+      isRfwIdentifier(name) ? name : _stringLiteral(name);
+
+  String _rfwPathPart(String name) => '.${_rfwMapKey(name)}';
 
   String _stringInterpolation(StringInterpolation expr, List<Issue> issues) {
     final segments = <_InterpSegment>[];
@@ -1149,7 +1152,7 @@ final class ExpressionTranslator {
     if (resolved is SimpleIdentifier) {
       final field = _walk.stateFields?[resolved.name];
       if (field != null && !field.isNumeric && field.initialValue is String) {
-        return 'state.${resolved.name}';
+        return 'state${_rfwPathPart(resolved.name)}';
       }
     }
 
@@ -1260,7 +1263,7 @@ final class ExpressionTranslator {
         issues,
         property: syntheticProperty(label.name, shape),
       );
-      entries.add('${label.name}: $emitted');
+      entries.add('${_rfwMapKey(label.name)}: $emitted');
     }
 
     // A label may defer after earlier labels translated cleanly. The record is
@@ -1291,17 +1294,7 @@ final class ExpressionTranslator {
       );
       return '';
     }
-    if (!_rfwIdentifierPattern.hasMatch(key)) {
-      issues.add(
-        Issue(
-          code: IssueCode.unrecognizedMethodCall,
-          message: 'Map literal key "$key" is not a valid RFW identifier.',
-          location: _locationOf(expr),
-        ),
-      );
-      return '';
-    }
-    return key;
+    return _rfwMapKey(key);
   }
 
   String _prefixedIdentifier(
@@ -1320,7 +1313,7 @@ final class ExpressionTranslator {
     if (prefix == 'widget' &&
         _walk.stateFields != null &&
         _walk.argNames.contains(identifier)) {
-      return 'args.$identifier';
+      return 'args${_rfwPathPart(identifier)}';
     }
     if (prefix == 'widget' && _walk.rootStateContext) {
       issues.add(
@@ -1414,6 +1407,15 @@ final class ExpressionTranslator {
       return '{x: 0.0, y: 0.0}';
     }
 
+    // A concrete framework `Alignment.<member>` used by the catalog's flat
+    // alignment decoder. This is a static-const family rather than an enum, so
+    // it needs an explicit element-gated lowering after the general unresolved
+    // non-enum fall-through was closed. A customer `Alignment` look-alike and
+    // an unresolved prefix both continue to the diagnosed path below.
+    if (prefix == 'Alignment' && _isFrameworkValueType(expr.prefix.element)) {
+      return '"$identifier"';
+    }
+
     // A `FontWeight.<member>` reference. A resolved CUSTOMER class named
     // `FontWeight` must NOT lower to a framework weight name — its `.w600`
     // would otherwise emit `"w600"`, which the `enumValue<FontWeight>` decoder
@@ -1458,6 +1460,10 @@ final class ExpressionTranslator {
         !_frameworkOrUnresolved(expr.prefix.element)) {
       return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
     }
+    if (prefix == 'TextDecoration' &&
+        _isFrameworkValueType(expr.prefix.element)) {
+      return '"$identifier"';
+    }
 
     // A `Curves.<member>` reference. Like FontWeight/TextDecoration, a resolved
     // CUSTOMER class named `Curves` must NOT lower to the bare member name: the
@@ -1470,6 +1476,9 @@ final class ExpressionTranslator {
     // supported curve set on the direct-paywall path.
     if (prefix == 'Curves' && !_frameworkOrUnresolved(expr.prefix.element)) {
       return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
+    }
+    if (prefix == 'Curves' && _isFrameworkValueType(expr.prefix.element)) {
+      return '"$identifier"';
     }
 
     // A theme read through a bound `final` theme-local — `scheme.primary`
@@ -1506,7 +1515,19 @@ final class ExpressionTranslator {
     // Enum reference: `MainAxisAlignment.center` → "center". The catalog
     // declares which property accepts which enum; runtime/validation paths
     // confirm the value is recognized.
-    return '"$identifier"';
+    final member = _unwrapPropertyAccessor(expr.identifier.element);
+    if (member is FieldElement && member.isEnumConstant) {
+      return '"$identifier"';
+    }
+    issues.add(
+      Issue(
+        code: IssueCode.unresolvedIdentifier,
+        message: "'${expr.toSource()}' is not a resolved enum constant or "
+            'portable const value.',
+        location: _locationOf(expr),
+      ),
+    );
+    return '';
   }
 
   /// Whether [expr] is a constant that evaluates to a non-finite double —
@@ -2223,7 +2244,7 @@ final class ExpressionTranslator {
       if (lowered == null) {
         return defer('$adoptTarget has no `${cfg.key}` property');
       }
-      emitted.add('${cfg.key}: $lowered');
+      emitted.add('${_rfwMapKey(cfg.key)}: $lowered');
     }
 
     for (final a in carried) {
@@ -2239,7 +2260,7 @@ final class ExpressionTranslator {
       if (lowered == null) {
         return defer('$adoptTarget has no `$name` property');
       }
-      emitted.add('$name: $lowered');
+      emitted.add('${_rfwMapKey(name)}: $lowered');
     }
 
     if (scratch.isNotEmpty) {
@@ -2408,7 +2429,7 @@ final class ExpressionTranslator {
     // property rather than skipping it like the catalog-widget path does — a
     // Text.rich must never emit a blob that dropped an authored property. Keep
     // this fail-fast policy if the loops are ever unified.
-    final emitted = <String>['${textSpanProp.name}: $span'];
+    final emitted = <String>['${_rfwMapKey(textSpanProp.name)}: $span'];
     for (final arg in args.whereType<NamedExpression>()) {
       final name = arg.name.label.name;
       if (name == 'key') continue;
@@ -2442,7 +2463,7 @@ final class ExpressionTranslator {
         property: prop,
       );
       if (value.isEmpty && issues.length > before) return '';
-      emitted.add('$name: $value');
+      emitted.add('${_rfwMapKey(name)}: $value');
     }
 
     return '${entry.name}(${emitted.join(', ')})';
@@ -3305,7 +3326,7 @@ final class ExpressionTranslator {
   }
 
   Iterable<String> _paywallEventNames(Expression expr) {
-    final scanner = _WidgetEventNameScanner(helpers);
+    final scanner = _PaywallEventNameScanner(helpers);
     expr.accept(scanner);
     return scanner.names;
   }
@@ -3388,7 +3409,9 @@ final class ExpressionTranslator {
     final emitted = <String>[];
     for (final property in sheetEntry.properties) {
       final value = values[property.name];
-      if (value != null) emitted.add('${property.name}: $value');
+      if (value != null) {
+        emitted.add('${_rfwMapKey(property.name)}: $value');
+      }
     }
     return 'RestageModalSheet(${emitted.join(', ')})';
   }
@@ -3757,7 +3780,10 @@ final class ExpressionTranslator {
       _validateThemeValueForSlot(expr, p.type, issues);
       final value = _translateSlotValue(expr, p.type, issues, property: p);
       if (value.isEmpty && issues.length > before) return false;
-      emitted.add('$propName: $value');
+      emitted.add(
+        '${_rfwMapKey(propName)}: '
+        '${RfwConstructorPresenceEncoder.encode(p, value)}',
+      );
       return true;
     }
 
@@ -3993,7 +4019,7 @@ final class ExpressionTranslator {
           property: property,
         );
         if (value.isEmpty && issues.length > before) return '';
-        emitted.add('${property.name}: $value');
+        emitted.add('${_rfwMapKey(property.name)}: $value');
       }
     }
 
@@ -4251,7 +4277,10 @@ final class ExpressionTranslator {
       _validateThemeValueForSlot(expr, p.type, issues);
       final value = _translateSlotValue(expr, p.type, issues, property: p);
       if (value.isEmpty && issues.length > before) return false;
-      emitted.add('$propName: $value');
+      emitted.add(
+        '${_rfwMapKey(propName)}: '
+        '${RfwConstructorPresenceEncoder.encode(p, value)}',
+      );
       return true;
     }
 
@@ -4742,7 +4771,7 @@ final class ExpressionTranslator {
       };
       for (final e in implied.entries) {
         if (!authorNamed.contains(e.key)) {
-          emitted.add('${e.key}: ${e.value}');
+          emitted.add('${_rfwMapKey(e.key)}: ${e.value}');
         }
       }
     }
@@ -4777,7 +4806,10 @@ final class ExpressionTranslator {
         property: positionalProp,
       );
       if (value.isEmpty && issues.length > before) return '';
-      emitted.add('$propName: $value');
+      emitted.add(
+        '${_rfwMapKey(propName)}: '
+        '${RfwConstructorPresenceEncoder.encode(positionalProp, value)}',
+      );
     }
 
     // Named args map by name; ignore `key:` (super.key convention).
@@ -4828,7 +4860,10 @@ final class ExpressionTranslator {
         emitted.addAll(corners);
         continue;
       }
-      emitted.add('$name: $value');
+      emitted.add(
+        '${_rfwMapKey(name)}: '
+        '${RfwConstructorPresenceEncoder.encode(prop, value)}',
+      );
     }
 
     // Detect string interpolation sentinel in Text's text argument. A
@@ -4954,7 +4989,7 @@ final class ExpressionTranslator {
 
       final spans = parts.map((p) => '{ text: $p }').join(', ');
       final outerArgs = [
-        '${textSpanProp.name}: { children: [$spans] }',
+        '${_rfwMapKey(textSpanProp.name)}: { children: [$spans] }',
         ...rest,
       ];
       return '${textRich.name}(${outerArgs.join(', ')})';
@@ -5209,7 +5244,10 @@ final class ExpressionTranslator {
         }
         if (fallback != null && _isNullLiteral(suppliedExpr)) {
           // Row 3: explicit `null` fires the `??` → the fallback.
-          emitted.add('${param.name}: ${_coerceParamValue(param, fallback)}');
+          emitted.add(
+            '${_rfwMapKey(param.name)}: '
+            '${_coerceParamValue(param, fallback)}',
+          );
         } else {
           final lowered = _translateParamValue(param, suppliedExpr, issues);
           if (fallback != null &&
@@ -5234,7 +5272,7 @@ final class ExpressionTranslator {
             );
           } else {
             // Row 4: a passed value, unchanged.
-            emitted.add('${param.name}: $lowered');
+            emitted.add('${_rfwMapKey(param.name)}: $lowered');
           }
         }
       } else if (param.defaultValue != null) {
@@ -5242,11 +5280,14 @@ final class ExpressionTranslator {
         // existing default-completion path, unchanged.
         final defaultLiteral = _foldedLiteral(param.defaultValue!);
         emitted.add(
-          '${param.name}: ${_coerceParamValue(param, defaultLiteral)}',
+          '${_rfwMapKey(param.name)}: '
+          '${_coerceParamValue(param, defaultLiteral)}',
         );
       } else if (fallback != null) {
         // Row 2: omitted, no default — the fallback.
-        emitted.add('${param.name}: ${_coerceParamValue(param, fallback)}');
+        emitted.add(
+          '${_rfwMapKey(param.name)}: ${_coerceParamValue(param, fallback)}',
+        );
       }
     }
     return emitted.join(', ');
@@ -5464,9 +5505,10 @@ final class ExpressionTranslator {
         final literal = _foldedLiteral(value);
         final coerced =
             field?.isNumeric == true ? asDoubleLiteral(literal) : literal;
-        return 'set state.$fieldName = $coerced';
+        return 'set state${_rfwPathPart(fieldName)} = $coerced';
       case SetStateBoolFlip(:final fieldName):
-        return 'set state.$fieldName = switch state.$fieldName '
+        final path = 'state${_rfwPathPart(fieldName)}';
+        return 'set $path = switch $path '
             '{ true: false, false: true }';
       case SetStateUnrecognised(:final reason):
         issues.add(_setStateUnrecognisedIssue(methodName, reason, anchor));
@@ -5596,7 +5638,8 @@ final class ExpressionTranslator {
     }
     final defaultDsl = branch(defaultBranch!);
     final armsDsl = arms.join(', ');
-    return 'switch state.$fieldName { $armsDsl, default: $defaultDsl }';
+    return 'switch state${_rfwPathPart(fieldName)} '
+        '{ $armsDsl, default: $defaultDsl }';
   }
 
   /// The root integer State field [expr] (through parens) references, or
@@ -6517,7 +6560,7 @@ final class ExpressionTranslator {
             // `.all(Radius.circular(..))` is the uniform form: emit the scalar
             // onto the uniform slot, exactly as the circular transform would.
             out.add(
-              '${destProp.name}: '
+              '${_rfwMapKey(destProp.name)}: '
               '${_coerceForPropertyType(destProp.type, translated)}',
             );
           }
@@ -6532,7 +6575,7 @@ final class ExpressionTranslator {
         );
         if (translated == null) continue;
         final value = _coerceForPropertyType(destProp.type, translated);
-        out.add('${destProp.name}: $value');
+        out.add('${_rfwMapKey(destProp.name)}: $value');
       }
       for (final mapping in recipe.parameterMappings) {
         final sourceExpr = match.parameterExpressions[mapping.parameterRef];
@@ -6560,7 +6603,7 @@ final class ExpressionTranslator {
         );
         if (translated == null) continue;
         final value = _coerceForPropertyType(destProp.type, translated);
-        out.add('${destProp.name}: $value');
+        out.add('${_rfwMapKey(destProp.name)}: $value');
       }
 
       for (final supplied in match.fieldExpressions.entries) {
@@ -7258,8 +7301,8 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
   }
 }
 
-final class _WidgetEventNameScanner extends RecursiveAstVisitor<void> {
-  _WidgetEventNameScanner(this.helpers);
+final class _PaywallEventNameScanner extends RecursiveAstVisitor<void> {
+  _PaywallEventNameScanner(this.helpers);
 
   final HelperRegistry helpers;
   final List<String> names = [];

@@ -19,10 +19,12 @@ hand-written `CatalogItem`s, no hand-authored JSON schemas:
 
 The generated catalog contains exactly these widgets — it is your own widgets, not
 Flutter built-ins. Each library carries its own capability version in the emitted
-stamp. The two outputs (`restage_a2ui_catalog.g.dart` + `restage_a2ui_catalog.a2ui.json`)
-are regenerated from the annotated source. Ten validated JSON sidecars provide
-canonical examples for all nine components, including controlled values, nullable
-lists, nested data, and child references. The example has no app entrypoint:
+stamp. The two outputs
+(`lib/generated/restage_a2ui_catalog.g.dart` +
+`lib/generated/restage_a2ui_catalog.a2ui.json`) are regenerated from the
+annotated source. There are no example annotations,
+JSON sidecars, or other post-widget authoring inputs. The example has no app
+entrypoint:
 
 ```bash
 dart run build_runner build   # regenerate the catalog + stamp from the @RestageWidget source
@@ -72,9 +74,10 @@ satisfaction rules, and how the catalog and stamp are produced.
 
 ## Guiding notes on the example widgets
 
-`Callout` (`acme.lessons`) declares both a `description` and a
-`@RestageWidget(usage:)` note; `SectionHeader` declares only a `description`. The
-generated `_restageA2uiSystemPromptFragments` in `restage_a2ui_catalog.g.dart`
+`Callout` (`acme.lessons`) declares both a `description` and an A2UI-only
+`@a2ui.Config.usage('…')` note; `SectionHeader` declares only a `description`. The
+generated `_restageA2uiSystemPromptFragments` in
+`lib/generated/restage_a2ui_catalog.g.dart`
 shows the result: `Callout` gets its own `usage` line, `SectionHeader` falls back
 to its `description`, and `buildRestageCatalog()` (used above) hands both to genui
 as `Catalog.systemPromptFragments` — your own words, not generated.

@@ -77,7 +77,7 @@ enum PropertyType {
   /// selection flag list).
   booleanList,
 
-  /// A reference to a `WidgetEventName` event handler.
+  /// A callback handler whose event identity is the Dart property name.
   event,
 
   /// A reference to runtime data (e.g. product price, user state).

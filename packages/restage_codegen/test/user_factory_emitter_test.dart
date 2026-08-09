@@ -11,7 +11,6 @@ WidgetEntry _widgetEntry({
   String description = 'A widget.',
   String? flutterType,
   ChildrenSlot childrenSlot = ChildrenSlot.none,
-  List<WidgetEventName> fires = const [],
   List<PropertyEntry> properties = const [],
 }) =>
     WidgetEntry(
@@ -23,7 +22,6 @@ WidgetEntry _widgetEntry({
       flutterType: flutterType ??
           'package:acme/widgets/${name.toLowerCase()}.dart#$name',
       childrenSlot: childrenSlot,
-      fires: fires,
       properties: properties,
     );
 
@@ -114,6 +112,9 @@ void main() {
       ]);
       expect(src, isNotNull);
       expect(src, contains('GENERATED CODE - DO NOT MODIFY BY HAND'));
+      expect(src, contains('public unnamed generative constructors'));
+      expect(src, isNot(contains('@RestageProperty annotations')));
+      expect(src, isNot(contains('edit the @RestageWidget /')));
       expect(src, contains("import 'package:flutter/widgets.dart'"));
       expect(
         src,

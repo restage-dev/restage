@@ -1,20 +1,16 @@
 import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A lesson quiz checkbox: a [prompt], a bound [selected] bool, and an
 /// [onSelected] callback bound back to `selected` via an EXPLICIT
-/// `@RestageProperty(writeBackValue:)` — the explicit write-back pairing (as
+/// `@a2ui.Config.writeBackValue('selected')` — the explicit write-back pairing (as
 /// opposed to `RatingPicker`'s same-type auto-pairing).
-@RestageA2uiExample(
-  name: 'Interaction',
-  asset: 'lib/a2ui_examples/quiz_check/interaction.json',
-)
 @RestageWidget(
   name: 'QuizCheck',
   library: WidgetLibrary.custom('acme.lessons'),
   category: WidgetCategory.input,
   description: 'A prompt with a checkable answer bound to a boolean value.',
-  fires: [WidgetEventName.onChanged],
 )
 class QuizCheck extends StatelessWidget {
   /// Creates a quiz check showing [prompt], [selected], reporting [onSelected].
@@ -34,10 +30,8 @@ class QuizCheck extends StatelessWidget {
   final bool selected;
 
   /// Reports the new answer state; explicitly bound back to [selected].
-  @RestageProperty(
-    description: 'Reports the toggled answer.',
-    writeBackValue: 'selected',
-  )
+  @a2ui.Config.writeBackValue('selected')
+  @RestageProperty(description: 'Reports the toggled answer.')
   final ValueChanged<bool> onSelected;
 
   @override

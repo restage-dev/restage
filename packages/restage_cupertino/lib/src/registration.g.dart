@@ -70,7 +70,9 @@ Widget _buildCupertinoListSection(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
-    children: source.childList(<Object>['children']),
+    children: source.isList(<Object>['children'])
+        ? source.childList(<Object>['children'])
+        : null,
   );
 }
 
@@ -82,7 +84,9 @@ Widget _buildCupertinoListSectionInsetGrouped(
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.hardEdge,
-    children: source.childList(<Object>['children']),
+    children: source.isList(<Object>['children'])
+        ? source.childList(<Object>['children'])
+        : null,
   );
 }
 
@@ -120,10 +124,9 @@ Widget _buildCupertinoSwitch(BuildContext context, DataSource source) {
   return CupertinoSwitch(
     value: source.v<bool>(<Object>['value']) ??
         (throw ArgumentError('CupertinoSwitch.value is required.')),
-    onChanged: source.handler<ValueChanged<bool>>(
-        <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
-            (bool value) => trigger(<String, Object?>{'value': value})),
+    onChanged: source.handler<ValueChanged<bool>>(<Object>[
+      'onChanged'
+    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
     activeTrackColor:
         ArgumentDecoders.color(source, <Object>['activeTrackColor']),
   );
@@ -137,11 +140,11 @@ Widget _buildCupertinoTextField(BuildContext context, DataSource source) {
     maxLength: source.v<int>(<Object>['maxLength']),
     onChanged: source.handler<ValueChanged<String>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
     onSubmitted: source.handler<ValueChanged<String>>(
         <Object>['onSubmitted'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
@@ -155,7 +158,7 @@ Widget _buildCupertinoSlider(BuildContext context, DataSource source) {
         (throw ArgumentError('CupertinoSlider.value is required.')),
     onChanged: source.handler<ValueChanged<double>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (double value) => trigger(<String, Object?>{'value': value})),
     min: source.v<double>(<Object>['min']) ?? 0.0,
     max: source.v<double>(<Object>['max']) ?? 1.0,
@@ -171,7 +174,7 @@ Widget _buildCupertinoDatePicker(BuildContext context, DataSource source) {
         CupertinoDatePickerMode.dateAndTime,
     onDateTimeChanged: source.handler<ValueChanged<DateTime>>(
             <Object>['onDateTimeChanged'],
-            (HandlerTrigger trigger) => (DateTime value) =>
+            (trigger) => (DateTime value) =>
                 trigger(<String, Object?>{'value': value})) ??
         (DateTime _) {},
     minimumYear: source.v<int>(<Object>['minimumYear']) ?? 1,
@@ -208,7 +211,7 @@ Widget _buildCupertinoTimerPicker(BuildContext context, DataSource source) {
     itemExtent: source.v<double>(<Object>['itemExtent']) ?? 32.0,
     onTimerDurationChanged: source.handler<ValueChanged<Duration>>(
             <Object>['onTimerDurationChanged'],
-            (HandlerTrigger trigger) => (Duration value) =>
+            (trigger) => (Duration value) =>
                 trigger(<String, Object?>{'value': value})) ??
         (Duration _) {},
     changeReportingBehavior:
@@ -238,10 +241,8 @@ Widget _buildCupertinoPicker(BuildContext context, DataSource source) {
     itemExtent: source.v<double>(<Object>['itemExtent']) ??
         (throw ArgumentError('CupertinoPicker.itemExtent is required.')),
     onSelectedItemChanged: source.handler<ValueChanged<int>>(
-            <Object>['onSelectedItemChanged'],
-            (HandlerTrigger trigger) =>
-                (int value) => trigger(<String, Object?>{'value': value})) ??
-        (int _) {},
+        <Object>['onSelectedItemChanged'],
+        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
     looping: source.v<bool>(<Object>['looping']) ?? false,
     children: source.childList(<Object>['children']),
   );
@@ -251,11 +252,11 @@ Widget _buildCupertinoSearchTextField(BuildContext context, DataSource source) {
   return CupertinoSearchTextField(
     onChanged: source.handler<ValueChanged<String>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
     onSubmitted: source.handler<ValueChanged<String>>(
         <Object>['onSubmitted'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
     placeholder: source.v<String>(<Object>['placeholder']),
     backgroundColor:
@@ -271,7 +272,7 @@ Widget _buildCupertinoCheckbox(BuildContext context, DataSource source) {
     tristate: source.v<bool>(<Object>['tristate']) ?? false,
     onChanged: source.handler<ValueChanged<bool?>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (bool? value) => trigger(<String, Object?>{'value': value})),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
     checkColor: ArgumentDecoders.color(source, <Object>['checkColor']),

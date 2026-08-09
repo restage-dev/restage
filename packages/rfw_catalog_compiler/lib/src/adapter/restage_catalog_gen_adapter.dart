@@ -192,7 +192,6 @@ final class RestageCatalogGenAdapter {
         for (final recipe in widget.decomposes)
           _decompositionToIr(widget, recipe),
       ],
-      fires: widget.fires,
       childrenSlot: widget.childrenSlot,
       sinceVersion: widget.sinceVersion,
       stability: widget.stability,
@@ -235,12 +234,13 @@ final class RestageCatalogGenAdapter {
         constraints: property.constraints,
         deprecated: _resolveDeprecation(resolvedId, property.deprecated),
         synthetic: property.synthetic,
-        firesAs: property.firesAs,
       ),
       positional: property.positional,
       enumType: property.enumType,
       widgetType: property.widgetType,
       callbackSignature: property.callbackSignature,
+      constructorNullable: property.constructorNullable,
+      constructorDefault: property.constructorDefault,
       policyTrace: const [],
       diagnostics: const [],
     );

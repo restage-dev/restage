@@ -17,7 +17,6 @@ Catalog _threeWidgets() {
         description: description,
         flutterType: 'package:acme_widgets/$name.dart#$name',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: const [],
       );
   return Catalog(
@@ -53,7 +52,6 @@ Catalog _noMetadataWidget() {
         description: '',
         flutterType: 'package:acme_widgets/Gamma.dart#Gamma',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [],
       ),
     ],

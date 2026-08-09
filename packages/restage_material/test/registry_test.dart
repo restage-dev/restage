@@ -133,21 +133,15 @@ void main() {
       }
     });
 
-    test('every event-firing button has a matching event property', () {
-      // The bijection key on the property side is `firesAs ?? name`,
-      // matching the factory emitter's eligibility check.
+    test('event properties use their precise constructor names', () {
       for (final w in kRegistry.widgets) {
-        for (final event in w.fires) {
-          final eventName = event.name; // e.g. onPressed, onTap
+        for (final event in w.properties.where(
+          (property) => property.type == PropertyType.event,
+        )) {
           expect(
-            w.properties.any(
-              (p) =>
-                  (p.firesAs ?? p.name) == eventName &&
-                  p.type == PropertyType.event,
-            ),
-            isTrue,
-            reason: '${w.name} fires $eventName but lacks a matching '
-                'PropertyType.event property (checked against firesAs ?? name)',
+            event.name,
+            matches(RegExp(r'^[A-Za-z$][A-Za-z0-9_$]*$')),
+            reason: '${w.name}.${event.name} must be a Dart identifier',
           );
         }
       }

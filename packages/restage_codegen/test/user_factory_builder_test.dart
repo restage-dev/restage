@@ -168,6 +168,166 @@ void main() {
       );
     });
 
+    test('same-named cross-library widget constructors analyze clean',
+        () async {
+      String widgetSource(String catalogName) => '''
+        import 'package:flutter/widgets.dart';
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        @RestageWidget(
+          name: '$catalogName',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.action,
+          description: 'Promo badge.',
+        )
+        class Badge extends StatelessWidget {
+          const Badge({required this.label, super.key});
+          @RestageProperty(description: 'Visible label.', required: true)
+          final String label;
+          @override
+          Widget build(BuildContext context) => Text(label);
+        }
+      ''';
+      final firstSource = widgetSource('FirstBadge');
+      final secondSource = widgetSource('SecondBadge');
+      final sources = {
+        'apps_examples|lib/widgets/first_badge.dart': firstSource,
+        'apps_examples|lib/widgets/second_badge.dart': secondSource,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final entry in sources.entries) {
+        final path = entry.key.substring(entry.key.indexOf('|') + 1);
+        readerWriter.testing.writeString(
+          AssetId('apps_examples', path),
+          entry.value,
+        );
+      }
+
+      final result = await testBuilders(
+        [const UserFactoryBuilder(BuilderOptions.empty)],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final generated = result.readerWriter.testing.readString(
+        AssetId('apps_examples', 'lib/user_factories.g.dart'),
+      );
+      expect(generated, contains('return s0.Badge('));
+      expect(generated, contains('return s1.Badge('));
+
+      await resolveSources(
+        {
+          ...sources,
+          'apps_examples|lib/user_factories.g.dart': generated,
+        },
+        (resolver) async {
+          final library = await resolver.libraryFor(
+            AssetId('apps_examples', 'lib/user_factories.g.dart'),
+          );
+          final resolved =
+              await library.session.getResolvedLibraryByElement(library);
+          if (resolved is! ResolvedLibraryResult) {
+            throw StateError(
+              'Same-name generated user_factories.g.dart did not resolve.',
+            );
+          }
+          final errors = [
+            for (final unit in resolved.units)
+              for (final diagnostic in unit.diagnostics)
+                if (diagnostic.severity == Severity.error)
+                  diagnostic.problemMessage.messageText(includeUrl: false),
+          ];
+          expect(errors, isEmpty, reason: generated);
+        },
+        resolverFor: 'apps_examples|lib/user_factories.g.dart',
+        rootPackage: 'apps_examples',
+        readAllSourcesFromFilesystem: true,
+      );
+    });
+
+    test('case-distinct constructor presence locals analyze clean', () async {
+      const widgetSource = r'''
+        import 'package:flutter/widgets.dart';
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        @RestageWidget(
+          name: 'CaseDistinctProbe',
+          library: WidgetLibrary.custom('acme.design_system'),
+          category: WidgetCategory.input,
+          description: 'Case-distinct constructor probe.',
+        )
+        class CaseDistinctProbe extends StatelessWidget {
+          const CaseDistinctProbe({
+            this.foo = 'lower',
+            this.Foo = 'upper',
+            super.key,
+          });
+
+          @RestageProperty(description: 'Lower-case value.')
+          final String? foo;
+
+          @RestageProperty(description: 'Upper-case value.')
+          final String? Foo;
+
+          @override
+          Widget build(BuildContext context) => Text('${foo ?? ''}${Foo ?? ''}');
+        }
+      ''';
+      final sources = {
+        'apps_examples|lib/widgets/case_distinct_probe.dart': widgetSource,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/widgets/case_distinct_probe.dart'),
+        widgetSource,
+      );
+
+      final result = await testBuilders(
+        [const UserFactoryBuilder(BuilderOptions.empty)],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      final generated = result.readerWriter.testing.readString(
+        AssetId('apps_examples', 'lib/user_factories.g.dart'),
+      );
+
+      await resolveSources(
+        {
+          ...sources,
+          'apps_examples|lib/user_factories.g.dart': generated,
+        },
+        (resolver) async {
+          final library = await resolver.libraryFor(
+            AssetId('apps_examples', 'lib/user_factories.g.dart'),
+          );
+          final resolved =
+              await library.session.getResolvedLibraryByElement(library);
+          if (resolved is! ResolvedLibraryResult) {
+            throw StateError(
+              'Case-distinct generated user_factories.g.dart did not resolve.',
+            );
+          }
+          final errors = [
+            for (final unit in resolved.units)
+              for (final diagnostic in unit.diagnostics)
+                if (diagnostic.severity == Severity.error)
+                  diagnostic.problemMessage.messageText(includeUrl: false),
+          ];
+          expect(errors, isEmpty, reason: generated);
+        },
+        resolverFor: 'apps_examples|lib/user_factories.g.dart',
+        rootPackage: 'apps_examples',
+        readAllSourcesFromFilesystem: true,
+      );
+    });
+
     test('does not emit user_factories.g.dart when no @RestageWidget classes',
         () async {
       const plainSource = '''

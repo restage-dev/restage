@@ -81,7 +81,6 @@ Catalog _catalog([
           description: 'Constraint widget.',
           flutterType: 'package:fixture/fixture.dart#ConstraintWidget',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,

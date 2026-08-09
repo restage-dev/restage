@@ -22,14 +22,15 @@ const _source = '''
     library: WidgetLibrary.custom('acme.design_system'),
     category: WidgetCategory.decoration, description: 'p')
   class PlainCard {
-    const PlainCard({required this.title, required this.plan});
-    @RestageProperty(description: 't') final String title;
+    const PlainCard({this.title, required this.plan});
+    @RestageProperty(description: 't') final String? title;
     @RestageProperty(description: 'p') final Plan plan;
   }
 ''';
 
 void main() {
-  test('a map-free customer catalog remains byte-identical', () async {
+  test('a map-free customer catalog records only its constructor facts',
+      () async {
     final rw =
         await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
     rw.testing.writeString(
@@ -56,11 +57,9 @@ void main() {
     final golden = File('test/fixtures/goldens/map_free_customer_catalog.json')
         .readAsStringSync();
 
-    // This golden was captured BEFORE the closure learned to look through a
-    // map value, from this exact source. A widget with no map in it must emit
-    // byte-identical bytes afterwards. If this fails, the widening reached
-    // something it was scoped not to touch — regenerating the golden would
-    // erase exactly the evidence this test exists to provide.
-    expect(captured, golden);
+    // This golden isolates map-value closure from constructor-fidelity facts.
+    // The only constructor addition is the nullable `title` input; no map
+    // shape or closure metadata may appear.
+    expect(captured, golden.trimRight());
   });
 }

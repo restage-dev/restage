@@ -24,12 +24,11 @@ const int kBaselineCatalogVersion = 1;
 /// [kBaselineCatalogVersion] (so an empty set reports the baseline, never
 /// zero).
 ///
-/// This is the **single canonical content-version formula**. [Catalog.contentVersion]
-/// delegates to it, the generated per-library `k…CatalogContentVersion` constants
-/// are derived from it (via each library catalog's content version), and any
-/// other content-version derivation must reuse it rather than recompute — one
-/// formula means independent derivations cannot silently drift apart (which
-/// would re-open a capability fail-open).
+/// This is the **single canonical content-version formula**. The catalog's
+/// `contentVersion` delegates to it, the generated per-library
+/// `k…CatalogContentVersion` constants are derived from it, and any other
+/// content-version derivation must reuse it rather than recompute. One formula
+/// means independent derivations cannot silently drift apart.
 int contentVersionOf(Iterable<WidgetEntry> widgets) {
   var max = kBaselineCatalogVersion;
   for (final widget in widgets) {
@@ -54,7 +53,6 @@ final class WidgetEntry {
     required this.description,
     required this.flutterType,
     required this.childrenSlot,
-    required this.fires,
     required this.properties,
     this.decomposes = const [],
     this.sinceVersion = kBaselineCatalogVersion,
@@ -94,9 +92,6 @@ final class WidgetEntry {
 
   /// Children slot — none / single / list.
   final ChildrenSlot childrenSlot;
-
-  /// Event names this widget can fire.
-  final List<WidgetEventName> fires;
 
   /// Properties exposed by this widget. Includes decomposed flats — a
   /// widget that accepts a `TextStyle` constructor argument lists the

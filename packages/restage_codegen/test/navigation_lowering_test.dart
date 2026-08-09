@@ -747,7 +747,6 @@ final Catalog _navigationCatalog = Catalog(
         prop('onPressed', PropertyType.event),
         prop('child', PropertyType.widget),
       ],
-      fires: const [WidgetEventName.onPressed],
       flutterType:
           'package:flutter/src/material/elevated_button.dart#ElevatedButton',
     ),
@@ -757,7 +756,6 @@ final Catalog _navigationCatalog = Catalog(
         prop('onTap', PropertyType.event),
         prop('child', PropertyType.widget),
       ],
-      fires: const [WidgetEventName.onTap],
       flutterType:
           'package:flutter/src/widgets/gesture_detector.dart#GestureDetector',
     ),

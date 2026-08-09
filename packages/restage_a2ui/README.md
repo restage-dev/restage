@@ -42,7 +42,7 @@ renderer; `rfw_catalog_schema` holds the annotations.
 dependencies:
   genui: ^0.10.1                # the renderer the generated catalog targets
   json_schema_builder: ^0.1.3   # the generated catalog's data schemas are built with this
-  rfw_catalog_schema: ^1.2.0    # the widget, data-field, and example annotations
+  rfw_catalog_schema: ^1.2.0    # the widget and data-field annotations
   # Production-safe path only — the app-side pre-render check + capability sidecar (step 8):
   # restage_a2ui: ^0.1.6
 
@@ -51,9 +51,12 @@ dev_dependencies:
   build_runner: ^2.4.0
 ```
 
-**2. Annotate a widget.** A normal Flutter widget plus `@RestageWidget`; mark its inputs with
-`@RestageProperty`. A value property paired with a matching-type `ValueChanged` callback wires the two-way
-binding automatically — no pairing annotation needed.
+**2. Annotate a widget.** A normal Flutter widget plus `@RestageWidget` is
+enough to include its supported public constructor inputs. Use
+`@RestageProperty` only for shared metadata overrides such as constraints or an
+explicit description. A value property paired with a matching-type
+`ValueChanged` callback wires the two-way binding automatically — no pairing
+annotation needed.
 
 ```dart
 import 'package:flutter/widgets.dart';
@@ -64,7 +67,6 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   library: WidgetLibrary.custom('acme.widgets'),
   category: WidgetCategory.input,
   description: 'A 1–5 star rating control bound to an integer value.',
-  fires: [WidgetEventName.onChanged],
 )
 class RatingPicker extends StatelessWidget {
   const RatingPicker({required this.rating, required this.onRatingChanged, super.key});
@@ -130,12 +132,11 @@ targets:
 dart run build_runner build
 ```
 
-**6. Your two outputs appear** (under `lib/`):
+**6. Your two outputs appear** (colocated under `lib/generated/`):
 
-- `…catalog.g.dart` — `buildRestageCatalogItems()`: the genui `CatalogItem`s (each with its data schema and
-  widget builder) that genui renders against, plus the content-derived `restageA2uiCatalogId` and any
-  validated canonical example registry.
-- `…catalog.a2ui.json` — the A2UI-standard catalog document (`{ restageCapability, a2uiCatalog }`). Each
+- `restage_a2ui_catalog.g.dart` — `buildRestageCatalogItems()`: the genui `CatalogItem`s (each with its data schema and
+  widget builder) that genui renders against, plus the content-derived `restageA2uiCatalogId`.
+- `restage_a2ui_catalog.a2ui.json` — the A2UI-standard catalog document (`{ restageCapability, a2uiCatalog }`). Each
   `a2uiCatalog.components.<Name>` carries that component's full data schema — the *same* schema genui's own
   `Catalog.toCapabilitiesJson()` would emit (the data fields plus the injected `component` discriminator) — so
   a producer can generate payloads against this document alone. Two notes that follow genui's conventions: each
@@ -147,21 +148,6 @@ dart run build_runner build
 Typed `RestageConstraints` are projected onto the literal arm of a generated field schema. They describe
 the accepted literal catalog shape; values resolved from `{path}` or `{call}` remain application data, so
 the widget or app still enforces its runtime domain rules.
-
-To ship a canonical example, add repeatable `@RestageA2uiExample` annotations to a
-`@RestageWidget` class and point each one at a JSON sidecar containing an A2UI component array:
-
-```dart
-@RestageA2uiExample(
-  name: 'Default',
-  asset: 'lib/a2ui_examples/rating_picker/default.json',
-)
-@RestageWidget(/* … */)
-class RatingPicker extends StatelessWidget { /* … */ }
-```
-
-Generation validates every sidecar against the component catalog and emits the exact example through both
-genui `CatalogItem.exampleData` and the ordered `restageA2uiExampleRegistry`.
 
 **7. Render with genui:**
 
@@ -277,25 +263,31 @@ are also available for custom pipelines.)
 
 [RFW](https://pub.dev/packages/rfw) remains Restage's native delivery path; A2UI emission is additive.
 
-## Guiding the model with `description` and `usage`
+## Guiding the model with `description` and A2UI `usage`
 
-Two `@RestageWidget` / `@RestageProperty` fields feed the generative-UI model directly — both are **your**
-authored guidance, never inferred:
+General Restage descriptions and A2UI target configuration feed the generative-UI model directly — both
+are **your** authored guidance, never inferred:
 
 - Every `description` you write on a widget or property is emitted as that field's schema `description` in
   the generated A2UI catalog. A model reading the catalog's JSON schema sees exactly the words you wrote.
-- An optional `@RestageWidget(usage: '...')` note becomes that widget's line in genui's
+- An optional `@a2ui.Config.usage('...')` target configuration becomes that widget's line in genui's
   `Catalog.systemPromptFragments` — steering guidance the model reads when deciding *when* to reach for the
   widget, separate from the schema it fills in. A widget with no `usage` falls back to its `description`; a
   widget with neither contributes no line.
 
 ```dart
+import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@a2ui.Config.usage(
+  'Use for a short highlighted aside around optional content.',
+)
 @RestageWidget(
   name: 'Callout',
   library: WidgetLibrary.custom('acme.widgets'),
   category: WidgetCategory.decoration,
   description: 'A message callout that wraps an optional child.',
-  usage: 'Use for a short highlighted aside around optional content.',
 )
 class Callout extends StatelessWidget { /* … */ }
 ```

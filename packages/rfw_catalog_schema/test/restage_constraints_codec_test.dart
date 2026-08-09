@@ -860,7 +860,6 @@ Catalog _catalogWithProperties(List<PropertyEntry> properties) => Catalog(
           description: 'Constraint fixture.',
           flutterType: 'package:fixture/fixture.dart#ConstraintFixture',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: properties,
         ),
       ],

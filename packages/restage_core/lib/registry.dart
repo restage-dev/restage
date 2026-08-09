@@ -12,7 +12,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Registry for the `restage.core` library.
 /// Read by codegen, the editor, and the runtime SDK.
 final Catalog kRegistry = Catalog(
-  schemaVersion: 4,
+  schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
@@ -27,7 +27,6 @@ final Catalog kRegistry = Catalog(
           'A widget that aligns its child within itself and optionally sizes itself based on the child\'s size.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Align',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),
@@ -48,6 +47,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, sets its width to the child\'s width multiplied by this factor.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -59,6 +59,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, sets its height to the child\'s height multiplied by this factor.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -69,6 +70,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -82,7 +84,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedAlign',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0313'),
@@ -104,6 +105,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0315'),
@@ -111,6 +113,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, sets its height to the child\'s height multiplied by this factor.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -122,6 +125,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, sets its width to the child\'s width multiplied by this factor.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -156,6 +160,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -170,13 +175,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedContainer',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0005'),
           name: 'alignment',
           type: PropertyType.alignment,
           description: 'Align the [child] within the container.',
+          constructorNullable: true,
           category: PropertyCategory.layout,
           valueShape: ScalarShape(
               propertyType: PropertyType.alignment,
@@ -190,6 +195,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.edgeInsets,
           description:
               'Empty space to inscribe inside the [decoration]. The [child], if any, is placed inside this padding.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -202,6 +208,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -213,6 +220,7 @@ final Catalog kRegistry = Catalog(
           name: 'width',
           type: PropertyType.length,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -223,6 +231,7 @@ final Catalog kRegistry = Catalog(
           name: 'height',
           type: PropertyType.length,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -233,6 +242,7 @@ final Catalog kRegistry = Catalog(
           name: 'margin',
           type: PropertyType.edgeInsets,
           description: 'Empty space to surround the [decoration] and [child].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -244,6 +254,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The [child] contained by the container.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0529'),
@@ -286,6 +297,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -533,7 +545,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedDefaultTextStyle',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0318'),
@@ -549,6 +560,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'How the text should be aligned horizontally.',
           enumType: 'TextAlign',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -584,6 +596,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'An optional maximum number of lines for the text to span, wrapping if necessary.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -632,6 +645,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1060,13 +1074,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedOpacity',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0350'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0351'),
@@ -1109,6 +1123,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1135,7 +1150,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedPadding',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0354'),
@@ -1155,6 +1169,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0393'),
@@ -1185,6 +1200,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -1199,7 +1215,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedPositioned',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0357'),
@@ -1215,6 +1230,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The offset of the child\'s left edge from the left of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1226,6 +1242,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The offset of the child\'s top edge from the top of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1237,6 +1254,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The offset of the child\'s right edge from the right of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1248,6 +1266,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The offset of the child\'s bottom edge from the bottom of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1258,6 +1277,7 @@ final Catalog kRegistry = Catalog(
           name: 'width',
           type: PropertyType.length,
           description: 'The child\'s width.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1268,6 +1288,7 @@ final Catalog kRegistry = Catalog(
           name: 'height',
           type: PropertyType.length,
           description: 'The child\'s height.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1302,6 +1323,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -1316,13 +1338,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedRotation',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0365'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0366'),
@@ -1379,6 +1401,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -1393,13 +1416,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedScale',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0368'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0369'),
@@ -1456,6 +1479,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -1470,13 +1494,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/animated_size.dart#AnimatedSize',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0373'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0374'),
@@ -1524,6 +1548,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'The duration when transitioning this widget\'s size to match the child\'s size when going in reverse.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -1545,6 +1570,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: 'Called every time an animation completes.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -1559,13 +1585,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/implicit_animations.dart#AnimatedSlide',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0403'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0404'),
@@ -1610,6 +1636,7 @@ final Catalog kRegistry = Catalog(
           name: 'onEnd',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -1623,7 +1650,6 @@ final Catalog kRegistry = Catalog(
           'A widget that attempts to size the child to a specific aspect ratio.',
       flutterType: 'package:flutter/src/widgets/basic.dart#AspectRatio',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0018'),
@@ -1642,6 +1668,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -1654,13 +1681,13 @@ final Catalog kRegistry = Catalog(
           'A widget that applies a filter to the existing painted content and then paints [child].',
       flutterType: 'package:flutter/src/widgets/basic.dart#BackdropFilter',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0020'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0021'),
@@ -1711,13 +1738,13 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that centers its child within itself.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Center',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0025'),
           name: 'widthFactor',
           type: PropertyType.real,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1728,6 +1755,7 @@ final Catalog kRegistry = Catalog(
           name: 'heightFactor',
           type: PropertyType.real,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1738,6 +1766,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -1749,7 +1778,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that clips its child using an oval.',
       flutterType: 'package:flutter/src/widgets/basic.dart#ClipOval',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0028'),
@@ -1767,6 +1795,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -1778,7 +1807,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that clips its child using a rounded rectangle.',
       flutterType: 'package:flutter/src/widgets/basic.dart#ClipRRect',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0030'),
@@ -1796,6 +1824,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0032'),
@@ -1842,7 +1871,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that clips its child using a rectangle.',
       flutterType: 'package:flutter/src/widgets/basic.dart#ClipRect',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0033'),
@@ -1860,6 +1888,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -1871,7 +1900,6 @@ final Catalog kRegistry = Catalog(
       description: 'A box that paints a solid color behind its child.',
       flutterType: 'package:flutter/src/widgets/basic.dart#ColoredBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0580'),
@@ -1891,6 +1919,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
       sinceVersion: 5,
@@ -1903,7 +1932,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that displays its children in a vertical array.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Column',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0035'),
@@ -1973,13 +2001,13 @@ final Catalog kRegistry = Catalog(
       description: 'A box that adds size constraints to its child.',
       flutterType: 'package:flutter/src/widgets/basic.dart#ConstrainedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0582'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0583'),
@@ -2067,13 +2095,13 @@ final Catalog kRegistry = Catalog(
           'A convenience widget that combines common painting, positioning, and sizing widgets.',
       flutterType: 'package:flutter/src/widgets/container.dart#Container',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0039'),
           name: 'alignment',
           type: PropertyType.alignment,
           description: 'Align the [child] within the container.',
+          constructorNullable: true,
           category: PropertyCategory.layout,
           valueShape: ScalarShape(
               propertyType: PropertyType.alignment,
@@ -2087,6 +2115,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.edgeInsets,
           description:
               'Empty space to inscribe inside the [decoration]. The [child], if any, is placed inside this padding.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -2099,6 +2128,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The color to paint behind the [child].',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -2110,6 +2140,7 @@ final Catalog kRegistry = Catalog(
           name: 'width',
           type: PropertyType.length,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -2120,6 +2151,7 @@ final Catalog kRegistry = Catalog(
           name: 'height',
           type: PropertyType.length,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -2130,6 +2162,7 @@ final Catalog kRegistry = Catalog(
           name: 'margin',
           type: PropertyType.edgeInsets,
           description: 'Empty space to surround the [decoration] and [child].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -2141,6 +2174,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The [child] contained by the container.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0530'),
@@ -2398,7 +2432,6 @@ final Catalog kRegistry = Catalog(
           'A widget that paints a [Decoration] either before or after its child paints.',
       flutterType: 'package:flutter/src/widgets/container.dart#DecoratedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0051'),
@@ -2419,6 +2452,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0053'),
@@ -2462,7 +2496,6 @@ final Catalog kRegistry = Catalog(
           'The text style to apply to descendant [Text] widgets which don\'t have an explicit style.',
       flutterType: 'package:flutter/src/widgets/text.dart#DefaultTextStyle',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0054'),
@@ -2471,6 +2504,7 @@ final Catalog kRegistry = Catalog(
           description:
               'How each line of text in the Text widget should be aligned horizontally.',
           enumType: 'TextAlign',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -2506,6 +2540,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'An optional maximum number of lines for the text to span, wrapping if necessary. If the text exceeds the given number of lines, it will be truncated according to [overflow].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -2958,7 +2993,6 @@ final Catalog kRegistry = Catalog(
           'A widget that expands a child of a [Row], [Column], or [Flex] so that the child fills the available space.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Expanded',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0063'),
@@ -2991,7 +3025,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/fade_in_image.dart#FadeInImage.assetNetwork',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0065'),
@@ -3033,6 +3066,7 @@ final Catalog kRegistry = Catalog(
           name: 'width',
           type: PropertyType.length,
           description: 'If non-null, require the image to have this width.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3043,6 +3077,7 @@ final Catalog kRegistry = Catalog(
           name: 'height',
           type: PropertyType.length,
           description: 'If non-null, require the image to have this height.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3055,6 +3090,7 @@ final Catalog kRegistry = Catalog(
           description:
               'How to inscribe the image into the space allocated during layout.',
           enumType: 'BoxFit',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3068,6 +3104,7 @@ final Catalog kRegistry = Catalog(
           description:
               'How to inscribe the placeholder image into the space allocated during layout.',
           enumType: 'BoxFit',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3080,6 +3117,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'The rendering quality of the placeholder image.',
           enumType: 'FilterQuality',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3096,7 +3134,6 @@ final Catalog kRegistry = Catalog(
           'Scales and positions its child within itself according to [fit].',
       flutterType: 'package:flutter/src/widgets/basic.dart#FittedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0073'),
@@ -3141,6 +3178,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3153,7 +3191,6 @@ final Catalog kRegistry = Catalog(
           'A widget that controls how a child of a [Row], [Column], or [Flex] flexes.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Flexible',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0077'),
@@ -3200,7 +3237,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/basic.dart#FractionallySizedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0377'),
@@ -3222,6 +3258,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               '{@template flutter.widgets.basic.fractionallySizedBox.widthFactor} If non-null, the fraction of the incoming width given to the child.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3233,6 +3270,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               '{@template flutter.widgets.basic.fractionallySizedBox.heightFactor} If non-null, the fraction of the incoming height given to the child.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3243,6 +3281,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3255,23 +3294,20 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/gesture_detector.dart#GestureDetector',
       childrenSlot: ChildrenSlot.single,
-      fires: [
-        WidgetEventName.onTap,
-        WidgetEventName.onLongPress,
-        WidgetEventName.onDoubleTap
-      ],
       properties: [
         PropertyEntry(
           wireId: WireId('p0080'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0081'),
           name: 'onTap',
           type: PropertyType.event,
           description: 'A tap with a primary button has occurred.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -3280,6 +3316,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'The user has tapped the screen with a primary button at the same location twice in quick succession.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -3288,6 +3325,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'Called when a long press gesture with a primary button has been recognized.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -3300,7 +3338,6 @@ final Catalog kRegistry = Catalog(
       description: 'A network image.',
       flutterType: 'package:flutter/src/widgets/image.dart#Image.network',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0084'),
@@ -3320,6 +3357,7 @@ final Catalog kRegistry = Catalog(
           name: 'semanticLabel',
           type: PropertyType.string,
           description: 'A Semantic description of the image.',
+          constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
@@ -3332,6 +3370,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, require the image to have this width (in logical pixels).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3343,6 +3382,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, require the image to have this height (in logical pixels).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3354,6 +3394,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'If non-null, this color is blended with each image pixel using [colorBlendMode].',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -3366,6 +3407,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'Used to combine [color] with this image.',
           enumType: 'BlendMode',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -3378,6 +3420,7 @@ final Catalog kRegistry = Catalog(
           description:
               'How to inscribe the image into the space allocated during layout.',
           enumType: 'BoxFit',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3434,7 +3477,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that displays an image.',
       flutterType: 'package:flutter/src/widgets/image.dart#Image.asset',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0089'),
@@ -3454,6 +3496,7 @@ final Catalog kRegistry = Catalog(
           name: 'semanticLabel',
           type: PropertyType.string,
           description: 'A Semantic description of the image.',
+          constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
@@ -3466,6 +3509,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, require the image to have this width (in logical pixels).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3477,6 +3521,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, require the image to have this height (in logical pixels).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3488,6 +3533,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'If non-null, this color is blended with each image pixel using [colorBlendMode].',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -3500,6 +3546,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'Used to combine [color] with this image.',
           enumType: 'BlendMode',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -3512,6 +3559,7 @@ final Catalog kRegistry = Catalog(
           description:
               'How to inscribe the image into the space allocated during layout.',
           enumType: 'BoxFit',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3569,13 +3617,13 @@ final Catalog kRegistry = Catalog(
           'A widget that sizes its child to the child\'s intrinsic height.',
       flutterType: 'package:flutter/src/widgets/basic.dart#IntrinsicHeight',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0381'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3588,7 +3636,6 @@ final Catalog kRegistry = Catalog(
           'A widget that sizes its child to the child\'s maximum intrinsic width.',
       flutterType: 'package:flutter/src/widgets/basic.dart#IntrinsicWidth',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0382'),
@@ -3596,6 +3643,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               'If non-null, force the child\'s width to be a multiple of this value.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3607,6 +3655,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               'If non-null, force the child\'s height to be a multiple of this value.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3617,6 +3666,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3628,7 +3678,6 @@ final Catalog kRegistry = Catalog(
       description: 'A box that limits its size only when it\'s unconstrained.',
       flutterType: 'package:flutter/src/widgets/basic.dart#LimitedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0094'),
@@ -3661,6 +3710,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3672,7 +3722,6 @@ final Catalog kRegistry = Catalog(
       description: 'A scrollable list of widgets arranged linearly.',
       flutterType: 'package:flutter/src/widgets/scroll_view.dart#ListView',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0097'),
@@ -3714,6 +3763,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -3732,6 +3782,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '',
           enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -3761,7 +3812,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_core/src/widgets/restage_fade_in.dart#RestageFadeIn',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0471'),
@@ -3777,6 +3827,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'How long the fade takes. Null uses [defaultDuration] (300ms).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -3824,6 +3875,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'How long to wait after mount before the fade starts. Null means no delay.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -3835,6 +3887,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'Fires once when the fade settles. Never fires if the widget is disposed before settling.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -3848,13 +3901,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_core/src/widgets/restage_formatted_number.dart#RestageFormattedNumber',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0409'),
           name: 'value',
           type: PropertyType.real,
           description: 'The number to format. Null renders the empty string.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3866,6 +3919,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The locale whose conventions govern number formatting — grouping and the decimal mark (e.g. `en_US`, `de_DE`). Null uses the ambient default locale.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -3877,6 +3931,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'Horizontal alignment of the rendered value.',
           enumType: 'TextAlign',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -3887,6 +3942,7 @@ final Catalog kRegistry = Catalog(
           name: 'maxLines',
           type: PropertyType.integer,
           description: 'Maximum number of lines for the rendered value.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -4328,7 +4384,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_core/src/widgets/restage_motion.dart#RestageMotion',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onEnd],
       properties: [
         PropertyEntry(
           wireId: WireId('p0478'),
@@ -4359,6 +4414,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'Optional override for the preset\'s settle duration. Null keeps the preset\'s duration. Independent of [bounce] — overriding one leaves the other at the preset\'s value.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -4370,6 +4426,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               'Optional override for the preset\'s bounce (overshoot). Null keeps the preset\'s bounce. Independent of [duration]. Clamped internally so no value can produce a non-settling spring.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -4417,6 +4474,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'How long to wait after mount before the entrance starts. Null means no delay (start immediately).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -4428,6 +4486,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'Fires once when the entrance settles. Never fires if the widget is disposed before settling.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -4441,13 +4500,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_core/src/widgets/restage_formatted_number.dart#RestagePrice',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0439'),
           name: 'value',
           type: PropertyType.real,
           description: 'The amount to format. Null renders the empty string.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -4459,6 +4518,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The locale whose conventions govern number formatting — grouping, the decimal mark, digit shaping, and symbol placement (e.g. `en_US`, `de_DE`, `ja_JP`). Null uses the ambient default locale.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -4470,6 +4530,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The currency symbol or sign to show (e.g. `\$`, `€`, `¥`). Null uses the locale\'s default currency symbol.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -4481,6 +4542,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'The number of fraction digits (e.g. `2` for most currencies, `0` for JPY, `3` for KWD). Null uses the locale\'s default for the currency.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -4492,6 +4554,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'Horizontal alignment of the rendered value.',
           enumType: 'TextAlign',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -4502,6 +4565,7 @@ final Catalog kRegistry = Catalog(
           name: 'maxLines',
           type: PropertyType.integer,
           description: 'Maximum number of lines for the rendered value.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -4944,7 +5008,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_core/src/widgets/restage_pulse.dart#RestagePulse',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0487'),
@@ -4984,6 +5047,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'The duration of a single sweep between [minScale] and [maxScale]; a full pulse (out and back) takes two sweeps. Null uses [defaultPeriod] (1200ms).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -5014,7 +5078,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_core/src/widgets/restage_stagger.dart#RestageStagger',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0492'),
@@ -5030,6 +5093,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'The delay added per child — child `i` starts after `delayBetween * i`. Null uses [defaultDelayBetween] (60ms). Clamped to a safe range so a pathological value cannot overflow the per-child delay.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -5096,7 +5160,6 @@ final Catalog kRegistry = Catalog(
       description: 'A box that can lay out its child without painting it.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Offstage',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0587'),
@@ -5114,6 +5177,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
       sinceVersion: 5,
@@ -5126,7 +5190,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that makes its child partially transparent.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Opacity',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0102'),
@@ -5157,6 +5220,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -5168,7 +5232,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that insets its child by the given padding.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Padding',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0105'),
@@ -5188,6 +5251,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -5200,7 +5264,6 @@ final Catalog kRegistry = Catalog(
           'A widget that controls where a child of a [Stack] is positioned.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Positioned',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0107'),
@@ -5208,6 +5271,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The distance that the child\'s left edge is inset from the left of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5219,6 +5283,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The distance that the child\'s top edge is inset from the top of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5230,6 +5295,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The distance that the child\'s right edge is inset from the right of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5241,6 +5307,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The distance that the child\'s bottom edge is inset from the bottom of the stack.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5251,6 +5318,7 @@ final Catalog kRegistry = Catalog(
           name: 'width',
           type: PropertyType.length,
           description: 'The child\'s width.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5261,6 +5329,7 @@ final Catalog kRegistry = Catalog(
           name: 'height',
           type: PropertyType.length,
           description: 'The child\'s height.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5284,7 +5353,6 @@ final Catalog kRegistry = Catalog(
       description: 'A widget that displays its children in a horizontal array.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Row',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0114'),
@@ -5355,7 +5423,6 @@ final Catalog kRegistry = Catalog(
           'A widget that rotates its child by a integral number of quarter turns.',
       flutterType: 'package:flutter/src/widgets/basic.dart#RotatedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0118'),
@@ -5375,6 +5442,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -5387,7 +5455,6 @@ final Catalog kRegistry = Catalog(
           'A widget that insets its child with sufficient padding to avoid intrusions by the operating system.',
       flutterType: 'package:flutter/src/widgets/safe_area.dart#SafeArea',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0120'),
@@ -5466,7 +5533,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/widgets/single_child_scroll_view.dart#SingleChildScrollView',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0126'),
@@ -5498,6 +5564,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: 'The amount of space by which to inset the child.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -5509,6 +5576,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget that scrolls.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0551'),
@@ -5528,6 +5596,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@macro flutter.widgets.scroll_view.keyboardDismissBehavior}',
           enumType: 'ScrollViewKeyboardDismissBehavior',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -5544,7 +5613,6 @@ final Catalog kRegistry = Catalog(
       description: 'A box with a specified size.',
       flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0130'),
@@ -5552,6 +5620,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, requires the child to have exactly this width.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5563,6 +5632,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'If non-null, requires the child to have exactly this height.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -5573,6 +5643,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -5585,7 +5656,6 @@ final Catalog kRegistry = Catalog(
           'Spacer creates an adjustable, empty spacer that can be used to tune the spacing between widgets in a [Flex] container, like [Row] or [Column].',
       flutterType: 'package:flutter/src/widgets/spacer.dart#Spacer',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0133'),
@@ -5610,7 +5680,6 @@ final Catalog kRegistry = Catalog(
           'A widget that positions its children relative to the edges of its box.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Stack',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0134'),
@@ -5666,7 +5735,6 @@ final Catalog kRegistry = Catalog(
       description: 'Static text with optional styling.',
       flutterType: 'package:flutter/src/widgets/text.dart#Text',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0137'),
@@ -5687,6 +5755,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'How the text should be aligned horizontally.',
           enumType: 'TextAlign',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -5697,6 +5766,7 @@ final Catalog kRegistry = Catalog(
           name: 'softWrap',
           type: PropertyType.boolean,
           description: 'Whether the text should break at soft line breaks.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -5708,6 +5778,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'An optional maximum number of lines for the text to span, wrapping if necessary. If the text exceeds the given number of lines, it will be truncated according to [overflow].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -5719,6 +5790,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               '{@template flutter.widgets.Text.semanticsLabel} An alternative semantics label for this text.',
+          constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
@@ -5731,6 +5803,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.painting.textPainter.textWidthBasis}',
           enumType: 'TextWidthBasis',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -6177,7 +6250,6 @@ final Catalog kRegistry = Catalog(
           'Rich text — a styled inline-span tree with optional styling.',
       flutterType: 'package:flutter/src/widgets/text.dart#Text.rich',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0500'),
@@ -6194,6 +6266,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: 'How the text should be aligned horizontally.',
           enumType: 'TextAlign',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef:
@@ -6204,6 +6277,7 @@ final Catalog kRegistry = Catalog(
           name: 'softWrap',
           type: PropertyType.boolean,
           description: 'Whether the text should break at soft line breaks.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -6215,6 +6289,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'An optional maximum number of lines for the text to span, wrapping if necessary. If the text exceeds the given number of lines, it will be truncated according to [overflow].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -6226,6 +6301,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               '{@template flutter.widgets.Text.semanticsLabel} An alternative semantics label for this text.',
+          constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
@@ -6238,6 +6314,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.painting.textPainter.textWidthBasis}',
           enumType: 'TextWidthBasis',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -6684,7 +6761,6 @@ final Catalog kRegistry = Catalog(
           'A widget that applies a transformation before painting its child.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Transform.rotate',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0143'),
@@ -6704,6 +6780,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.offset,
           description:
               'The origin of the coordinate system in which to apply the matrix, described relative to the point given by [alignment].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.offset,
               dartTypeRef:
@@ -6716,6 +6793,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The alignment of the origin, relative to the size of the box.',
           defaultSource: LiteralDefault('center'),
+          constructorNullable: true,
           category: PropertyCategory.layout,
           valueShape: ScalarShape(
               propertyType: PropertyType.alignment,
@@ -6742,6 +6820,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The filter quality with which to apply the transform as a bitmap operation.',
           enumType: 'FilterQuality',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -6752,6 +6831,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -6763,7 +6843,6 @@ final Catalog kRegistry = Catalog(
       description: 'Whether to show or hide a child.',
       flutterType: 'package:flutter/src/widgets/visibility.dart#Visibility',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0148'),
@@ -6808,7 +6887,6 @@ final Catalog kRegistry = Catalog(
           'A widget that displays its children in multiple horizontal or vertical runs.',
       flutterType: 'package:flutter/src/widgets/basic.dart#Wrap',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0151'),
@@ -6898,6 +6976,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Determines the order to lay children out horizontally and how to interpret `start` and `end` in the horizontal direction.',
           enumType: 'TextDirection',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(

@@ -1,31 +1,6 @@
 import 'package:restage_codegen/src/a2ui/a2ui_definition_registry.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
-
-/// Whether [uri] is a CUSTOMER library that the generated file imports with a
-/// prefix. Flutter, `dart:`, genui, and `json_schema_builder` are imported
-/// unprefixed — they are framework/runtime libraries with no collision risk and
-/// keeping them bare leaves the built-in (flutter-only) catalogs byte-neutral.
-bool isPrefixableLibrary(String uri) =>
-    !uri.startsWith('dart:') &&
-    !uri.startsWith('package:flutter/') &&
-    !uri.startsWith('package:genui/') &&
-    !uri.startsWith('package:json_schema_builder/');
-
-/// Spells [typeName] (a leading type identifier optionally followed by
-/// dart:core-argument generics, e.g. `PlanTier` or `Box<int>`) qualified by the
-/// import prefix assigned to [libraryUri] in [prefixes], or bare when the
-/// library is unprefixed. The prefix qualifies the LEADING identifier (Dart
-/// parses `p0.Box<int>` as `(p0.Box)<int>`); a customer TYPE ARGUMENT cannot be
-/// prefixed from the flat spelling and is rejected upstream by the
-/// prefixability guard, never reaching here.
-String prefixedType(
-  String typeName,
-  String? libraryUri,
-  Map<String, String> prefixes,
-) {
-  final prefix = libraryUri == null ? null : prefixes[libraryUri];
-  return prefix == null ? typeName : '$prefix.$typeName';
-}
+import 'package:restage_codegen/src/dart_import_planner.dart';
 
 /// Generates the Dart source that reconstructs a typed value from decoded
 /// (untrusted) genui JSON at render time, for a widget's rich data shapes.
@@ -154,16 +129,12 @@ class A2uiDataBuilder {
   /// [node] that cannot be import-prefixed, or null when every spelling under
   /// [node] is prefixable.
   ///
-  /// Uniform import prefixing makes same-name cross-library collisions
-  /// unrepresentable (each library has a distinct prefix), so the legacy
-  /// collision guard is retired. The one spelling the leading-identifier prefix
-  /// cannot render is a customer generic instantiated with ANOTHER customer
-  /// type (`Box<Inner>`): the flat instantiated spelling carries no
-  /// per-argument library, so the inner customer type cannot be qualified. The
-  /// caller fails
-  /// closed LOUD on a non-null result (naming the widget/field) rather than
-  /// emit ambiguous/uncompilable source; full recursive prefixing (which needs
-  /// the reflector to carry a structured spelling) is a tracked follow-up.
+  /// Analyzer-reflected shapes carry a recursive Dart identity, so every type
+  /// argument is qualified independently. This guard only applies to legacy or
+  /// manually assembled sidecars that provide a flat instantiated spelling such
+  /// as `Box<Inner>` without the per-argument libraries needed to qualify it.
+  /// The caller fails closed LOUD rather than emit ambiguous source and directs
+  /// the developer to regenerate the sidecar.
   String? firstUnprefixableSpelling(A2uiSchemaNode node) {
     String? result;
     void visit(A2uiSchemaNode current) {
@@ -214,8 +185,8 @@ class A2uiDataBuilder {
   static final RegExp _typeArgIdentifier = RegExp(r'[A-Za-z_$][A-Za-z0-9_$]*');
 
   /// Whether [construction]'s instantiated spelling is a generic whose type
-  /// arguments include a non-dart:core (presumed customer) type — which the
-  /// leading-identifier prefix would leave bare and unresolved.
+  /// arguments include a non-dart:core (presumed customer) type but lacks a
+  /// recursive `DartTypeIdentity` that can qualify it.
   ///
   /// Fail-closed-conservative: rather than enumerate customer types (which can
   /// miss a phantom/inherited type-argument dependency that never appears as a
@@ -223,6 +194,7 @@ class A2uiDataBuilder {
   /// safe to spell bare and treats every other type-argument identifier as
   /// unprefixable.
   bool _spellingHasCustomerTypeArgument(A2uiClassConstruction construction) {
+    if (construction.dartTypeIdentity != null) return false;
     final spelling = construction.dartTypeName;
     final lt = spelling.indexOf('<');
     if (lt < 0) return false;
@@ -248,7 +220,7 @@ class A2uiDataBuilder {
       case EnumNode(:final dartTypeName, :final libraryUri):
         // Fail-safe: an unknown / absent member name resolves to null (the
         // map lookup), never a thrown cast.
-        final type = prefixedType(dartTypeName, libraryUri, _prefixes);
+        final type = qualifyFlatDartType(dartTypeName, libraryUri, _prefixes);
         return '$type.values.asNameMap()[_restageA2uiAs<String>($raw)]';
       case ListNode(:final element):
         // Element coercion runs at the SAME depth as the list (a list is not an
@@ -361,7 +333,7 @@ class A2uiDataBuilder {
             return 'bool';
         }
       case EnumNode(:final dartTypeName, :final libraryUri):
-        return prefixedType(dartTypeName, libraryUri, _prefixes);
+        return qualifyFlatDartType(dartTypeName, libraryUri, _prefixes);
       case ListNode(:final element):
         return 'List<${_dartType(element)}>';
       case MapNode(:final valueType):
@@ -369,11 +341,7 @@ class A2uiDataBuilder {
       case final ObjectNode object:
         final construction = object.construction;
         return construction is A2uiClassConstruction
-            ? prefixedType(
-                construction.dartTypeName,
-                construction.libraryUri,
-                _prefixes,
-              )
+            ? _classType(construction)
             : _recordTypeName(object);
       case RefNode(:final defId):
         if (_classes[defId] == null) {
@@ -383,14 +351,21 @@ class A2uiDataBuilder {
         }
         final construction =
             _classes[defId]!.construction! as A2uiClassConstruction;
-        return prefixedType(
-          construction.dartTypeName,
-          construction.libraryUri,
-          _prefixes,
-        );
+        return _classType(construction);
       case UnionNode():
         throw StateError('union has no value-builder Dart type');
     }
+  }
+
+  String _classType(A2uiClassConstruction construction) {
+    final identity = construction.dartTypeIdentity;
+    return identity == null
+        ? qualifyFlatDartType(
+            construction.dartTypeName,
+            construction.libraryUri,
+            _prefixes,
+          )
+        : renderDartTypeFromPrefixes(identity, _prefixes);
   }
 
   /// The named-record Dart type `({<type> name, …})` for a record [node].
@@ -420,7 +395,7 @@ class A2uiDataBuilder {
             return 'false';
         }
       case EnumNode(:final dartTypeName, :final libraryUri):
-        return '${prefixedType(dartTypeName, libraryUri, _prefixes)}'
+        return '${qualifyFlatDartType(dartTypeName, libraryUri, _prefixes)}'
             '.values.first';
       case ListNode(:final element):
         return 'const <${_dartType(element)}>[]';
@@ -491,11 +466,7 @@ class A2uiDataBuilder {
     final object = _classes[defId]!;
     final ctor = object.construction! as A2uiClassConstruction;
     final helper = _classHelperNames[defId]!;
-    final typeName = prefixedType(
-      ctor.dartTypeName,
-      ctor.libraryUri,
-      _prefixes,
-    );
+    final typeName = _classType(ctor);
     final lines = <String>[
       '$typeName? $helper(Object? _raw, int _depth) {',
       '  if (_depth > _kA2uiMaxBuildDepth) return null;',

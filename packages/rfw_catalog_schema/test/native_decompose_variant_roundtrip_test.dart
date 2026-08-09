@@ -470,7 +470,6 @@ Catalog _shapeCatalog(CatalogValueShape shape) => Catalog(
           description: 'Probe widget.',
           flutterType: 'package:flutter/widgets.dart#Probe',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: WireId('p0001'),
@@ -505,7 +504,6 @@ Catalog _recipeCatalog(
           description: 'Probe widget.',
           flutterType: 'package:flutter/widgets.dart#Probe',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: WireId('p0001'),

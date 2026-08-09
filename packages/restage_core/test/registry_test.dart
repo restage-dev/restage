@@ -247,7 +247,6 @@ void main() {
             widget.properties.singleWhere((p) => p.name == 'onEnd').type,
             PropertyType.event,
           );
-          expect(widget.fires, contains(WidgetEventName.onEnd));
           expect(
             widget.childrenSlot,
             ChildrenSlot.single,

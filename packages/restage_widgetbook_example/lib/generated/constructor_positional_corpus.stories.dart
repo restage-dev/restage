@@ -1,0 +1,93 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: library_private_types_in_public_api, unused_import
+
+import 'package:widgetbook/widgetbook.dart' as widgetbook;
+import 'package:widgetbook/widgetbook.dart';
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+    as restage_source;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+    show ConstructorPositionalCorpus;
+
+part 'constructor_positional_corpus.stories.g.dart';
+
+class ConstructorPositionalCorpusStoryInput {
+  const ConstructorPositionalCorpusStoryInput({
+    this.description = "Reusable positional-hole fixture.",
+    this.usage = "Reusable positional-hole fixture.",
+    this.requiredLabel = "",
+    this.leading = "leading-default",
+    this.trailing = "trailing-default",
+  });
+
+  final String description;
+  final String usage;
+  final String requiredLabel;
+  final String leading;
+  final String trailing;
+}
+
+const meta = widgetbook.Meta(
+  restage_source.ConstructorPositionalCorpus.new,
+  argsType: ConstructorPositionalCorpusStoryInput.new,
+);
+
+const component = widgetbook.ComponentMeta(path: 'layout');
+
+final defaults = _Defaults(
+  builder: (context, args) => restage_source.ConstructorPositionalCorpus(
+    args.requiredLabel,
+    args.leading,
+    args.trailing,
+  ),
+);
+
+final $RestageCatalog = _Story(
+  args: _Args(
+    description: _RestageMetadataArg(
+      "Reusable positional-hole fixture.",
+      name: 'description',
+    ),
+    usage: _RestageMetadataArg(
+      "Reusable positional-hole fixture.",
+      name: 'usage',
+    ),
+    requiredLabel: _RestageStringArg(
+      "",
+      description: "Required positional value.",
+    ),
+    leading: _RestageStringArg(
+      "leading-default",
+      description:
+          "Earlier optional positional value. Default: the widget constructor's Dart default.",
+    ),
+    trailing: _RestageStringArg(
+      "trailing-default",
+      description:
+          "Later optional positional value used to prove hole preservation. Default: the widget constructor's Dart default.",
+    ),
+  ),
+);
+
+mixin _RestageArgDescription<T> on widgetbook.Arg<T> {
+  String get restageDescription;
+
+  @override
+  String? get description => restageDescription;
+}
+
+final class _RestageMetadataArg extends widgetbook.Arg<String>
+    with widgetbook.NoFields<String> {
+  _RestageMetadataArg(super.value, {required super.name});
+
+  @override
+  String get description => value;
+}
+
+final class _RestageStringArg extends widgetbook.StringArg
+    with _RestageArgDescription<String> {
+  _RestageStringArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}

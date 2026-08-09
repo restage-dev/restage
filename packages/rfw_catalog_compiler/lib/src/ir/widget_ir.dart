@@ -25,7 +25,6 @@ final class WidgetIR {
     required this.description,
     required this.properties,
     required this.decomposes,
-    required this.fires,
     required this.childrenSlot,
     required this.stability,
     required this.diagnostics,
@@ -62,9 +61,6 @@ final class WidgetIR {
 
   /// Structured decomposition recipes for this widget.
   final List<DecompositionIR> decomposes;
-
-  /// Event names this widget can fire.
-  final List<WidgetEventName> fires;
 
   /// Children slot accepted by the widget.
   final ChildrenSlot childrenSlot;

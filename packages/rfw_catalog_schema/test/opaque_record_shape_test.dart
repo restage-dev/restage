@@ -96,7 +96,6 @@ void main() {
           description: '',
           flutterType: 'package:acme/widgets.dart#Board',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             // A record widget PROPERTY (hits _propertyToJson's assert).
             PropertyEntry(

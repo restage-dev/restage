@@ -7,16 +7,11 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// `ValueChanged` callback, so the A2UI catalog wires the two-way binding
 /// automatically (no pairing annotation needed) — tapping a star writes the new
 /// rating into the data model and the control re-renders from it.
-@RestageA2uiExample(
-  name: 'Boundary',
-  asset: 'lib/a2ui_examples/rating_picker/boundary.json',
-)
 @RestageWidget(
   name: 'RatingPicker',
   library: WidgetLibrary.custom('acme.widgets'),
   category: WidgetCategory.input,
   description: 'A 1–5 star rating control bound to an integer value.',
-  fires: [WidgetEventName.onChanged],
 )
 class RatingPicker extends StatelessWidget {
   /// Creates a rating control showing [rating] stars selected and reporting

@@ -1,5 +1,6 @@
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -81,6 +82,54 @@ void main() {
 
       expect(result.issues, isNotEmpty);
       expect(result.dsl, '');
+    });
+
+    test('a non-const prefixed getter is diagnosed, not stringified', () async {
+      final expr = await parseExpressionFromSourceForTest('''
+        class Config {
+          static String get currentLabel => 'runtime';
+        }
+
+        String x() => Config.currentLabel;
+      ''');
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+      ).translate(expr);
+
+      expect(result.dsl, '');
+      expect(
+        result.issues,
+        contains(
+          isA<Issue>().having(
+            (issue) => issue.code,
+            'code',
+            IssueCode.unresolvedIdentifier,
+          ),
+        ),
+      );
+    });
+
+    test('a bad prefixed record label suppresses the complete record',
+        () async {
+      final expr = await parseExpressionFromSourceForTest('''
+        class Config {
+          static String get currentLabel => 'runtime';
+        }
+
+        ({String good, String label}) x() => (
+          good: 'authored',
+          label: Config.currentLabel,
+        );
+      ''');
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+      ).translate(expr);
+
+      expect(result.issues, isNotEmpty);
+      expect(result.dsl, '');
+      expect(result.dsl, isNot(contains('currentLabel')));
     });
   });
 }

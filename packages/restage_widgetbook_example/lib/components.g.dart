@@ -1,0 +1,27 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+// dart format off
+// coverage:ignore-file
+// ignore_for_file: type=lint
+// ignore_for_file: unused_import, prefer_relative_imports, directives_ordering, unused_element, strict_raw_type
+// ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:widgetbook/widgetbook.dart' as _widgetbook;
+import 'package:restage_widgetbook_example/generated/catalog_showcase.stories.dart' as _restage_widgetbook_example_generated_catalog_showcase_stories;
+import 'package:restage_widgetbook_example/generated/constructor_fidelity_corpus.stories.dart' as _restage_widgetbook_example_generated_constructor_fidelity_corpus_stories;
+import 'package:restage_widgetbook_example/generated/constructor_fidelity_proof.stories.dart' as _restage_widgetbook_example_generated_constructor_fidelity_proof_stories;
+import 'package:restage_widgetbook_example/generated/constructor_positional_corpus.stories.dart' as _restage_widgetbook_example_generated_constructor_positional_corpus_stories;
+import 'package:restage_widgetbook_example/generated/feature_panel.stories.dart' as _restage_widgetbook_example_generated_feature_panel_stories;
+import 'package:restage_widgetbook_example/generated/feature_row.stories.dart' as _restage_widgetbook_example_generated_feature_row_stories;
+import 'package:restage_widgetbook_example/generated/price_badge.stories.dart' as _restage_widgetbook_example_generated_price_badge_stories;
+import 'package:restage_widgetbook_example/generated/stat_tile.stories.dart' as _restage_widgetbook_example_generated_stat_tile_stories;
+
+final components = <_widgetbook.Component>[
+  _restage_widgetbook_example_generated_catalog_showcase_stories.CatalogShowcaseComponent,
+  _restage_widgetbook_example_generated_constructor_fidelity_corpus_stories.ConstructorFidelityCorpusComponent,
+  _restage_widgetbook_example_generated_constructor_fidelity_proof_stories.ConstructorFidelityProofComponent,
+  _restage_widgetbook_example_generated_constructor_positional_corpus_stories.ConstructorPositionalCorpusComponent,
+  _restage_widgetbook_example_generated_feature_panel_stories.FeaturePanelComponent,
+  _restage_widgetbook_example_generated_feature_row_stories.FeatureRowComponent,
+  _restage_widgetbook_example_generated_price_badge_stories.PriceBadgeComponent,
+  _restage_widgetbook_example_generated_stat_tile_stories.StatTileComponent,
+];

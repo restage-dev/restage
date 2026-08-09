@@ -15,7 +15,13 @@ import 'package:test/test.dart';
 
 const String _fqn = 'package:acme/widgets/field_notes.dart#FieldNotes';
 
-WidgetEntry _widget(String propName) => WidgetEntry(
+WidgetEntry _widget(
+  String propName, {
+  bool required = true,
+  bool constructorNullable = false,
+  DartConstValue? constructorDefault,
+}) =>
+    WidgetEntry(
       wireId: WireId.unallocatedWidget,
       name: 'FieldNotes',
       library: const WidgetLibrary.custom('acme.design_system'),
@@ -23,14 +29,15 @@ WidgetEntry _widget(String propName) => WidgetEntry(
       description: 'A widget.',
       flutterType: _fqn,
       childrenSlot: ChildrenSlot.none,
-      fires: const [],
       properties: [
         PropertyEntry(
           wireId: WireId.unallocatedProperty,
           name: propName,
           type: PropertyType.unknown,
           description: '',
-          required: true,
+          required: required,
+          constructorNullable: constructorNullable,
+          constructorDefault: constructorDefault,
           valueShape: ScalarShape.opaqueStringKeyedMap(),
         ),
       ],
@@ -50,6 +57,28 @@ String _emit(String propName, MapPlan plan) {
     mapPlans: {structuredSlotKey(_fqn, propName): plan},
   );
   expect(source, isNotNull, reason: 'the widget must be emittable');
+  return source!;
+}
+
+String _emitOptionalScalarMap({bool constructorNullable = false}) {
+  final source = emitUserFactoriesDart(
+    [
+      _widget(
+        'glossary',
+        required: false,
+        constructorNullable: constructorNullable,
+        constructorDefault: const DartConstMap([]),
+      ),
+    ],
+    mapPlans: {
+      structuredSlotKey(_fqn, 'glossary'): (
+        keys: const [_stringKey],
+        valueShape: const ScalarShape(propertyType: PropertyType.string),
+        valueSourceType: null,
+      ),
+    },
+  );
+  expect(source, isNotNull);
   return source!;
 }
 
@@ -194,5 +223,70 @@ void main() {
     // customer's own key would be reading the spelling the contract forbids.
     expect(src, contains("<Object>['glossary', i0, 'key']"));
     expect(src, isNot(contains("source.isMap(<Object>['glossary'])")));
+  });
+
+  test('an absent optional map leaves the Dart constructor argument out', () {
+    final src = _emitOptionalScalarMap();
+    final flat = src.replaceAll(RegExp(r'\s+'), ' ');
+
+    expect(
+      flat,
+      contains(RegExp(r'Function\.apply\(\s*s0\.FieldNotes\.new')),
+    );
+    expect(
+      flat,
+      contains('if (_restagePresenceGlossary.supplied) #glossary:'),
+    );
+    expect(
+      flat,
+      isNot(contains('if (_restagePresenceGlossary.hasValue) #glossary:')),
+    );
+  });
+
+  test(
+      'a supplied nonnullable optional map never defaults on no-value or '
+      'wrong shape', () {
+    final flat = _emitOptionalScalarMap().replaceAll(RegExp(r'\s+'), ' ');
+
+    expect(flat, contains('_restagePresenceGlossary.hasValue ?'));
+    expect(
+      flat,
+      contains(
+        'source.isList('
+        '<Object>[..._restagePresenceGlossary.valuePath])',
+      ),
+    );
+    expect(flat, contains('FieldNotes.glossary is required.'));
+    expect(
+      flat,
+      contains(
+        RegExp(
+          r'_restagePresenceGlossary\.hasValue \? .*? : '
+          r"\(throw ArgumentError\('FieldNotes\.glossary is required\.'\)\)",
+        ),
+      ),
+    );
+    expect(flat, isNot(contains(': const {}')));
+  });
+
+  test(
+      'a supplied nullable optional map maps no-value to null but throws on '
+      'wrong shape', () {
+    final flat = _emitOptionalScalarMap(constructorNullable: true)
+        .replaceAll(RegExp(r'\s+'), ' ');
+
+    expect(flat, contains('_restagePresenceGlossary.hasValue ?'));
+    expect(
+      flat,
+      contains(
+        'source.isList('
+        '<Object>[..._restagePresenceGlossary.valuePath])',
+      ),
+    );
+    expect(flat, contains('FieldNotes.glossary is required.'));
+    expect(
+      flat,
+      contains(RegExp(r'_restagePresenceGlossary\.hasValue \? .* : null')),
+    );
   });
 }

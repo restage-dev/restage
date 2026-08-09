@@ -1,9 +1,17 @@
 # Changelog
 
+## Unreleased — coordinated breaking release
+
+- Re-export the pure-Dart A2UI and RFW customer target annotations from the
+  new `a2ui.dart` and `rfw.dart` entrypoints.
+- Re-export catalog schema v5, where callback property names are open event
+  identities and the closed event-name enum is removed; v4 catalog decoding
+  remains supported.
+
 ## 1.2.0
 
-- Re-export the typed constraint model and the canonical A2UI example and
-  nested-data annotations from `rfw_catalog_schema` 1.2.0.
+- Re-export the typed constraint model and nested-data annotations from
+  `rfw_catalog_schema` 1.2.0.
 
 ## 1.1.0
 

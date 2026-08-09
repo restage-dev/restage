@@ -10,7 +10,7 @@ import 'helpers.dart';
 
 const _coreCatalog = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.core": {"version": "0.1.0", "widgetCount": 2, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -24,7 +24,6 @@ const _coreCatalog = '''
       "description": "Centers its child within itself.",
       "flutterType": "package:restage_core/src/widgets/center.dart#Center",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [],
       "stability": "volatile"
     },
@@ -36,7 +35,6 @@ const _coreCatalog = '''
       "description": "A box with explicit dimensions.",
       "flutterType": "package:restage_core/src/widgets/sized_box.dart#SizedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [],
       "stability": "volatile"
     }
@@ -49,7 +47,7 @@ const _coreCatalog = '''
 
 const _materialCatalog = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.material": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -63,8 +61,14 @@ const _materialCatalog = '''
       "description": "Material filled button.",
       "flutterType": "package:flutter/material.dart#FilledButton",
       "childrenSlot": "single",
-      "fires": ["onPressed"],
-      "properties": [],
+      "properties": [
+        {
+          "wireId": "p0001",
+          "name": "onPressed",
+          "type": "event",
+          "description": "Runs the action."
+        }
+      ],
       "stability": "volatile"
     }
   ],
@@ -83,7 +87,7 @@ const _materialCatalog = '''
 // vs customer.
 const _materialCatalogWithShadow = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.material": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -97,7 +101,6 @@ const _materialCatalogWithShadow = '''
       "description": "A material-flavoured Center, somehow.",
       "flutterType": "package:flutter/material.dart#MCenter",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [],
       "stability": "volatile"
     }
@@ -110,7 +113,8 @@ const _materialCatalogWithShadow = '''
 
 void main() {
   group('loadMergedCatalog', () {
-    test('preserves full native graph sections from v4 catalogs', () async {
+    test('preserves full native graph sections from canonical catalogs',
+        () async {
       final catalog = await _runLoaderWith({
         'restage_core': encodeCatalog(_fullGraphCoreCatalog()),
       });
@@ -160,7 +164,7 @@ void main() {
       // — they would have been emitted by a different file's owner.
       const corruptCore = '''
         {
-          "schemaVersion": 4,
+          "schemaVersion": 5,
           "generatedAt": "2026-05-09T00:00:00Z",
           "libraries": {
             "restage.core": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -174,7 +178,6 @@ void main() {
               "description": "A widget in the wrong file.",
               "flutterType": "package:x/y.dart#Stowaway",
               "childrenSlot": "none",
-              "fires": [],
               "properties": [],
               "stability": "volatile"
             }
@@ -326,7 +329,6 @@ Catalog _fullGraphCoreCatalog() {
         description: 'A full graph test widget.',
         flutterType: 'package:flutter/widgets.dart#CoreWidget',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p0001'),
@@ -435,7 +437,6 @@ Catalog _customCatalog() => Catalog(
           description: 'A custom banner.',
           flutterType: 'package:acme/banner.dart#AcmeBanner',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: const [],
         ),
       ],

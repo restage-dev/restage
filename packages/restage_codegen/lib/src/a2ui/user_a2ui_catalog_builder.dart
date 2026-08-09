@@ -8,16 +8,14 @@ import 'package:build/build.dart';
 import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
-import 'package:restage_codegen/src/a2ui/a2ui_example_discovery.dart';
-import 'package:restage_codegen/src/a2ui/a2ui_example_loader.dart';
-import 'package:restage_codegen/src/a2ui/a2ui_example_validator.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_semantics.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
-import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
+import 'package:restage_codegen/src/target_config_reader.dart';
+import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -25,11 +23,11 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// The generated A2UI catalog file. Declares
 /// `List<CatalogItem> buildRestageCatalogItems()` — the function the consumer
 /// passes to genui's `Catalog(...)`.
-const _catalogAssetName = 'restage_a2ui_catalog.g.dart';
+const _catalogAssetName = 'generated/restage_a2ui_catalog.g.dart';
 
 /// The companion capability-stamp document — the
 /// `{restageCapability, a2uiCatalog}` JSON the app-side check reads.
-const _stampAssetName = 'restage_a2ui_catalog.a2ui.json';
+const _stampAssetName = 'generated/restage_a2ui_catalog.a2ui.json';
 
 /// Placeholder pub version for a customer library's catalog envelope. The A2UI
 /// stamp reads only `capabilityVersion`; the pub `version` is not part of the
@@ -39,8 +37,9 @@ const _customerLibraryVersion = '0.0.0';
 
 /// Aggregates the consuming package's `@RestageWidget` source into a genui
 /// **A2UI** catalog (the autonomous-codegen emit target), emitting
-/// `lib/restage_a2ui_catalog.g.dart` (`buildRestageCatalogItems()`) plus the
-/// companion `lib/restage_a2ui_catalog.a2ui.json` capability stamp.
+/// `lib/generated/restage_a2ui_catalog.g.dart`
+/// (`buildRestageCatalogItems()`) plus the colocated
+/// `lib/generated/restage_a2ui_catalog.a2ui.json` capability stamp.
 ///
 /// The customer widgets are read from the consuming package's own source — the
 /// same public walk the customer-catalog emitter uses (`@RestageWidget`
@@ -48,7 +47,7 @@ const _customerLibraryVersion = '0.0.0';
 /// reproducible by any consumer of the public toolchain. For each customer
 /// widget the build-phase auto-wiring assembles the three analyzer-fed A2UI
 /// read legs (rich data shapes, event surfaces, and the
-/// `@RestageProperty(writeBackValue:)` value pairing) via [assembleA2uiSeams],
+/// `@a2ui.Config` value pairing) via [assembleA2uiSeams],
 /// threaded into the unchanged A2UI emitter.
 ///
 /// The emitted catalog is **customer-only** — sourced from the consuming
@@ -89,7 +88,10 @@ final class UserA2uiCatalogBuilder implements Builder {
     if (walk.widgets.isEmpty) return;
 
     final catalog = _customerOnlyCatalog(walk);
-    final seams = assembleA2uiSeams(walk.widgets);
+    final seams = assembleA2uiSeams(
+      walk.widgets,
+      writeBackValuesByWidget: walk.writeBackValuesByWidget,
+    );
 
     // A structured property the A2UI emitter cannot represent (a data class
     // with an unrepresentable field) surfaces as a seam issue — fail it loud,
@@ -117,23 +119,6 @@ final class UserA2uiCatalogBuilder implements Builder {
     );
     _enforceLoudCoverage(plan, walk.widgets);
 
-    // Canonical examples must be proved against the exact classified plan
-    // before either output is written. A sidecar error therefore cannot leave
-    // a generated Dart catalog and capability stamp that disagree with it.
-    final Map<String, Map<String, String>> exampleRegistry;
-    try {
-      final validatedExamples = validateA2uiExamples(
-        plan: plan,
-        examples: walk.examples,
-      );
-      exampleRegistry = buildA2uiExampleRegistry(validatedExamples);
-    } on A2uiExampleException catch (error) {
-      log.severe(error.toString());
-      throw StateError(
-        'canonical A2UI example validation failed; see log above.',
-      );
-    }
-
     // Build the complete stamped registration contract once. Its content
     // address and finalized producer guidance are then shared by both emitted
     // artifacts, so runtime and standalone identity cannot diverge.
@@ -144,25 +129,17 @@ final class UserA2uiCatalogBuilder implements Builder {
       pairingSeam: seams.pairingSeam,
       usageByWidget: walk.usageByWidget,
     );
-    final emittedDart = exampleRegistry.isEmpty
-        ? emitA2uiCatalogDart(
-            catalog,
-            registration: registration,
-            richShapes: seams.richShapes,
-            eventSeam: seams.eventSeam,
-            pairingSeam: seams.pairingSeam,
-            usageByWidget: walk.usageByWidget,
-          )
-        : emitA2uiCatalogDartWithExampleRegistry(
-            catalog,
-            exampleRegistry: exampleRegistry,
-            registration: registration,
-            richShapes: seams.richShapes,
-            eventSeam: seams.eventSeam,
-            pairingSeam: seams.pairingSeam,
-            usageByWidget: walk.usageByWidget,
-          );
-    final dart = formatGeneratedDart(emittedDart);
+    final emittedDart = emitA2uiCatalogDart(
+      catalog,
+      registration: registration,
+      richShapes: seams.richShapes,
+      eventSeam: seams.eventSeam,
+      pairingSeam: seams.pairingSeam,
+      usageByWidget: walk.usageByWidget,
+    );
+    final emitted = StringBuffer(emittedDart);
+    writePropertyExclusionReport(emitted, walk.exclusions);
+    final dart = formatGeneratedDart(emitted.toString());
     await buildStep.writeAsString(
       AssetId(buildStep.inputId.package, 'lib/$_catalogAssetName'),
       dart,
@@ -186,7 +163,8 @@ final class UserA2uiCatalogBuilder implements Builder {
     final widgets = <A2uiWidgetElement>[];
     final capabilityVersions = <WidgetLibrary, int?>{};
     final usageByWidget = <String, String>{};
-    final examples = <LoadedA2uiExample>[];
+    final writeBackValuesByWidget = <String, Map<String, String>>{};
+    final exclusions = <PropertyExclusion>[];
     final issues = <Issue>[];
 
     await for (final assetId in buildStep.findAssets(Glob('lib/**.dart'))) {
@@ -206,7 +184,7 @@ final class UserA2uiCatalogBuilder implements Builder {
         target: WidgetVisitorTarget.a2ui,
       );
       issues.addAll(result.issues);
-      final widgetNamesByClass = <ClassElement, String>{};
+      exclusions.addAll(result.exclusions);
       for (final entry in result.widgets) {
         // A customer `@RestageWidget` must not claim a built-in namespace — it
         // would bypass the custom-library capability axis (built-in namespaces
@@ -239,19 +217,15 @@ final class UserA2uiCatalogBuilder implements Builder {
           continue;
         }
         widgets.add((entry: entry, element: element));
-        widgetNamesByClass[element] = entry.name;
 
-        // Read the `usage` producer-facing note straight off the annotation
-        // (it is not part of the WidgetEntry projection): the same
-        // `ConstantReader`-style DartObject lookup used for the other
-        // `@RestageWidget` fields. Only a non-blank value (after trimming)
-        // contributes to the fragment map — an absent/blank/whitespace-only
-        // usage falls back to the widget's description in the emit, not an
-        // empty (or whitespace) entry here.
-        final annotationValue =
-            firstAnnotation(element, 'RestageWidget')?.computeConstantValue();
-        final usage =
-            annotationValue?.getField('usage')?.toStringValue()?.trim();
+        final constructorFacts = readWidgetConstructorFacts(element, assetId);
+        final targetConfig = readA2uiTargetConfig(
+          element,
+          assetId,
+          constructorInputs: constructorFacts.inputs,
+        );
+        issues.addAll(targetConfig.issues);
+        final usage = targetConfig.usage;
         if (usage != null && usage.isNotEmpty) {
           // Keying by the bare `entry.name` (not `(namespace, name)`) is safe
           // here: `emitA2uiCatalog`'s flat-namespace de-dup fails the build
@@ -260,6 +234,7 @@ final class UserA2uiCatalogBuilder implements Builder {
           // artifact — it is caught upstream before this map is consumed.
           usageByWidget[entry.name] = usage;
         }
+        writeBackValuesByWidget[entry.name] = targetConfig.writeBackValues;
       }
 
       // Surface genuine syntactic errors: the asset resolved with
@@ -271,23 +246,6 @@ final class UserA2uiCatalogBuilder implements Builder {
       );
       if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
         issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
-        try {
-          examples.addAll(
-            await discoverA2uiExamples(
-              buildStep: buildStep,
-              resolvedLibrary: resolved,
-              widgetNamesByClass: widgetNamesByClass,
-            ),
-          );
-        } on A2uiExampleException catch (error) {
-          issues.add(
-            Issue(
-              code: IssueCode.invalidWidgetClass,
-              message: error.toString(),
-              location: '${assetId.path}#@RestageA2uiExample',
-            ),
-          );
-        }
       }
 
       // Read the `@RestageLibrary` capability version, surfacing the walk's own
@@ -350,12 +308,18 @@ final class UserA2uiCatalogBuilder implements Builder {
       );
     }
 
-    if (issues.isNotEmpty) {
-      for (final issue in issues) {
+    for (final issue in issues.where((issue) => issue.code.isInformational)) {
+      log.warning(issue.toString());
+    }
+    final failures = issues
+        .where((issue) => !issue.code.isInformational)
+        .toList(growable: false);
+    if (failures.isNotEmpty) {
+      for (final issue in failures) {
         log.severe(issue.toString());
       }
       throw StateError(
-        '${issues.length} customer widget issue(s) detected; see log above.',
+        '${failures.length} customer widget issue(s) detected; see log above.',
       );
     }
 
@@ -371,7 +335,8 @@ final class UserA2uiCatalogBuilder implements Builder {
       widgets: widgets,
       capabilityVersions: capabilityVersions,
       usageByWidget: usageByWidget,
-      examples: examples,
+      writeBackValuesByWidget: writeBackValuesByWidget,
+      exclusions: exclusions,
     );
   }
 
@@ -404,10 +369,11 @@ final class UserA2uiCatalogBuilder implements Builder {
   ///    warning naming the widget, field, and reason;
   ///  * an emitted SINGLE-CHILD slot lowers through a nullable child lookup
   ///    (an A2UI child is a component-id reference that need not resolve), so
-  ///    a NON-NULLABLE child parameter the catalog does not mark required
-  ///    would receive a nullable expression — uncompilable generated code —
-  ///    fatal, with the actionable fix (declare `Widget?`, or mark the
-  ///    property required).
+  ///    a NON-NULLABLE child parameter the catalog does not mark required and
+  ///    has no reconstructed constructor default would receive a nullable
+  ///    expression — uncompilable generated code — fatal, with the actionable
+  ///    fix (declare `Widget?`, mark the property required, or use a public
+  ///    reconstructable const default).
   void _enforceLoudCoverage(
     A2uiDartCatalogPlan plan,
     List<A2uiWidgetElement> widgets,
@@ -458,6 +424,11 @@ final class UserA2uiCatalogBuilder implements Builder {
       for (final field in widget.fields) {
         if (field.emission case A2uiChildField(slot: A2uiChildNode())) {
           if (field.property.required) continue;
+          final constructorDefault = field.property.constructorDefault;
+          if (constructorDefault != null &&
+              constructorDefault is! DartConstNull) {
+            continue;
+          }
           final formal = _constructorFormal(
             elementByWidget[widget.entry.name],
             field.property.name,
@@ -470,8 +441,9 @@ final class UserA2uiCatalogBuilder implements Builder {
               'does not mark required. An A2UI child is a component-id '
               'reference that need not resolve, so the generated code would '
               'pass a nullable child to a non-nullable parameter and fail to '
-              "compile. Declare the parameter 'Widget?', or mark the property "
-              '@RestageProperty(required: true) to require a child.',
+              "compile. Declare the parameter 'Widget?', mark the property "
+              '@RestageProperty(required: true) to require a child, or use a '
+              'public reconstructable const default.',
             );
           }
         }
@@ -526,13 +498,14 @@ final class UserA2uiCatalogBuilder implements Builder {
 /// seam-assembly + emitter consume, each contributing library's declared
 /// `@RestageLibrary(capabilityVersion:)` (`null` when undeclared — the emitter
 /// fails loud if such a library contributes components), and each widget's
-/// `@RestageWidget(usage:)` note (only widgets with a non-empty usage are
+/// `@a2ui.Config.usage` note (only widgets with a non-empty usage are
 /// present — the emit falls back to the widget's description for the rest).
 typedef _CustomerWalk = ({
   List<A2uiWidgetElement> widgets,
   Map<WidgetLibrary, int?> capabilityVersions,
   Map<String, String> usageByWidget,
-  List<LoadedA2uiExample> examples,
+  Map<String, Map<String, String>> writeBackValuesByWidget,
+  List<PropertyExclusion> exclusions,
 });
 
 /// A customer-actionable explanation for a classifier coverage [reason]: what
@@ -549,7 +522,8 @@ String _coverageReasonHint(A2uiDartCoverageReason reason, String? fieldName) {
       return 'the write-back callback cannot be paired unambiguously with a '
           'value property (more than one write-back callback, or more than '
           'one matching-type value property); name the value property '
-          'explicitly with @RestageProperty(writeBackValue:).';
+          'explicitly with @a2ui.Config.writeBackValue on the callback or '
+          '@a2ui.Config.writeBackValues on the widget.';
     case A2uiDartCoverageReason.uncontrolledInteractiveWidget:
       return 'the interactive callback has no matching-type value property '
           'to control; add a value property of the callback value type so '
@@ -558,7 +532,7 @@ String _coverageReasonHint(A2uiDartCoverageReason reason, String? fieldName) {
       return 'the value property paired with the write-back callback is not '
           'a bindable data field.';
     case A2uiDartCoverageReason.invalidExplicitWritePairing:
-      return 'the @RestageProperty(writeBackValue:) pairing does not name a '
+      return 'the @a2ui.Config write-back pairing does not name a '
           'matching-type bindable value property on the widget.';
     case A2uiDartCoverageReason.requiredUnsupportedPropertyType:
     case A2uiDartCoverageReason.optionalUnsupportedPropertyType:

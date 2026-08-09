@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:meta/meta_meta.dart';
 
 import 'package:rfw_catalog_schema/src/widget_library.dart';
 import 'package:rfw_catalog_schema/src/widget_metadata.dart';
@@ -14,34 +15,47 @@ import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 ///
 /// Example:
 /// ```dart
+/// import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+/// import 'package:rfw_catalog_schema/rfw.dart' as rfw;
+///
+/// @a2ui.Config.usage('Use for the primary form action.')
 /// @RestageWidget(
-///   name: 'ElevatedButton',
-///   library: WidgetLibrary.material,
+///   name: 'SubmitButton',
+///   library: WidgetLibrary.custom('acme.widgets'),
 ///   category: WidgetCategory.action,
-///   description: 'A standard call-to-action button.',
-///   fires: [WidgetEventName.onPressed],
-///   childrenSlot: ChildrenSlot.single,
 /// )
-/// class ElevatedButton extends StatelessWidget { /* ... */ }
+/// class SubmitButton extends StatelessWidget {
+///   const SubmitButton({
+///     super.key,
+///     required this.label,
+///     required this.onPressed,
+///   });
+///
+///   /// Visible button label.
+///   final String label;
+///
+///   /// Runs the form action.
+///   final VoidCallback onPressed;
+///
+///   @override
+///   Widget build(BuildContext context) => GestureDetector(
+///         onTap: onPressed,
+///         child: Text(label),
+///       );
+/// }
 /// ```
 @immutable
+@Target({TargetKind.classType})
 final class RestageWidget {
-  /// Const annotation constructor. All non-list fields default to
-  /// schema-safe values; `name`, `library`, `category`, and
-  /// `description` are required.
+  /// Const annotation constructor. [name], [library], and [category] are
+  /// required. When [description] is empty, code generation reads the
+  /// annotated class's Dart documentation.
   const RestageWidget({
     required this.name,
     required this.library,
     required this.category,
-    required this.description,
-    this.usage,
-    this.fires = const [],
+    this.description = '',
     this.childrenSlot = ChildrenSlot.none,
-    @Deprecated(
-      "Annotate the widget class with @Deprecated('...') instead; the catalog "
-      'captures it as structured deprecation.',
-    )
-    this.deprecatedSince,
     this.minSchemaVersion = 1,
   });
 
@@ -56,35 +70,14 @@ final class RestageWidget {
   /// Sub-grouping within the library. Drives editor palette placement.
   final WidgetCategory category;
 
-  /// Single-source-of-truth doc string. Editor uses for tooltips,
-  /// codegen for diagnostic messages, doc-comment generation pulls
-  /// from here.
+  /// Description override for the widget.
+  ///
+  /// When empty, code generation reads the annotated class's Dart
+  /// documentation.
   final String description;
-
-  /// Optional producer-facing guidance — when/how a producer should use this
-  /// widget. Emitted (falling back to [description]) as this widget's line in
-  /// the generated A2UI catalog's system-prompt fragments. Developer-authored;
-  /// never inferred.
-  final String? usage;
-
-  /// Event names this widget can fire (e.g.
-  /// `[WidgetEventName.onPressed]`).
-  final List<WidgetEventName> fires;
 
   /// Whether the widget accepts no, a single, or a list of children.
   final ChildrenSlot childrenSlot;
-
-  /// Catalog version where this widget became deprecated. `null` if
-  /// active.
-  ///
-  /// Deprecated: annotate the widget class with Dart's `@Deprecated('...')`
-  /// instead — the catalog captures that as the structured, on-the-wire
-  /// deprecation status. This plain-string marker is not serialized.
-  @Deprecated(
-    "Annotate the widget class with @Deprecated('...') instead; the catalog "
-    'captures it as structured deprecation.',
-  )
-  final String? deprecatedSince;
 
   /// Catalog schema version that introduced this widget. Defaults to 1.
   final int minSchemaVersion;

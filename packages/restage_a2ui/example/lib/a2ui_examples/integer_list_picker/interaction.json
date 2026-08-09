@@ -1,7 +1,0 @@
-[
-  {
-    "id": "root",
-    "component": "IntegerListPicker",
-    "selected": [1, 2]
-  }
-]

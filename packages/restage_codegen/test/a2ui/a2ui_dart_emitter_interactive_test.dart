@@ -197,6 +197,183 @@ void main() {
       expect(source, contains(r"'${itemContext.id}.selected'"));
       expect(source, contains('selfPath: restageA2uiSelfPathSelected'));
     });
+
+    A2uiDartCatalogPlan scalarPairPlan({
+      required bool valueNullable,
+      required bool callbackNullable,
+    }) {
+      final catalog = catalogWith([
+        entry(
+          name: 'NullableToggle',
+          flutterType: 'package:fixture/fixture.dart#NullableToggle',
+          properties: [
+            prop('value', PropertyType.boolean, required: true),
+            prop('onChanged', PropertyType.event),
+          ],
+        ),
+      ]);
+      return classifyA2uiCatalogDart(
+        catalog,
+        richShapes: {
+          ('NullableToggle', 'value'): ScalarNode(
+            A2uiScalarType.boolean,
+            nullable: valueNullable,
+          ),
+        },
+        eventSeam: _writeBackSeam(
+          A2uiScalarType.boolean,
+          widget: 'NullableToggle',
+          nullable: callbackNullable,
+        ),
+      );
+    }
+
+    void expectScalarNullabilityMismatchFailsClosed({
+      required bool valueNullable,
+      required bool callbackNullable,
+    }) {
+      final plan = scalarPairPlan(
+        valueNullable: valueNullable,
+        callbackNullable: callbackNullable,
+      );
+      expect(plan.widgets.single.writeBacks, isEmpty);
+      expect(
+        plan.coverage.omittedFields.single.reason,
+        A2uiDartCoverageReason.uncontrolledInteractiveWidget,
+      );
+    }
+
+    test('a nullable scalar does not pair with a non-nullable callback', () {
+      expectScalarNullabilityMismatchFailsClosed(
+        valueNullable: true,
+        callbackNullable: false,
+      );
+    });
+
+    test('a non-nullable scalar does not pair with a nullable callback', () {
+      expectScalarNullabilityMismatchFailsClosed(
+        valueNullable: false,
+        callbackNullable: true,
+      );
+    });
+  });
+
+  group('enum write-back lowering — exact nullability', () {
+    Catalog enumCatalog() => catalogWith([
+          entry(
+            name: 'ChoicePicker',
+            flutterType: 'package:fixture/fixture.dart#ChoicePicker',
+            properties: [
+              const PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'choice',
+                type: PropertyType.enumValue,
+                description: '',
+                required: true,
+                enumType: 'Choice',
+              ),
+              prop('onChanged', PropertyType.event),
+            ],
+          ),
+        ]);
+
+    A2uiDartCatalogPlan enumPairPlan({
+      required bool valueNullable,
+      required bool callbackNullable,
+    }) =>
+        classifyA2uiCatalogDart(
+          enumCatalog(),
+          richShapes: {
+            ('ChoicePicker', 'choice'): EnumNode(
+              members: const ['first', 'second'],
+              dartTypeName: 'Choice',
+              libraryUri: 'package:fixture/fixture.dart',
+              nullable: valueNullable,
+            ),
+          },
+          eventSeam: _writeBackSeam(
+            A2uiScalarType.string,
+            widget: 'ChoicePicker',
+            nullable: callbackNullable,
+          ),
+        );
+
+    test('a nullable enum write-back uses a null-safe wire member name', () {
+      final source = emitA2uiCatalogDart(
+        enumCatalog(),
+        richShapes: {
+          ('ChoicePicker', 'choice'): EnumNode(
+            members: const ['first', 'second'],
+            dartTypeName: 'Choice',
+            libraryUri: 'package:fixture/fixture.dart',
+            nullable: true,
+          ),
+        },
+        eventSeam: _writeBackSeam(
+          A2uiScalarType.string,
+          widget: 'ChoicePicker',
+          nullable: true,
+        ),
+      );
+
+      expect(
+        source,
+        contains('restageA2uiWriteChoice(restageA2uiNext?.name)'),
+      );
+    });
+
+    test('a non-nullable enum write-back keeps direct member-name lowering',
+        () {
+      final source = emitA2uiCatalogDart(
+        enumCatalog(),
+        richShapes: {
+          ('ChoicePicker', 'choice'): EnumNode(
+            members: const ['first', 'second'],
+            dartTypeName: 'Choice',
+            libraryUri: 'package:fixture/fixture.dart',
+          ),
+        },
+        eventSeam: _writeBackSeam(
+          A2uiScalarType.string,
+          widget: 'ChoicePicker',
+        ),
+      );
+
+      expect(
+        source,
+        contains('restageA2uiWriteChoice(restageA2uiNext.name)'),
+      );
+      expect(source, isNot(contains('restageA2uiNext?.name')));
+    });
+
+    void expectEnumNullabilityMismatchFailsClosed({
+      required bool valueNullable,
+      required bool callbackNullable,
+    }) {
+      final plan = enumPairPlan(
+        valueNullable: valueNullable,
+        callbackNullable: callbackNullable,
+      );
+      expect(plan.widgets.single.writeBacks, isEmpty);
+      expect(
+        plan.coverage.omittedFields.single.reason,
+        A2uiDartCoverageReason.uncontrolledInteractiveWidget,
+      );
+    }
+
+    test('a nullable enum does not pair with a non-nullable callback', () {
+      expectEnumNullabilityMismatchFailsClosed(
+        valueNullable: true,
+        callbackNullable: false,
+      );
+    });
+
+    test('a non-nullable enum does not pair with a nullable callback', () {
+      expectEnumNullabilityMismatchFailsClosed(
+        valueNullable: false,
+        callbackNullable: true,
+      );
+    });
   });
 
   group('list write-back lowering — auto single-pair', () {

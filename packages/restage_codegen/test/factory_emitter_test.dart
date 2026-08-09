@@ -16,7 +16,6 @@ void main() {
         description: 'A thin horizontal line.',
         flutterType: 'package:flutter/material.dart#Divider',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -77,7 +76,6 @@ void main() {
         description: 'Synthetic test fixture covering each scalar type.',
         flutterType: 'package:test_pkg/widget.dart#AllScalars',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -216,7 +214,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/widget.dart#TextLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -250,7 +247,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/widget.dart#ChoiceChipLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -287,7 +283,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/widget.dart#ChoiceChipLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -317,7 +312,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/widgets.dart#Center',
         childrenSlot: ChildrenSlot.single,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -363,7 +357,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/widgets.dart#Padding',
         childrenSlot: ChildrenSlot.single,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -396,7 +389,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#ListWrapper',
         childrenSlot: ChildrenSlot.list,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -429,7 +421,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#ScaffoldLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -472,7 +463,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#PageScaffoldLike',
         childrenSlot: ChildrenSlot.single,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -520,7 +510,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#NonCanonicalSingle',
         childrenSlot: ChildrenSlot.single,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -542,7 +531,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#PressableLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [WidgetEventName.onPressed],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -569,7 +557,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#TappableLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [WidgetEventName.onTap],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -596,7 +583,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#ImplicitAnimationLike',
         childrenSlot: ChildrenSlot.none,
-        fires: [WidgetEventName.onEnd],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -615,38 +601,8 @@ void main() {
     });
 
     test(
-      'skips entries whose event property names mismatch the fires list',
+      'a null callback signature denotes an arbitrary zero-argument event',
       () {
-        // `fires` declares onPressed but the property is named onTap —
-        // bespoke surface handles the mismatch.
-        const entry = WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'EventMismatch',
-          library: WidgetLibrary.core,
-          category: WidgetCategory.input,
-          description: '',
-          flutterType: 'package:test_pkg/w.dart#EventMismatch',
-          childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onPressed],
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'onTap',
-              type: PropertyType.event,
-              description: '',
-            ),
-          ],
-        );
-        expect(emitFactoryFunction(entry), isNull);
-      },
-    );
-
-    test(
-      'skips non-void events that omit callbackSignature',
-      () {
-        // Without `callbackSignature`, the emitter has no typed
-        // shape to thread through `source.handler<T>(...)` and falls
-        // outside the void-handler shortcut's domain.
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
           name: 'ChangeableLike',
@@ -655,17 +611,22 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#ChangeableLike',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
-              name: 'onChanged',
+              name: 'onArbitraryCustomerAction',
               type: PropertyType.event,
               description: '',
             ),
           ],
         );
-        expect(emitFactoryFunction(entry), isNull);
+        expect(
+          emitFactoryFunction(entry),
+          contains(
+            'onArbitraryCustomerAction: '
+            "source.voidHandler(<Object>['onArbitraryCustomerAction'])",
+          ),
+        );
       },
     );
 
@@ -680,7 +641,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#ChangeableLike',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -704,6 +664,7 @@ void main() {
           source,
           contains('source.handler<ValueChanged<bool>>'),
         );
+        expect(source, isNot(contains('HandlerTrigger')));
         expect(source, contains('(bool value)'));
         expect(source, contains("trigger(<String, Object?>{'value': value})"));
       },
@@ -724,7 +685,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TextFieldLike',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onSubmitted],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -766,7 +726,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#RequiredTypedHandler',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -775,7 +734,6 @@ void main() {
               description: '',
               required: true,
               callbackSignature: 'ValueChanged<DateTime>',
-              firesAs: 'onChanged',
             ),
           ],
         );
@@ -806,9 +764,9 @@ void main() {
       'required typed-handler with nullable type parameter emits a '
       'nullable-typed no-op fallback',
       () {
-        // Covers the regex-side acceptance of `\\w+\\??` in
-        // `_kValueChangedSignature` — `ValueChanged<bool?>` (tristate
-        // checkbox shape) when `required: true` must emit
+        // Covers the shared RFW callback contract's nullable scalar arm:
+        // `ValueChanged<bool?>` (tristate checkbox shape) when
+        // `required: true` must emit
         // `?? (bool? _) {}`, not `?? (bool _) {}`.
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
@@ -818,7 +776,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TristateHandler',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -854,7 +811,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#MultiSelectLike',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -877,6 +833,37 @@ void main() {
     );
 
     test(
+      'emits a list-valued typed handler with nullable elements',
+      () {
+        const entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'NullableItemMultiSelectLike',
+          library: WidgetLibrary.material,
+          category: WidgetCategory.input,
+          description: '',
+          flutterType: 'package:test_pkg/w.dart#NullableItemMultiSelectLike',
+          childrenSlot: ChildrenSlot.none,
+          properties: [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'onChanged',
+              type: PropertyType.event,
+              description: '',
+              callbackSignature: 'ValueChanged<List<String?>>',
+            ),
+          ],
+        );
+        final source = emitFactoryFunction(entry);
+        expect(source, isNotNull);
+        expect(
+          source,
+          contains('source.handler<ValueChanged<List<String?>>>'),
+        );
+        expect(source, contains('(List<String?> value)'));
+      },
+    );
+
+    test(
       'required list-valued typed-handler emits a List<String> no-op '
       'closure fallback',
       () {
@@ -892,7 +879,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#RequiredMultiSelect',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -918,13 +904,13 @@ void main() {
       },
     );
 
-    test(
-      'skips non-void events whose callbackSignature is unrecognized',
-      () {
-        // `'BarBaz'` doesn't match the supported `ValueChanged<T>`
-        // shape — the eligibility gate rejects so the registry typo
-        // surfaces at codegen rather than at the consumer build.
-        const entry = WidgetEntry(
+    for (final signature in const [
+      'BarBaz',
+      'ValueChanged<List<List<String>>>',
+      'ValueChanged<List<String>?>',
+    ]) {
+      test('skips unsupported callback signature $signature', () {
+        final entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
           name: 'BogusHandler',
           library: WidgetLibrary.material,
@@ -932,20 +918,19 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#BogusHandler',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
               name: 'onChanged',
               type: PropertyType.event,
               description: '',
-              callbackSignature: 'BarBaz',
+              callbackSignature: signature,
             ),
           ],
         );
         expect(emitFactoryFunction(entry), isNull);
-      },
-    );
+      });
+    }
 
     test(
       'emits a `disabled` pre-amble and gates onPressed for the '
@@ -962,7 +947,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#GatedButton',
           childrenSlot: ChildrenSlot.single,
-          fires: [WidgetEventName.onPressed],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1008,44 +992,10 @@ void main() {
     );
 
     test(
-      'skips entries declaring a `fires` entry without a matching '
-      'event property (and vice versa)',
+      'uses the precise callback property name as event identity',
       () {
-        // The symmetric counterpart of the "EventMismatch" test:
-        // here the cardinality differs (fires has one entry, the
-        // property list has none of type event). Bijection check
-        // rejects via the size-mismatch clause.
-        const entry = WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'FireWithoutProp',
-          library: WidgetLibrary.material,
-          category: WidgetCategory.input,
-          description: '',
-          flutterType: 'package:test_pkg/w.dart#FireWithoutProp',
-          childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onPressed],
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'someScalar',
-              type: PropertyType.string,
-              description: '',
-            ),
-          ],
-        );
-        expect(emitFactoryFunction(entry), isNull);
-      },
-    );
-
-    test(
-      'bijection matches via `firesAs` when the property name differs '
-      'from the fire taxonomy name',
-      () {
-        // Mirrors the CupertinoDatePicker shape: the Flutter ctor names
-        // its event param `onDateTimeChanged`, but the catalog event
-        // taxonomy is `onChanged`. `firesAs: 'onChanged'` declares the
-        // property satisfies the onChanged fire while keeping the
-        // Flutter ctor name as the property name (and ctor arg name).
+        // Mirrors CupertinoDatePicker: the Flutter constructor's precise
+        // callback name is both the constructor argument and source key.
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
           name: 'TaxonomyRenamed',
@@ -1054,7 +1004,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TaxonomyRenamed',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1063,14 +1012,11 @@ void main() {
               description: '',
               required: true,
               callbackSignature: 'ValueChanged<DateTime>',
-              firesAs: 'onChanged',
             ),
           ],
         );
         final source = emitFactoryFunction(entry);
         expect(source, isNotNull);
-        // Ctor arg name and source key both use the property `name`
-        // (the Flutter ctor param) — `firesAs` is bijection-side only.
         expect(
           source,
           contains(
@@ -1078,20 +1024,15 @@ void main() {
           ),
         );
         expect(source, contains("<Object>['onDateTimeChanged']"));
-        // The taxonomy name must not leak into the emitted ctor or
-        // source-key path.
+        // A generic alias must not leak into the emitted constructor or key.
         expect(source, isNot(contains('onChanged:')));
         expect(source, isNot(contains("'onChanged'")));
       },
     );
 
     test(
-      'event properties without `firesAs` continue to match against '
-      '`name` (regression guard for existing curations)',
+      'typed event properties are admitted by shape and property name',
       () {
-        // Existing curations (CupertinoSwitch, CupertinoTextField, …)
-        // have property name == fire taxonomy name. The bijection
-        // check falls back to `name` when `firesAs` is unset.
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,
           name: 'PlainChanged',
@@ -1100,7 +1041,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#PlainChanged',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1121,37 +1061,6 @@ void main() {
       },
     );
 
-    test(
-      'mismatched `firesAs` value still fails the bijection',
-      () {
-        // `firesAs: 'onPressed'` doesn't match `fires: [onChanged]` —
-        // the bijection check rejects. Regression guard ensuring the
-        // `firesAs` field doesn't accidentally loosen the check.
-        const entry = WidgetEntry(
-          wireId: WireId.unallocatedWidget,
-          name: 'WrongFiresAs',
-          library: WidgetLibrary.cupertino,
-          category: WidgetCategory.input,
-          description: '',
-          flutterType: 'package:test_pkg/w.dart#WrongFiresAs',
-          childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onChanged],
-          properties: [
-            PropertyEntry(
-              wireId: WireId.unallocatedProperty,
-              name: 'onDateTimeChanged',
-              type: PropertyType.event,
-              description: '',
-              required: true,
-              callbackSignature: 'ValueChanged<DateTime>',
-              firesAs: 'onPressed',
-            ),
-          ],
-        );
-        expect(emitFactoryFunction(entry), isNull);
-      },
-    );
-
     test('skips entries with duplicate event-property names', () {
       // Two onPressed event properties — the bijection check rejects
       // because the property list has more entries than the unique
@@ -1164,7 +1073,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#DupEventProps',
         childrenSlot: ChildrenSlot.none,
-        fires: [WidgetEventName.onPressed],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1172,31 +1080,6 @@ void main() {
             type: PropertyType.event,
             description: '',
           ),
-          PropertyEntry(
-            wireId: WireId.unallocatedProperty,
-            name: 'onPressed',
-            type: PropertyType.event,
-            description: '',
-          ),
-        ],
-      );
-      expect(emitFactoryFunction(entry), isNull);
-    });
-
-    test('skips entries with duplicate `fires` entries', () {
-      // Same WidgetEventName listed twice — the bijection check
-      // rejects because `entry.fires` has more entries than the
-      // unique name set.
-      const entry = WidgetEntry(
-        wireId: WireId.unallocatedWidget,
-        name: 'DupFires',
-        library: WidgetLibrary.material,
-        category: WidgetCategory.input,
-        description: '',
-        flutterType: 'package:test_pkg/w.dart#DupFires',
-        childrenSlot: ChildrenSlot.none,
-        fires: [WidgetEventName.onPressed, WidgetEventName.onPressed],
-        properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
             name: 'onPressed',
@@ -1222,7 +1105,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#DoubleGate',
           childrenSlot: ChildrenSlot.none,
-          fires: [WidgetEventName.onPressed],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1264,7 +1146,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#NoEventToGate',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1289,7 +1170,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/widgets.dart#Icon',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1340,7 +1220,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Icon',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1376,7 +1255,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Image.network',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1426,7 +1304,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#PositionalThenNamed',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1472,7 +1349,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Icon',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1502,7 +1378,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#CollidingRecipes',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1545,7 +1420,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithEnum',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1569,7 +1443,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#WithEnum',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1602,7 +1475,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithAlignedAlignment',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1629,7 +1501,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithConcreteAlignment',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1660,7 +1531,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithCurve',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1695,7 +1565,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithDefaultedEnum',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1725,7 +1594,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithNamedSlot',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1760,7 +1628,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#ClipRRect',
           childrenSlot: ChildrenSlot.single,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1806,7 +1673,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#ClipRRect',
           childrenSlot: ChildrenSlot.single,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1851,7 +1717,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/widgets.dart#NonRealBorderRadius',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1883,7 +1748,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#ClipRRect',
           childrenSlot: ChildrenSlot.single,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -1970,7 +1834,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#ClipRRect',
           childrenSlot: ChildrenSlot.single,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -2038,7 +1901,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#ClipRRect',
           childrenSlot: ChildrenSlot.single,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -2105,7 +1967,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#ClipRRect',
           childrenSlot: ChildrenSlot.none,
-          fires: [],
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
@@ -2129,7 +1990,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/widgets.dart#ClipRRect',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2162,7 +2022,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#WithCastSlot',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2193,7 +2052,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/widgets.dart#Image.network',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2227,7 +2085,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#Padded',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2258,7 +2115,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#BadPadded',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2292,7 +2148,6 @@ void main() {
         description: '',
         flutterType: 'package:test_pkg/w.dart#OptionalScalar',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2347,7 +2202,6 @@ void main() {
             description: '',
             flutterType: 'package:test_pkg/w.dart#RequiredScalar',
             childrenSlot: ChildrenSlot.none,
-            fires: const [],
             properties: [
               PropertyEntry(
                 wireId: WireId.unallocatedProperty,
@@ -2388,7 +2242,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/material.dart#ThemedIcon',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2427,7 +2280,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/material.dart#CtorDefaultIcon',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -2465,7 +2317,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TextLike',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: fontSizeProp,
@@ -2559,7 +2410,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Decorated',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: radiusProp,
@@ -2645,7 +2495,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Decorated',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: radiusProp,
@@ -2744,7 +2593,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Decorated',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: radiusProp,
@@ -2836,7 +2684,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/widgets.dart#Decorated',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: shapeProp,
@@ -2953,7 +2800,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TextLike',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: fontSizeProp,
@@ -3056,7 +2902,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TextLike',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: fontSizeProp,
@@ -3147,7 +2992,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#TextLike',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: fontSizeProp,
@@ -3240,7 +3084,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#GeneratedButton',
           childrenSlot: ChildrenSlot.single,
-          fires: const [WidgetEventName.onPressed],
           properties: [
             PropertyEntry(
               wireId: childProp,
@@ -3357,7 +3200,6 @@ void main() {
           description: '',
           flutterType: 'package:test_pkg/w.dart#GeneratedButton',
           childrenSlot: ChildrenSlot.single,
-          fires: const [WidgetEventName.onPressed],
           properties: [
             PropertyEntry(
               wireId: childProp,
@@ -3490,7 +3332,6 @@ void main() {
             description: '',
             flutterType: 'package:flutter/widgets.dart#Container',
             childrenSlot: ChildrenSlot.single,
-            fires: const [],
             properties: [
               PropertyEntry(
                 wireId: radiusProp,
@@ -3746,7 +3587,6 @@ void main() {
             description: '',
             flutterType: 'package:flutter/widgets.dart#Text',
             childrenSlot: ChildrenSlot.none,
-            fires: const [],
             properties: [
               PropertyEntry(
                 wireId: inheritProp,

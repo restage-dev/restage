@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:rfw_catalog_schema/src/catalog.dart';
 import 'package:rfw_catalog_schema/src/compat_rule.dart';
+import 'package:rfw_catalog_schema/src/dart_const_value.dart';
+import 'package:rfw_catalog_schema/src/dart_identifier.dart';
 import 'package:rfw_catalog_schema/src/decomposition_recipe.dart';
 import 'package:rfw_catalog_schema/src/default_source_codec.dart';
 import 'package:rfw_catalog_schema/src/default_value_source.dart';
@@ -12,9 +14,11 @@ import 'package:rfw_catalog_schema/src/factory_variant.dart';
 import 'package:rfw_catalog_schema/src/library_info.dart';
 import 'package:rfw_catalog_schema/src/native_decompose.dart';
 import 'package:rfw_catalog_schema/src/property_entry.dart';
+import 'package:rfw_catalog_schema/src/property_exclusion.dart';
 import 'package:rfw_catalog_schema/src/property_metadata.dart';
 import 'package:rfw_catalog_schema/src/property_type.dart';
 import 'package:rfw_catalog_schema/src/restage_constraints.dart';
+import 'package:rfw_catalog_schema/src/rfw_callback_signature_policy.dart';
 import 'package:rfw_catalog_schema/src/stability.dart';
 import 'package:rfw_catalog_schema/src/structured_entry.dart';
 import 'package:rfw_catalog_schema/src/union_entry.dart';
@@ -24,15 +28,16 @@ import 'package:rfw_catalog_schema/src/widget_library.dart';
 import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 import 'package:rfw_catalog_schema/src/wire_id.dart';
 
-/// Schema version emitted by [encodeCatalog] and accepted by
-/// [decodeCatalog].
+/// Schema version emitted by [encodeCatalog].
 ///
 /// This codec speaks the canonical wire shape: wire IDs on every entry,
 /// discriminated default sources, library envelope counts for each kind,
 /// the structured/union/design-token sections, and the compatibility-rule
-/// emission slot. Production catalog readers are current-only; historical
-/// wire shapes belong in isolated fixtures, not runtime decode paths.
-const int kSupportedSchemaVersion = 4;
+/// emission slot. [decodeCatalog] also accepts v4 and migrates its retired
+/// event declarations at the wire boundary.
+const int kSupportedSchemaVersion = 5;
+
+const int _maxEventIdentityLength = 128;
 
 /// Thrown when JSON parsing fails or schema version doesn't match.
 class CatalogSchemaException implements Exception {
@@ -76,6 +81,8 @@ String encodeCatalog(Catalog catalog) {
       'designTokens': catalog.designTokens.map(_designTokenToJson).toList(),
     if (catalog.compatRules != null && catalog.compatRules!.isNotEmpty)
       'compatRules': catalog.compatRules!.map(_compatRuleToJson).toList(),
+    if (catalog.exclusions.isNotEmpty)
+      'exclusions': catalog.exclusions.map(_exclusionToJson).toList(),
   });
 }
 
@@ -136,6 +143,13 @@ void _validateWidget(WidgetEntry widget, String path) {
 void _validateProperty(PropertyEntry property, String path) {
   _expectWireIdKind(property.wireId, WireIdKind.property, '$path.wireId');
   _validateDefaultSource(property.defaultSource, '$path.defaultSource');
+  final constructorDefault = property.constructorDefault;
+  if (constructorDefault != null) {
+    _validateDartConstValue(
+      constructorDefault,
+      '$path.constructorDefault',
+    );
+  }
   _validateConstraints(property, path);
   final mutex = property.mutuallyExclusiveWith;
   if (mutex != null) {
@@ -156,8 +170,462 @@ void _validateProperty(PropertyEntry property, String path) {
     );
   }
   _requireEnumIdentity(property, path);
+  if (property.type == PropertyType.event) {
+    _validateEventIdentity(property.name, '$path.name');
+  } else if (!property.positional) {
+    _validatePropertyIdentity(property.name, '$path.name');
+  }
+  final callbackSignature = property.callbackSignature;
+  if (callbackSignature != null) {
+    if (property.type != PropertyType.event) {
+      throw CatalogSchemaException(
+        '$path.callbackSignature: only event properties may declare a '
+        'callback signature',
+      );
+    }
+    _validateRfwCallbackSignature(
+      callbackSignature,
+      '$path.callbackSignature',
+    );
+  }
   _validateValueShape(property.valueShape, '$path.valueShape');
   _validateDeprecation(property.deprecated, '$path.deprecated');
+}
+
+void _validateDartConstValue(DartConstValue value, String path) {
+  switch (value) {
+    case DartConstNull():
+      return;
+    case DartConstScalar(:final value):
+      if (value is String || value is bool || value is int) return;
+      if (value is double && value.isFinite) return;
+      throw CatalogSchemaException(
+        '$path.value: expected bool, int, finite double, or String',
+      );
+    case DartConstReference(:final libraryUri, :final owner, :final member):
+      _validateDartLibraryUri(libraryUri, '$path.libraryUri');
+      if (owner != null) {
+        _validateDartIdentifier(
+          owner,
+          position: DartIdentifierPosition.typeName,
+          path: '$path.owner',
+          description: 'public Dart owner identifier',
+        );
+      }
+      _validateDartIdentifier(
+        member,
+        position: DartIdentifierPosition.memberSelector,
+        path: '$path.member',
+        description: 'public Dart member identifier',
+      );
+    case DartConstInvocation(
+        :final type,
+        :final constructorName,
+        :final positional,
+        :final named,
+      ):
+      if (type is! DartNamedTypeIdentity) {
+        throw CatalogSchemaException(
+          '$path.type: a const invocation requires a named Dart type',
+        );
+      }
+      _validateDartTypeIdentity(type, '$path.type');
+      if (type.nullable) {
+        throw CatalogSchemaException(
+          '$path.type.nullable: a const invocation type cannot be nullable',
+        );
+      }
+      if (!isPublicDartIdentifier(
+        type.symbolName,
+        position: DartIdentifierPosition.typeName,
+      )) {
+        throw CatalogSchemaException(
+          '$path.type.symbolName: a const invocation requires a public Dart '
+          'declaration name',
+        );
+      }
+      if (constructorName != null) {
+        _validateDartIdentifier(
+          constructorName,
+          position: DartIdentifierPosition.constructorSelector,
+          path: '$path.constructorName',
+          description: 'public Dart constructor identifier',
+        );
+      }
+      for (var i = 0; i < positional.length; i++) {
+        _validateDartConstValue(positional[i], '$path.positional[$i]');
+      }
+      _validateDartNamedValues(
+        named,
+        path: '$path.named',
+        position: DartIdentifierPosition.namedArgument,
+        description: 'public Dart named-argument identifier',
+      );
+    case DartConstList(:final values, :final type):
+      if (type != null) {
+        _validateDartCollectionType(
+          type,
+          expectedSymbol: 'List',
+          expectedArity: 1,
+          path: '$path.type',
+        );
+      }
+      for (var i = 0; i < values.length; i++) {
+        _validateDartConstValue(values[i], '$path.values[$i]');
+      }
+    case DartConstSet(:final values, :final type):
+      if (type != null) {
+        _validateDartCollectionType(
+          type,
+          expectedSymbol: 'Set',
+          expectedArity: 1,
+          path: '$path.type',
+        );
+      }
+      final seen = <DartConstValue>{};
+      for (var i = 0; i < values.length; i++) {
+        final valuePath = '$path.values[$i]';
+        _validateDartConstValue(values[i], valuePath);
+        _validateDartConstKeyEligibility(
+          values[i],
+          valuePath,
+          role: 'set element',
+        );
+        if (!seen.add(values[i])) {
+          throw CatalogSchemaException(
+            '$valuePath: duplicate Dart const set value',
+          );
+        }
+      }
+    case DartConstMap(:final entries, :final type):
+      if (type != null) {
+        _validateDartCollectionType(
+          type,
+          expectedSymbol: 'Map',
+          expectedArity: 2,
+          path: '$path.type',
+        );
+      }
+      final seenKeys = <DartConstValue>{};
+      for (var i = 0; i < entries.length; i++) {
+        final keyPath = '$path.entries[$i].key';
+        _validateDartConstValue(entries[i].key, keyPath);
+        _validateDartConstKeyEligibility(
+          entries[i].key,
+          keyPath,
+          role: 'map key',
+        );
+        if (!seenKeys.add(entries[i].key)) {
+          throw CatalogSchemaException(
+            '$keyPath: duplicate Dart const map key',
+          );
+        }
+        _validateDartConstValue(entries[i].value, '$path.entries[$i].value');
+      }
+    case DartConstRecord(:final positional, :final named):
+      for (var i = 0; i < positional.length; i++) {
+        _validateDartConstValue(positional[i], '$path.positional[$i]');
+      }
+      _validateDartNamedValues(
+        named,
+        path: '$path.named',
+        position: DartIdentifierPosition.recordField,
+        description: 'public Dart record-field identifier',
+      );
+  }
+}
+
+void _validateDartConstKeyEligibility(
+  DartConstValue value,
+  String path, {
+  required String role,
+}) {
+  switch (value) {
+    case DartConstScalar(:final value) when value is double:
+      throw CatalogSchemaException(
+        '$path: a Dart const $role must have primitive equality; '
+        'double constants do not',
+      );
+    case DartConstRecord(:final positional, :final named):
+      for (var i = 0; i < positional.length; i++) {
+        _validateDartConstKeyEligibility(
+          positional[i],
+          '$path.positional[$i]',
+          role: role,
+        );
+      }
+      for (var i = 0; i < named.length; i++) {
+        _validateDartConstKeyEligibility(
+          named[i].value,
+          '$path.named[$i].value',
+          role: role,
+        );
+      }
+    case DartConstNull() ||
+          DartConstScalar() ||
+          DartConstReference() ||
+          DartConstInvocation() ||
+          DartConstList() ||
+          DartConstSet() ||
+          DartConstMap():
+      // Const collection objects have primitive identity equality regardless
+      // of their contents. References and invocations require resolver data to
+      // classify, so this pure schema boundary rejects only shapes known from
+      // the IR itself to lack primitive equality.
+      return;
+  }
+}
+
+void _validateDartNamedValues(
+  List<DartConstNamedValue> values, {
+  required String path,
+  required DartIdentifierPosition position,
+  required String description,
+}) {
+  final seen = <String>{};
+  for (var i = 0; i < values.length; i++) {
+    final entry = values[i];
+    final entryPath = '$path[$i]';
+    _validateDartIdentifier(
+      entry.name,
+      position: position,
+      path: '$entryPath.name',
+      description: description,
+    );
+    if (!seen.add(entry.name)) {
+      throw CatalogSchemaException(
+        '$entryPath.name: duplicate Dart named value `${entry.name}`',
+      );
+    }
+    _validateDartConstValue(entry.value, '$entryPath.value');
+  }
+}
+
+void _validateDartTypeIdentity(DartTypeIdentity type, String path) {
+  switch (type) {
+    case DartNamedTypeIdentity(
+        :final libraryUri,
+        :final symbolName,
+        :final typeArguments,
+        :final nullable,
+      ):
+      _validateDartLibraryUri(libraryUri, '$path.libraryUri');
+      if (!isPublicDartTypeIdentity(libraryUri, symbolName)) {
+        throw CatalogSchemaException(
+          '$path.symbolName: expected a public Dart type identity',
+        );
+      }
+      if (symbolName == 'void' && nullable) {
+        throw CatalogSchemaException(
+          '$path.nullable: the Dart `void` type cannot be nullable',
+        );
+      }
+      _validateKnownDartCoreTypeArity(
+        libraryUri: libraryUri,
+        symbolName: symbolName,
+        actualArity: typeArguments.length,
+        path: path,
+      );
+      for (var i = 0; i < typeArguments.length; i++) {
+        _validateDartTypeIdentity(
+          typeArguments[i],
+          '$path.typeArguments[$i]',
+        );
+      }
+    case DartRecordTypeIdentity(:final positional, :final named):
+      for (var i = 0; i < positional.length; i++) {
+        _validateDartTypeIdentity(positional[i], '$path.positional[$i]');
+      }
+      final seen = <String>{};
+      for (var i = 0; i < named.length; i++) {
+        final field = named[i];
+        final fieldPath = '$path.named[$i]';
+        _validateDartIdentifier(
+          field.name,
+          position: DartIdentifierPosition.recordField,
+          path: '$fieldPath.name',
+          description: 'public Dart record-field identifier',
+        );
+        if (!seen.add(field.name)) {
+          throw CatalogSchemaException(
+            '$fieldPath.name: duplicate Dart record-type field '
+            '`${field.name}`',
+          );
+        }
+        _validateDartTypeIdentity(field.type, '$fieldPath.type');
+      }
+  }
+}
+
+void _validateKnownDartCoreTypeArity({
+  required String libraryUri,
+  required String symbolName,
+  required int actualArity,
+  required String path,
+}) {
+  if (libraryUri != 'dart:core') return;
+  final declarationArity = _knownDartCoreTypeArities[symbolName];
+  if (declarationArity == null ||
+      actualArity == 0 ||
+      actualArity == declarationArity) {
+    return;
+  }
+  final expected = declarationArity == 0
+      ? 'no type arguments'
+      : 'either no type arguments or exactly $declarationArity';
+  throw CatalogSchemaException(
+    '$path.typeArguments: dart:core#$symbolName accepts $expected',
+  );
+}
+
+// Declaration arities for the public dart:core types representable by the
+// constructor-constant IR. Generic Dart types may be used raw (zero explicit
+// arguments) or with their full declaration arity. Package types deliberately
+// remain resolver-owned and are not guessed here.
+const Map<String, int> _knownDartCoreTypeArities = {
+  'ArgumentError': 0,
+  'AssertionError': 0,
+  'BigInt': 0,
+  'Comparable': 1,
+  'Comparator': 1,
+  'ConcurrentModificationError': 0,
+  'DateTime': 0,
+  'Deprecated': 0,
+  'Duration': 0,
+  'Enum': 0,
+  'Error': 0,
+  'Exception': 0,
+  'Expando': 1,
+  'Finalizer': 1,
+  'FormatException': 0,
+  'Function': 0,
+  'IndexError': 0,
+  'IntegerDivisionByZeroException': 0,
+  'Invocation': 0,
+  'Iterable': 1,
+  'Iterator': 1,
+  'List': 1,
+  'Map': 2,
+  'MapEntry': 2,
+  'Match': 0,
+  'Never': 0,
+  'NoSuchMethodError': 0,
+  'Null': 0,
+  'Object': 0,
+  'OutOfMemoryError': 0,
+  'Pattern': 0,
+  'RangeError': 0,
+  'Record': 0,
+  'RegExp': 0,
+  'RegExpMatch': 0,
+  'RuneIterator': 0,
+  'Runes': 0,
+  'Set': 1,
+  'Sink': 1,
+  'StackOverflowError': 0,
+  'StackTrace': 0,
+  'StateError': 0,
+  'Stopwatch': 0,
+  'String': 0,
+  'StringBuffer': 0,
+  'StringSink': 0,
+  'Symbol': 0,
+  'Type': 0,
+  'TypeError': 0,
+  'UnimplementedError': 0,
+  'UnsupportedError': 0,
+  'Uri': 0,
+  'UriData': 0,
+  'WeakReference': 1,
+  'bool': 0,
+  'double': 0,
+  'dynamic': 0,
+  'int': 0,
+  'num': 0,
+  'pragma': 0,
+  'void': 0,
+};
+
+void _validateDartCollectionType(
+  DartTypeIdentity type, {
+  required String expectedSymbol,
+  required int expectedArity,
+  required String path,
+}) {
+  if (type is! DartNamedTypeIdentity) {
+    throw CatalogSchemaException(
+      '$path: a typed const $expectedSymbol requires a named '
+      'dart:core#$expectedSymbol identity',
+    );
+  }
+  if (type.nullable) {
+    throw CatalogSchemaException(
+      '$path.nullable: a typed const $expectedSymbol identity cannot be '
+      'nullable',
+    );
+  }
+  if (type.libraryUri != 'dart:core' || type.symbolName != expectedSymbol) {
+    throw CatalogSchemaException(
+      '$path: a typed const $expectedSymbol requires '
+      'dart:core#$expectedSymbol',
+    );
+  }
+  if (type.typeArguments.length != expectedArity) {
+    throw CatalogSchemaException(
+      '$path.typeArguments: dart:core#$expectedSymbol requires exactly '
+      '$expectedArity type argument${expectedArity == 1 ? '' : 's'}',
+    );
+  }
+  _validateDartTypeIdentity(type, path);
+}
+
+void _validateDartIdentifier(
+  String value, {
+  required DartIdentifierPosition position,
+  required String path,
+  required String description,
+}) {
+  if (!isPublicDartIdentifier(value, position: position)) {
+    throw CatalogSchemaException('$path: expected a $description');
+  }
+}
+
+void _validateDartLibraryUri(String value, String path) {
+  if (!_isImportableDartLibraryUri(value)) {
+    throw CatalogSchemaException(
+      '$path: expected an importable public dart: or package: library URI',
+    );
+  }
+}
+
+bool _isImportableDartLibraryUri(String value) {
+  if (value.isEmpty ||
+      value.contains('#') ||
+      value.contains('?') ||
+      value.contains('%') ||
+      value.codeUnits.contains(0x5c) ||
+      value.runes.any((rune) => rune <= 0x20)) {
+    return false;
+  }
+  final uri = Uri.tryParse(value);
+  if (uri == null || uri.hasAuthority || uri.hasFragment || uri.hasQuery) {
+    return false;
+  }
+  if (uri.scheme == 'dart') {
+    return RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(uri.path);
+  }
+  if (uri.scheme != 'package') return false;
+  if (uri.path.startsWith('/')) return false;
+  final segments = uri.pathSegments;
+  if (segments.length < 2 ||
+      !RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(segments.first) ||
+      segments.skip(1).any(
+            (segment) => segment.isEmpty || segment == '.' || segment == '..',
+          ) ||
+      !segments.last.endsWith('.dart')) {
+    return false;
+  }
+  return true;
 }
 
 const Set<String> _knownConstraintKeywords = {
@@ -701,7 +1169,7 @@ bool _literalDefaultMatchesShape(Object? value, CatalogValueShape shape) {
       return value is int;
     case PropertyType.real:
     case PropertyType.length:
-      return value is int || value is double;
+      return value is double;
     case PropertyType.string:
     case PropertyType.enumValue:
     case PropertyType.curve:
@@ -1108,7 +1576,6 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
       'description': w.description,
       'flutterType': w.flutterType,
       'childrenSlot': w.childrenSlot.name,
-      'fires': w.fires.map((e) => e.name).toList(),
       'properties': w.properties.map(_propertyToJson).toList(),
       if (w.decomposes.isNotEmpty)
         'decomposes': w.decomposes.map(_decompositionToJson).toList(),
@@ -1125,17 +1592,7 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
 // constructions that keep the legacy wire type while the value shape identifies
 // the value.
 Map<String, dynamic> _propertyToJson(PropertyEntry p) {
-  assert(
-    p.type != PropertyType.unknown ||
-        (p.valueShape is ListShape &&
-            (p.valueShape! as ListShape).isOpaqueStructuredList) ||
-        (p.valueShape is ScalarShape &&
-            (p.valueShape! as ScalarShape).isOpaqueRecord) ||
-        (p.valueShape is ScalarShape &&
-            (p.valueShape! as ScalarShape).isOpaqueStringKeyedMap),
-    'PropertyType.unknown is only locally encodable for opaque structured '
-    'lists, opaque records, or opaque maps.',
-  );
+  _rejectLossyUnknownReencode(p.type, p.valueShape, 'property ${p.name}');
   return {
     'wireId': p.wireId.value,
     'name': p.name,
@@ -1147,9 +1604,11 @@ Map<String, dynamic> _propertyToJson(PropertyEntry p) {
     if (p.enumType != null) 'enumType': p.enumType,
     if (p.widgetType != null) 'widgetType': p.widgetType,
     if (p.callbackSignature != null) 'callbackSignature': p.callbackSignature,
-    if (p.firesAs != null) 'firesAs': p.firesAs,
     if (p.defaultSource != null)
       'defaultSource': defaultSourceToJson(p.defaultSource!),
+    if (p.constructorNullable) 'constructorNullable': true,
+    if (p.constructorDefault != null)
+      'constructorDefault': _dartConstToJson(p.constructorDefault!),
     if (p.mutuallyExclusiveWith != null && p.mutuallyExclusiveWith!.isNotEmpty)
       'mutuallyExclusiveWith':
           p.mutuallyExclusiveWith!.map((id) => id.value).toList(),
@@ -1216,16 +1675,10 @@ Map<String, dynamic> _structuredToJson(StructuredEntry s) => {
 Map<String, dynamic> _structuredFieldToJson(StructuredField f) {
   // Unknown is locally emitted only for the opaque list-of-structured,
   // opaque-record, and opaque-map shapes.
-  assert(
-    f.type != PropertyType.unknown ||
-        (f.valueShape is ListShape &&
-            (f.valueShape! as ListShape).isOpaqueStructuredList) ||
-        (f.valueShape is ScalarShape &&
-            (f.valueShape! as ScalarShape).isOpaqueRecord) ||
-        (f.valueShape is ScalarShape &&
-            (f.valueShape! as ScalarShape).isOpaqueStringKeyedMap),
-    'PropertyType.unknown is only locally encodable for opaque structured '
-    'lists, opaque records, or opaque maps.',
+  _rejectLossyUnknownReencode(
+    f.type,
+    f.valueShape,
+    'structured field ${f.name}',
   );
   return {
     'wireId': f.wireId.value,
@@ -1243,6 +1696,136 @@ Map<String, dynamic> _structuredFieldToJson(StructuredField f) {
     if (f.unionRef != null) 'unionRef': wireIdRefToJson(f.unionRef!),
     if (f.valueShape != null) 'valueShape': _valueShapeToJson(f.valueShape!),
   };
+}
+
+void _rejectLossyUnknownReencode(
+  PropertyType type,
+  CatalogValueShape? shape,
+  String path,
+) {
+  final admitted = type != PropertyType.unknown ||
+      shape is ListShape && shape.isOpaqueStructuredList ||
+      shape is ScalarShape && shape.isOpaqueRecord ||
+      shape is ScalarShape && shape.isOpaqueStringKeyedMap;
+  if (!admitted) {
+    throw CatalogSchemaException(
+      '$path: PropertyType.unknown is only locally encodable for opaque '
+      'structured lists, opaque records, or opaque maps',
+    );
+  }
+}
+
+Map<String, Object?> _dartTypeToJson(DartTypeIdentity type) => switch (type) {
+      DartNamedTypeIdentity(
+        :final libraryUri,
+        :final symbolName,
+        :final typeArguments,
+        :final nullable,
+      ) =>
+        {
+          'libraryUri': libraryUri,
+          'symbolName': symbolName,
+          if (typeArguments.isNotEmpty)
+            'typeArguments': typeArguments.map(_dartTypeToJson).toList(),
+          if (nullable) 'nullable': true,
+        },
+      DartRecordTypeIdentity(
+        :final positional,
+        :final named,
+        :final nullable,
+      ) =>
+        {
+          'kind': 'record',
+          if (positional.isNotEmpty)
+            'positional': positional.map(_dartTypeToJson).toList(),
+          if (named.isNotEmpty)
+            'named': [
+              for (final field in _canonicalNamed(named, (field) => field.name))
+                {
+                  'name': field.name,
+                  'type': _dartTypeToJson(field.type),
+                },
+            ],
+          if (nullable) 'nullable': true,
+        },
+    };
+
+Map<String, Object?> _dartConstToJson(DartConstValue value) => switch (value) {
+      DartConstNull() => const {'kind': 'null'},
+      DartConstScalar(:final value) => {
+          'kind': 'scalar',
+          'value': _portableScalar(value),
+        },
+      DartConstReference(:final libraryUri, :final owner, :final member) => {
+          'kind': 'reference',
+          'libraryUri': libraryUri,
+          if (owner != null) 'owner': owner,
+          'member': member,
+        },
+      DartConstInvocation(
+        :final type,
+        :final constructorName,
+        :final positional,
+        :final named,
+      ) =>
+        {
+          'kind': 'invocation',
+          'type': _dartTypeToJson(type),
+          if (constructorName != null) 'constructorName': constructorName,
+          if (positional.isNotEmpty)
+            'positional': positional.map(_dartConstToJson).toList(),
+          if (named.isNotEmpty)
+            'named': {
+              for (final argument
+                  in _canonicalNamed(named, (argument) => argument.name))
+                argument.name: _dartConstToJson(argument.value),
+            },
+        },
+      DartConstList(:final values, :final type) => {
+          'kind': 'list',
+          if (type != null) 'type': _dartTypeToJson(type),
+          'values': values.map(_dartConstToJson).toList(),
+        },
+      DartConstSet(:final values, :final type) => {
+          'kind': 'set',
+          if (type != null) 'type': _dartTypeToJson(type),
+          'values': values.map(_dartConstToJson).toList(),
+        },
+      DartConstMap(:final entries, :final type) => {
+          'kind': 'map',
+          if (type != null) 'type': _dartTypeToJson(type),
+          'entries': [
+            for (final entry in entries)
+              {
+                'key': _dartConstToJson(entry.key),
+                'value': _dartConstToJson(entry.value),
+              },
+          ],
+        },
+      DartConstRecord(:final positional, :final named) => {
+          'kind': 'record',
+          if (positional.isNotEmpty)
+            'positional': positional.map(_dartConstToJson).toList(),
+          if (named.isNotEmpty)
+            'named': {
+              for (final field in _canonicalNamed(named, (field) => field.name))
+                field.name: _dartConstToJson(field.value),
+            },
+        },
+    };
+
+List<T> _canonicalNamed<T>(
+  Iterable<T> values,
+  String Function(T value) nameOf,
+) =>
+    values.toList()..sort((a, b) => nameOf(a).compareTo(nameOf(b)));
+
+Object _portableScalar(Object value) {
+  if (value is String || value is bool || value is int) return value;
+  if (value is double && value.isFinite) return value;
+  throw CatalogSchemaException(
+    'constructorDefault scalar must be bool, int, finite double, or String',
+  );
 }
 
 Map<String, dynamic> _factoryVariantToJson(FactoryVariant v) => {
@@ -1529,18 +2112,58 @@ Map<String, dynamic> _compatRuleToJson(CompatRule r) => {
       if (r.note != null) 'note': r.note,
     };
 
+Map<String, Object?> _exclusionToJson(PropertyExclusion exclusion) => {
+      'widget': exclusion.widget,
+      'property': exclusion.property,
+      'target': exclusion.target,
+      'reason': exclusion.reason,
+      'location': exclusion.location,
+    };
+
+PropertyExclusion _exclusionFromJson(Object? raw) {
+  if (raw is! Map) {
+    throw CatalogSchemaException('Each exclusion must be a JSON object');
+  }
+  final widget = raw['widget'];
+  final property = raw['property'];
+  final target = raw['target'];
+  final reason = raw['reason'];
+  final location = raw['location'];
+  if (widget is! String ||
+      property is! String ||
+      target is! String ||
+      reason is! String ||
+      location is! String) {
+    throw CatalogSchemaException(
+      'An exclusion requires string widget, property, target, reason and '
+      'location fields',
+    );
+  }
+  return PropertyExclusion(
+    widget: widget,
+    property: property,
+    target: target,
+    reason: reason,
+    location: location,
+  );
+}
+
 /// Parse a catalog JSON string emitted by [encodeCatalog].
 ///
 /// Throws a [CatalogSchemaException] when the input is malformed, the
 /// schema version is unsupported, or required fields are missing.
 Catalog decodeCatalog(String source) {
-  return _decodeCatalogWithVersions(
-    source,
-    allowedVersions: {kSupportedSchemaVersion},
-  );
+  try {
+    return _decodeCatalogWithVersions(
+      source,
+      allowedVersions: {4, kSupportedSchemaVersion},
+    );
+  } on CatalogSchemaException {
+    rethrow;
+  }
 }
 
-/// Validate that [catalog] is native-v4-consumable, returning it on success.
+/// Validate that [catalog] is native-v5-consumable, returning it on success.
 Catalog requireNativeCatalog(Catalog catalog) {
   if (catalog.schemaVersion != kSupportedSchemaVersion) {
     throw CatalogSchemaException(
@@ -1838,6 +2461,7 @@ Catalog _decodeCatalogWithVersions(
   final unionsRaw = _optionalListField(raw, 'unions');
   final tokensRaw = _optionalListField(raw, 'designTokens');
   final compatRulesRaw = _optionalListField(raw, 'compatRules');
+  final exclusionsRaw = _optionalListField(raw, 'exclusions');
   // Untrusted wire->catalog path: wrap every decoded collection
   // `unmodifiable` so a decoded Catalog is immutable through its public
   // getters. The Catalog/entry const constructors are unchanged (the
@@ -1845,9 +2469,15 @@ Catalog _decodeCatalogWithVersions(
   // decode path is hardened. `Map.unmodifiable` / `List.unmodifiable`
   // preserve insertion order, so the re-encode wire bytes are unchanged.
   return Catalog(
-    schemaVersion: version,
+    exclusions: List.unmodifiable(
+      (exclusionsRaw ?? const <Object?>[]).map(_exclusionFromJson),
+    ),
+    // The in-memory model is canonical v5 even when the wire source was v4.
+    // This makes migration a decode-boundary concern and lets callers re-encode
+    // an admitted legacy catalog without carrying a second model.
+    schemaVersion: kSupportedSchemaVersion,
     generatedAt: generatedAt,
-    flutterVersion: raw['flutterVersion'] as String?,
+    flutterVersion: _optionalString(raw, 'flutterVersion', r'$'),
     libraries: Map.unmodifiable({
       for (final entry in librariesRaw.entries)
         WidgetLibrary.fromNamespace(_jsonKey(entry.key, 'libraries')):
@@ -1864,6 +2494,7 @@ Catalog _decodeCatalogWithVersions(
         _widgetFromJson(
           _jsonObject(widgetsRaw[i], 'widgets[$i]'),
           'widgets[$i]',
+          wireVersion: version,
         ),
     ]),
     structuredTypes: structuredRaw == null
@@ -1947,6 +2578,13 @@ String _requiredString(Map<String, dynamic> j, String field, String path) {
     );
   }
   return value;
+}
+
+String _expectStringValue(Object? value, String path) {
+  if (value is String) return value;
+  throw CatalogSchemaException(
+    '$path: expected a string, got ${value.runtimeType}',
+  );
 }
 
 void _requireAllowedKeys(
@@ -2069,19 +2707,23 @@ LibraryInfo _libraryInfo(Map<String, dynamic> j, String path) {
     capabilityVersion = raw;
   }
   return LibraryInfo(
-    version: j['version'] as String,
+    version: _requiredString(j, 'version', path),
     capabilityVersion: capabilityVersion,
   );
 }
 
-WidgetEntry _widgetFromJson(Map<String, dynamic> j, String path) {
+WidgetEntry _widgetFromJson(
+  Map<String, dynamic> j,
+  String path, {
+  required int wireVersion,
+}) {
   if (j['name'] is! String) {
     throw CatalogSchemaException(
       '$path: missing required string field: name',
     );
   }
   // Once the name is in hand, prefer a more readable path for nested errors.
-  final name = j['name'] as String;
+  final name = _requiredString(j, 'name', path);
   final widgetPath = '$path "$name"';
   final wireId = wireIdFromJson(
     j,
@@ -2114,9 +2756,20 @@ WidgetEntry _widgetFromJson(Map<String, dynamic> j, String path) {
       '$widgetPath: missing required string field: childrenSlot',
     );
   }
-  if (j['fires'] is! List) {
+  if (wireVersion == 4) {
+    for (final (index, value) in _requiredList(
+      j,
+      'fires',
+      widgetPath,
+    ).indexed) {
+      _validateEventIdentity(
+        _expectStringValue(value, '$widgetPath.fires[$index]'),
+        '$widgetPath.fires[$index]',
+      );
+    }
+  } else if (j.containsKey('fires')) {
     throw CatalogSchemaException(
-      '$widgetPath: missing required list field: fires',
+      '$widgetPath.fires: retired in catalog schema v5',
     );
   }
   if (j['properties'] is! List) {
@@ -2124,51 +2777,42 @@ WidgetEntry _widgetFromJson(Map<String, dynamic> j, String path) {
       '$widgetPath: missing required list field: properties',
     );
   }
-  final decomposesRaw = j['decomposes'];
-  if (decomposesRaw != null && decomposesRaw is! List) {
-    throw CatalogSchemaException(
-      '$widgetPath: malformed optional list field: decomposes',
-    );
-  }
-  final propertiesRaw = j['properties'] as List;
+  final decomposesRaw = j['decomposes'] == null
+      ? null
+      : _requiredList(j, 'decomposes', widgetPath);
+  final propertiesRaw = _requiredList(j, 'properties', widgetPath);
   return WidgetEntry(
     wireId: wireId,
     name: name,
-    library: WidgetLibrary.fromNamespace(j['library'] as String),
+    library: WidgetLibrary.fromNamespace(
+      _requiredString(j, 'library', widgetPath),
+    ),
     category: _enumFromName(
       WidgetCategory.values,
-      j['category'] as String,
+      _requiredString(j, 'category', widgetPath),
       'category',
       widgetPath,
     ),
-    description: j['description'] as String,
-    flutterType: j['flutterType'] as String,
+    description: _requiredString(j, 'description', widgetPath),
+    flutterType: _requiredString(j, 'flutterType', widgetPath),
     childrenSlot: _enumFromName(
       ChildrenSlot.values,
-      j['childrenSlot'] as String,
+      _requiredString(j, 'childrenSlot', widgetPath),
       'childrenSlot',
       widgetPath,
     ),
-    fires: List.unmodifiable([
-      for (final e in j['fires'] as List)
-        _enumFromName(
-          WidgetEventName.values,
-          e as String,
-          'fires',
-          widgetPath,
-        ),
-    ]),
     properties: List.unmodifiable([
       for (var i = 0; i < propertiesRaw.length; i++)
         _propertyFromJson(
           _jsonObject(propertiesRaw[i], '$widgetPath.properties[$i]'),
           '$widgetPath.properties[$i]',
+          wireVersion: wireVersion,
         ),
     ]),
     decomposes: decomposesRaw == null
         ? const []
         : List.unmodifiable([
-            for (var i = 0; i < (decomposesRaw as List).length; i++)
+            for (var i = 0; i < decomposesRaw.length; i++)
               _decompositionFromJson(
                 _jsonObject(decomposesRaw[i], '$widgetPath.decomposes[$i]'),
                 '$widgetPath.decomposes[$i]',
@@ -2250,7 +2894,247 @@ RestageConstraints _constraintsFromJson(Object? raw, String path) {
   );
 }
 
-PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
+String? _optionalString(
+  Map<String, dynamic> json,
+  String field,
+  String path,
+) {
+  final value = json[field];
+  if (value == null) return null;
+  if (value is String) return value;
+  throw CatalogSchemaException(
+    '$path.$field: expected a string, got ${value.runtimeType}',
+  );
+}
+
+bool _optionalBool(
+  Map<String, dynamic> json,
+  String field,
+  String path, {
+  bool fallback = false,
+}) {
+  if (!json.containsKey(field)) return fallback;
+  final value = json[field];
+  if (value is bool) return value;
+  throw CatalogSchemaException(
+    '$path.$field: expected a boolean, got ${value.runtimeType}',
+  );
+}
+
+bool _requiredBool(
+  Map<String, dynamic> json,
+  String field,
+  String path,
+) {
+  final value = json[field];
+  if (value is bool) return value;
+  throw CatalogSchemaException(
+    '$path.$field: expected a boolean, got ${value.runtimeType}',
+  );
+}
+
+int? _optionalInt(
+  Map<String, dynamic> json,
+  String field,
+  String path,
+) {
+  final value = json[field];
+  if (value == null) return null;
+  if (value is int) return value;
+  throw CatalogSchemaException(
+    '$path.$field: expected an integer, got ${value.runtimeType}',
+  );
+}
+
+List<Object?> _requiredList(
+  Map<String, dynamic> json,
+  String field,
+  String path,
+) {
+  final value = json[field];
+  if (value is List) return List<Object?>.from(value);
+  throw CatalogSchemaException(
+    '$path.$field: expected a JSON array, got ${value.runtimeType}',
+  );
+}
+
+DartTypeIdentity _dartTypeFromJson(Object? raw, String path) {
+  final json = _jsonObject(raw, path);
+  final kind = _optionalString(json, 'kind', path);
+  if (kind != null) {
+    if (kind != 'record') {
+      throw CatalogSchemaException(
+        '$path.kind: unknown Dart type identity kind $kind',
+      );
+    }
+    final positionalRaw = json['positional'] == null
+        ? const <Object?>[]
+        : _requiredList(json, 'positional', path);
+    final namedRaw = json['named'] == null
+        ? const <Object?>[]
+        : _requiredList(json, 'named', path);
+    return DartRecordTypeIdentity(
+      positional: List.unmodifiable([
+        for (var i = 0; i < positionalRaw.length; i++)
+          _dartTypeFromJson(
+            positionalRaw[i],
+            '$path.positional[$i]',
+          ),
+      ]),
+      named: List.unmodifiable(
+        _canonicalNamed<DartRecordTypeNamedField>(
+          [
+            for (var i = 0; i < namedRaw.length; i++)
+              _dartRecordTypeNamedFieldFromJson(
+                namedRaw[i],
+                '$path.named[$i]',
+              ),
+          ],
+          (field) => field.name,
+        ),
+      ),
+      nullable: _optionalBool(json, 'nullable', path),
+    );
+  }
+  final argumentsRaw = json['typeArguments'] == null
+      ? null
+      : _requiredList(json, 'typeArguments', path);
+  final libraryUri = _requiredString(json, 'libraryUri', path);
+  final symbolName = _requiredString(json, 'symbolName', path);
+  return DartTypeIdentity(
+    libraryUri: libraryUri,
+    symbolName: symbolName,
+    typeArguments: argumentsRaw == null
+        ? const []
+        : List.unmodifiable([
+            for (var i = 0; i < argumentsRaw.length; i++)
+              _dartTypeFromJson(
+                argumentsRaw[i],
+                '$path.typeArguments[$i]',
+              ),
+          ]),
+    nullable: _optionalBool(json, 'nullable', path),
+  );
+}
+
+DartRecordTypeNamedField _dartRecordTypeNamedFieldFromJson(
+  Object? raw,
+  String path,
+) {
+  final json = _jsonObject(raw, path);
+  final name = _requiredString(json, 'name', path);
+  return DartRecordTypeNamedField(
+    name,
+    _dartTypeFromJson(json['type'], '$path.type'),
+  );
+}
+
+DartConstValue _dartConstFromJson(Object? raw, String path) {
+  final json = _jsonObject(raw, path);
+  final kind = _requiredString(json, 'kind', path);
+
+  List<DartConstValue> values(String field) {
+    final rawValues = _requiredList(json, field, path);
+    return List.unmodifiable([
+      for (var i = 0; i < rawValues.length; i++)
+        _dartConstFromJson(rawValues[i], '$path.$field[$i]'),
+    ]);
+  }
+
+  List<DartConstNamedValue> namedValues() {
+    final rawNamed = json['named'];
+    if (rawNamed == null) return const [];
+    final named = _jsonObject(rawNamed, '$path.named');
+    return List.unmodifiable(
+      _canonicalNamed<DartConstNamedValue>(
+        [
+          for (final entry in named.entries)
+            DartConstNamedValue(
+              entry.key,
+              _dartConstFromJson(entry.value, '$path.named.${entry.key}'),
+            ),
+        ],
+        (value) => value.name,
+      ),
+    );
+  }
+
+  DartTypeIdentity? collectionType() {
+    final rawType = json['type'];
+    return rawType == null ? null : _dartTypeFromJson(rawType, '$path.type');
+  }
+
+  switch (kind) {
+    case 'null':
+      return const DartConstNull();
+    case 'scalar':
+      final Object? value = json['value'];
+      if (value == null) {
+        throw CatalogSchemaException('$path.value: missing scalar value');
+      }
+      return DartConstScalar(value);
+    case 'reference':
+      return DartConstReference(
+        libraryUri: _requiredString(json, 'libraryUri', path),
+        owner: _optionalString(json, 'owner', path),
+        member: _requiredString(json, 'member', path),
+      );
+    case 'invocation':
+      return DartConstInvocation(
+        type: _dartTypeFromJson(json['type'], '$path.type'),
+        constructorName: _optionalString(json, 'constructorName', path),
+        positional:
+            json['positional'] == null ? const [] : values('positional'),
+        named: namedValues(),
+      );
+    case 'list':
+      return DartConstList(
+        values('values'),
+        type: collectionType(),
+      );
+    case 'set':
+      return DartConstSet(
+        values('values'),
+        type: collectionType(),
+      );
+    case 'map':
+      final entriesRaw = _requiredList(json, 'entries', path);
+      return DartConstMap(
+        List.unmodifiable([
+          for (var i = 0; i < entriesRaw.length; i++)
+            _dartConstMapEntryFromJson(entriesRaw[i], '$path.entries[$i]'),
+        ]),
+        type: collectionType(),
+      );
+    case 'record':
+      return DartConstRecord(
+        positional:
+            json['positional'] == null ? const [] : values('positional'),
+        named: namedValues(),
+      );
+    default:
+      throw CatalogSchemaException(
+        '$path.kind: unknown constructor constant kind $kind',
+      );
+  }
+}
+
+DartConstMapEntry _dartConstMapEntryFromJson(Object? raw, String path) {
+  final json = _jsonObject(raw, path);
+  if (!json.containsKey('key') || !json.containsKey('value')) {
+    throw CatalogSchemaException('$path: map entry requires key and value');
+  }
+  return DartConstMapEntry(
+    _dartConstFromJson(json['key'], '$path.key'),
+    _dartConstFromJson(json['value'], '$path.value'),
+  );
+}
+
+PropertyEntry _propertyFromJson(
+  Map<String, dynamic> j,
+  String path, {
+  required int wireVersion,
+}) {
   if (j['name'] is! String) {
     throw CatalogSchemaException(
       '$path: missing required string field: name',
@@ -2285,32 +3169,51 @@ PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
     ]);
   }
   final validationRuleRaw = j['validationRule'];
+  if (wireVersion == 4) {
+    final legacyEventIdentity = _optionalString(j, 'firesAs', path);
+    if (legacyEventIdentity != null) {
+      _validateEventIdentity(legacyEventIdentity, '$path.firesAs');
+    }
+  } else if (j.containsKey('firesAs')) {
+    throw CatalogSchemaException(
+      '$path.firesAs: retired in catalog schema v5',
+    );
+  }
   final property = PropertyEntry(
     wireId: wireId,
-    name: j['name'] as String,
+    name: _requiredString(j, 'name', path),
     // Forward-compat: unknown PropertyType names fall back to the
     // `unknown` sentinel rather than throwing. New enum members can
     // land additively in newer catalog schemas without breaking
     // older decoder builds.
-    type: _tryEnumFromName(PropertyType.values, j['type'] as String) ??
+    type: _tryEnumFromName(
+          PropertyType.values,
+          _requiredString(j, 'type', path),
+        ) ??
         PropertyType.unknown,
-    description: j['description'] as String,
-    required: j['required'] as bool? ?? false,
-    synthetic: j['synthetic'] as String?,
-    positional: j['positional'] as bool? ?? false,
-    enumType: j['enumType'] as String?,
-    widgetType: j['widgetType'] as String?,
-    callbackSignature: j['callbackSignature'] as String?,
-    firesAs: j['firesAs'] as String?,
+    description: _requiredString(j, 'description', path),
+    required: _optionalBool(j, 'required', path),
+    synthetic: _optionalString(j, 'synthetic', path),
+    positional: _optionalBool(j, 'positional', path),
+    enumType: _optionalString(j, 'enumType', path),
+    widgetType: _optionalString(j, 'widgetType', path),
+    callbackSignature: _optionalString(j, 'callbackSignature', path),
     defaultSource:
         defaultSourceFromJson(j['defaultSource'], '$path.defaultSource'),
+    constructorNullable: _optionalBool(j, 'constructorNullable', path),
+    constructorDefault: j['constructorDefault'] == null
+        ? null
+        : _dartConstFromJson(
+            j['constructorDefault'],
+            '$path.constructorDefault',
+          ),
     mutuallyExclusiveWith: mutuallyExclusiveWith,
-    requiresAncestor: j['requiresAncestor'] as String?,
+    requiresAncestor: _optionalString(j, 'requiresAncestor', path),
     category: j['category'] == null
         ? null
         : _enumFromName(
             PropertyCategory.values,
-            j['category'] as String,
+            _requiredString(j, 'category', path),
             'category',
             path,
           ),
@@ -2318,7 +3221,7 @@ PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
         ? null
         : _enumFromName(
             PropertyPriority.values,
-            j['priority'] as String,
+            _requiredString(j, 'priority', path),
             'priority',
             path,
           ),
@@ -2341,8 +3244,53 @@ PropertyEntry _propertyFromJson(Map<String, dynamic> j, String path) {
           ),
     valueShape: _valueShapeFromJson(j['valueShape'], '$path.valueShape'),
   );
-  _validateConstraints(property, path);
+  _validateProperty(property, path);
   return property;
+}
+
+void _validateEventIdentity(String value, String path) {
+  if (value.isEmpty ||
+      value.length > _maxEventIdentityLength ||
+      !_isPublicDartPropertyIdentity(value)) {
+    throw CatalogSchemaException(
+      '$path: event identity must be a non-empty public Dart identifier of at '
+      'most $_maxEventIdentityLength ASCII characters that is legal as a '
+      'constructor parameter, named argument, and member selector',
+    );
+  }
+}
+
+void _validatePropertyIdentity(String value, String path) {
+  if (!_isPublicDartPropertyIdentity(value)) {
+    throw CatalogSchemaException(
+      '$path: property identity must be a public Dart identifier that is legal '
+      'as a constructor parameter, named argument, and member selector',
+    );
+  }
+}
+
+bool _isPublicDartPropertyIdentity(String value) =>
+    isPublicDartIdentifier(
+      value,
+      position: DartIdentifierPosition.namedParameter,
+    ) &&
+    isPublicDartIdentifier(
+      value,
+      position: DartIdentifierPosition.namedArgument,
+    ) &&
+    isPublicDartIdentifier(
+      value,
+      position: DartIdentifierPosition.memberSelector,
+    );
+
+void _validateRfwCallbackSignature(String value, String path) {
+  if (parseRfwCallbackValueType(value) == null) {
+    throw CatalogSchemaException(
+      '$path: unsupported RFW callback signature `$value`; expected '
+      'ValueChanged<T> for a supported public scalar payload or '
+      'ValueChanged<List<T>> for a supported dart:core scalar payload',
+    );
+  }
 }
 
 DecompositionRecipe _decompositionFromJson(
@@ -2431,7 +3379,7 @@ DecompositionRecipe _decompositionFromJson(
       expectedKind: WireIdKind.structured,
     ),
     flatProperties: Map.unmodifiable(flat),
-    targetArg: j['targetArg'] as String?,
+    targetArg: _optionalString(j, 'targetArg', path),
     construction: _factoryInvocationFromJson(
       j['construction'],
       '$path.construction',
@@ -2452,7 +3400,7 @@ StructuredEntry _structuredFromJson(Map<String, dynamic> j, String path) {
   if (j['name'] is! String) {
     throw CatalogSchemaException('$path: missing required string field: name');
   }
-  final name = j['name'] as String;
+  final name = _requiredString(j, 'name', path);
   final structuredPath = '$path "$name"';
   if (j['library'] is! String) {
     throw CatalogSchemaException(
@@ -2479,14 +3427,16 @@ StructuredEntry _structuredFromJson(Map<String, dynamic> j, String path) {
       '$structuredPath: missing required list field: variants',
     );
   }
-  final fieldsRaw = j['fields'] as List;
-  final variantsRaw = j['variants'] as List;
+  final fieldsRaw = _requiredList(j, 'fields', structuredPath);
+  final variantsRaw = _requiredList(j, 'variants', structuredPath);
   return StructuredEntry(
     wireId: wireId,
     name: name,
-    library: WidgetLibrary.fromNamespace(j['library'] as String),
-    description: j['description'] as String,
-    sourceType: j['sourceType'] as String,
+    library: WidgetLibrary.fromNamespace(
+      _requiredString(j, 'library', structuredPath),
+    ),
+    description: _requiredString(j, 'description', structuredPath),
+    sourceType: _requiredString(j, 'sourceType', structuredPath),
     fields: List.unmodifiable([
       for (var i = 0; i < fieldsRaw.length; i++)
         _structuredFieldFromJson(
@@ -2524,22 +3474,25 @@ StructuredField _structuredFieldFromJson(Map<String, dynamic> j, String path) {
   }
   final field = StructuredField(
     wireId: wireId,
-    name: j['name'] as String,
+    name: _requiredString(j, 'name', path),
     // Forward-compat: unknown PropertyType names fall back to the
     // `unknown` sentinel rather than throwing. New enum members can
     // land additively in newer catalog schemas without breaking
     // older decoder builds.
-    type: _tryEnumFromName(PropertyType.values, j['type'] as String) ??
+    type: _tryEnumFromName(
+          PropertyType.values,
+          _requiredString(j, 'type', path),
+        ) ??
         PropertyType.unknown,
-    description: j['description'] as String,
-    required: j['required'] as bool? ?? false,
+    description: _requiredString(j, 'description', path),
+    required: _optionalBool(j, 'required', path),
     defaultSource:
         defaultSourceFromJson(j['defaultSource'], '$path.defaultSource'),
     category: j['category'] == null
         ? null
         : _enumFromName(
             PropertyCategory.values,
-            j['category'] as String,
+            _requiredString(j, 'category', path),
             'category',
             path,
           ),
@@ -2547,7 +3500,7 @@ StructuredField _structuredFieldFromJson(Map<String, dynamic> j, String path) {
         ? null
         : _enumFromName(
             PropertyPriority.values,
-            j['priority'] as String,
+            _requiredString(j, 'priority', path),
             'priority',
             path,
           ),
@@ -2591,14 +3544,16 @@ FactoryVariant _factoryVariantFromJson(Map<String, dynamic> j, String path) {
       );
     }
     for (final entry in argMappingsRaw.entries) {
-      if (entry.key is! String || entry.value is! List) {
+      final key = entry.key;
+      final value = entry.value;
+      if (key is! String || value is! List) {
         throw CatalogSchemaException(
           '$path.argMappings: must map string to list<string>; got '
-          '${entry.key.runtimeType} -> ${entry.value.runtimeType}',
+          '${key.runtimeType} -> ${value.runtimeType}',
         );
       }
       final targets = <WireId>[];
-      for (final v in entry.value as List) {
+      for (final v in value) {
         if (v is! String) {
           throw CatalogSchemaException(
             '$path.argMappings["${entry.key}"]: list entries must be wire ID '
@@ -2613,8 +3568,7 @@ FactoryVariant _factoryVariantFromJson(Map<String, dynamic> j, String path) {
           ),
         );
       }
-      argMappings[entry.key as String] =
-          ArgMapping(targetFields: List.unmodifiable(targets));
+      argMappings[key] = ArgMapping(targetFields: List.unmodifiable(targets));
     }
   }
   final parametersRaw = j['parameters'];
@@ -2635,13 +3589,13 @@ FactoryVariant _factoryVariantFromJson(Map<String, dynamic> j, String path) {
   }
   final sourceKind = _enumFromName(
     VariantSourceKind.values,
-    j['sourceKind'] as String,
+    _requiredString(j, 'sourceKind', path),
     'sourceKind',
     path,
   );
-  final namedConstructor = j['namedConstructor'] as String?;
-  final staticAccessor = j['staticAccessor'] as String?;
-  final description = j['description'] as String?;
+  final namedConstructor = _optionalString(j, 'namedConstructor', path);
+  final staticAccessor = _optionalString(j, 'staticAccessor', path);
+  final description = _optionalString(j, 'description', path);
   final deprecated = _deprecationFromJson(j['deprecated'], '$path.deprecated');
   switch (sourceKind) {
     case VariantSourceKind.constructor:
@@ -2710,8 +3664,8 @@ DartTypeRef _dartTypeRefFromJson(Map<String, dynamic> j, String path) {
     );
   }
   return DartTypeRef(
-    libraryUri: j['libraryUri'] as String,
-    symbolName: j['symbolName'] as String,
+    libraryUri: _requiredString(j, 'libraryUri', path),
+    symbolName: _requiredString(j, 'symbolName', path),
   );
 }
 
@@ -2732,9 +3686,11 @@ CatalogValueShape? _valueShapeFromJson(Object? raw, String path) {
     );
   }
   final kind = _requiredString(j, 'kind', path);
-  final propertyType =
-      _tryEnumFromName(PropertyType.values, j['propertyType'] as String) ??
-          PropertyType.unknown;
+  final propertyType = _tryEnumFromName(
+        PropertyType.values,
+        _requiredString(j, 'propertyType', path),
+      ) ??
+      PropertyType.unknown;
   // Reject an incompatible (kind, propertyType) pairing before constructing
   // the subtype, so decode throws CatalogSchemaException (consistent with the
   // sibling malformed-wire errors) rather than tripping the constructor's
@@ -2745,7 +3701,7 @@ CatalogValueShape? _valueShapeFromJson(Object? raw, String path) {
       ? null
       : _enumFromName(
           CatalogWireCodec.values,
-          j['wireCodec'] as String,
+          _requiredString(j, 'wireCodec', path),
           'wireCodec',
           path,
         );
@@ -2823,19 +3779,19 @@ FactoryParameter _factoryParameterFromJson(
   }
   return FactoryParameter(
     wireId: wireIdFromJson(j, 'wireId', path, WireIdKind.parameter),
-    name: j['name'] as String?,
-    position: j['position'] as int?,
+    name: _optionalString(j, 'name', path),
+    position: _optionalInt(j, 'position', path),
     kind: _enumFromName(
       FactoryParameterKind.values,
       _requiredString(j, 'kind', path),
       'kind',
       path,
     ),
-    required: j['required'] as bool,
-    nullable: j['nullable'] as bool,
+    required: _requiredBool(j, 'required', path),
+    nullable: _requiredBool(j, 'nullable', path),
     defaultPolicy: _enumFromName(
       FactoryParameterDefaultPolicy.values,
-      j['defaultPolicy'] as String,
+      _requiredString(j, 'defaultPolicy', path),
       'defaultPolicy',
       path,
     ),
@@ -2873,7 +3829,7 @@ FactoryInvocation? _factoryInvocationFromJson(Object? raw, String path) {
       _jsonObject(j['receiver'], '$path.receiver'),
       '$path.receiver',
     ),
-    memberName: j['memberName'] as String?,
+    memberName: _optionalString(j, 'memberName', path),
   );
 }
 
@@ -2961,7 +3917,7 @@ FactoryParameterDefaultValue? _parameterDefaultValueFromJson(
           _jsonObject(j['staticType'], '$path.staticType'),
           '$path.staticType',
         ),
-        memberName: j['memberName'] as String,
+        memberName: _requiredString(j, 'memberName', path),
       );
     default:
       throw CatalogSchemaException('$path: unknown kind value: $kind');
@@ -2988,7 +3944,9 @@ DecompositionValueTransform? _valueTransformFromJson(Object? raw, String path) {
           '$path: constructVariant requires resultStructuredRef and invocation',
         );
       }
-      final bindingsRaw = j['argumentBindings'];
+      final bindingsRaw = j['argumentBindings'] == null
+          ? null
+          : _requiredList(j, 'argumentBindings', path);
       return ConstructVariantTransform(
         resultStructuredRef: wireIdRefFromJson(
           _jsonObject(j['resultStructuredRef'], '$path.resultStructuredRef'),
@@ -2999,7 +3957,7 @@ DecompositionValueTransform? _valueTransformFromJson(Object? raw, String path) {
         argumentBindings: bindingsRaw == null
             ? const []
             : List.unmodifiable([
-                for (var i = 0; i < (bindingsRaw as List).length; i++)
+                for (var i = 0; i < bindingsRaw.length; i++)
                   _argumentBindingFromJson(
                     _jsonObject(
                       bindingsRaw[i],
@@ -3020,7 +3978,7 @@ DecompositionValueTransform? _valueTransformFromJson(Object? raw, String path) {
       return ProjectListTransform(itemTransform: itemTransform);
     case 'coerceScalar':
       return CoerceScalarTransform(
-        scalarCoercion: j['scalarCoercion'] as String,
+        scalarCoercion: _requiredString(j, 'scalarCoercion', path),
       );
     default:
       throw CatalogSchemaException('$path: unknown kind value: $kind');
@@ -3035,17 +3993,17 @@ TransformArgumentBinding _argumentBindingFromJson(
       wireIdFromJson(j, 'parameterRef', path, WireIdKind.parameter);
   final nullPolicy = _enumFromName(
     TransformNullPolicy.values,
-    j['nullPolicy'] as String,
+    _requiredString(j, 'nullPolicy', path),
     'nullPolicy',
     path,
   );
   final missingPolicy = _enumFromName(
     TransformMissingPolicy.values,
-    j['missingPolicy'] as String,
+    _requiredString(j, 'missingPolicy', path),
     'missingPolicy',
     path,
   );
-  final source = j['source'] as String;
+  final source = _requiredString(j, 'source', path);
   switch (source) {
     case 'propertyValue':
       return PropertyValueArgumentBinding(
@@ -3086,7 +4044,7 @@ UnionEntry _unionFromJson(Map<String, dynamic> j, String path) {
   if (j['name'] is! String) {
     throw CatalogSchemaException('$path: missing required string field: name');
   }
-  final name = j['name'] as String;
+  final name = _requiredString(j, 'name', path);
   final unionPath = '$path "$name"';
   if (j['library'] is! String) {
     throw CatalogSchemaException(
@@ -3118,23 +4076,22 @@ UnionEntry _unionFromJson(Map<String, dynamic> j, String path) {
       '$unionPath: missing required list field: members',
     );
   }
-  final memberSourceTypesRaw = j['memberSourceTypes'] as List;
-  final membersRaw = j['members'] as List;
+  final memberSourceTypesRaw = _requiredList(j, 'memberSourceTypes', unionPath);
+  final membersRaw = _requiredList(j, 'members', unionPath);
   return UnionEntry(
     wireId: wireId,
     name: name,
-    library: WidgetLibrary.fromNamespace(j['library'] as String),
-    description: j['description'] as String,
-    sourceType: j['sourceType'] as String,
+    library: WidgetLibrary.fromNamespace(
+      _requiredString(j, 'library', unionPath),
+    ),
+    description: _requiredString(j, 'description', unionPath),
+    sourceType: _requiredString(j, 'sourceType', unionPath),
     memberSourceTypes: List.unmodifiable([
       for (var i = 0; i < memberSourceTypesRaw.length; i++)
-        if (memberSourceTypesRaw[i] is! String)
-          throw CatalogSchemaException(
-            '$unionPath.memberSourceTypes[$i]: expected string, '
-            'got ${memberSourceTypesRaw[i].runtimeType}',
-          )
-        else
-          memberSourceTypesRaw[i] as String,
+        _expectStringValue(
+          memberSourceTypesRaw[i],
+          '$unionPath.memberSourceTypes[$i]',
+        ),
     ]),
     discriminator: _discriminatorFromJson(
       _jsonObject(j['discriminator'], '$unionPath.discriminator'),
@@ -3163,9 +4120,9 @@ DiscriminatorSpec _discriminatorFromJson(
   if (j['values'] is! List) {
     throw CatalogSchemaException('$path: missing required list field: values');
   }
-  final valuesRaw = j['values'] as List;
+  final valuesRaw = _requiredList(j, 'values', path);
   return DiscriminatorSpec(
-    field: j['field'] as String,
+    field: _requiredString(j, 'field', path),
     values: List.unmodifiable([
       for (var i = 0; i < valuesRaw.length; i++)
         wireIdRefFromJson(
@@ -3193,15 +4150,17 @@ DesignTokenEntry _designTokenFromJson(Map<String, dynamic> j, String path) {
   final resolverRaw = j['resolver'];
   return DesignTokenEntry(
     wireId: wireId,
-    name: j['name'] as String,
-    library: WidgetLibrary.fromNamespace(j['library'] as String),
+    name: _requiredString(j, 'name', path),
+    library: WidgetLibrary.fromNamespace(
+      _requiredString(j, 'library', path),
+    ),
     type: _enumFromName(
       DesignTokenType.values,
-      j['type'] as String,
+      _requiredString(j, 'type', path),
       'type',
       path,
     ),
-    description: j['description'] as String?,
+    description: _optionalString(j, 'description', path),
     resolver: resolverRaw == null
         ? null
         : themeBindingFromJson(
@@ -3250,8 +4209,8 @@ SourceDeprecationInfo _sourceDeprecationFromJson(
     );
   }
   return SourceDeprecationInfo(
-    message: j['message'] as String,
-    since: j['since'] as String?,
+    message: _requiredString(j, 'message', path),
+    since: _optionalString(j, 'since', path),
   );
 }
 
@@ -3268,9 +4227,9 @@ CatalogDeprecationInfo _catalogDeprecationFromJson(
     throw CatalogSchemaException('$path: missing required string field: at');
   }
   return CatalogDeprecationInfo(
-    reason: j['reason'] as String,
-    at: j['at'] as String,
-    transitionId: j['transitionId'] as String?,
+    reason: _requiredString(j, 'reason', path),
+    at: _requiredString(j, 'at', path),
+    transitionId: _optionalString(j, 'transitionId', path),
     replaceWith: j['replaceWith'] == null
         ? null
         : wireIdRefFromJson(
@@ -3300,8 +4259,8 @@ CompatRule _compatRuleFromJson(Map<String, dynamic> j, String path) {
     );
   }
   return CompatRule(
-    fromVersion: j['fromVersion'] as String,
-    toVersion: j['toVersion'] as String,
+    fromVersion: _requiredString(j, 'fromVersion', path),
+    toVersion: _requiredString(j, 'toVersion', path),
     kind: _enumFromName(
       CompatKind.values,
       _requiredString(j, 'kind', path),
@@ -3318,8 +4277,8 @@ CompatRule _compatRuleFromJson(Map<String, dynamic> j, String path) {
             _jsonObject(j['successorRef'], '$path.successorRef'),
             '$path.successorRef',
           ),
-    transitionId: j['transitionId'] as String?,
-    note: j['note'] as String?,
+    transitionId: _optionalString(j, 'transitionId', path),
+    note: _optionalString(j, 'note', path),
   );
 }
 
@@ -3408,7 +4367,7 @@ ValidationExpr validationExprFromJson(Map<String, dynamic> j, String path) {
     );
   }
   return ValidationExpr(
-    expression: j['expression'] as String,
-    message: j['message'] as String,
+    expression: _requiredString(j, 'expression', path),
+    message: _requiredString(j, 'message', path),
   );
 }

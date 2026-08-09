@@ -1,5 +1,6 @@
 import 'package:restage_codegen/src/a2ui/a2ui_data_builder.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 /// Unit tests for the recursive value-builder generator. The builder emits the
@@ -779,6 +780,48 @@ void main() {
         prefixes: const {'package:fixture/fixture.dart': 'p0'},
       );
       expect(builder.firstUnprefixableSpelling(box), isNull);
+    });
+
+    test('identity-bearing generic qualifies cross-library type arguments', () {
+      final box = ObjectNode(
+        fields: const {'x': ScalarNode(A2uiScalarType.integer)},
+        required: const {'x'},
+        defId: 'package:boxes/box.dart#Box<package:models/model.dart#Inner?>',
+        construction: A2uiClassConstruction(
+          dartTypeName: 'Box<Inner?>',
+          libraryUri: 'package:boxes/box.dart',
+          dartTypeIdentity: const DartTypeIdentity(
+            libraryUri: 'package:boxes/box.dart',
+            symbolName: 'Box',
+            typeArguments: [
+              DartTypeIdentity(
+                libraryUri: 'package:models/model.dart',
+                symbolName: 'Inner',
+                nullable: true,
+              ),
+            ],
+          ),
+          parameters: const [
+            A2uiConstructorParameter(name: 'x', named: true),
+          ],
+        ),
+      );
+      final builder = A2uiDataBuilder(
+        [box],
+        prefixes: const {
+          'package:boxes/box.dart': 'p0',
+          'package:models/model.dart': 'p1',
+        },
+      );
+
+      expect(builder.firstUnprefixableSpelling(box), isNull);
+      expect(
+        builder.supportDefinitions().join('\n'),
+        allOf(
+          contains('p0.Box<p1.Inner?>? _restageA2uiBuild_Box('),
+          contains('return p0.Box<p1.Inner?>('),
+        ),
+      );
     });
   });
 

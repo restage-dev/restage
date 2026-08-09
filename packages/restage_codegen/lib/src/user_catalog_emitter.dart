@@ -64,6 +64,20 @@ String emitUserCatalogDart(Catalog catalog) {
     }
     buf.writeln('  ],');
   }
+  if (catalog.exclusions.isNotEmpty) {
+    buf.writeln('  exclusions: [');
+    for (final exclusion in catalog.exclusions) {
+      buf
+        ..writeln('    PropertyExclusion(')
+        ..writeln('      widget: ${_escapeDart(exclusion.widget)},')
+        ..writeln('      property: ${_escapeDart(exclusion.property)},')
+        ..writeln('      target: ${_escapeDart(exclusion.target)},')
+        ..writeln('      reason: ${_escapeDart(exclusion.reason)},')
+        ..writeln('      location: ${_escapeDart(exclusion.location)},')
+        ..writeln('    ),');
+    }
+    buf.writeln('  ],');
+  }
   buf.writeln(');');
   return formatGeneratedDart(buf.toString());
 }
@@ -74,7 +88,10 @@ String emitUserCatalogDart(Catalog catalog) {
 /// future caller hands this builder path native decompose graph references,
 /// fail here rather than emitting a catalog whose graph sections are silently
 /// empty.
-Catalog userCatalogFromWidgets(List<WidgetEntry> widgets) {
+Catalog userCatalogFromWidgets(
+  List<WidgetEntry> widgets, {
+  List<PropertyExclusion> exclusions = const [],
+}) {
   validateCustomerPreviewReservations(widgets);
   _rejectUnsupportedWidgetOnlyGraph(widgets);
   return Catalog(
@@ -83,6 +100,7 @@ Catalog userCatalogFromWidgets(List<WidgetEntry> widgets) {
     // Widget-only graph: no structured admission, so no capver stamp.
     libraries: _aggregateLibraryInfo(widgets, const {}),
     widgets: widgets,
+    exclusions: exclusions,
   );
 }
 
@@ -92,6 +110,7 @@ Catalog userCatalogFromWidgets(List<WidgetEntry> widgets) {
 /// data-class property takes); the allocation pass mints the graph's wire IDs.
 Catalog userCatalogFromGraph({
   required List<WidgetEntry> widgets,
+  List<PropertyExclusion> exclusions = const [],
   List<StructuredEntry> structuredTypes = const [],
   List<UnionEntry> unions = const [],
   Map<String, int> stampedCapabilityVersions = const {},
@@ -102,6 +121,7 @@ Catalog userCatalogFromGraph({
     hasStructuredGraph: structuredTypes.isNotEmpty,
   );
   return Catalog(
+    exclusions: exclusions,
     schemaVersion: kSupportedSchemaVersion,
     generatedAt: _generatedAt,
     libraries: _aggregateLibraryInfo(widgets, stampedCapabilityVersions),
@@ -240,10 +260,6 @@ void _writeWidgetEntry(
     ..writeln('$indent  description: ${_escapeDart(w.description)},')
     ..writeln('$indent  flutterType: ${_escapeDart(w.flutterType)},')
     ..writeln('$indent  childrenSlot: ChildrenSlot.${w.childrenSlot.name},')
-    ..writeln(
-      '$indent  fires: ['
-      '${w.fires.map((e) => 'WidgetEventName.${e.name}').join(', ')}],',
-    )
     ..writeln('$indent  properties: [');
   for (final p in w.properties) {
     _writePropertyEntry(buf, p, indent: '$indent    ');
@@ -305,12 +321,18 @@ void _writePropertyEntry(
       '$indent  callbackSignature: ${_escapeDart(p.callbackSignature!)},',
     );
   }
-  if (p.firesAs != null) {
-    buf.writeln('$indent  firesAs: ${_escapeDart(p.firesAs!)},');
-  }
   if (p.defaultSource != null) {
     buf.writeln(
       '$indent  defaultSource: ${_defaultSourceLiteral(p.defaultSource!)},',
+    );
+  }
+  if (p.constructorNullable) {
+    buf.writeln('$indent  constructorNullable: true,');
+  }
+  if (p.constructorDefault != null) {
+    buf.writeln(
+      '$indent  constructorDefault: '
+      '${_dartConstValueLiteral(p.constructorDefault!)},',
     );
   }
   if (p.mutuallyExclusiveWith != null) {
@@ -844,6 +866,83 @@ String _dartTypeRefLiteral(DartTypeRef ref) {
   return 'DartTypeRef(libraryUri: ${_escapeDart(ref.libraryUri)}, '
       'symbolName: ${_escapeDart(ref.symbolName)})';
 }
+
+String _dartConstTypeLiteral(DartTypeIdentity type) => switch (type) {
+      DartNamedTypeIdentity() => _dartNamedTypeLiteral(type),
+      DartRecordTypeIdentity() => _dartRecordTypeLiteral(type),
+    };
+
+String _dartNamedTypeLiteral(DartNamedTypeIdentity type) {
+  final typeArguments =
+      type.typeArguments.map(_dartConstTypeLiteral).join(', ');
+  return 'DartTypeIdentity(${[
+    'libraryUri: ${_escapeDart(type.libraryUri)}',
+    'symbolName: ${_escapeDart(type.symbolName)}',
+    if (typeArguments.isNotEmpty) 'typeArguments: [$typeArguments]',
+    if (type.nullable) 'nullable: true',
+  ].join(', ')})';
+}
+
+String _dartRecordTypeLiteral(DartRecordTypeIdentity type) {
+  final positional = type.positional.map(_dartConstTypeLiteral).join(', ');
+  final named = type.named.map(_dartRecordTypeNamedFieldLiteral).join(', ');
+  return 'DartRecordTypeIdentity(${[
+    if (positional.isNotEmpty) 'positional: [$positional]',
+    if (named.isNotEmpty) 'named: [$named]',
+    if (type.nullable) 'nullable: true',
+  ].join(', ')})';
+}
+
+String _dartRecordTypeNamedFieldLiteral(DartRecordTypeNamedField field) =>
+    'DartRecordTypeNamedField(${_escapeDart(field.name)}, '
+    '${_dartConstTypeLiteral(field.type)})';
+
+String _dartConstValueLiteral(DartConstValue value) => switch (value) {
+      DartConstNull() => 'DartConstNull()',
+      DartConstScalar(:final value) =>
+        'DartConstScalar(${_dartLiteral(value)})',
+      DartConstReference(:final libraryUri, :final owner, :final member) =>
+        'DartConstReference('
+            'libraryUri: ${_escapeDart(libraryUri)}, '
+            '${owner == null ? '' : 'owner: ${_escapeDart(owner)}, '}'
+            'member: ${_escapeDart(member)})',
+      DartConstInvocation() => _dartConstInvocationLiteral(value),
+      DartConstList(:final values, :final type) =>
+        'DartConstList([${values.map(_dartConstValueLiteral).join(', ')}]'
+            '${_dartConstCollectionTypeLiteral(type)})',
+      DartConstSet(:final values, :final type) =>
+        'DartConstSet([${values.map(_dartConstValueLiteral).join(', ')}]'
+            '${_dartConstCollectionTypeLiteral(type)})',
+      DartConstMap(:final entries, :final type) =>
+        'DartConstMap([${entries.map(_dartConstMapEntryLiteral).join(', ')}]'
+            '${_dartConstCollectionTypeLiteral(type)})',
+      DartConstRecord(:final positional, :final named) => 'DartConstRecord('
+          'positional: [${positional.map(_dartConstValueLiteral).join(', ')}], '
+          'named: [${named.map(_dartConstNamedLiteral).join(', ')}])',
+    };
+
+String _dartConstCollectionTypeLiteral(DartTypeIdentity? type) =>
+    type == null ? '' : ', type: ${_dartConstTypeLiteral(type)}';
+
+String _dartConstInvocationLiteral(DartConstInvocation value) {
+  final constructorName = value.constructorName == null
+      ? ''
+      : 'constructorName: ${_escapeDart(value.constructorName!)}, ';
+  final positional = value.positional.map(_dartConstValueLiteral).join(', ');
+  final named = value.named.map(_dartConstNamedLiteral).join(', ');
+  return 'DartConstInvocation('
+      'type: ${_dartConstTypeLiteral(value.type)}, '
+      '$constructorName'
+      'positional: [$positional], named: [$named])';
+}
+
+String _dartConstNamedLiteral(DartConstNamedValue value) =>
+    'DartConstNamedValue(${_escapeDart(value.name)}, '
+    '${_dartConstValueLiteral(value.value)})';
+
+String _dartConstMapEntryLiteral(DartConstMapEntry entry) =>
+    'DartConstMapEntry(${_dartConstValueLiteral(entry.key)}, '
+    '${_dartConstValueLiteral(entry.value)})';
 
 String _parameterDefaultValueLiteral(FactoryParameterDefaultValue value) {
   switch (value) {

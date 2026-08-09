@@ -3,10 +3,6 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A lesson section header: a [title] scalar. A pure leaf widget, so it can sit
 /// inside another lesson widget's child slot.
-@RestageA2uiExample(
-  name: 'Default',
-  asset: 'lib/a2ui_examples/section_header/default.json',
-)
 @RestageWidget(
   name: 'SectionHeader',
   library: WidgetLibrary.custom('acme.lessons'),

@@ -2,6 +2,7 @@ import 'package:restage_codegen/src/customer_map_plan.dart';
 import 'package:restage_codegen/src/customer_preview_reservation.dart';
 import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -42,41 +43,19 @@ String? emitUserFactoriesDart(
   Map<String, int> stampedCapabilityVersions = const {},
 }) {
   validateCustomerPreviewReservations(widgets);
-  // Uniform-prefix import aliases: every referenced CUSTOMER library (a widget
-  // class, a nested structured type, or a referenced enum) gets a unique alias
-  // (`s0`, `s1`, ...), assigned over the sorted URIs for byte-deterministic
-  // emit. The reconstruction then names every customer type QUALIFIED
-  // (`s0.Badge`, `s0.Tone`), so two same-name types from different libraries
-  // can never collide by construction — the aliased-import scheme keeps both,
-  // both render.
-  // Built-in libraries (`dart:` / `package:flutter/`) are NOT aliased; their
-  // types come bare through the `widgets.dart` re-exports.
-  final aliasByUri = <String, String>{};
-  {
-    final customerUris = <String>{
-      for (final entry in widgets) _libraryUriOf(entry.flutterType),
-      for (final structured in structuredTypes)
-        _libraryUriOf(structured.sourceType),
-      for (final entry in widgets)
-        for (final prop in entry.properties)
-          if (_enumLibOf(prop.valueShape) case final uri?) uri,
-      for (final structured in structuredTypes)
-        for (final field in structured.fields)
-          if (_enumLibOf(field.valueShape) case final uri?) uri,
-      for (final plan in mapPlans.values)
-        for (final key in plan.keys)
-          if (key.enumRef?.libraryUri case final uri?) uri,
-      for (final plan in mapPlans.values)
-        if (_enumLibOf(plan.valueShape) case final uri?) uri,
-      for (final plan in recordPlans.values)
-        for (final label in plan.labels)
-          if (label.enumLibraryUri case final uri?) uri,
-    }.where(_isCustomerLibUri).toList()
-      ..sort();
-    for (var i = 0; i < customerUris.length; i++) {
-      aliasByUri[customerUris[i]] = 's$i';
-    }
-  }
+  final plannedUris = _referencedLibraryUris(
+    widgets,
+    structuredTypes: structuredTypes,
+    slotTargets: slotTargets,
+    mapPlans: mapPlans,
+    recordPlans: recordPlans,
+  )..add('package:flutter/widgets.dart');
+  final imports = DartImportPlanner(
+    libraryUris: plannedUris,
+    prefixStem: 's',
+    unprefixedLibraryUris: const {'package:flutter/widgets.dart'},
+  );
+  final aliasByUri = imports.prefixesBySourceUri;
 
   // The build-time context for inline customer reconstruction: admitted
   // structured types, slot-keyed map and record plans, nominal slot targets,
@@ -117,26 +96,13 @@ String? emitUserFactoriesDart(
   // already excluded any unnameable (private) referenced type, so every URI
   // here is importable. Emitted WITH the uniform-prefix alias, sorted for
   // byte-deterministic emit.
-  final referencedUris = <String>{
-    for (final (entry, _) in emittable) _libraryUriOf(entry.flutterType),
-    for (final structured in structuredTypes)
-      _libraryUriOf(structured.sourceType),
-    for (final (entry, _) in emittable)
-      for (final prop in entry.properties)
-        if (_enumLibOf(prop.valueShape) case final uri?) uri,
-    for (final structured in structuredTypes)
-      for (final field in structured.fields)
-        if (_enumLibOf(field.valueShape) case final uri?) uri,
-    for (final plan in mapPlans.values)
-      for (final key in plan.keys)
-        if (key.enumRef?.libraryUri case final uri?) uri,
-    for (final plan in mapPlans.values)
-      if (_enumLibOf(plan.valueShape) case final uri?) uri,
-    for (final plan in recordPlans.values)
-      for (final label in plan.labels)
-        if (label.enumLibraryUri case final uri?) uri,
-  }.where(_isCustomerLibUri).toList()
-    ..sort();
+  final referencedUris = _referencedLibraryUris(
+    [for (final (entry, _) in emittable) entry],
+    structuredTypes: structuredTypes,
+    slotTargets: slotTargets,
+    mapPlans: mapPlans,
+    recordPlans: recordPlans,
+  )..add('package:flutter/widgets.dart');
 
   // Group emittable entries by library so each
   // `Restage.registerWidgetLibrary` call passes exactly one library's
@@ -153,29 +119,27 @@ String? emitUserFactoriesDart(
   buf
     ..writeln('//')
     ..writeln(
-      '// Per-widget LocalWidgetBuilder closures for every @RestageWidget-',
+      '// Per-widget LocalWidgetBuilder closures for every admitted',
     )
-    ..writeln('// annotated class in this package, plus a one-call helper')
+    ..writeln('// @RestageWidget class in this package, plus a one-call helper')
     ..writeln('// that registers them with Restage at startup.')
     ..writeln('//')
-    ..writeln('// To change this file: edit the @RestageWidget /')
-    ..writeln('// @RestageProperty annotations on the underlying classes,')
-    ..writeln('// then re-run build_runner.')
+    ..writeln('// Inputs come from public unnamed generative constructors;')
+    ..writeln('// edit the ordinary Flutter constructor, fields, Dartdoc, or')
+    ..writeln('// optional Restage overlays, then re-run build_runner.')
     ..writeln()
     // `widgets.dart` supplies `Widget` / `BuildContext` for the generated
-    // factory closures. Customer widgets pull their own Material /
-    // Cupertino imports through `widgets.dart`'s re-exports if needed.
+    // factory closures. Every identity used by customer constructors and
+    // reconstruction is imported separately by the shared planner below.
     // The SDK re-exports `DataSource`, `ArgumentDecoders`, and
     // `LocalWidgetBuilder` from rfw, plus `RestageDecoders` for
     // property types not covered by rfw's helpers (e.g. `Duration`),
     // so no direct rfw import is needed (and the customer package
     // isn't required to depend on rfw).
-    ..writeln("import 'package:flutter/widgets.dart';")
-    ..writeln("import 'package:restage/restage.dart';");
-  for (final import in referencedUris) {
-    buf.writeln("import '$import' as ${aliasByUri[import]};");
-  }
+    ..writeln();
+  imports.importDirectivesFor(referencedUris).forEach(buf.writeln);
   buf
+    ..writeln("import 'package:restage/restage.dart';")
     ..writeln()
     ..writeln('/// Registers every emittable @RestageWidget-annotated class')
     ..writeln("/// in this package with Restage. Call once at the app's")
@@ -220,16 +184,62 @@ String? emitUserFactoriesDart(
 String _libraryUriOf(String qualifiedRef) =>
     qualifiedRef.substring(0, qualifiedRef.indexOf('#'));
 
-/// Whether [uri] is a CUSTOMER library (aliased) rather than a built-in one
-/// (`dart:` / `package:flutter/`, which come bare through the `widgets.dart`
-/// re-exports and must not be aliased).
-bool _isCustomerLibUri(String uri) =>
-    !uri.startsWith('dart:') && !uri.startsWith('package:flutter/');
-
 /// The defining library URI of [shape]'s enum type, or `null` when [shape] is
 /// not an [EnumShape] (so it names no source-qualified enum to import).
 String? _enumLibOf(CatalogValueShape? shape) =>
     shape is EnumShape ? shape.enumRef.libraryUri : null;
+
+Set<String> _referencedLibraryUris(
+  Iterable<WidgetEntry> widgets, {
+  required List<StructuredEntry> structuredTypes,
+  required Map<String, String> slotTargets,
+  required Map<String, MapPlan> mapPlans,
+  required Map<String, RecordPlan> recordPlans,
+}) =>
+    {
+      for (final entry in widgets) _libraryUriOf(entry.flutterType),
+      for (final structured in structuredTypes)
+        _libraryUriOf(structured.sourceType),
+      for (final entry in widgets)
+        for (final property in entry.properties)
+          if (_enumLibOf(property.valueShape) case final uri?) uri,
+      for (final entry in widgets)
+        for (final property in entry.properties)
+          if (property.constructorDefault case final value?
+              when _constructorDefaultIsEmitted(entry, property))
+            ...dartConstValueLibraryUris(value),
+      for (final structured in structuredTypes)
+        for (final field in structured.fields)
+          if (_enumLibOf(field.valueShape) case final uri?) uri,
+      for (final plan in mapPlans.values)
+        for (final key in plan.keys)
+          if (key.enumRef?.libraryUri case final uri?) uri,
+      for (final plan in mapPlans.values)
+        if (_enumLibOf(plan.valueShape) case final uri?) uri,
+      for (final plan in recordPlans.values)
+        for (final label in plan.labels)
+          if (label.enumLibraryUri case final uri?) uri,
+    };
+
+bool _constructorDefaultIsEmitted(
+  WidgetEntry entry,
+  PropertyEntry property,
+) {
+  if (property.required || property.constructorDefault == null) return false;
+  return property.positional && _hasLaterPositionalProperty(entry, property);
+}
+
+bool _hasLaterPositionalProperty(
+  WidgetEntry entry,
+  PropertyEntry property,
+) {
+  var passedProperty = false;
+  for (final candidate in entry.properties) {
+    if (passedProperty && candidate.positional) return true;
+    if (identical(candidate, property)) passedProperty = true;
+  }
+  return false;
+}
 
 /// Renders a Dart expression resolving to [lib] when read in code that
 /// imports the Restage SDK (which re-exports `WidgetLibrary` from

@@ -54,7 +54,6 @@ void main() {
           description: '',
           flutterType: 'package:acme/widgets.dart#Board',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             // A list-of-structured widget PROPERTY (hits _propertyToJson).
             PropertyEntry(

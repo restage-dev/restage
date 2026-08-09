@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "1970-01-01T00:00:00Z",
   "libraries": {
     "restage.cupertino": {
@@ -15,13 +15,13 @@
       "description": "An iOS-style activity indicator that spins clockwise.",
       "flutterType": "package:flutter/src/cupertino/activity_indicator.dart#CupertinoActivityIndicator",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
           "name": "color",
           "type": "color",
           "description": "Color of the activity indicator.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -78,9 +78,6 @@
       "description": "An iOS-style button.",
       "flutterType": "package:flutter/src/cupertino/button.dart#CupertinoButton",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0004",
@@ -95,6 +92,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "The amount of space to surround the child inside the bounds of the button.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -109,6 +107,7 @@
           "name": "color",
           "type": "color",
           "description": "The color of the button's background.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -124,6 +123,7 @@
           "name": "onPressed",
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -147,9 +147,6 @@
       "description": "A filled Cupertino call-to-action button.",
       "flutterType": "package:flutter/src/cupertino/button.dart#CupertinoButton.filled",
       "childrenSlot": "single",
-      "fires": [
-        "onPressed"
-      ],
       "properties": [
         {
           "wireId": "p0009",
@@ -164,6 +161,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "The amount of space to surround the child inside the bounds of the button.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -178,6 +176,7 @@
           "name": "color",
           "type": "color",
           "description": "The color of the button's background.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -193,6 +192,7 @@
           "name": "onPressed",
           "type": "event",
           "description": "The callback that is called when the button is tapped or otherwise activated.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -216,25 +216,27 @@
       "description": "An iOS-style list section.",
       "flutterType": "package:flutter/src/cupertino/list_section.dart#CupertinoListSection",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0014",
           "name": "children",
           "type": "widgetList",
-          "description": "The list of rows in the section. Usually a list of [CupertinoListTile]s."
+          "description": "The list of rows in the section. Usually a list of [CupertinoListTile]s.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0015",
           "name": "header",
           "type": "widget",
-          "description": "Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget."
+          "description": "Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0016",
           "name": "footer",
           "type": "widget",
-          "description": "Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget."
+          "description": "Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0154",
@@ -265,25 +267,27 @@
       "description": "Inset-rounded variant of CupertinoListSection.",
       "flutterType": "package:flutter/src/cupertino/list_section.dart#CupertinoListSection.insetGrouped",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0017",
           "name": "children",
           "type": "widgetList",
-          "description": "The list of rows in the section. Usually a list of [CupertinoListTile]s."
+          "description": "The list of rows in the section. Usually a list of [CupertinoListTile]s.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0018",
           "name": "header",
           "type": "widget",
-          "description": "Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget."
+          "description": "Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0019",
           "name": "footer",
           "type": "widget",
-          "description": "Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget."
+          "description": "Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0155",
@@ -314,9 +318,6 @@
       "description": "An iOS-style list tile.",
       "flutterType": "package:flutter/src/cupertino/list_tile.dart#CupertinoListTile",
       "childrenSlot": "none",
-      "fires": [
-        "onTap"
-      ],
       "properties": [
         {
           "wireId": "p0020",
@@ -330,25 +331,29 @@
           "wireId": "p0021",
           "name": "subtitle",
           "type": "widget",
-          "description": "A [subtitle] is used to display additional information. It is located below [title]. Usually a [Text] widget."
+          "description": "A [subtitle] is used to display additional information. It is located below [title]. Usually a [Text] widget.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0022",
           "name": "leading",
           "type": "widget",
-          "description": "A widget displayed at the start of the [CupertinoListTile]. This is typically an `Icon` or an `Image`."
+          "description": "A widget displayed at the start of the [CupertinoListTile]. This is typically an `Icon` or an `Image`.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0023",
           "name": "trailing",
           "type": "widget",
-          "description": "A widget displayed at the end of the [CupertinoListTile]. This is usually a right chevron icon (e.g. `CupertinoListTileChevron`), or an `Icon`."
+          "description": "A widget displayed at the end of the [CupertinoListTile]. This is usually a right chevron icon (e.g. `CupertinoListTileChevron`), or an `Icon`.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0024",
           "name": "onTap",
           "type": "event",
           "description": "The [onTap] function is called when a user taps on [CupertinoListTile]. If left `null`, the [CupertinoListTile] will not react on taps. If this is a `Future<void> Function()`, then the [CupertinoListTile] remains activated until the returned future is awaited. This is according to iOS behavior. However, if this function is a `void Function()`, then the tile is active only for the duration of invocation.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -356,6 +361,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "The [backgroundColor] of the tile in normal state. Once the tile is tapped, the background color switches to [backgroundColorActivated]. It is set to match the iOS look by default.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -376,31 +382,34 @@
       "description": "An iOS-styled navigation bar.",
       "flutterType": "package:flutter/src/cupertino/nav_bar.dart#CupertinoNavigationBar",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0026",
           "name": "leading",
           "type": "widget",
-          "description": "{@template flutter.cupertino.CupertinoNavigationBar.leading} Widget to place at the start of the navigation bar. Normally a back button for a normal page or a cancel button for full page dialogs."
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.leading} Widget to place at the start of the navigation bar. Normally a back button for a normal page or a cancel button for full page dialogs.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0027",
           "name": "middle",
           "type": "widget",
-          "description": "The navigation bar's default title."
+          "description": "The navigation bar's default title.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0028",
           "name": "trailing",
           "type": "widget",
-          "description": "{@template flutter.cupertino.CupertinoNavigationBar.trailing} Widget to place at the end of the navigation bar. Normally additional actions taken on the page such as a search or edit function. {@endtemplate}"
+          "description": "{@template flutter.cupertino.CupertinoNavigationBar.trailing} Widget to place at the end of the navigation bar. Normally additional actions taken on the page such as a search or edit function. {@endtemplate}",
+          "constructorNullable": true
         },
         {
           "wireId": "p0029",
           "name": "backgroundColor",
           "type": "color",
           "description": "{@template flutter.cupertino.CupertinoNavigationBar.backgroundColor} The background color of the navigation bar. If it contains transparency, the tab bar will automatically produce a blurring effect to the content behind it. This behavior can be disabled by setting [enableBackgroundFilterBlur] to false.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -421,13 +430,13 @@
       "description": "Implements a single iOS application page's layout.",
       "flutterType": "package:flutter/src/cupertino/page_scaffold.dart#CupertinoPageScaffold",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0030",
           "name": "backgroundColor",
           "type": "color",
           "description": "The color of the widget that underlies the entire scaffold.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -456,9 +465,6 @@
       "description": "An iOS-style switch.",
       "flutterType": "package:flutter/src/cupertino/switch.dart#CupertinoSwitch",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0032",
@@ -482,6 +488,7 @@
           "type": "event",
           "description": "Called when the user toggles the switch on or off.",
           "callbackSignature": "ValueChanged<bool>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -489,6 +496,7 @@
           "name": "activeTrackColor",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -508,16 +516,13 @@
       "description": "An iOS-style text field.",
       "flutterType": "package:flutter/src/cupertino/text_field.dart#CupertinoTextField",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged",
-        "onSubmitted"
-      ],
       "properties": [
         {
           "wireId": "p0035",
           "name": "placeholder",
           "type": "string",
           "description": "A lighter colored placeholder hint that appears on the first line of the text field when the text entry is empty.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -554,6 +559,7 @@
             "kind": "literal",
             "value": 1
           },
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -568,6 +574,7 @@
           "name": "maxLength",
           "type": "integer",
           "description": "The maximum number of characters (Unicode grapheme clusters) to allow in the text field.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -583,6 +590,7 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onChanged}",
           "callbackSignature": "ValueChanged<String>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -591,6 +599,7 @@
           "type": "event",
           "description": "{@macro flutter.widgets.editableText.onSubmitted}",
           "callbackSignature": "ValueChanged<String>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -622,9 +631,6 @@
       "description": "An iOS-style slider.",
       "flutterType": "package:flutter/src/cupertino/slider.dart#CupertinoSlider",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0041",
@@ -648,6 +654,7 @@
           "type": "event",
           "description": "Called when the user selects a new value for the slider.",
           "callbackSignature": "ValueChanged<double>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -691,6 +698,7 @@
           "name": "divisions",
           "type": "integer",
           "description": "The number of discrete divisions.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -705,6 +713,7 @@
           "name": "activeColor",
           "type": "color",
           "description": "The color to use for the portion of the slider that has been selected.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -724,9 +733,6 @@
       "description": "A date picker widget in iOS style.",
       "flutterType": "package:flutter/src/cupertino/date_picker.dart#CupertinoDatePicker",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0047",
@@ -754,7 +760,6 @@
           "description": "Callback called when the selected date and/or time changes. If the new selected [DateTime] is not valid, or is not in the [minimumDate] through [maximumDate] range, this callback will not be called.",
           "required": true,
           "callbackSignature": "ValueChanged<DateTime>",
-          "firesAs": "onChanged",
           "category": "behavior",
           "priority": "primary"
         },
@@ -781,6 +786,7 @@
           "name": "maximumYear",
           "type": "integer",
           "description": "Maximum year that the picker can be scrolled to in [CupertinoDatePickerMode.date] mode. Null if there's no limit.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -832,6 +838,7 @@
           "type": "enumValue",
           "description": "Determines the order of the columns inside [CupertinoDatePicker] in [CupertinoDatePickerMode.date] and [CupertinoDatePickerMode.monthYear] mode. When using monthYear mode, both [DatePickerDateOrder.dmy] and [DatePickerDateOrder.mdy] will result in the month|year order. Defaults to the locale's default date format/order.",
           "enumType": "DatePickerDateOrder",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -846,6 +853,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "Background color of date picker.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -939,9 +947,6 @@
       "description": "A countdown timer picker in iOS style.",
       "flutterType": "package:flutter/src/cupertino/date_picker.dart#CupertinoTimerPicker",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0059",
@@ -1022,6 +1027,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "Background color of timer picker.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -1057,7 +1063,6 @@
           "description": "Callback called when the timer duration changes.",
           "required": true,
           "callbackSignature": "ValueChanged<Duration>",
-          "firesAs": "onChanged",
           "category": "behavior",
           "priority": "primary"
         },
@@ -1090,9 +1095,6 @@
       "description": "An iOS-styled picker.",
       "flutterType": "package:flutter/src/cupertino/picker.dart#CupertinoPicker",
       "childrenSlot": "list",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0067",
@@ -1117,6 +1119,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "Background color behind the children.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -1241,7 +1244,7 @@
           "description": "Called when the selected item changes.",
           "required": true,
           "callbackSignature": "ValueChanged<int>",
-          "firesAs": "onChanged",
+          "constructorNullable": true,
           "category": "behavior",
           "priority": "primary"
         },
@@ -1281,10 +1284,6 @@
       "description": "A [CupertinoTextField] that mimics the look and behavior of UIKit's `UISearchTextField`.",
       "flutterType": "package:flutter/src/cupertino/search_field.dart#CupertinoSearchTextField",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged",
-        "onSubmitted"
-      ],
       "properties": [
         {
           "wireId": "p0078",
@@ -1292,6 +1291,7 @@
           "type": "event",
           "description": "Invoked upon user input.",
           "callbackSignature": "ValueChanged<String>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1300,6 +1300,7 @@
           "type": "event",
           "description": "Invoked upon keyboard submission.",
           "callbackSignature": "ValueChanged<String>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1307,6 +1308,7 @@
           "name": "placeholder",
           "type": "string",
           "description": "A hint placeholder text that appears when the text entry is empty.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -1321,6 +1323,7 @@
           "name": "backgroundColor",
           "type": "color",
           "description": "Set the [decoration] property's background color.",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -1359,9 +1362,6 @@
       "description": "A macOS style checkbox.",
       "flutterType": "package:flutter/src/cupertino/checkbox.dart#CupertinoCheckbox",
       "childrenSlot": "none",
-      "fires": [
-        "onChanged"
-      ],
       "properties": [
         {
           "wireId": "p0083",
@@ -1369,6 +1369,7 @@
           "type": "boolean",
           "description": "Whether this checkbox is checked.",
           "required": true,
+          "constructorNullable": true,
           "priority": "primary",
           "valueShape": {
             "kind": "scalar",
@@ -1403,6 +1404,7 @@
           "type": "event",
           "description": "Called when the value of the checkbox should change.",
           "callbackSignature": "ValueChanged<bool?>",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1410,6 +1412,7 @@
           "name": "activeColor",
           "type": "color",
           "description": "The color to use when this checkbox is checked.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -1424,6 +1427,7 @@
           "name": "checkColor",
           "type": "color",
           "description": "The color to use for the check icon when this checkbox is checked.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "color",
@@ -1438,6 +1442,7 @@
           "name": "semanticLabel",
           "type": "string",
           "description": "The semantic label for the checkbox that will be announced by screen readers.",
+          "constructorNullable": true,
           "category": "accessibility",
           "valueShape": {
             "kind": "scalar",

@@ -21,9 +21,12 @@ annotations now live in `package:rfw_catalog_schema`. This package re-exports
 them from its main barrel for compatibility with existing call sites, so a
 single `import 'package:restage_shared/restage_shared.dart';` still resolves
 `Catalog`, `WidgetEntry`, `PropertyEntry`, `RestageConstraints`, `LibraryInfo`,
-and the annotations, including `RestageDataField` and
-`RestageA2uiExample`. New code should import
+and the annotations, including `RestageDataField`. New code should import
 `package:rfw_catalog_schema/rfw_catalog_schema.dart` directly.
+
+Target-specific customer authoring annotations are available from
+`package:restage_shared/a2ui.dart` and `package:restage_shared/rfw.dart` for
+callers that intentionally use this package's compatibility surface.
 
 A handful of catalog-adjacent helpers are defined here rather than in the schema
 package:

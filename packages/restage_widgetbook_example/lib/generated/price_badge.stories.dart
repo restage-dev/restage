@@ -1,0 +1,82 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: library_private_types_in_public_api, unused_import
+
+import 'package:widgetbook/widgetbook.dart' as widgetbook;
+import 'package:widgetbook/widgetbook.dart';
+import 'package:restage_widgetbook_example/widgets/price_badge.dart'
+    as restage_source;
+import 'package:restage_widgetbook_example/widgets/price_badge.dart'
+    show PriceBadge;
+
+part 'price_badge.stories.g.dart';
+
+class PriceBadgeStoryInput {
+  const PriceBadgeStoryInput({
+    this.description = "A compact price pill, e.g. \"\$9.99 / mo\".",
+    this.usage = "A compact price pill, e.g. \"\$9.99 / mo\".",
+    this.price = "\$9.99",
+    this.period = "mo",
+  });
+
+  final String description;
+  final String usage;
+  final String price;
+  final String period;
+}
+
+const meta = widgetbook.Meta(
+  restage_source.PriceBadge.new,
+  argsType: PriceBadgeStoryInput.new,
+);
+
+const component = widgetbook.ComponentMeta(path: 'decoration');
+
+final defaults = _Defaults(
+  builder: (context, args) =>
+      restage_source.PriceBadge(price: args.price, period: args.period),
+);
+
+final $RestageCatalog = _Story(
+  args: _Args(
+    description: _RestageMetadataArg(
+      "A compact price pill, e.g. \"\$9.99 / mo\".",
+      name: 'description',
+    ),
+    usage: _RestageMetadataArg(
+      "A compact price pill, e.g. \"\$9.99 / mo\".",
+      name: 'usage',
+    ),
+    price: _RestageStringArg(
+      "\$9.99",
+      description: "Formatted price, e.g. \"\$9.99\". Default: \$9.99.",
+    ),
+    period: _RestageStringArg(
+      "mo",
+      description: "Billing period suffix, e.g. \"mo\". Default: mo.",
+    ),
+  ),
+);
+
+mixin _RestageArgDescription<T> on widgetbook.Arg<T> {
+  String get restageDescription;
+
+  @override
+  String? get description => restageDescription;
+}
+
+final class _RestageMetadataArg extends widgetbook.Arg<String>
+    with widgetbook.NoFields<String> {
+  _RestageMetadataArg(super.value, {required super.name});
+
+  @override
+  String get description => value;
+}
+
+final class _RestageStringArg extends widgetbook.StringArg
+    with _RestageArgDescription<String> {
+  _RestageStringArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
