@@ -533,7 +533,6 @@ WidgetEntry _linkWidget(
     description: widget.description,
     flutterType: widget.flutterType,
     childrenSlot: widget.childrenSlot,
-    fires: widget.fires,
     properties: properties,
     decomposes: widget.decomposes,
     sinceVersion: widget.sinceVersion,
@@ -549,7 +548,6 @@ WidgetEntry _linkWidget(
     description: widget.description,
     flutterType: widget.flutterType,
     childrenSlot: widget.childrenSlot,
-    fires: widget.fires,
     properties: properties,
     decomposes: [
       for (var i = 0; i < widget.decomposes.length; i++)
@@ -653,8 +651,9 @@ PropertyEntry _copyPropertyWithValueShape(
     enumType: base.enumType,
     widgetType: base.widgetType,
     callbackSignature: base.callbackSignature,
-    firesAs: base.firesAs,
     defaultSource: base.defaultSource,
+    constructorNullable: base.constructorNullable,
+    constructorDefault: base.constructorDefault,
     mutuallyExclusiveWith: base.mutuallyExclusiveWith,
     requiresAncestor: base.requiresAncestor,
     category: base.category,

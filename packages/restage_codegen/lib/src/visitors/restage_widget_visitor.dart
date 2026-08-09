@@ -1,3 +1,4 @@
+import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
@@ -16,7 +17,13 @@ final class RestageWidgetVisitor implements LibraryVisitor {
   @override
   Future<void> visit(CodegenBuildState state) async {
     final result = visitRestageWidgets(state.library, state.assetId);
-    state.issues.addAll(result.issues);
+    for (final issue in result.issues) {
+      if (issue.code.isInformational) {
+        log.warning(issue.toString());
+      } else {
+        state.issues.add(issue);
+      }
+    }
     state.widgetEntries.addAll(result.widgets);
   }
 }

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
 import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_a2ui_example/lessons.dart';
-import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
+import 'package:restage_a2ui_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_a2ui_example/restage_imports.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilityManifest, LibraryRequirement;

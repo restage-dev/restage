@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
-import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
+import 'package:restage_a2ui_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_a2ui_example/restage_imports.dart';
 
 /// The end-to-end proof: the genui catalog generated from the example's

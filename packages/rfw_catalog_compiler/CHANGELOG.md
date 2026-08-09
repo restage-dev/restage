@@ -1,3 +1,8 @@
+# Unreleased — coordinated breaking release
+
+- Carry open event properties through compiler IR without a closed event-name
+  list or rename field, and lower canonical catalog schema v5.
+
 # 1.2.0
 
 - Preserve typed property constraints through compiler IR, linking, adapters,

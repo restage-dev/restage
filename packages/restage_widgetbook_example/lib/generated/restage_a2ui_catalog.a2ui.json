@@ -1,0 +1,527 @@
+{
+  "restageCapability": {
+    "catalogContentVersion": 1,
+    "availableLibraries": [
+      {
+        "namespace": "restage_widgetbook_example.widgets",
+        "version": 2
+      }
+    ],
+    "perItemSinceVersion": {
+      "CatalogShowcase": 1,
+      "ConstructorFidelityCorpus": 1,
+      "ConstructorFidelityProof": 1,
+      "ConstructorPositionalCorpus": 1,
+      "FeaturePanel": 1,
+      "FeatureRow": 1,
+      "PriceBadge": 1,
+      "StatTile": 1
+    }
+  },
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9",
+    "title": "Restage A2UI Catalog",
+    "description": "A2UI component catalog generated from Restage widget source.",
+    "catalogId": "restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "CatalogShowcase": {
+        "$defs": {
+          "CatalogShowcaseData": {
+            "type": "object",
+            "description": "Customer-owned structured information displayed by a [CatalogShowcase].",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "description": "Customer-owned count."
+              },
+              "note": {
+                "type": "string",
+                "description": "Supporting customer text."
+              }
+            },
+            "required": [
+              "count",
+              "note"
+            ]
+          },
+          "__a2ui_root__": {
+            "type": "object",
+            "description": "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child slots, and customer-owned structured data.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Visible customer title."
+              },
+              "enabled": {
+                "description": "Whether the customer control is enabled.",
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "status": {
+                "type": "string",
+                "description": "Current customer state.",
+                "enum": [
+                  "ready",
+                  "processing"
+                ]
+              },
+              "header": {
+                "type": "string",
+                "description": "Customer widget shown before the content list."
+              },
+              "children": {
+                "type": "array",
+                "description": "Customer widgets shown in source order.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "data": {
+                "description": "Customer-owned structured information.",
+                "$ref": "#/$defs/CatalogShowcaseData"
+              }
+            },
+            "required": [
+              "title",
+              "status",
+              "header",
+              "children",
+              "data"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "CatalogShowcase"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "ConstructorFidelityCorpus": {
+        "$defs": {
+          "ConstructorCorpusData": {
+            "type": "object",
+            "description": "Customer-owned structured data with one nested object.",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "description": "Customer-owned scalar nested beside the object."
+              },
+              "nested": {
+                "description": "Nested customer object.",
+                "$ref": "#/$defs/ConstructorCorpusNestedData"
+              }
+            },
+            "required": [
+              "count",
+              "nested"
+            ]
+          },
+          "ConstructorCorpusNestedData": {
+            "type": "object",
+            "description": "Nested customer-owned immutable data.",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Nested label."
+              }
+            },
+            "required": [
+              "label"
+            ]
+          },
+          "__a2ui_root__": {
+            "type": "object",
+            "description": "Broad reusable fixture for accepted named constructor shapes.",
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "Generic value inherited by the concrete customer widget."
+              },
+              "ordinaryLabel": {
+                "type": "string",
+                "description": "Ordinary one-to-one constructor binding."
+              },
+              "requiredNamed": {
+                "type": "string",
+                "description": "Required named field formal."
+              },
+              "nullableText": {
+                "description": "Explicit nullable null default.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nullableSeed": {
+                "description": "Nullable input with a non-null constructor default.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "enabled": {
+                "description": "Scalar constructor default and write-back candidate.",
+                "oneOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "count": {
+                "description": "Integer constructor default and second write-back candidate.",
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "mode": {
+                "type": "string",
+                "description": "Enum constructor default.",
+                "enum": [
+                  "ready",
+                  "processing"
+                ]
+              },
+              "directColor": {
+                "type": "string",
+                "description": "Direct const invocation default."
+              },
+              "publicColor": {
+                "type": "string",
+                "description": "Public static constant reference default."
+              },
+              "data": {
+                "description": "Nested customer-structured default.",
+                "$ref": "#/$defs/ConstructorCorpusData"
+              }
+            },
+            "required": [
+              "value",
+              "ordinaryLabel",
+              "requiredNamed"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "ConstructorFidelityCorpus"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "ConstructorFidelityProof": {
+        "type": "object",
+        "description": "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Required positional label."
+          },
+          "enabled": {
+            "description": "Optional named value whose omission preserves the Dart default.",
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "call": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "call"
+                ]
+              }
+            ]
+          },
+          "optionalText": {
+            "type": "string",
+            "description": "Optional text used to distinguish authored values from defaults."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "ConstructorFidelityProof"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "label"
+        ]
+      },
+      "ConstructorPositionalCorpus": {
+        "type": "object",
+        "description": "Reusable positional-hole fixture.",
+        "properties": {
+          "requiredLabel": {
+            "type": "string",
+            "description": "Required positional value."
+          },
+          "leading": {
+            "type": "string",
+            "description": "Earlier optional positional value."
+          },
+          "trailing": {
+            "type": "string",
+            "description": "Later optional positional value used to prove hole preservation."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "ConstructorPositionalCorpus"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "requiredLabel"
+        ]
+      },
+      "FeaturePanel": {
+        "type": "object",
+        "description": "A panel with a customer header and customer content widgets.",
+        "properties": {
+          "header": {
+            "description": "Customer widget shown as the panel header.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "children": {
+            "type": "array",
+            "description": "Customer widgets shown in the panel body.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "FeaturePanel"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "header",
+          "children"
+        ]
+      },
+      "FeatureRow": {
+        "type": "object",
+        "description": "A feature-list row: check icon, title, and subtitle.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Feature title."
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "Supporting line under the title."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "FeatureRow"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "title",
+          "subtitle"
+        ]
+      },
+      "PriceBadge": {
+        "type": "object",
+        "description": "A compact price pill, e.g. \"$9.99 / mo\".",
+        "properties": {
+          "price": {
+            "type": "string",
+            "description": "Formatted price, e.g. \"$9.99\"."
+          },
+          "period": {
+            "type": "string",
+            "description": "Billing period suffix, e.g. \"mo\"."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "PriceBadge"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "price",
+          "period"
+        ]
+      },
+      "StatTile": {
+        "type": "object",
+        "description": "A labelled value tile, e.g. \"Active users\" over \"1,204\".",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Caption text."
+          },
+          "value": {
+            "type": "string",
+            "description": "Value text."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "StatTile"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "label",
+          "value"
+        ]
+      }
+    },
+    "functions": {},
+    "systemPromptFragments": [
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9\".",
+      "CatalogShowcase: Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+      "ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.",
+      "ConstructorFidelityProof: Use to verify generated constructor binding and callback write-back.",
+      "ConstructorPositionalCorpus: Reusable positional-hole fixture.",
+      "FeaturePanel: Use to group a compact catalog summary.",
+      "FeatureRow: A feature-list row: check icon, title, and subtitle.",
+      "PriceBadge: A compact price pill, e.g. \"$9.99 / mo\".",
+      "StatTile: A labelled value tile, e.g. \"Active users\" over \"1,204\"."
+    ]
+  }
+}

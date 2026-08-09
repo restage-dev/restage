@@ -4,7 +4,7 @@
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 final Catalog kUserCatalog = Catalog(
-  schemaVersion: 4,
+  schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.custom('restage_example.widgets'):
@@ -20,7 +20,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/acme_border.dart#AcmeBorder',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),
@@ -35,6 +34,7 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.color,
           description: 'Border color. Defaults to the primary container.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -46,13 +46,13 @@ final Catalog kUserCatalog = Catalog(
       description: 'Overlays a list of children in z-order.',
       flutterType: 'package:restage_example/widgets/acme_stack.dart#AcmeStack',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0003'),
           name: 'children',
           type: PropertyType.widgetList,
           description: 'Overlay children, top-most last.',
+          required: true,
         ),
       ],
     ),
@@ -65,7 +65,6 @@ final Catalog kUserCatalog = Catalog(
           'Renders plans keyed by slug plus a highlighted plan per billing tier (map-of-data-class properties).',
       flutterType: 'package:restage_example/widgets/plan_board.dart#PlanBoard',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0045'),
@@ -101,7 +100,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/pricing_card.dart#PricingCard',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0024'),
@@ -128,7 +126,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/pricing_table.dart#PricingTable',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0035'),
@@ -155,7 +152,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/promo_badge.dart#PromoBadge',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0004'),
@@ -170,6 +166,7 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.color,
           description: 'Background color. Defaults to the primary container.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -182,7 +179,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/pulse_badge.dart#PulseBadge',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0033'),
@@ -209,7 +205,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/section_header.dart#SectionHeader',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0041'),
@@ -246,20 +241,19 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/minimal_custom_widget.dart#StatBadge',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0021'),
           name: 'label',
           type: PropertyType.string,
-          description: 'Caption text.',
+          description: 'The caption, e.g. `\'Streak\'`.',
           required: true,
         ),
         PropertyEntry(
           wireId: WireId('p0022'),
           name: 'value',
           type: PropertyType.string,
-          description: 'Value text.',
+          description: 'The value, e.g. `\'7 days\'`.',
           required: true,
         ),
       ],
@@ -273,7 +267,6 @@ final Catalog kUserCatalog = Catalog(
       flutterType:
           'package:restage_example/widgets/streak_badge.dart#StreakBadge',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0031'),
@@ -300,7 +293,6 @@ final Catalog kUserCatalog = Catalog(
           'Renders a list of pricing tiers, each with a nested feature list.',
       flutterType: 'package:restage_example/widgets/tier_board.dart#TierBoard',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0036'),
@@ -321,6 +313,7 @@ final Catalog kUserCatalog = Catalog(
           name: 'bonusTiers',
           type: PropertyType.unknown,
           description: 'Optional bonus tiers.',
+          constructorNullable: true,
           valueShape: ListShape(
               propertyType: PropertyType.unknown,
               itemShape: StructuredShape(

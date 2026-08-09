@@ -1,12 +1,28 @@
 # Changelog
 
+## Unreleased — coordinated breaking release
+
+This section records the package side of a coordinated breaking release. The
+release version and publication timing are assigned separately.
+
+- Make the unnamed generative constructor the source of truth for customer
+  widget inputs, requiredness, positionalness, and order; descriptions may come
+  from Dartdoc and `RestageProperty` becomes an optional metadata overlay.
+- Emit canonical catalog schema v5 while continuing to decode schema v4 at the
+  catalog boundary.
+- Remove the closed event-name enum and event rename/declaration fields. An
+  event's identity is now the exact callback constructor property name.
+- Add pure-Dart `a2ui.Config` target annotations with aggregate and composable
+  shorthand constructors. `rfw.Config` remains a const target marker.
+- Remove the deprecated target fields from `RestageWidget` and
+  `RestageProperty`.
+
 ## 1.2.0
 
 - Add typed `RestageConstraints` to property annotations and catalog entries,
   with deterministic schema-v4 encoding and structural preservation of unknown
   constraint keywords.
-- Add `RestageDataField` for nested data documentation and the repeatable
-  `RestageA2uiExample` annotation for canonical A2UI examples.
+- Add `RestageDataField` for nested data documentation.
 
 ## 1.1.0
 

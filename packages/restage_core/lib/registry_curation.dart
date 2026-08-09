@@ -49,7 +49,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // between blob updates).
   BuiltinWidgetCuration<AnimatedAlign>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onEnd],
     // Mirror `Align` — center default + length width/height factors.
     propertyOverrides: {
       'alignment': kAlignmentCenterOverride,
@@ -60,7 +59,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedContainer>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onEnd],
     // Mirror `Container`'s structural exclusions.
     excludeParams: kContainerCoreExcludes,
     brandTokens: {'color': 'background'},
@@ -76,7 +74,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedDefaultTextStyle>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     // Mirror `DefaultTextStyle` — the `style` slot is reassembled from the
     // shared TextStyle synthetics + recipe. `textHeightBehavior` is a
     // structured type the catalog doesn't surface today.
@@ -87,20 +84,17 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedOpacity>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     // Mirror `Opacity` — a single `opacity` scalar over a child.
     propertyOverrides: {'curve': kCurveLinearOverride},
   ),
   BuiltinWidgetCuration<AnimatedPadding>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onEnd],
     // Mirror `Padding` — `padding: EdgeInsetsGeometry` flat-walks to the
     // shared edge-inset surface.
     propertyOverrides: {'curve': kCurveLinearOverride},
   ),
   BuiltinWidgetCuration<AnimatedPositioned>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onEnd],
     // Mirror `Positioned` — the six edge/size scalars as lengths. Like
     // `Positioned`, this must be a direct child of a `Stack`.
     propertyOverrides: {
@@ -115,7 +109,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedRotation>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     // `turns: double` (one turn = 360°) over a child. The remaining shared
     // opt-outs are documented on `kScaleRotationExcludes`.
     // The concrete-Alignment `alignment` slot routes through the shared
@@ -128,7 +121,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedScale>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     // `scale: double` over a child. Same remaining opt-outs as
     // `AnimatedRotation` — see `kScaleRotationExcludes`.
     excludeParams: kScaleRotationExcludes,
@@ -139,7 +131,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedSize>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     propertyOverrides: {
       'alignment': kAlignmentCenterOverride,
       'curve': kCurveLinearOverride,
@@ -147,7 +138,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<AnimatedSlide>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     // `offset: Offset` — a fractional translation of the child — over a
     // child. The concrete-`Offset` slot routes through the `offset` decoder
     // with the defensive `Offset.zero` override (see `kOffsetZeroOverride`).
@@ -409,11 +399,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       'trackpadScrollCausesScale',
       'trackpadScrollToScaleFactor',
     ],
-    fires: [
-      WidgetEventName.onTap,
-      WidgetEventName.onLongPress,
-      WidgetEventName.onDoubleTap,
-    ],
   ),
   BuiltinWidgetCuration<Image>(
     category: WidgetCategory.decoration,
@@ -492,7 +477,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // defaults to `easeOut` (not the reflector-default).
   BuiltinWidgetCuration<RestageFadeIn>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     propertyOverrides: {
       'curve': kCurveEaseOutOverride,
       'fromOffset': kOffsetZeroOverride,
@@ -510,7 +494,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `Offset.zero` default.
   BuiltinWidgetCuration<RestageMotion>(
     category: WidgetCategory.decoration,
-    fires: [WidgetEventName.onEnd],
     propertyOverrides: {
       'fromOffset': kOffsetZeroOverride,
     },

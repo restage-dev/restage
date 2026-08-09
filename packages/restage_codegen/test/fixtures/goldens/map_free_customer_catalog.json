@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "1970-01-01T00:00:00Z",
   "libraries": {
     "acme.design_system": {
@@ -16,13 +16,13 @@
       "description": "p",
       "flutterType": "package:apps_examples/widgets.dart#PlainCard",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
           "name": "title",
           "type": "string",
-          "description": "t"
+          "description": "t",
+          "constructorNullable": true
         },
         {
           "wireId": "p0002",

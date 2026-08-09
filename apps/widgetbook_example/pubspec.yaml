@@ -1,0 +1,29 @@
+name: restage_widgetbook_workbench
+description: >-
+  A thin, buildable web target that runs the generated Widgetbook v4 component
+  catalog from restage_widgetbook_example. Build it with
+  `flutter build web --no-tree-shake-icons` (the workbench pulls in the rfw
+  runtime, which builds IconData from runtime values).
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+  flutter: ">=3.38.0"
+
+resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  restage_widgetbook_example:
+    path: ../../packages/restage_widgetbook_example
+  widgetbook: 4.0.0-beta.10
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

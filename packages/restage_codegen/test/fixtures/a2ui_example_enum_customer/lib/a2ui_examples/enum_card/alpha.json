@@ -1,9 +1,0 @@
-[
-  {
-    "tone": "quiet",
-    "measurements": [1, 2.0],
-    "id": "root",
-    "labels": ["alpha", "beta"],
-    "component": "EnumCard"
-  }
-]

@@ -18,9 +18,10 @@ import '../helpers.dart';
 /// the unification of the regen proofs' inline `_eventSeam` / `_pairingSeam` /
 /// `_richShapes` legs into one catalog-driven pass: for each customer
 /// `WidgetEntry` property, an `event` property reflects its constructor
-/// parameter into the event seam (+ reads `@RestageProperty(writeBackValue:)`
-/// into the pairing seam), a `structured` property reflects into the rich-shape
-/// seam, and catalog-fed leaves/children retain analyzer-known nullability.
+/// parameter into the event seam (+ threads resolved
+/// `@a2ui.Config.writeBackValues` into the pairing seam), a `structured`
+/// property reflects into the rich-shape seam, and catalog-fed leaves/children
+/// retain analyzer-known nullability.
 ///
 /// These tests resolve the REAL committed interactive + rich-shape fixtures
 /// (the same fixtures the regen proofs reflect) via the analyzer and assert the
@@ -208,16 +209,21 @@ void main() {
     });
 
     test(
-        'the multi-control case reads ONLY the annotated callbacks into the '
-        'pairing seam (@RestageProperty(writeBackValue:))', () {
-      final seams = assembleA2uiSeams([
-        _widget(library, 'Range', 'RangeFixture', [
-          prop('low', PropertyType.integer, required: true),
-          prop('high', PropertyType.integer, required: true),
-          prop('onLow', PropertyType.event, required: true),
-          prop('onHigh', PropertyType.event, required: true),
-        ]),
-      ]);
+        'the multi-control case reads ONLY resolved target configuration into '
+        'the pairing seam', () {
+      final seams = assembleA2uiSeams(
+        [
+          _widget(library, 'Range', 'RangeFixture', [
+            prop('low', PropertyType.integer, required: true),
+            prop('high', PropertyType.integer, required: true),
+            prop('onLow', PropertyType.event, required: true),
+            prop('onHigh', PropertyType.event, required: true),
+          ]),
+        ],
+        writeBackValuesByWidget: const {
+          'Range': {'onLow': 'low', 'onHigh': 'high'},
+        },
+      );
 
       expect(
         seams.eventSeam[('Range', 'onLow')],
@@ -236,7 +242,7 @@ void main() {
         ),
       );
       // The explicit pairings — and ONLY these (the auto-pair / dispatch
-      // callbacks across the other widgets carry no writeBackValue).
+      // callbacks across the other widgets carry no resolved pairing).
       expect(seams.pairingSeam, {
         ('Range', 'onLow'): 'low',
         ('Range', 'onHigh'): 'high',

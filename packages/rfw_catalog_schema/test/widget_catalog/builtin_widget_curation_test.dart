@@ -11,7 +11,6 @@ void main() {
       expect(curation.constructorName, isNull);
       expect(curation.nameOverride, isNull);
       expect(curation.descriptionOverride, isNull);
-      expect(curation.fires, isEmpty);
       expect(curation.childrenSlot, isNull);
       expect(curation.deprecatedSince, isNull);
       expect(curation.minSchemaVersion, 1);
@@ -28,7 +27,6 @@ void main() {
         constructorName: 'tonal',
         nameOverride: 'FilledButtonTonal',
         descriptionOverride: 'M3 secondary CTA.',
-        fires: [WidgetEventName.onPressed],
         childrenSlot: ChildrenSlot.single,
         deprecatedSince: '2.0.0',
         minSchemaVersion: 2,
@@ -70,7 +68,6 @@ void main() {
       expect(curation.constructorName, 'tonal');
       expect(curation.nameOverride, 'FilledButtonTonal');
       expect(curation.descriptionOverride, 'M3 secondary CTA.');
-      expect(curation.fires, [WidgetEventName.onPressed]);
       expect(curation.childrenSlot, ChildrenSlot.single);
       expect(curation.deprecatedSince, '2.0.0');
       expect(curation.minSchemaVersion, 2);

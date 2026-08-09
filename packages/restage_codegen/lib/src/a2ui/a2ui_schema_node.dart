@@ -1,5 +1,6 @@
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The JSON primitive categories a [ScalarNode] projects to.
 ///
@@ -245,6 +246,7 @@ final class A2uiClassConstruction extends A2uiObjectConstruction {
     required this.dartTypeName,
     required List<A2uiConstructorParameter> parameters,
     this.libraryUri,
+    this.dartTypeIdentity,
     this.constructorName,
   }) : parameters = List.unmodifiable(parameters);
 
@@ -253,6 +255,12 @@ final class A2uiClassConstruction extends A2uiObjectConstruction {
 
   /// The import URI that defines the class, when known.
   final String? libraryUri;
+
+  /// Recursive source identity used by the shared import planner.
+  ///
+  /// Older/manual sidecars may omit this and use [dartTypeName] only; analyzer
+  /// reflection always supplies it when every type argument is nominal.
+  final DartTypeIdentity? dartTypeIdentity;
 
   /// The named-constructor name, or null for the unnamed (default) constructor.
   final String? constructorName;
@@ -265,6 +273,7 @@ final class A2uiClassConstruction extends A2uiObjectConstruction {
       other is A2uiClassConstruction &&
       other.dartTypeName == dartTypeName &&
       other.libraryUri == libraryUri &&
+      other.dartTypeIdentity == dartTypeIdentity &&
       other.constructorName == constructorName &&
       const ListEquality<A2uiConstructorParameter>()
           .equals(other.parameters, parameters);
@@ -273,6 +282,7 @@ final class A2uiClassConstruction extends A2uiObjectConstruction {
   int get hashCode => Object.hash(
         dartTypeName,
         libraryUri,
+        dartTypeIdentity,
         constructorName,
         const ListEquality<A2uiConstructorParameter>().hash(parameters),
       );

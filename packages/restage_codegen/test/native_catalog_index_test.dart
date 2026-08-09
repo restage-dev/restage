@@ -118,7 +118,6 @@ Catalog _nativeCatalog() {
         description: 'Container.',
         flutterType: 'package:flutter/widgets.dart#Container',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p0001'),

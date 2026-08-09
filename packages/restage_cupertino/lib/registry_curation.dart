@@ -95,7 +95,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // optional into the ctor-level null at codegen time.
   BuiltinWidgetCuration<CupertinoButton>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPressed],
     excludeParams: _kCupertinoButtonExcludes,
     propertyOverrides: {
       'onPressed': PropertyOverride(required: false),
@@ -107,7 +106,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     constructorName: 'filled',
     nameOverride: 'CupertinoButtonFilled',
     descriptionOverride: 'A filled Cupertino call-to-action button.',
-    fires: [WidgetEventName.onPressed],
     excludeParams: _kCupertinoButtonExcludes,
     brandTokens: {'color': 'primary'},
     propertyOverrides: {
@@ -128,7 +126,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<CupertinoListTile>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onTap],
     excludeParams: [
       'additionalInfo',
       'backgroundColorActivated',
@@ -172,7 +169,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // a bare-VoidCallback signature otherwise).
   BuiltinWidgetCuration<CupertinoSwitch>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       // `focusNode: FocusNode`, `mouseCursor: MouseCursor`, and
       // `dragStartBehavior: DragStartBehavior` are excluded via the
@@ -211,7 +207,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // silently drops non-void event properties without a callbackSignature).
   BuiltinWidgetCuration<CupertinoTextField>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged, WidgetEventName.onSubmitted],
     propertyOverrides: {
       'onChanged': PropertyOverride(
         callbackSignature: 'ValueChanged<String>',
@@ -295,7 +290,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // catalog's event taxonomy.
   BuiltinWidgetCuration<CupertinoSlider>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: ['onChangeStart', 'onChangeEnd', 'thumbColor'],
     brandTokens: {'activeColor': 'primary'},
     propertyOverrides: {
@@ -310,11 +304,10 @@ const List<BuiltinWidgetCuration> kCuration = [
   // PropertyType today, so the runtime default to `now` / no bounds
   // applies. `selectionOverlayBuilder` and `selectableDayPredicate`
   // take imperative callbacks that don't fit declarative serialization.
-  // `onDateTimeChanged` is the Flutter ctor name; `firesAs: 'onChanged'`
-  // maps it to the catalog's event taxonomy.
+  // `onDateTimeChanged` remains the precise callback identity inferred from
+  // the Flutter constructor.
   BuiltinWidgetCuration<CupertinoDatePicker>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       'initialDateTime',
       'minimumDate',
@@ -325,7 +318,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     brandTokens: {'backgroundColor': 'background'},
     propertyOverrides: {
       'onDateTimeChanged': PropertyOverride(
-        firesAs: 'onChanged',
         callbackSignature: 'ValueChanged<DateTime>',
       ),
     },
@@ -337,16 +329,14 @@ const List<BuiltinWidgetCuration> kCuration = [
   // as a primitive default either — supply the string member name and
   // the codegen interprets it against `AlignmentDirectional` at
   // translation time (same shape as `Stack.alignment` in
-  // `restage.core`). `firesAs` on `onTimerDurationChanged` maps the
-  // Flutter ctor name onto the catalog's `onChanged` taxonomy.
+  // `restage.core`). `onTimerDurationChanged` remains the precise callback
+  // identity inferred from the Flutter constructor.
   BuiltinWidgetCuration<CupertinoTimerPicker>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: ['initialTimerDuration', 'selectionOverlayBuilder'],
     brandTokens: {'backgroundColor': 'background'},
     propertyOverrides: {
       'onTimerDurationChanged': PropertyOverride(
-        firesAs: 'onChanged',
         callbackSignature: 'ValueChanged<Duration>',
       ),
       'alignment': PropertyOverride(defaultValue: 'center'),
@@ -361,16 +351,14 @@ const List<BuiltinWidgetCuration> kCuration = [
   // renders at runtime). The `.builder` named constructor is not
   // curated — delegate-based child resolution is a separate story
   // (mirrors the `ListView` default-constructor-only precedent).
-  // `firesAs` on `onSelectedItemChanged` maps the Flutter ctor name
-  // onto the catalog's `onChanged` taxonomy.
+  // `onSelectedItemChanged` remains the precise callback identity inferred
+  // from the Flutter constructor.
   BuiltinWidgetCuration<CupertinoPicker>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: ['scrollController', 'selectionOverlay'],
     brandTokens: {'backgroundColor': 'background'},
     propertyOverrides: {
       'onSelectedItemChanged': PropertyOverride(
-        firesAs: 'onChanged',
         callbackSignature: 'ValueChanged<int>',
       ),
     },
@@ -383,7 +371,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `ValueChanged<String>` typed-payload callback signature.
   BuiltinWidgetCuration<CupertinoSearchTextField>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged, WidgetEventName.onSubmitted],
     excludeParams: [
       // `controller: TextEditingController` and `focusNode: FocusNode`
       // are excluded via the centralized type denylist (exact match and
@@ -432,7 +419,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // border-config knobs deferred.
   BuiltinWidgetCuration<CupertinoCheckbox>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       // `mouseCursor: MouseCursor` and `focusNode: FocusNode` are
       // excluded via the centralized type denylist. `side: BorderSide?`

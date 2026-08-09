@@ -462,7 +462,6 @@ ElevatedButton(
               prop('onPressed', PropertyType.event),
               prop('child', PropertyType.widget),
             ],
-            fires: const [WidgetEventName.onPressed],
             flutterType:
                 'package:flutter/src/material/elevated_button.dart#ElevatedButton',
           ),
@@ -481,7 +480,6 @@ ElevatedButton(
               prop('onSheetDismissed', PropertyType.event),
               // presentation intentionally omitted (a stale pre-fix catalog).
             ],
-            fires: const [WidgetEventName.onSheetDismissed],
             flutterType:
                 'package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet',
           ),
@@ -825,7 +823,6 @@ final Catalog _translatorModalCatalog = catalogWith(
         prop('onPressed', PropertyType.event),
         prop('child', PropertyType.widget),
       ],
-      fires: const [WidgetEventName.onPressed],
       flutterType:
           'package:flutter/src/material/elevated_button.dart#ElevatedButton',
     ),
@@ -864,7 +861,6 @@ final Catalog _translatorModalCatalog = catalogWith(
         prop('underlay', PropertyType.widget),
         prop('onSheetDismissed', PropertyType.event),
       ],
-      fires: const [WidgetEventName.onSheetDismissed],
       flutterType:
           'package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet',
     ),

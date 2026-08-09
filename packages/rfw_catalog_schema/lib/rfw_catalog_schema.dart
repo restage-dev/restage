@@ -5,7 +5,7 @@
 /// what it deliberately leaves to consumer packages.
 library;
 
-export 'src/annotations/restage_a2ui_example.dart';
+export 'src/annotations/ignore.dart';
 export 'src/annotations/restage_builtin_library.dart';
 export 'src/annotations/restage_data_field.dart';
 export 'src/annotations/restage_factory_variant.dart';
@@ -22,6 +22,8 @@ export 'src/builtin_widget_curation.dart';
 export 'src/catalog.dart';
 export 'src/catalog_codec.dart';
 export 'src/compat_rule.dart';
+export 'src/dart_const_value.dart';
+export 'src/dart_identifier.dart';
 export 'src/decomposition_recipe.dart';
 export 'src/default_value_source.dart';
 export 'src/deprecation_info.dart';
@@ -31,9 +33,12 @@ export 'src/factory_variant.dart';
 export 'src/library_info.dart';
 export 'src/native_decompose.dart';
 export 'src/property_entry.dart';
+export 'src/property_exclusion.dart';
 export 'src/property_metadata.dart';
 export 'src/property_type.dart';
 export 'src/restage_constraints.dart';
+export 'src/rfw_callback_signature_policy.dart';
+export 'src/rfw_constructor_presence_protocol.dart';
 export 'src/stability.dart';
 export 'src/structured_entry.dart';
 export 'src/theme_binding.dart';

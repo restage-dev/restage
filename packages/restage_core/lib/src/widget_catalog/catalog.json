@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "1970-01-01T00:00:00Z",
   "libraries": {
     "restage.core": {
@@ -15,7 +15,6 @@
       "description": "A widget that aligns its child within itself and optionally sizes itself based on the child's size.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Align",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
@@ -41,6 +40,7 @@
           "name": "widthFactor",
           "type": "length",
           "description": "If non-null, sets its width to the child's width multiplied by this factor.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -55,6 +55,7 @@
           "name": "heightFactor",
           "type": "length",
           "description": "If non-null, sets its height to the child's height multiplied by this factor.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -68,7 +69,8 @@
           "wireId": "p0004",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -80,9 +82,6 @@
       "description": "Animated version of [Align] which automatically transitions the child's position over a given duration whenever the given [alignment] changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedAlign",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0313",
@@ -109,13 +108,15 @@
           "wireId": "p0314",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0315",
           "name": "heightFactor",
           "type": "length",
           "description": "If non-null, sets its height to the child's height multiplied by this factor.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -130,6 +131,7 @@
           "name": "widthFactor",
           "type": "length",
           "description": "If non-null, sets its width to the child's width multiplied by this factor.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -178,6 +180,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -190,15 +193,13 @@
       "description": "Animated version of [Container] that gradually changes its values over a period of time.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedContainer",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0005",
           "name": "alignment",
           "type": "alignment",
           "description": "Align the [child] within the container.",
+          "constructorNullable": true,
           "category": "layout",
           "valueShape": {
             "kind": "scalar",
@@ -214,6 +215,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Empty space to inscribe inside the [decoration]. The [child], if any, is placed inside this padding.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -228,6 +230,7 @@
           "name": "color",
           "type": "color",
           "description": "",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -243,6 +246,7 @@
           "name": "width",
           "type": "length",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -257,6 +261,7 @@
           "name": "height",
           "type": "length",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -271,6 +276,7 @@
           "name": "margin",
           "type": "edgeInsets",
           "description": "Empty space to surround the [decoration] and [child].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -284,7 +290,8 @@
           "wireId": "p0011",
           "name": "child",
           "type": "widget",
-          "description": "The [child] contained by the container."
+          "description": "The [child] contained by the container.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0529",
@@ -344,6 +351,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -671,9 +679,6 @@
       "description": "Animated version of [DefaultTextStyle] which automatically transitions the default text style (the text style to apply to descendant [Text] widgets without explicit style) over a given duration whenever the given style changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedDefaultTextStyle",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0318",
@@ -689,6 +694,7 @@
           "type": "enumValue",
           "description": "How the text should be aligned horizontally.",
           "enumType": "TextAlign",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -740,6 +746,7 @@
           "name": "maxLines",
           "type": "integer",
           "description": "An optional maximum number of lines for the text to span, wrapping if necessary.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -807,6 +814,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1408,15 +1416,13 @@
       "description": "Animated version of [Opacity] which automatically transitions the child's opacity over a given duration whenever the given opacity changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedOpacity",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0350",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0351",
@@ -1473,6 +1479,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -1503,9 +1510,6 @@
       "description": "Animated version of [Padding] which automatically transitions the indentation over a given duration whenever the given inset changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedPadding",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0354",
@@ -1527,7 +1531,8 @@
           "wireId": "p0355",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0393",
@@ -1568,6 +1573,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -1580,9 +1586,6 @@
       "description": "Animated version of [Positioned] which automatically transitions the child's position over a given duration whenever the given position changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedPositioned",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0357",
@@ -1597,6 +1600,7 @@
           "name": "left",
           "type": "length",
           "description": "The offset of the child's left edge from the left of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1611,6 +1615,7 @@
           "name": "top",
           "type": "length",
           "description": "The offset of the child's top edge from the top of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1625,6 +1630,7 @@
           "name": "right",
           "type": "length",
           "description": "The offset of the child's right edge from the right of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1639,6 +1645,7 @@
           "name": "bottom",
           "type": "length",
           "description": "The offset of the child's bottom edge from the bottom of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1653,6 +1660,7 @@
           "name": "width",
           "type": "length",
           "description": "The child's width.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1667,6 +1675,7 @@
           "name": "height",
           "type": "length",
           "description": "The child's height.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -1715,6 +1724,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -1727,15 +1737,13 @@
       "description": "Animated version of [Transform.rotate] which automatically transitions the child's rotation over a given duration whenever the given rotation changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedRotation",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0365",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0366",
@@ -1811,6 +1819,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -1823,15 +1832,13 @@
       "description": "Animated version of [Transform.scale] which automatically transitions the child's scale over a given duration whenever the given scale changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedScale",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0368",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0369",
@@ -1907,6 +1914,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -1919,15 +1927,13 @@
       "description": "Animated widget that automatically transitions its size over a given duration whenever the given child's size changes.",
       "flutterType": "package:flutter/src/widgets/animated_size.dart#AnimatedSize",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0373",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0374",
@@ -1987,6 +1993,7 @@
           "name": "reverseDuration",
           "type": "duration",
           "description": "The duration when transitioning this widget's size to match the child's size when going in reverse.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -2020,6 +2027,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "Called every time an animation completes.",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -2032,15 +2040,13 @@
       "description": "Widget which automatically transitions the child's offset relative to its normal position whenever the given offset changes.",
       "flutterType": "package:flutter/src/widgets/implicit_animations.dart#AnimatedSlide",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0403",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0404",
@@ -2101,6 +2107,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -2113,7 +2120,6 @@
       "description": "A widget that attempts to size the child to a specific aspect ratio.",
       "flutterType": "package:flutter/src/widgets/basic.dart#AspectRatio",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0018",
@@ -2135,7 +2141,8 @@
           "wireId": "p0019",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -2147,13 +2154,13 @@
       "description": "A widget that applies a filter to the existing painted content and then paints [child].",
       "flutterType": "package:flutter/src/widgets/basic.dart#BackdropFilter",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0020",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0021",
@@ -2216,13 +2223,13 @@
       "description": "A widget that centers its child within itself.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Center",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0025",
           "name": "widthFactor",
           "type": "real",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2237,6 +2244,7 @@
           "name": "heightFactor",
           "type": "real",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2250,7 +2258,8 @@
           "wireId": "p0027",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -2262,7 +2271,6 @@
       "description": "A widget that clips its child using an oval.",
       "flutterType": "package:flutter/src/widgets/basic.dart#ClipOval",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0028",
@@ -2287,7 +2295,8 @@
           "wireId": "p0029",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -2299,7 +2308,6 @@
       "description": "A widget that clips its child using a rounded rectangle.",
       "flutterType": "package:flutter/src/widgets/basic.dart#ClipRRect",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0030",
@@ -2324,7 +2332,8 @@
           "wireId": "p0031",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0032",
@@ -2371,7 +2380,6 @@
       "description": "A widget that clips its child using a rectangle.",
       "flutterType": "package:flutter/src/widgets/basic.dart#ClipRect",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0033",
@@ -2396,7 +2404,8 @@
           "wireId": "p0034",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -2408,7 +2417,6 @@
       "description": "A box that paints a solid color behind its child.",
       "flutterType": "package:flutter/src/widgets/basic.dart#ColoredBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0580",
@@ -2431,7 +2439,8 @@
           "wireId": "p0581",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ],
       "sinceVersion": 5
@@ -2444,7 +2453,6 @@
       "description": "A widget that displays its children in a vertical array.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Column",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0035",
@@ -2539,13 +2547,13 @@
       "description": "A box that adds size constraints to its child.",
       "flutterType": "package:flutter/src/widgets/basic.dart#ConstrainedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0582",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0583",
@@ -2663,13 +2671,13 @@
       "description": "A convenience widget that combines common painting, positioning, and sizing widgets.",
       "flutterType": "package:flutter/src/widgets/container.dart#Container",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0039",
           "name": "alignment",
           "type": "alignment",
           "description": "Align the [child] within the container.",
+          "constructorNullable": true,
           "category": "layout",
           "valueShape": {
             "kind": "scalar",
@@ -2685,6 +2693,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "Empty space to inscribe inside the [decoration]. The [child], if any, is placed inside this padding.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -2699,6 +2708,7 @@
           "name": "color",
           "type": "color",
           "description": "The color to paint behind the [child].",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -2714,6 +2724,7 @@
           "name": "width",
           "type": "length",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2728,6 +2739,7 @@
           "name": "height",
           "type": "length",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -2742,6 +2754,7 @@
           "name": "margin",
           "type": "edgeInsets",
           "description": "Empty space to surround the [decoration] and [child].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -2755,7 +2768,8 @@
           "wireId": "p0045",
           "name": "child",
           "type": "widget",
-          "description": "The [child] contained by the container."
+          "description": "The [child] contained by the container.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0530",
@@ -3101,7 +3115,6 @@
       "description": "A widget that paints a [Decoration] either before or after its child paints.",
       "flutterType": "package:flutter/src/widgets/container.dart#DecoratedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0051",
@@ -3126,7 +3139,8 @@
           "wireId": "p0052",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         },
         {
           "wireId": "p0053",
@@ -3181,7 +3195,6 @@
       "description": "The text style to apply to descendant [Text] widgets which don't have an explicit style.",
       "flutterType": "package:flutter/src/widgets/text.dart#DefaultTextStyle",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0054",
@@ -3189,6 +3202,7 @@
           "type": "enumValue",
           "description": "How each line of text in the Text widget should be aligned horizontally.",
           "enumType": "TextAlign",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -3240,6 +3254,7 @@
           "name": "maxLines",
           "type": "integer",
           "description": "An optional maximum number of lines for the text to span, wrapping if necessary. If the text exceeds the given number of lines, it will be truncated according to [overflow].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -3875,7 +3890,6 @@
       "description": "A widget that expands a child of a [Row], [Column], or [Flex] so that the child fills the available space.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Expanded",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0063",
@@ -3913,7 +3927,6 @@
       "description": "An image that shows a [placeholder] image while the target [image] is loading, then fades in the new image when it loads.",
       "flutterType": "package:flutter/src/widgets/fade_in_image.dart#FadeInImage.assetNetwork",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0065",
@@ -3970,6 +3983,7 @@
           "name": "width",
           "type": "length",
           "description": "If non-null, require the image to have this width.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -3984,6 +3998,7 @@
           "name": "height",
           "type": "length",
           "description": "If non-null, require the image to have this height.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -3999,6 +4014,7 @@
           "type": "enumValue",
           "description": "How to inscribe the image into the space allocated during layout.",
           "enumType": "BoxFit",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4014,6 +4030,7 @@
           "type": "enumValue",
           "description": "How to inscribe the placeholder image into the space allocated during layout.",
           "enumType": "BoxFit",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4029,6 +4046,7 @@
           "type": "enumValue",
           "description": "The rendering quality of the placeholder image.",
           "enumType": "FilterQuality",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4048,7 +4066,6 @@
       "description": "Scales and positions its child within itself according to [fit].",
       "flutterType": "package:flutter/src/widgets/basic.dart#FittedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0073",
@@ -4111,7 +4128,8 @@
           "wireId": "p0076",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -4123,7 +4141,6 @@
       "description": "A widget that controls how a child of a [Row], [Column], or [Flex] flexes.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Flexible",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0077",
@@ -4180,7 +4197,6 @@
       "description": "A widget that sizes its child to a fraction of the total available space. For more details about the layout algorithm, see [RenderFractionallySizedOverflowBox].",
       "flutterType": "package:flutter/src/widgets/basic.dart#FractionallySizedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0377",
@@ -4206,6 +4222,7 @@
           "name": "widthFactor",
           "type": "real",
           "description": "{@template flutter.widgets.basic.fractionallySizedBox.widthFactor} If non-null, the fraction of the incoming width given to the child.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4220,6 +4237,7 @@
           "name": "heightFactor",
           "type": "real",
           "description": "{@template flutter.widgets.basic.fractionallySizedBox.heightFactor} If non-null, the fraction of the incoming height given to the child.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4233,7 +4251,8 @@
           "wireId": "p0380",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -4245,23 +4264,20 @@
       "description": "A widget that detects gestures.",
       "flutterType": "package:flutter/src/widgets/gesture_detector.dart#GestureDetector",
       "childrenSlot": "single",
-      "fires": [
-        "onTap",
-        "onLongPress",
-        "onDoubleTap"
-      ],
       "properties": [
         {
           "wireId": "p0080",
           "name": "child",
           "type": "widget",
-          "description": "The widget below this widget in the tree."
+          "description": "The widget below this widget in the tree.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0081",
           "name": "onTap",
           "type": "event",
           "description": "A tap with a primary button has occurred.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -4269,6 +4285,7 @@
           "name": "onDoubleTap",
           "type": "event",
           "description": "The user has tapped the screen with a primary button at the same location twice in quick succession.",
+          "constructorNullable": true,
           "category": "behavior"
         },
         {
@@ -4276,6 +4293,7 @@
           "name": "onLongPress",
           "type": "event",
           "description": "Called when a long press gesture with a primary button has been recognized.",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -4288,7 +4306,6 @@
       "description": "A network image.",
       "flutterType": "package:flutter/src/widgets/image.dart#Image.network",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0084",
@@ -4312,6 +4329,7 @@
           "name": "semanticLabel",
           "type": "string",
           "description": "A Semantic description of the image.",
+          "constructorNullable": true,
           "category": "accessibility",
           "valueShape": {
             "kind": "scalar",
@@ -4327,6 +4345,7 @@
           "name": "width",
           "type": "length",
           "description": "If non-null, require the image to have this width (in logical pixels).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4341,6 +4360,7 @@
           "name": "height",
           "type": "length",
           "description": "If non-null, require the image to have this height (in logical pixels).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4355,6 +4375,7 @@
           "name": "color",
           "type": "color",
           "description": "If non-null, this color is blended with each image pixel using [colorBlendMode].",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -4371,6 +4392,7 @@
           "type": "enumValue",
           "description": "Used to combine [color] with this image.",
           "enumType": "BlendMode",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4386,6 +4408,7 @@
           "type": "enumValue",
           "description": "How to inscribe the image into the space allocated during layout.",
           "enumType": "BoxFit",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4462,7 +4485,6 @@
       "description": "A widget that displays an image.",
       "flutterType": "package:flutter/src/widgets/image.dart#Image.asset",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0089",
@@ -4486,6 +4508,7 @@
           "name": "semanticLabel",
           "type": "string",
           "description": "A Semantic description of the image.",
+          "constructorNullable": true,
           "category": "accessibility",
           "valueShape": {
             "kind": "scalar",
@@ -4501,6 +4524,7 @@
           "name": "width",
           "type": "length",
           "description": "If non-null, require the image to have this width (in logical pixels).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4515,6 +4539,7 @@
           "name": "height",
           "type": "length",
           "description": "If non-null, require the image to have this height (in logical pixels).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4529,6 +4554,7 @@
           "name": "color",
           "type": "color",
           "description": "If non-null, this color is blended with each image pixel using [colorBlendMode].",
+          "constructorNullable": true,
           "category": "style",
           "valueShape": {
             "kind": "scalar",
@@ -4545,6 +4571,7 @@
           "type": "enumValue",
           "description": "Used to combine [color] with this image.",
           "enumType": "BlendMode",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4560,6 +4587,7 @@
           "type": "enumValue",
           "description": "How to inscribe the image into the space allocated during layout.",
           "enumType": "BoxFit",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4636,13 +4664,13 @@
       "description": "A widget that sizes its child to the child's intrinsic height.",
       "flutterType": "package:flutter/src/widgets/basic.dart#IntrinsicHeight",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0381",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -4654,13 +4682,13 @@
       "description": "A widget that sizes its child to the child's maximum intrinsic width.",
       "flutterType": "package:flutter/src/widgets/basic.dart#IntrinsicWidth",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0382",
           "name": "stepWidth",
           "type": "real",
           "description": "If non-null, force the child's width to be a multiple of this value.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4675,6 +4703,7 @@
           "name": "stepHeight",
           "type": "real",
           "description": "If non-null, force the child's height to be a multiple of this value.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -4688,7 +4717,8 @@
           "wireId": "p0384",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -4700,7 +4730,6 @@
       "description": "A box that limits its size only when it's unconstrained.",
       "flutterType": "package:flutter/src/widgets/basic.dart#LimitedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0094",
@@ -4738,7 +4767,8 @@
           "wireId": "p0096",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -4750,7 +4780,6 @@
       "description": "A scrollable list of widgets arranged linearly.",
       "flutterType": "package:flutter/src/widgets/scroll_view.dart#ListView",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0097",
@@ -4812,6 +4841,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -4833,6 +4863,7 @@
           "type": "enumValue",
           "description": "",
           "enumType": "ScrollViewKeyboardDismissBehavior",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -4871,9 +4902,6 @@
       "description": "Fades [child] in (optionally rising into place) when it first appears.",
       "flutterType": "package:restage_core/src/widgets/restage_fade_in.dart#RestageFadeIn",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0471",
@@ -4888,6 +4916,7 @@
           "name": "duration",
           "type": "duration",
           "description": "How long the fade takes. Null uses [defaultDuration] (300ms).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -4956,6 +4985,7 @@
           "name": "delay",
           "type": "duration",
           "description": "How long to wait after mount before the fade starts. Null means no delay.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -4970,6 +5000,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "Fires once when the fade settles. Never fires if the widget is disposed before settling.",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -4982,13 +5013,13 @@
       "description": "Locale-aware decimal number formatting, rendered as text.",
       "flutterType": "package:restage_core/src/widgets/restage_formatted_number.dart#RestageFormattedNumber",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0409",
           "name": "value",
           "type": "real",
           "description": "The number to format. Null renders the empty string.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -5003,6 +5034,7 @@
           "name": "numberLocale",
           "type": "string",
           "description": "The locale whose conventions govern number formatting — grouping and the decimal mark (e.g. `en_US`, `de_DE`). Null uses the ambient default locale.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -5018,6 +5050,7 @@
           "type": "enumValue",
           "description": "Horizontal alignment of the rendered value.",
           "enumType": "TextAlign",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -5032,6 +5065,7 @@
           "name": "maxLines",
           "type": "integer",
           "description": "Maximum number of lines for the rendered value.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -5654,9 +5688,6 @@
       "description": "Springs [child] into place when it first appears.",
       "flutterType": "package:restage_core/src/widgets/restage_motion.dart#RestageMotion",
       "childrenSlot": "single",
-      "fires": [
-        "onEnd"
-      ],
       "properties": [
         {
           "wireId": "p0478",
@@ -5690,6 +5721,7 @@
           "name": "duration",
           "type": "duration",
           "description": "Optional override for the preset's settle duration. Null keeps the preset's duration. Independent of [bounce] — overriding one leaves the other at the preset's value.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -5704,6 +5736,7 @@
           "name": "bounce",
           "type": "real",
           "description": "Optional override for the preset's bounce (overshoot). Null keeps the preset's bounce. Independent of [duration]. Clamped internally so no value can produce a non-settling spring.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -5772,6 +5805,7 @@
           "name": "delay",
           "type": "duration",
           "description": "How long to wait after mount before the entrance starts. Null means no delay (start immediately).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -5786,6 +5820,7 @@
           "name": "onEnd",
           "type": "event",
           "description": "Fires once when the entrance settles. Never fires if the widget is disposed before settling.",
+          "constructorNullable": true,
           "category": "behavior"
         }
       ]
@@ -5798,13 +5833,13 @@
       "description": "Locale-aware currency formatting, rendered as text.",
       "flutterType": "package:restage_core/src/widgets/restage_formatted_number.dart#RestagePrice",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0439",
           "name": "value",
           "type": "real",
           "description": "The amount to format. Null renders the empty string.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -5819,6 +5854,7 @@
           "name": "numberLocale",
           "type": "string",
           "description": "The locale whose conventions govern number formatting — grouping, the decimal mark, digit shaping, and symbol placement (e.g. `en_US`, `de_DE`, `ja_JP`). Null uses the ambient default locale.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -5833,6 +5869,7 @@
           "name": "symbol",
           "type": "string",
           "description": "The currency symbol or sign to show (e.g. `$`, `€`, `¥`). Null uses the locale's default currency symbol.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -5847,6 +5884,7 @@
           "name": "decimalDigits",
           "type": "integer",
           "description": "The number of fraction digits (e.g. `2` for most currencies, `0` for JPY, `3` for KWD). Null uses the locale's default for the currency.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -5862,6 +5900,7 @@
           "type": "enumValue",
           "description": "Horizontal alignment of the rendered value.",
           "enumType": "TextAlign",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -5876,6 +5915,7 @@
           "name": "maxLines",
           "type": "integer",
           "description": "Maximum number of lines for the rendered value.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -6498,7 +6538,6 @@
       "description": "Continuously pulses [child] between [minScale] and [maxScale] to draw attention — a subtle \"breathing\" effect for a call-to-action.",
       "flutterType": "package:restage_core/src/widgets/restage_pulse.dart#RestagePulse",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0487",
@@ -6549,6 +6588,7 @@
           "name": "period",
           "type": "duration",
           "description": "The duration of a single sweep between [minScale] and [maxScale]; a full pulse (out and back) takes two sweeps. Null uses [defaultPeriod] (1200ms).",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -6586,7 +6626,6 @@
       "description": "Reveals a vertical list of [children] with a cascading entrance — each child springs into place ([RestageMotion]'s entrance), delayed by [delayBetween] times its index, so the list flows in rather than appearing at once.",
       "flutterType": "package:restage_core/src/widgets/restage_stagger.dart#RestageStagger",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0492",
@@ -6601,6 +6640,7 @@
           "name": "delayBetween",
           "type": "duration",
           "description": "The delay added per child — child `i` starts after `delayBetween * i`. Null uses [defaultDelayBetween] (60ms). Clamped to a safe range so a pathological value cannot overflow the per-child delay.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "duration",
@@ -6693,7 +6733,6 @@
       "description": "A box that can lay out its child without painting it.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Offstage",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0587",
@@ -6717,7 +6756,8 @@
           "wireId": "p0588",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ],
       "sinceVersion": 5
@@ -6730,7 +6770,6 @@
       "description": "A widget that makes its child partially transparent.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Opacity",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0102",
@@ -6770,7 +6809,8 @@
           "wireId": "p0104",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -6782,7 +6822,6 @@
       "description": "A widget that insets its child by the given padding.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Padding",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0105",
@@ -6804,7 +6843,8 @@
           "wireId": "p0106",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -6816,13 +6856,13 @@
       "description": "A widget that controls where a child of a [Stack] is positioned.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Positioned",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0107",
           "name": "left",
           "type": "length",
           "description": "The distance that the child's left edge is inset from the left of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -6837,6 +6877,7 @@
           "name": "top",
           "type": "length",
           "description": "The distance that the child's top edge is inset from the top of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -6851,6 +6892,7 @@
           "name": "right",
           "type": "length",
           "description": "The distance that the child's right edge is inset from the right of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -6865,6 +6907,7 @@
           "name": "bottom",
           "type": "length",
           "description": "The distance that the child's bottom edge is inset from the bottom of the stack.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -6879,6 +6922,7 @@
           "name": "width",
           "type": "length",
           "description": "The child's width.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -6893,6 +6937,7 @@
           "name": "height",
           "type": "length",
           "description": "The child's height.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -6920,7 +6965,6 @@
       "description": "A widget that displays its children in a horizontal array.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Row",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0114",
@@ -7015,7 +7059,6 @@
       "description": "A widget that rotates its child by a integral number of quarter turns.",
       "flutterType": "package:flutter/src/widgets/basic.dart#RotatedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0118",
@@ -7037,7 +7080,8 @@
           "wireId": "p0119",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -7049,7 +7093,6 @@
       "description": "A widget that insets its child with sufficient padding to avoid intrusions by the operating system.",
       "flutterType": "package:flutter/src/widgets/safe_area.dart#SafeArea",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0120",
@@ -7159,7 +7202,6 @@
       "description": "A box in which a single widget can be scrolled.",
       "flutterType": "package:flutter/src/widgets/single_child_scroll_view.dart#SingleChildScrollView",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0126",
@@ -7203,6 +7245,7 @@
           "name": "padding",
           "type": "edgeInsets",
           "description": "The amount of space by which to inset the child.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "edgeInsets",
@@ -7216,7 +7259,8 @@
           "wireId": "p0129",
           "name": "child",
           "type": "widget",
-          "description": "The widget that scrolls."
+          "description": "The widget that scrolls.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0551",
@@ -7243,6 +7287,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.widgets.scroll_view.keyboardDismissBehavior}",
           "enumType": "ScrollViewKeyboardDismissBehavior",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -7262,13 +7307,13 @@
       "description": "A box with a specified size.",
       "flutterType": "package:flutter/src/widgets/basic.dart#SizedBox",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0130",
           "name": "width",
           "type": "length",
           "description": "If non-null, requires the child to have exactly this width.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -7283,6 +7328,7 @@
           "name": "height",
           "type": "length",
           "description": "If non-null, requires the child to have exactly this height.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "real",
@@ -7296,7 +7342,8 @@
           "wireId": "p0132",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -7308,7 +7355,6 @@
       "description": "Spacer creates an adjustable, empty spacer that can be used to tune the spacing between widgets in a [Flex] container, like [Row] or [Column].",
       "flutterType": "package:flutter/src/widgets/spacer.dart#Spacer",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0133",
@@ -7338,7 +7384,6 @@
       "description": "A widget that positions its children relative to the edges of its box.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Stack",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0134",
@@ -7413,7 +7458,6 @@
       "description": "Static text with optional styling.",
       "flutterType": "package:flutter/src/widgets/text.dart#Text",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0137",
@@ -7438,6 +7482,7 @@
           "type": "enumValue",
           "description": "How the text should be aligned horizontally.",
           "enumType": "TextAlign",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -7452,6 +7497,7 @@
           "name": "softWrap",
           "type": "boolean",
           "description": "Whether the text should break at soft line breaks.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -7466,6 +7512,7 @@
           "name": "maxLines",
           "type": "integer",
           "description": "An optional maximum number of lines for the text to span, wrapping if necessary. If the text exceeds the given number of lines, it will be truncated according to [overflow].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -7480,6 +7527,7 @@
           "name": "semanticsLabel",
           "type": "string",
           "description": "{@template flutter.widgets.Text.semanticsLabel} An alternative semantics label for this text.",
+          "constructorNullable": true,
           "category": "accessibility",
           "valueShape": {
             "kind": "scalar",
@@ -7496,6 +7544,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.painting.textPainter.textWidthBasis}",
           "enumType": "TextWidthBasis",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -8130,7 +8179,6 @@
       "description": "Rich text — a styled inline-span tree with optional styling.",
       "flutterType": "package:flutter/src/widgets/text.dart#Text.rich",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0500",
@@ -8147,6 +8195,7 @@
           "type": "enumValue",
           "description": "How the text should be aligned horizontally.",
           "enumType": "TextAlign",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -8161,6 +8210,7 @@
           "name": "softWrap",
           "type": "boolean",
           "description": "Whether the text should break at soft line breaks.",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "boolean",
@@ -8175,6 +8225,7 @@
           "name": "maxLines",
           "type": "integer",
           "description": "An optional maximum number of lines for the text to span, wrapping if necessary. If the text exceeds the given number of lines, it will be truncated according to [overflow].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -8189,6 +8240,7 @@
           "name": "semanticsLabel",
           "type": "string",
           "description": "{@template flutter.widgets.Text.semanticsLabel} An alternative semantics label for this text.",
+          "constructorNullable": true,
           "category": "accessibility",
           "valueShape": {
             "kind": "scalar",
@@ -8205,6 +8257,7 @@
           "type": "enumValue",
           "description": "{@macro flutter.painting.textPainter.textWidthBasis}",
           "enumType": "TextWidthBasis",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -8839,7 +8892,6 @@
       "description": "A widget that applies a transformation before painting its child.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Transform.rotate",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0143",
@@ -8862,6 +8914,7 @@
           "name": "origin",
           "type": "offset",
           "description": "The origin of the coordinate system in which to apply the matrix, described relative to the point given by [alignment].",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "scalar",
             "propertyType": "offset",
@@ -8880,6 +8933,7 @@
             "kind": "literal",
             "value": "center"
           },
+          "constructorNullable": true,
           "category": "layout",
           "valueShape": {
             "kind": "scalar",
@@ -8914,6 +8968,7 @@
           "type": "enumValue",
           "description": "The filter quality with which to apply the transform as a bitmap operation.",
           "enumType": "FilterQuality",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",
@@ -8927,7 +8982,8 @@
           "wireId": "p0147",
           "name": "child",
           "type": "widget",
-          "description": ""
+          "description": "",
+          "constructorNullable": true
         }
       ]
     },
@@ -8939,7 +8995,6 @@
       "description": "Whether to show or hide a child.",
       "flutterType": "package:flutter/src/widgets/visibility.dart#Visibility",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0148",
@@ -8995,7 +9050,6 @@
       "description": "A widget that displays its children in multiple horizontal or vertical runs.",
       "flutterType": "package:flutter/src/widgets/basic.dart#Wrap",
       "childrenSlot": "list",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0151",
@@ -9117,6 +9171,7 @@
           "type": "enumValue",
           "description": "Determines the order to lay children out horizontally and how to interpret `start` and `end` in the horizontal direction.",
           "enumType": "TextDirection",
+          "constructorNullable": true,
           "valueShape": {
             "kind": "enumValue",
             "propertyType": "enumValue",

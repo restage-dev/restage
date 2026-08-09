@@ -1,5 +1,10 @@
 ## Unreleased
 
+- Accept constructor-derived customer properties and canonical
+  `a2ui.Config` usage/write-back metadata from the coordinated catalog
+  authoring release.
+- Derive callback identity from the exact constructor property name; customer
+  widgets no longer declare events through an RFW event list.
 - **Migrate the A2UI integration to genui 0.10.1 and `a2ui_core`.** The A2UI
   message model relocated into `package:a2ui_core` (`CreateSurfaceMessage`,
   `UpdateComponentsMessage`, …); the A2UI wire is unchanged (still `v0.9`).
@@ -16,7 +21,7 @@
 
 - Update the bundled generated catalog and documentation for content-derived
   catalog identity, typed constraints, controlled values, nested data
-  descriptions, and canonical authored examples.
+  descriptions, and automatic customer-widget generation.
 - Keep genui pinned to 0.9.2. The package runtime is unchanged.
 
 ## 0.1.5

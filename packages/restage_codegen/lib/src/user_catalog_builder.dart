@@ -51,6 +51,7 @@ final class UserCatalogBuilder implements Builder {
       structuredTypes: collection.structuredTypes,
       slotTargets: collection.slotTargets,
       stampedCapabilityVersions: collection.stampedCapabilityVersions,
+      exclusions: collection.exclusions,
       existingEvents: existingEvents,
     );
     requireNativeCatalog(allocation.catalog);

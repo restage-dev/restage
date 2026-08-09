@@ -4,14 +4,15 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:build/build.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_model.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_shape_reflector.dart';
-import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
+import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -27,10 +28,8 @@ import '../helpers.dart';
 /// - the EVENT seam — `reflectType` over each callback constructor parameter →
 ///   its [A2uiCallbackSignature] (the same reflector leg the data-shape proof
 ///   uses for rich shapes);
-/// - the PAIRING seam — each callback field's
-///   `@RestageProperty(writeBackValue:)` annotation metadata
-///   (`field.metadata` → the `RestageProperty` annotation →
-///   `computeConstantValue().getField('writeBackValue')`), the production-read
+/// - the PAIRING seam — each widget's resolved
+///   `@a2ui.Config.writeBackValues` target configuration, the production-read
 ///   leg the multi-control case exercises (condition #2: real reflector + real
 ///   annotation metadata, not a hand-constructed seam).
 ///
@@ -95,7 +94,7 @@ const _interactiveWidgets = <({
     callbacks: ['onPressed'],
   ),
   // Multi-control: auto single-pair fails (two callbacks); each callback's
-  // `@RestageProperty(writeBackValue:)` annotation names its value prop.
+  // `@a2ui.Config.writeBackValues` names each callback's value prop.
   (
     catalogName: 'Range',
     widgetClass: 'RangeFixture',
@@ -163,27 +162,25 @@ A2uiEventSeam _eventSeam(ResolvedLibraryResult library) {
   return seam;
 }
 
-/// The PAIRING seam — each callback field's `@RestageProperty(writeBackValue:)`
-/// annotation metadata (the annotation production-read leg). A callback with no
-/// `writeBackValue` is absent from the seam (auto single-pair / dispatch).
+/// The PAIRING seam — each widget's resolved
+/// `@a2ui.Config.writeBackValues` target configuration. A callback with no
+/// explicit pairing is absent from the seam (auto single-pair / dispatch).
 A2uiPairingSeam _pairingSeam(ResolvedLibraryResult library) {
   final seam = <(String, String), String>{};
   for (final w in _interactiveWidgets) {
     final cls = _classFor(library, w.widgetClass);
-    for (final callback in w.callbacks) {
-      final field = cls.fields.firstWhere(
-        (f) => f.name == callback,
-        orElse: () =>
-            throw StateError("no field '$callback' on '${w.widgetClass}'"),
+    final config = readA2uiTargetConfig(
+      cls,
+      AssetId('restage_a2ui', 'test/generated/interactive_fixture.dart'),
+    );
+    if (config.issues.isNotEmpty) {
+      throw StateError(
+        'invalid A2UI target configuration on ${w.widgetClass}: '
+        '${config.issues}',
       );
-      final annotation = firstAnnotation(field, 'RestageProperty');
-      final writeBack = annotation
-          ?.computeConstantValue()
-          ?.getField('writeBackValue')
-          ?.toStringValue();
-      if (writeBack != null) {
-        seam[(w.catalogName, callback)] = writeBack;
-      }
+    }
+    for (final pairing in config.writeBackValues.entries) {
+      seam[(w.catalogName, pairing.key)] = pairing.value;
     }
   }
   return seam;
@@ -298,7 +295,7 @@ void main() {
 
     test(
         'the pairing seam reads ONLY the annotated multi-control callbacks '
-        '(@RestageProperty(writeBackValue:) metadata)', () {
+        '(@a2ui.Config.writeBackValues metadata)', () {
       final seam = _pairingSeam(library);
       // Exactly the two annotated Range callbacks — the auto-pair / dispatch
       // callbacks carry no writeBackValue and are absent.

@@ -2,14 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Renders every A2UI scalar-list family from direct widget properties.
-@RestageA2uiExample(
-  name: 'Nullable optional',
-  asset: 'lib/a2ui_examples/scalar_list_panel/nullable_optional.json',
-)
-@RestageA2uiExample(
-  name: 'Collections',
-  asset: 'lib/a2ui_examples/scalar_list_panel/collections.json',
-)
 @RestageWidget(
   name: 'ScalarListPanel',
   library: WidgetLibrary.custom('acme.widgets'),
@@ -82,16 +74,11 @@ class ScalarListPanel extends StatelessWidget {
 }
 
 /// A controlled integer-list component proving list path write-back.
-@RestageA2uiExample(
-  name: 'Interaction',
-  asset: 'lib/a2ui_examples/integer_list_picker/interaction.json',
-)
 @RestageWidget(
   name: 'IntegerListPicker',
   library: WidgetLibrary.custom('acme.widgets'),
   category: WidgetCategory.input,
   description: 'Adds values to a bound integer list.',
-  fires: [WidgetEventName.onChanged],
 )
 class IntegerListPicker extends StatelessWidget {
   /// Creates an integer-list picker.

@@ -27,6 +27,8 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// factory builder reconstructs from the same.
 /// Map and record plans are parallel slot-keyed build-time sidecars for values
 /// whose reconstruction identity does not travel through a nominal slot.
+/// `exclusions` records the constructor inputs this target could not carry, so
+/// an omission is queryable from the generated artifact rather than silent.
 typedef RestageWidgetCollection = ({
   List<WidgetEntry> widgets,
   List<StructuredEntry> structuredTypes,
@@ -36,6 +38,7 @@ typedef RestageWidgetCollection = ({
   Map<String, MapPlan> mapPlans,
   Map<String, RecordPlan> recordPlans,
   Map<String, int> stampedCapabilityVersions,
+  List<PropertyExclusion> exclusions,
 });
 
 /// Walks every `lib/**.dart` asset in [buildStep]'s package for
@@ -71,6 +74,9 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final reconstructionPlans = <String, ReconstructionPlan>{};
   final mapPlans = <String, MapPlan>{};
   final recordPlans = <String, RecordPlan>{};
+  // Inputs dropped because this target has no decoder for their type,
+  // aggregated across the package's assets.
+  final exclusions = <PropertyExclusion>[];
   // Declared `@RestageLibrary(capabilityVersion:)` per customer library (from
   // the barrel walk), used to stamp a structured-admitting library's floor. A
   // conflicting redeclaration across files fails loud (not last-wins).
@@ -100,6 +106,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     reconstructionPlans.addAll(result.reconstructionPlans);
     mapPlans.addAll(result.mapPlans);
     recordPlans.addAll(result.recordPlans);
+    exclusions.addAll(result.exclusions);
 
     // The asset resolved with `allowSyntaxErrors: true`, so a malformed token
     // whose parser error-recovery yields a structurally-valid declaration
@@ -339,12 +346,18 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     }
   }
 
-  if (issues.isNotEmpty) {
-    for (final issue in issues) {
+  for (final issue in issues.where((issue) => issue.code.isInformational)) {
+    log.warning(issue.toString());
+  }
+  final failures = issues
+      .where((issue) => !issue.code.isInformational)
+      .toList(growable: false);
+  if (failures.isNotEmpty) {
+    for (final issue in failures) {
       log.severe(issue.toString());
     }
     throw StateError(
-      '${issues.length} customer widget issue(s) detected; see log above.',
+      '${failures.length} customer widget issue(s) detected; see log above.',
     );
   }
 
@@ -355,6 +368,19 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       final byLib = a.library.namespace.compareTo(b.library.namespace);
       if (byLib != 0) return byLib;
       return a.name.compareTo(b.name);
+    });
+  // A regenerated artifact must be byte-identical when nothing changed, so the
+  // report is ordered by what it describes rather than by the order assets
+  // happened to be walked in.
+  final orderedExclusions = exclusions.toList()
+    ..sort((a, b) {
+      final byWidget = a.widget.compareTo(b.widget);
+      if (byWidget != 0) return byWidget;
+      final byProperty = a.property.compareTo(b.property);
+      if (byProperty != 0) return byProperty;
+      final byTarget = a.target.compareTo(b.target);
+      if (byTarget != 0) return byTarget;
+      return a.location.compareTo(b.location);
     });
   return (
     widgets: ordered,
@@ -369,6 +395,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     mapPlans: admittedMapPlans,
     recordPlans: admittedRecordPlans,
     stampedCapabilityVersions: stampedCapabilityVersions,
+    exclusions: orderedExclusions,
   );
 }
 

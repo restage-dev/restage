@@ -18,7 +18,6 @@ WidgetEntry _widget({
       description: 'A $name.',
       flutterType: 'package:flutter/widgets.dart#$name',
       childrenSlot: ChildrenSlot.none,
-      fires: const [],
       properties: const [],
       sinceVersion: sinceVersion ?? kBaselineCatalogVersion,
     );
@@ -50,7 +49,6 @@ void main() {
         description: 'A foo.',
         flutterType: 'package:flutter/widgets.dart#Foo',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: const [],
       );
 

@@ -177,7 +177,12 @@ void main() {
           ),
       ];
       final catalog = catalogWith([for (final w in widgets) w.entry]);
-      final seams = assembleA2uiSeams(widgets);
+      final seams = assembleA2uiSeams(
+        widgets,
+        writeBackValuesByWidget: const {
+          'Range': {'onLow': 'low', 'onHigh': 'high'},
+        },
+      );
       final registration = emitA2uiCatalog(
         catalog,
         eventSeam: seams.eventSeam,

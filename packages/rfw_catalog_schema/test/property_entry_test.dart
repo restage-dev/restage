@@ -58,7 +58,6 @@ void main() {
             description: 'd',
             flutterType: 'package:flutter/widgets.dart#W',
             childrenSlot: ChildrenSlot.none,
-            fires: const [],
             properties: [
               PropertyEntry(
                 wireId: WireId('p0001'),

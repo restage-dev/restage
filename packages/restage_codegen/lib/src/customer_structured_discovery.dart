@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/customer_structured_admissibility.dart'
     show reconstructionVariant, structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -193,12 +194,13 @@ DartType? _mapValueSeedType(DartType type) {
   return current;
 }
 
-/// Walks [widgetClasses]' `@RestageProperty` fields, discovers the customer
+/// Walks [widgetClasses]' constructor-bound inputs, discovers the customer
 /// structured value types they reference (transitively, so a data class that
 /// nests another data class materialises both), and lowers each to a catalog
 /// [StructuredEntry] (unallocated).
 CustomerStructuredDiscovery discoverCustomerStructured({
   required List<ClassElement> widgetClasses,
+  required Map<ClassElement, List<WidgetConstructorInput>> widgetInputs,
   required AssetId assetId,
   required List<Issue> issues,
 }) {
@@ -229,7 +231,7 @@ CustomerStructuredDiscovery discoverCustomerStructured({
     return element;
   }
 
-  // First pass: seed from the `@RestageProperty` field types, and record each
+  // First pass: seed from constructor-bound input types, and record each
   // structured widget property's slot target so a later pass can resolve its
   // bare sentinel `structuredRef`. The owner key is the widget's `flutterType`
   // (`'<library URI>#<class name>'`, == `elementFqn`) so it matches
@@ -238,29 +240,27 @@ CustomerStructuredDiscovery discoverCustomerStructured({
     final libraryNamespace = _widgetLibraryNamespace(cls);
     if (libraryNamespace == null) continue;
     final ownerFqn = elementFqn(cls);
-    for (final field in cls.fields) {
-      if (firstAnnotation(field, 'RestageProperty') == null) continue;
+    for (final input in widgetInputs[cls] ?? const <WidgetConstructorInput>[]) {
       // A widget property's innermost map value is seeded here so a data-class
       // value is discoverable. The transitive pass below applies the same rule
       // to map fields nested inside data classes.
-      final mapValueSeed = _mapValueSeedType(field.type);
+      final mapValueSeed = _mapValueSeedType(input.type);
       final targetElement =
-          addDataClass(mapValueSeed ?? field.type, libraryNamespace);
-      final fieldName = field.name;
+          addDataClass(mapValueSeed ?? input.type, libraryNamespace);
+      final fieldName = input.name;
       // The nominal slot bookkeeping below applies to nominal structured slots
       // only. A map slot carries its target through its own build-time recipe,
       // so recording it here too would give the same fact two homes that can
       // disagree.
       if (mapValueSeed == null &&
           targetElement != null &&
-          fieldName != null &&
           fieldName.isNotEmpty) {
         final slotKey = structuredSlotKey(ownerFqn, fieldName);
         slotTargets[slotKey] = elementFqn(targetElement);
         // A build-time signal (never a wire field): an optional NULLABLE
         // widget structured prop yields `null` on an absent map, so the factory
         // must presence-check to null rather than reconstruct unconditionally.
-        if (_isNullable(field.type)) nullableStructuredSlots.add(slotKey);
+        if (_isNullable(input.type)) nullableStructuredSlots.add(slotKey);
       }
     }
   }
@@ -899,7 +899,7 @@ String _diagnosticReason(List<DiagnosticIR> diagnostics) {
 /// Reads the `@RestageWidget(library:)` namespace off [cls], or `null` when
 /// the annotation is absent or not const-evaluable.
 String? _widgetLibraryNamespace(ClassElement cls) {
-  final annotation = firstAnnotation(cls, 'RestageWidget');
+  final annotation = _catalogAnnotation(cls, 'RestageWidget');
   return annotation
       ?.computeConstantValue()
       ?.getField('library')
@@ -924,3 +924,12 @@ bool _isCustomerDataClass(ClassElement element) {
         !constructor.isFactory && constructor.formalParameters.isNotEmpty,
   );
 }
+
+const _catalogSchemaOrigin = 'package:rfw_catalog_schema';
+
+ElementAnnotation? _catalogAnnotation(Element element, String name) =>
+    firstAnnotationFromOriginAny(
+      element,
+      {name},
+      _catalogSchemaOrigin,
+    );

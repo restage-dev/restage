@@ -10,7 +10,6 @@ WidgetEntry _widgetEntry({
   String description = 'A widget.',
   String? flutterType,
   ChildrenSlot childrenSlot = ChildrenSlot.none,
-  List<WidgetEventName> fires = const [],
   List<PropertyEntry> properties = const [],
   List<DecompositionRecipe> decomposes = const [],
   int sinceVersion = kBaselineCatalogVersion,
@@ -23,7 +22,6 @@ WidgetEntry _widgetEntry({
       description: description,
       flutterType: flutterType ?? 'package:acme/foo.dart#$name',
       childrenSlot: childrenSlot,
-      fires: fires,
       properties: properties,
       decomposes: decomposes,
       sinceVersion: sinceVersion,
@@ -186,7 +184,6 @@ void main() {
             name: 'AcmeButton',
             category: WidgetCategory.input,
             description: 'CTA.',
-            fires: const [WidgetEventName.onPressed],
             properties: const [
               PropertyEntry(
                 wireId: WireId.unallocatedProperty,
@@ -208,11 +205,51 @@ void main() {
       expect(src, contains("description: 'CTA.'"));
       expect(src, contains('wireId: WireId.unallocatedWidget'));
       expect(src, contains('childrenSlot: ChildrenSlot.none'));
-      expect(src, contains('fires: [WidgetEventName.onPressed]'));
+      expect(src, isNot(contains('fires:')));
       expect(src, contains('wireId: WireId.unallocatedProperty'));
       expect(src, contains("name: 'label'"));
       expect(src, contains('type: PropertyType.string'));
       expect(src, contains('required: true'));
+    });
+
+    test('emits reconstructed collection type identity', () {
+      final src = emitUserCatalogDart(
+        userCatalogFromWidgets([
+          _widgetEntry(
+            name: 'TypedDefaults',
+            properties: const [
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'values',
+                type: PropertyType.stringList,
+                description: 'Typed values.',
+                constructorDefault: DartConstList(
+                  [DartConstScalar('one')],
+                  type: DartTypeIdentity(
+                    libraryUri: 'dart:core',
+                    symbolName: 'List',
+                    typeArguments: [
+                      DartTypeIdentity(
+                        libraryUri: 'dart:core',
+                        symbolName: 'String',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ]),
+      ).replaceAll(RegExp(r'\s+'), '');
+
+      expect(
+        src,
+        contains(
+          "DartConstList([DartConstScalar('one')],type:DartTypeIdentity("
+          "libraryUri:'dart:core',symbolName:'List',typeArguments:"
+          "[DartTypeIdentity(libraryUri:'dart:core',symbolName:'String')]))",
+        ),
+      );
     });
 
     test('allocation and user emitter preserve constraint metadata', () {

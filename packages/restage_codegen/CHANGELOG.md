@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — coordinated breaking release
+
+This section records the package side of a coordinated breaking release. The
+release version and publication timing are assigned separately.
+
+- Derive customer catalog properties, requiredness, order, constructor defaults,
+  and descriptions from resolved constructor/Dartdoc facts across RFW, A2UI,
+  and Widgetbook.
+- Derive callback admission from resolved constructor shape: void return with
+  zero arguments or one required positional payload in the target vocabulary.
+  The exact callback property name is the event identity; no event declaration
+  or rename annotation is used.
+- Consume `a2ui.Config` usage/write-back metadata.
+- Generate ordinary native Widgetbook v4 story source for customer widgets in
+  the same `build_runner` invocation, including customer structured values and
+  read-only `description`/`usage` sidebar metadata.
+- Emit the A2UI Dart catalog and standalone document together under
+  `lib/generated/`, with no root-level compatibility aliases.
+
 ## 1.3.0
 
 - Give generated A2UI catalogs a deterministic content-derived catalog ID and
@@ -9,8 +28,8 @@
   validation responsible for resolved values.
 - Preserve nested structured-data descriptions and emit deterministic
   definition/reference documentation.
-- Validate canonical `@RestageA2uiExample` sidecars and emit an ordered neutral
-  example registry alongside genui `CatalogItem.exampleData` callbacks.
+- Generate native Widgetbook v4 story inputs for customer `@RestageWidget`s
+  during the ordinary `build_runner` invocation, without auxiliary authoring.
 
 ## 1.2.0
 

@@ -47,6 +47,7 @@ RecordClassification classifyRecordType(
   DartType type, {
   WidgetLibrary? library,
   PolicyLedger? policy,
+  bool admitNullableSlot = false,
 }) {
   final originalSlotIsNullable =
       type.nullabilitySuffix != NullabilitySuffix.none;
@@ -55,9 +56,12 @@ RecordClassification classifyRecordType(
 
   if (originalSlotIsNullable ||
       unwrapped.nullabilitySuffix != NullabilitySuffix.none) {
-    return const RecordExcluded(
-      'a nullable record slot is unsupported; use a non-nullable record',
-    );
+    if (!admitNullableSlot) {
+      return const RecordExcluded(
+        'a nullable record slot is unsupported in this position; use a '
+        'non-nullable record',
+      );
+    }
   }
   if (unwrapped.positionalFields.isNotEmpty) {
     return const RecordExcluded(

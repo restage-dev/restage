@@ -12,7 +12,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Registry for the `restage.cupertino` library.
 /// Read by codegen, the editor, and the runtime SDK.
 final Catalog kRegistry = Catalog(
-  schemaVersion: 4,
+  schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.cupertino: const LibraryInfo(version: '0.1.0'),
@@ -27,13 +27,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/activity_indicator.dart#CupertinoActivityIndicator',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),
           name: 'color',
           type: PropertyType.color,
           description: 'Color of the activity indicator.',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -73,7 +73,6 @@ final Catalog kRegistry = Catalog(
       description: 'An iOS-style button.',
       flutterType: 'package:flutter/src/cupertino/button.dart#CupertinoButton',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0004'),
@@ -89,6 +88,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.edgeInsets,
           description:
               'The amount of space to surround the child inside the bounds of the button.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -100,6 +100,7 @@ final Catalog kRegistry = Catalog(
           name: 'color',
           type: PropertyType.color,
           description: 'The color of the button\'s background.',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -112,6 +113,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'The callback that is called when the button is tapped or otherwise activated.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -133,7 +135,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/button.dart#CupertinoButton.filled',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0009'),
@@ -149,6 +150,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.edgeInsets,
           description:
               'The amount of space to surround the child inside the bounds of the button.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -161,6 +163,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The color of the button\'s background.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -173,6 +176,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'The callback that is called when the button is tapped or otherwise activated.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -194,7 +198,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/list_section.dart#CupertinoListSection',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0014'),
@@ -202,6 +205,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widgetList,
           description:
               'The list of rows in the section. Usually a list of [CupertinoListTile]s.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0015'),
@@ -209,6 +213,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0016'),
@@ -216,6 +221,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0154'),
@@ -239,7 +245,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/list_section.dart#CupertinoListSection.insetGrouped',
       childrenSlot: ChildrenSlot.list,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0017'),
@@ -247,6 +252,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widgetList,
           description:
               'The list of rows in the section. Usually a list of [CupertinoListTile]s.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0018'),
@@ -254,6 +260,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'Sets the form section header. The section header lies above the [children] rows. Usually a [Text] widget.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0019'),
@@ -261,6 +268,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'Sets the form section footer. The section footer lies below the [children] rows. Usually a [Text] widget.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0155'),
@@ -284,7 +292,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/list_tile.dart#CupertinoListTile',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onTap],
       properties: [
         PropertyEntry(
           wireId: WireId('p0020'),
@@ -301,6 +308,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'A [subtitle] is used to display additional information. It is located below [title]. Usually a [Text] widget.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0022'),
@@ -308,6 +316,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'A widget displayed at the start of the [CupertinoListTile]. This is typically an `Icon` or an `Image`.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0023'),
@@ -315,6 +324,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'A widget displayed at the end of the [CupertinoListTile]. This is usually a right chevron icon (e.g. `CupertinoListTileChevron`), or an `Icon`.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0024'),
@@ -322,6 +332,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'The [onTap] function is called when a user taps on [CupertinoListTile]. If left `null`, the [CupertinoListTile] will not react on taps. If this is a `Future<void> Function()`, then the [CupertinoListTile] remains activated until the returned future is awaited. This is according to iOS behavior. However, if this function is a `void Function()`, then the tile is active only for the duration of invocation.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -330,6 +341,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'The [backgroundColor] of the tile in normal state. Once the tile is tapped, the background color switches to [backgroundColorActivated]. It is set to match the iOS look by default.',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -347,7 +359,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/nav_bar.dart#CupertinoNavigationBar',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0026'),
@@ -355,12 +366,14 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               '{@template flutter.cupertino.CupertinoNavigationBar.leading} Widget to place at the start of the navigation bar. Normally a back button for a normal page or a cancel button for full page dialogs.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0027'),
           name: 'middle',
           type: PropertyType.widget,
           description: 'The navigation bar\'s default title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0028'),
@@ -368,6 +381,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               '{@template flutter.cupertino.CupertinoNavigationBar.trailing} Widget to place at the end of the navigation bar. Normally additional actions taken on the page such as a search or edit function. {@endtemplate}',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0029'),
@@ -376,6 +390,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.cupertino.CupertinoNavigationBar.backgroundColor} The background color of the navigation bar. If it contains transparency, the tab bar will automatically produce a blurring effect to the content behind it. This behavior can be disabled by setting [enableBackgroundFilterBlur] to false.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -393,7 +408,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/page_scaffold.dart#CupertinoPageScaffold',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0030'),
@@ -402,6 +416,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The color of the widget that underlies the entire scaffold.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -426,7 +441,6 @@ final Catalog kRegistry = Catalog(
       description: 'An iOS-style switch.',
       flutterType: 'package:flutter/src/cupertino/switch.dart#CupertinoSwitch',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0032'),
@@ -446,6 +460,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: 'Called when the user toggles the switch on or off.',
           callbackSignature: 'ValueChanged<bool>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -454,6 +469,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -470,7 +486,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/text_field.dart#CupertinoTextField',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged, WidgetEventName.onSubmitted],
       properties: [
         PropertyEntry(
           wireId: WireId('p0035'),
@@ -478,6 +493,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'A lighter colored placeholder hint that appears on the first line of the text field when the text entry is empty.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -501,6 +517,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@macro flutter.widgets.editableText.maxLines} * [expands], which determines whether the field should fill the height of its parent.',
           defaultSource: LiteralDefault(1),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -512,6 +529,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'The maximum number of characters (Unicode grapheme clusters) to allow in the text field.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -523,6 +541,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '{@macro flutter.widgets.editableText.onChanged}',
           callbackSignature: 'ValueChanged<String>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -531,6 +550,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '{@macro flutter.widgets.editableText.onSubmitted}',
           callbackSignature: 'ValueChanged<String>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -554,7 +574,6 @@ final Catalog kRegistry = Catalog(
       description: 'An iOS-style slider.',
       flutterType: 'package:flutter/src/cupertino/slider.dart#CupertinoSlider',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0041'),
@@ -575,6 +594,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Called when the user selects a new value for the slider.',
           callbackSignature: 'ValueChanged<double>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -604,6 +624,7 @@ final Catalog kRegistry = Catalog(
           name: 'divisions',
           type: PropertyType.integer,
           description: 'The number of discrete divisions.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -616,6 +637,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The color to use for the portion of the slider that has been selected.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -632,7 +654,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/date_picker.dart#CupertinoDatePicker',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0047'),
@@ -656,7 +677,6 @@ final Catalog kRegistry = Catalog(
               'Callback called when the selected date and/or time changes. If the new selected [DateTime] is not valid, or is not in the [minimumDate] through [maximumDate] range, this callback will not be called.',
           required: true,
           callbackSignature: 'ValueChanged<DateTime>',
-          firesAs: 'onChanged',
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -678,6 +698,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'Maximum year that the picker can be scrolled to in [CupertinoDatePickerMode.date] mode. Null if there\'s no limit.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -713,6 +734,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Determines the order of the columns inside [CupertinoDatePicker] in [CupertinoDatePickerMode.date] and [CupertinoDatePickerMode.monthYear] mode. When using monthYear mode, both [DatePickerDateOrder.dmy] and [DatePickerDateOrder.mdy] will result in the month|year order. Defaults to the locale\'s default date format/order.',
           enumType: 'DatePickerDateOrder',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(
@@ -726,6 +748,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'Background color of date picker.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -792,7 +815,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/date_picker.dart#CupertinoTimerPicker',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0059'),
@@ -851,6 +873,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'Background color of timer picker.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -875,7 +898,6 @@ final Catalog kRegistry = Catalog(
           description: 'Callback called when the timer duration changes.',
           required: true,
           callbackSignature: 'ValueChanged<Duration>',
-          firesAs: 'onChanged',
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -903,7 +925,6 @@ final Catalog kRegistry = Catalog(
       description: 'An iOS-styled picker.',
       flutterType: 'package:flutter/src/cupertino/picker.dart#CupertinoPicker',
       childrenSlot: ChildrenSlot.list,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0067'),
@@ -923,6 +944,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'Background color behind the children.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1011,7 +1033,7 @@ final Catalog kRegistry = Catalog(
           description: 'Called when the selected item changes.',
           required: true,
           callbackSignature: 'ValueChanged<int>',
-          firesAs: 'onChanged',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -1046,7 +1068,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/search_field.dart#CupertinoSearchTextField',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged, WidgetEventName.onSubmitted],
       properties: [
         PropertyEntry(
           wireId: WireId('p0078'),
@@ -1054,6 +1075,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: 'Invoked upon user input.',
           callbackSignature: 'ValueChanged<String>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1062,6 +1084,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: 'Invoked upon keyboard submission.',
           callbackSignature: 'ValueChanged<String>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1070,6 +1093,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'A hint placeholder text that appears when the text entry is empty.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -1081,6 +1105,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'Set the [decoration] property\'s background color.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1110,7 +1135,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/cupertino/checkbox.dart#CupertinoCheckbox',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0083'),
@@ -1118,6 +1142,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description: 'Whether this checkbox is checked.',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -1142,6 +1167,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: 'Called when the value of the checkbox should change.',
           callbackSignature: 'ValueChanged<bool?>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1150,6 +1176,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The color to use when this checkbox is checked.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -1161,6 +1188,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'The color to use for the check icon when this checkbox is checked.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -1172,6 +1200,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The semantic label for the checkbox that will be announced by screen readers.',
+          constructorNullable: true,
           category: PropertyCategory.accessibility,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,

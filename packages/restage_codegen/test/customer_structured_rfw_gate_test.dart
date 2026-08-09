@@ -1,5 +1,6 @@
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:test/test.dart';
@@ -641,16 +642,12 @@ void main() {
       );
     });
 
-    // Pass-4 #1 — a widget whose ctor has a POSITIONAL HOLE (a positional param
-    // NOT bound to an annotated @RestageProperty field, appearing before an
-    // annotated field-positional) is EXCLUDED-loud: the reconstruction would
-    // emit one fewer positional arg, binding the later field's value to the
-    // hole's slot (a SILENT wrong-render). The widget-level analog of the nested
-    // `_reconstructionObstruction` positional-hole guard. A clean positional
-    // widget (no hole) still admits (no over-exclusion).
+    // Constructor-first admission cannot reinterpret an initializer-transformed
+    // positional parameter as a catalog property. It fails at the exact input,
+    // while a canonical positional sibling still projects normally.
     test(
-        'a widget-ctor POSITIONAL HOLE is EXCLUDED-loud; a clean positional '
-        'widget still admits', () async {
+        'an initializer-transformed positional input fails loud; a clean '
+        'positional widget still projects', () async {
       const holeAndClean = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         @RestageLibrary(
@@ -675,30 +672,19 @@ void main() {
           @RestageProperty(description: 't', required: true) final String title;
         }
       ''';
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
+      final result = await runWidgetVisitorOn(
+        {'lib/widgets.dart': holeAndClean},
       );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/widgets.dart'),
-        holeAndClean,
+      expect(
+        result.widgets.map((widget) => widget.name),
+        contains('CleanCard'),
       );
-
-      await testBuilder(
-        const UserCatalogBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/widgets.dart': holeAndClean},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|lib/user_catalog.g.dart': decodedMatches(
-            allOf(
-              // The clean positional widget admits.
-              contains("name: 'CleanCard'"),
-              // The positional-hole widget is excluded-loud (not admitted).
-              isNot(contains("name: 'HoleCard'")),
-            ),
-          ),
-        },
+      final issue = result.issues.singleWhere(
+        (candidate) =>
+            candidate.code == IssueCode.invalidWidgetConstructorInput &&
+            candidate.location == 'lib/widgets.dart#HoleCard.ignored',
       );
+      expect(issue.message, contains('initializer-transformed'));
     });
 
     // Pass-3 #F1 — POSITIONAL args must emit in CONSTRUCTOR order, not field-
@@ -867,15 +853,12 @@ void main() {
       );
     });
 
-    // Pass-2 #1 — an OPTIONAL widget structured property must NOT
-    // presence-check to `: null`: the property may be non-nullable-with-default
-    // (`Badge badge = const Badge(...)`), so `source.isMap(...) ? Badge(...) :
-    // null` assigns `Badge?` to a non-null `Badge` (a compile error). An
-    // optional structured property reconstructs UNCONDITIONALLY (type-correct);
-    // only a REQUIRED one presence-checks + throws.
-    test(
-        'an OPTIONAL widget structured property reconstructs unconditionally '
-        '(never `: null`, which would break a non-nullable slot)', () async {
+    // An otherwise reconstructable customer object can still use a default
+    // whose constructor is private to the source library. Generated code
+    // cannot spell that identity, so it must fail source-qualified at
+    // authoring time rather than flattening or silently changing the default.
+    test('a private customer-object constructor default fails RFW loudly',
+        () async {
       const optionalProp = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         @RestageLibrary(
@@ -883,38 +866,29 @@ void main() {
           capabilityVersion: 1,
         )
         const restageLibrary = 0;
-        class Badge { const Badge({required this.label}); final String label; }
+        class Badge {
+          const Badge({required this.label});
+          const Badge._secret({required this.label});
+          final String label;
+        }
         @RestageWidget(name: 'BadgeCard',
           library: WidgetLibrary.custom('acme.design_system'),
           category: WidgetCategory.decoration, description: 'c')
         class BadgeCard {
-          const BadgeCard({this.badge = const Badge(label: 'x')});
+          const BadgeCard({this.badge = const Badge._secret(label: 'x')});
           @RestageProperty(description: 'x') final Badge badge;
         }
       ''';
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
+      final result = await runWidgetVisitorOn(
+        {'lib/widgets.dart': optionalProp},
       );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/widgets.dart'),
-        optionalProp,
+      final issue = result.issues.singleWhere(
+        (candidate) =>
+            candidate.code == IssueCode.invalidWidgetConstructorInput &&
+            candidate.location == 'lib/widgets.dart#BadgeCard.badge',
       );
-
-      await testBuilder(
-        const UserFactoryBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/widgets.dart': optionalProp},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|lib/user_factories.g.dart': decodedMatches(
-            allOf(
-              contains('Badge('),
-              // Unconditional reconstruction — no widget-level `: null` arm.
-              isNot(contains(': null')),
-            ),
-          ),
-        },
-      );
+      expect(issue.message, contains('Badge._secret'));
+      expect(issue.message, contains('rfw target cannot reproduce'));
     });
 
     // Pass-2 #2 — a String default containing `$` must be escaped in the

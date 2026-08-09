@@ -34,6 +34,7 @@ void main() {
       'factory_functions': factoryFunctionBuilder,
       'user_factories': userFactoryBuilder,
       'user_a2ui_catalog': userA2uiCatalogBuilder,
+      'widgetbook_stories': widgetbookStoryBuilder,
     };
 
     // The factory FUNCTION each build.yaml entry must point at. build.yaml's
@@ -55,6 +56,7 @@ void main() {
       'factory_functions': 'factoryFunctionBuilder',
       'user_factories': 'userFactoryBuilder',
       'user_a2ui_catalog': 'userA2uiCatalogBuilder',
+      'widgetbook_stories': 'widgetbookStoryBuilder',
     };
 
     late Map<String, Map<String, List<String>>> declared;
@@ -88,8 +90,38 @@ void main() {
       expect(declared.keys.toSet(), factories.keys.toSet());
     });
 
+    test('A2UI artifacts have one declared colocated generated path', () {
+      const expected = {
+        r'$lib$': [
+          'generated/restage_a2ui_catalog.g.dart',
+          'generated/restage_a2ui_catalog.a2ui.json',
+        ],
+      };
+      expect(declared['user_a2ui_catalog'], expected);
+      expect(
+        factories['user_a2ui_catalog']!(BuilderOptions.empty).buildExtensions,
+        expected,
+      );
+    });
+
     for (final name in factories.keys) {
       test('$name: build.yaml build_extensions match the getter', () {
+        if (name == 'widgetbook_stories') {
+          // Widgetbook story outputs are discovered from the consuming
+          // package's annotated sources at builder creation time. The codegen
+          // package itself has no such source, so BuilderOptions.empty returns
+          // an empty dynamic map here; build.yaml still needs one
+          // representative input/output pair for build_runner registration.
+          expect(
+            declared[name],
+            {
+              'lib/widgets/promo_banner.dart': [
+                'lib/generated/promo_banner.stories.dart',
+              ],
+            },
+          );
+          return;
+        }
         final getter = factories[name]!(BuilderOptions.empty).buildExtensions;
         expect(
           declared[name],
@@ -163,6 +195,13 @@ void main() {
       expect(
         runsBefore['paywall_codegen'],
         contains('restage_codegen:paywall_flow_codegen'),
+      );
+    });
+
+    test('the Widgetbook story builder runs before Widgetbook generation', () {
+      expect(
+        runsBefore['widgetbook_stories'],
+        contains('widgetbook:story_builder'),
       );
     });
 

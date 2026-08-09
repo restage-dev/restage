@@ -5,8 +5,8 @@ import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_shape_reflector.dart';
-import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A customer `@RestageWidget` paired with its resolved class element — the
@@ -32,8 +32,8 @@ typedef A2uiSeams = ({
 ///
 ///  * an `event` property reflects its constructor parameter into the EVENT
 ///    seam (the same `reflectType` leg the rich-shape path uses), and reads the
-///    field's `@RestageProperty(writeBackValue:)` annotation into the PAIRING
-///    seam when present (auto-pair / dispatch callbacks carry none);
+///    resolved target configuration into the PAIRING seam when present
+///    (auto-pair / dispatch callbacks carry none);
 ///  * a `structured` property reflects its constructor parameter into the
 ///    analyzer-fed shape seam. This includes A2UI-targeted direct scalar lists,
 ///    which use `structured` only as a target-local carrier;
@@ -48,7 +48,10 @@ typedef A2uiSeams = ({
 /// catalog property by name. This is the production unification of the proof
 /// harnesses' inline event/pairing/rich-shape legs, driven off
 /// `buildStep.resolver` instead of a hand-resolved fixture.
-A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
+A2uiSeams assembleA2uiSeams(
+  Iterable<A2uiWidgetElement> widgets, {
+  Map<String, Map<String, String>> writeBackValuesByWidget = const {},
+}) {
   final richShapes = <(String, String), A2uiSchemaNode>{};
   final eventSeam = <(String, String), A2uiCallbackSignature>{};
   final pairingSeam = <(String, String), String>{};
@@ -70,14 +73,16 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
       // not construct the widget faithfully), so fail LOUD rather than silently
       // lose its source shape.
       final formal = _requireFormal(ctor, name, property);
+      final formalType =
+          effectiveWidgetConstructorFormalType(widget.element, formal);
       if (property.type == PropertyType.event) {
-        final result = reflectType(formal.type);
+        final result = reflectType(formalType);
         // The value pairing is meaningful only for a lowered callback — read it
         // inside the event-surface branch so a non-lowered callback never
         // leaves an orphan pairing entry.
         if (result is A2uiShapeEventSurface) {
           eventSeam[(name, property.name)] = result.signature;
-          final writeBack = _writeBackValue(widget.element, property.name);
+          final writeBack = writeBackValuesByWidget[name]?[property.name];
           if (writeBack != null) {
             pairingSeam[(name, property.name)] = writeBack;
           }
@@ -86,7 +91,7 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
       }
 
       if (property.type == PropertyType.structured) {
-        final result = reflectType(formal.type);
+        final result = reflectType(formalType);
         // A structured property is reflected into the analyzer-fed shape seam.
         // Exhaustive over the reflector result so a non-Resolved shape can
         // NEVER be silently dropped — the governing fail-closed-LOUD invariant
@@ -129,9 +134,9 @@ A2uiSeams assembleA2uiSeams(Iterable<A2uiWidgetElement> widgets) {
       }
 
       final nullable =
-          formal.type.nullabilitySuffix == NullabilitySuffix.question;
+          formalType.nullabilitySuffix == NullabilitySuffix.question;
       if (property.type == PropertyType.enumValue) {
-        final result = reflectType(formal.type);
+        final result = reflectType(formalType);
         if (result is A2uiShapeResolved && result.node is EnumNode) {
           richShapes[(name, property.name)] = result.node;
           continue;
@@ -200,18 +205,4 @@ FormalParameterElement _requireFormal(
     );
   }
   return formal;
-}
-
-/// Reads the `@RestageProperty(writeBackValue:)` annotation off the field named
-/// [name] (the explicit value-pairing leg), or `null` when the field is absent
-/// or carries no `writeBackValue` (the same idiom the widget visitor uses for
-/// `description`).
-String? _writeBackValue(ClassElement element, String name) {
-  final field = element.fields.where((f) => f.name == name).firstOrNull;
-  if (field == null) return null;
-  final annotation = firstAnnotation(field, 'RestageProperty');
-  return annotation
-      ?.computeConstantValue()
-      ?.getField('writeBackValue')
-      ?.toStringValue();
 }

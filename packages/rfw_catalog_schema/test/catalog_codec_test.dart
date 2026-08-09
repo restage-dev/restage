@@ -5,7 +5,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('v4 native decompose codec', () {
+  group('native decompose codec', () {
     test('round-trips value shapes, parameters, construction, and transforms',
         () {
       const boxShapeType = DartTypeRef(
@@ -48,7 +48,6 @@ void main() {
             description: 'Box model widget.',
             flutterType: 'package:flutter/widgets.dart#Container',
             childrenSlot: ChildrenSlot.single,
-            fires: const [],
             properties: [
               PropertyEntry(
                 wireId: WireId('p0001'),
@@ -262,7 +261,7 @@ void main() {
           .variants
           .single;
 
-      expect(decoded.schemaVersion, 4);
+      expect(decoded.schemaVersion, kSupportedSchemaVersion);
       expect(
         (widget.properties[1].valueShape! as EnumShape).enumRef,
         boxShapeType,
@@ -994,6 +993,20 @@ void main() {
             .single;
         expect(parameter.defaultValue, const LiteralParameterDefault(42));
       });
+
+      test('an int literal against a real shape is rejected', () {
+        expectIncompatible(42, PropertyType.real);
+      });
+
+      test('an int literal against a length shape is rejected', () {
+        expectIncompatible(42, PropertyType.length);
+      });
+
+      test('a double literal against a real shape is accepted', () {
+        final catalog = catalogWithDefault(42.0, PropertyType.real);
+
+        expect(() => encodeCatalog(catalog), returnsNormally);
+      });
     });
 
     group('wireCodec placement', () {
@@ -1206,7 +1219,6 @@ void main() {
       expect(() => decoded.widgets.add(widget), throwsUnsupportedError);
       expect(decoded.structuredTypes.clear, throwsUnsupportedError);
       // Nested widget collections.
-      expect(widget.fires.clear, throwsUnsupportedError);
       expect(
         () => widget.properties.add(widget.properties.first),
         throwsUnsupportedError,
@@ -1436,7 +1448,6 @@ Catalog _catalogWithUnion() {
         description: 'Box model widget.',
         flutterType: 'package:flutter/widgets.dart#Container',
         childrenSlot: ChildrenSlot.single,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p0001'),
@@ -1540,7 +1551,7 @@ DecompositionFieldMapping _borderRadiusMapping({
 }
 
 Catalog _nativeCatalog({
-  int schemaVersion = 4,
+  int schemaVersion = kSupportedSchemaVersion,
   DecompositionRecipe? recipe,
   WireId? recipeVariantRef,
   WireId? bindingParameterRef,
@@ -1589,7 +1600,6 @@ Catalog _nativeCatalog({
         description: 'Box model widget.',
         flutterType: 'package:flutter/widgets.dart#Container',
         childrenSlot: ChildrenSlot.single,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p0001'),

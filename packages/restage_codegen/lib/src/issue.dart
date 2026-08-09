@@ -297,7 +297,7 @@ enum IssueCode {
   /// `restage_shared`. Typical cause: the SDK is older than the analyzer.
   unknownEnumValue,
 
-  /// A `@RestageProperty.defaultValue` literal can't be encoded.
+  /// A literal default value can't be encoded.
   invalidDefault,
 
   /// A curation synthetic property is malformed: its name is not a valid Dart
@@ -308,8 +308,8 @@ enum IssueCode {
   /// downstream failure or a silently-missing widget.
   invalidSynthetic,
 
-  /// A `@RestageProperty` supplies more than one of `defaultValue` /
-  /// `defaultBrandToken` / `defaultSource` — they are mutually exclusive
+  /// A `@RestageProperty` supplies both `defaultBrandToken` and
+  /// `defaultSource` — they are mutually exclusive
   /// defaulting strategies. Enforced here as a hard build error because the
   /// annotation's const constructor can only `assert` the rule, which is
   /// stripped in release builds.
@@ -397,6 +397,39 @@ enum IssueCode {
   /// `@RestageWidget` declared on a class shape that codegen can't reach
   /// (e.g. abstract or private — generated factories can't construct them).
   invalidWidgetClass,
+
+  /// An unnamed widget constructor input cannot be mapped to one public,
+  /// final instance field without changing its semantics.
+  invalidWidgetConstructorInput,
+
+  /// Constructor-first discovery changed a legacy catalog fact, such as
+  /// admitting a previously unannotated input or restoring constructor order.
+  /// Informational: it announces a reviewed authoring-contract migration.
+  constructorCatalogMigration,
+
+  /// A widget or constructor-bound property has neither an explicit
+  /// description override nor Dart documentation.
+  missingCatalogDescription,
+
+  /// Canonical and legacy target configuration, or two composable target
+  /// annotations, provide different values for the same key.
+  conflictingTargetConfig,
+
+  /// Two A2UI annotations declare the same write-back callback/value pairing.
+  duplicateTargetConfig,
+
+  /// A genuine target configuration annotation is placed on an element where
+  /// one or more of its configured keys are not legal.
+  invalidTargetConfigPlacement,
+
+  /// A target configuration names a constructor property that does not exist,
+  /// or names a non-callback property where a callback is required (and vice
+  /// versa).
+  invalidTargetConfigReference,
+
+  /// An RFW event property has a callback shape outside the mechanically
+  /// supported payload/signature contract.
+  invalidEventConfiguration,
 
   // Internal
   /// Translator emitted DSL that didn't round-trip via parseLibraryFile.
@@ -492,6 +525,7 @@ enum IssueCode {
         // to-dos (a curation gap), not curator errors.
         IssueCode.unrepresentableCtorDefault ||
         IssueCode.stablePropertyDeferred ||
+        IssueCode.constructorCatalogMigration ||
         // Custom-widget inlining is recognised but the inlining path / this
         // transpiler increment cannot bring the widget in yet — a deferral with
         // a deferred-blob disposition, not a regression.
@@ -547,6 +581,13 @@ enum IssueCode {
         IssueCode.structuredFactoryUnsupportedParam ||
         IssueCode.duplicateWidgetName ||
         IssueCode.invalidWidgetClass ||
+        IssueCode.invalidWidgetConstructorInput ||
+        IssueCode.missingCatalogDescription ||
+        IssueCode.conflictingTargetConfig ||
+        IssueCode.duplicateTargetConfig ||
+        IssueCode.invalidTargetConfigPlacement ||
+        IssueCode.invalidTargetConfigReference ||
+        IssueCode.invalidEventConfiguration ||
         IssueCode.incoherentUnion ||
         IssueCode.unresolvedUnionBase ||
         IssueCode.inertThemeBindingSeed ||

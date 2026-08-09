@@ -57,7 +57,6 @@ NativeCatalogIndex _index(WidgetEntry widget, StructuredEntry structured) {
     description: '',
     flutterType: 'package:flutter/material.dart#Sized',
     childrenSlot: ChildrenSlot.none,
-    fires: const [],
     properties: [
       PropertyEntry(
         wireId: WireId('p0001'),

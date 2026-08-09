@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
+import 'package:restage_a2ui_example/generated/restage_a2ui_catalog.g.dart';
 
 void main() {
   test('buildRestageCatalog carries the composed system-prompt fragments', () {

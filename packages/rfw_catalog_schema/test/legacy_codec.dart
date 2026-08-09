@@ -111,7 +111,7 @@ final class LegacyWidgetEntry {
     required this.description,
     required this.flutterType,
     required this.childrenSlot,
-    required this.fires,
+    required this.legacyEventNames,
     required this.properties,
     this.decomposes = const [],
     this.deprecatedSince,
@@ -135,8 +135,8 @@ final class LegacyWidgetEntry {
   /// Children slot.
   final ChildrenSlot childrenSlot;
 
-  /// Events this widget can fire.
-  final List<WidgetEventName> fires;
+  /// Event names carried by the historical v2 wire shape.
+  final List<String> legacyEventNames;
 
   /// Legacy properties, without wire IDs.
   final List<LegacyPropertyEntry> properties;
@@ -157,7 +157,6 @@ final class LegacyWidgetEntry {
       description: description,
       flutterType: flutterType,
       childrenSlot: childrenSlot,
-      fires: fires,
       properties: [
         for (final property in properties)
           property.toPropertyEntryWithInternalPlaceholders(),
@@ -188,7 +187,7 @@ final class LegacyPropertyEntry {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
-    this.firesAs,
+    this.legacyEventAlias,
   });
 
   /// Legacy property name.
@@ -237,8 +236,8 @@ final class LegacyPropertyEntry {
   /// Callback signature override.
   final String? callbackSignature;
 
-  /// Event taxonomy alias.
-  final String? firesAs;
+  /// Event alias carried by the historical v2 wire shape.
+  final String? legacyEventAlias;
 
   /// Transitional projection into [PropertyEntry] for pre-allocator tools.
   PropertyEntry toPropertyEntryWithInternalPlaceholders() {
@@ -256,7 +255,6 @@ final class LegacyPropertyEntry {
       enumType: enumType,
       widgetType: widgetType,
       callbackSignature: callbackSignature,
-      firesAs: firesAs,
     );
   }
 }
@@ -436,7 +434,10 @@ Map<String, dynamic> _widgetToLegacyJson(
     'description': w.description,
     'flutterType': w.flutterType,
     'childrenSlot': w.childrenSlot.name,
-    'fires': w.fires.map((e) => e.name).toList(),
+    'fires': [
+      for (final property in w.properties)
+        if (property.type == PropertyType.event) property.name,
+    ],
     'properties': w.properties.map(_propertyToLegacyJson).toList(),
     if (w.decomposes.isNotEmpty)
       'decomposes': [
@@ -481,7 +482,6 @@ Map<String, dynamic> _propertyToLegacyJson(PropertyEntry p) {
     if (p.enumType != null) 'enumType': p.enumType,
     if (p.widgetType != null) 'widgetType': p.widgetType,
     if (p.callbackSignature != null) 'callbackSignature': p.callbackSignature,
-    if (p.firesAs != null) 'firesAs': p.firesAs,
   };
 }
 
@@ -673,16 +673,7 @@ LegacyWidgetEntry _legacyWidgetFromJson(Map<String, dynamic> j, String path) {
       'childrenSlot',
       widgetPath,
     ),
-    fires: (j['fires'] as List)
-        .map(
-          (e) => _legacyEnum(
-            WidgetEventName.values,
-            e as String,
-            'fires',
-            widgetPath,
-          ),
-        )
-        .toList(),
+    legacyEventNames: (j['fires'] as List).map((e) => e as String).toList(),
     properties: [
       for (var i = 0; i < propertiesRaw.length; i++)
         _legacyPropertyFromJson(
@@ -743,7 +734,7 @@ LegacyPropertyEntry _legacyPropertyFromJson(
     enumType: j['enumType'] as String?,
     widgetType: j['widgetType'] as String?,
     callbackSignature: j['callbackSignature'] as String?,
-    firesAs: j['firesAs'] as String?,
+    legacyEventAlias: j['firesAs'] as String?,
   );
 }
 
@@ -883,7 +874,6 @@ WidgetEntry _widgetToConsumerShape(
     description: widget.description,
     flutterType: widget.flutterType,
     childrenSlot: widget.childrenSlot,
-    fires: widget.fires,
     properties: [
       for (final property in widget.properties)
         _propertyToConsumerShape(property),
@@ -917,7 +907,6 @@ PropertyEntry _propertyToConsumerShape(PropertyEntry property) {
     enumType: property.enumType,
     widgetType: property.widgetType,
     callbackSignature: property.callbackSignature,
-    firesAs: property.firesAs,
     defaultSource: property.defaultSource,
     mutuallyExclusiveWith: property.mutuallyExclusiveWith,
     requiresAncestor: property.requiresAncestor,

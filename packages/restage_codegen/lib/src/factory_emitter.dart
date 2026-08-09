@@ -13,8 +13,11 @@ import 'package:restage_codegen/src/customer_structured_admissibility.dart'
         isCustomerStructuredPropertySlot,
         structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
+import 'package:restage_codegen/src/rfw_callback_signature.dart';
+import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -39,14 +42,16 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///   * `ChildrenSlot.list` is allowed when the entry has a property
 ///     named `'children'` of type `widgetList` — that property emits as
 ///     `children: source.childList(...)`.
-///   * Void-callback event properties (`onPressed`, `onTap`, `onLongPress`,
-///     `onDoubleTap`, `onEnd`, `onSheetDismissed`) emit as
-///     `<name>: source.voidHandler(...)`. The set of event property names
-///     must exactly match the entry's `fires` list. Other event names (e.g.
-///     `'onChanged'`) declare the typed callback shape via
+///   * Event properties with no callback signature are zero-argument void
+///     callbacks and emit through `source.voidHandler(...)`. Typed event
+///     properties declare their callback shape via
 ///     `PropertyEntry.callbackSignature` (e.g. `'ValueChanged<bool>'`) and
 ///     emit through
 ///     `source.handler<T>(path, (trigger) => (T value) => trigger({...}))`.
+///     Both RFW decoders return nullable callbacks. When no constructor default
+///     or presence protocol applies, a non-nullable constructor input coalesces
+///     that result to a shape-correct no-op and a nullable input preserves
+///     `null`.
 ///   * `synthetic: 'gateOnPressed'` on a boolean property gates the
 ///     entry's `onPressed` event handler instead of being passed as
 ///     a constructor argument: the generator emits a pre-amble
@@ -126,6 +131,13 @@ String? emitFactoryFunction(
   final ctor = _ctorExpressionFor(entry, aliases: customerAliases);
   final canonicalChild = _canonicalChildPropertyOf(entry);
   final gatingProp = _gatingPropertyOf(entry);
+  final presencePlans = RfwConstructorPresenceFactoryPlan.forProperties(
+    entry.properties,
+  );
+  final omissionConditions = <String, String>{
+    for (final MapEntry(key: name, value: presence) in presencePlans.entries)
+      name: presence.suppliedExpression,
+  };
 
   // Properties consumed by a decomposition recipe are emitted as
   // inner args of the structured-type call; they don't also appear
@@ -137,15 +149,43 @@ String? emitFactoryFunction(
 
   // Emit order: positional args first (in catalog order), then
   // structured-type recipes, then named scalars + events, then the
-  // canonical child slot last (sort_child_properties_last lint).
-  final argLines = <String>[];
+  // named canonical child slot last (sort_child_properties_last lint).
+  final positionalArguments = <({PropertyEntry property, String value})>[];
 
   for (final p in entry.properties) {
     if (!p.positional || consumedByRecipes.contains(p.name)) continue;
-    final customerValue =
-        _customerMapOrRecordPropValue(p, entry, customer, nativeIndex);
+    final presence = presencePlans[p.name];
+    if (identical(p, canonicalChild)) {
+      final value = presence == null
+          ? _decodeExpression(
+              p,
+              entry.name,
+              index: nativeIndex,
+              aliases: customerAliases,
+            )
+          : _presenceAwareCanonicalChildrenValue(
+              p,
+              entry,
+              presence,
+              index: nativeIndex,
+              aliases: customerAliases,
+            );
+      positionalArguments.add((property: p, value: value));
+      continue;
+    }
+    final customerPath = presence == null
+        ? null
+        : <Object>[_PathSpread(presence.valuePathExpression)];
+    final customerValue = _customerMapOrRecordPropValue(
+      p,
+      entry,
+      customer,
+      nativeIndex,
+      path: customerPath,
+      presence: presence,
+    );
     if (customerValue != null) {
-      argLines.add('    $customerValue,');
+      positionalArguments.add((property: p, value: customerValue));
       continue;
     }
     // A POSITIONAL customer structured prop routes through the reconstructor
@@ -160,18 +200,25 @@ String? emitFactoryFunction(
         entry,
         customer!,
         nativeIndex,
+        path: customerPath,
+        presence: presence,
       );
-      argLines.add('    $value,');
+      positionalArguments.add((property: p, value: value));
       continue;
     }
-    final positional = _positionalEmit(
+    final value = _positionalEmit(
       p,
       entry.name,
       index: nativeIndex,
       aliases: customerAliases,
+      presence: presence,
     );
-    argLines.add('    $positional,');
+    positionalArguments.add((property: p, value: value));
   }
+
+  final argLines = <String>[
+    for (final argument in positionalArguments) '    ${argument.value},',
+  ];
 
   if (entry.decomposes.isNotEmpty) {
     final index = nativeIndex;
@@ -240,14 +287,24 @@ String? emitFactoryFunction(
       // `onPressed: null` is Flutter's convention for the disabled
       // state across button widgets.
       final decoded =
-          _decoderCallFor(p, "<Object>['${p.name}']", index: nativeIndex);
+          _decoderCallFor(p, _sourcePath(p.name), index: nativeIndex);
       argLines.add(
         '    ${p.name}: ${gatingProp.name} ? null : $decoded,',
       );
       continue;
     }
-    final customerValue =
-        _customerMapOrRecordPropValue(p, entry, customer, nativeIndex);
+    final presence = presencePlans[p.name];
+    final customerPath = presence == null
+        ? null
+        : <Object>[_PathSpread(presence.valuePathExpression)];
+    final customerValue = _customerMapOrRecordPropValue(
+      p,
+      entry,
+      customer,
+      nativeIndex,
+      path: customerPath,
+      presence: presence,
+    );
     if (customerValue != null) {
       argLines.add('    ${p.name}: $customerValue,');
       continue;
@@ -264,6 +321,8 @@ String? emitFactoryFunction(
         entry,
         customer!,
         nativeIndex,
+        path: customerPath,
+        presence: presence,
       );
       argLines.add('    ${p.name}: $value,');
       continue;
@@ -273,24 +332,57 @@ String? emitFactoryFunction(
       entry.name,
       index: nativeIndex,
       aliases: customerAliases,
+      pathExpression: presence?.valuePathExpression,
+      applyDefault: presence == null,
     );
     argLines.add('    ${p.name}: $decoded,');
   }
 
-  if (canonicalChild != null) {
-    final decoded = _decodeExpression(
-      canonicalChild,
-      entry.name,
-      index: nativeIndex,
-      aliases: customerAliases,
-    );
+  if (canonicalChild != null && !canonicalChild.positional) {
+    final presence = presencePlans[canonicalChild.name];
+    final decoded = presence == null
+        ? _decodeExpression(
+            canonicalChild,
+            entry.name,
+            index: nativeIndex,
+            aliases: customerAliases,
+          )
+        : _presenceAwareCanonicalChildrenValue(
+            canonicalChild,
+            entry,
+            presence,
+            index: nativeIndex,
+            aliases: customerAliases,
+          );
     argLines.add('    ${canonicalChild.name}: $decoded,');
   }
 
-  final preamble = gatingProp == null
-      ? ''
+  final gatingDeclaration = gatingProp == null
+      ? null
       : '  final ${gatingProp.name} = '
-          "source.v<bool>(<Object>['${gatingProp.name}']) ?? false;\n\n";
+          'source.v<bool>(${_sourcePath(gatingProp.name)}) ?? false;';
+  final preambleLines = <String>[
+    if (gatingDeclaration != null) gatingDeclaration,
+    ...presencePlans.values.map((plan) => plan.declaration),
+  ];
+  final preamble =
+      preambleLines.isEmpty ? '' : '${preambleLines.join('\n')}\n\n';
+
+  if (omissionConditions.isNotEmpty) {
+    final invocation = _presenceAwareInvocation(
+      entry,
+      ctor,
+      argLines,
+      omissionConditions,
+      positionalArguments,
+      customerAliases,
+    );
+    return '''
+Widget $functionName(BuildContext context, DataSource source) {
+$preamble  return $invocation;
+}
+''';
+  }
 
   return '''
 Widget $functionName(BuildContext context, DataSource source) {
@@ -299,6 +391,137 @@ ${argLines.join('\n')}
   );
 }
 ''';
+}
+
+String _presenceAwareInvocation(
+  WidgetEntry entry,
+  String ctor,
+  List<String> argLines,
+  Map<String, String> omissionConditions,
+  List<({PropertyEntry property, String value})> positionalArguments,
+  Map<String, String> aliases,
+) {
+  final namedPattern = RegExp(r'^    ([A-Za-z_$][A-Za-z0-9_$]*):');
+  final positional = <String>[];
+  final named = <String>[];
+
+  // Function.apply still obeys Dart's contiguous positional-prefix rule. An
+  // absent slot before a later included slot therefore contributes its exact
+  // constructor default; only the suffix after the last included slot omits.
+  for (var index = 0; index < positionalArguments.length; index += 1) {
+    final argument = positionalArguments[index];
+    final condition = omissionConditions[argument.property.name];
+    if (condition == null) {
+      positional.add('    ${argument.value},');
+      continue;
+    }
+
+    final laterConditions = <String>[];
+    var laterArgumentIsUnconditional = false;
+    for (final later in positionalArguments.skip(index + 1)) {
+      final laterCondition = omissionConditions[later.property.name];
+      if (laterCondition == null) {
+        laterArgumentIsUnconditional = true;
+      } else {
+        laterConditions.add(laterCondition);
+      }
+    }
+    if (!laterArgumentIsUnconditional && laterConditions.isEmpty) {
+      positional.add('    if ($condition) ${argument.value},');
+      continue;
+    }
+
+    final constructorDefault = _exactConstructorDefaultExpression(
+      argument.property,
+      aliases: aliases,
+    );
+    final value = '$condition ? (${argument.value}) : $constructorDefault';
+    if (laterArgumentIsUnconditional) {
+      positional.add('    $value,');
+      continue;
+    }
+    final includeCondition = [condition, ...laterConditions].join(' || ');
+    positional.add('    if ($includeCondition) $value,');
+  }
+
+  for (final line in argLines.skip(positionalArguments.length)) {
+    final match = namedPattern.firstMatch(line);
+    if (match != null) {
+      final name = match.group(1)!;
+      final condition = omissionConditions[name];
+      final prefix =
+          condition == null ? '    #$name:' : '    if ($condition) #$name:';
+      named.add(line.replaceFirst(match.group(0)!, prefix));
+      continue;
+    }
+    positional.add(line);
+  }
+
+  final fragment = entry.flutterType.split('#').last;
+  final tearOff = fragment.contains('.') ? ctor : '$ctor.new';
+  return (StringBuffer()
+        ..writeln('Function.apply($tearOff,')
+        ..writeln('    <Object?>[')
+        ..writeln(positional.join('\n'))
+        ..writeln('    ],')
+        ..writeln('    <Symbol, Object?>{')
+        ..writeln(named.join('\n'))
+        ..writeln('    },')
+        ..write('  ) as Widget'))
+      .toString();
+}
+
+String _exactConstructorDefaultExpression(
+  PropertyEntry property, {
+  required Map<String, String> aliases,
+}) {
+  final value = property.constructorDefault;
+  if (value == null) {
+    throw StateError(
+      'A positional constructor gap for ${property.name} has no exact '
+      'reconstructed default.',
+    );
+  }
+  return renderDartConstValueFromPrefixes(value, aliases);
+}
+
+String _presenceAwareValue({
+  required RfwConstructorPresenceFactoryPlan presence,
+  required String value,
+  required bool nullable,
+  required String requiredMessage,
+}) {
+  final noValue = nullable ? 'null' : '(throw ArgumentError($requiredMessage))';
+  return '${presence.localName}.hasValue ? ($value) : $noValue';
+}
+
+String _presenceAwareCanonicalChildrenValue(
+  PropertyEntry property,
+  WidgetEntry entry,
+  RfwConstructorPresenceFactoryPlan presence, {
+  NativeCatalogIndex? index,
+  Map<String, String> aliases = const {},
+}) {
+  final decoded = _decodeExpression(
+    property,
+    entry.name,
+    index: index,
+    aliases: aliases,
+    pathExpression: presence.valuePathExpression,
+    applyDefault: false,
+  );
+  if (property.type != PropertyType.widgetList) return decoded;
+
+  final path = presence.valuePathExpression;
+  final requiredMessage = "'${entry.name}.${property.name} is required.'";
+  final guarded = 'source.isList($path) ? $decoded '
+      ': (throw ArgumentError($requiredMessage))';
+  return _presenceAwareValue(
+    presence: presence,
+    value: guarded,
+    nullable: property.constructorNullable,
+    requiredMessage: requiredMessage,
+  );
 }
 
 /// Emits the positional value for [prop] without a `name:` prefix.
@@ -317,15 +540,25 @@ String _positionalEmit(
   String widgetName, {
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
+  RfwConstructorPresenceFactoryPlan? presence,
 }) {
   if (prop.synthetic == _iconDataSynthetic) {
-    final read = "source.v<int>(<Object>['${prop.name}'])";
+    final path = presence?.valuePathExpression ?? _sourcePath(prop.name);
+    final read = 'source.v<int>($path)';
     final fallback = prop.required
-        ? "(throw ArgumentError('$widgetName.${prop.name} is required.'))"
+        ? '(throw ArgumentError('
+            '${_dartStringLiteral('$widgetName.${prop.name} is required.')}))'
         : '0';
     return "IconData($read ?? $fallback, fontFamily: 'MaterialIcons')";
   }
-  return _decodeExpression(prop, widgetName, index: index, aliases: aliases);
+  return _decodeExpression(
+    prop,
+    widgetName,
+    index: index,
+    aliases: aliases,
+    pathExpression: presence?.valuePathExpression,
+    applyDefault: presence == null,
+  );
 }
 
 String _nativeRecipeEmit(
@@ -779,7 +1012,7 @@ String _transformBindingExpression(
 }) {
   switch (binding) {
     case PropertyValueArgumentBinding():
-      final path = "<Object>['${property.name}']";
+      final path = _sourcePath(property.name);
       final decoded = _decoderCallFor(property, path, index: index);
       if (binding.nullPolicy == TransformNullPolicy.nullResult ||
           binding.missingPolicy == TransformMissingPolicy.nullResult) {
@@ -935,7 +1168,7 @@ String _borderRadiusEmitWithCorners(
   }
 
   String read(PropertyEntry prop) =>
-      "source.v<double>(<Object>['${prop.name}'])";
+      'source.v<double>(${_sourcePath(prop.name)})';
 
   final presence = corners.values.map(read).join(' ?? ');
   final onlyArgs = <String>[];
@@ -1105,40 +1338,20 @@ bool _isMechanicallyEmittable(
     }
   }
 
-  // Event properties and `fires` must form an exact bijection — every
-  // declared fire has a matching event property and vice versa, with
-  // no duplicates on either side. Mismatches indicate a
-  // bespoke-surface entry the mechanical emitter can't safely handle.
-  //
-  // The bijection key on the property side is `firesAs ?? name`. This
-  // separates the catalog's event taxonomy from the underlying Flutter
-  // ctor parameter name — e.g. `CupertinoDatePicker.onDateTimeChanged`
-  // (the Flutter ctor name, used as the property name) declares
-  // `firesAs: 'onChanged'` to satisfy a `WidgetEventName.onChanged`
-  // fire. Property names that aren't renamed via `firesAs` continue
-  // to match against their `name` directly.
+  // Event identity is the property name. Typed callbacks must carry a
+  // supported signature; a null signature is the zero-argument void shape.
   final eventProps = entry.properties
       .where((p) => p.type == PropertyType.event)
       .toList(growable: false);
-  final eventNames = eventProps.map((p) => p.firesAs ?? p.name).toSet();
-  final fireNames = entry.fires.map((f) => f.name).toSet();
-  if (eventNames.length != eventProps.length ||
-      fireNames.length != entry.fires.length ||
-      eventNames.length != fireNames.length ||
-      !eventNames.containsAll(fireNames)) {
+  if (eventProps.map((property) => property.name).toSet().length !=
+      eventProps.length) {
     return false;
   }
-  // Non-void event fires (e.g. `onChanged`) require the matching event
-  // property to declare a `callbackSignature` so the emitter knows
-  // which typed handler to thread through `source.handler<T>(...)`.
-  // Void-callback event names skip this check since `voidHandler` is
-  // the implicit signature.
-  for (final fire in entry.fires) {
-    if (_voidEvents.contains(fire)) continue;
-    final prop =
-        eventProps.firstWhereOrNull((p) => (p.firesAs ?? p.name) == fire.name);
-    if (prop == null || prop.callbackSignature == null) return false;
-    if (!_isSupportedCallbackSignature(prop.callbackSignature!)) return false;
+  for (final property in eventProps) {
+    final signature = property.callbackSignature;
+    if (signature != null && RfwCallbackSignature.parse(signature) == null) {
+      return false;
+    }
   }
 
   // At-most-one synthetic of any given strategy per entry. Multiple
@@ -1371,56 +1584,11 @@ bool _isSupportedNativeProjectList(
       property.type == PropertyType.fontVariationList;
 }
 
-/// `WidgetEventName` values whose Flutter constructor parameter is a
-/// `VoidCallback?`. The mechanical emitter wires these via
-/// `source.voidHandler(...)`. Other event names need a per-property
-/// `callbackSignature` and route through the typed-handler emit path.
-const Set<WidgetEventName> _voidEvents = {
-  WidgetEventName.onPressed,
-  WidgetEventName.onTap,
-  WidgetEventName.onLongPress,
-  WidgetEventName.onDoubleTap,
-  WidgetEventName.onEnd,
-  WidgetEventName.onSheetDismissed,
-};
-
-/// Pattern matching `'ValueChanged<T>'` where `T` is either:
-///   * a single identifier optionally followed by `?` (nullable) —
-///     `'bool'`, `'bool?'`, `'String'`; or
-///   * a `List<E>` of a single identifier (optionally nullable element) —
-///     `'List<String>'`, `'List<int?>'`.
-/// The captured group is the whole `T` (`'bool'`, `'String'`,
-/// `'List<String>'`), which threads directly into both the handler's type
-/// argument and the typed closure parameter at the emit site.
-///
-/// The `List<E>` arm carries a settled-selection event — the whole selection
-/// fired as one `List<E>` over the rfw `DynamicList` wire (`DynamicList` is a
-/// dynamic-safe wire value, so this needs no new wire shape; the scalar arm is
-/// byte-identical). `Set<E>` is deliberately NOT accepted: `Set` is not a
-/// dynamic-safe rfw value, so a multi-select widget carries its selection as a
-/// `List<E>` and materializes the `Set` inside the compiled widget / the host
-/// callback adapter, never on the wire.
-final RegExp _kValueChangedSignature =
-    RegExp(r'^ValueChanged<(\w+\??|List<\w+\??>)>$');
-
-/// Returns the `T` parameter when [signature] matches the
-/// `ValueChanged<T>` shape, or `null` when it doesn't.
-String? _valueChangedTypeParam(String signature) =>
-    _kValueChangedSignature.firstMatch(signature)?.group(1);
-
-/// True when [signature] names a typed-callback shape the emitter
-/// knows how to thread through `source.handler<T>(...)`. Closed
-/// today to scalar `ValueChanged<T>` shapes; richer signatures
-/// (multi-arg callbacks, `ValueSetter`, etc.) extend this when a
-/// catalog entry needs them.
-bool _isSupportedCallbackSignature(String signature) =>
-    _valueChangedTypeParam(signature) != null;
-
 /// Returns the boolean property carrying the `'gateOnPressed'`
 /// synthetic strategy when [entry] declares one and is otherwise
 /// eligible to use it. Eligibility: the strategy is `'gateOnPressed'`,
-/// the property type is `boolean`, the entry fires `onPressed`, and
-/// the entry declares an `onPressed` event property to gate.
+/// the property type is `boolean`, and the entry declares an `onPressed`
+/// event property to gate.
 PropertyEntry? _gatingPropertyOf(WidgetEntry entry) =>
     entry.properties.firstWhereOrNull(
       (p) => p.synthetic == _gateOnPressedSynthetic,
@@ -1432,11 +1600,9 @@ PropertyEntry? _gatingPropertyOf(WidgetEntry entry) =>
 bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
   switch (prop.synthetic) {
     case _gateOnPressedSynthetic:
-      // The synthetic gates the entry's onPressed handler; the entry
-      // must declare an onPressed fire AND an onPressed event property
-      // for the gate to bind to.
+      // The synthetic gates the entry's onPressed handler; the entry must
+      // declare that event property for the gate to bind to.
       return prop.type == PropertyType.boolean &&
-          entry.fires.contains(WidgetEventName.onPressed) &&
           entry.properties.any(
             (p) => p.type == PropertyType.event && p.name == 'onPressed',
           );
@@ -1638,8 +1804,10 @@ String _decodeExpression(
   NativeCatalogIndex? index,
   Map<String, String> aliases = const {},
   bool tolerantNumbers = false,
+  String? pathExpression,
+  bool applyDefault = true,
 }) {
-  final path = "<Object>['${prop.name}']";
+  final path = pathExpression ?? _sourcePath(prop.name);
   final decoded = _decoderCallFor(
     prop,
     path,
@@ -1647,48 +1815,72 @@ String _decodeExpression(
     aliases: aliases,
     tolerantNumbers: tolerantNumbers,
   );
+  // RFW's childList read turns a missing slot into an empty list. Guard the
+  // nullable no-default constructor shape so omission/null remains null, while
+  // an authored list (including an empty one) still uses the child decoder.
+  if (prop.type == PropertyType.widgetList &&
+      prop.constructorNullable &&
+      prop.constructorDefault == null) {
+    return 'source.isList($path) ? $decoded : null';
+  }
   // Literal `defaultValue` takes precedence. Otherwise a `required`
   // scalar without a default emits a throw so a malformed blob fails
   // loudly (the SDK surfaces the throw as `PaywallLoadFailed`) rather
   // than rendering a silently-zeroed widget the user can't tell is
   // broken. The throw fallback only applies to property types whose
-  // decoder returns nullable — `widget` / `widgetList` / void-handler
-  // `event` paths return non-null Flutter values directly (RFW
-  // substitutes an error widget / empty list / void handler when the
-  // slot is missing).
-  final defaultExpr = _defaultExpressionFor(prop, aliases: aliases);
-  if (defaultExpr != null) return '$decoded ?? $defaultExpr';
-  if (!prop.required) return decoded;
-  // Typed-handler events return `T?` from `source.handler<T>(...)`.
-  // When the Flutter ctor param is non-nullable (e.g.
-  // `CupertinoDatePicker.onDateTimeChanged`), the catalog can't simply
-  // throw on missing — binding an event handler is an authoring choice,
-  // not a catalog-correctness concern. Emit a no-op closure
-  // fallback so the widget renders even when no handler is bound;
-  // the typed handler still threads through when a handler is bound.
-  if (prop.type == PropertyType.event && prop.callbackSignature != null) {
-    final argType = _valueChangedTypeParam(prop.callbackSignature!)!;
+  // decoder returns nullable. Widget/widgetList paths return non-null Flutter
+  // values directly (RFW substitutes an error widget / empty list when the
+  // slot is missing). Event paths have their own nullability contract below.
+  final defaultExpr =
+      applyDefault ? _defaultExpressionFor(prop, aliases: aliases) : null;
+  if (defaultExpr != null) {
+    if (prop.type == PropertyType.widgetList) {
+      return 'source.isList($path) ? $decoded : $defaultExpr';
+    }
+    return '$decoded ?? $defaultExpr';
+  }
+  if (prop.type == PropertyType.event) {
+    // Both `voidHandler` and typed `handler` return nullable callbacks.
+    // Constructor nullability therefore decides the fallback only when no
+    // representable constructor default applies; `required` only means the
+    // argument itself must be supplied. In particular, a required nullable
+    // callback must remain null when no event is bound. Older built-in catalog
+    // entries do not carry constructorNullable, but an optional callback with
+    // no recorded default is necessarily nullable in valid Dart and must keep
+    // its null behavior.
+    if (prop.constructorNullable ||
+        (!prop.required && prop.constructorDefault == null)) {
+      return decoded;
+    }
+    if (!applyDefault) {
+      final message =
+          _dartStringLiteral('$widgetName.${prop.name} is required.');
+      return '$decoded ?? (throw ArgumentError($message))';
+    }
+    final signature = prop.callbackSignature;
+    if (signature == null) return '$decoded ?? () {}';
+    final argType = RfwCallbackSignature.parse(signature)!.valueType;
     return '$decoded ?? ($argType _) {}';
   }
+  if (!prop.required) return decoded;
   // A registered structured-ref decoder returns a nullable Flutter value
   // (e.g. `Size?`), so a required slot can throw on a missing value just
   // like the other nullable-decoder scalar paths.
   final nullable = _structuredRefDecoderFor(prop, index) != null ||
       _decoderReturnsNullable(prop.type);
   if (!nullable) return decoded;
-  return '$decoded ?? '
-      "(throw ArgumentError('$widgetName.${prop.name} is required.'))";
+  final message = _dartStringLiteral('$widgetName.${prop.name} is required.');
+  return '$decoded ?? (throw ArgumentError($message))';
 }
 
 /// True when [_decoderCallFor]'s emission for [type] returns a nullable
 /// value (so a `?? <fallback>` clause is meaningful). Non-nullable
 /// decoder paths skip the throw fallback in [_decodeExpression].
 ///
-/// `event` is conservatively non-nullable here because the void-handler
-/// path (`source.voidHandler(...)`) returns non-null. The typed-handler
-/// path (`source.handler<T>(...)`) does return nullable, but
-/// [_decodeExpression] handles that case directly with a typed no-op
-/// closure fallback rather than the generic throw.
+/// Event callbacks are deliberately excluded from this generic required-value
+/// classification: both event decoders return nullable callbacks, and
+/// [_decodeExpression] handles their null/no-op behavior from constructor
+/// nullability before consulting this helper.
 bool _decoderReturnsNullable(PropertyType type) {
   switch (type) {
     case PropertyType.boolean:
@@ -2142,14 +2334,15 @@ String? _customerMapPropValue(
   PropertyEntry prop,
   WidgetEntry entry,
   CustomerReconstruction? customer,
-  NativeCatalogIndex? nativeIndex,
-) {
+  NativeCatalogIndex? nativeIndex, {
+  List<Object>? path,
+}) {
   final plan = _customerMapPropPlan(prop, entry, customer);
   if (plan == null || customer == null) return null;
   final ownerLabel = '${entry.name}.${prop.name}';
   return _customerMapValue(
     plan,
-    <Object>[prop.name],
+    path ?? <Object>[prop.name],
     ownerLabel: ownerLabel,
     requiredMessage: "'$ownerLabel is required.'",
     ctx: customer,
@@ -2237,23 +2430,56 @@ String? _customerMapOrRecordPropValue(
   PropertyEntry p,
   WidgetEntry entry,
   CustomerReconstruction? customer,
-  NativeCatalogIndex? nativeIndex,
-) {
-  final map = _customerMapPropValue(p, entry, customer, nativeIndex);
-  if (map != null) return map;
+  NativeCatalogIndex? nativeIndex, {
+  List<Object>? path,
+  RfwConstructorPresenceFactoryPlan? presence,
+}) {
+  final effectivePath = path ?? <Object>[p.name];
+  final map = _customerMapPropValue(
+    p,
+    entry,
+    customer,
+    nativeIndex,
+    path: effectivePath,
+  );
+  if (map != null) {
+    if (presence == null) return map;
+    final ownerLabel = '${entry.name}.${p.name}';
+    return _presenceAwareValue(
+      presence: presence,
+      value: map,
+      nullable: p.constructorNullable,
+      requiredMessage: "'$ownerLabel is required.'",
+    );
+  }
   final plan = _customerRecordPropPlan(p, entry, customer);
   if (plan == null || customer == null) return null;
-  final pathLiteral = _pathLiteral(<Object>[p.name]);
+  final pathLiteral = _pathLiteral(effectivePath);
   final ownerLabel = '${entry.name}.${p.name}';
   final record = _customerRecordValue(
     plan,
-    <Object>[p.name],
+    effectivePath,
     ownerLabel: ownerLabel,
     ctx: customer,
     nativeIndex: nativeIndex,
   );
-  return 'source.isMap($pathLiteral) ? $record '
+  final guarded = 'source.isMap($pathLiteral) ? $record '
       ": (throw ArgumentError('$ownerLabel is required.'))";
+  if (presence != null) {
+    return _presenceAwareValue(
+      presence: presence,
+      value: guarded,
+      nullable: p.constructorNullable,
+      requiredMessage: "'$ownerLabel is required.'",
+    );
+  }
+  if (p.required) {
+    return guarded;
+  }
+  if (p.constructorNullable && p.constructorDefault == null) {
+    return 'source.isMap($pathLiteral) ? $record : null';
+  }
+  return guarded;
 }
 
 /// The decoded value for a MAP or RECORD field nested in a customer data
@@ -2324,12 +2550,19 @@ final class _PathIndex {
   final String expression;
 }
 
+final class _PathSpread {
+  const _PathSpread(this.expression);
+
+  final String expression;
+}
+
 String _pathLiteral(List<Object> path) =>
     "<Object>[${path.map(_pathSegmentLiteral).join(', ')}]";
 
 String _pathSegmentLiteral(Object segment) {
   if (segment is _PathIndex) return segment.expression;
-  return "'$segment'";
+  if (segment is _PathSpread) return '...${segment.expression}';
+  return _dartStringLiteral(segment.toString());
 }
 
 /// The argument VALUE expression for a customer structured WIDGET property [p]
@@ -2352,32 +2585,52 @@ String _customerStructuredPropValue(
   PropertyEntry p,
   WidgetEntry entry,
   CustomerReconstruction customer,
-  NativeCatalogIndex? nativeIndex,
-) {
+  NativeCatalogIndex? nativeIndex, {
+  List<Object>? path,
+  RfwConstructorPresenceFactoryPlan? presence,
+}) {
+  final effectivePath = path ?? <Object>[p.name];
+  final slotKey = structuredSlotKey(entry.flutterType, p.name);
+  final isNullable = p.constructorNullable ||
+      customer.nullableStructuredSlots.contains(slotKey);
   if (isCustomerStructuredListShape(p.valueShape)) {
-    final slotKey = structuredSlotKey(entry.flutterType, p.name);
     return _customerStructuredListValue(
       sourceType,
-      [p.name],
+      effectivePath,
       ctx: customer,
       nativeIndex: nativeIndex,
       elementMessage: "'${entry.name}.${p.name} element must be an object.'",
       requiredMessage: "'${entry.name}.${p.name} is required.'",
       isRequired: p.required,
-      isNullable: customer.nullableStructuredSlots.contains(slotKey),
-      defaultCode: _defaultExpressionFor(p, aliases: customer.aliases),
+      isNullable: isNullable,
+      defaultCode: presence == null
+          ? _defaultExpressionFor(p, aliases: customer.aliases)
+          : null,
+      presence: presence,
     );
   }
-  final reconstruction =
-      _emitCustomerReconstruction(sourceType, [p.name], customer, nativeIndex);
-  final pathLiteral = _pathLiteral([p.name]);
-  if (p.required) {
-    final message = "'${entry.name}.${p.name} is required.'";
-    return 'source.isMap($pathLiteral) ? $reconstruction '
-        ': (throw ArgumentError($message))';
+  final reconstruction = _emitCustomerReconstruction(
+    sourceType,
+    effectivePath,
+    customer,
+    nativeIndex,
+  );
+  final pathLiteral = _pathLiteral(effectivePath);
+  final requiredMessage = "'${entry.name}.${p.name} is required.'";
+  final guarded = 'source.isMap($pathLiteral) ? $reconstruction '
+      ': (throw ArgumentError($requiredMessage))';
+  if (presence != null) {
+    return _presenceAwareValue(
+      presence: presence,
+      value: guarded,
+      nullable: isNullable,
+      requiredMessage: requiredMessage,
+    );
   }
-  final slotKey = structuredSlotKey(entry.flutterType, p.name);
-  if (customer.nullableStructuredSlots.contains(slotKey)) {
+  if (p.required) {
+    return guarded;
+  }
+  if (isNullable) {
     return 'source.isMap($pathLiteral) ? $reconstruction : null';
   }
   return reconstruction;
@@ -2393,6 +2646,7 @@ String _customerStructuredListValue(
   required bool isRequired,
   required bool isNullable,
   required String? defaultCode,
+  RfwConstructorPresenceFactoryPlan? presence,
   int depth = 0,
 }) {
   final listPath = _pathLiteral(path);
@@ -2416,9 +2670,18 @@ String _customerStructuredListValue(
       '$indexName < $lengthName; $indexName++) '
       'source.isMap($itemPathLiteral) ? $item '
       ': (throw ArgumentError($elementMessage))]';
+  final guarded = 'source.isList($listPath) ? $list '
+      ': (throw ArgumentError($requiredMessage))';
+  if (presence != null) {
+    return _presenceAwareValue(
+      presence: presence,
+      value: guarded,
+      nullable: isNullable,
+      requiredMessage: requiredMessage,
+    );
+  }
   if (isRequired) {
-    return 'source.isList($listPath) ? $list '
-        ': (throw ArgumentError($requiredMessage))';
+    return guarded;
   }
   if (isNullable) {
     return 'source.isList($listPath) ? $list : null';
@@ -2753,12 +3016,11 @@ String _decoderCallFor(
         // wraps the trigger directly.
         return 'source.voidHandler($path)';
       }
-      // Typed handler — currently only `ValueChanged<T>` shapes are
-      // recognized. The eligibility gate rejects any signature that
-      // [_isSupportedCallbackSignature] doesn't accept.
-      final argType = _valueChangedTypeParam(signature)!;
+      // The eligibility gate already proved this serialized signature against
+      // the same shared contract used by analyzer-side callback admission.
+      final argType = RfwCallbackSignature.parse(signature)!.valueType;
       return 'source.handler<$signature>($path, '
-          '(HandlerTrigger trigger) => ($argType value) => '
+          '(trigger) => ($argType value) => '
           "trigger(<String, Object?>{'value': value}))";
     case PropertyType.structured:
       // A structured value slot with a registered runtime decoder (a
@@ -2825,6 +3087,12 @@ String? _defaultExpressionFor(
   PropertyEntry prop, {
   Map<String, String> aliases = const {},
 }) {
+  final constructorDefault = prop.constructorDefault;
+  if (constructorDefault is DartConstNull) return null;
+  if (constructorDefault != null) {
+    return renderDartConstValueFromPrefixes(constructorDefault, aliases);
+  }
+
   // Theme-binding defaults resolve at render time against the active
   // Flutter theme — codegen emits a call to the runtime resolver
   // (`resolveThemeBinding`, exported from the core runtime package).
@@ -2848,7 +3116,7 @@ String? _defaultExpressionFor(
     return null;
   }
 
-  final value = source is LiteralDefault ? source.value : prop.defaultValue;
+  final value = source is LiteralDefault ? source.value : null;
   if (value == null) return null;
   if (value is bool) return value.toString();
   if (value is int) return value.toString();
@@ -2948,17 +3216,10 @@ String? _enumDartTypeName(PropertyEntry prop) {
   return enumRef?.symbolName ?? prop.enumType;
 }
 
-/// Renders [value] as a single-quoted Dart string literal, escaping
-/// backslashes, single quotes, `$` (so it is a literal, not interpolation),
-/// and newlines so the emitted source parses byte-stably.
-String _dartStringLiteral(String value) {
-  final escaped = value
-      .replaceAll(r'\', r'\\')
-      .replaceAll("'", r"\'")
-      .replaceAll(r'$', r'\$')
-      .replaceAll('\n', r'\n');
-  return "'$escaped'";
-}
+String _dartStringLiteral(String value) => renderDartStringLiteral(value);
+
+String _sourcePath(String propertyName) =>
+    '<Object>[${_dartStringLiteral(propertyName)}]';
 
 /// Returns the nullable Flutter type a [type] property's value occupies
 /// at a ctor-arg call site. Used as the cast target for a theme-binding

@@ -20,9 +20,12 @@ workspace:
   - packages/restage_core
   - packages/restage_material
   - packages/restage_cupertino
+  - packages/restage_revenuecat
   - packages/restage_a2ui
   - packages/restage_a2ui/example
+  - packages/restage_widgetbook_example
   - apps/examples
+  - apps/widgetbook_example
 
 dev_dependencies:
   melos: ^8.2.2

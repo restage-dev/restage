@@ -31,7 +31,6 @@ Catalog _sampleCatalog() => Catalog(
           description: 'CTA',
           flutterType: 'package:flutter/material.dart#FilledButton',
           childrenSlot: ChildrenSlot.single,
-          fires: const [WidgetEventName.onPressed],
           properties: [
             PropertyEntry(
               wireId: WireId('p0001'),
@@ -123,7 +122,6 @@ Map<String, dynamic> _widgetJson({
       'description': 'd',
       'flutterType': 'x#W',
       'childrenSlot': 'none',
-      'fires': const <String>[],
       'properties': properties,
       if (decomposes.isNotEmpty) 'decomposes': decomposes,
     };
@@ -234,7 +232,7 @@ Catalog _catalogWith({
       schemaVersion: kSupportedSchemaVersion,
       generatedAt: 'x',
       libraries: {
-        WidgetLibrary.core: LibraryInfo(version: '0.1.0'),
+        WidgetLibrary.core: const LibraryInfo(version: '0.1.0'),
       },
       widgets: widgets,
       structuredTypes: structuredTypes,
@@ -255,7 +253,6 @@ WidgetEntry _widgetEntry({
       description: 'd',
       flutterType: 'x#W',
       childrenSlot: ChildrenSlot.none,
-      fires: const [],
       properties: properties,
       decomposes: decomposes,
     );
@@ -345,7 +342,7 @@ void main() {
     );
   }
 
-  group('v4 canonical codec', () {
+  group('v5 canonical codec', () {
     test('encodeCatalog produces JSON with wire IDs and envelope counts', () {
       final json =
           jsonDecode(encodeCatalog(_sampleCatalog())) as Map<String, dynamic>;
@@ -371,7 +368,7 @@ void main() {
         firstWidget['flutterType'],
         'package:flutter/material.dart#FilledButton',
       );
-      expect(firstWidget['fires'], ['onPressed']);
+      expect(firstWidget.containsKey('fires'), isFalse);
       expect(childProperty['wireId'], 'p0001');
       expect(childProperty['type'], 'widget');
       // Canonical decomposition is wire-ID-keyed.
@@ -383,7 +380,7 @@ void main() {
         (buttonStyle['flatProperties']! as Map)['p0501'],
         'p0002',
       );
-      // Legacy projection fields do NOT appear in v4 emission.
+      // Legacy projection fields do NOT appear in v5 emission.
       expect(buttonStyle.containsKey('structuredType'), isFalse);
       expect(childProperty.containsKey('defaultBrandToken'), isFalse);
     });
@@ -402,7 +399,6 @@ void main() {
             description: 'Fixed-dimension box.',
             flutterType: 'package:flutter/widgets.dart#SizedBox',
             childrenSlot: ChildrenSlot.single,
-            fires: const [],
             properties: const [],
           ),
         ],
@@ -430,7 +426,6 @@ void main() {
             description: 'd',
             flutterType: 'x#W',
             childrenSlot: ChildrenSlot.none,
-            fires: [],
             properties: [
               PropertyEntry(
                 wireId: WireId.unallocatedProperty,
@@ -600,15 +595,222 @@ void main() {
         decoded.widgets.first.flutterType,
         sample.widgets.first.flutterType,
       );
-      expect(decoded.widgets.first.fires, sample.widgets.first.fires);
       final recipe = decoded.widgets.first.decomposes.first;
       expect(recipe.structuredRef.wireId, WireId('s0001'));
       expect(recipe.flatProperties[WireId('p0501')], WireId('p0002'));
       expect(decoded.libraries.keys, sample.libraries.keys);
     });
 
+    test('v4 event metadata migrates to precise v5 property identity', () {
+      final canonical = _catalogWith(
+        widgets: [
+          _widgetEntry(
+            properties: [
+              PropertyEntry(
+                wireId: WireId('p0001'),
+                name: 'onDateTimeChanged',
+                type: PropertyType.event,
+                description: 'Reports a selected date and time.',
+                callbackSignature: 'ValueChanged<DateTime>',
+              ),
+            ],
+          ),
+        ],
+      );
+      final legacy =
+          jsonDecode(encodeCatalog(canonical)) as Map<String, dynamic>;
+      legacy['schemaVersion'] = 4;
+      final legacyWidget =
+          (legacy['widgets']! as List).single as Map<String, dynamic>;
+      legacyWidget['fires'] = ['onChanged'];
+      final legacyProperty =
+          (legacyWidget['properties']! as List).single as Map<String, dynamic>;
+      legacyProperty['firesAs'] = 'onChanged';
+
+      final migrated = decodeCatalog(jsonEncode(legacy));
+
+      expect(migrated.schemaVersion, kSupportedSchemaVersion);
+      expect(
+        migrated.widgets.single.properties.single.name,
+        'onDateTimeChanged',
+      );
+      final reencoded =
+          jsonDecode(encodeCatalog(migrated)) as Map<String, dynamic>;
+      final reencodedWidget =
+          (reencoded['widgets']! as List).single as Map<String, dynamic>;
+      final reencodedProperty =
+          (reencodedWidget['properties']! as List).single as Map;
+      expect(reencodedWidget.containsKey('fires'), isFalse);
+      expect(reencodedProperty.containsKey('firesAs'), isFalse);
+    });
+
+    test('v5 rejects retired event metadata', () {
+      final wire =
+          jsonDecode(encodeCatalog(_sampleCatalog())) as Map<String, dynamic>;
+      final widget = (wire['widgets']! as List).single as Map<String, dynamic>;
+      widget['fires'] = ['onPressed'];
+      expect(
+        () => decodeCatalog(jsonEncode(wire)),
+        throwsCatalogSchemaExceptionContaining('retired in catalog schema v5'),
+      );
+    });
+
+    test('event identity validation is structural, not membership-based', () {
+      final arbitrary = _catalogWith(
+        widgets: [
+          _widgetEntry(
+            properties: [
+              PropertyEntry(
+                wireId: WireId('p0001'),
+                name: 'onArbitraryCustomerAction',
+                type: PropertyType.event,
+                description: 'An open callback identity.',
+              ),
+            ],
+          ),
+        ],
+      );
+      expect(
+        decodeCatalog(encodeCatalog(arbitrary))
+            .widgets
+            .single
+            .properties
+            .single
+            .name,
+        'onArbitraryCustomerAction',
+      );
+
+      for (final invalidName in [
+        'on-invalid',
+        'class',
+        'return',
+        '_private',
+        '123event',
+      ]) {
+        final invalid = _catalogWith(
+          widgets: [
+            _widgetEntry(
+              properties: [
+                PropertyEntry(
+                  wireId: WireId('p0001'),
+                  name: invalidName,
+                  type: PropertyType.event,
+                  description: 'Invalid callback identity.',
+                ),
+              ],
+            ),
+          ],
+        );
+        expect(
+          () => encodeCatalog(invalid),
+          throwsCatalogSchemaExceptionContaining('public Dart identifier'),
+          reason: invalidName,
+        );
+      }
+    });
+
+    test('Dart contextual property and event identities remain legal', () {
+      for (final name in [
+        'required',
+        'interface',
+        'base',
+        'when',
+        'as',
+        'dynamic',
+      ]) {
+        final property = _propertyJson()..['name'] = name;
+        expect(
+          () => decodeCatalog(
+            _catalogJson(
+              widgets: [
+                _widgetJson(properties: [property]),
+              ],
+            ),
+          ),
+          returnsNormally,
+          reason: '$name as a named property',
+        );
+
+        final event = _propertyJson()
+          ..['name'] = name
+          ..['type'] = 'event'
+          ..['callbackSignature'] = 'ValueChanged<bool>';
+        expect(
+          () => decodeCatalog(
+            _catalogJson(
+              widgets: [
+                _widgetJson(properties: [event]),
+              ],
+            ),
+          ),
+          returnsNormally,
+          reason: '$name as an event',
+        );
+      }
+    });
+
+    test('Dart-emitted property identities reject private and hard keywords',
+        () {
+      for (final invalidName in [
+        'class',
+        'for',
+        'return',
+        'true',
+        'false',
+        'null',
+        'this',
+        'super',
+        '_private',
+        '123value',
+      ]) {
+        final property = _propertyJson()..['name'] = invalidName;
+        expect(
+          () => decodeCatalog(
+            _catalogJson(
+              widgets: [
+                _widgetJson(properties: [property]),
+              ],
+            ),
+          ),
+          throwsCatalogSchemaExceptionContaining(
+            'widgets[0] "W".properties[0].name',
+          ),
+          reason: invalidName,
+        );
+      }
+    });
+
+    test('callback signatures fail at their source-qualified wire path', () {
+      for (final invalidSignature in [
+        'ValueChanged<123>',
+        'ValueChanged<_Hidden>',
+        'ValueChanged<class>',
+        'ValueChanged<augment>',
+        'ValueChanged<Widget>',
+        'ValueChanged<prefix.Value>',
+      ]) {
+        final property = _propertyJson()
+          ..['name'] = 'onChanged'
+          ..['type'] = 'event'
+          ..['callbackSignature'] = invalidSignature;
+        expect(
+          () => decodeCatalog(
+            _catalogJson(
+              widgets: [
+                _widgetJson(properties: [property]),
+              ],
+            ),
+          ),
+          throwsCatalogSchemaExceptionContaining(
+            'widgets[0] "W".properties[0].callbackSignature',
+          ),
+          reason: invalidSignature,
+        );
+      }
+    });
+
     test('decodeCatalog yields a custom library for unknown namespaces', () {
-      const customJson = '{"schemaVersion":4,"generatedAt":"2026-05-09",'
+      const customJson = '{"schemaVersion":5,"generatedAt":"2026-05-09",'
           '"libraries":{"acme.design_system":{"version":"1.0.0",'
           '"widgetCount":0,"structuredCount":0,"unionCount":0,'
           '"designTokenCount":0}},"widgets":[]}';
@@ -642,16 +844,16 @@ void main() {
 
     test('decodeCatalog throws on missing required fields', () {
       expect(
-        () => decodeCatalog('{"schemaVersion": 4}'),
+        () => decodeCatalog('{"schemaVersion": 5}'),
         throwsA(isA<CatalogSchemaException>()),
       );
     });
 
     test('decodeCatalog rejects widgets missing wireId', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"name":"W","library":"restage.core","category":"layout",'
           '"description":"d","flutterType":"x#W","childrenSlot":"none",'
-          '"fires":[],"properties":[]}]}';
+          '"properties":[]}]}';
       expect(
         () => decodeCatalog(json),
         throwsCatalogSchemaExceptionContaining('wireId'),
@@ -659,10 +861,10 @@ void main() {
     });
 
     test('decodeCatalog rejects properties missing wireId', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"wireId":"w0001","name":"W","library":"restage.core",'
           '"category":"layout","description":"d","flutterType":"x#W",'
-          '"childrenSlot":"none","fires":[],'
+          '"childrenSlot":"none",'
           '"properties":[{"name":"p","type":"string","description":"d"}]}]}';
       expect(
         () => decodeCatalog(json),
@@ -671,10 +873,10 @@ void main() {
     });
 
     test('decodeCatalog rejects sentinel widget wire IDs', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"wireId":"w0000","name":"W","library":"restage.core",'
           '"category":"layout","description":"d","flutterType":"x#W",'
-          '"childrenSlot":"none","fires":[],"properties":[]}]}';
+          '"childrenSlot":"none","properties":[]}]}';
       expect(
         () => decodeCatalog(json),
         throwsCatalogSchemaExceptionContaining('Sequence 0'),
@@ -682,10 +884,10 @@ void main() {
     });
 
     test('decodeCatalog rejects sentinel property wire IDs', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"wireId":"w0001","name":"W","library":"restage.core",'
           '"category":"layout","description":"d","flutterType":"x#W",'
-          '"childrenSlot":"none","fires":[],'
+          '"childrenSlot":"none",'
           '"properties":[{"wireId":"p0000","name":"p","type":"string",'
           '"description":"d"}]}]}';
       expect(
@@ -695,10 +897,10 @@ void main() {
     });
 
     test('decodeCatalog rejects sentinel wire ID references', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"wireId":"w0001","name":"W","library":"restage.core",'
           '"category":"layout","description":"d","flutterType":"x#W",'
-          '"childrenSlot":"none","fires":[],"properties":[],'
+          '"childrenSlot":"none","properties":[],'
           '"decomposes":[{"structuredRef":{"library":"restage.core",'
           '"wireId":"s0000"},"flatProperties":{}}]}]}';
       expect(
@@ -710,10 +912,10 @@ void main() {
     test(
         'decodeCatalog throws CatalogSchemaException when widget is missing '
         'name', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"library":"restage.core","category":"layout",'
           '"description":"d","flutterType":"x#Y","childrenSlot":"none",'
-          '"fires":[],"properties":[]}]}';
+          '"properties":[]}]}';
       expect(
         () => decodeCatalog(json),
         throwsCatalogSchemaExceptionContaining('name'),
@@ -723,10 +925,10 @@ void main() {
     test(
         'decodeCatalog throws CatalogSchemaException when widget is missing '
         'flutterType', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"wireId":"w0001","name":"W","library":"restage.core",'
           '"category":"layout","description":"d","childrenSlot":"none",'
-          '"fires":[],"properties":[]}]}';
+          '"properties":[]}]}';
       expect(
         () => decodeCatalog(json),
         throwsCatalogSchemaExceptionContaining('flutterType'),
@@ -734,7 +936,7 @@ void main() {
     });
 
     test('decodeCatalog throws when library entry is missing version', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x",'
+      const json = '{"schemaVersion":5,"generatedAt":"x",'
           '"libraries":{"restage.core":{"widgetCount":0}},"widgets":[]}';
       expect(
         () => decodeCatalog(json),
@@ -743,7 +945,7 @@ void main() {
     });
 
     test('decodeCatalog accepts a library entry with only version', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x",'
+      const json = '{"schemaVersion":5,"generatedAt":"x",'
           '"libraries":{"restage.core":{"version":"0.1.0"}},"widgets":[]}';
       final catalog = decodeCatalog(json);
       expect(catalog.libraries[WidgetLibrary.core]!.version, '0.1.0');
@@ -894,7 +1096,6 @@ void main() {
             description: 'CTA',
             flutterType: 'package:acme/button.dart#AcmeButton',
             childrenSlot: ChildrenSlot.none,
-            fires: const [WidgetEventName.onPressed],
             properties: const [],
           ),
         ],
@@ -909,10 +1110,10 @@ void main() {
     test(
         'decodeCatalog throws eagerly when flatProperties has non-string '
         'values', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[{"wireId":"w0001","name":"W","library":"restage.core",'
           '"category":"layout","description":"d","flutterType":"x#W",'
-          '"childrenSlot":"none","fires":[],"properties":[],'
+          '"childrenSlot":"none","properties":[],'
           '"decomposes":[{"structuredRef":{"library":"restage.core",'
           '"wireId":"s0001"},"flatProperties":{"p0001":42}}]}]}';
       expect(
@@ -1214,7 +1415,6 @@ void main() {
             description: 'd',
             flutterType: 'x#W',
             childrenSlot: ChildrenSlot.none,
-            fires: const [],
             properties: const [],
             decomposes: [
               DecompositionRecipe(
@@ -1239,7 +1439,7 @@ void main() {
     test(
         'decodeLegacyCatalogV2 rejects canonical catalogs with a helpful '
         'message', () {
-      const json = '{"schemaVersion":4,"generatedAt":"x","libraries":{},'
+      const json = '{"schemaVersion":5,"generatedAt":"x","libraries":{},'
           '"widgets":[]}';
       expect(
         () => decodeLegacyCatalogV2(json),

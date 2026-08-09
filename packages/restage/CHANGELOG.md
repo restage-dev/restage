@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Unreleased — coordinated breaking release
 
 **Breaking.** `transactionId` is now nullable (`String?`) on `BillingGateway`'s
 purchase result and on `PurchasePlatformAdapter`. Some store purchases have no
@@ -16,6 +16,10 @@ the parameter widened, so existing calls still type-check.
 
 Other changes:
 
+- Add `package:restage/a2ui.dart` and `package:restage/rfw.dart` convenience
+  entrypoints for target-specific customer catalog configuration.
+- Remove the closed event-name export. Customer callback constructor properties
+  now use their exact Dart names as event identities.
 - Purchase results carry the store-issued transaction identifier where one
   exists: the StoreKit transaction ID on Apple, the Google Play order ID on
   Android. For an external-provider gateway it is the per-transaction id that

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-27T00:00:00Z",
   "libraries": {
     "restage.core": {
@@ -15,7 +15,6 @@
       "description": "Probe widget.",
       "flutterType": "package:flutter/widgets.dart#Probe",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",

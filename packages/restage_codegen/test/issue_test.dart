@@ -18,6 +18,7 @@ void main() {
       IssueCode.structuredDepthExceeded,
       IssueCode.unrepresentableCtorDefault,
       IssueCode.stablePropertyDeferred,
+      IssueCode.constructorCatalogMigration,
       IssueCode.customWidgetInliningDeferred,
       IssueCode.customWidgetUnsupportedReducible,
       // The announced-rewrite build notice — a non-failing annotation.

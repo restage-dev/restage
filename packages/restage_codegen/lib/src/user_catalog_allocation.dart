@@ -45,6 +45,7 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
   List<UnionEntry> unions = const [],
   Map<String, String> slotTargets = const {},
   Map<String, int> stampedCapabilityVersions = const {},
+  List<PropertyExclusion> exclusions = const [],
   Iterable<WireIdEvent> existingEvents = const [],
 }) {
   // A structured type shared by multiple widget files is discovered once per
@@ -55,6 +56,7 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
   // key on the next build.
   final dedupedStructured = _dedupeStructuredBySourceType(structuredTypes);
   final baseCatalog = userCatalogFromGraph(
+    exclusions: exclusions,
     widgets: widgets,
     structuredTypes: dedupedStructured,
     unions: unions,
@@ -235,6 +237,7 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
       designTokens: baseCatalog.designTokens,
       flutterVersion: baseCatalog.flutterVersion,
       compatRules: baseCatalog.compatRules,
+      exclusions: baseCatalog.exclusions,
     ),
     newEvents: List.unmodifiable(newEvents),
   );
@@ -545,7 +548,6 @@ WidgetEntry _copyWidget(
     description: widget.description,
     flutterType: widget.flutterType,
     childrenSlot: widget.childrenSlot,
-    fires: widget.fires,
     properties: properties,
     decomposes: widget.decomposes,
     sinceVersion: widget.sinceVersion,
@@ -578,8 +580,9 @@ PropertyEntry _copyProperty(
     enumType: property.enumType,
     widgetType: property.widgetType,
     callbackSignature: property.callbackSignature,
-    firesAs: property.firesAs,
     defaultSource: property.defaultSource,
+    constructorNullable: property.constructorNullable,
+    constructorDefault: property.constructorDefault,
     mutuallyExclusiveWith: property.mutuallyExclusiveWith,
     requiresAncestor: property.requiresAncestor,
     category: property.category,

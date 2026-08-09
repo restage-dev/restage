@@ -58,23 +58,25 @@ final List<HelperDefinition> _testHelpers = [
       return 'event "restage.purchase" $body';
     },
   ),
-  HelperDefinition(
-    name: 'paywallPriceFor',
-    libraryOrigin: _kTestLibraryOrigin,
-    returnCategory: HelperReturnCategory.string,
-    translate: (args) {
-      final slot = args.named['slot'];
-      final productId = args.named['productId'];
-      if ((slot == null) == (productId == null)) {
-        throw ArgumentError(
-          'paywallPriceFor requires exactly one of slot: or productId:',
-        );
-      }
-      final id = _stripTestQuotes(slot ?? productId!);
-      return 'data.products.$id.localizedPrice';
-    },
-  ),
+  _priceHelper(_kTestLibraryOrigin),
 ];
+
+HelperDefinition _priceHelper(String libraryOrigin) => HelperDefinition(
+      name: 'paywallPriceFor',
+      libraryOrigin: libraryOrigin,
+      returnCategory: HelperReturnCategory.string,
+      translate: (args) {
+        final slot = args.named['slot'];
+        final productId = args.named['productId'];
+        if ((slot == null) == (productId == null)) {
+          throw ArgumentError(
+            'paywallPriceFor requires exactly one of slot: or productId:',
+          );
+        }
+        final id = _stripTestQuotes(slot ?? productId!);
+        return 'data.products.$id.localizedPrice';
+      },
+    );
 
 String _stripTestQuotes(String s) {
   if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
@@ -222,7 +224,13 @@ void main() {
   group('enum + Colors translation', () {
     test('enum value reference → string-encoded', () async {
       final r = translator.translate(
-        await parseExpressionForTest('MainAxisAlignment.center'),
+        await parseExpressionFromSourceForTest(
+          '''
+import 'package:flutter/material.dart';
+Object x() => MainAxisAlignment.center;
+''',
+          rootPackage: 'apps_examples',
+        ),
       );
       expect(r.dsl, '"center"');
       expect(r.issues, isEmpty);
@@ -230,7 +238,13 @@ void main() {
 
     test('FontWeight.w700', () async {
       final r = translator.translate(
-        await parseExpressionForTest('FontWeight.w700'),
+        await parseExpressionFromSourceForTest(
+          '''
+import 'package:flutter/material.dart';
+Object x() => FontWeight.w700;
+''',
+          rootPackage: 'apps_examples',
+        ),
       );
       expect(r.dsl, '"w700"');
     });
@@ -282,7 +296,13 @@ void main() {
 
     test('TextAlign.center', () async {
       final r = translator.translate(
-        await parseExpressionForTest('TextAlign.center'),
+        await parseExpressionFromSourceForTest(
+          '''
+import 'package:flutter/material.dart';
+Object x() => TextAlign.center;
+''',
+          rootPackage: 'apps_examples',
+        ),
       );
       expect(r.dsl, '"center"');
     });
@@ -292,7 +312,13 @@ void main() {
       // the four static-const members by its bare name.
       for (final member in ['none', 'underline', 'overline', 'lineThrough']) {
         final r = translator.translate(
-          await parseExpressionForTest('TextDecoration.$member'),
+          await parseExpressionFromSourceForTest(
+            '''
+import 'package:flutter/material.dart';
+Object x() => TextDecoration.$member;
+''',
+            rootPackage: 'apps_examples',
+          ),
         );
         expect(r.dsl, '"$member"', reason: 'TextDecoration.$member');
       }
@@ -307,7 +333,13 @@ void main() {
       // crux e2e proves the custom-widget body path defers it.
       for (final member in kSupportedCurveNames) {
         final r = translator.translate(
-          await parseExpressionForTest('Curves.$member'),
+          await parseExpressionFromSourceForTest(
+            '''
+import 'package:flutter/material.dart';
+Object x() => Curves.$member;
+''',
+            rootPackage: 'apps_examples',
+          ),
         );
         expect(r.dsl, '"$member"', reason: 'Curves.$member');
       }
@@ -1913,10 +1945,24 @@ SegmentedButton<String>(
     // resolution' groups above, which exercise real-flutter vs lookalike
     // resolution. This group covers the other const namespaces.
 
-    test('Alignment.X falls through to enum-string for catalog props',
+    test('real Flutter Alignment.X lowers for flat catalog properties',
         () async {
-      // Outside LinearGradient `begin:` / `end:` the catalog's
-      // `alignment` property type accepts the bare member name.
+      const source = '''
+        import 'package:flutter/widgets.dart';
+        Object x() => Alignment.topLeft;
+      ''';
+      final r = translator.translate(
+        await parseExpressionFromSourceForTest(
+          source,
+          rootPackage: 'apps_examples',
+        ),
+      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, '"topLeft"');
+    });
+
+    test('customer Alignment.X cannot impersonate the framework static const',
+        () async {
       const source = '''
         class Alignment {
           const Alignment(this.x, this.y);
@@ -1929,8 +1975,11 @@ SegmentedButton<String>(
       final r = translator.translate(
         await parseExpressionFromSourceForTest(source),
       );
-      expect(r.issues, isEmpty);
-      expect(r.dsl, '"topLeft"');
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((issue) => issue.code),
+        contains(IssueCode.unresolvedIdentifier),
+      );
     });
 
     // The `EdgeInsets.zero` / `BorderRadius.zero` positives + their customer
@@ -3193,8 +3242,15 @@ SegmentedButton<String>(
 
     test('Column with enum mainAxisAlignment', () async {
       final r = t.translate(
-        await parseExpressionForTest(
-          'Column(mainAxisAlignment: MainAxisAlignment.center, children: [])',
+        await parseExpressionFromSourceForTest(
+          '''
+import 'package:flutter/widgets.dart';
+Object x() => Column(
+  mainAxisAlignment: MainAxisAlignment.center,
+  children: const [],
+);
+''',
+          rootPackage: 'apps_examples',
         ),
       );
       expect(r.issues, isEmpty);
@@ -3617,7 +3673,11 @@ SegmentedButton<String>(
   group('string interpolation', () {
     final tInterp = ExpressionTranslator(
       catalog: _textRichCatalog(),
-      helpers: HelperRegistry()..registerAll(_testHelpers),
+      helpers: HelperRegistry()
+        ..registerAll([
+          ..._testHelpers,
+          _priceHelper('package:apps_examples'),
+        ]),
     );
     const trialLabel = CustomWidgetStateField(
       name: 'trialLabel',
@@ -3698,6 +3758,19 @@ SegmentedButton<String>(
     test('styled interpolated price string carries Text props to TextRich',
         () async {
       const source = r'''
+        import 'package:flutter/painting.dart' show Color, FontWeight;
+        class Text {
+          const Text({
+            required this.text,
+            this.color,
+            this.fontSize,
+            this.fontWeight,
+          });
+          final String text;
+          final Color? color;
+          final double? fontSize;
+          final FontWeight? fontWeight;
+        }
         String paywallPriceFor({String? slot, String? productId}) => "";
         Object x() => Text(
           text: 'Only ${paywallPriceFor(slot: "ent")}/month',
@@ -3706,7 +3779,10 @@ SegmentedButton<String>(
           fontWeight: FontWeight.w700,
         );
       ''';
-      final expr = await parseExpressionFromSourceForTest(source);
+      final expr = await parseExpressionFromSourceForTest(
+        source,
+        rootPackage: 'apps_examples',
+      );
       final r = tInterp.translate(expr);
       expect(r.issues, isEmpty);
       expect(
@@ -3773,7 +3849,11 @@ SegmentedButton<String>(
   group('Text.rich inline-span emission', () {
     final textRichTranslator = ExpressionTranslator(
       catalog: _textRichCatalog(),
-      helpers: HelperRegistry()..registerAll(_testHelpers),
+      helpers: HelperRegistry()
+        ..registerAll([
+          ..._testHelpers,
+          _priceHelper('package:apps_examples'),
+        ]),
     );
     const annualBilling = CustomWidgetStateField(
       name: 'annualBilling',
@@ -3782,7 +3862,12 @@ SegmentedButton<String>(
     );
 
     test('Notion price row emits a structured inlineSpan tree', () async {
-      final expr = await parseExpressionForTest('''
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+        String paywallPriceFor({String? slot, String? productId}) => '';
+        bool annualBilling = true;
+        Object x() =>
         Text.rich(
           TextSpan(
             children: [
@@ -3805,8 +3890,10 @@ SegmentedButton<String>(
               ),
             ],
           ),
-        )
-      ''');
+        );
+      ''',
+        rootPackage: 'apps_examples',
+      );
 
       final r = textRichTranslator.translate(
         expr,
@@ -3826,7 +3913,10 @@ SegmentedButton<String>(
     });
 
     test('mixed-style legal paragraph emits nested span styles', () async {
-      final expr = await parseExpressionForTest('''
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+        Object x() =>
         Text.rich(
           TextSpan(
             text: 'By continuing, you agree to ',
@@ -3845,8 +3935,10 @@ SegmentedButton<String>(
               ),
             ],
           ),
-        )
-      ''');
+        );
+      ''',
+        rootPackage: 'apps_examples',
+      );
 
       final r = textRichTranslator.translate(expr);
 
@@ -4695,7 +4787,6 @@ Catalog _textRichCatalog() {
         description: '',
         flutterType: 'package:flutter/src/widgets/text.dart#Text.rich',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           _nativeProperty(
             wireId: textSpanProp,
@@ -4739,7 +4830,6 @@ Catalog _textRichCatalog() {
         description: '',
         flutterType: 'package:flutter/src/widgets/text.dart#Text',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           _nativeProperty(
             wireId: textProp,
@@ -4890,7 +4980,6 @@ Catalog _textAlignCatalog() => catalogWith([
         description: '',
         flutterType: 'package:flutter/src/widgets/text.dart#Text',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p9300'),
@@ -4934,7 +5023,6 @@ Catalog _pagerCatalog() => catalogWith([
         flutterType:
             'package:restage_material/src/widgets/restage_pager.dart#RestagePager',
         childrenSlot: ChildrenSlot.list,
-        fires: const [],
         properties: [
           prop('children', PropertyType.widgetList, required: true),
           prop('initialPage', PropertyType.integer),
@@ -4979,7 +5067,6 @@ Catalog _draggableSheetCatalog({
         flutterType: 'package:restage_material/src/widgets/'
             'restage_draggable_sheet.dart#RestageDraggableSheet',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           if (includeChild) prop('child', PropertyType.widget, required: true),
           if (includeController) prop('controller', PropertyType.string),
@@ -5029,7 +5116,6 @@ Catalog _singleSelectCatalog() => catalogWith([
         flutterType: 'package:restage_material/src/widgets/'
             'restage_radio_group.dart#RestageRadioGroup<String>',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           prop('items', PropertyType.selectionOptionList, required: true),
           prop('selected', PropertyType.string),
@@ -5045,7 +5131,6 @@ Catalog _singleSelectCatalog() => catalogWith([
         flutterType: 'package:restage_material/src/widgets/'
             'restage_dropdown.dart#RestageDropdown<String>',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           prop('items', PropertyType.selectionOptionList, required: true),
           prop('selected', PropertyType.string),
@@ -5069,7 +5154,6 @@ Catalog _toggleButtonsCatalog() => catalogWith([
         flutterType: 'package:restage_material/src/widgets/'
             'restage_toggle_buttons.dart#RestageToggleButtons',
         childrenSlot: ChildrenSlot.list,
-        fires: const [],
         properties: [
           prop('children', PropertyType.widgetList, required: true),
           prop('isSelected', PropertyType.booleanList, required: true),
@@ -5100,7 +5184,6 @@ Catalog _segmentedButtonCatalog() => catalogWith([
         flutterType: 'package:restage_material/src/widgets/'
             'restage_segmented_button.dart#RestageSegmentedButton<String>',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           prop('items', PropertyType.selectionOptionList, required: true),
           prop('selected', PropertyType.stringList),
@@ -5544,7 +5627,6 @@ Catalog _nativeExpressionCatalog({
         description: '',
         flutterType: '$_nativeSourceUri#Container',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           _nativeProperty(
             wireId: backgroundColorProp,
@@ -5635,7 +5717,6 @@ Catalog _nativeExpressionCatalog({
         description: '',
         flutterType: '$_nativeSourceUri#Text',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           _nativeProperty(
             wireId: textProp,
@@ -5752,7 +5833,6 @@ Catalog _nativeExpressionCatalog({
         description: '',
         flutterType: '$_nativeSourceUri#FilledButton',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           _nativeProperty(
             wireId: buttonBackgroundColorProp,

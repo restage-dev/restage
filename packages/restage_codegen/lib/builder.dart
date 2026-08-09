@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:restage_codegen/src/visitors/paywall_source_visitor.dart';
+import 'package:restage_codegen/src/widgetbook/widgetbook_story_builder.dart';
 import 'package:restage_shared/restage_shared.dart' show SurfaceType;
 
 /// build_runner factory entry point for the per-paywall codegen builder.
@@ -90,10 +91,14 @@ Builder userFactoryBuilder(BuilderOptions options) =>
 /// build_runner factory entry point for the package-wide A2UI catalog emitter.
 /// Walks every `lib/**.dart` for `@RestageWidget`-annotated classes, assembles
 /// the analyzer-fed A2UI seams off the resolved elements, and emits a single
-/// `lib/restage_a2ui_catalog.g.dart` declaring `buildRestageCatalogItems()` (the
-/// genui `Catalog` source) plus the companion `restage_a2ui_catalog.a2ui.json`
-/// capability stamp. Opt-in (not applied to dependents) — the emitted code
-/// imports the genui runtime, so a consumer enables it only when they want an
-/// A2UI catalog.
+/// `lib/generated/restage_a2ui_catalog.g.dart` declaring
+/// `buildRestageCatalogItems()` (the genui `Catalog` source) plus the colocated
+/// `restage_a2ui_catalog.a2ui.json` capability stamp. Opt-in (not applied to
+/// dependents) — the emitted code imports the genui runtime, so a consumer
+/// enables it only when they want an A2UI catalog.
 Builder userA2uiCatalogBuilder(BuilderOptions options) =>
     UserA2uiCatalogBuilder(options);
+
+/// Opt-in Widgetbook v4 stories derived from `@RestageWidget` metadata.
+Builder widgetbookStoryBuilder(BuilderOptions options) =>
+    createWidgetbookStoryBuilder(options);

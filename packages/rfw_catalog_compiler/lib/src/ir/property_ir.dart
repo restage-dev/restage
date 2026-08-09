@@ -26,6 +26,8 @@ final class PropertyIR {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
+    this.constructorNullable = false,
+    this.constructorDefault,
   });
 
   /// Stable property wire identity.
@@ -72,6 +74,12 @@ final class PropertyIR {
 
   /// Event callback signature override.
   final String? callbackSignature;
+
+  /// Whether the constructor-effective input admits null.
+  final bool constructorNullable;
+
+  /// Exact source-derived constructor default.
+  final DartConstValue? constructorDefault;
 
   /// Policy decisions that affected the property.
   final List<PolicyDecisionIR> policyTrace;
@@ -152,7 +160,6 @@ final class PropertyMetadataIR {
     this.constraints = RestageConstraints.empty,
     this.deprecated,
     this.synthetic,
-    this.firesAs,
   });
 
   /// Properties on the same owner that this property excludes.
@@ -178,7 +185,4 @@ final class PropertyMetadataIR {
 
   /// Synthetic property lowering strategy.
   final String? synthetic;
-
-  /// Event taxonomy name used by `fires`.
-  final String? firesAs;
 }

@@ -1,0 +1,12 @@
+{
+  "blobSha256": "sha256:2dc5c16d61bd3492851290723915728707faf8a38f5220c14f881bb44bfd1907",
+  "manifest": {
+    "builtInFloor": 1,
+    "requiredLibraries": [
+      {
+        "namespace": "restage_example.widgets",
+        "minVersion": 3
+      }
+    ]
+  }
+}

@@ -26,7 +26,6 @@ Catalog _catalogWithDescriptions({
         description: widgetDescription,
         flutterType: 'package:acme_widgets/note.dart#Note',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,

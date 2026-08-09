@@ -18,7 +18,6 @@ void main() {
           description: 'Static text.',
           flutterType: 'package:flutter/widgets.dart#Text',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: WireId('p0001'),
@@ -59,7 +58,6 @@ void main() {
           description: 'Static text.',
           flutterType: 'package:flutter/widgets.dart#Text',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: const [],
         ),
       ],
@@ -98,7 +96,6 @@ void main() {
           description: '...',
           flutterType: 'package:flutter/material.dart#FilledButton',
           childrenSlot: ChildrenSlot.single,
-          fires: const [],
           properties: const [],
         ),
         WidgetEntry(
@@ -109,7 +106,6 @@ void main() {
           description: '...',
           flutterType: 'package:flutter/cupertino.dart#CupertinoButton',
           childrenSlot: ChildrenSlot.single,
-          fires: const [],
           properties: const [],
         ),
       ],
@@ -134,7 +130,6 @@ void main() {
       description: 'Static text with TextStyle decomposed.',
       flutterType: 'package:flutter/widgets.dart#Text',
       childrenSlot: ChildrenSlot.none,
-      fires: const [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),

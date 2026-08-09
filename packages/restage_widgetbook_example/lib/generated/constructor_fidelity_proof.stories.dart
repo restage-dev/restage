@@ -1,0 +1,109 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: library_private_types_in_public_api, unused_import
+
+import 'package:widgetbook/widgetbook.dart' as widgetbook;
+import 'package:widgetbook/widgetbook.dart';
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
+    as restage_source;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
+    show ConstructorFidelityProof;
+
+part 'constructor_fidelity_proof.stories.g.dart';
+
+class ConstructorFidelityProofStoryInput {
+  const ConstructorFidelityProofStoryInput({
+    this.description =
+        "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
+    this.usage =
+        "Use to verify generated constructor binding and callback write-back.",
+    this.label = "",
+    this.enabled = true,
+    this.optionalText = "constructor-default",
+    this.onChanged = false,
+  });
+
+  final String description;
+  final String usage;
+  final String label;
+  final bool enabled;
+  final String optionalText;
+  final bool onChanged;
+}
+
+const meta = widgetbook.Meta(
+  restage_source.ConstructorFidelityProof.new,
+  argsType: ConstructorFidelityProofStoryInput.new,
+);
+
+const component = widgetbook.ComponentMeta(path: 'input');
+
+final defaults = _Defaults(
+  builder: (context, args) => restage_source.ConstructorFidelityProof(
+    args.label,
+    enabled: args.enabled,
+    optionalText: args.optionalText,
+    onChanged: (_) {},
+  ),
+);
+
+final $RestageCatalog = _Story(
+  args: _Args(
+    description: _RestageMetadataArg(
+      "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
+      name: 'description',
+    ),
+    usage: _RestageMetadataArg(
+      "Use to verify generated constructor binding and callback write-back.",
+      name: 'usage',
+    ),
+    label: _RestageStringArg("", description: "Required positional label."),
+    enabled: _RestageBoolArg(
+      true,
+      description:
+          "Optional named value whose omission preserves the Dart default. Default: the widget constructor's Dart default.",
+    ),
+    optionalText: _RestageStringArg(
+      "constructor-default",
+      description:
+          "Optional text used to distinguish authored values from defaults. Default: the widget constructor's Dart default.",
+    ),
+    onChanged: _RestageBoolArg(
+      false,
+      description:
+          "Arbitrarily named one-argument callback paired with [enabled].",
+    ),
+  ),
+);
+
+mixin _RestageArgDescription<T> on widgetbook.Arg<T> {
+  String get restageDescription;
+
+  @override
+  String? get description => restageDescription;
+}
+
+final class _RestageMetadataArg extends widgetbook.Arg<String>
+    with widgetbook.NoFields<String> {
+  _RestageMetadataArg(super.value, {required super.name});
+
+  @override
+  String get description => value;
+}
+
+final class _RestageStringArg extends widgetbook.StringArg
+    with _RestageArgDescription<String> {
+  _RestageStringArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageBoolArg extends widgetbook.BoolArg
+    with _RestageArgDescription<bool> {
+  _RestageBoolArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}

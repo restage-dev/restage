@@ -2,17 +2,17 @@
 // components — the kind a developer writes and annotates with `@RestageWidget`.
 // The interactivity proof resolves THIS source with the analyzer, reflects each
 // widget's callback parameters into callback signatures (the event seam) and
-// reads each callback field's `@RestageProperty(writeBackValue:)` annotation
-// metadata (the pairing seam), runs the catalog through the production A2UI
+// reads the widget's `@a2ui.Config.writeBackValues` target configuration (the
+// pairing seam), runs the catalog through the production A2UI
 // emitter, and renders the generated catalog against real genui — then drives
 // interaction (tap -> write-back -> re-render; tap -> dispatch). Each widget is
 // a CONTROLLED COMPONENT: a value property + a `ValueChanged` callback that
 // writes it (the genui data model is the state store), or a `VoidCallback` that
 // dispatches an outward action. (The `@RestageWidget` class annotation itself is
 // build-phase discovery — a tracked follow-up — and is not needed to reflect the
-// callback types or read the property annotations.)
+// callback types or read the target configuration.)
 import 'package:flutter/widgets.dart';
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 
 /// A QuickCheck-style single-answer selector — the acceptance-bar shape
 /// (Cagatay Ulusoy's "select an answer -> mark correct" two-way binding).
@@ -130,11 +130,12 @@ class ActionButtonFixture extends StatelessWidget {
 
 /// A range control — the multi-control shape that auto single-pair cannot
 /// resolve (two value-changing callbacks), so each callback declares its target
-/// value property explicitly via `@RestageProperty(writeBackValue:)`.
+/// value property explicitly via `@a2ui.Config.writeBackValues`.
 ///
 /// Two independent `int` controls, each with its own value property and
 /// `ValueChanged<int>` callback. The explicit pairings wire `onLow -> low` and
 /// `onHigh -> high` to two DISTINCT data paths (no cross-wiring).
+@a2ui.Config.writeBackValues({'onLow': 'low', 'onHigh': 'high'})
 class RangeFixture extends StatelessWidget {
   /// Creates a range bound to [low] and [high], reporting changes via [onLow]
   /// and [onHigh].
@@ -153,17 +154,9 @@ class RangeFixture extends StatelessWidget {
   final int high;
 
   /// Writes the low bound — explicitly paired to `low`.
-  @RestageProperty(
-    description: 'Reports a new low bound.',
-    writeBackValue: 'low',
-  )
   final ValueChanged<int> onLow;
 
   /// Writes the high bound — explicitly paired to `high`.
-  @RestageProperty(
-    description: 'Reports a new high bound.',
-    writeBackValue: 'high',
-  )
   final ValueChanged<int> onHigh;
 
   @override

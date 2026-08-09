@@ -20,11 +20,12 @@ or transmits an RFW-targeted widget catalog.
 - **Default-value model.** `DefaultValueSource` sealed hierarchy
   (`LiteralDefault`, `TokenRefDefault`, `ThemeBindingDefault`,
   `FlutterCtorDefault`).
-- **Annotations.** `@RestageWidget`, `@RestageProperty`,
+- **Annotations.** `@RestageWidget`, the optional shared
+  `@RestageProperty` overlay, target-specific `a2ui.Config` and `rfw.Config`,
   `@RestageBuiltinLibrary`, `@RestageLibrary`, `@RestageStructuredType`,
   `@RestageUnionVariant`, `@RestageFactoryVariant`, `@StableWidget`,
   `@StableProperty`, `@RfwIncompatible`, `@RestagePropertyPreview`,
-  `@RestageDataField`, and `@RestageA2uiExample`.
+  and `@RestageDataField`.
 - **Typed constraints.** `RestageConstraints` carries numeric bounds, allowed
   values, patterns, string lengths, and list lengths on `RestageProperty` and
   `PropertyEntry`, while preserving unknown wire keywords for newer readers.
@@ -32,12 +33,92 @@ or transmits an RFW-targeted widget catalog.
 - **Lifecycle types.** `DeprecationInfo` (two-layer: source vs catalog),
   `CompatRule` for forwarding/breaking changes, `ValidationExpr`.
 
-Canonical v3 JSON is final-form only. Internal `WireId.unallocated*`
+## Customer widget authoring
+
+The unnamed generative constructor is the source of truth for a customer
+widget's catalog inputs. Supported public field formals and resolved super
+formals are included automatically, in constructor order. Dart-required
+formals are required catalog inputs; `super.key` is excluded as Flutter
+plumbing.
+
+Use Dart documentation for widget and property descriptions. Add
+`@RestageProperty` only for shared metadata Dart cannot express, such as a
+default source or typed constraints:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+/// A customer-owned submit button.
+@RestageWidget(
+  name: 'SubmitButton',
+  library: WidgetLibrary.custom('acme.widgets'),
+  category: WidgetCategory.action,
+)
+class SubmitButton extends StatelessWidget {
+  const SubmitButton({super.key, required this.label, this.emphasized = true});
+
+  /// Visible button label.
+  final String label;
+
+  /// Whether to use the emphasized treatment.
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) => Text(label);
+}
+```
+
+Target-only A2UI metadata lives in its opt-in entrypoint. RFW event identity is
+the callback constructor property's exact Dart name and needs no annotation:
+
+```dart
+import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@a2ui.Config(
+  usage: 'Use for the primary form action.',
+  writeBackValues: {'onChanged': 'enabled'},
+)
+@RestageWidget(
+  name: 'SubmitControl',
+  library: WidgetLibrary.custom('acme.widgets'),
+  category: WidgetCategory.input,
+)
+class SubmitControl extends StatelessWidget {
+  const SubmitControl({
+    super.key,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  /// Whether the control is enabled.
+  final bool enabled;
+
+  /// Reports changes to [enabled].
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: () => onChanged(!enabled),
+        child: Text(enabled ? 'Enabled' : 'Disabled'),
+      );
+}
+```
+
+RFW callback events require no target annotation. Restage derives the exact
+Dart property identity and supported callback shape from the widget
+constructor. A2UI-specific usage and write-back metadata remains in
+`a2ui.Config`.
+
+Canonical v5 JSON is final-form only. The decoder also accepts v4 catalogs and
+migrates their retired callback-admission metadata at the decode boundary.
+Internal `WireId.unallocated*`
 placeholders are available for transitional pre-allocator tooling, but
 `WireId('w0000')` / `p0000` / etc. are not public IDs, `decodeCatalog`
 rejects them, and `encodeCatalog` refuses to emit catalogs that still carry
-those placeholders. Legacy v2 JSON is decoded into `LegacyCatalogV2` so a
-baseline without wire IDs cannot masquerade as a canonical `Catalog`.
+those placeholders.
 
 ## What it does NOT contain
 

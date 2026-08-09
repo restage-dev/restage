@@ -61,10 +61,6 @@ class Product {
 /// one `@RestageProperty`; the generated A2UI catalog carries a schema rich
 /// enough to reconstruct it (nested object + scalar list + list-of-objects +
 /// map + record) and render it.
-@RestageA2uiExample(
-  name: 'Default',
-  asset: 'lib/a2ui_examples/product_card/default.json',
-)
 @RestageWidget(
   name: 'ProductCard',
   library: WidgetLibrary.custom('acme.widgets'),

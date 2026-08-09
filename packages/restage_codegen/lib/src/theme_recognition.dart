@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
 
 /// [libraryIsFlutter] and [isFrameworkValueTypeLibrary] are the shared
 /// framework-vs-customer disambiguation the translator, the classifier, and the
@@ -24,8 +25,11 @@ bool libraryIsFlutter(Element? element) =>
 /// borders), `dart:ui` (`Color` / `Offset` / `Locale` / `Paint` / `Shadow`),
 /// and `dart:core` (`Duration`); a customer cannot place a class in `dart:` /
 /// `package:flutter/`. See the shared rationale above [libraryIsFlutter].
-bool isFrameworkValueTypeLibrary(Element? element) =>
-    _libraryStartsWithAny(element, const ['dart:', 'package:flutter/']);
+bool isFrameworkValueTypeLibrary(Element? element) {
+  if (element == null) return false;
+  final uri = element.library?.identifier;
+  return uri != null && !isApplicationDartLibrary(uri);
+}
 
 bool _libraryStartsWithAny(Element? element, List<String> prefixes) {
   if (element == null) return false;

@@ -5,7 +5,7 @@ import 'package:a2ui_core/a2ui_core.dart'
     show CreateSurfaceMessage, UpdateComponentsMessage;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
-import 'package:restage_a2ui_example/restage_a2ui_catalog.g.dart';
+import 'package:restage_a2ui_example/generated/restage_a2ui_catalog.g.dart';
 
 import 'a2ui_proof_support.dart';
 

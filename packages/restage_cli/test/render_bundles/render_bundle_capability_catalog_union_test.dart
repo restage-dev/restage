@@ -33,7 +33,6 @@ String _catalogJson({
         description: '$name fixture.',
         flutterType: 'package:fixture/fixture.dart#$name',
         childrenSlot: ChildrenSlot.none,
-        fires: const <WidgetEventName>[],
         properties: <PropertyEntry>[
           PropertyEntry(
             wireId: WireId(propertyWireId),
@@ -202,6 +201,36 @@ void main() {
       );
     },
   );
+
+  test('validates open event identities structurally', () async {
+    final wire = jsonDecode(customerCatalog()) as Map<String, dynamic>;
+    final widget = (wire['widgets']! as List).single as Map<String, dynamic>;
+    final properties = widget['properties']! as List;
+    properties.add({
+      'wireId': 'p9999',
+      'name': 'onArbitraryCustomerAction',
+      'type': 'event',
+      'description': 'An open callback identity.',
+    });
+
+    final valid = await createRenderBundleCapabilityCatalogUnion(
+      root,
+      jsonEncode(wire),
+    );
+    expect(
+      decodeCatalog(valid)
+          .findByName('AcmeBadge', _acme)!
+          .properties
+          .map((property) => property.name),
+      contains('onArbitraryCustomerAction'),
+    );
+
+    properties.last['name'] = 'on-invalid';
+    await expectLater(
+      createRenderBundleCapabilityCatalogUnion(root, jsonEncode(wire)),
+      throwsA(isA<CatalogSchemaException>()),
+    );
+  });
 
   test(
     'accepts an ancestor workspace config mapped to the exact project',

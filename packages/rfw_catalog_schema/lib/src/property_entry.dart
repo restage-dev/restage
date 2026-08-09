@@ -1,5 +1,6 @@
 import 'package:meta/meta.dart';
 
+import 'package:rfw_catalog_schema/src/dart_const_value.dart';
 import 'package:rfw_catalog_schema/src/default_value_source.dart';
 import 'package:rfw_catalog_schema/src/deprecation_info.dart';
 import 'package:rfw_catalog_schema/src/native_decompose.dart';
@@ -39,8 +40,9 @@ final class PropertyEntry {
     this.enumType,
     this.widgetType,
     this.callbackSignature,
-    this.firesAs,
     this.defaultSource,
+    this.constructorNullable = false,
+    this.constructorDefault,
     this.mutuallyExclusiveWith,
     this.requiresAncestor,
     this.category,
@@ -168,30 +170,6 @@ final class PropertyEntry {
   /// codegen emits the `source.voidHandler(...)` shortcut.
   final String? callbackSignature;
 
-  /// When non-null, separates the catalog's event taxonomy from the
-  /// underlying constructor parameter name. The property's [name] is
-  /// still used as the ctor parameter name and the data-source key,
-  /// but [firesAs] is what matches against the owning entry's `fires:`
-  /// list of `WidgetEventName`s for the factory emitter's eligibility
-  /// bijection.
-  ///
-  /// Used when the ctor names an event parameter differently from the
-  /// catalog event taxonomy — e.g.
-  /// `CupertinoDatePicker.onDateTimeChanged` (the ctor name) is the
-  /// property's [name], with `firesAs: 'onChanged'` declaring the
-  /// property satisfies a `WidgetEventName.onChanged` fire.
-  ///
-  /// Editor payloads still bind the handler under [name] (e.g.
-  /// `onDateTimeChanged`), not under [firesAs] — the taxonomy name
-  /// exists only for the codegen-time eligibility check, not the
-  /// on-wire key.
-  ///
-  /// `null` (the default) means the property's [name] is used both as
-  /// the ctor arg and as the fires-bijection key — the common case
-  /// for widgets whose ctor names line up with the event taxonomy
-  /// (`Switch.onChanged`, `CupertinoTextField.onSubmitted`).
-  final String? firesAs;
-
   /// Discriminated default source — `LiteralDefault`,
   /// `TokenRefDefault`, `ThemeBindingDefault`, or `FlutterCtorDefault`.
   /// `null` means the catalog makes no claim about the default. This is
@@ -200,6 +178,13 @@ final class PropertyEntry {
   /// computed projection of it; a [defaultBrandToken] (out of scope for
   /// [DefaultValueSource]) never co-occurs with it.
   final DefaultValueSource? defaultSource;
+
+  /// Whether the constructor-effective Dart input admits null.
+  final bool constructorNullable;
+
+  /// Exact source-derived Dart constructor default, independent of preview
+  /// metadata in [defaultSource]. `null` means the formal declares no default.
+  final DartConstValue? constructorDefault;
 
   /// Other properties on the same widget this one is mutually exclusive
   /// with. References by wire ID — property renames don't churn the

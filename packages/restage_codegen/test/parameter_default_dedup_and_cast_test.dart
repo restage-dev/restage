@@ -45,7 +45,6 @@ void main() {
         description: '',
         flutterType: 'package:flutter/material.dart#Styled',
         childrenSlot: ChildrenSlot.none,
-        fires: const [],
         properties: [
           PropertyEntry(
             wireId: WireId('p0001'),
@@ -178,7 +177,6 @@ void main() {
           description: '',
           flutterType: 'package:flutter/material.dart#Bordered',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: [
             PropertyEntry(
               wireId: WireId('p0001'),

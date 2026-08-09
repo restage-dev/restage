@@ -44,23 +44,25 @@ void main() {
       }
     });
 
-    test('every event-firing widget has a matching event property', () {
-      // The bijection key on the property side is `firesAs ?? name`,
-      // matching the factory emitter's eligibility check.
-      for (final w in kRegistry.widgets) {
-        for (final event in w.fires) {
-          final eventName = event.name; // e.g. onPressed, onChanged
-          expect(
-            w.properties.any(
-              (p) =>
-                  (p.firesAs ?? p.name) == eventName &&
-                  p.type == PropertyType.event,
-            ),
-            isTrue,
-            reason: '${w.name} fires $eventName but lacks a matching '
-                'PropertyType.event property (checked against firesAs ?? name)',
-          );
-        }
+    test('picker callbacks retain their precise constructor names', () {
+      final expected = {
+        'CupertinoDatePicker': 'onDateTimeChanged',
+        'CupertinoTimerPicker': 'onTimerDurationChanged',
+        'CupertinoPicker': 'onSelectedItemChanged',
+      };
+      for (final entry in expected.entries) {
+        final widget = kRegistry.findByName(
+          entry.key,
+          WidgetLibrary.cupertino,
+        )!;
+        expect(
+          widget.properties
+              .where(
+                (property) => property.type == PropertyType.event,
+              )
+              .map((property) => property.name),
+          contains(entry.value),
+        );
       }
     });
   });

@@ -4,8 +4,10 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
+import 'package:restage_codegen/src/callback_shape.dart';
 import 'package:restage_codegen/src/json_scalar_type.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Why the reflector could not carry a Dart type as an A2UI data shape.
 ///
@@ -451,6 +453,7 @@ A2uiShapeResult _objectFromClass(
     construction: A2uiClassConstruction(
       dartTypeName: _instantiatedTypeName(type),
       libraryUri: type.element.library.identifier,
+      dartTypeIdentity: _dartTypeIdentity(type, includeNullability: false),
       constructorName:
           (ctorName == null || ctorName.isEmpty || ctorName == 'new')
               ? null
@@ -693,34 +696,31 @@ A2uiSchemaNode _withOccurrenceDescription(
 ///
 /// A 0-argument callback dispatches an event; a single-positional value
 /// callback (`ValueChanged<T>` = `void Function(T)`) whose value `T` is a
-/// scalar or a `List<scalar>` writes the value back; any other shape —
+/// scalar, enum, or a `List<scalar>` writes the value back; any other shape —
 /// multiple arguments, a named/optional argument, or a non-scalar value — is
 /// unsupported and fails loud before lowering (never treated as a dispatch).
 A2uiCallbackSignature _classifyCallback(FunctionType type) {
-  // A `VoidCallback` / `ValueChanged<T>` returns void (a setter, not a
-  // transformer). A value-returning callback is not one of those shapes and
-  // would emit an unassignable void-returning lambda → unsupported.
-  if (type.returnType is! VoidType) {
-    return A2uiCallbackUnsupported(
-      '${type.getDisplayString()} does not return void',
-    );
-  }
-  final parameters = type.formalParameters;
-  if (parameters.isEmpty) return const A2uiCallbackDispatch();
-  // A `ValueChanged<T>` takes exactly one REQUIRED POSITIONAL value argument;
-  // a named or optional argument is not that shape.
-  if (parameters.length != 1 || !parameters.single.isRequiredPositional) {
-    return A2uiCallbackUnsupported(
-      '${type.getDisplayString()} is neither a 0-argument dispatch callback '
-      'nor a single-value ValueChanged',
-    );
-  }
-  final value = parameters.single.type;
+  return switch (classifyResolvedCallbackShape(type)) {
+    ZeroArgumentCallback() => const A2uiCallbackDispatch(),
+    SingleValueCallback(:final valueType) =>
+      _classifyA2uiCallbackValue(valueType),
+    UnsupportedCallback(:final reason) => A2uiCallbackUnsupported(reason),
+  };
+}
+
+A2uiCallbackSignature _classifyA2uiCallbackValue(DartType value) {
   final nullable = value.nullabilitySuffix == NullabilitySuffix.question;
   final scalar = classifyJsonScalarType(value);
   if (scalar != null) {
     return A2uiCallbackWriteBack(
       _a2uiScalarType(scalar.family),
+      nullable: nullable,
+      isList: false,
+    );
+  }
+  if (_enumNodeOf(value, nullable: nullable) != null && _isSpellable(value)) {
+    return A2uiCallbackWriteBack(
+      A2uiScalarType.string,
       nullable: nullable,
       isList: false,
     );
@@ -741,8 +741,8 @@ A2uiCallbackSignature _classifyCallback(FunctionType type) {
     }
   }
   return A2uiCallbackUnsupported(
-    'callback value type ${value.getDisplayString()} is not a scalar or a '
-    'List<scalar>',
+    'callback value type ${value.getDisplayString()} is not a scalar, '
+    'importable enum, or a List<scalar>',
   );
 }
 
@@ -811,4 +811,26 @@ String _typeArgId(DartType type) {
   // getDisplayString() already carries the nullability suffix for non-interface
   // types (e.g. `T?`).
   return type.getDisplayString();
+}
+
+DartTypeIdentity? _dartTypeIdentity(
+  InterfaceType type, {
+  bool includeNullability = true,
+}) {
+  final arguments = <DartTypeIdentity>[];
+  for (final argument in type.typeArguments) {
+    if (argument is! InterfaceType) return null;
+    final identity = _dartTypeIdentity(argument);
+    if (identity == null) return null;
+    arguments.add(identity);
+  }
+  final symbol = type.element.name;
+  if (symbol == null || symbol.isEmpty) return null;
+  return DartTypeIdentity(
+    libraryUri: type.element.library.identifier,
+    symbolName: symbol,
+    typeArguments: arguments,
+    nullable: includeNullability &&
+        type.nullabilitySuffix == NullabilitySuffix.question,
+  );
 }

@@ -13,10 +13,12 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
+import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
 import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
+import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -58,7 +60,6 @@ WidgetEntry entry({
   WidgetLibrary library = WidgetLibrary.core,
   WidgetCategory category = WidgetCategory.layout,
   ChildrenSlot childrenSlot = ChildrenSlot.none,
-  List<WidgetEventName> fires = const <WidgetEventName>[],
   String? flutterType,
   List<DecompositionRecipe> decomposes = const [],
   int sinceVersion = kBaselineCatalogVersion,
@@ -73,7 +74,6 @@ WidgetEntry entry({
       description: description,
       flutterType: flutterType ?? 'package:test_fixture/$name.dart#$name',
       childrenSlot: childrenSlot,
-      fires: fires,
       properties: properties,
       decomposes: decomposes,
       sinceVersion: sinceVersion,
@@ -297,8 +297,51 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
       },
       mapPlans: {...acc.mapPlans, ...r.mapPlans},
       recordPlans: {...acc.recordPlans, ...r.recordPlans},
+      exclusions: [...acc.exclusions, ...r.exclusions],
     ),
   );
+}
+
+/// Resolves the A2UI target-config overlay for [className] in synthetic sources.
+Future<A2uiTargetConfigFacts> runTargetConfigReadersOn(
+  Map<String, String> sources, {
+  String className = 'Probe',
+  A2uiTargetConfigConsumer a2uiConsumer = A2uiTargetConfigConsumer.a2ui,
+}) async {
+  final results = await _runOnLibraries<A2uiTargetConfigFacts>(
+    sources,
+    packageName: 'apps_examples',
+    onLibrary: (library, assetId) async {
+      final element = library.classes
+          .where((candidate) => candidate.name == className)
+          .single;
+      return readA2uiTargetConfig(
+        element,
+        assetId,
+        constructorInputs: readWidgetConstructorFacts(element, assetId).inputs,
+        consumer: a2uiConsumer,
+      );
+    },
+  );
+  return results.single;
+}
+
+/// Resolves constructor facts for [className] in synthetic sources.
+Future<WidgetConstructorFacts> runWidgetConstructorFactsOn(
+  Map<String, String> sources, {
+  String className = 'Probe',
+}) async {
+  final results = await _runOnLibraries<WidgetConstructorFacts>(
+    sources,
+    packageName: 'apps_examples',
+    onLibrary: (library, assetId) async {
+      final element = library.classes
+          .where((candidate) => candidate.name == className)
+          .single;
+      return readWidgetConstructorFacts(element, assetId);
+    },
+  );
+  return results.single;
 }
 
 /// Resolves [source] as a synthetic Dart library and returns the
@@ -307,14 +350,19 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
 ///
 /// Returns `null` if the field is not found or its static type does not
 /// map to a supported catalog property type.
+///
+/// [rootPackage] mounts the synthetic source under that package's asset
+/// namespace. Tests that need real Flutter type resolution must use a package
+/// with Flutter in its pubspec.
 Future<PropertyType?> inferTypeFromSource(
   String source, {
   required String fieldName,
+  String rootPackage = _kRootPackage,
 }) async {
   PropertyType? result;
   await _runOnLibraries<void>(
     {'lib/_type_probe.dart': source},
-    packageName: _kRootPackage,
+    packageName: rootPackage,
     onLibrary: (library, assetId) async {
       for (final cls in library.classes) {
         for (final field in cls.fields) {
@@ -504,7 +552,11 @@ Future<Map<AssetId, List<int>>>? _appFixtureWorkspaceSourcesFuture;
 Future<Map<AssetId, List<int>>>? _intlWorkspaceSourcesFuture;
 
 const Map<String, List<String>> _dartOnlyWorkspaceSourceEntrypoints = {
-  'rfw_catalog_schema': ['lib/rfw_catalog_schema.dart'],
+  'rfw_catalog_schema': [
+    'lib/rfw_catalog_schema.dart',
+    'lib/rfw.dart',
+    'lib/a2ui.dart',
+  ],
 };
 
 const Map<String, List<String>> _appFixtureWorkspaceSourceEntrypoints = {

@@ -159,10 +159,9 @@ Widget _buildCheckbox(BuildContext context, DataSource source) {
     value: source.v<bool>(<Object>['value']) ??
         (throw ArgumentError('Checkbox.value is required.')),
     onChanged: source.handler<ValueChanged<bool?>>(
-            <Object>['onChanged'],
-            (HandlerTrigger trigger) =>
-                (bool? value) => trigger(<String, Object?>{'value': value})) ??
-        (bool? _) {},
+        <Object>['onChanged'],
+        (trigger) =>
+            (bool? value) => trigger(<String, Object?>{'value': value})),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
   );
 }
@@ -172,10 +171,9 @@ Widget _buildCheckboxListTile(BuildContext context, DataSource source) {
     value: source.v<bool>(<Object>['value']) ??
         (throw ArgumentError('CheckboxListTile.value is required.')),
     onChanged: source.handler<ValueChanged<bool?>>(
-            <Object>['onChanged'],
-            (HandlerTrigger trigger) =>
-                (bool? value) => trigger(<String, Object?>{'value': value})) ??
-        (bool? _) {},
+        <Object>['onChanged'],
+        (trigger) =>
+            (bool? value) => trigger(<String, Object?>{'value': value})),
     activeColor: ArgumentDecoders.color(source, <Object>['activeColor']),
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
     title: source.optionalChild(<Object>['title']),
@@ -202,10 +200,9 @@ Widget _buildChoiceChip(BuildContext context, DataSource source) {
   return ChoiceChip(
     avatar: source.optionalChild(<Object>['avatar']),
     label: source.child(<Object>['label']),
-    onSelected: source.handler<ValueChanged<bool>>(
-        <Object>['onSelected'],
-        (HandlerTrigger trigger) =>
-            (bool value) => trigger(<String, Object?>{'value': value})),
+    onSelected: source.handler<ValueChanged<bool>>(<Object>[
+      'onSelected'
+    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
     selected: source.v<bool>(<Object>['selected']) ??
         (throw ArgumentError('ChoiceChip.selected is required.')),
     clipBehavior: RestageDecoders.enumByName<Clip>(
@@ -267,10 +264,9 @@ Widget _buildExpansionTile(BuildContext context, DataSource source) {
     leading: source.optionalChild(<Object>['leading']),
     title: source.child(<Object>['title']),
     subtitle: source.optionalChild(<Object>['subtitle']),
-    onExpansionChanged: source.handler<ValueChanged<bool>>(
-        <Object>['onExpansionChanged'],
-        (HandlerTrigger trigger) =>
-            (bool value) => trigger(<String, Object?>{'value': value})),
+    onExpansionChanged: source.handler<ValueChanged<bool>>(<Object>[
+      'onExpansionChanged'
+    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
     trailing: source.optionalChild(<Object>['trailing']),
     initiallyExpanded: source.v<bool>(<Object>['initiallyExpanded']) ?? false,
     shape: RestageDecoders.shapeBorder(source, <Object>['shape']),
@@ -348,10 +344,9 @@ Widget _buildFilterChip(BuildContext context, DataSource source) {
     avatar: source.optionalChild(<Object>['avatar']),
     label: source.child(<Object>['label']),
     selected: source.v<bool>(<Object>['selected']) ?? false,
-    onSelected: source.handler<ValueChanged<bool>>(
-        <Object>['onSelected'],
-        (HandlerTrigger trigger) =>
-            (bool value) => trigger(<String, Object?>{'value': value})),
+    onSelected: source.handler<ValueChanged<bool>>(<Object>[
+      'onSelected'
+    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??
         Clip.none,
@@ -487,10 +482,8 @@ Widget _buildRestagePager(BuildContext context, DataSource source) {
             Axis.values, source, <Object>['scrollDirection']) ??
         Axis.horizontal,
     pageSnapping: source.v<bool>(<Object>['pageSnapping']) ?? true,
-    onPageChanged: source.handler<ValueChanged<int>>(
-        <Object>['onPageChanged'],
-        (HandlerTrigger trigger) =>
-            (int value) => trigger(<String, Object?>{'value': value})),
+    onPageChanged: source.handler<ValueChanged<int>>(<Object>['onPageChanged'],
+        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
     children: source.childList(<Object>['children']),
   );
 }
@@ -502,7 +495,7 @@ Widget _buildRestageRadioGroupString(BuildContext context, DataSource source) {
     selected: source.v<String>(<Object>['selected']),
     onChanged: source.handler<ValueChanged<String?>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String? value) => trigger(<String, Object?>{'value': value})),
   );
 }
@@ -514,7 +507,7 @@ Widget _buildRestageDropdownString(BuildContext context, DataSource source) {
     selected: source.v<String>(<Object>['selected']),
     onChanged: source.handler<ValueChanged<String?>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String? value) => trigger(<String, Object?>{'value': value})),
   );
 }
@@ -523,10 +516,8 @@ Widget _buildRestageToggleButtons(BuildContext context, DataSource source) {
   return RestageToggleButtons(
     isSelected: RestageDecoders.booleanList(source, <Object>['isSelected']) ??
         (throw ArgumentError('RestageToggleButtons.isSelected is required.')),
-    onPressed: source.handler<ValueChanged<int>>(
-        <Object>['onPressed'],
-        (HandlerTrigger trigger) =>
-            (int value) => trigger(<String, Object?>{'value': value})),
+    onPressed: source.handler<ValueChanged<int>>(<Object>['onPressed'],
+        (trigger) => (int value) => trigger(<String, Object?>{'value': value})),
     children: source.childList(<Object>['children']),
   );
 }
@@ -540,7 +531,7 @@ Widget _buildRestageSegmentedButtonString(
     selected: RestageDecoders.stringList(source, <Object>['selected']),
     onChanged: source.handler<ValueChanged<List<String>>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (List<String> value) => trigger(<String, Object?>{'value': value})),
     multiSelectionEnabled:
         source.v<bool>(<Object>['multiSelectionEnabled']) ?? false,
@@ -645,7 +636,7 @@ Widget _buildSlider(BuildContext context, DataSource source) {
     secondaryTrackValue: source.v<double>(<Object>['secondaryTrackValue']),
     onChanged: source.handler<ValueChanged<double>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (double value) => trigger(<String, Object?>{'value': value})),
     min: source.v<double>(<Object>['min']) ?? 0.0,
     max: source.v<double>(<Object>['max']) ?? 1.0,
@@ -658,11 +649,9 @@ Widget _buildSwitch(BuildContext context, DataSource source) {
   return Switch(
     value: source.v<bool>(<Object>['value']) ??
         (throw ArgumentError('Switch.value is required.')),
-    onChanged: source.handler<ValueChanged<bool>>(
-            <Object>['onChanged'],
-            (HandlerTrigger trigger) =>
-                (bool value) => trigger(<String, Object?>{'value': value})) ??
-        (bool _) {},
+    onChanged: source.handler<ValueChanged<bool>>(<Object>[
+      'onChanged'
+    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
     activeThumbColor:
         ArgumentDecoders.color(source, <Object>['activeThumbColor']),
   );
@@ -672,11 +661,9 @@ Widget _buildSwitchListTile(BuildContext context, DataSource source) {
   return SwitchListTile(
     value: source.v<bool>(<Object>['value']) ??
         (throw ArgumentError('SwitchListTile.value is required.')),
-    onChanged: source.handler<ValueChanged<bool>>(
-            <Object>['onChanged'],
-            (HandlerTrigger trigger) =>
-                (bool value) => trigger(<String, Object?>{'value': value})) ??
-        (bool _) {},
+    onChanged: source.handler<ValueChanged<bool>>(<Object>[
+      'onChanged'
+    ], (trigger) => (bool value) => trigger(<String, Object?>{'value': value})),
     activeThumbColor:
         ArgumentDecoders.color(source, <Object>['activeThumbColor']),
     title: source.optionalChild(<Object>['title']),
@@ -749,11 +736,11 @@ Widget _buildTextField(BuildContext context, DataSource source) {
     maxLength: source.v<int>(<Object>['maxLength']),
     onChanged: source.handler<ValueChanged<String>>(
         <Object>['onChanged'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
     onSubmitted: source.handler<ValueChanged<String>>(
         <Object>['onSubmitted'],
-        (HandlerTrigger trigger) =>
+        (trigger) =>
             (String value) => trigger(<String, Object?>{'value': value})),
     clipBehavior: RestageDecoders.enumByName<Clip>(
             Clip.values, source, <Object>['clipBehavior']) ??

@@ -13,7 +13,6 @@ void main() {
         description: 'Paints a decoration behind its child.',
         flutterType: 'package:flutter/widgets.dart#DecoratedBox',
         childrenSlot: ChildrenSlot.single,
-        fires: const [WidgetEventName.onTap],
         properties: const [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -97,7 +96,6 @@ void main() {
             type: PropertyType.event,
             description: 'Tap handler.',
             callbackSignature: 'ValueChanged<bool>',
-            firesAs: 'onTap',
           ),
         ],
         decomposes: [
@@ -147,7 +145,6 @@ void main() {
       expect(lowered.description, widget.description);
       expect(lowered.flutterType, widget.flutterType);
       expect(lowered.childrenSlot, widget.childrenSlot);
-      expect(lowered.fires, widget.fires);
       expect(lowered.deprecatedSince, '0.9.0');
       expect(lowered.deprecated, widget.deprecated);
 
@@ -220,7 +217,6 @@ void main() {
         ),
       );
       expect(byName['onTap']!.callbackSignature, 'ValueChanged<bool>');
-      expect(byName['onTap']!.firesAs, 'onTap');
 
       final recipe = lowered.decomposes.single;
       expect(recipe.structuredRef.wireId, WireId.unallocatedStructured);
@@ -247,7 +243,6 @@ void main() {
         description: 'A widget introduced after the baseline.',
         flutterType: 'package:flutter/widgets.dart#NewSurface',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [],
         sinceVersion: 2,
       );
@@ -281,7 +276,6 @@ void main() {
         description: 'Displays text.',
         flutterType: 'package:flutter/widgets.dart#Text',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -809,7 +803,6 @@ void main() {
         description: 'A new widget the seeded log does not have.',
         flutterType: 'package:flutter/widgets.dart#BrandNewWidget',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -1128,7 +1121,6 @@ void main() {
         description: 'A deprecated widget.',
         flutterType: 'package:flutter/widgets.dart#OldBox',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [],
         deprecated: sourceDeprecation,
       );
@@ -1183,7 +1175,6 @@ void main() {
         description: 'A legacy widget.',
         flutterType: 'package:flutter/widgets.dart#LegacyBox',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [],
         deprecated: sourceDeprecation,
       );
@@ -1218,7 +1209,6 @@ void main() {
         description: 'A widget with no catalog-lifecycle deprecation.',
         flutterType: 'package:flutter/widgets.dart#PlainBox',
         childrenSlot: ChildrenSlot.none,
-        fires: [],
         properties: [],
         deprecated: sourceDeprecation,
       );
@@ -1307,7 +1297,6 @@ WidgetEntry _textWidget() {
     description: 'Displays text.',
     flutterType: 'package:flutter/src/widgets/text.dart#Text',
     childrenSlot: ChildrenSlot.none,
-    fires: [],
     properties: [
       PropertyEntry(
         wireId: WireId.unallocatedProperty,
@@ -1350,7 +1339,6 @@ WidgetEntry _materialButton() {
     description: 'A Material button.',
     flutterType: 'package:flutter/src/material/filled_button.dart#FilledButton',
     childrenSlot: ChildrenSlot.single,
-    fires: [WidgetEventName.onPressed],
     properties: [
       PropertyEntry(
         wireId: WireId.unallocatedProperty,
@@ -1398,7 +1386,6 @@ WidgetEntry _decoratedBoxWidget() {
     description: 'Paints a decoration behind its child.',
     flutterType: 'package:flutter/src/widgets/container.dart#DecoratedBox',
     childrenSlot: ChildrenSlot.single,
-    fires: [],
     properties: [
       PropertyEntry(
         wireId: WireId.unallocatedProperty,

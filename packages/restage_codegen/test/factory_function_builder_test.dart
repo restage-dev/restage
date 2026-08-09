@@ -75,14 +75,14 @@ void main() {
 
       expect(
         _severeText(logs),
-        contains('Unsupported catalog schemaVersion 3 (expected 4)'),
+        contains('Unsupported catalog schemaVersion 3 (expected 4 or 5)'),
       );
     });
 
     test('restage.core catalog → kCoreLibraryFactories empty map', () async {
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.core": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -96,7 +96,6 @@ void main() {
       "description": "Centers its child within itself.",
       "flutterType": "package:flutter/widgets.dart#Center",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [],
       "stability": "volatile"
     }
@@ -121,7 +120,7 @@ void main() {
     test('restage.material → kMaterialLibraryFactories', () async {
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.material": {"version": "0.1.0", "widgetCount": 0, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -147,7 +146,7 @@ void main() {
     test('restage.cupertino → kCupertinoLibraryFactories', () async {
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.cupertino": {"version": "0.1.0", "widgetCount": 0, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -173,7 +172,7 @@ void main() {
     test('rejects a catalog declaring more than one library', () async {
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.core": {"version": "0.1.0", "widgetCount": 0, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0},
@@ -210,7 +209,7 @@ void main() {
       // factory_emitter tests.
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.material": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -224,7 +223,6 @@ void main() {
       "description": "A thin horizontal line.",
       "flutterType": "package:flutter/material.dart#Divider",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
@@ -279,7 +277,7 @@ void main() {
       // mode would be noisy and far from the root cause.
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.material": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -293,7 +291,6 @@ void main() {
       "description": "Slot binding for surface children.",
       "flutterType": "package:restage_material/src/widgets/package.dart#Package",
       "childrenSlot": "single",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
@@ -356,7 +353,7 @@ void main() {
       // the barrel stays.
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "restage.core": {"version": "0.1.0", "widgetCount": 1, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}
@@ -370,7 +367,6 @@ void main() {
       "description": "A first-party core widget.",
       "flutterType": "package:restage_core/src/widgets/gizmo.dart#Gizmo",
       "childrenSlot": "none",
-      "fires": [],
       "properties": [
         {
           "wireId": "p0001",
@@ -419,7 +415,7 @@ void main() {
       // namespace as a configuration error.
       const catalogJson = '''
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "generatedAt": "2026-05-09T00:00:00Z",
   "libraries": {
     "acme.design_system": {"version": "0.1.0", "widgetCount": 0, "structuredCount": 0, "unionCount": 0, "designTokenCount": 0}

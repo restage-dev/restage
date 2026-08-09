@@ -31,7 +31,7 @@ void main() {
       expect(structured, {'s0002', 's0003'});
     });
 
-    test('round-trips through encodeCatalog / decodeCatalog (v4 canonical)',
+    test('round-trips through encodeCatalog / decodeCatalog (v5 canonical)',
         () {
       final encoded = encodeCatalog(kExampleRegistry);
       final decoded = decodeCatalog(encoded);

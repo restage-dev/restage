@@ -78,7 +78,6 @@ void main() {
           flutterType:
               'package:flutter/src/widgets/leak_sentinel.dart#LeakSentinelBuiltIn',
           childrenSlot: ChildrenSlot.none,
-          fires: const [],
           properties: const [],
         ),
       ],
@@ -108,12 +107,18 @@ void main() {
 
     final dart = String.fromCharCodes(
       result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'lib/restage_a2ui_catalog.g.dart'),
+        AssetId(
+          'apps_examples',
+          'lib/generated/restage_a2ui_catalog.g.dart',
+        ),
       ),
     );
     final stampJson = String.fromCharCodes(
       result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'lib/restage_a2ui_catalog.a2ui.json'),
+        AssetId(
+          'apps_examples',
+          'lib/generated/restage_a2ui_catalog.a2ui.json',
+        ),
       ),
     );
     final stamp = jsonDecode(stampJson) as Map<String, Object?>;
@@ -143,5 +148,61 @@ void main() {
         reason: '.a2ui.json leaked $leak',
       );
     }
+  });
+
+  test('records A2UI auto-exclusions in the generated Dart artifact', () async {
+    const customerSource = '''
+      import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+      @RestageLibrary(
+        library: WidgetLibrary.custom('acme.widgets'),
+        capabilityVersion: 1,
+      )
+      const restageLibrary = 0;
+
+      @RestageWidget(
+        name: 'Gauge',
+        library: WidgetLibrary.custom('acme.widgets'),
+        category: WidgetCategory.decoration,
+        description: 'a customer gauge',
+      )
+      class Gauge {
+        const Gauge({required this.value, this.hostState});
+        @RestageProperty(description: 'the reading')
+        final double value;
+        /// State supplied only by the host application.
+        final Object? hostState;
+      }
+    ''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'restage_codegen',
+    );
+    readerWriter.testing.writeString(
+      AssetId('apps_examples', 'lib/gauge.dart'),
+      customerSource,
+    );
+
+    final result = await testBuilder(
+      const UserA2uiCatalogBuilder(BuilderOptions.empty),
+      const {'apps_examples|lib/gauge.dart': customerSource},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(result.succeeded, isTrue);
+
+    final dart = String.fromCharCodes(
+      result.readerWriter.testing.readBytes(
+        AssetId(
+          'apps_examples',
+          'lib/generated/restage_a2ui_catalog.g.dart',
+        ),
+      ),
+    );
+    expect(dart, contains(r'$RestageExclusions'));
+    expect(dart, contains('"widget": "Gauge"'));
+    expect(dart, contains('"property": "hostState"'));
+    expect(dart, contains('"target": "a2ui"'));
+    expect(dart, contains('Object?'));
   });
 }

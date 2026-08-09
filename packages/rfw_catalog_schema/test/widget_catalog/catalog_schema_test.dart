@@ -125,16 +125,14 @@ void main() {
       );
     });
 
-    test('WidgetEventName covers v0 event names referenced by widgets', () {
-      expect(
-        WidgetEventName.values.toSet().containsAll([
-          WidgetEventName.onPressed,
-          WidgetEventName.onTap,
-          WidgetEventName.onChanged,
-          WidgetEventName.onEnd,
-        ]),
-        isTrue,
+    test('event identity is carried by the property name', () {
+      const property = PropertyEntry(
+        wireId: WireId.unallocatedProperty,
+        name: 'onArbitraryCustomerAction',
+        type: PropertyType.event,
+        description: 'An open callback identity.',
       );
+      expect(property.name, 'onArbitraryCustomerAction');
     });
   });
 }

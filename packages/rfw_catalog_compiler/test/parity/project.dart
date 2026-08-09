@@ -50,9 +50,6 @@ Map<String, Object?> _projectWidget(
     'description': widget.description,
     'flutterType': widget.flutterType,
     'childrenSlot': widget.childrenSlot.name,
-    'fires': [
-      for (final event in widget.fires) event.name,
-    ],
     'properties': [
       for (final property in widget.properties)
         if (!_isStructuredOnlyProperty(property))
@@ -105,7 +102,6 @@ Map<String, Object?> _projectProperty(
     if (property.widgetType != null) 'widgetType': property.widgetType,
     if (property.callbackSignature != null)
       'callbackSignature': property.callbackSignature,
-    if (property.firesAs != null) 'firesAs': property.firesAs,
   };
 }
 

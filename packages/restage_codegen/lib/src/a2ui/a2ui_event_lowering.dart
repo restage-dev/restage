@@ -134,7 +134,7 @@ typedef A2uiEventSeam = Map<(String, String), A2uiCallbackSignature>;
 
 /// A map from `(widgetName, callbackPropertyName)` to the name of the value
 /// property that callback explicitly writes back to — the A2UI-local carrier
-/// for the `@RestageProperty(writeBackValue:)` pairing hint.
+/// for an explicit `@a2ui.Config` write-back pairing.
 ///
 /// An entry here OVERRIDES the auto single-pair rule for that callback: the
 /// emitter resolves the named pair directly (still validated + fail-closed on a

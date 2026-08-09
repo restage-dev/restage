@@ -58,7 +58,6 @@ WidgetEntry _acmeBorder() => const WidgetEntry(
       description: '',
       flutterType: 'package:acme/a.dart#AcmeBorder',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId.unallocatedProperty,
@@ -109,7 +108,6 @@ WidgetEntry _badgeCard() => const WidgetEntry(
       description: '',
       flutterType: 'package:acme/c.dart#BadgeCard',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId.unallocatedProperty,

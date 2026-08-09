@@ -276,7 +276,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // conversion CTAs the gate machinery was added for.
   BuiltinWidgetCuration<ActionChip>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onPressed],
     excludeParams: [
       ..._kSharedChipExcludeParams,
       'pressElevation',
@@ -408,7 +407,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<Checkbox>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       // `focusNode: FocusNode` and `mouseCursor: MouseCursor` are
       // excluded via the centralized type denylist. `side: BorderSide?`
@@ -444,7 +442,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `activeColor` to `primary` (the checkbox tint when checked).
   BuiltinWidgetCuration<CheckboxListTile>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       ..._kSharedListTileExcludeParams,
       'fillColor',
@@ -478,12 +475,10 @@ const List<BuiltinWidgetCuration> kCuration = [
     ],
     brandTokens: _kChipSurfaceBrandTokens,
   ),
-  // Single-select chip group member — fires the new `onSelected` event
-  // (catalog enum extended for chip/selection semantics; distinct from
-  // `onChanged`'s value-edit shape).
+  // Single-select chip group member whose `onSelected` callback retains its
+  // precise Flutter constructor identity.
   BuiltinWidgetCuration<ChoiceChip>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onSelected],
     excludeParams: [
       ..._kSharedChipExcludeParams,
       'pressElevation',
@@ -555,7 +550,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `WidgetStateProperty<T>` wrappers around the same fields).
   BuiltinWidgetCuration<ElevatedButton>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPressed],
     excludeParams: _kSharedButtonExcludeParams,
     synthetics: [
       PropertyEntry(
@@ -595,7 +589,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // widget slots; `children` is the canonical list slot.
   BuiltinWidgetCuration<ExpansionTile>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onExpansionChanged],
     excludeParams: [
       'showTrailingIcon',
       'maintainState',
@@ -632,11 +625,9 @@ const List<BuiltinWidgetCuration> kCuration = [
   // flight; the catalog API surface is locked at end-state.
   BuiltinWidgetCuration<ExpressCheckoutButton>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPressed],
   ),
   BuiltinWidgetCuration<FilledButton>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPressed],
     excludeParams: _kSharedButtonExcludeParams,
     synthetics: [
       PropertyEntry(
@@ -677,7 +668,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     constructorName: 'tonal',
     descriptionOverride:
         'An M3 secondary call-to-action button (tonal variant).',
-    fires: [WidgetEventName.onPressed],
     excludeParams: _kSharedButtonExcludeParams,
     synthetics: [
       PropertyEntry(
@@ -709,7 +699,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // pattern as `CupertinoSwitch.onChanged`).
   BuiltinWidgetCuration<FilterChip>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onSelected],
     excludeParams: [
       ..._kSharedChipExcludeParams,
       'deleteIcon',
@@ -747,7 +736,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // (`primaryContainer` / `onPrimaryContainer`).
   BuiltinWidgetCuration<FloatingActionButton>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onPressed],
     excludeParams: [
       // `focusNode: FocusNode` and `mouseCursor: MouseCursor` are
       // excluded via the centralized type denylist.
@@ -822,7 +810,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<IconButton>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onPressed],
     excludeParams: [
       // `focusNode: FocusNode`, `mouseCursor: MouseCursor`, and
       // `statesController: WidgetStatesController` are excluded via
@@ -859,7 +846,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `onLongPress`, secondary / hover / focus) deferred.
   BuiltinWidgetCuration<InkWell>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onTap],
     excludeParams: [
       // `focusNode: FocusNode`, `mouseCursor: MouseCursor`, and
       // `statesController: WidgetStatesController` are excluded via
@@ -920,7 +906,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<ListTile>(
     category: WidgetCategory.layout,
-    fires: [WidgetEventName.onTap],
     excludeParams: [
       'isThreeLine',
       'dense',
@@ -1017,7 +1002,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   //     silent-fidelity lie.
   BuiltinWidgetCuration<RestageModalSheet>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onSheetDismissed],
     excludeParams: ['dragHandleSize'],
   ),
   // Multi-page swipeable surface for paged paywall layouts. The pager
@@ -1026,7 +1010,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // `onPageChanged` fires the `ValueChanged<int>` shape.
   BuiltinWidgetCuration<RestagePager>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPageChanged],
     propertyOverrides: {
       'onPageChanged': PropertyOverride(
         callbackSignature: 'ValueChanged<int>',
@@ -1062,7 +1045,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.input,
     nameOverride: 'RestageRadioGroupString',
     sinceVersion: 2,
-    fires: [WidgetEventName.onChanged],
     excludeParams: ['activeColor', 'contentPadding', 'dense'],
     propertyOverrides: {
       // `List<RestageSelectionOption>` is not a mechanically-inferable catalog
@@ -1089,7 +1071,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.input,
     nameOverride: 'RestageDropdownString',
     sinceVersion: 2,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       'hint',
       'isExpanded',
@@ -1124,7 +1105,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   BuiltinWidgetCuration<RestageToggleButtons>(
     category: WidgetCategory.input,
     sinceVersion: 3,
-    fires: [WidgetEventName.onPressed],
     propertyOverrides: {
       // `List<bool>` is not a mechanically-inferable catalog type, so the
       // override declares it explicitly as the bespoke `booleanList` slot
@@ -1158,7 +1138,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.input,
     nameOverride: 'RestageSegmentedButtonString',
     sinceVersion: 4,
-    fires: [WidgetEventName.onChanged],
     propertyOverrides: {
       // `List<RestageSelectionOption>` is not a mechanically-inferable catalog
       // type, so the override declares it explicitly as the bespoke
@@ -1181,7 +1160,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<OutlinedButton>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPressed],
     excludeParams: _kSharedButtonExcludeParams,
     synthetics: [
       PropertyEntry(
@@ -1209,7 +1187,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     constructorName: 'icon',
     descriptionOverride:
         'A secondary call-to-action button with a leading icon.',
-    fires: [WidgetEventName.onPressed],
     excludeParams: [..._kSharedButtonExcludeParams, 'iconAlignment'],
     propertyOverrides: {
       'icon': PropertyOverride(required: true),
@@ -1301,7 +1278,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // value-indicator bubble, surfaces as a plain string property.
   BuiltinWidgetCuration<Slider>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       // `focusNode: FocusNode` and `mouseCursor: MouseCursor` are
       // excluded via the centralized type denylist.
@@ -1332,7 +1308,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // the codegen factory function stops referencing the deprecated arg.
   BuiltinWidgetCuration<Switch>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       // `focusNode: FocusNode`, `mouseCursor: MouseCursor`, and
       // `dragStartBehavior: DragStartBehavior` are excluded via the
@@ -1370,7 +1345,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // switch.
   BuiltinWidgetCuration<SwitchListTile>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged],
     excludeParams: [
       ..._kSharedListTileExcludeParams,
       // `dragStartBehavior: DragStartBehavior` is excluded via the
@@ -1398,7 +1372,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   ),
   BuiltinWidgetCuration<TextButton>(
     category: WidgetCategory.action,
-    fires: [WidgetEventName.onPressed],
     excludeParams: [..._kSharedButtonExcludeParams, 'isSemanticButton'],
     synthetics: [
       PropertyEntry(
@@ -1421,7 +1394,6 @@ const List<BuiltinWidgetCuration> kCuration = [
     category: WidgetCategory.action,
     constructorName: 'icon',
     descriptionOverride: 'A low-emphasis text-only button with a leading icon.',
-    fires: [WidgetEventName.onPressed],
     excludeParams: [..._kSharedButtonExcludeParams, 'iconAlignment'],
     propertyOverrides: {
       'icon': PropertyOverride(required: true),
@@ -1460,7 +1432,6 @@ const List<BuiltinWidgetCuration> kCuration = [
   // schema-gap escalation if customer demand surfaces.
   BuiltinWidgetCuration<TextField>(
     category: WidgetCategory.input,
-    fires: [WidgetEventName.onChanged, WidgetEventName.onSubmitted],
     propertyOverrides: {
       'onChanged': PropertyOverride(callbackSignature: 'ValueChanged<String>'),
       'onSubmitted': PropertyOverride(

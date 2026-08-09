@@ -741,7 +741,6 @@ WidgetEntry _widget({
     description: 'A box.',
     flutterType: 'src#Box',
     childrenSlot: ChildrenSlot.none,
-    fires: const [],
     properties: properties,
   );
 }

@@ -12,7 +12,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Registry for the `restage.material` library.
 /// Read by codegen, the editor, and the runtime SDK.
 final Catalog kRegistry = Catalog(
-  schemaVersion: 4,
+  schemaVersion: 5,
   generatedAt: '1970-01-01T00:00:00Z',
   libraries: {
     WidgetLibrary.material: const LibraryInfo(version: '0.1.0'),
@@ -26,13 +26,13 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design action chip.',
       flutterType: 'package:flutter/src/material/action_chip.dart#ActionChip',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0002'),
@@ -47,6 +47,7 @@ final Catalog kRegistry = Catalog(
           name: 'onPressed',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -66,6 +67,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'surface',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -77,6 +79,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -93,7 +96,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design app bar.',
       flutterType: 'package:flutter/src/material/app_bar.dart#AppBar',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0006'),
@@ -101,6 +103,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               '{@template flutter.material.appbar.title} The primary widget displayed in the app bar.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0007'),
@@ -108,6 +111,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               '{@template flutter.material.appbar.elevation} The z-coordinate at which to place this app bar relative to its parent.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -119,6 +123,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description:
               '{@template flutter.material.appbar.shape} The shape of the app bar\'s [Material] as well as its shadow.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0008'),
@@ -127,6 +132,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.backgroundColor} The fill color to use for an app bar\'s [Material].',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -140,6 +146,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.foregroundColor} The default color for [Text] and [Icon]s within the app bar.',
           defaultBrandToken: 'onPrimary',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -153,6 +160,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.appbar.centerTitle} Whether the title should be centered.',
           defaultSource: LiteralDefault(true),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -164,6 +172,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.material.Material.clipBehavior}',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -178,7 +187,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design "badge".',
       flutterType: 'package:flutter/src/material/badge.dart#Badge',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0011'),
@@ -186,6 +194,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The badge\'s fill color.',
           defaultBrandToken: 'error',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -198,6 +207,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The color of the badge\'s [label] text.',
           defaultBrandToken: 'onError',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -208,6 +218,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: 'The padding added to the badge\'s label.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -220,6 +231,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.alignment,
           description:
               'Combined with [offset] to determine the location of the [label] relative to the [child].',
+          constructorNullable: true,
           category: PropertyCategory.layout,
           valueShape: ScalarShape(
               propertyType: PropertyType.alignment,
@@ -233,6 +245,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.offset,
           description:
               'Combined with [alignment] to determine the location of the [label] relative to the [child].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.offset,
               dartTypeRef:
@@ -244,6 +257,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'The badge\'s content, typically a [Text] widget that contains 1 to 4 characters.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0016'),
@@ -261,6 +275,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget that the badge is stacked on top of.',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -273,7 +288,6 @@ final Catalog kRegistry = Catalog(
           'A Material Design card: a panel with slightly rounded corners and an elevation shadow.',
       flutterType: 'package:flutter/src/material/card.dart#Card',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0018'),
@@ -281,6 +295,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The card\'s background color.',
           defaultBrandToken: 'surface',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -294,6 +309,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The z-coordinate at which to place this card. This controls the size of the shadow below the card.',
           defaultSource: LiteralDefault(1.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -304,12 +320,14 @@ final Catalog kRegistry = Catalog(
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: 'The shape of the card\'s [Material].',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0020'),
           name: 'margin',
           type: PropertyType.edgeInsets,
           description: 'The empty space that surrounds the card.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -322,6 +340,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.material.Material.clipBehavior}',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -331,6 +350,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -342,7 +362,6 @@ final Catalog kRegistry = Catalog(
       description: 'An M3 filled card — flat surface tinted from the palette.',
       flutterType: 'package:flutter/src/material/card.dart#Card.filled',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0022'),
@@ -350,6 +369,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The card\'s background color.',
           defaultBrandToken: 'surfaceContainerHighest',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -363,6 +383,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The z-coordinate at which to place this card. This controls the size of the shadow below the card.',
           defaultSource: LiteralDefault(0.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -373,12 +394,14 @@ final Catalog kRegistry = Catalog(
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: 'The shape of the card\'s [Material].',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0024'),
           name: 'margin',
           type: PropertyType.edgeInsets,
           description: 'The empty space that surrounds the card.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -391,6 +414,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.material.Material.clipBehavior}',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -400,6 +424,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -411,7 +436,6 @@ final Catalog kRegistry = Catalog(
       description: 'An M3 outlined card — transparent surface with a border.',
       flutterType: 'package:flutter/src/material/card.dart#Card.outlined',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0026'),
@@ -419,6 +443,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The card\'s background color.',
           defaultBrandToken: 'surface',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -432,6 +457,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The z-coordinate at which to place this card. This controls the size of the shadow below the card.',
           defaultSource: LiteralDefault(0.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -442,12 +468,14 @@ final Catalog kRegistry = Catalog(
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: 'The shape of the card\'s [Material].',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0028'),
           name: 'margin',
           type: PropertyType.edgeInsets,
           description: 'The empty space that surrounds the card.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -460,6 +488,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.material.Material.clipBehavior}',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -469,6 +498,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -480,7 +510,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design checkbox.',
       flutterType: 'package:flutter/src/material/checkbox.dart#Checkbox',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0030'),
@@ -488,6 +517,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description: 'Whether this checkbox is checked.',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -501,6 +531,7 @@ final Catalog kRegistry = Catalog(
           description: 'Called when the value of the checkbox should change.',
           required: true,
           callbackSignature: 'ValueChanged<bool?>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -510,6 +541,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The color to use when this checkbox is checked.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -527,7 +559,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/checkbox_list_tile.dart#CheckboxListTile',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0033'),
@@ -535,6 +566,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description: 'Whether this checkbox is checked.',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
@@ -548,6 +580,7 @@ final Catalog kRegistry = Catalog(
           description: 'Called when the value of the checkbox should change.',
           required: true,
           callbackSignature: 'ValueChanged<bool?>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -557,6 +590,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The color to use when this checkbox is checked.',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -567,18 +601,21 @@ final Catalog kRegistry = Catalog(
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: '{@macro flutter.material.ListTile.shape}',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0036'),
           name: 'title',
           type: PropertyType.widget,
           description: 'The primary content of the list tile.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0037'),
           name: 'subtitle',
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0038'),
@@ -586,6 +623,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'A widget to display on the opposite side of the tile from the checkbox.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0039'),
@@ -608,13 +646,13 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design chip.',
       flutterType: 'package:flutter/src/material/chip.dart#Chip',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0040'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0041'),
@@ -641,6 +679,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'surface',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -652,6 +691,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -668,13 +708,13 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design choice chip.',
       flutterType: 'package:flutter/src/material/choice_chip.dart#ChoiceChip',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onSelected],
       properties: [
         PropertyEntry(
           wireId: WireId('p0044'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0045'),
@@ -690,6 +730,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           callbackSignature: 'ValueChanged<bool>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -721,6 +762,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'surface',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -732,6 +774,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -757,13 +800,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/progress_indicator.dart#CircularProgressIndicator',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0050'),
           name: 'value',
           type: PropertyType.real,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -775,6 +818,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -787,6 +831,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description: 'The width of the line used to draw the circle.',
           defaultSource: LiteralDefault(4.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -802,7 +847,6 @@ final Catalog kRegistry = Catalog(
       description: 'A thin horizontal line, with padding on either side.',
       flutterType: 'package:flutter/src/material/divider.dart#Divider',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0053'),
@@ -810,6 +854,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description: 'The divider\'s height extent.',
           defaultSource: LiteralDefault(16.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -821,6 +866,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description: 'The thickness of the line drawn within the divider.',
           defaultSource: LiteralDefault(1.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -833,6 +879,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.Divider.color} The color to use when painting the line.',
           defaultBrandToken: 'onBackground',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -850,7 +897,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/elevated_button.dart#ElevatedButton',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0056'),
@@ -858,6 +904,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -867,6 +914,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -877,6 +925,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
@@ -1057,13 +1106,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/expansion_tile.dart#ExpansionTile',
       childrenSlot: ChildrenSlot.list,
-      fires: [WidgetEventName.onExpansionChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0063'),
           name: 'leading',
           type: PropertyType.widget,
           description: 'A widget to display before the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0064'),
@@ -1078,6 +1127,7 @@ final Catalog kRegistry = Catalog(
           name: 'subtitle',
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0066'),
@@ -1085,6 +1135,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: 'Called when the tile expands or collapses.',
           callbackSignature: 'ValueChanged<bool>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1098,6 +1149,7 @@ final Catalog kRegistry = Catalog(
           name: 'trailing',
           type: PropertyType.widget,
           description: 'A widget to display after the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0069'),
@@ -1116,6 +1168,7 @@ final Catalog kRegistry = Catalog(
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: 'The tile\'s border shape when the sublist is expanded.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0268'),
@@ -1123,6 +1176,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description:
               'The tile\'s border shape when the sublist is collapsed.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0357'),
@@ -1130,6 +1184,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '{@macro flutter.material.Material.clipBehavior}',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -1146,7 +1201,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/express_checkout_button.dart#ExpressCheckoutButton',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0070'),
@@ -1154,6 +1208,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'Fires when the user taps the button. Pass `null` (the default) to render the button in its disabled state.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1177,6 +1232,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'Overrides the platform-default label (for example `\'Subscribe with Apple Pay\'`). When `null`, a sensible default is chosen based on the resolved payment method.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -1193,7 +1249,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/filled_button.dart#FilledButton',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0073'),
@@ -1201,6 +1256,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -1211,6 +1267,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           enumType: 'Clip',
           defaultSource: LiteralDefault('none'),
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -1221,6 +1278,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
@@ -1400,7 +1458,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/filled_button.dart#FilledButton.tonal',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0080'),
@@ -1408,6 +1465,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -1418,6 +1476,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           enumType: 'Clip',
           defaultSource: LiteralDefault('none'),
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -1428,6 +1487,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
@@ -1590,13 +1650,13 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design filter chip.',
       flutterType: 'package:flutter/src/material/filter_chip.dart#FilterChip',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onSelected],
       properties: [
         PropertyEntry(
           wireId: WireId('p0086'),
           name: 'avatar',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0087'),
@@ -1623,6 +1683,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           callbackSignature: 'ValueChanged<bool>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1642,6 +1703,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'surface',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1653,6 +1715,7 @@ final Catalog kRegistry = Catalog(
           name: 'padding',
           type: PropertyType.edgeInsets,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -1677,13 +1740,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/floating_action_button.dart#FloatingActionButton',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0092'),
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0093'),
@@ -1691,6 +1754,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'Text that describes the action that will occur when the button is pressed.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -1703,6 +1767,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The default foreground color for icons and text within the button.',
           defaultBrandToken: 'onPrimaryContainer',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1715,6 +1780,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: 'The button\'s background color.',
           defaultBrandToken: 'primaryContainer',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1727,6 +1793,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The z-coordinate at which to place this button relative to its parent.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1738,6 +1805,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'The callback that is called when the button is tapped or otherwise activated.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1756,6 +1824,7 @@ final Catalog kRegistry = Catalog(
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: 'The shape of the button\'s [Material].',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0361'),
@@ -1779,7 +1848,6 @@ final Catalog kRegistry = Catalog(
           'A graphical icon widget drawn with a glyph from a font described in an [IconData] such as material\'s predefined [IconData]s in [Icons].',
       flutterType: 'package:flutter/src/widgets/icon.dart#Icon',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0099'),
@@ -1788,6 +1856,7 @@ final Catalog kRegistry = Catalog(
           description: 'The size of the icon in logical pixels.',
           defaultSource:
               ThemeBindingDefault(ThemeBindingPath.path('iconTheme.size')),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1800,6 +1869,7 @@ final Catalog kRegistry = Catalog(
           description: 'The color to use when drawing the icon.',
           defaultSource:
               ThemeBindingDefault(ThemeBindingPath.path('iconTheme.color')),
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1826,7 +1896,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design icon button.',
       flutterType: 'package:flutter/src/material/icon_button.dart#IconButton',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0102'),
@@ -1834,6 +1903,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description: 'The size of the icon inside the button.',
           defaultSource: LiteralDefault(24.0),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1845,6 +1915,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'The color to use for the icon inside the button, if the icon is enabled. Defaults to leaving this up to the [icon] widget.',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1858,6 +1929,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The callback that is called when the button is tapped or otherwise activated.',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -1867,6 +1939,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'Text that describes the action that will occur when the button is pressed.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -1890,19 +1963,20 @@ final Catalog kRegistry = Catalog(
       description: 'A rectangular area of a [Material] that responds to touch.',
       flutterType: 'package:flutter/src/material/ink_well.dart#InkWell',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onTap],
       properties: [
         PropertyEntry(
           wireId: WireId('p0107'),
           name: 'child',
           type: PropertyType.widget,
           description: '',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0108'),
           name: 'onTap',
           type: PropertyType.event,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -1910,6 +1984,7 @@ final Catalog kRegistry = Catalog(
           name: 'customBorder',
           type: PropertyType.shapeBorder,
           description: '',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -1923,13 +1998,13 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/progress_indicator.dart#LinearProgressIndicator',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0109'),
           name: 'value',
           type: PropertyType.real,
           description: '',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1940,6 +2015,7 @@ final Catalog kRegistry = Catalog(
           name: 'backgroundColor',
           type: PropertyType.color,
           description: '',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1952,6 +2028,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -1964,6 +2041,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               '{@template flutter.material.LinearProgressIndicator.minHeight} The minimum height of the line used to draw the linear indicator.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -1980,31 +2058,34 @@ final Catalog kRegistry = Catalog(
           'A single fixed-height row that typically contains some text as well as a leading or trailing icon.',
       flutterType: 'package:flutter/src/material/list_tile.dart#ListTile',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onTap],
       properties: [
         PropertyEntry(
           wireId: WireId('p0112'),
           name: 'leading',
           type: PropertyType.widget,
           description: 'A widget to display before the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0113'),
           name: 'title',
           type: PropertyType.widget,
           description: 'The primary content of the list tile.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0114'),
           name: 'subtitle',
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0115'),
           name: 'trailing',
           type: PropertyType.widget,
           description: 'A widget to display after the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0274'),
@@ -2012,12 +2093,14 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description:
               '{@template flutter.material.ListTile.shape} Defines the tile\'s [InkWell.customBorder] and [Ink.decoration] shape. {@endtemplate}',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0116'),
           name: 'onTap',
           type: PropertyType.event,
           description: 'Called when the user taps this list tile.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -2030,13 +2113,13 @@ final Catalog kRegistry = Catalog(
       description: 'An application that uses Material Design.',
       flutterType: 'package:flutter/src/material/app.dart#MaterialApp',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0117'),
           name: 'home',
           type: PropertyType.widget,
           description: '{@macro flutter.widgets.widgetsApp.home}',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0118'),
@@ -2044,6 +2127,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description: '{@macro flutter.widgets.widgetsApp.title}',
           defaultSource: LiteralDefault(''),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -2061,7 +2145,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onSheetDismissed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0316'),
@@ -2114,6 +2197,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Whether a grab handle is shown at the top of the sheet. Null defers to the ambient bottom-sheet theme.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -2125,6 +2209,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'The grab handle\'s color. Null defers to the theme default.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -2160,6 +2245,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description:
               'The sheet\'s background color. Null defers to the theme default.',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -2172,6 +2258,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.real,
           description:
               'The sheet\'s elevation. Null defers to the theme default.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -2183,6 +2270,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.shapeBorder,
           description:
               'The sheet\'s shape. Null defers to the theme default (rounded top corners under Material 3).',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0327'),
@@ -2191,6 +2279,7 @@ final Catalog kRegistry = Catalog(
           description:
               'How to clip the sheet\'s content. Null defers to the theme default.',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -2212,6 +2301,7 @@ final Catalog kRegistry = Catalog(
           name: 'barrierColor',
           type: PropertyType.color,
           description: 'The scrim color. Null defaults to a translucent black.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -2223,6 +2313,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'Semantic label for the scrim, announced by assistive technology.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -2234,6 +2325,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.offset,
           description:
               'The point used to disambiguate the sheet\'s placement on a display with hinges or folds. Null lets the framework choose.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.offset,
               dartTypeRef:
@@ -2245,6 +2337,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'How long the slide-in takes on a programmatic open. Null uses the framework default (250ms).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -2256,6 +2349,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'How long the slide-out takes on a programmatic close. Null uses the framework default (200ms).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -2267,6 +2361,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.curve,
           description:
               'The easing curve for a programmatic open. Null uses the platform default (an eased curve); a drag always tracks the finger 1:1 regardless. Set it to tune the open feel.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.curve,
               dartTypeRef: DartTypeRef(
@@ -2279,6 +2374,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.curve,
           description:
               'The easing curve for a programmatic close. Null uses the platform default. A drag always tracks the finger 1:1 regardless.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.curve,
               dartTypeRef: DartTypeRef(
@@ -2306,6 +2402,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'The surface shown *beneath* the sheet, owned by this widget. When non-null and the platform is iOS/macOS, it scales down and rounds as the sheet rises (the iOS card-sheet look); on other platforms it renders plain behind the sheet. Null (the default) is a pure overlay — the sheet floats over whatever is already behind it, with no owned surface and no scale-down.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0332'),
@@ -2313,6 +2410,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description:
               'Fires when the sheet is dismissed by a downward drag or a scrim tap. Distinct from the paywall-level dismiss: this is the *sheet* closing, not the surface that hosts it. Wire it back to `open = false`.',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -2327,7 +2425,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_pager.dart#RestagePager',
       childrenSlot: ChildrenSlot.list,
-      fires: [WidgetEventName.onPageChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0119'),
@@ -2394,6 +2491,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Fires with the new page index when the visible page changes.',
           callbackSignature: 'ValueChanged<int>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -2408,7 +2506,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_radio_group.dart#RestageRadioGroup<String>',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0399'),
@@ -2425,6 +2522,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The currently-selected option value. The row whose value equals this is checked; `null` (or a value matching no row) leaves the group unselected.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -2437,6 +2535,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Fires with the newly-selected value when the user taps a row. `null` disables selection (the rows render but do not respond).',
           callbackSignature: 'ValueChanged<String?>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -2452,7 +2551,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_dropdown.dart#RestageDropdown<String>',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0402'),
@@ -2469,6 +2567,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'The currently-selected option value, shown as the field\'s current value. `null` (or a value matching no option) shows the [hint].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -2481,6 +2580,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Fires with the newly-selected value when the user picks an option. `null` disables the dropdown (it renders but does not open).',
           callbackSignature: 'ValueChanged<String?>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -2496,7 +2596,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_toggle_buttons.dart#RestageToggleButtons',
       childrenSlot: ChildrenSlot.list,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0405'),
@@ -2523,6 +2622,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Fires with the pressed button\'s index when the user presses a button. `null` disables the set (the buttons render but do not respond).',
           callbackSignature: 'ValueChanged<int>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
       ],
@@ -2538,7 +2638,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_segmented_button.dart#RestageSegmentedButton<String>',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0408'),
@@ -2555,6 +2654,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.stringList,
           description:
               'The currently-selected segment values. Segments whose value is in this list are shown selected; values absent from [items] are ignored. In single-select mode (the default) only the first (in segment order) is honored. `null` (or an empty list) is no initial selection.',
+          constructorNullable: true,
           valueShape: ListShape(
               propertyType: PropertyType.stringList,
               itemShape: ScalarShape(
@@ -2569,6 +2669,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Fires with the whole settled selection — a `List<T>` in **segment order** — when the user changes the selection. `null` leaves the button non-interactive (it renders the initial selection but does not respond).',
           callbackSignature: 'ValueChanged<List<String>>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -2620,7 +2721,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:restage_material/src/widgets/restage_draggable_sheet.dart#RestageDraggableSheet',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0339'),
@@ -2697,6 +2797,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'The duration of a snap animation. Null lets the framework derive it from the fling velocity.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -2720,6 +2821,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.duration,
           description:
               'How long the [expanded]-driven expand/collapse takes. Null uses the framework default (250ms).',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.duration,
               dartTypeRef:
@@ -2731,6 +2833,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.curve,
           description:
               'The easing curve for the [expanded]-driven expand/collapse. Null uses the framework default (an eased curve). A manual drag is unaffected.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.curve,
               dartTypeRef: DartTypeRef(
@@ -2749,7 +2852,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/outlined_button.dart#OutlinedButton',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0125'),
@@ -2757,6 +2859,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -2766,6 +2869,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -2776,6 +2880,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
@@ -2922,7 +3027,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/outlined_button.dart#OutlinedButton.icon',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0130'),
@@ -2930,6 +3034,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -2939,6 +3044,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -2949,6 +3055,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
@@ -3102,7 +3209,6 @@ final Catalog kRegistry = Catalog(
       description: 'Binds a child widget tree to a configured product slot.',
       flutterType: 'package:restage_material/src/widgets/package.dart#Package',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0136'),
@@ -3137,13 +3243,13 @@ final Catalog kRegistry = Catalog(
           'Implements the basic Material Design visual layout structure.',
       flutterType: 'package:flutter/src/material/scaffold.dart#Scaffold',
       childrenSlot: ChildrenSlot.none,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0138'),
           name: 'body',
           type: PropertyType.widget,
           description: 'The primary content of the scaffold.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0139'),
@@ -3152,6 +3258,7 @@ final Catalog kRegistry = Catalog(
           description:
               'The color of the [Material] widget that underlies the entire Scaffold.',
           defaultBrandToken: 'background',
+          constructorNullable: true,
           category: PropertyCategory.style,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
@@ -3168,7 +3275,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design scrollbar.',
       flutterType: 'package:flutter/src/material/scrollbar.dart#Scrollbar',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0140'),
@@ -3183,6 +3289,7 @@ final Catalog kRegistry = Catalog(
           name: 'thumbVisibility',
           type: PropertyType.boolean,
           description: '{@macro flutter.widgets.Scrollbar.thumbVisibility}',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -3193,6 +3300,7 @@ final Catalog kRegistry = Catalog(
           name: 'trackVisibility',
           type: PropertyType.boolean,
           description: '{@macro flutter.widgets.Scrollbar.trackVisibility}',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -3204,6 +3312,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.length,
           description:
               'The thickness of the scrollbar in the cross axis of the scrollable.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3214,6 +3323,7 @@ final Catalog kRegistry = Catalog(
           name: 'interactive',
           type: PropertyType.boolean,
           description: '{@macro flutter.widgets.Scrollbar.interactive}',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -3229,7 +3339,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design slider.',
       flutterType: 'package:flutter/src/material/slider.dart#Slider',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0145'),
@@ -3248,6 +3357,7 @@ final Catalog kRegistry = Catalog(
           name: 'secondaryTrackValue',
           type: PropertyType.real,
           description: 'The secondary track value for this slider.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3260,6 +3370,7 @@ final Catalog kRegistry = Catalog(
           description:
               'Called during a drag when the user is selecting a new value for the slider by dragging.',
           callbackSignature: 'ValueChanged<double>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -3289,6 +3400,7 @@ final Catalog kRegistry = Catalog(
           name: 'divisions',
           type: PropertyType.integer,
           description: 'The number of discrete divisions.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -3300,6 +3412,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description:
               'A label to show above the slider when the slider is active and [SliderThemeData.showValueIndicator] is satisfied.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -3315,7 +3428,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design switch.',
       flutterType: 'package:flutter/src/material/switch.dart#Switch',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0152'),
@@ -3336,6 +3448,7 @@ final Catalog kRegistry = Catalog(
           description: 'Called when the user toggles the switch on or off.',
           required: true,
           callbackSignature: 'ValueChanged<bool>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -3346,6 +3459,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@template flutter.material.switch.activeThumbColor} The color to use when this switch is on. {@endtemplate}',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -3363,7 +3477,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/switch_list_tile.dart#SwitchListTile',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged],
       properties: [
         PropertyEntry(
           wireId: WireId('p0155'),
@@ -3384,6 +3497,7 @@ final Catalog kRegistry = Catalog(
           description: 'Called when the user toggles the switch on or off.',
           required: true,
           callbackSignature: 'ValueChanged<bool>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -3393,6 +3507,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.color,
           description: '{@macro flutter.material.switch.activeThumbColor}',
           defaultBrandToken: 'primary',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.color,
               dartTypeRef:
@@ -3403,12 +3518,14 @@ final Catalog kRegistry = Catalog(
           name: 'title',
           type: PropertyType.widget,
           description: 'The primary content of the list tile.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0159'),
           name: 'subtitle',
           type: PropertyType.widget,
           description: 'Additional content displayed below the title.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0160'),
@@ -3416,12 +3533,14 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description:
               'A widget to display on the opposite side of the tile from the switch.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0277'),
           name: 'shape',
           type: PropertyType.shapeBorder,
           description: '{@macro flutter.material.ListTile.shape}',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3433,7 +3552,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design "Text Button".',
       flutterType: 'package:flutter/src/material/text_button.dart#TextButton',
       childrenSlot: ChildrenSlot.single,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0161'),
@@ -3441,6 +3559,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -3450,6 +3569,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.enumValue,
           description: '',
           enumType: 'Clip',
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -3606,7 +3726,6 @@ final Catalog kRegistry = Catalog(
       flutterType:
           'package:flutter/src/material/text_button.dart#TextButton.icon',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onPressed],
       properties: [
         PropertyEntry(
           wireId: WireId('p0166'),
@@ -3614,6 +3733,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '',
           required: true,
+          constructorNullable: true,
           category: PropertyCategory.behavior,
           priority: PropertyPriority.primary,
         ),
@@ -3624,6 +3744,7 @@ final Catalog kRegistry = Catalog(
           description: '',
           enumType: 'Clip',
           defaultSource: LiteralDefault('none'),
+          constructorNullable: true,
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
@@ -3634,6 +3755,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
         ),
         PropertyEntry(
@@ -3787,13 +3909,13 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design [TabBar] tab.',
       flutterType: 'package:flutter/src/material/tabs.dart#Tab',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0172'),
           name: 'text',
           type: PropertyType.string,
           description: 'The text to display as the tab\'s label.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -3804,12 +3926,14 @@ final Catalog kRegistry = Catalog(
           name: 'icon',
           type: PropertyType.widget,
           description: 'An icon to display as the tab\'s label.',
+          constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0174'),
           name: 'iconMargin',
           type: PropertyType.edgeInsets,
           description: 'The margin added around the tab\'s icon.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -3821,6 +3945,7 @@ final Catalog kRegistry = Catalog(
           name: 'height',
           type: PropertyType.length,
           description: 'The height of the [Tab].',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.real,
               dartTypeRef:
@@ -3831,6 +3956,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget to be used as the tab\'s label.',
+          constructorNullable: true,
         ),
       ],
     ),
@@ -3842,7 +3968,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design text field.',
       flutterType: 'package:flutter/src/material/text_field.dart#TextField',
       childrenSlot: ChildrenSlot.none,
-      fires: [WidgetEventName.onChanged, WidgetEventName.onSubmitted],
       properties: [
         PropertyEntry(
           wireId: WireId('p0177'),
@@ -3862,6 +3987,7 @@ final Catalog kRegistry = Catalog(
           description:
               '{@macro flutter.widgets.editableText.maxLines} * [expands], which determines whether the field should fill the height of its parent.',
           defaultSource: LiteralDefault(1),
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -3873,6 +3999,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.integer,
           description:
               'The maximum number of characters (Unicode grapheme clusters) to allow in the text field.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -3884,6 +4011,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '{@macro flutter.widgets.editableText.onChanged}',
           callbackSignature: 'ValueChanged<String>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -3892,6 +4020,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.event,
           description: '{@macro flutter.widgets.editableText.onSubmitted}',
           callbackSignature: 'ValueChanged<String>',
+          constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
         PropertyEntry(
@@ -3915,7 +4044,6 @@ final Catalog kRegistry = Catalog(
       description: 'A Material Design tooltip.',
       flutterType: 'package:flutter/src/material/tooltip.dart#Tooltip',
       childrenSlot: ChildrenSlot.single,
-      fires: [],
       properties: [
         PropertyEntry(
           wireId: WireId('p0182'),
@@ -3923,6 +4051,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.string,
           description: 'The text to display in the tooltip.',
           required: true,
+          constructorNullable: true,
           priority: PropertyPriority.primary,
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
@@ -3935,6 +4064,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.edgeInsets,
           description:
               'The amount of space by which to inset the [Tooltip]\'s message.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -3946,6 +4076,7 @@ final Catalog kRegistry = Catalog(
           name: 'margin',
           type: PropertyType.edgeInsets,
           description: 'The empty space that surrounds the tooltip.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.edgeInsets,
               dartTypeRef: DartTypeRef(
@@ -3958,6 +4089,7 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.boolean,
           description:
               'Whether the tooltip defaults to being displayed below the widget.',
+          constructorNullable: true,
           valueShape: ScalarShape(
               propertyType: PropertyType.boolean,
               dartTypeRef:
@@ -3968,6 +4100,7 @@ final Catalog kRegistry = Catalog(
           name: 'child',
           type: PropertyType.widget,
           description: 'The widget below this widget in the tree.',
+          constructorNullable: true,
         ),
       ],
     ),

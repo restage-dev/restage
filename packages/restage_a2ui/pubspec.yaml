@@ -32,9 +32,9 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
-  # Test-only: the interactive-proof fixture carries the real
-  # `@RestageProperty(writeBackValue:)` annotation so the proof can read the
-  # pairing from the annotation metadata (the production-read leg).
+  # Test-only: the interactive-proof fixture carries real A2UI target
+  # configuration so the proof can read the write-back pairing through the
+  # production target-config reader.
   rfw_catalog_schema:
     path: ../rfw_catalog_schema
   # Test-only: the genui version-pin tripwire parses pubspec.lock (YAML).

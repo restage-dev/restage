@@ -600,7 +600,7 @@ void main() {
           isA<StateError>().having(
             (e) => e.message,
             'message',
-            allOf(contains('Box<Inner>'), contains('follow-up')),
+            allOf(contains('Box<Inner>'), contains('recursive Dart identity')),
           ),
         ),
       );

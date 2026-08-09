@@ -5,8 +5,8 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// The `usage` seam: `@RestageWidget(usage:)` is read straight off the
-/// annotation (it never joins the catalog wire format) and threaded into the
+/// The `usage` seam: `@a2ui.Config.usage` is read from target configuration
+/// (it never joins the catalog wire format) and threaded into the
 /// generated catalog's system-prompt fragments — `"<name>: <text>"`, falling
 /// back to the widget's `description` when `usage` is absent.
 ///
@@ -34,7 +34,10 @@ Future<(bool succeeded, String dart)> _runBuilder(
   final dart = result.succeeded
       ? String.fromCharCodes(
           result.readerWriter.testing.readBytes(
-            AssetId('apps_examples', 'lib/restage_a2ui_catalog.g.dart'),
+            AssetId(
+              'apps_examples',
+              'lib/generated/restage_a2ui_catalog.g.dart',
+            ),
           ),
         )
       : '';
@@ -52,18 +55,19 @@ const _libraryDeclaration = '''
 ''';
 
 void main() {
-  group('UserA2uiCatalogBuilder — usage note threaded from the annotation', () {
+  group('UserA2uiCatalogBuilder — usage note threaded from config', () {
     test(
-        'a widget with @RestageWidget(usage:) emits a fragment using the '
+        'a widget with @a2ui.Config.usage emits a fragment using the '
         'usage text, not the description', () async {
       const source = '''
+        import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        @a2ui.Config.usage('Use Note for a short aside.')
         @RestageWidget(
           name: 'Note',
           library: WidgetLibrary.custom('acme.widgets'),
           category: WidgetCategory.decoration,
           description: 'a short aside widget',
-          usage: 'Use Note for a short aside.',
         )
         class Note {
           const Note({required this.text});
@@ -93,7 +97,9 @@ void main() {
         'a widget WITHOUT usage but WITH a description falls back to the '
         'description in its fragment line', () async {
       const source = '''
+        import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        @a2ui.Config.usage('   ')
         @RestageWidget(
           name: 'Badge',
           library: WidgetLibrary.custom('acme.widgets'),
@@ -126,7 +132,6 @@ void main() {
           library: WidgetLibrary.custom('acme.widgets'),
           category: WidgetCategory.decoration,
           description: 'a small selectable chip',
-          usage: '   ',
         )
         class Chip {
           const Chip({required this.text});
@@ -144,6 +149,186 @@ void main() {
       expect(dart, contains("'Chip: a small selectable chip'"));
       expect(dart, isNot(contains("'Chip: '")));
       expect(dart, isNot(contains("'Chip:    '")));
+    });
+
+    test('a lookalike RestageProperty cannot alter production pairing output',
+        () async {
+      const preamble = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart'
+            hide RestageProperty;
+
+        class RestageProperty {
+          const RestageProperty({this.writeBackValue});
+          final String? writeBackValue;
+        }
+
+        @RestageWidget(
+          name: 'Control',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.input,
+          description: 'a controlled value',
+        )
+        class Control {
+          const Control({
+            required this.value,
+            required this.count,
+            required this.onChanged,
+          });
+          /// Current value.
+          final String value;
+          /// An unrelated count.
+          final int count;
+      ''';
+      const baseline = '''
+        $preamble
+          /// Reports a changed value.
+          final void Function(String) onChanged;
+        }
+      ''';
+      const lookalike = '''
+        $preamble
+          /// Reports a changed value.
+          @RestageProperty(writeBackValue: 'count')
+          final void Function(String) onChanged;
+        }
+      ''';
+
+      final baselineResult = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/control.dart': baseline,
+      });
+      final lookalikeResult = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/control.dart': lookalike,
+      });
+
+      expect(baselineResult.$1, isTrue);
+      expect(lookalikeResult.$1, isTrue);
+      expect(lookalikeResult.$2, baselineResult.$2);
+    });
+
+    test('a substituted super-formal input reaches generated A2UI', () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class BaseControl<T> {
+          const BaseControl({required this.value});
+          /// Current value.
+          final T value;
+        }
+
+        /// A concrete customer control.
+        @RestageWidget(
+          name: 'Control',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.input,
+        )
+        class Control extends BaseControl<String> {
+          const Control({required super.value});
+        }
+      ''';
+
+      final (succeeded, dart) = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/control.dart': source,
+      });
+
+      expect(succeeded, isTrue);
+      expect(dart, contains('Control('));
+      expect(dart, contains('value:'));
+    });
+
+    test('an inherited field write-back shorthand matches the class map',
+        () async {
+      const classMap = '''
+        import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class BaseControl {
+          const BaseControl({required this.value, required this.onChanged});
+          /// Current value.
+          final String value;
+          /// Reports a changed value.
+          final void Function(String) onChanged;
+        }
+
+        /// A concrete customer control.
+        @a2ui.Config.writeBackValues({'onChanged': 'value'})
+        @RestageWidget(
+          name: 'Control',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.input,
+        )
+        class Control extends BaseControl {
+          const Control({required super.value, required super.onChanged});
+        }
+      ''';
+      const fieldShorthand = '''
+        import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        class BaseControl {
+          const BaseControl({required this.value, required this.onChanged});
+          /// Current value.
+          final String value;
+          /// Reports a changed value.
+          @a2ui.Config.writeBackValue('value')
+          final void Function(String) onChanged;
+        }
+
+        /// A concrete customer control.
+        @RestageWidget(
+          name: 'Control',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.input,
+        )
+        class Control extends BaseControl {
+          const Control({required super.value, required super.onChanged});
+        }
+      ''';
+
+      final classMapResult = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/control.dart': classMap,
+      });
+      final fieldResult = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/control.dart': fieldShorthand,
+      });
+
+      expect(classMapResult.$1, isTrue);
+      expect(fieldResult.$1, isTrue);
+      expect(fieldResult.$2, classMapResult.$2);
+    });
+
+    test('an unresolved write-back map reference fails the production build',
+        () async {
+      const source = '''
+        import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        /// An invalid controlled value.
+        @a2ui.Config.writeBackValues({'missingCallback': 'missingValue'})
+        @RestageWidget(
+          name: 'Control',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.input,
+        )
+        class Control {
+          const Control({required this.value});
+
+          /// Current value.
+          final String value;
+        }
+      ''';
+
+      final (succeeded, dart) = await _runBuilder({
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/control.dart': source,
+      });
+
+      expect(succeeded, isFalse);
+      expect(dart, isEmpty);
     });
   });
 }

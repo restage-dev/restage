@@ -4,16 +4,19 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/callback_shape.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/customer_map_plan.dart';
 import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart'
-    show structuredSlotKey;
+    show isCustomerRecordPropertySlot, structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_discovery.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/json_scalar_type.dart';
+import 'package:restage_codegen/src/rfw_callback_signature.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
+import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
     show
         MapAdmitted,
@@ -46,6 +49,7 @@ final class WidgetVisitorResult {
     Map<String, ReconstructionPlan> reconstructionPlans = const {},
     Map<String, MapPlan> mapPlans = const {},
     Map<String, RecordPlan> recordPlans = const {},
+    List<PropertyExclusion> exclusions = const [],
   })  : widgets = List.unmodifiable(widgets),
         issues = List.unmodifiable(issues),
         structuredTypes = List.unmodifiable(structuredTypes),
@@ -56,7 +60,8 @@ final class WidgetVisitorResult {
         widgetUnrenderable = Map.unmodifiable(widgetUnrenderable),
         reconstructionPlans = Map.unmodifiable(reconstructionPlans),
         mapPlans = Map.unmodifiable(mapPlans),
-        recordPlans = Map.unmodifiable(recordPlans);
+        recordPlans = Map.unmodifiable(recordPlans),
+        exclusions = List.unmodifiable(exclusions);
 
   /// Successfully extracted widget entries.
   final List<WidgetEntry> widgets;
@@ -97,6 +102,10 @@ final class WidgetVisitorResult {
 
   /// The build-time record reconstruction recipe per record slot.
   final Map<String, RecordPlan> recordPlans;
+
+  /// Constructor inputs dropped because this target has no decoder for their
+  /// type, recorded so the omission is queryable rather than silent.
+  final List<PropertyExclusion> exclusions;
 }
 
 /// Chooses the format-specific projection rules for [visitRestageWidgets].
@@ -104,22 +113,34 @@ enum WidgetVisitorTarget {
   /// Preserve the existing RFW catalog vocabulary and requiredness semantics.
   rfw,
 
+  /// Preserve the shared catalog vocabulary for Widgetbook story generation.
+  widgetbook,
+
   /// Preserve A2UI scalar lists and constructor-derived data requiredness.
   a2ui,
 }
 
+const _catalogSchemaOrigin = 'package:rfw_catalog_schema';
+
+ElementAnnotation? _catalogAnnotation(Element element, String name) =>
+    firstAnnotationFromOriginAny(
+      element,
+      {name},
+      _catalogSchemaOrigin,
+    );
+
 /// Walks [library] for classes annotated with `@RestageWidget`. For each:
 /// - Extracts the annotation's catalog metadata (name, library, category,
-///   description, fires, childrenSlot, deprecatedSince).
+///   description, and childrenSlot).
 /// - Synthesizes `flutterType` from the annotated class's library URI +
 ///   class name.
-/// - Walks `@RestageProperty`-annotated fields, infers each property type
-///   from the field's static Dart type, and decodes literal defaults.
+/// - Walks public constructor-bound inputs in constructor order, applies an
+///   optional `@RestageProperty` overlay, and infers each property type.
 ///
 /// When [target] is [WidgetVisitorTarget.a2ui], direct `List<String>`,
 /// `List<int>`, `List<double>`, `List<num>`, and `List<bool>` properties are
-/// admitted through the analyzer seam. The default remains the RFW target so
-/// existing RFW catalog bytes and callers are unchanged.
+/// admitted through the analyzer seam. The RFW and Widgetbook targets retain
+/// the shared catalog projection.
 ///
 /// At end-of-pass, detects within-library duplicate widget names (same
 /// `(library namespace, name)`) and emits [IssueCode.duplicateWidgetName].
@@ -136,10 +157,29 @@ WidgetVisitorResult visitRestageWidgets(
   // per-widget property build reads them.
   final widgetClasses = [
     for (final cls in library.classes)
-      if (firstAnnotation(cls, 'RestageWidget') != null) cls,
+      if (_catalogAnnotation(cls, 'RestageWidget') != null) cls,
   ];
+  final constructorFacts = <ClassElement, WidgetConstructorFacts>{};
+  for (final cls in widgetClasses) {
+    final facts = readWidgetConstructorFacts(cls, assetId);
+    constructorFacts[cls] = facts;
+    issues.addAll(
+      facts.issues.map(
+        (issue) => Issue(
+          code: issue.code,
+          message: 'For the ${target.name} target, ${issue.message}',
+          location: issue.location,
+          capabilityGapSubject: issue.capabilityGapSubject,
+        ),
+      ),
+    );
+  }
   final structured = discoverCustomerStructured(
     widgetClasses: widgetClasses,
+    widgetInputs: {
+      for (final entry in constructorFacts.entries)
+        entry.key: entry.value.inputs,
+    },
     assetId: assetId,
     issues: issues,
   );
@@ -149,8 +189,12 @@ WidgetVisitorResult visitRestageWidgets(
   // Widget-level exclusions are collected first-wins and surfaced at the one
   // admission point. Keyed by `flutterType`.
   final widgetUnrenderable = <String, String>{};
+  // Property-level exclusions: inputs dropped because this target has no
+  // decoder for their type. Recorded rather than raised, because an optional
+  // input the compiler cannot decode is ordinary Dart omission.
+  final exclusions = <PropertyExclusion>[];
   for (final cls in widgetClasses) {
-    final annotation = firstAnnotation(cls, 'RestageWidget')!;
+    final annotation = _catalogAnnotation(cls, 'RestageWidget')!;
     final entry = _readWidgetAnnotation(
       cls,
       annotation,
@@ -158,25 +202,14 @@ WidgetVisitorResult visitRestageWidgets(
       issues,
       structured,
       widgetUnrenderable: widgetUnrenderable,
+      exclusions: exclusions,
       target: target,
       mapPlans: mapPlans,
       recordPlans: recordPlans,
+      constructorFacts: constructorFacts[cls]!,
     );
     if (entry == null) continue;
     widgets.add(entry);
-    // A positional ctor param NOT bound to an annotated `@RestageProperty`
-    // field (the factory emits no arg for it) before an annotated
-    // field-positional
-    // shifts the later prop's value into the hole's slot — the widget-level
-    // analog of the nested positional-hole guard, sharing one hole definition.
-    final ctor = defaultGenerativeConstructor(cls);
-    if (ctor != null) {
-      final propNames = {for (final p in entry.properties) p.name};
-      final hole = positionalHoleReason(ctor, propNames);
-      if (hole != null) {
-        widgetUnrenderable.putIfAbsent(entry.flutterType, () => hole);
-      }
-    }
   }
 
   final byKey = <String, List<WidgetEntry>>{};
@@ -204,18 +237,28 @@ WidgetVisitorResult visitRestageWidgets(
     );
   }
 
+  final nullableStructuredSlots = <String>{
+    ...structured.nullableStructuredSlots,
+    for (final widget in widgets)
+      for (final property in widget.properties)
+        if (property.constructorNullable &&
+            isCustomerRecordPropertySlot(property))
+          structuredSlotKey(widget.flutterType, property.name),
+  };
+
   return WidgetVisitorResult(
     widgets: widgets,
     issues: issues,
     structuredTypes: structured.structuredTypes,
     unions: structured.unions,
     slotTargets: structured.slotTargets,
-    nullableStructuredSlots: structured.nullableStructuredSlots,
+    nullableStructuredSlots: nullableStructuredSlots,
     localUnrenderable: structured.localUnrenderable,
     widgetUnrenderable: widgetUnrenderable,
     reconstructionPlans: structured.reconstructionPlans,
     mapPlans: mapPlans,
     recordPlans: recordPlans,
+    exclusions: exclusions,
   );
 }
 
@@ -226,13 +269,22 @@ WidgetEntry? _readWidgetAnnotation(
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
   required Map<String, String> widgetUnrenderable,
+  required List<PropertyExclusion> exclusions,
   required WidgetVisitorTarget target,
   required Map<String, MapPlan> mapPlans,
   required Map<String, RecordPlan> recordPlans,
+  required WidgetConstructorFacts constructorFacts,
 }) {
   final value = annotation.computeConstantValue();
   final className = cls.name ?? '<unnamed>';
   final widgetLocation = '${assetId.path}#$className';
+  if (constructorFacts.issues.any(
+    (issue) =>
+        issue.code == IssueCode.invalidWidgetConstructorInput &&
+        issue.location == widgetLocation,
+  )) {
+    return null;
+  }
   if (value == null) {
     issues.add(
       Issue(
@@ -263,21 +315,32 @@ WidgetEntry? _readWidgetAnnotation(
   final libraryNamespace =
       value.getField('library')?.getField('namespace')?.toStringValue();
   final categoryName = _enumName(value.getField('category'));
-  final description = value.getField('description')?.toStringValue();
+  final explicitDescription =
+      value.getField('description')?.toStringValue() ?? '';
+  final description = explicitDescription.trim().isNotEmpty
+      ? explicitDescription
+      : normalizeDartdoc(cls.documentationComment);
 
-  if (name == null ||
-      libraryNamespace == null ||
-      categoryName == null ||
-      description == null) {
+  if (name == null || libraryNamespace == null || categoryName == null) {
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
         message: 'Missing required fields on @RestageWidget for $className '
-            '(name/library/category/description).',
+            '(name/library/category).',
         location: widgetLocation,
       ),
     );
     return null;
+  }
+  if (description == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingCatalogDescription,
+        message: '$className requires either RestageWidget.description or '
+            'Dart documentation on the class.',
+        location: widgetLocation,
+      ),
+    );
   }
 
   final library = WidgetLibrary.fromNamespace(libraryNamespace);
@@ -296,49 +359,36 @@ WidgetEntry? _readWidgetAnnotation(
 
   final childrenSlot =
       _childrenSlotFromAnnotation(value, issues, widgetLocation);
-  final fires = _firesFromAnnotation(value, issues, widgetLocation);
-  final deprecatedSince = value.getField('deprecatedSince')?.toStringValue();
   final flutterType = _flutterTypeOf(cls);
 
-  // Collect each property with a stable ordering key so POSITIONAL args emit in
-  // CONSTRUCTOR order, not field-declaration order: a positional ctor param
-  // gets its ctor index (0,1,...); everything else keeps field order after the
-  // positionals. The factory emits positional args first, in this order, so a
-  // widget whose fields are declared out of ctor order (`Card(this.a, this.b)`
-  // with `b` declared first) still emits `Card(<a>, <b>)`. Named args are
-  // order-independent. Same analyzer-ctor-order view the reconstruction plan
-  // uses for nested positional args.
-  final keyed = <({int key, PropertyEntry prop})>[];
-  var fieldOrder = 0;
-  for (final field in cls.fields) {
-    final propAnnotation = firstAnnotation(field, 'RestageProperty');
-    if (propAnnotation == null) continue;
-    final order = fieldOrder++;
-    final p = _readPropertyAnnotation(
-      field,
-      propAnnotation,
+  final properties = <PropertyEntry>[];
+  final exclusionStart = exclusions.length;
+  for (final input in constructorFacts.inputs) {
+    final p = _readPropertyInput(
+      input,
       assetId,
       issues,
       structured,
       widgetFlutterType: flutterType,
       library: library,
       widgetUnrenderable: widgetUnrenderable,
+      exclusions: exclusions,
       target: target,
       mapPlans: mapPlans,
       recordPlans: recordPlans,
     );
-    // A bad property emits its own issue; keep collecting so a typo on one
-    // field doesn't silently drop the entire widget from the catalog.
     if (p == null) continue;
-    final positionalIndex = _positionalCtorIndex(field);
-    final key = positionalIndex ?? (_namedSortBase + order);
-    keyed.add((key: key, prop: p));
+    properties.add(p);
   }
-  // Every key is distinct (positional ctor indices are small + unique; named
-  // keys are `_namedSortBase + order`, unique + strictly larger), so an
-  // unstable sort is deterministic.
-  keyed.sort((a, b) => a.key.compareTo(b.key));
-  final properties = [for (final entry in keyed) entry.prop];
+  _validateTargetPositionalExclusions(
+    className: className,
+    target: target,
+    inputs: constructorFacts.inputs,
+    properties: properties,
+    exclusions: exclusions.skip(exclusionStart),
+    issues: issues,
+  );
+  if (description == null) return null;
 
   return WidgetEntry(
     wireId: WireId.unallocatedWidget,
@@ -348,59 +398,8 @@ WidgetEntry? _readWidgetAnnotation(
     description: description,
     flutterType: flutterType,
     childrenSlot: childrenSlot,
-    fires: fires,
     properties: properties,
-    deprecatedSince: deprecatedSince,
   );
-}
-
-/// The property-ordering key base for NAMED (or non-constructor) properties —
-/// strictly larger than any positional ctor index, so positional properties
-/// sort first (in ctor order) and named properties follow (in field order).
-const int _namedSortBase = 1 << 20;
-
-/// The index of [field]'s parameter in its owning class's default generative
-/// constructor's formal-parameter list WHEN that parameter is POSITIONAL, else
-/// `null` (a named param, or not a constructor param). Positional parameters
-/// precede named ones in `formalParameters`, so the index is the positional
-/// slot — the order the generated factory must emit positional args in.
-int? _positionalCtorIndex(FieldElement field) {
-  final owner = field.enclosingElement;
-  if (owner is! ClassElement) return null;
-  final fieldName = field.name;
-  if (fieldName == null) return null;
-  final ctor = owner.constructors
-      .where((c) => !c.isFactory && const {null, '', 'new'}.contains(c.name))
-      .firstOrNull;
-  if (ctor == null) return null;
-  final params = ctor.formalParameters;
-  for (var i = 0; i < params.length; i++) {
-    if (params[i].name == fieldName) {
-      return params[i].isPositional ? i : null;
-    }
-  }
-  return null;
-}
-
-/// [field]'s parameter on its owning class's default (unnamed) generative
-/// constructor — the constructor the generated reconstruction / factory
-/// targets — or `null` when there is no such constructor or no parameter
-/// binds the field. The constructor is the source of truth for a property's
-/// required-ness (a structured argument the constructor requires) and its
-/// positional-ness (a positional argument must emit positionally, not as a
-/// named argument).
-FormalParameterElement? _defaultConstructorFormalFor(FieldElement field) {
-  final owner = field.enclosingElement;
-  if (owner is! ClassElement) return null;
-  final fieldName = field.name;
-  if (fieldName == null) return null;
-  final ctor = owner.constructors
-      .where(
-        (c) => !c.isFactory && const {null, '', 'new'}.contains(c.name),
-      )
-      .firstOrNull;
-  if (ctor == null) return null;
-  return ctor.formalParameters.where((p) => p.name == fieldName).firstOrNull;
 }
 
 /// Synthesizes a `flutterType` string for an `@RestageWidget`-annotated
@@ -412,9 +411,8 @@ String _flutterTypeOf(ClassElement cls) {
   return '$libraryUri#$className';
 }
 
-PropertyEntry? _readPropertyAnnotation(
-  FieldElement field,
-  ElementAnnotation annotation,
+PropertyEntry? _readPropertyInput(
+  WidgetConstructorInput input,
   AssetId assetId,
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
@@ -422,14 +420,17 @@ PropertyEntry? _readPropertyAnnotation(
   required WidgetLibrary library,
   required String widgetFlutterType,
   required Map<String, String> widgetUnrenderable,
+  required List<PropertyExclusion> exclusions,
   required Map<String, MapPlan> mapPlans,
   required Map<String, RecordPlan> recordPlans,
 }) {
-  final value = annotation.computeConstantValue();
-  final fieldName = field.name ?? '<unnamed>';
-  final ownerName = field.enclosingElement.name ?? '<unnamed>';
+  final field = input.field;
+  final annotation = input.propertyAnnotation;
+  final value = annotation?.computeConstantValue();
+  final fieldName = input.name;
+  final ownerName = widgetFlutterType.split('#').last;
   final propertyLocation = '${assetId.path}#$ownerName.$fieldName';
-  if (value == null) {
+  if (annotation != null && value == null) {
     issues.add(
       Issue(
         code: IssueCode.missingAnnotationField,
@@ -440,22 +441,22 @@ PropertyEntry? _readPropertyAnnotation(
     );
     return null;
   }
-  final description = value.getField('description')?.toStringValue();
-  final annotationRequired = value.getField('required')?.toBoolValue() ?? false;
+  final explicitDescription =
+      value?.getField('description')?.toStringValue() ?? '';
+  final description = explicitDescription.trim().isNotEmpty
+      ? explicitDescription
+      : input.dartdocDescription;
+  final annotationRequired =
+      value?.getField('required')?.toBoolValue() ?? false;
   final defaultBrandToken =
-      value.getField('defaultBrandToken')?.toStringValue();
-  final defaultValue = _decodeDefaultValue(
-    value.getField('defaultValue'),
-    issues,
-    propertyLocation,
-  );
+      value?.getField('defaultBrandToken')?.toStringValue();
   final defaultSource = _decodeDefaultSource(
-    value.getField('defaultSource'),
+    value?.getField('defaultSource'),
     issues,
     propertyLocation,
   );
   final decodedValidationRule = _decodeValidationRule(
-    value.getField('validationRule'),
+    value?.getField('validationRule'),
     issues: issues,
     location: propertyLocation,
     ownerName: ownerName,
@@ -464,7 +465,7 @@ PropertyEntry? _readPropertyAnnotation(
   if (!decodedValidationRule.valid) return null;
   final validationRule = decodedValidationRule.value;
   final constraints = _decodeConstraints(
-    value.getField('constraints'),
+    value?.getField('constraints'),
     issues: issues,
     location: propertyLocation,
     ownerName: ownerName,
@@ -472,16 +473,15 @@ PropertyEntry? _readPropertyAnnotation(
   );
   if (constraints == null) return null;
 
-  final declaredDefaults = (defaultValue == null ? 0 : 1) +
-      (defaultBrandToken == null ? 0 : 1) +
-      (defaultSource == null ? 0 : 1);
+  final declaredDefaults =
+      (defaultBrandToken == null ? 0 : 1) + (defaultSource == null ? 0 : 1);
   if (declaredDefaults > 1) {
     issues.add(
       Issue(
         code: IssueCode.conflictingDefaultStrategy,
         message:
             '@RestageProperty on $ownerName.$fieldName supplies more than one '
-            'of defaultValue / defaultBrandToken / defaultSource. Use at most '
+            'of defaultBrandToken / defaultSource. Use at most '
             'one defaulting strategy.',
         location: propertyLocation,
       ),
@@ -505,9 +505,9 @@ PropertyEntry? _readPropertyAnnotation(
   if (description == null) {
     issues.add(
       Issue(
-        code: IssueCode.missingAnnotationField,
-        message:
-            '@RestageProperty on $ownerName.$fieldName requires a description.',
+        code: IssueCode.missingCatalogDescription,
+        message: '$ownerName.$fieldName requires either '
+            'RestageProperty.description or Dart documentation.',
         location: propertyLocation,
       ),
     );
@@ -518,9 +518,9 @@ PropertyEntry? _readPropertyAnnotation(
   // sealed union) is resolved by the structured pre-pass. Named records with
   // admitted scalar or enum labels are resolved at the RFW boundary below;
   // scalar / enum / widget / event types fall through to legacy type inference.
-  final structuredShape = structured.shapeFor(field.type);
+  final structuredShape = structured.shapeFor(input.type);
   final isA2ui = target == WidgetVisitorTarget.a2ui;
-  final a2uiScalarList = isA2ui && _isA2uiScalarList(field.type);
+  final a2uiScalarList = isA2ui && _isA2uiScalarList(input.type);
   // Record and map value shapes mark this wire format only; other emit targets
   // keep an independent data-shape boundary. Both ride the same gate, and they
   // are mutually exclusive: a type classified as a record is never offered to
@@ -528,18 +528,22 @@ PropertyEntry? _readPropertyAnnotation(
   final customerValueSlot = target == WidgetVisitorTarget.rfw &&
       structuredShape == null &&
       !a2uiScalarList;
-  final recordClassification =
-      customerValueSlot ? classifyRecordType(field.type) : const NotARecord();
+  final recordClassification = customerValueSlot
+      ? classifyRecordType(input.type, admitNullableSlot: true)
+      : const NotARecord();
   final mapClassification =
       customerValueSlot && recordClassification is NotARecord
           ? classifyMapType(
-              field.type,
+              input.type,
               structuredValuesAdmitted: true,
               library: library,
               policy: structured.policy,
             )
           : const NotAMap();
   final excludedReason = switch ((recordClassification, mapClassification)) {
+    (RecordAdmitted(), _) when input.nullable && input.required =>
+      'a required nullable record cannot preserve explicit null through RFW. '
+          'Record slot on $ownerName.$fieldName was excluded.',
     (RecordExcluded(:final reason), _) =>
       '$reason Record slot on $ownerName.$fieldName was excluded.',
     (_, MapExcluded(:final reason)) =>
@@ -583,56 +587,73 @@ PropertyEntry? _readPropertyAnnotation(
     type = PropertyType.unknown;
   } else {
     type = _inferPropertyType(
-      field.type,
+      input.type,
       field,
       assetId,
       issues,
       target: target,
+      input: input,
+      widgetName: ownerName,
+      exclusions: exclusions,
     );
   }
   if (type == null) return null;
 
   // The default generative constructor binds this field — the source of truth
   // for its required-ness and positional-ness.
-  final ctorFormal = _defaultConstructorFormalFor(field);
-
-  // RFW retains its historical annotation-only rule for ordinary properties,
-  // with constructor-derived requiredness only for structured data. A2UI uses
-  // the constructor for every data-bearing property because its JSON Schema
-  // must describe what generated construction actually requires. Events are
-  // excluded from the A2UI data schema even when their constructor formal is
-  // required; the builder's separate loud-coverage gate still verifies that a
-  // required callback can be lowered.
-  final required = switch (target) {
-    WidgetVisitorTarget.rfw => structuredShape != null
-        ? (annotationRequired || (ctorFormal?.isRequired ?? false))
-        : annotationRequired,
-    WidgetVisitorTarget.a2ui => type != PropertyType.event &&
-        (annotationRequired || (ctorFormal?.isRequired ?? false)),
-  };
+  final required = annotationRequired || input.required;
 
   // A POSITIONAL constructor argument must emit positionally — `Widget(arg)`,
   // not `Widget(name: arg)` — or the generated factory / A2UI reconstruction
   // does not compile. Derived from the constructor formal for EVERY property
   // type (positional-ness is not structured-specific); defaults to named when
   // no default-constructor parameter binds the field.
-  final positional = ctorFormal?.isPositional ?? false;
+  final positional = input.positional;
 
   // Mutual exclusion (checked above) guarantees at most one defaulting
-  // strategy is set, so an explicit literal `defaultValue` folds into a
-  // canonical LiteralDefault source — the legacy field is no longer stored.
-  final resolvedSource = defaultSource ??
-      (defaultValue != null ? LiteralDefault(defaultValue) : null);
+  // strategy is set.
+  var resolvedSource = defaultSource;
+  if (target != WidgetVisitorTarget.widgetbook) {
+    final constructorDefault = input.constructorDefault;
+    if (constructorDefault
+        case UnsupportedWidgetConstructorDefault(:final source)) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidWidgetConstructorInput,
+          message: '$ownerName.$fieldName has constructor default '
+              '$source, which the ${target.name} target cannot reproduce. '
+              'Make the Dart default public, importable, and reconstructable; '
+              'change the constructor contract (for example, to a safe '
+              'nullable input without a non-null default); use a '
+              'catalog-facing wrapper; or ignore the optional input where '
+              'omission is semantically legal.',
+          location: propertyLocation,
+        ),
+      );
+      return null;
+    }
+    if (resolvedSource == null && defaultBrandToken == null) {
+      resolvedSource = switch (constructorDefault) {
+        NoWidgetConstructorDefault() || NullWidgetConstructorDefault() => null,
+        LiteralWidgetConstructorDefault(:final value) => LiteralDefault(value),
+        EnumWidgetConstructorDefault(:final member) => LiteralDefault(member),
+        StaticMemberWidgetConstructorDefault() ||
+        StructuralWidgetConstructorDefault() ||
+        UnsupportedWidgetConstructorDefault() =>
+          null,
+      };
+    }
+  }
 
-  // Both targets retain a source-qualified enum identity for an enum-valued
-  // property. The RFW customer catalog needs it so `encodeCatalog` accepts the
-  // enum slot (an enumValue property must carry `enumType` or an `EnumShape`)
-  // and so the generated factory can import + spell a customer enum instead of
-  // dropping an otherwise representable enum at the emitter boundary; a
-  // built-in (Flutter/Dart) enum comes bare through the emitter's flutter
-  // import. A2UI's projection is unchanged.
+  // Every projection retains a source-qualified enum identity for an
+  // enum-valued property. The shared catalog needs it so `encodeCatalog`
+  // accepts the enum slot (an enumValue property must carry `enumType` or an
+  // `EnumShape`) and so generated code can import + spell a customer enum
+  // instead of dropping an otherwise representable value; a built-in
+  // (Flutter/Dart) enum comes bare through the emitter's Flutter import.
+  // A2UI's projection is unchanged.
   final EnumShape? enumShape;
-  final fieldType = field.type;
+  final fieldType = input.type;
   if (type == PropertyType.enumValue &&
       fieldType is InterfaceType &&
       fieldType.element is EnumElement) {
@@ -641,11 +662,28 @@ PropertyEntry? _readPropertyAnnotation(
       propertyType: PropertyType.enumValue,
       enumRef: DartTypeRef(
         libraryUri: element.library.identifier,
-        symbolName: element.name ?? field.type.getDisplayString(),
+        symbolName: element.name ?? input.type.getDisplayString(),
       ),
     );
   } else {
     enumShape = null;
+  }
+  final callback =
+      target == WidgetVisitorTarget.rfw && type == PropertyType.event
+          ? _rfwCallbackSignature(input.type)
+          : const _CallbackSignatureResult.valid(null);
+  if (target == WidgetVisitorTarget.rfw && !callback.valid) {
+    issues.add(
+      Issue(
+        code: IssueCode.invalidEventConfiguration,
+        message: '$ownerName.$fieldName has unsupported callback signature '
+            '${input.type.getDisplayString()}. RFW customer events support a '
+            'zero-argument void callback, one required positional dart:core '
+            'scalar payload (nullable allowed), or one non-null List of those '
+            'scalars (nullable elements allowed).',
+        location: propertyLocation,
+      ),
+    );
   }
 
   return PropertyEntry(
@@ -657,12 +695,42 @@ PropertyEntry? _readPropertyAnnotation(
     positional: positional,
     defaultBrandToken: defaultBrandToken,
     defaultSource: resolvedSource,
+    constructorNullable: input.nullable,
+    constructorDefault: input.constructorDefault.reconstructedValue,
     enumType: enumShape?.enumRef.symbolName,
     structuredRef: structuredShape?.structuredRef,
     valueShape: structuredShape?.valueShape ?? customerShape ?? enumShape,
     validationRule: validationRule,
     constraints: constraints,
+    callbackSignature: callback.signature,
   );
+}
+
+final class _CallbackSignatureResult {
+  const _CallbackSignatureResult.valid(this.signature) : valid = true;
+
+  const _CallbackSignatureResult.invalid()
+      : valid = false,
+        signature = null;
+
+  final bool valid;
+  final String? signature;
+}
+
+_CallbackSignatureResult _rfwCallbackSignature(DartType type) {
+  return switch (classifyResolvedCallbackShape(type)) {
+    ZeroArgumentCallback() => const _CallbackSignatureResult.valid(null),
+    SingleValueCallback(:final valueType) =>
+      _rfwSingleValueCallbackSignature(valueType),
+    UnsupportedCallback() => const _CallbackSignatureResult.invalid(),
+  };
+}
+
+_CallbackSignatureResult _rfwSingleValueCallbackSignature(DartType valueType) {
+  final signature = RfwCallbackSignature.fromResolvedCustomerPayload(valueType);
+  return signature == null
+      ? const _CallbackSignatureResult.invalid()
+      : _CallbackSignatureResult.valid(signature.source);
 }
 
 ({bool valid, ValidationExpr? value}) _decodeValidationRule(
@@ -806,10 +874,13 @@ PropertyType? _inferPropertyType(
   AssetId assetId,
   List<Issue> issues, {
   required WidgetVisitorTarget target,
+  required WidgetConstructorInput input,
+  required String widgetName,
+  required List<PropertyExclusion> exclusions,
 }) {
   final inferred = type_inference.inferPropertyType(t);
   if (inferred != null) return inferred;
-  final fieldName = field.name ?? '<unnamed>';
+  final fieldName = input.name;
   final ownerName = field.enclosingElement.name ?? '<unnamed>';
   final location = '${assetId.path}#$ownerName.$fieldName';
   // A direct scalar-list property is supported on the A2UI target (it rides a
@@ -819,37 +890,175 @@ PropertyType? _inferPropertyType(
   // A2UI-supported / RFW-unsupported boundary, and name the remedies. The
   // message keeps the "Unsupported property type <T> on <owner>.<field>" prefix
   // the existing loud-failure assertions match.
-  if (target == WidgetVisitorTarget.rfw && _isA2uiScalarList(t)) {
+  if (target != WidgetVisitorTarget.a2ui && _isA2uiScalarList(t)) {
+    final boundary = switch (target) {
+      WidgetVisitorTarget.rfw =>
+        'are supported on the A2UI target but are not carried by the RFW '
+            'customer catalog',
+      WidgetVisitorTarget.widgetbook =>
+        'are supported on the A2UI target but are not admitted by automatic '
+            'Widgetbook stories; use a customer structured data class when '
+            'the list is part of a richer value',
+      WidgetVisitorTarget.a2ui => throw StateError(
+          'A2UI scalar-list boundary reached from the A2UI target.',
+        ),
+    };
+    final remedies = switch (target) {
+      WidgetVisitorTarget.rfw =>
+        'restrict the field to a supported RFW type (for example, a single '
+            'scalar or List<Widget>), or scope this package to A2UI by '
+            'disabling the RFW customer-catalog builders in build.yaml',
+      WidgetVisitorTarget.widgetbook =>
+        'use a currently admitted automatic-story type; support for this '
+            'direct shape is a Restage compiler capability gap',
+      WidgetVisitorTarget.a2ui => throw StateError(
+          'A2UI scalar-list remedies reached from the A2UI target.',
+        ),
+    };
+    return _undecodable(
+      reason: 'Unsupported property type ${t.getDisplayString()} '
+          'on $ownerName.$fieldName. Scalar-list properties (a List of '
+          'String, int, double, num, or bool) $boundary. '
+          'Remedies: $remedies.',
+      input: input,
+      target: target,
+      widgetName: widgetName,
+      fieldName: fieldName,
+      location: location,
+      issues: issues,
+      exclusions: exclusions,
+    );
+  }
+  final lookalike = type_inference.frameworkLookalike(t);
+  if (lookalike != null) {
+    // Deliberately NOT routed through `_undecodable`, and it must stay that
+    // way. That helper drops an optional input whose type the compiler cannot
+    // decode, on the grounds that the author cannot close a gap in our
+    // decoders. A lookalike is the opposite situation: the author's own class
+    // shadows a framework type name, which they can fix by renaming it or by
+    // importing the real one. Excluding it silently would withhold a property
+    // over a problem entirely in their hands, and would let precisely the
+    // mis-resolution this check exists to catch reach the catalog unnoticed.
+    // So it fails whether or not the input is omissible.
     issues.add(
       Issue(
         code: IssueCode.unsupportedPropertyType,
         message: 'Unsupported property type ${t.getDisplayString()} '
-            'on $ownerName.$fieldName. Scalar-list properties (a List of '
-            'String, int, double, num, or bool) are supported on the A2UI '
-            'target but are not carried by the RFW customer catalog. '
-            'Remedies: restrict the field to a supported RFW type (e.g. a '
-            'single scalar, or List<Widget>), or scope this package to the '
-            'A2UI target only by disabling the RFW customer-catalog builders '
-            '(user_catalog, user_catalog_json, user_factories) in build.yaml, '
-            'as the A2UI-only example does.',
+            'on $ownerName.$fieldName: this is '
+            "`${lookalike.library}#${lookalike.name}`, not Flutter's "
+            '`${lookalike.name}`. Framework value types are matched by '
+            'defining library, not by name. This rejection applies to the '
+            '${target.name} target.',
         location: location,
       ),
     );
     return null;
   }
-  final a2uiListHint = target == WidgetVisitorTarget.a2ui
-      ? ', and List<scalar> (String, int, double, num, or bool)'
-      : '';
+  final a2uiListHint = switch (target) {
+    WidgetVisitorTarget.a2ui =>
+      ', and List<scalar> (String, int, double, num, or bool)',
+    WidgetVisitorTarget.rfw || WidgetVisitorTarget.widgetbook => '',
+  };
+  return _undecodable(
+    reason: 'Unsupported property type ${t.getDisplayString()} '
+        'on $ownerName.$fieldName. Supported types: Widget, List<Widget>, '
+        'Color, EdgeInsets(Geometry|Directional), '
+        'Alignment(Geometry|Directional), FontWeight, bool, int, double, '
+        'String, VoidCallback (and similar function types), and any Dart '
+        'enum$a2uiListHint.',
+    input: input,
+    target: target,
+    widgetName: widgetName,
+    fieldName: fieldName,
+    location: '${assetId.path}#$ownerName.$fieldName',
+    issues: issues,
+    exclusions: exclusions,
+  );
+}
+
+void _validateTargetPositionalExclusions({
+  required String className,
+  required WidgetVisitorTarget target,
+  required List<WidgetConstructorInput> inputs,
+  required List<PropertyEntry> properties,
+  required Iterable<PropertyExclusion> exclusions,
+  required List<Issue> issues,
+}) {
+  final inputIndex = {
+    for (final (index, input) in inputs.indexed) input.name: index,
+  };
+  final includedPositional = {
+    for (final property in properties)
+      if (property.positional) property.name,
+  };
+  for (final exclusion in exclusions) {
+    final excludedIndex = inputIndex[exclusion.property];
+    if (excludedIndex == null || !inputs[excludedIndex].positional) continue;
+    final later = inputs
+        .skip(excludedIndex + 1)
+        .where(
+          (input) =>
+              input.positional && includedPositional.contains(input.name),
+        )
+        .firstOrNull;
+    if (later == null) continue;
+    issues.add(
+      Issue(
+        code: IssueCode.invalidWidgetConstructorInput,
+        message: 'Constructor input $className.${exclusion.property} cannot '
+            'be auto-excluded for the ${target.name} target while later '
+            'positional input ${later.name} is included, because excluding an '
+            'earlier positional would shift the arguments after it. Make '
+            '${exclusion.property} named, or ensure ${later.name} and all '
+            'later positional inputs are omitted too.',
+        location: exclusion.location,
+      ),
+    );
+  }
+}
+
+/// Resolves one input whose type has no decoder on [target].
+///
+/// An omissible input is dropped and recorded: generated construction leaves
+/// the argument out, which is what plain Dart would do, so the widget's own
+/// semantics are unchanged and the build succeeds. The omission is reported as
+/// data rather than as a build failure, because an author cannot supply a
+/// decoder that does not exist yet — failing here would convert a compiler gap
+/// into their problem.
+///
+/// An input that cannot be omitted has no such escape, so it stays a loud
+/// failure, and the diagnostic names the two things the author can actually do.
+PropertyType? _undecodable({
+  required String reason,
+  required WidgetConstructorInput input,
+  required WidgetVisitorTarget target,
+  required String widgetName,
+  required String fieldName,
+  required String location,
+  required List<Issue> issues,
+  required List<PropertyExclusion> exclusions,
+}) {
+  final targetReason = '$reason Target: ${target.name}.';
+  if (input.omissible) {
+    exclusions.add(
+      PropertyExclusion(
+        widget: widgetName,
+        property: fieldName,
+        target: target.name,
+        reason: targetReason,
+        location: location,
+      ),
+    );
+    return null;
+  }
   issues.add(
     Issue(
       code: IssueCode.unsupportedPropertyType,
-      message: 'Unsupported property type ${t.getDisplayString()} '
-          'on $ownerName.$fieldName. Supported types: Widget, List<Widget>, '
-          'Color, EdgeInsets(Geometry|Directional), '
-          'Alignment(Geometry|Directional), FontWeight, bool, int, double, '
-          'String, VoidCallback (and similar function types), and any Dart '
-          'enum$a2uiListHint.',
-      location: '${assetId.path}#$ownerName.$fieldName',
+      message: '$targetReason $widgetName.$fieldName cannot be left out of '
+          'generated construction, so it cannot be dropped. Give it a '
+          'default so the generated code can omit it, or expose a '
+          'catalog-facing wrapper that omits it.',
+      location: location,
     ),
   );
   return null;
@@ -884,33 +1093,6 @@ ChildrenSlot _childrenSlotFromAnnotation(
     ),
   );
   return ChildrenSlot.none;
-}
-
-List<WidgetEventName> _firesFromAnnotation(
-  DartObject value,
-  List<Issue> issues,
-  String location,
-) {
-  final list = value.getField('fires')?.toListValue();
-  if (list == null) return const [];
-  final result = <WidgetEventName>[];
-  for (final entry in list) {
-    final n = _enumName(entry);
-    if (n == null) continue;
-    final match = WidgetEventName.values.where((e) => e.name == n).firstOrNull;
-    if (match != null) {
-      result.add(match);
-    } else {
-      issues.add(
-        Issue(
-          code: IssueCode.unknownEnumValue,
-          message: 'Unknown fires entry "$n". $_unknownEnumHint',
-          location: location,
-        ),
-      );
-    }
-  }
-  return result;
 }
 
 /// Reads the string `name` of an enum-valued [DartObject] via the analyzer's

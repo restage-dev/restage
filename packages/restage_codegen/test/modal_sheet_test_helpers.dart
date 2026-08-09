@@ -50,7 +50,6 @@ final Catalog modalSheetTranslatorCatalog = catalogWith(
         prop('onPressed', PropertyType.event),
         prop('child', PropertyType.widget),
       ],
-      fires: const [WidgetEventName.onPressed],
       flutterType:
           'package:flutter/src/material/elevated_button.dart#ElevatedButton',
     ),
@@ -60,10 +59,6 @@ final Catalog modalSheetTranslatorCatalog = catalogWith(
         prop('onTap', PropertyType.event),
         prop('onLongPress', PropertyType.event),
         prop('child', PropertyType.widget),
-      ],
-      fires: const [
-        WidgetEventName.onTap,
-        WidgetEventName.onLongPress,
       ],
       flutterType:
           'package:flutter/src/widgets/gesture_detector.dart#GestureDetector',
@@ -111,7 +106,6 @@ final Catalog modalSheetTranslatorCatalog = catalogWith(
         prop('underlay', PropertyType.widget),
         prop('onSheetDismissed', PropertyType.event),
       ],
-      fires: const [WidgetEventName.onSheetDismissed],
       flutterType:
           'package:restage_material/src/widgets/restage_modal_sheet.dart#RestageModalSheet',
     ),

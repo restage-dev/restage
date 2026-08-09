@@ -139,11 +139,20 @@ builders:
     builder_factories: ['userA2uiCatalogBuilder']
     build_extensions:
       $lib$:
-        - "restage_a2ui_catalog.g.dart"
-        - "restage_a2ui_catalog.a2ui.json"
+        - "generated/restage_a2ui_catalog.g.dart"
+        - "generated/restage_a2ui_catalog.a2ui.json"
     # Opt-in only: the generated code imports the genui runtime, so this builder
     # must not apply to dependents who don't want an A2UI catalog. A consumer
     # enables it explicitly in their own build.yaml.
     auto_apply: none
     build_to: source
     runs_before: []
+  widgetbook_stories:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['widgetbookStoryBuilder']
+    build_extensions:
+      "lib/widgets/promo_banner.dart":
+        - "lib/generated/promo_banner.stories.dart"
+    auto_apply: none
+    build_to: source
+    runs_before: ['widgetbook:story_builder']
