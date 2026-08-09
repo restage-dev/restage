@@ -52,7 +52,7 @@ class WelcomeScreen extends StatelessWidget {
 
 - **Your real Flutter UI, over the air.** Use your own widgets and design system; what ships is compiled from that exact code. Not a fixed palette, not a JSON dialect, not a webview.
 - **Your design system comes with it.** `Theme.of(context)` resolves live at render time. A delivered surface follows your app into dark mode or a rebrand, with no recompile.
-- **No code over the air.** An update changes the screens your app shows. It does *not* run new code, so an update can't do anything your released app couldn't already do. That keeps updates App Store-safe, and makes OTA UI viable where compliance matters.
+- **No code over the air.** An update changes the screens your app shows. It does *not* run new code, so an update can't do anything your released app couldn't already do. That's what makes OTA UI workable where the app stores' rules on shipping interpreted code are the constraint — though what your own app needs to satisfy remains your call.
 - **Fails safe, not wrong.** The build step stops with an error instead of guessing. A surface can't reach a client too old to render it, and a failed fetch falls back to your bundled copy.
 - **One runtime, any surface.** Paywalls, onboarding, messages, surveys, a single card, or a whole screen: anything you author runs on the same runtime. Drop one into your own `Scaffold` and only that region is server-driven.
 - **No lock-in.** A surface is just a `.rfw` file. Serve it from your own backend or CDN. The SDK runs fully offline, no hosted service required.
