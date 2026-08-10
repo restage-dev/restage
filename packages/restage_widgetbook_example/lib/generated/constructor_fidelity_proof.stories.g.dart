@@ -87,7 +87,7 @@ class ConstructorFidelityProofStoryInputArgs
          optionalText,
          StringArg("constructor-default"),
        )!,
-       this.onChangedArg = $initArg('onChanged', onChanged, BoolArg(false))!;
+       this.onChangedArg = $initArg('onChanged', onChanged, BoolArg(true))!;
 
   ConstructorFidelityProofStoryInputArgs.fixed({
     String restageMetadataDescription =
@@ -97,7 +97,7 @@ class ConstructorFidelityProofStoryInputArgs
     String label = "",
     bool enabled = true,
     String optionalText = "constructor-default",
-    bool onChanged = false,
+    bool onChanged = true,
   }) : this.restageMetadataDescriptionArg = $initArg(
          'restageMetadataDescription',
          Arg.fixed(restageMetadataDescription),

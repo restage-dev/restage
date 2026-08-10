@@ -35,16 +35,18 @@ String? _resolvedGenuiVersion() {
 /// that re-baseline must be LOUD, never a silent green against a changed
 /// contract. Two complementary tripwires:
 ///
-///  * (a) the RESOLVED genui version equals the pinned 0.10.1 — a cheap early
-///    tripwire so a `pub upgrade` past the pin red-flags the proofs before any
-///    contract even changes;
+///  * (a) the RESOLVED genui version stays inside the pinned 0.10.x minor — a
+///    cheap early tripwire so a `pub upgrade` onto a new minor red-flags the
+///    proofs before any contract even changes. It checks the minor rather than
+///    an exact patch because the contracts move between minors, and because a
+///    tree without a lockfile resolves the newest patch of its own accord;
 ///  * (b) genui still enforces the `v0.9` A2UI WIRE contract — the STRONGER
 ///    property. The A2UI wire version is independent of the genui package
 ///    version and stayed `v0.9` across the 0.10 move; the render proofs' golden
 ///    payloads carry `version: 'v0.9'`, so an A2UI wire-contract move fails those
 ///    proofs loud rather than passing against a changed contract.
 void main() {
-  test('the resolved genui version is the pinned 0.10.1', () {
+  test('the resolved genui version stays inside the pinned 0.10.x minor', () {
     final version = _resolvedGenuiVersion();
     expect(
       version,
@@ -55,12 +57,13 @@ void main() {
     );
     expect(
       version,
-      '0.10.1',
+      startsWith('0.10.'),
       reason:
-          'the resolved genui version drifted from the pinned 0.10.1 — the '
-          'A2UI render/tie proofs pin this contract. Re-baseline them '
+          'the resolved genui version left the pinned 0.10.x minor. The A2UI '
+          'render/tie proofs pin this contract, and genui moves its '
+          'surface/catalog contracts between minors. Re-baseline them '
           'consciously (re-run the render + fail-closed proofs) before moving '
-          'the pin.',
+          'the pin in pubspec.yaml.',
     );
   });
 

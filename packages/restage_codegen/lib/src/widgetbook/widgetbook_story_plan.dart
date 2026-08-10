@@ -44,7 +44,7 @@ enum WidgetbookStoryControl {
   /// Read-only native value carried by a private story adapter.
   native,
 
-  /// Boolean event flag mapped to a generated callback.
+  /// Callback presence control or read-only required callback metadata.
   event,
 }
 
@@ -107,6 +107,12 @@ final class WidgetbookStoryCallbackPlan {
 
   /// Public importable callback constructor default, when non-null.
   final WidgetbookFunctionReferenceValuePlan? constructorDefault;
+
+  /// Whether Widgetbook can meaningfully toggle callback presence.
+  bool get hasEditablePresence => nullable;
+
+  /// Whether the generated story initially supplies the callback.
+  bool get initiallyActive => !nullable || constructorDefault != null;
 }
 
 /// Shared facts for one generated sidebar property.

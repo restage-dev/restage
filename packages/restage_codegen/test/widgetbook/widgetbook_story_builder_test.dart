@@ -1009,10 +1009,10 @@ class PlainCard {}
             ),
             contains('this.onTap = true'),
             contains('this.onChanged = true'),
-            contains('this.onSubmitted = false'),
+            contains('this.onSubmitted = true'),
             contains('this.onDismissed = false'),
             contains(
-              'onTap: args.onTap ? restage_native_0.topLevelCallback : () {}',
+              'onTap: restage_native_0.topLevelCallback',
             ),
             matches(
               RegExp(
@@ -1022,6 +1022,26 @@ class PlainCard {}
             ),
             contains('onSubmitted: (_) {}'),
             contains('onDismissed: args.onDismissed ? () {} : null'),
+            contains(
+              'onTap: _RestageEventArg(\n'
+              '      true,',
+            ),
+            contains(
+              'onSubmitted: _RestageEventArg(\n'
+              '      true,',
+            ),
+            contains(
+              'onChanged: _RestageBoolArg(\n'
+              '      true,',
+            ),
+            contains(
+              'onDismissed: _RestageBoolArg(\n'
+              '      false,',
+            ),
+            contains(
+              'final class _RestageEventArg extends widgetbook.Arg<bool>\n'
+              '    with widgetbook.NoFields<bool>',
+            ),
           ]),
         ),
       },

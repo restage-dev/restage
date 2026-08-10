@@ -55,9 +55,9 @@ class ConstructorFidelityCorpusStoryInput {
     this.directColor = const restage_native_0.Color.new(4279312947),
     this.publicColor = restage_source.ConstructorCorpusDefaults.publicColor,
     this.data = const _RestageValue10.absent(),
-    this.resetProof = false,
-    this.whenEnabledChanges = false,
-    this.reportCount = false,
+    this.resetProof = true,
+    this.whenEnabledChanges = true,
+    this.reportCount = true,
   });
 
   final String restageMetadataDescription;
@@ -176,16 +176,16 @@ final $RestageCatalog = _Story(
       description:
           "Nested customer-structured default. Default: the widget constructor's Dart default.",
     ),
-    resetProof: _RestageBoolArg(
-      false,
+    resetProof: _RestageEventArg(
+      true,
       description: "Arbitrarily named zero-argument callback.",
     ),
-    whenEnabledChanges: _RestageBoolArg(
-      false,
+    whenEnabledChanges: _RestageEventArg(
+      true,
       description: "Arbitrarily named one-argument boolean callback.",
     ),
-    reportCount: _RestageBoolArg(
-      false,
+    reportCount: _RestageEventArg(
+      true,
       description: "Arbitrarily named one-argument integer callback.",
     ),
   ),
@@ -227,6 +227,15 @@ final class _RestageNullableStringArg extends widgetbook.NullableStringArg
 final class _RestageBoolArg extends widgetbook.BoolArg
     with _RestageArgDescription<bool> {
   _RestageBoolArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageEventArg extends widgetbook.Arg<bool>
+    with widgetbook.NoFields<bool>, _RestageArgDescription<bool> {
+  _RestageEventArg(super.value, {required String description})
     : restageDescription = description;
 
   @override

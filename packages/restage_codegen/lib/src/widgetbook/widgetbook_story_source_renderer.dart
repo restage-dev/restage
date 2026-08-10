@@ -352,7 +352,7 @@ String _inputParameter(
   final name = property.property.name;
   return switch (property) {
     WidgetbookStoryEventPropertyPlan(:final callback) =>
-      'this.$name = ${callback.constructorDefault != null}',
+      'this.$name = ${callback.initiallyActive}',
     WidgetbookStoryChoicePropertyPlan(:final seed) =>
       'this.$name = ${names[name]!.choiceType}.value'
           '${property.choiceIndexOf(seed)}',
@@ -391,7 +391,7 @@ String _hostValue(
       final active =
           defaultValue == null ? closure : renderer.renderValue(defaultValue);
       if (callback.nullable) return 'args.$name ? $active : null';
-      return defaultValue == null ? closure : 'args.$name ? $active : $closure';
+      return active;
     case WidgetbookStoryChoicePropertyPlan(:final choices):
       final choice = names[name]!.choiceType;
       return 'switch (args.$name) { '
@@ -419,7 +419,7 @@ String _arg(
   final value = switch (property) {
     WidgetbookStoryEventPropertyPlan(:final callback)
         when variantValue == null =>
-      '${callback.constructorDefault != null}',
+      '${callback.initiallyActive}',
     WidgetbookStoryEditablePropertyPlan(:final seed) ||
     WidgetbookStoryChoicePropertyPlan(:final seed) ||
     WidgetbookStoryNativePropertyPlan(:final seed) =>
@@ -437,9 +437,11 @@ String _arg(
           '($value, description: $description)',
     WidgetbookStoryEditablePropertyPlan(
       editableControl: WidgetbookStoryEditableControl.boolean,
-    ) ||
-    WidgetbookStoryEventPropertyPlan() =>
-      '${_boolArgName(property, nullable: nullable)}'
+    ) =>
+      '${nullable ? '_RestageNullableBoolArg' : '_RestageBoolArg'}'
+          '($value, description: $description)',
+    WidgetbookStoryEventPropertyPlan(:final callback) =>
+      '${callback.hasEditablePresence ? '_RestageBoolArg' : '_RestageEventArg'}'
           '($value, description: $description)',
     WidgetbookStoryEditablePropertyPlan(
       editableControl: WidgetbookStoryEditableControl.integer,
@@ -482,14 +484,6 @@ String _arg(
           'description: $description)',
   };
 }
-
-String _boolArgName(
-  WidgetbookStoryPropertyPlan property, {
-  required bool nullable,
-}) =>
-    nullable && property.control != WidgetbookStoryControl.event
-        ? '_RestageNullableBoolArg'
-        : '_RestageBoolArg';
 
 String _intStyle(WidgetbookStoryPropertyPlan property) {
   final constraints = property.constraints;
@@ -568,7 +562,11 @@ void _writeArgAdapters(
     }
   }
   if (controls.contains(WidgetbookStoryControl.boolean) ||
-      controls.contains(WidgetbookStoryControl.event)) {
+      properties.any(
+        (property) =>
+            property is WidgetbookStoryEventPropertyPlan &&
+            property.callback.hasEditablePresence,
+      )) {
     _simpleAdapter(out, '_RestageBoolArg', 'widgetbook.BoolArg', 'bool');
     if (properties.any(
       (property) =>
@@ -582,6 +580,25 @@ void _writeArgAdapters(
         'bool?',
       );
     }
+  }
+  if (properties.any(
+    (property) =>
+        property is WidgetbookStoryEventPropertyPlan &&
+        !property.callback.hasEditablePresence,
+  )) {
+    out
+      ..writeln('final class _RestageEventArg extends widgetbook.Arg<bool>')
+      ..writeln('    with widgetbook.NoFields<bool>,')
+      ..writeln('        _RestageArgDescription<bool> {')
+      ..writeln(
+        '  _RestageEventArg(super.value, {required String description})',
+      )
+      ..writeln('    : restageDescription = description;')
+      ..writeln()
+      ..writeln('  @override')
+      ..writeln('  final String restageDescription;')
+      ..writeln('}')
+      ..writeln();
   }
   if (controls.contains(WidgetbookStoryControl.integer)) {
     _styledAdapter(
