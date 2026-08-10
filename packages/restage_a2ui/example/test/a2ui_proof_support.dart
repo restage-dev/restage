@@ -31,31 +31,47 @@ List<Object?> sidecarMessages(
   },
 ];
 
-/// The golden happy-path component graph the full-surface render proof renders:
-/// a `ComparisonPanel` root over a `SectionHeader`, a `Callout` wrapping a
-/// `SectionHeader` in its single `child` slot, and a `QuizCheck` — all customer
-/// lesson components, all referenced by string id. The structural-sufficiency
-/// proof derives its authorable-property set from THIS list, so the two proofs
-/// cannot drift.
+/// The golden happy-path component graph the full-surface render proof renders.
+/// Every component keeps protocol-owned `id`/`component` at the envelope and
+/// nests its exact constructor inputs under the required `props` object. The
+/// `ComparisonPanel` exercises three independently named child-bearing inputs;
+/// `Callout.detail` proves the same rule on another component. The structural-
+/// sufficiency proof derives its authorable-property set from THIS list, so the
+/// two proofs cannot drift.
 const goldenLessonComponents = <Map<String, Object?>>[
   {
     'id': 'root',
     'component': 'ComparisonPanel',
-    'heading': 'Grammar showcase',
-    'children': ['header', 'callout', 'quiz'],
+    'props': {
+      'heading': 'Grammar showcase',
+      'introduction': 'header',
+      'examples': ['callout', 'quiz'],
+      'conclusion': 'summary',
+    },
   },
-  {'id': 'header', 'component': 'SectionHeader', 'title': 'Present tense'},
+  {
+    'id': 'header',
+    'component': 'SectionHeader',
+    'props': {'title': 'Present tense'},
+  },
   {
     'id': 'callout',
     'component': 'Callout',
-    'message': 'Watch the ending',
-    'child': 'callout-body',
+    'props': {'message': 'Watch the ending', 'detail': 'callout-body'},
   },
-  {'id': 'callout-body', 'component': 'SectionHeader', 'title': 'Details'},
+  {
+    'id': 'callout-body',
+    'component': 'SectionHeader',
+    'props': {'title': 'Details'},
+  },
   {
     'id': 'quiz',
     'component': 'QuizCheck',
-    'prompt': 'Is this right?',
-    'selected': false,
+    'props': {'prompt': 'Is this right?', 'selected': false},
+  },
+  {
+    'id': 'summary',
+    'component': 'SectionHeader',
+    'props': {'title': 'Summary'},
   },
 ];

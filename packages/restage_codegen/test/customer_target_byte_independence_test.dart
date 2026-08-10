@@ -34,7 +34,7 @@ const _a2uiBuilders = <Builder>[
 ];
 const _widgetbookBuilders = <Builder>[
   WidgetbookStoryBuilder({
-    'lib/widgets/target_probe.dart': _widgetbookOutputs,
+    r'$lib$': ['generated/target_probe.stories.dart'],
   }),
 ];
 
@@ -109,14 +109,48 @@ void main() {
       isNot(secondary['lib/generated/restage_a2ui_catalog.g.dart']),
     );
   });
+
+  test('redundant explicit name and library are byte-neutral for every target',
+      () async {
+    const builders = [
+      ..._rfwBuilders,
+      ..._a2uiBuilders,
+      ..._widgetbookBuilders,
+    ];
+    const outputs = [
+      ..._rfwOutputs,
+      ..._a2uiOutputs,
+      ..._widgetbookOutputs,
+    ];
+    final explicit = await _build(builders: builders, outputs: outputs);
+    final inferredName = await _build(
+      builders: builders,
+      outputs: outputs,
+      includeName: false,
+    );
+    final inferredLibrary = await _build(
+      builders: builders,
+      outputs: outputs,
+      includeLibrary: false,
+    );
+
+    expect(inferredName, explicit);
+    expect(inferredLibrary, explicit);
+  });
 }
 
 Future<Map<String, String>> _build({
   required List<Builder> builders,
   required List<String> outputs,
   String writeBackTarget = 'primary',
+  bool includeName = true,
+  bool includeLibrary = true,
 }) async {
-  final source = _targetProbe(writeBackTarget);
+  final source = _targetProbe(
+    writeBackTarget,
+    includeName: includeName,
+    includeLibrary: includeLibrary,
+  );
   final sources = <String, String>{_sourceAsset: source};
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: 'apps_examples',
@@ -143,7 +177,12 @@ Map<String, String> _family(
 ) =>
     {for (final path in paths) path: outputs[path]!};
 
-String _targetProbe(String writeBackTarget) => '''
+String _targetProbe(
+  String writeBackTarget, {
+  bool includeName = true,
+  bool includeLibrary = true,
+}) =>
+    '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
@@ -159,8 +198,8 @@ const restageLibrary = 0;
   writeBackValues: <String, String>{'onChanged': '$writeBackTarget'},
 )
 @RestageWidget(
-  name: 'TargetProbe',
-  library: WidgetLibrary.custom('target.probe'),
+  ${includeName ? "name: 'TargetProbe'," : ''}
+  ${includeLibrary ? "library: WidgetLibrary.custom('target.probe')," : ''}
   category: WidgetCategory.input,
 )
 class TargetProbe extends StatelessWidget {

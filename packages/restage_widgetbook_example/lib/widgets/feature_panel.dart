@@ -8,7 +8,6 @@ import 'package:restage/restage.dart';
   name: 'FeaturePanel',
   library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
   category: WidgetCategory.layout,
-  childrenSlot: ChildrenSlot.list,
 )
 class FeaturePanel extends StatelessWidget {
   /// Creates a composed customer catalog panel.

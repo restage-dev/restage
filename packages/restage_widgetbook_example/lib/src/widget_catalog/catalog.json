@@ -9,13 +9,37 @@
   },
   "widgets": [
     {
+      "wireId": "w0009",
+      "name": "BareCatalogCard",
+      "library": "restage_widgetbook_example.widgets",
+      "description": "A root-level customer card using only the ordinary Restage marker.",
+      "flutterType": "package:restage_widgetbook_example/widgets/bare_catalog_card.dart#BareCatalogCard",
+      "childrenSlot": "none",
+      "properties": [
+        {
+          "wireId": "p0042",
+          "name": "label",
+          "type": "string",
+          "description": "Visible card label.",
+          "defaultSource": {
+            "kind": "literal",
+            "value": "Bare catalog card"
+          },
+          "constructorDefault": {
+            "kind": "scalar",
+            "value": "Bare catalog card"
+          }
+        }
+      ]
+    },
+    {
       "wireId": "w0005",
       "name": "CatalogShowcase",
       "library": "restage_widgetbook_example.widgets",
       "category": "input",
-      "description": "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child slots, and customer-owned structured data.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "description": "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
       "flutterType": "package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcase",
-      "childrenSlot": "list",
+      "childrenSlot": "none",
       "properties": [
         {
           "wireId": "p0009",
@@ -63,18 +87,25 @@
           "callbackSignature": "ValueChanged<bool>"
         },
         {
-          "wireId": "p0013",
-          "name": "header",
+          "wireId": "p0043",
+          "name": "hero",
           "type": "widget",
-          "description": "Customer widget shown before the content list.",
+          "description": "Customer widget shown before the detail list.",
           "required": true
         },
         {
-          "wireId": "p0014",
-          "name": "children",
+          "wireId": "p0044",
+          "name": "details",
           "type": "widgetList",
-          "description": "Customer widgets shown in source order.",
+          "description": "Customer detail widgets shown in source order.",
           "required": true
+        },
+        {
+          "wireId": "p0045",
+          "name": "footer",
+          "type": "widget",
+          "description": "Optional customer widget shown after the detail list.",
+          "constructorNullable": true
         },
         {
           "wireId": "p0015",
@@ -397,7 +428,7 @@
       "category": "layout",
       "description": "A panel with a customer header and customer content widgets.",
       "flutterType": "package:restage_widgetbook_example/widgets/feature_panel.dart#FeaturePanel",
-      "childrenSlot": "list",
+      "childrenSlot": "none",
       "properties": [
         {
           "wireId": "p0007",
@@ -479,6 +510,49 @@
             "kind": "literal",
             "value": "mo"
           }
+        }
+      ]
+    },
+    {
+      "wireId": "w0010",
+      "name": "RequiredNullableWidgetProof",
+      "library": "restage_widgetbook_example.widgets",
+      "category": "layout",
+      "description": "Executable RFW proof for required nullable and non-nullable widget inputs.",
+      "flutterType": "package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart#RequiredNullableWidgetProof",
+      "childrenSlot": "none",
+      "properties": [
+        {
+          "wireId": "p0046",
+          "name": "positionalNullable",
+          "type": "widget",
+          "description": "Required positional input that may explicitly be null.",
+          "required": true,
+          "positional": true,
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0047",
+          "name": "positionalControl",
+          "type": "widget",
+          "description": "Required non-nullable positional control.",
+          "required": true,
+          "positional": true
+        },
+        {
+          "wireId": "p0048",
+          "name": "namedNullable",
+          "type": "widget",
+          "description": "Required named input that may explicitly be null.",
+          "required": true,
+          "constructorNullable": true
+        },
+        {
+          "wireId": "p0049",
+          "name": "namedControl",
+          "type": "widget",
+          "description": "Required non-nullable named control.",
+          "required": true
         }
       ]
     },

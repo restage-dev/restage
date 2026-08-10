@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 WidgetEntry _widgetEntry({
   required String name,
   WidgetLibrary library = const WidgetLibrary.custom('acme.design_system'),
-  WidgetCategory category = WidgetCategory.layout,
+  WidgetCategory? category = WidgetCategory.layout,
   String description = 'A widget.',
   String? flutterType,
   ChildrenSlot childrenSlot = ChildrenSlot.none,
@@ -210,6 +210,17 @@ void main() {
       expect(src, contains("name: 'label'"));
       expect(src, contains('type: PropertyType.string'));
       expect(src, contains('required: true'));
+    });
+
+    test('emits the required nullable category argument as null', () {
+      final src = emitUserCatalogDart(
+        userCatalogFromWidgets([
+          _widgetEntry(name: 'RootCard', category: null),
+        ]),
+      );
+
+      expect(src, contains('category: null,'));
+      expect(src, isNot(contains('WidgetCategory.')));
     });
 
     test('emits reconstructed collection type identity', () {

@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
+import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
@@ -20,23 +23,31 @@ import '../helpers.dart';
 Future<(bool succeeded, String logs)> _runBuilder(
   Map<String, String> sources,
 ) async {
+  final allSources = <String, String>{
+    ...sources,
+    'pubspec.yaml': _appPubspec,
+    '.dart_tool/package_graph.json': _appPackageGraph,
+  };
   final readerWriter = await readerWriterWithFilesystemSources(
-    rootPackage: 'restage_codegen',
+    rootPackage: 'apps_examples',
     includeFlutter: true,
   );
-  for (final entry in sources.entries) {
+  for (final entry in allSources.entries) {
     readerWriter.testing.writeString(
       AssetId('apps_examples', entry.key),
       entry.value,
     );
   }
   final logs = <String>[];
-  final result = await testBuilder(
-    const UserA2uiCatalogBuilder(BuilderOptions.empty),
-    {for (final e in sources.entries) 'apps_examples|${e.key}': e.value},
-    rootPackage: 'apps_examples',
-    readerWriter: readerWriter,
-    onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
+  final result = await runWithNativeScreenPackageGraphForTesting(
+    packageGraphSource: _appPackageGraph,
+    body: () => testBuilder(
+      const UserA2uiCatalogBuilder(BuilderOptions.empty),
+      {for (final e in allSources.entries) 'apps_examples|${e.key}': e.value},
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      onLog: (record) => logs.add('${record.level.name}: ${record.message}'),
+    ),
   );
   return (result.succeeded, logs.join('\n'));
 }
@@ -50,6 +61,26 @@ const _libraryDeclaration = '''
   )
   const restageLibrary = 0;
 ''';
+
+const _appPubspec = '''
+name: apps_examples
+dependencies:
+  flutter: any
+  restage: any
+  rfw_catalog_schema: any
+''';
+
+final String _appPackageGraph = jsonEncode({
+  'roots': ['apps_examples'],
+  'packages': [
+    {
+      'name': 'apps_examples',
+      'version': '0.0.0',
+      'dependencies': ['flutter', 'restage', 'rfw_catalog_schema'],
+      'devDependencies': <String>[],
+    },
+  ],
+});
 
 void main() {
   group('UserA2uiCatalogBuilder — classifier coverage fails loud', () {
@@ -88,40 +119,71 @@ void main() {
       expect(logs, contains('callback signature has no declarative lowering'));
     });
 
-    test(
-        'a required property whose name collides with a reserved generated '
-        'identifier fails loud (the emitted constructor call would miss a '
-        'required argument)', () async {
-      // `data` is a reserved identifier in the generated widget builders, so
-      // the field is scoped out of the emit — but the constructor requires it,
-      // so the generated code would not compile. Fail loud with the rename fix.
+    test('a dropped ScreenSource diagnostic retains the native source kind',
+        () async {
       const source = '''
-        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-        @RestageWidget(
-          name: 'Ticker',
-          library: WidgetLibrary.custom('acme.widgets'),
-          category: WidgetCategory.decoration,
-          description: 'a widget with a reserved-name property',
-        )
-        class Ticker {
-          const Ticker({required this.data});
-          @RestageProperty(description: 'the text')
-          final String data;
+        import 'package:flutter/widgets.dart';
+        import 'package:restage/restage.dart' as restage;
+
+        part 'dropped_screen.rsscreen.g.dart';
+
+        @restage.ScreenSource(id: 'dropped_screen')
+        final class DroppedScreen extends StatelessWidget {
+          const DroppedScreen({super.key, required this.onScrub});
+
+          /// Unsupported three-argument callback.
+          final void Function(String, int, double) onScrub;
+
+          @override
+          Widget build(BuildContext context) => const SizedBox.shrink();
         }
       ''';
 
       final (succeeded, logs) = await _runBuilder({
-        'lib/lib.dart': _libraryDeclaration,
-        'lib/ticker.dart': source,
+        'lib/onboarding/screens/dropped_screen.dart': source,
       });
 
       expect(succeeded, isFalse);
-      expect(logs, contains('Ticker'));
-      expect(logs, contains("'data'"));
-      expect(logs, contains('reserved identifier'));
+      expect(logs, contains("The @ScreenSource 'dropped_screen'"));
+      expect(logs, contains("'onScrub'"));
+      expect(logs, contains('would be silently dropped'));
+      expect(logs, isNot(contains("The @RestageWidget 'dropped_screen'")));
     });
 
-    for (final fieldName in const ['id', 'component']) {
+    test(
+        'an optional unsupported ScreenSource property warns with the native '
+        'source kind', () async {
+      const source = '''
+        import 'package:flutter/widgets.dart';
+        import 'package:restage/restage.dart' as restage;
+
+        part 'optional_screen.rsscreen.g.dart';
+
+        @restage.ScreenSource(id: 'optional_screen')
+        final class OptionalScreen extends StatelessWidget {
+          const OptionalScreen({super.key, this.easing});
+
+          /// Optional unsupported easing curve.
+          final Curve? easing;
+
+          @override
+          Widget build(BuildContext context) => const SizedBox.shrink();
+        }
+      ''';
+
+      final (succeeded, logs) = await _runBuilder({
+        'lib/onboarding/screens/optional_screen.dart': source,
+      });
+
+      expect(succeeded, isTrue, reason: logs);
+      expect(logs, contains('WARNING'));
+      expect(logs, contains("on @ScreenSource 'optional_screen'"));
+      expect(logs, contains("'easing'"));
+      expect(logs, contains('omitted from the A2UI catalog'));
+      expect(logs, isNot(contains("on @RestageWidget 'optional_screen'")));
+    });
+
+    for (final fieldName in const ['id', 'component', 'catalogId', 'props']) {
       final sourceShapes = <String, ({String declarations, String type})>{
         'scalar': (declarations: '', type: 'String'),
         'rich-data': (
@@ -143,7 +205,7 @@ void main() {
 
       for (final sourceShape in sourceShapes.entries) {
         test(
-            "top-level envelope field '$fieldName' fails loud before "
+            "customer field '$fieldName' is exact beneath props for "
             '${sourceShape.key} admission', () async {
           final source = '''
             import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -166,17 +228,14 @@ void main() {
             'lib/envelope_collision.dart': source,
           });
 
-          expect(succeeded, isFalse);
-          expect(logs, contains('EnvelopeCollision'));
-          expect(logs, contains("'$fieldName'"));
-          expect(logs, contains('GenUI component envelope'));
-          expect(logs, contains('rename the property'));
+          expect(succeeded, isTrue, reason: logs);
+          expect(logs, isNot(contains('GenUI component envelope')));
+          expect(logs, isNot(contains('rename the property')));
         });
       }
 
-      test(
-          "optional top-level envelope field '$fieldName' is fatal, not a "
-          'coverage warning', () async {
+      test("optional customer field '$fieldName' remains legal beneath props",
+          () async {
         final source = '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
           @RestageWidget(
@@ -197,10 +256,8 @@ void main() {
           'lib/optional_envelope_collision.dart': source,
         });
 
-        expect(succeeded, isFalse);
-        expect(logs, contains('OptionalEnvelopeCollision'));
-        expect(logs, contains("'$fieldName'"));
-        expect(logs, contains('GenUI component envelope'));
+        expect(succeeded, isTrue, reason: logs);
+        expect(logs, isNot(contains('GenUI component envelope')));
         expect(logs, isNot(contains('WARNING')));
       });
     }

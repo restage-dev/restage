@@ -14,6 +14,7 @@ String _catalogJson({
   required String widgetWireId,
   required String propertyWireId,
   int? capabilityVersion,
+  WidgetCategory? category = WidgetCategory.decoration,
 }) => encodeCatalog(
   Catalog(
     schemaVersion: kSupportedSchemaVersion,
@@ -29,7 +30,7 @@ String _catalogJson({
         wireId: WireId(widgetWireId),
         name: name,
         library: library,
-        category: WidgetCategory.decoration,
+        category: category,
         description: '$name fixture.',
         flutterType: 'package:fixture/fixture.dart#$name',
         childrenSlot: ChildrenSlot.none,
@@ -184,6 +185,22 @@ void main() {
       );
     },
   );
+
+  test('preserves a root-placement customer widget in the union', () async {
+    final customer = _catalogJson(
+      library: _acme,
+      name: 'AcmeRoot',
+      widgetWireId: 'w0004',
+      propertyWireId: 'p0004',
+      category: null,
+    );
+
+    final union = decodeCatalog(
+      await createRenderBundleCapabilityCatalogUnion(root, customer),
+    );
+
+    expect(union.findByName('AcmeRoot', _acme)!.category, isNull);
+  });
 
   test(
     'rejects a customer catalog that contradicts a built-in namespace',

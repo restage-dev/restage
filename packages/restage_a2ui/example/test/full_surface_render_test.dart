@@ -20,9 +20,9 @@ import 'a2ui_proof_support.dart';
 /// not a static source assertion.
 ///
 /// The golden payload ([goldenLessonComponents]): a `ComparisonPanel` root whose
-/// `children` are a `SectionHeader`, a `Callout` wrapping another `SectionHeader`
-/// in its single `child` slot, and a `QuizCheck` — all customer components, all
-/// referenced by string id in one flat `updateComponents` list.
+/// `introduction`, `examples`, and `conclusion` inputs compose the remaining
+/// customer components. Every exact constructor input is nested under `props`
+/// and every child is referenced by string id in one flat component list.
 void main() {
   test('the generated catalog exposes both libraries\' widgets', () {
     final items = buildRestageCatalogItems();
@@ -137,21 +137,22 @@ void main() {
     // A CLEAN render — no component fell back to a genui error widget.
     expect(find.byType(FallbackWidget), findsNothing);
     // The customer lesson components rendered through the real surface.
-    expect(find.byType(ComparisonPanel), findsOneWidget); // children slot
-    expect(find.byType(Callout), findsOneWidget); // single child slot
+    expect(find.byType(ComparisonPanel), findsOneWidget);
+    expect(find.byType(Callout), findsOneWidget);
     expect(
       find.byType(QuizCheck),
       findsOneWidget,
     ); // explicit write-back widget
     expect(
       find.byType(SectionHeader),
-      findsNWidgets(2),
-    ); // header + callout body
+      findsNWidgets(3),
+    ); // introduction + callout detail + conclusion
     expect(find.text('Grammar showcase'), findsOneWidget);
     expect(find.text('Present tense'), findsOneWidget);
     expect(find.textContaining('Watch the ending'), findsOneWidget);
     expect(find.text('Details'), findsOneWidget);
     expect(find.textContaining('Is this right?'), findsOneWidget);
+    expect(find.text('Summary'), findsOneWidget);
   });
 
   testWidgets('real Surface retains an IntegerListPicker literal override for '
@@ -173,7 +174,9 @@ void main() {
             {
               'id': 'root',
               'component': 'IntegerListPicker',
-              'selected': <int>[1, 2],
+              'props': {
+                'selected': <int>[1, 2],
+              },
             },
           ],
         ),
@@ -199,7 +202,9 @@ void main() {
           {
             'id': 'root',
             'component': 'IntegerListPicker',
-            'selected': <int>[9],
+            'props': {
+              'selected': <int>[9],
+            },
           },
         ],
       ),

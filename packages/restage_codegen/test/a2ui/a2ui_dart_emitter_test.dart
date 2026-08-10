@@ -58,6 +58,52 @@ String emitSource(List<WidgetEntry> widgets) =>
 
 void main() {
   group('emitA2uiCatalogDart', () {
+    test(
+        'customer fields use one required props namespace without reserving '
+        'envelope names', () {
+      const customerLibrary = WidgetLibrary.custom('acme.widgets');
+      final customer = entry(
+        name: 'CollisionCard',
+        library: customerLibrary,
+        flutterType: 'package:acme/widgets.dart#CollisionCard',
+        properties: [
+          a2uiProp('id', PropertyType.string),
+          a2uiProp('component', PropertyType.string),
+          a2uiProp('catalogId', PropertyType.string),
+          a2uiProp('props', PropertyType.string),
+        ],
+      );
+      final catalog = catalogWith(
+        [customer],
+        library: customerLibrary,
+      );
+
+      final plan = classifyA2uiCatalogDart(catalog);
+      expect(plan.coverage.droppedWidgets, isEmpty);
+      expect(
+        plan.widgets.single.fields.map((field) => field.property.name),
+        ['id', 'component', 'catalogId', 'props'],
+      );
+
+      final source = emitA2uiCatalogDart(catalog);
+      expect(source, contains("'props': S.object("));
+      expect(source, contains("'id': S.string(),"));
+      expect(source, contains("'component': S.string(),"));
+      expect(source, contains("'catalogId': S.string(),"));
+      expect(source, contains("required: <String>['props']"));
+      expect(
+        source,
+        contains(
+          "final props = (data['props']! as Map).cast<String, Object?>();",
+        ),
+      );
+      expect(source, contains("value: props['id'],"));
+      expect(source, contains("value: props['component'],"));
+      expect(source, contains("value: props['catalogId'],"));
+      expect(source, contains("value: props['props'],"));
+      expect(source, contains('builder: (context, props_2) =>'));
+    });
+
     test('maps core scalar property types to the blessed Bound widgets', () {
       final source = emitSource([
         a2uiEntry(

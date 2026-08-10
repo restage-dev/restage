@@ -50,8 +50,8 @@ void registerRestageCustomerWidgets() {
 
 Widget _buildAcmeBorder(BuildContext context, DataSource source) {
   return s0.AcmeBorder(
-    color: ArgumentDecoders.color(source, <Object>['color']),
     child: source.child(<Object>['child']),
+    color: ArgumentDecoders.color(source, <Object>['color']),
   );
 }
 

@@ -11,7 +11,10 @@ final class RestageWidgetFactory {
   /// Const constructor.
   const RestageWidgetFactory({required this.name, required this.builder});
 
-  /// The widget's catalog name (matches the `@RestageWidget(name:)` value).
+  /// The resolved catalog name.
+  ///
+  /// This defaults to the annotated Dart class name and reflects an explicit
+  /// catalog-name override when one is supplied.
   final String name;
 
   /// Builder invoked to materialize the widget at render time.

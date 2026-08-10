@@ -318,6 +318,7 @@ void main() {
             name: 'child',
             type: PropertyType.widget,
             description: 'Optional child to center.',
+            constructorNullable: true,
           ),
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -427,6 +428,7 @@ void main() {
             name: 'body',
             type: PropertyType.widget,
             description: '',
+            constructorNullable: true,
           ),
           PropertyEntry(
             wireId: WireId.unallocatedProperty,
@@ -434,6 +436,7 @@ void main() {
             type: PropertyType.widget,
             description: '',
             widgetType: 'PreferredSizeWidget',
+            constructorNullable: true,
           ),
         ],
       );
@@ -476,6 +479,7 @@ void main() {
             name: 'navigationBar',
             type: PropertyType.widget,
             description: '',
+            constructorNullable: true,
           ),
         ],
       );
@@ -1600,6 +1604,7 @@ void main() {
             name: 'title',
             type: PropertyType.widget,
             description: '',
+            constructorNullable: true,
           ),
         ],
       );
@@ -2029,6 +2034,7 @@ void main() {
             type: PropertyType.widget,
             description: '',
             widgetType: 'PreferredSizeWidget',
+            constructorNullable: true,
           ),
         ],
       );
@@ -2042,6 +2048,59 @@ void main() {
         ),
       );
     });
+
+    test(
+      'keeps curated widget lowering byte policy distinct from customer '
+      'constructor nullability',
+      () {
+        const entry = WidgetEntry(
+          wireId: WireId.unallocatedWidget,
+          name: 'RequiredNullableSlot',
+          library: WidgetLibrary.material,
+          category: WidgetCategory.layout,
+          description: '',
+          flutterType: 'package:test_pkg/w.dart#RequiredNullableSlot',
+          childrenSlot: ChildrenSlot.none,
+          properties: [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'appBar',
+              type: PropertyType.widget,
+              description: '',
+              required: true,
+              constructorNullable: true,
+              widgetType: 'PreferredSizeWidget',
+            ),
+          ],
+        );
+
+        final curated = emitFactoryFunction(entry);
+        final customer = emitFactoryFunction(
+          entry,
+          customerChildProperties: true,
+        );
+
+        expect(curated, isNotNull);
+        expect(
+          curated,
+          contains(
+            "appBar: source.child(<Object>['appBar']) "
+            'as PreferredSizeWidget',
+          ),
+        );
+        expect(curated, isNot(contains('source.optionalChild')));
+        expect(curated, isNot(contains('as PreferredSizeWidget?')));
+        expect(customer, isNotNull);
+        expect(
+          customer,
+          contains(
+            "appBar: source.optionalChild(<Object>['appBar']) "
+            'as PreferredSizeWidget?',
+          ),
+        );
+        expect(customer, isNot(contains("source.child(<Object>['appBar'])")));
+      },
+    );
 
     test('parses a named-constructor flutterType', () {
       const entry = WidgetEntry(

@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_schema_node.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -65,6 +66,83 @@ void main() {
   });
 
   group('richShapes — ObjectNode (class) construction', () {
+    test('a customer ref-rooted schema nests beneath props without moving defs',
+        () {
+      const customerLibrary = WidgetLibrary.custom('acme.widgets');
+      const treeId = 'package:fixture/fixture.dart#TreeNode';
+      final tree = ObjectNode(
+        fields: const {
+          'value': ScalarNode(A2uiScalarType.integer),
+          'children': ListNode(element: RefNode(treeId)),
+        },
+        required: const {'value'},
+        defId: treeId,
+        construction: A2uiClassConstruction(
+          dartTypeName: 'TreeNode',
+          libraryUri: 'package:fixture/fixture.dart',
+          parameters: const [
+            A2uiConstructorParameter(name: 'value', named: true),
+            A2uiConstructorParameter(name: 'children', named: true),
+          ],
+        ),
+      );
+      final catalog = Catalog(
+        schemaVersion: kSupportedSchemaVersion,
+        generatedAt: '1970-01-01T00:00:00Z',
+        libraries: {
+          customerLibrary: const LibraryInfo(
+            version: '1.0.0',
+            capabilityVersion: 1,
+          ),
+        },
+        widgets: [
+          entry(
+            name: 'Tree',
+            library: customerLibrary,
+            flutterType: 'package:fixture/fixture.dart#Tree',
+            properties: [
+              prop('root', PropertyType.structured, required: true),
+            ],
+          ),
+        ],
+      );
+      final shapes = <(String, String), A2uiSchemaNode>{
+        ('Tree', 'root'): tree,
+      };
+
+      final component = emitA2uiCatalog(
+        catalog,
+        richShapes: shapes,
+      ).components.single.dataSchema;
+      expect(component[r'$ref'], r'#/$defs/__a2ui_root__');
+      final defs = component[r'$defs']! as Map<String, Object?>;
+      final root = defs['__a2ui_root__']! as Map<String, Object?>;
+      expect(root['required'], <String>['props']);
+      final rootProperties = root['properties']! as Map<String, Object?>;
+      final props = rootProperties['props']! as Map<String, Object?>;
+      expect(props['required'], <String>['root']);
+      final customerProperties = props['properties']! as Map<String, Object?>;
+      expect(
+        customerProperties['root'],
+        <String, Object?>{r'$ref': r'#/$defs/TreeNode'},
+      );
+      expect(defs, contains('TreeNode'));
+      expect(
+        component['required'],
+        <Object?>['component'],
+        reason: 'the ref-root requires props inside the synthetic root',
+      );
+
+      final source = emitA2uiCatalogDart(catalog, richShapes: shapes);
+      expect(
+        source,
+        contains(
+          "final props = (data['props']! as Map).cast<String, Object?>();",
+        ),
+      );
+      expect(source, contains("_restageA2uiBuild_TreeNode(props['root'], 0)"));
+    });
+
     test(
         'a required nested-data-class arg binds via BoundObject and '
         'reconstructs, failing the widget safe on null', () {
@@ -321,9 +399,8 @@ void main() {
       expect(source, isNot(contains('final data = _restageA2uiBuild')));
     });
 
-    test(
-        'HIGH#1(b): a LEAF field whose identifier is reserved scaffolding '
-        '(`data`) is scoped out', () {
+    test('HIGH#1(b): a LEAF field named `data` uses a collision-safe local',
+        () {
       final catalog = catalogWith([
         entry(
           name: 'Banner',
@@ -337,14 +414,13 @@ void main() {
       final plan = classifyA2uiCatalogDart(catalog);
       final source = emitA2uiCatalogDart(catalog);
 
-      // `data` collides with the generated data-map local → omitted (loud),
-      // `title` still emits.
+      // The customer schema key and constructor label remain exact while only
+      // the local binding moves away from the generated data-map name.
       expect(source, contains("value: data['title'],"));
-      expect(source, isNot(contains("value: data['data'],")));
-      expect(
-        plan.coverage.omittedFields.map((o) => o.fieldName),
-        contains('data'),
-      );
+      expect(source, contains("value: data['data'],"));
+      expect(source, contains('builder: (context, data_2)'));
+      expect(source, contains('data: data_2 ??'));
+      expect(plan.coverage.omittedFields, isEmpty);
     });
 
     test(

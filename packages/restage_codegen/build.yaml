@@ -151,8 +151,9 @@ builders:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['widgetbookStoryBuilder']
     build_extensions:
-      "lib/widgets/promo_banner.dart":
-        - "lib/generated/promo_banner.stories.dart"
+      $lib$:
+        - "generated/.restage_widgetbook_story_builder"
+        - "generated/promo_banner.stories.dart"
     auto_apply: none
     build_to: source
     runs_before: ['widgetbook:story_builder']

@@ -316,26 +316,21 @@ void main() {
       );
     });
 
-    test('optional reserved builder identifier rejects typed metadata', () {
+    test('generated builder identifiers do not restrict source names', () {
       final property = _property(
         'data',
         PropertyType.string,
         constraints: const RestageConstraints(minLength: 1),
       );
 
-      expect(
-        () => classifyA2uiCatalogDart(_catalog('ReservedValue', [property])),
-        throwsA(
-          isA<UnsupportedError>().having(
-            (error) => error.message,
-            'message',
-            allOf(
-              contains('widget "ReservedValue"'),
-              contains('property "data"'),
-            ),
-          ),
-        ),
-      );
+      final plan = classifyA2uiCatalogDart(
+        _catalog('GeneratedNameValue', [property]),
+      ).widgets.single;
+      final schema = a2uiWidgetDataSchemaMapForPlan(plan);
+      final data = (schema['properties']! as Map)['data']! as Map;
+
+      expect(data['type'], 'string');
+      expect(data['minLength'], 1);
     });
 
     test('decompose-consumed property rejects legacy metadata', () {

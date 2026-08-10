@@ -1,6 +1,8 @@
+// #docregion configured-catalog-widget
 import 'package:flutter/material.dart';
 import 'package:restage/a2ui.dart' as a2ui;
 import 'package:restage/restage.dart';
+import 'package:restage/widgetbook.dart' as wb;
 
 /// The current state of a [CatalogShowcase].
 enum CatalogShowcaseStatus {
@@ -25,19 +27,15 @@ class CatalogShowcaseData {
 
 /// A customer catalog widget proving one source can feed every enabled target.
 /// It combines ordinary scalar state, an enum, callback write-back, native
-/// child slots, and customer-owned structured data.
+/// child-bearing inputs, and customer-owned structured data. The independently
+/// named `hero`, `details`, and `footer` inputs require no slot annotation.
 ///
 /// The second paragraph is retained in generated property metadata so
 /// multi-paragraph Dart documentation is never reduced to its first line.
 @a2ui.Config(
   usage: 'Use to verify a customer catalog across RFW, A2UI, and Widgetbook.',
 )
-@RestageWidget(
-  name: 'CatalogShowcase',
-  library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-  category: WidgetCategory.input,
-  childrenSlot: ChildrenSlot.list,
-)
+@RestageWidget(category: WidgetCategory.input)
 class CatalogShowcase extends StatelessWidget {
   /// Creates a catalog showcase.
   const CatalogShowcase({
@@ -46,8 +44,9 @@ class CatalogShowcase extends StatelessWidget {
     this.enabled = true,
     required this.status,
     required this.onChanged,
-    required this.header,
-    required this.children,
+    required this.hero,
+    required this.details,
+    this.footer,
     required this.data,
   });
 
@@ -55,20 +54,25 @@ class CatalogShowcase extends StatelessWidget {
   final String title;
 
   /// Whether the customer control is enabled.
+  @wb.Config.allValues()
   final bool enabled;
 
   /// Current customer state.
+  @wb.Config.allValues()
   final CatalogShowcaseStatus status;
 
   /// Reports changes to [enabled].
   @a2ui.Config.writeBackValue('enabled')
   final ValueChanged<bool> onChanged;
 
-  /// Customer widget shown before the content list.
-  final Widget header;
+  /// Customer widget shown before the detail list.
+  final Widget hero;
 
-  /// Customer widgets shown in source order.
-  final List<Widget> children;
+  /// Customer detail widgets shown in source order.
+  final List<Widget> details;
+
+  /// Optional customer widget shown after the detail list.
+  final Widget? footer;
 
   /// Customer-owned structured information.
   final CatalogShowcaseData data;
@@ -79,12 +83,15 @@ class CatalogShowcase extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        header,
+        hero,
         Text(title),
         Text('${status.name}: ${data.note} (${data.count})'),
         Switch(value: enabled, onChanged: onChanged),
-        ...children,
+        ...details,
+        ?footer,
       ],
     );
   }
 }
+
+// #enddocregion configured-catalog-widget

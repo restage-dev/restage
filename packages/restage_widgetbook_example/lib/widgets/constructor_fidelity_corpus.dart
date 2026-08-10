@@ -198,3 +198,43 @@ class ConstructorPositionalCorpus extends ConstructorPositionalBase {
     textDirection: TextDirection.ltr,
   );
 }
+
+/// Executable RFW proof for required nullable and non-nullable widget inputs.
+@RestageWidget(
+  name: 'RequiredNullableWidgetProof',
+  library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
+  category: WidgetCategory.layout,
+)
+class RequiredNullableWidgetProof extends StatelessWidget {
+  /// Creates the required widget-nullability proof.
+  const RequiredNullableWidgetProof(
+    this.positionalNullable,
+    this.positionalControl, {
+    super.key,
+    required this.namedNullable,
+    required this.namedControl,
+  });
+
+  /// Required positional input that may explicitly be null.
+  final Widget? positionalNullable;
+
+  /// Required non-nullable positional control.
+  final Widget positionalControl;
+
+  /// Required named input that may explicitly be null.
+  final Widget? namedNullable;
+
+  /// Required non-nullable named control.
+  final Widget namedControl;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: <Widget>[
+      ?positionalNullable,
+      positionalControl,
+      ?namedNullable,
+      namedControl,
+    ],
+  );
+}

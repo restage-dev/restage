@@ -21,7 +21,8 @@ or transmits an RFW-targeted widget catalog.
   (`LiteralDefault`, `TokenRefDefault`, `ThemeBindingDefault`,
   `FlutterCtorDefault`).
 - **Annotations.** `@RestageWidget`, the optional shared
-  `@RestageProperty` overlay, target-specific `a2ui.Config` and `rfw.Config`,
+  `@RestageProperty` overlay, target-specific `a2ui.Config`, `rfw.Config`, and
+  `widgetbook.Config`, selective `@Ignore` routing through `EmitTarget`,
   `@RestageBuiltinLibrary`, `@RestageLibrary`, `@RestageStructuredType`,
   `@RestageUnionVariant`, `@RestageFactoryVariant`, `@StableWidget`,
   `@StableProperty`, `@RfwIncompatible`, `@RestagePropertyPreview`,
@@ -43,18 +44,39 @@ plumbing.
 
 Use Dart documentation for widget and property descriptions. Add
 `@RestageProperty` only for shared metadata Dart cannot express, such as a
-default source or typed constraints:
+default source or typed constraints. Declare the package's customer library
+once in a typed barrel that exactly exports the widgets it owns:
+
+```dart
+// lib/restage_imports.dart
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+export 'widgets/submit_button.dart';
+export 'widgets/submit_control.dart';
+
+final class AcmeWidgets extends WidgetLibrary {
+  const AcmeWidgets();
+
+  @override
+  final String namespace = 'acme.widgets';
+}
+
+const WidgetLibrary acmeWidgets = AcmeWidgets();
+
+@RestageLibrary(library: acmeWidgets, capabilityVersion: 1)
+const restageCatalog = 0;
+```
+
+An exported widget normally needs only the bare marker. Its Dart class name is
+the catalog name, its exact exporting barrel supplies the library, and an
+omitted category places it at the library root:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// A customer-owned submit button.
-@RestageWidget(
-  name: 'SubmitButton',
-  library: WidgetLibrary.custom('acme.widgets'),
-  category: WidgetCategory.action,
-)
+@RestageWidget()
 class SubmitButton extends StatelessWidget {
   const SubmitButton({super.key, required this.label, this.emphasized = true});
 
@@ -81,11 +103,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   usage: 'Use for the primary form action.',
   writeBackValues: {'onChanged': 'enabled'},
 )
-@RestageWidget(
-  name: 'SubmitControl',
-  library: WidgetLibrary.custom('acme.widgets'),
-  category: WidgetCategory.input,
-)
+@RestageWidget()
 class SubmitControl extends StatelessWidget {
   const SubmitControl({
     super.key,
@@ -111,6 +129,44 @@ RFW callback events require no target annotation. Restage derives the exact
 Dart property identity and supported callback shape from the widget
 constructor. A2UI-specific usage and write-back metadata remains in
 `a2ui.Config`.
+
+Package builder configuration selects the normal generated targets. For an
+exceptional widget, each target config can disable only its own output:
+
+```dart
+@RestageWidget()
+@a2ui.Config.enabled(false)
+class RfwAndWidgetbookCard extends StatelessWidget {
+  const RfwAndWidgetbookCard({super.key, this.debugLabel = ''});
+
+  /// Local diagnostic text that A2UI and Widgetbook should not expose.
+  @Ignore({EmitTarget.a2ui, EmitTarget.widgetbook})
+  final String debugLabel;
+
+  @override
+  Widget build(BuildContext context) => Text(debugLabel);
+}
+```
+
+`@ignore` and `@Ignore()` keep excluding one safely omissible input from every
+target. A non-empty const list or set narrows that exclusion to the selected
+`EmitTarget` values. An empty selection, a required input, an assert-required
+input, or an omission that creates a positional hole fails generation rather
+than changing the constructor call.
+
+Explicit metadata remains available for advanced cases. Use a typed
+`library:` override to disambiguate a class exported by several declared
+libraries, `category:` to place a widget in a named group, or `name:` when a
+stable catalog key must differ from the Dart class name:
+
+```dart
+@RestageWidget(
+  name: 'LegacySubmit',
+  library: WidgetLibrary.custom('acme.widgets'),
+  category: WidgetCategory.action,
+)
+class SubmitControl extends StatelessWidget { /* ... */ }
+```
 
 Canonical v5 JSON is final-form only. The decoder also accepts v4 catalogs and
 migrates their retired callback-admission metadata at the decode boundary.

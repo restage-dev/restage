@@ -18,6 +18,19 @@ release version and publication timing are assigned separately.
   read-only `description`/`usage` sidebar metadata.
 - Emit the A2UI Dart catalog and standalone document together under
   `lib/generated/`, with no root-level compatibility aliases.
+- Derive every customer `Widget` and `List<Widget>` constructor input as an
+  independently named child-bearing property across RFW, A2UI, Widgetbook, and
+  editor consumers; several exact names may coexist on one class.
+- **Breaking generated A2UI layout:** nest every customer widget and opaque
+  native-screen constructor input under one required `props` object while
+  leaving protocol `id` and `component` on the envelope. Exact source names,
+  including envelope-collision names, are preserved without aliases.
+- Share one analyzer-backed `ScreenSource` admission contract between RFW and
+  native A2UI/Widgetbook siblings; invalid path, ID, part, or source count fails
+  before any sibling output is written.
+- Let one `@RestageWidget` opt out of selected package-enabled targets and let
+  one safely omissible constructor input use `@Ignore` for selected targets,
+  without suppressing diagnostics or properties in its siblings.
 
 ## 1.3.0
 

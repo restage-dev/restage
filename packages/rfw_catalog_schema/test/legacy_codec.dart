@@ -424,13 +424,19 @@ Map<String, dynamic> _widgetToLegacyJson(
   required Map<WireId, String> structuredNameByWireId,
   required Map<WireId, String> structuredFieldNameByWireId,
 }) {
+  final category = w.category;
+  if (category == null) {
+    throw CatalogSchemaException(
+      'Legacy schema v4 requires WidgetEntry.category for ${w.name}.',
+    );
+  }
   final propertyNameByWireId = <WireId, String>{
     for (final property in w.properties) property.wireId: property.name,
   };
   return {
     'name': w.name,
     'library': w.library.namespace,
-    'category': w.category.name,
+    'category': category.name,
     'description': w.description,
     'flutterType': w.flutterType,
     'childrenSlot': w.childrenSlot.name,

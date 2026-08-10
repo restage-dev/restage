@@ -203,6 +203,7 @@ CustomerStructuredDiscovery discoverCustomerStructured({
   required Map<ClassElement, List<WidgetConstructorInput>> widgetInputs,
   required AssetId assetId,
   required List<Issue> issues,
+  Map<ClassElement, WidgetLibrary>? widgetLibraries,
 }) {
   // The transitive closure of customer data-class identities reachable from
   // the widgets' properties. Every member must be in the structured-walk
@@ -237,7 +238,8 @@ CustomerStructuredDiscovery discoverCustomerStructured({
   // (`'<library URI>#<class name>'`, == `elementFqn`) so it matches
   // `WidgetEntry.flutterType` at resolution time.
   for (final cls in widgetClasses) {
-    final libraryNamespace = _widgetLibraryNamespace(cls);
+    final libraryNamespace =
+        widgetLibraries?[cls]?.namespace ?? _widgetLibraryNamespace(cls);
     if (libraryNamespace == null) continue;
     final ownerFqn = elementFqn(cls);
     for (final input in widgetInputs[cls] ?? const <WidgetConstructorInput>[]) {

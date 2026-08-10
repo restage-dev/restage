@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
@@ -18,7 +17,7 @@ import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
-import 'package:restage_codegen/src/syntax_diagnostics.dart';
+import 'package:restage_codegen/src/screen_source_admission.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show CapabilitySidecar, SurfaceType;
@@ -75,50 +74,22 @@ final class OnboardingScreenBuilder implements Builder {
     final assetId = buildStep.inputId;
     if (!await buildStep.resolver.isLibrary(assetId)) return;
 
-    final sourceText = await buildStep.readAsString(assetId);
     final library = await buildStep.resolver.libraryFor(
       assetId,
       allowSyntaxErrors: true,
     );
-    final result = await visitOnboardingSources(library, assetId);
-    final issues = [...result.issues];
+    final admission = await inspectScreenSourceAdmission(
+      buildStep,
+      assetId: assetId,
+      library: library,
+    );
+    final result = admission.visitorResult;
+    final issues = [...admission.issues];
 
-    // The source resolved with `allowSyntaxErrors: true`, so a malformed token
-    // whose parser error-recovery yields a structurally-valid tree could
-    // otherwise ship a clean blob with the bad token silently dropped — or,
-    // if recovery erased the annotated class, silently skip at the no-sources
-    // early-return below. Surface genuine syntactic errors here, before that
-    // early-return, so a malformed screen source is always diagnosed.
-    final resolved = await library.session.getResolvedLibraryByElement(library);
-    if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
-      issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
-    }
-
-    if (result.sources.isEmpty && issues.isEmpty) return;
+    if (!admission.participates) return;
 
     final stem = p.basenameWithoutExtension(assetId.path);
-    final expectedPart = '$stem.rsscreen.g.dart';
-    if (!_hasPartDirective(sourceText, expectedPart)) {
-      issues.add(
-        Issue(
-          code: IssueCode.missingPartDirective,
-          message: "Missing `part '$expectedPart';` directive.",
-          location: assetId.path,
-        ),
-      );
-    }
-
     for (final src in result.sources) {
-      if (src.id != stem) {
-        issues.add(
-          Issue(
-            code: IssueCode.filenameMismatch,
-            message: "Onboarding screen id '${src.id}' does not match the "
-                "file name '$stem.dart'.",
-            location: '${assetId.path}#${src.className}',
-          ),
-        );
-      }
       final descriptorName = '${src.className}Descriptor';
       if (_hasTopLevelDeclaration(library, descriptorName)) {
         issues.add(
@@ -131,7 +102,7 @@ final class OnboardingScreenBuilder implements Builder {
         );
       }
     }
-    if (issues.isNotEmpty) _surfaceIssues(issues);
+    if (!admission.isAdmitted || issues.isNotEmpty) _surfaceIssues(issues);
 
     final catalog = await loadMergedCatalog(buildStep);
     final helpers = HelperRegistry()..registerAll(onboardingHelpers);
@@ -150,8 +121,8 @@ final class OnboardingScreenBuilder implements Builder {
     );
 
     LineInfo? lineInfo;
-    if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
-      lineInfo = resolved.units.first.lineInfo;
+    if (admission.resolvedLibrary case final resolved?) {
+      if (resolved.units.isNotEmpty) lineInfo = resolved.units.first.lineInfo;
     }
 
     for (final src in result.sources) {
@@ -231,13 +202,6 @@ final class OnboardingScreenBuilder implements Builder {
 
     if (issues.isNotEmpty) _surfaceIssues(issues);
   }
-}
-
-bool _hasPartDirective(String source, String expectedPart) {
-  final pattern = RegExp(
-    "part\\s+['\"]${RegExp.escape(expectedPart)}['\"]\\s*;",
-  );
-  return pattern.hasMatch(source);
 }
 
 bool _hasTopLevelDeclaration(LibraryElement library, String name) {

@@ -48,20 +48,20 @@ class FeaturePanelStory
 
 class FeaturePanelStoryInputArgs extends StoryArgs<FeaturePanel> {
   FeaturePanelStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<_RestageValue0>? header,
     Arg<_RestageValue1>? children,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg(
            "A panel with a customer header and customer content widgets.",
          ),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg("Use to group a compact catalog summary."),
        )!,
        this.headerArg = $initArg(
@@ -76,36 +76,45 @@ class FeaturePanelStoryInputArgs extends StoryArgs<FeaturePanel> {
        )!;
 
   FeaturePanelStoryInputArgs.fixed({
-    String description =
+    String restageMetadataDescription =
         "A panel with a customer header and customer content widgets.",
-    String usage = "Use to group a compact catalog summary.",
+    String restageMetadataUsage = "Use to group a compact catalog summary.",
     _RestageValue0 header = const _RestageValue0.absent(),
     _RestageValue1 children = const _RestageValue1.absent(),
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.headerArg = $initArg('header', Arg.fixed(header), null)!,
        this.childrenArg = $initArg('children', Arg.fixed(children), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<_RestageValue0> headerArg;
 
   final Arg<_RestageValue1> childrenArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   _RestageValue0 get header => headerArg.value;
 
   _RestageValue1 get children => childrenArg.value;
 
   @override
-  List<Arg?> get list => [descriptionArg, usageArg, headerArg, childrenArg];
+  List<Arg?> get list => [
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
+    headerArg,
+    childrenArg,
+  ];
 }

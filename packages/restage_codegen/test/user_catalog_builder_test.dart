@@ -376,8 +376,6 @@ void main() {
 
         @RestageWidget(
           name: 'Same',
-          library: WidgetLibrary.custom('acme.design_system'),
-          category: WidgetCategory.layout,
           description: 'one',
         )
         class A { const A(); }
@@ -387,11 +385,19 @@ void main() {
 
         @RestageWidget(
           name: 'Same',
-          library: WidgetLibrary.custom('acme.design_system'),
-          category: WidgetCategory.layout,
           description: 'two',
         )
         class B { const B(); }
+      ''';
+      const barrel = '''
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+        export 'a.dart';
+        export 'b.dart';
+
+        @RestageLibrary(
+          library: WidgetLibrary.custom('acme.design_system'),
+        )
+        const restageLibrary = 0;
       ''';
 
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -399,7 +405,8 @@ void main() {
       );
       readerWriter.testing
         ..writeString(AssetId('apps_examples', 'lib/a.dart'), fileA)
-        ..writeString(AssetId('apps_examples', 'lib/b.dart'), fileB);
+        ..writeString(AssetId('apps_examples', 'lib/b.dart'), fileB)
+        ..writeString(AssetId('apps_examples', 'lib/catalog.dart'), barrel);
 
       // The cross-file collision causes the builder to log severe issues
       // and throw a `StateError`. `testBuilder` captures these as a failed
@@ -410,6 +417,7 @@ void main() {
         const {
           'apps_examples|lib/a.dart': fileA,
           'apps_examples|lib/b.dart': fileB,
+          'apps_examples|lib/catalog.dart': barrel,
         },
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,

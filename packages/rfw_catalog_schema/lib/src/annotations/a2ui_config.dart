@@ -9,7 +9,16 @@ import 'package:meta/meta_meta.dart';
 @Target({TargetKind.classType, TargetKind.field})
 final class Config {
   /// Creates an A2UI configuration overlay.
-  const Config({this.usage, this.writeBackValues, this.writeBackValue});
+  const Config({
+    this.enabled,
+    this.usage,
+    this.writeBackValues,
+    this.writeBackValue,
+  });
+
+  /// Controls whether the annotated customer widget participates in A2UI emit.
+  // ignore: avoid_positional_boolean_parameters
+  const Config.enabled(bool enabled) : this(enabled: enabled);
 
   /// Configures producer-facing usage guidance for the annotated widget.
   const Config.usage(String usage) : this(usage: usage);
@@ -21,6 +30,12 @@ final class Config {
   /// Configures the value property paired with an annotated callback field.
   const Config.writeBackValue(String writeBackValue)
       : this(writeBackValue: writeBackValue);
+
+  /// Whether this customer widget participates in A2UI emit.
+  ///
+  /// `null` keeps the default enabled behavior. This key is valid only on an
+  /// `@RestageWidget` class.
+  final bool? enabled;
 
   /// Producer-facing guidance describing when to use the widget.
   final String? usage;

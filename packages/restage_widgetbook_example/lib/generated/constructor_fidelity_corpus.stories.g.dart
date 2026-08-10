@@ -65,8 +65,8 @@ class ConstructorFidelityCorpusStory
 class ConstructorFidelityCorpusStoryInputArgs
     extends StoryArgs<ConstructorFidelityCorpus> {
   ConstructorFidelityCorpusStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? value,
     Arg<String>? ordinaryLabel,
     Arg<String>? requiredNamed,
@@ -81,16 +81,16 @@ class ConstructorFidelityCorpusStoryInputArgs
     Arg<bool>? resetProof,
     Arg<bool>? whenEnabledChanges,
     Arg<bool>? reportCount,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg(
            "Broad reusable fixture for accepted named constructor shapes.",
          ),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg(
            "Use to verify accepted constructor, default, and callback families.",
          ),
@@ -154,9 +154,9 @@ class ConstructorFidelityCorpusStoryInputArgs
        )!;
 
   ConstructorFidelityCorpusStoryInputArgs.fixed({
-    String description =
+    String restageMetadataDescription =
         "Broad reusable fixture for accepted named constructor shapes.",
-    String usage =
+    String restageMetadataUsage =
         "Use to verify accepted constructor, default, and callback families.",
     String value = "",
     String ordinaryLabel = "",
@@ -172,12 +172,16 @@ class ConstructorFidelityCorpusStoryInputArgs
     bool resetProof = false,
     bool whenEnabledChanges = false,
     bool reportCount = false,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.valueArg = $initArg('value', Arg.fixed(value), null)!,
        this.ordinaryLabelArg = $initArg(
          'ordinaryLabel',
@@ -229,9 +233,9 @@ class ConstructorFidelityCorpusStoryInputArgs
          null,
        )!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> valueArg;
 
@@ -261,9 +265,9 @@ class ConstructorFidelityCorpusStoryInputArgs
 
   final Arg<bool> reportCountArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get value => valueArg.value;
 
@@ -295,8 +299,8 @@ class ConstructorFidelityCorpusStoryInputArgs
 
   @override
   List<Arg?> get list => [
-    descriptionArg,
-    usageArg,
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
     valueArg,
     ordinaryLabelArg,
     requiredNamedArg,

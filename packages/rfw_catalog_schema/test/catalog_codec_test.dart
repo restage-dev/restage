@@ -6,6 +6,53 @@ import 'package:test/test.dart';
 
 void main() {
   group('native decompose codec', () {
+    test('v5 omits and round-trips an absent customer widget category', () {
+      final catalog = _nativeCatalog(category: null);
+
+      final wire = jsonDecode(encodeCatalog(catalog)) as Map<String, dynamic>;
+      final widget = (wire['widgets']! as List).single as Map<String, dynamic>;
+      expect(widget.containsKey('category'), isFalse);
+      expect(decodeCatalog(jsonEncode(wire)).widgets.single.category, isNull);
+
+      widget['category'] = null;
+      expect(decodeCatalog(jsonEncode(wire)).widgets.single.category, isNull);
+    });
+
+    test('v4 continues to require a non-null widget category', () {
+      final wire =
+          jsonDecode(encodeCatalog(_nativeCatalog())) as Map<String, dynamic>;
+      wire['schemaVersion'] = 4;
+      final widget = (wire['widgets']! as List).single as Map<String, dynamic>;
+      widget['fires'] = <String>[];
+      for (final property in widget['properties']! as List) {
+        (property as Map<String, dynamic>)['firesAs'] = null;
+      }
+
+      widget.remove('category');
+      expect(
+        () => decodeCatalog(jsonEncode(wire)),
+        throwsA(
+          isA<CatalogSchemaException>().having(
+            (error) => error.message,
+            'message',
+            contains('missing required string field: category'),
+          ),
+        ),
+      );
+
+      widget['category'] = null;
+      expect(
+        () => decodeCatalog(jsonEncode(wire)),
+        throwsA(
+          isA<CatalogSchemaException>().having(
+            (error) => error.message,
+            'message',
+            contains('missing required string field: category'),
+          ),
+        ),
+      );
+    });
+
     test('round-trips value shapes, parameters, construction, and transforms',
         () {
       const boxShapeType = DartTypeRef(
@@ -1552,6 +1599,7 @@ DecompositionFieldMapping _borderRadiusMapping({
 
 Catalog _nativeCatalog({
   int schemaVersion = kSupportedSchemaVersion,
+  WidgetCategory? category = WidgetCategory.layout,
   DecompositionRecipe? recipe,
   WireId? recipeVariantRef,
   WireId? bindingParameterRef,
@@ -1596,7 +1644,7 @@ Catalog _nativeCatalog({
         wireId: WireId('w0001'),
         name: 'Container',
         library: WidgetLibrary.core,
-        category: WidgetCategory.layout,
+        category: category,
         description: 'Box model widget.',
         flutterType: 'package:flutter/widgets.dart#Container',
         childrenSlot: ChildrenSlot.single,

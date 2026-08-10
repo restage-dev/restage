@@ -8,6 +8,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart'
         classifyA2uiCatalogDart,
         composeSystemPromptFragments;
 import 'package:restage_codegen/src/a2ui/a2ui_event_lowering.dart';
+import 'package:restage_codegen/src/a2ui/a2ui_native_screen.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -77,6 +78,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 RestageStampedA2uiCatalog emitA2uiCatalog(
   Catalog catalog, {
   NativeCatalogIndex? nativeIndex,
+  Iterable<A2uiNativeScreen> nativeScreens = const [],
   A2uiEventSeam? eventSeam,
   A2uiRichShapes? richShapes,
   A2uiPairingSeam? pairingSeam,
@@ -91,12 +93,16 @@ RestageStampedA2uiCatalog emitA2uiCatalog(
   final catalogPlan = classifyA2uiCatalogDart(
     catalog,
     nativeIndex: nativeIndex,
+    nativeScreens: nativeScreens,
     eventSeam: eventSeam,
     richShapes: richShapes,
     pairingSeam: pairingSeam,
   );
   final plans = catalogPlan.widgets;
-  final emittable = [for (final plan in plans) plan.entry];
+  final emittable = [
+    for (final plan in plans)
+      if (plan.nativeScreen == null) plan.entry,
+  ];
 
   // De-duplicate by name; ANY duplicate name fails loud (the catalog map is
   // flat). Cross-library is called out as the special case in the message.

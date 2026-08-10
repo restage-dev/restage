@@ -16,6 +16,14 @@
 - genui 0.10.1 performs full JSON-schema validation of components (a tightening
   over 0.9.2's enum-only checks). Validation is report-only and does not change
   the fail-closed pre-render check, which remains the authoritative gate.
+- **Coordinated generated-payload break:** customer widgets and opaque native
+  screens now keep protocol `id`/`component` on the envelope and nest every
+  exact constructor input under one required `props` object. Regenerate the
+  catalog and migrate producer/cached fixtures together. The runtime
+  pre-render-check API and A2UI v0.9.1 protocol version are unchanged.
+- Expand the executable example with several arbitrary child-bearing input
+  names on one component and real genui render coverage for the uniform
+  `props` layout.
 
 ## 0.1.6
 

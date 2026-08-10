@@ -24,11 +24,16 @@ final CatalogShowcaseComponent =
       docComment:
           r'''A customer catalog widget proving one source can feed every enabled target.
 It combines ordinary scalar state, an enum, callback write-back, native
-child slots, and customer-owned structured data.
+child-bearing inputs, and customer-owned structured data. The independently
+named `hero`, `details`, and `footer` inputs require no slot annotation.
 
 The second paragraph is retained in generated property metadata so
 multi-paragraph Dart documentation is never reduced to its first line.''',
-      stories: [$RestageCatalog..$generatedName = 'RestageCatalog'],
+      stories: [
+        $RestageCatalog..$generatedName = 'RestageCatalog',
+        $EnabledFalse..$generatedName = 'EnabledFalse',
+        $StatusProcessing..$generatedName = 'StatusProcessing',
+      ],
     );
 typedef CatalogShowcaseScenario =
     Scenario<CatalogShowcase, CatalogShowcaseStoryInputArgs>;
@@ -54,25 +59,26 @@ class CatalogShowcaseStory
 
 class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
   CatalogShowcaseStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? title,
     Arg<bool>? enabled,
     Arg<_RestageChoice2>? status,
     Arg<bool>? onChanged,
-    Arg<_RestageValue4>? header,
-    Arg<_RestageValue5>? children,
-    Arg<_RestageValue6>? data,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+    Arg<_RestageValue4>? hero,
+    Arg<_RestageValue5>? details,
+    Arg<_RestageValue6>? footer,
+    Arg<_RestageValue7>? data,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg(
-           "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child slots, and customer-owned structured data.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+           "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
          ),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg(
            "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
          ),
@@ -88,51 +94,62 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
          ),
        )!,
        this.onChangedArg = $initArg('onChanged', onChanged, BoolArg(false))!,
-       this.headerArg = $initArg(
-         'header',
-         header,
+       this.heroArg = $initArg(
+         'hero',
+         hero,
          ConstArg(const _RestageValue4.absent()),
        )!,
-       this.childrenArg = $initArg(
-         'children',
-         children,
+       this.detailsArg = $initArg(
+         'details',
+         details,
          ConstArg(const _RestageValue5.absent()),
+       )!,
+       this.footerArg = $initArg(
+         'footer',
+         footer,
+         ConstArg(const _RestageValue6.absent()),
        )!,
        this.dataArg = $initArg(
          'data',
          data,
-         ConstArg(const _RestageValue6.absent()),
+         ConstArg(const _RestageValue7.absent()),
        )!;
 
   CatalogShowcaseStoryInputArgs.fixed({
-    String description =
-        "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child slots, and customer-owned structured data.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
-    String usage =
+    String restageMetadataDescription =
+        "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+    String restageMetadataUsage =
         "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
     String title = "",
     bool enabled = true,
     _RestageChoice2 status = _RestageChoice2.value0,
     bool onChanged = false,
-    _RestageValue4 header = const _RestageValue4.absent(),
-    _RestageValue5 children = const _RestageValue5.absent(),
-    _RestageValue6 data = const _RestageValue6.absent(),
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+    _RestageValue4 hero = const _RestageValue4.absent(),
+    _RestageValue5 details = const _RestageValue5.absent(),
+    _RestageValue6 footer = const _RestageValue6.absent(),
+    _RestageValue7 data = const _RestageValue7.absent(),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.titleArg = $initArg('title', Arg.fixed(title), null)!,
        this.enabledArg = $initArg('enabled', Arg.fixed(enabled), null)!,
        this.statusArg = $initArg('status', Arg.fixed(status), null)!,
        this.onChangedArg = $initArg('onChanged', Arg.fixed(onChanged), null)!,
-       this.headerArg = $initArg('header', Arg.fixed(header), null)!,
-       this.childrenArg = $initArg('children', Arg.fixed(children), null)!,
+       this.heroArg = $initArg('hero', Arg.fixed(hero), null)!,
+       this.detailsArg = $initArg('details', Arg.fixed(details), null)!,
+       this.footerArg = $initArg('footer', Arg.fixed(footer), null)!,
        this.dataArg = $initArg('data', Arg.fixed(data), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> titleArg;
 
@@ -142,15 +159,17 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
 
   final Arg<bool> onChangedArg;
 
-  final Arg<_RestageValue4> headerArg;
+  final Arg<_RestageValue4> heroArg;
 
-  final Arg<_RestageValue5> childrenArg;
+  final Arg<_RestageValue5> detailsArg;
 
-  final Arg<_RestageValue6> dataArg;
+  final Arg<_RestageValue6> footerArg;
 
-  String get description => descriptionArg.value;
+  final Arg<_RestageValue7> dataArg;
 
-  String get usage => usageArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
+
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get title => titleArg.value;
 
@@ -160,22 +179,25 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
 
   bool get onChanged => onChangedArg.value;
 
-  _RestageValue4 get header => headerArg.value;
+  _RestageValue4 get hero => heroArg.value;
 
-  _RestageValue5 get children => childrenArg.value;
+  _RestageValue5 get details => detailsArg.value;
 
-  _RestageValue6 get data => dataArg.value;
+  _RestageValue6 get footer => footerArg.value;
+
+  _RestageValue7 get data => dataArg.value;
 
   @override
   List<Arg?> get list => [
-    descriptionArg,
-    usageArg,
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
     titleArg,
     enabledArg,
     statusArg,
     onChangedArg,
-    headerArg,
-    childrenArg,
+    heroArg,
+    detailsArg,
+    footerArg,
     dataArg,
   ];
 }

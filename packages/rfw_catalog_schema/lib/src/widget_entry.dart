@@ -76,8 +76,11 @@ final class WidgetEntry {
   /// Sibling library this widget belongs to.
   final WidgetLibrary library;
 
-  /// Sub-grouping within the library.
-  final WidgetCategory category;
+  /// Optional sub-grouping within the library.
+  ///
+  /// `null` means the widget is placed directly at the library root. Built-in
+  /// compiler inputs continue to require a category at their adapter boundary.
+  final WidgetCategory? category;
 
   /// Human-readable description.
   final String description;

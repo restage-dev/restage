@@ -64,7 +64,6 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A nullable children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NullableChildrenProbe extends StatelessWidget {
         const NullableChildrenProbe({this.children});
@@ -83,7 +82,6 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A nullable default children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NullableDefaultChildrenProbe extends StatelessWidget {
         const NullableDefaultChildrenProbe({
@@ -104,7 +102,6 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A non-nullable default children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NonNullableDefaultChildrenProbe extends StatelessWidget {
         const NonNullableDefaultChildrenProbe({
@@ -130,9 +127,9 @@ void main() {
     expect(
       nullableCompact,
       contains(
-        "children: data.containsKey('children') ? "
-        "(data['children'] == null ? null : "
-        "_restageA2uiBuildChildren(itemContext, data['children'])) : null,",
+        "children: props.containsKey('children') ? "
+        "(props['children'] == null ? null : "
+        "_restageA2uiBuildChildren(itemContext, props['children'])) : null,",
       ),
       reason: 'missing and explicit-null inputs must remain null, while empty '
           'and non-empty authored lists must still call the children builder',
@@ -154,8 +151,8 @@ void main() {
     expect(
       nullableDefault.replaceAll(RegExp(r'\s+'), ' '),
       allOf(
-        contains("data.containsKey('children') ?"),
-        contains("data['children'] == null ? null :"),
+        contains("props.containsKey('children') ?"),
+        contains("props['children'] == null ? null :"),
         contains(': const <Widget>[const SizedBox.shrink()],'),
       ),
       reason: 'absence must select the exact non-null default while explicit '
@@ -167,7 +164,7 @@ void main() {
     expect(
       nonNullableDefault.replaceAll(RegExp(r'\s+'), ' '),
       allOf(
-        contains("data.containsKey('children') ?"),
+        contains("props.containsKey('children') ?"),
         contains(': const <Widget>[const SizedBox.shrink()],'),
       ),
       reason: 'the non-nullable constructor-default control must retain its '
@@ -202,7 +199,6 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.decoration,
         description: 'a constructor-default probe',
-        childrenSlot: ChildrenSlot.list,
       )
       class DefaultProbe {
         const DefaultProbe({
@@ -266,8 +262,8 @@ void main() {
     expect(
       dart.replaceAll(RegExp(r'\s+'), ''),
       contains(
-        "data.containsKey('maybeLabels')?"
-        "(data['maybeLabels']==null?null:"
+        "props.containsKey('maybeLabels')?"
+        "(props['maybeLabels']==null?null:"
         '((maybeLabelsisList?maybeLabels.cast<Object?>():null)??'
         'p1.Tokens.sharedLabels)):p1.Tokens.sharedLabels',
       ),

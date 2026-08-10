@@ -102,6 +102,13 @@ ordinary `runWidgetbook(Config(...))` bootstrap, and run the normal
 `build_runner` invocation. Restage does not generate stories for Flutter,
 Material, Cupertino, or Restage built-ins.
 
+Builder configuration selects targets for the package. An exceptional
+`@RestageWidget` can opt out of one selected target with that target's
+`Config(enabled: false)` or `Config.enabled(false)` annotation. Bare `@ignore`
+still omits one safely omissible constructor input from every target;
+`@Ignore({EmitTarget.a2ui, EmitTarget.widgetbook})`, for example, narrows the
+omission to those targets without removing the property from RFW.
+
 In watch mode, adding or removing another `@RestageWidget` in a file that
 already contains one may require restarting `dart run build_runner watch` so
 the package-wide story output is rescanned. The initial release does not claim

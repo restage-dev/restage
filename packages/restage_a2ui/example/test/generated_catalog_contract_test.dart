@@ -131,7 +131,9 @@ void main() {
     final definitions = _objectAt(schema, r'$defs');
     final root = _objectAt(definitions, '__a2ui_root__');
     final rootProperties = _objectAt(root, 'properties');
-    final productOccurrence = _objectAt(rootProperties, 'product');
+    final props = _objectAt(rootProperties, 'props');
+    final propsProperties = _objectAt(props, 'properties');
+    final productOccurrence = _objectAt(propsProperties, 'product');
     final product = _objectAt(definitions, 'Product');
     final productProperties = _objectAt(product, 'properties');
     final money = _objectAt(definitions, 'Money');
@@ -324,7 +326,11 @@ void main() {
         UpdateComponentsMessage(
           surfaceId: surfaceId,
           components: [
-            {'id': 'root', 'component': 'SectionHeader', 'title': title},
+            {
+              'id': 'root',
+              'component': 'SectionHeader',
+              'props': {'title': title},
+            },
           ],
         ),
       );
@@ -337,7 +343,11 @@ void main() {
       UpdateComponentsMessage(
         surfaceId: 'missing',
         components: const [
-          {'id': 'root', 'component': 'SectionHeader'},
+          {
+            'id': 'root',
+            'component': 'SectionHeader',
+            'props': <String, Object?>{},
+          },
         ],
       ),
     );

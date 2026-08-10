@@ -20,14 +20,22 @@ import 'a2ui_proof_support.dart';
 /// A payload whose root references a component absent from the catalog.
 List<Object?> _ghostMessages(String surfaceId, String catalogId) =>
     sidecarMessages(surfaceId, catalogId, const [
-      {'id': 'root', 'component': 'GhostWidget', 'title': 'nope'},
+      {
+        'id': 'root',
+        'component': 'GhostWidget',
+        'props': {'title': 'nope'},
+      },
     ]);
 
 /// A valid single-component payload (every referenced type EXISTS), so only the
 /// capability axis can reject it.
 List<Object?> _validMessages(String surfaceId, String catalogId) =>
     sidecarMessages(surfaceId, catalogId, const [
-      {'id': 'root', 'component': 'SectionHeader', 'title': 'ok'},
+      {
+        'id': 'root',
+        'component': 'SectionHeader',
+        'props': {'title': 'ok'},
+      },
     ]);
 
 /// A MIXED payload: a valid root with a valid child AND a missing-type child —
@@ -38,11 +46,21 @@ List<Object?> _mixedMessages(String surfaceId, String catalogId) =>
       {
         'id': 'root',
         'component': 'ComparisonPanel',
-        'heading': 'Mixed',
-        'children': ['ok', 'ghost'],
+        'props': {
+          'heading': 'Mixed',
+          'examples': ['ok', 'ghost'],
+        },
       },
-      {'id': 'ok', 'component': 'SectionHeader', 'title': 'I render'},
-      {'id': 'ghost', 'component': 'GhostWidget', 'title': 'I do not exist'},
+      {
+        'id': 'ok',
+        'component': 'SectionHeader',
+        'props': {'title': 'I render'},
+      },
+      {
+        'id': 'ghost',
+        'component': 'GhostWidget',
+        'props': {'title': 'I do not exist'},
+      },
     ]);
 
 void main() {

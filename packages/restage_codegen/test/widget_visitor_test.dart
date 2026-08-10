@@ -76,7 +76,6 @@ void main() {
               library: WidgetLibrary.custom('acme.design_system'),
               category: WidgetCategory.input,
               description: 'CTA.',
-              childrenSlot: ChildrenSlot.single,
             )
             class Btn {
               const Btn({
@@ -94,7 +93,7 @@ void main() {
 
       expect(result.issues, isEmpty);
       final w = result.widgets.single;
-      expect(w.childrenSlot, ChildrenSlot.single);
+      expect(w.childrenSlot, ChildrenSlot.none);
       expect(w.properties, hasLength(2));
       final child = w.properties.firstWhere((p) => p.name == 'child');
       expect(child.required, isTrue);

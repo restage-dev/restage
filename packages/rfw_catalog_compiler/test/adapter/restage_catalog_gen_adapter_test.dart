@@ -4,6 +4,30 @@ import 'package:test/test.dart';
 
 void main() {
   group('RestageCatalogGenAdapter', () {
+    test('rejects absent category at the built-in compiler boundary', () {
+      const widget = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'CustomerOnlyWidget',
+        library: WidgetLibrary.custom('acme.widgets'),
+        category: null,
+        description: 'Customer widget without editor placement.',
+        flutterType: 'package:acme/widgets.dart#CustomerOnlyWidget',
+        childrenSlot: ChildrenSlot.none,
+        properties: const [],
+      );
+
+      expect(
+        () => const RestageCatalogGenAdapter().lowerWidgets([widget]),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            contains('Built-in compiler requires WidgetEntry.category'),
+          ),
+        ),
+      );
+    });
+
     test('round-trips reflected widget entries through compiler IR', () {
       final widget = WidgetEntry(
         wireId: WireId.unallocatedWidget,

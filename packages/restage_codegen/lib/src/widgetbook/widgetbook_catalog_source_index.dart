@@ -1,32 +1,41 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
+import 'package:crypto/crypto.dart';
 import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/native_screen_source_index.dart';
+import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_property_capability.dart';
+import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
+    show DiagnosticSeverity;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// One customer widget retained with the analyzer facts needed by the native
-/// Widgetbook backend.
+/// One authored story source retained with the analyzer facts needed by the
+/// native Widgetbook backend.
 final class WidgetbookWidgetSource {
-  /// Creates an indexed customer widget.
+  /// Creates an indexed story source.
   WidgetbookWidgetSource({
     required this.entry,
     required this.element,
     required this.sourceAsset,
+    required this.declarationSourcePath,
     required this.usage,
+    required this.targetConfig,
     required Map<String, WidgetConstructorInput> constructorInputs,
     required List<DartBareSymbolReservation> bareNamespaceReservations,
+    this.nativeScreen,
   })  : constructorInputs = Map.unmodifiable(constructorInputs),
         bareNamespaceReservations = List.unmodifiable(
           bareNamespaceReservations,
@@ -41,9 +50,21 @@ final class WidgetbookWidgetSource {
   /// Defining source asset.
   final AssetId sourceAsset;
 
+  /// Exact analyzer-resolved path containing the class declaration.
+  ///
+  /// For classes declared in a part this differs from [sourceAsset], which is
+  /// the importable owning library used by generated source.
+  final String declarationSourcePath;
+
   /// Producer-facing `usage` text, falling back to [WidgetEntry.description]
   /// exactly as the customer A2UI emitter does.
   final String usage;
+
+  /// Widgetbook-only finite-state authoring configuration.
+  final WidgetbookTargetConfigFacts targetConfig;
+
+  /// Exact native screen source when this is a `ScreenSource` story.
+  final NativeScreenSource? nativeScreen;
 
   /// Constructor-normalized inputs keyed by public property name.
   final Map<String, WidgetConstructorInput> constructorInputs;
@@ -60,6 +81,9 @@ final class WidgetbookWidgetSource {
     final candidate = element.unnamedConstructor;
     return candidate == null || candidate.isFactory ? null : candidate;
   }
+
+  /// Whether this story source is an opaque native screen.
+  bool get isNativeScreen => nativeScreen != null;
 }
 
 /// One customer structured value retained with its analyzer declaration.
@@ -101,6 +125,7 @@ final class WidgetbookCatalogSourceIndex {
   /// Creates an immutable package index.
   WidgetbookCatalogSourceIndex({
     required List<WidgetbookWidgetSource> widgets,
+    required List<WidgetbookWidgetSource> nativeScreens,
     required List<StructuredEntry> structuredTypes,
     required Map<String, WidgetbookStructuredSource> structuredSources,
     required Map<String, String> slotTargets,
@@ -108,7 +133,9 @@ final class WidgetbookCatalogSourceIndex {
     required Map<String, ReconstructionPlan> reconstructionPlans,
     required Map<String, String> unrenderableByWidget,
     required List<PropertyExclusion> exclusions,
+    required Set<String> restageWidgetClassNames,
   })  : widgets = List.unmodifiable(widgets),
+        nativeScreens = List.unmodifiable(nativeScreens),
         structuredTypes = List.unmodifiable(structuredTypes),
         structuredSources = Map.unmodifiable(structuredSources),
         slotTargets = Map.unmodifiable(slotTargets),
@@ -116,8 +143,10 @@ final class WidgetbookCatalogSourceIndex {
         reconstructionPlans = Map.unmodifiable(reconstructionPlans),
         unrenderableByWidget = Map.unmodifiable(unrenderableByWidget),
         exclusions = List.unmodifiable(exclusions),
+        restageWidgetClassNames = Set.unmodifiable(restageWidgetClassNames),
         widgetsByFlutterType = Map.unmodifiable({
-          for (final widget in widgets) widget.entry.flutterType: widget,
+          for (final widget in [...widgets, ...nativeScreens])
+            widget.entry.flutterType: widget,
         }),
         structuredBySourceType = Map.unmodifiable({
           for (final entry in structuredTypes) entry.sourceType: entry,
@@ -125,6 +154,15 @@ final class WidgetbookCatalogSourceIndex {
 
   /// Customer widgets in deterministic `(library namespace, name)` order.
   final List<WidgetbookWidgetSource> widgets;
+
+  /// Native screens in deterministic exact-ID order.
+  final List<WidgetbookWidgetSource> nativeScreens;
+
+  /// Every source that owns one ordinary generated Widgetbook story.
+  Iterable<WidgetbookWidgetSource> get storySources sync* {
+    yield* widgets;
+    yield* nativeScreens;
+  }
 
   /// Customer structured types reachable from any indexed widget.
   final List<StructuredEntry> structuredTypes;
@@ -147,7 +185,10 @@ final class WidgetbookCatalogSourceIndex {
   /// Constructor inputs omitted because Widgetbook cannot decode their type.
   final List<PropertyExclusion> exclusions;
 
-  /// Widget identity lookup.
+  /// Genuine customer-widget class names, including target-disabled classes.
+  final Set<String> restageWidgetClassNames;
+
+  /// Story-source identity lookup.
   final Map<String, WidgetbookWidgetSource> widgetsByFlutterType;
 
   /// Structured source identity lookup.
@@ -160,7 +201,12 @@ final class WidgetbookCatalogSourceIndex {
 /// Sharing the resolved index must not make the second story output stale when
 /// a component in another file changes.
 final class WidgetbookCatalogIndexCache {
-  final Map<String, Future<WidgetbookCatalogSourceIndex>> _byPackage = {};
+  final Map<
+      String,
+      ({
+        String fingerprint,
+        Future<WidgetbookCatalogSourceIndex> index,
+      })> _byPackage = {};
 
   /// Returns the current package index, resolving it once in this build pass.
   Future<WidgetbookCatalogSourceIndex> getOrLoad(BuildStep buildStep) async {
@@ -169,15 +215,27 @@ final class WidgetbookCatalogIndexCache {
         .where(_isAuthoredDartAsset)
         .toList();
     assets.sort((left, right) => left.path.compareTo(right.path));
+    final fingerprintParts = <String>[];
     for (final asset in assets) {
-      await buildStep.canRead(asset);
+      final contents = await buildStep.readAsBytes(asset);
+      fingerprintParts.add(
+        '${asset.package}|${asset.path}|${sha256.convert(contents)}',
+      );
     }
-
-    return _byPackage[buildStep.inputId.package] ??=
-        loadWidgetbookCatalogSourceIndex(
+    final fingerprint = sha256
+        .convert(
+          utf8.encode(fingerprintParts.join('\n')),
+        )
+        .toString();
+    final packageName = buildStep.inputId.package;
+    final cached = _byPackage[packageName];
+    if (cached?.fingerprint == fingerprint) return cached!.index;
+    final index = loadWidgetbookCatalogSourceIndex(
       buildStep,
       assets: assets,
     );
+    _byPackage[packageName] = (fingerprint: fingerprint, index: index);
+    return index;
   }
 }
 
@@ -200,6 +258,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   );
 
   final widgets = <WidgetbookWidgetSource>[];
+  final nativeScreens = <WidgetbookWidgetSource>[];
   final structuredBySourceType = <String, StructuredEntry>{};
   final slotTargets = <String, String>{};
   final nullableStructuredSlots = <String>{};
@@ -209,6 +268,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   final issues = <Issue>[];
   final exclusions = <PropertyExclusion>[];
 
+  final sources = <ResolvedPackageLibrary>[];
   for (final assetId in sourceAssets) {
     final LibraryElement library;
     try {
@@ -219,11 +279,33 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
     } on NonLibraryAssetException {
       continue;
     }
+    sources.add((assetId: assetId, library: library));
+  }
+  final packageFacts = indexRestageWidgetPackage(sources);
 
-    final result = visitRestageWidgets(
+  for (final source in sources) {
+    final assetId = source.assetId;
+    final library = source.library;
+    final walk = packageFacts.walksByAsset[assetId]!;
+    for (final diagnostic in walk.diagnostics) {
+      if (diagnostic.severity == DiagnosticSeverity.error) {
+        issues.add(
+          Issue(
+            code: IssueCode.missingAnnotationField,
+            message: diagnostic.message,
+            location: diagnostic.location,
+          ),
+        );
+      } else {
+        log.warning(diagnostic.message);
+      }
+    }
+
+    final result = visitRestageWidgetsInPackage(
       library,
       assetId,
       target: WidgetVisitorTarget.widgetbook,
+      packageFacts: packageFacts,
     );
     issues.addAll(result.issues);
     exclusions.addAll(result.exclusions);
@@ -287,15 +369,27 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
         continue;
       }
 
-      final constructorFacts = readWidgetConstructorFacts(element, assetId);
-      final targetConfig = readA2uiTargetConfig(
+      final constructorFacts = projectWidgetConstructorFacts(
+        element,
+        assetId,
+        readWidgetConstructorFacts(element, assetId),
+        target: EmitTarget.widgetbook,
+      );
+      final a2uiTargetConfig = readA2uiTargetConfig(
         element,
         assetId,
         constructorInputs: constructorFacts.inputs,
         consumer: A2uiTargetConfigConsumer.widgetbookMetadata,
       );
-      issues.addAll(targetConfig.issues);
-      final usageValue = targetConfig.usage;
+      final widgetbookTargetConfig = readWidgetbookTargetConfig(
+        element,
+        assetId,
+        constructorInputs: constructorFacts.inputs,
+      );
+      issues
+        ..addAll(a2uiTargetConfig.issues)
+        ..addAll(widgetbookTargetConfig.issues);
+      final usageValue = a2uiTargetConfig.usage;
       final inputsByName = {
         for (final input in constructorFacts.inputs) input.name: input,
       };
@@ -304,9 +398,11 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
           entry: entry,
           element: element,
           sourceAsset: assetId,
+          declarationSourcePath: _elementSourcePath(element, assetId),
           usage: usageValue == null || usageValue.isEmpty
               ? entry.description
               : usageValue,
+          targetConfig: widgetbookTargetConfig,
           constructorInputs: inputsByName,
           bareNamespaceReservations: _bareNamespaceReservations(
             sourceLibrary: library,
@@ -320,52 +416,107 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
           ),
         ),
       );
-
-      final metadataCollisions = entry.properties
-          .where(
-            (property) =>
-                property.name == 'description' || property.name == 'usage',
-          )
-          .map((property) => property.name)
-          .toList(growable: false);
-      if (metadataCollisions.isNotEmpty) {
-        widgetUnrenderable[entry.flutterType] =
-            'catalog property name(s) ${metadataCollisions.join(', ')} collide '
-            'with the generated Widgetbook metadata sidebar fields';
-      }
-
-      if (element.typeParameters.isNotEmpty) {
-        widgetUnrenderable[entry.flutterType] =
-            'generic @RestageWidget classes are not supported by automatic '
-            'Widgetbook stories; use a concrete wrapper widget';
-      }
-      final constructor = element.unnamedConstructor;
-      if (constructor == null || constructor.isFactory) {
-        widgetUnrenderable[entry.flutterType] =
-            'automatic Widgetbook stories require an unnamed generative '
-            'constructor';
-      } else {
-        final catalogNames = {
-          for (final property in entry.properties) property.name,
-        };
-        final missingRequired = constructor.formalParameters.where(
-          (parameter) =>
-              parameter.isRequired && !catalogNames.contains(parameter.name),
-        );
-        if (missingRequired.isNotEmpty) {
-          widgetUnrenderable[entry.flutterType] =
-              'required constructor parameter(s) not represented in the '
-              'catalog: ${missingRequired.map(
-                    (parameter) => parameter.name ?? '<positional>',
-                  ).join(', ')}';
-        }
-      }
+      _recordAutomaticSourceObstructions(
+        source: widgets.last,
+        sourceLabel: '@RestageWidget',
+        unrenderable: widgetUnrenderable,
+      );
     }
 
     final resolved = await library.session.getResolvedLibraryByElement(library);
     if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
       issues.addAll(syntacticErrorIssues(resolved, sourcePath: assetId.path));
     }
+  }
+
+  final nativeIndex = await loadNativeScreenSourceIndex(
+    buildStep,
+    consumer: NativeScreenSourceConsumer.widgetbook,
+  );
+  const screenPlanningLibrary = WidgetLibrary.custom(
+    'restage.native_screen_source',
+  );
+  for (final screen in nativeIndex.screens) {
+    final projection = projectConstructorComponent(
+      element: screen.element,
+      assetId: screen.sourceAsset,
+      constructorFacts: screen.constructorFacts,
+      componentName: screen.id,
+      flutterType: screen.classIdentity,
+      description: screen.description ?? '',
+      sinceVersion: screen.version,
+      planningLibrary: screenPlanningLibrary,
+      target: WidgetVisitorTarget.widgetbook,
+    );
+    issues.addAll(projection.issues);
+    exclusions.addAll(projection.exclusions);
+    _mergeStringMap(
+      slotTargets,
+      projection.slotTargets,
+      label: 'structured slot target',
+      issues: issues,
+      location: screen.declarationSourcePath,
+    );
+    nullableStructuredSlots.addAll(projection.nullableStructuredSlots);
+    _mergeStringMap(
+      localUnrenderable,
+      projection.localUnrenderable,
+      label: 'structured unrenderability',
+      issues: issues,
+      location: screen.declarationSourcePath,
+    );
+    _mergeStringMap(
+      widgetUnrenderable,
+      projection.componentUnrenderable,
+      label: 'screen unrenderability',
+      issues: issues,
+      location: screen.declarationSourcePath,
+    );
+    for (final plan in projection.reconstructionPlans.entries) {
+      reconstructionPlans.putIfAbsent(plan.key, () => plan.value);
+    }
+    for (final structured in projection.structuredTypes) {
+      structuredBySourceType.putIfAbsent(
+        structured.sourceType,
+        () => structured,
+      );
+    }
+
+    final entry = projection.entry;
+    final inputsByName = {
+      for (final input in screen.constructorFacts.inputs) input.name: input,
+    };
+    final usageValue = screen.a2uiTargetConfig.usage;
+    nativeScreens.add(
+      WidgetbookWidgetSource(
+        entry: entry,
+        element: screen.element,
+        sourceAsset: screen.sourceAsset,
+        declarationSourcePath: screen.declarationSourcePath,
+        usage: usageValue == null || usageValue.isEmpty
+            ? entry.description
+            : usageValue,
+        targetConfig: screen.widgetbookTargetConfig,
+        nativeScreen: screen,
+        constructorInputs: inputsByName,
+        bareNamespaceReservations: _bareNamespaceReservations(
+          sourceLibrary: screen.element.library,
+          widgetbookLibrary: widgetbookLibrary,
+          sourceClassName: screen.element.name ?? '<unnamed>',
+          propertyTypes: [
+            for (final property in entry.properties)
+              if (property.type != PropertyType.event)
+                if (inputsByName[property.name] case final input?) input.type,
+          ],
+        ),
+      ),
+    );
+
+    _recordAutomaticSourceObstructions(
+      source: nativeScreens.last,
+      sourceLabel: '@ScreenSource',
+      unrenderable: widgetUnrenderable,
+    );
   }
 
   final byCatalogName = <String, List<WidgetbookWidgetSource>>{};
@@ -418,7 +569,11 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   final structuredEntries = {
     for (final entry in structuredTypes) entry.sourceType: entry,
   };
-  for (final widget in widgets) {
+  final storySources = <WidgetbookWidgetSource>[
+    ...widgets,
+    ...nativeScreens,
+  ];
+  for (final widget in storySources) {
     final obstruction = _widgetbookCapabilityObstruction(
       widget.entry,
       structuredEntries: structuredEntries,
@@ -429,7 +584,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
     }
   }
   final admission = computeAdmission(
-    widgets: [for (final widget in widgets) widget.entry],
+    widgets: [for (final widget in storySources) widget.entry],
     structuredTypes: structuredTypes,
     slotTargets: slotTargets,
     localUnrenderable: localUnrenderable,
@@ -465,8 +620,15 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
         ? byLibrary
         : left.entry.name.compareTo(right.entry.name);
   });
+  nativeScreens.sort((left, right) {
+    final byId = left.entry.name.compareTo(right.entry.name);
+    return byId != 0
+        ? byId
+        : left.entry.flutterType.compareTo(right.entry.flutterType);
+  });
   return WidgetbookCatalogSourceIndex(
     widgets: widgets,
+    nativeScreens: nativeScreens,
     structuredTypes: structuredTypes,
     structuredSources: structuredSources,
     slotTargets: slotTargets,
@@ -474,6 +636,66 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
     reconstructionPlans: reconstructionPlans,
     unrenderableByWidget: widgetUnrenderable,
     exclusions: exclusions,
+    restageWidgetClassNames: {
+      for (final identity in packageFacts.widgetDeclarations)
+        identity.substring(identity.lastIndexOf('#') + 1),
+    },
+  );
+}
+
+void _recordAutomaticSourceObstructions({
+  required WidgetbookWidgetSource source,
+  required String sourceLabel,
+  required Map<String, String> unrenderable,
+}) {
+  final entry = source.entry;
+  if (source.element.typeParameters.isNotEmpty) {
+    unrenderable[entry.flutterType] =
+        'generic $sourceLabel classes are not supported by automatic '
+        'Widgetbook stories; use a concrete wrapper widget';
+  }
+  final constructor = source.element.unnamedConstructor;
+  if (constructor == null || constructor.isFactory) {
+    unrenderable[entry.flutterType] =
+        'automatic Widgetbook stories require an unnamed generative '
+        'constructor';
+    return;
+  }
+  final catalogNames = {
+    for (final property in entry.properties) property.name,
+  };
+  final missingRequired = constructor.formalParameters.where(
+    (parameter) =>
+        parameter.isRequired && !catalogNames.contains(parameter.name),
+  );
+  if (missingRequired.isNotEmpty) {
+    unrenderable[entry.flutterType] =
+        'required constructor parameter(s) not represented in the catalog: '
+        '${missingRequired.map(
+              (parameter) => parameter.name ?? '<positional>',
+            ).join(', ')}';
+  }
+}
+
+String _elementSourcePath(Element element, AssetId contextAsset) {
+  final fragment = element.firstFragment.libraryFragment;
+  if (fragment == null) {
+    throw StateError(
+      'Could not resolve a defining library fragment for '
+      '${element.displayName}.',
+    );
+  }
+  final source = fragment.source;
+  final uri = source.uri;
+  if (uri.scheme == 'package' || uri.scheme == 'asset') {
+    final asset = AssetId.resolve(uri);
+    return asset.package == contextAsset.package ? asset.path : uri.toString();
+  }
+  if (uri.scheme == 'file') return source.fullName;
+  if (uri.hasScheme) return uri.toString();
+  throw StateError(
+    'Could not resolve an exact defining source for '
+    '${element.displayName}.',
   );
 }
 

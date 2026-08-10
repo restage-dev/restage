@@ -5,6 +5,7 @@
 /// what it deliberately leaves to consumer packages.
 library;
 
+export 'src/annotations/emit_target.dart';
 export 'src/annotations/ignore.dart';
 export 'src/annotations/restage_builtin_library.dart';
 export 'src/annotations/restage_data_field.dart';

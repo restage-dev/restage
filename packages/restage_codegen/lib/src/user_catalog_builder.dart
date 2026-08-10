@@ -14,12 +14,9 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Customers register the resulting catalog at startup with
 /// `Restage.registerWidgetLibrary(...)` (see `restage`).
 ///
-/// Skips emit when no `@RestageWidget`-annotated classes are present —
-/// packages without customer widgets don't acquire a generated catalog
-/// file. After removing the last `@RestageWidget` class, run
-/// `dart run build_runner clean` to delete a previously emitted
-/// `user_catalog.g.dart` (build_runner does not auto-clean source
-/// outputs whose declaring builder later opts out).
+/// Skips emit when no `@RestageWidget` declaration is present. When
+/// declarations remain but none participate in RFW, writes an empty catalog
+/// so a previously generated aggregate cannot stay stale.
 final class UserCatalogBuilder implements Builder {
   /// Const constructor used by the `userCatalogBuilder` factory.
   const UserCatalogBuilder(this.options);

@@ -56,8 +56,10 @@ void main() {
     final note = components['Note']! as Map<String, Object?>;
     expect(note['description'], 'A short note.');
     final properties = note['properties']! as Map<String, Object?>;
+    final props = properties['props']! as Map<String, Object?>;
+    final customerProperties = props['properties']! as Map<String, Object?>;
     expect(
-      properties['text'],
+      customerProperties['text'],
       containsPair('description', 'The note text.'),
     );
   });
@@ -106,7 +108,9 @@ void main() {
     final note = components['Note']! as Map<String, Object?>;
     expect(note.containsKey('description'), isFalse);
     final properties = note['properties']! as Map<String, Object?>;
-    final text = properties['text']! as Map<String, Object?>;
+    final props = properties['props']! as Map<String, Object?>;
+    final customerProperties = props['properties']! as Map<String, Object?>;
+    final text = customerProperties['text']! as Map<String, Object?>;
     expect(text.containsKey('description'), isFalse);
   });
 }

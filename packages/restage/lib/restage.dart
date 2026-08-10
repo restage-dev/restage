@@ -41,7 +41,9 @@ export 'src/flow/system_back_policy.dart';
 export 'package:restage_shared/restage_shared.dart'
     show
         ChildrenSlot,
+        EmitTarget,
         EntitlementSource,
+        Ignore,
         RestageEntitlement,
         RestageLibrary,
         RestageProduct,
@@ -82,7 +84,8 @@ export 'package:restage_shared/restage_shared.dart'
         StateFlowValueSource,
         SubFlowResultFlowValueSource,
         WidgetCategory,
-        WidgetLibrary;
+        WidgetLibrary,
+        ignore;
 
 export 'src/refresh/surface_refresh_trigger.dart';
 export 'src/refresh/surface_update_channel.dart';

@@ -37,7 +37,6 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.decoration,
         description: 'a constructor-default probe',
-        childrenSlot: ChildrenSlot.list,
       )
       class DefaultProbe extends StatelessWidget {
         const DefaultProbe({
@@ -93,7 +92,6 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.decoration,
         description: 'a nullable children constructor-default probe',
-        childrenSlot: ChildrenSlot.list,
       )
       class NullableChildrenProbe extends StatelessWidget {
         const NullableChildrenProbe({

@@ -17,7 +17,7 @@ const restageLibrary = 0;
 
 void main() {
   test(
-      'nullable named canonical children preserve null and authored list '
+      'nullable named exact customer list preserves null and authored list '
       'values and analyze clean', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
@@ -30,17 +30,16 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A nullable children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NullableChildrenProbe extends StatelessWidget {
-        const NullableChildrenProbe({this.children});
+        const NullableChildrenProbe({this.regions});
 
         /// Optional child widgets.
-        final List<Widget>? children;
+        final List<Widget>? regions;
 
         @override
         Widget build(BuildContext context) => Column(
-          children: children ?? const <Widget>[],
+          children: regions ?? const <Widget>[],
         );
       }
 
@@ -49,19 +48,18 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A nullable default children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NullableDefaultChildrenProbe extends StatelessWidget {
         const NullableDefaultChildrenProbe({
-          this.children = const <Widget>[SizedBox.shrink()],
+          this.regions = const <Widget>[SizedBox.shrink()],
         });
 
         /// Optional child widgets with a non-null default.
-        final List<Widget>? children;
+        final List<Widget>? regions;
 
         @override
         Widget build(BuildContext context) => Column(
-          children: children ?? const <Widget>[],
+          children: regions ?? const <Widget>[],
         );
       }
 
@@ -70,18 +68,17 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A non-nullable default children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NonNullableDefaultChildrenProbe extends StatelessWidget {
         const NonNullableDefaultChildrenProbe({
-          this.children = const <Widget>[SizedBox.shrink()],
+          this.regions = const <Widget>[SizedBox.shrink()],
         });
 
         /// Child widgets with a non-null default.
-        final List<Widget> children;
+        final List<Widget> regions;
 
         @override
-        Widget build(BuildContext context) => Column(children: children);
+        Widget build(BuildContext context) => Column(children: regions);
       }
     ''';
     final sources = {
@@ -98,15 +95,15 @@ void main() {
     expect(
       nullableFlat,
       contains(
-        "children: source.isList(<Object>['children']) ? "
-        "source.childList(<Object>['children']) : null,",
+        "regions: source.isList(<Object>['regions']) ? "
+        "source.childList(<Object>['regions']) : null,",
       ),
       reason: 'missing and explicit-null inputs must remain null, while both '
           'empty and non-empty authored lists must retain childList lowering',
     );
     expect(
       nullable,
-      isNot(contains("children: source.childList(<Object>['children'])")),
+      isNot(contains("regions: source.childList(<Object>['regions'])")),
       reason: 'the direct childList read collapses missing/null to an empty '
           'list',
     );
@@ -118,10 +115,10 @@ void main() {
 
     for (final factory in [nullableDefault, nonNullableDefault]) {
       final flat = factory.replaceAll(RegExp(r'\s+'), ' ');
-      expect(flat, contains('if (_restagePresenceChildren.supplied)'));
+      expect(flat, contains('if (_restagePresenceRegions.supplied)'));
       expect(
         flat,
-        contains('source.isList(_restagePresenceChildren.valuePath)'),
+        contains('source.isList(_restagePresenceRegions.valuePath)'),
         reason: 'authored empty and non-empty lists must stay on the list '
             'decoder path',
       );
@@ -134,7 +131,7 @@ void main() {
     );
     expect(
       nonNullableDefault,
-      contains('NonNullableDefaultChildrenProbe.children is required.'),
+      contains('NonNullableDefaultChildrenProbe.regions is required.'),
       reason: 'the non-nullable default control must still reject a supplied '
           'null instead of replacing it with an empty list',
     );
@@ -142,7 +139,7 @@ void main() {
   });
 
   test(
-      'optional positional canonical children emit once with their real '
+      'optional positional exact customer list emits once with its real '
       'binding and analyze clean', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
@@ -155,18 +152,17 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A positional children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class PositionalChildrenProbe extends StatelessWidget {
         const PositionalChildrenProbe([
-          this.children = const <Widget>[],
+          this.regions = const <Widget>[],
         ]);
 
         /// Child widgets.
-        final List<Widget> children;
+        final List<Widget> regions;
 
         @override
-        Widget build(BuildContext context) => Column(children: children);
+        Widget build(BuildContext context) => Column(children: regions);
       }
 
       @RestageWidget(
@@ -174,19 +170,18 @@ void main() {
         library: WidgetLibrary.custom('acme.widgets'),
         category: WidgetCategory.layout,
         description: 'A nullable positional children probe.',
-        childrenSlot: ChildrenSlot.list,
       )
       class NullablePositionalChildrenProbe extends StatelessWidget {
         const NullablePositionalChildrenProbe([
-          this.children = const <Widget>[],
+          this.regions = const <Widget>[],
         ]);
 
         /// Nullable child widgets.
-        final List<Widget>? children;
+        final List<Widget>? regions;
 
         @override
         Widget build(BuildContext context) => Column(
-          children: children ?? const <Widget>[],
+          children: regions ?? const <Widget>[],
         );
       }
     ''';
@@ -200,40 +195,40 @@ void main() {
     for (final factory in [nonNullable, nullable]) {
       final flat = factory.replaceAll(RegExp(r'\s+'), ' ');
       expect(
-        RegExp('#children:').allMatches(factory),
+        RegExp('#regions:').allMatches(factory),
         isEmpty,
-        reason: 'a positional canonical child must never be re-emitted named',
+        reason: 'a positional customer child must never be re-emitted named',
       );
       expect(
         RegExp(r'source\.childList\(').allMatches(factory),
         hasLength(1),
-        reason: 'the canonical children value must be emitted exactly once',
+        reason: 'the exact customer list value must be emitted exactly once',
       );
       expect(
         flat,
-        contains('if (_restagePresenceChildren.supplied)'),
+        contains('if (_restagePresenceRegions.supplied)'),
         reason: 'absence must omit the trailing optional positional slot',
       );
       expect(
         flat,
-        contains('source.isList(_restagePresenceChildren.valuePath)'),
+        contains('source.isList(_restagePresenceRegions.valuePath)'),
         reason: 'a supplied value must retain list-shape validation',
       );
       expect(
         flat,
-        isNot(contains('if (_restagePresenceChildren.hasValue)')),
+        isNot(contains('if (_restagePresenceRegions.hasValue)')),
         reason: 'supplied null/missing must not become constructor omission',
       );
       expect(
         factory,
-        contains('children is required.'),
+        contains('regions is required.'),
         reason: 'a supplied wrong shape must remain a loud failure',
       );
     }
     expect(
       nonNullable.replaceAll(RegExp(r'\s+'), ''),
       contains(
-        ":(throwArgumentError('PositionalChildrenProbe.childrenisrequired.'))",
+        ":(throwArgumentError('PositionalChildrenProbe.regionsisrequired.'))",
       ),
       reason: 'supplied null/missing is invalid for a non-nullable slot',
     );

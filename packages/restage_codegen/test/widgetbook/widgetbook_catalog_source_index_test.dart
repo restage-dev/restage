@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
 import 'package:test/test.dart';
@@ -173,9 +174,8 @@ void main() {
     expect(issue.message, contains('automatic Widgetbook stories'));
   });
 
-  test('fails closed when source properties collide with metadata fields',
-      () async {
-    const source = '''
+  test('source properties may share the metadata sidebar labels', () async {
+    const source = r'''
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -186,11 +186,13 @@ void main() {
         description: 'Customer card.',
       )
       class CustomerCard extends StatelessWidget {
-        const CustomerCard({required this.usage});
+        const CustomerCard({required this.description, required this.usage});
+        @RestageProperty(description: 'Visible description text.')
+        final String description;
         @RestageProperty(description: 'Visible usage text.')
         final String usage;
         @override
-        Widget build(BuildContext context) => Text(usage);
+        Widget build(BuildContext context) => Text('$description|$usage');
       }
     ''';
     final sources = {'apps_examples|lib/customer_card.dart': source};
@@ -209,9 +211,59 @@ void main() {
       readerWriter: readerWriter,
       outputs: {
         'apps_examples|lib/widgetbook_index.txt': decodedMatches(
-          contains(
-            'catalog property name(s) usage collide with the generated '
-            'Widgetbook metadata sidebar fields',
+          allOf(
+            contains('widgets=CustomerCard'),
+            isNot(contains('metadata sidebar fields')),
+          ),
+        ),
+      },
+    );
+  });
+
+  test('A2UI-only evaluation failures do not gate Widgetbook indexing',
+      () async {
+    const source = '''
+      import 'package:flutter/widgets.dart';
+      import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+      import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+      final runtimeEnabled = DateTime.now().isUtc;
+
+      @a2ui.Config.enabled(runtimeEnabled)
+      @RestageWidget(
+        name: 'IsolatedCard',
+        library: WidgetLibrary.custom('fixture.widgets'),
+        description: 'A target-isolation probe.',
+      )
+      class IsolatedCard extends StatelessWidget {
+        const IsolatedCard({super.key, this.label = ''});
+
+        /// Visible label.
+        final String label;
+
+        @override
+        Widget build(BuildContext context) => Text(label);
+      }
+    ''';
+    final sources = {'apps_examples|lib/isolated_card.dart': source};
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    readerWriter.testing.writeString(
+      AssetId('apps_examples', 'lib/isolated_card.dart'),
+      source,
+    );
+
+    await testBuilder(
+      const _IndexProbeBuilder(),
+      sources,
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      outputs: {
+        'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+          allOf(
+            contains('widgets=IsolatedCard'),
+            contains('usage=IsolatedCard:A target-isolation probe.'),
           ),
         ),
       },
@@ -263,6 +315,132 @@ void main() {
     );
   });
 
+  test('Widgetbook keeps same-name widgets and screens on distinct paths',
+      () async {
+    const source = '''
+      import 'package:flutter/widgets.dart';
+      import 'package:restage/restage.dart';
+      import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+      part 'shared.rsscreen.g.dart';
+
+      @RestageWidget(
+        name: 'shared',
+        library: WidgetLibrary.custom('fixture.widgets'),
+        category: WidgetCategory.decoration,
+        description: 'A customer widget under its ordinary path.',
+      )
+      class SharedCard extends StatelessWidget {
+        const SharedCard({super.key});
+        @override
+        Widget build(BuildContext context) => const SizedBox.shrink();
+      }
+
+      /// A native screen under the reserved Screens path.
+      @ScreenSource(id: 'shared')
+      class SharedScreen extends StatelessWidget {
+        const SharedScreen({super.key});
+        @override
+        Widget build(BuildContext context) => const SizedBox.shrink();
+      }
+    ''';
+    const pubspec = '''
+name: apps_examples
+dependencies:
+  flutter: any
+  restage: any
+  rfw_catalog_schema: any
+''';
+    final sources = <String, String>{
+      'apps_examples|lib/onboarding/screens/shared.dart': source,
+      'apps_examples|pubspec.yaml': pubspec,
+    };
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+
+    await runWithNativeScreenPackageGraphForTesting(
+      packageGraphSource: _screenSourcePackageGraph,
+      body: () => testBuilder(
+        const _IndexProbeBuilder(),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+            allOf(
+              contains('widgets=shared'),
+              contains('screens=shared'),
+            ),
+          ),
+        },
+      ),
+    );
+  });
+
+  test('ScreenSource passes through the Widgetbook capability wall', () async {
+    const source = '''
+      import 'package:flutter/widgets.dart';
+      import 'package:restage/restage.dart';
+
+      part 'unsupported_screen.rsscreen.g.dart';
+
+      class ScreenData {
+        const ScreenData({required this.decoration});
+
+        /// Text decoration is catalogued but not reconstructed by Widgetbook.
+        final TextDecoration decoration;
+      }
+
+      /// A screen with structured state outside Widgetbook's vocabulary.
+      @ScreenSource(id: 'unsupported_screen')
+      class UnsupportedScreen extends StatelessWidget {
+        const UnsupportedScreen({super.key, required this.data});
+
+        /// Structured screen state.
+        final ScreenData data;
+
+        @override
+        Widget build(BuildContext context) => const SizedBox.shrink();
+      }
+    ''';
+    const pubspec = '''
+name: apps_examples
+dependencies:
+  flutter: any
+  restage: any
+''';
+    final sources = <String, String>{
+      'apps_examples|lib/onboarding/screens/unsupported_screen.dart': source,
+      'apps_examples|pubspec.yaml': pubspec,
+    };
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+
+    await runWithNativeScreenPackageGraphForTesting(
+      packageGraphSource: _screenSourcePackageGraph,
+      body: () => testBuilder(
+        const _IndexProbeBuilder(),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+            allOf(
+              contains('screens=unsupported_screen'),
+              contains('UnsupportedScreen='),
+              contains('unsupported_screen.data.decoration'),
+              contains(
+                'unsupported Widgetbook structured field type textDecoration',
+              ),
+            ),
+          ),
+        },
+      ),
+    );
+  });
+
   test('ignores unrelated annotations named RestageWidget', () async {
     const source = '''
       class RestageWidget {
@@ -295,6 +473,10 @@ void main() {
   });
 }
 
+const _screenSourcePackageGraph = '''
+{"roots":["apps_examples"],"packages":[{"name":"apps_examples","version":"0.0.0","dependencies":["flutter","restage","rfw_catalog_schema"],"devDependencies":[]}]}
+''';
+
 final class _IndexProbeBuilder implements Builder {
   const _IndexProbeBuilder();
 
@@ -314,6 +496,11 @@ final class _IndexProbeBuilder implements Builder {
         'usage=${index.widgets.map(
               (widget) => '${widget.entry.name}:${widget.usage}',
             ).join('|')}',
+      )
+      ..writeln(
+        'screens=${index.nativeScreens.map(
+              (screen) => screen.entry.name,
+            ).join(',')}',
       )
       ..writeln(
         'structured=${index.structuredTypes.map(

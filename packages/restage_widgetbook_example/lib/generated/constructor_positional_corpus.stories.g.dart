@@ -70,19 +70,19 @@ class ConstructorPositionalCorpusStory
 class ConstructorPositionalCorpusStoryInputArgs
     extends StoryArgs<ConstructorPositionalCorpus> {
   ConstructorPositionalCorpusStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? requiredLabel,
     Arg<String>? leading,
     Arg<String>? trailing,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg("Reusable positional-hole fixture."),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg("Reusable positional-hole fixture."),
        )!,
        this.requiredLabelArg = $initArg(
@@ -102,17 +102,21 @@ class ConstructorPositionalCorpusStoryInputArgs
        )!;
 
   ConstructorPositionalCorpusStoryInputArgs.fixed({
-    String description = "Reusable positional-hole fixture.",
-    String usage = "Reusable positional-hole fixture.",
+    String restageMetadataDescription = "Reusable positional-hole fixture.",
+    String restageMetadataUsage = "Reusable positional-hole fixture.",
     String requiredLabel = "",
     String leading = "leading-default",
     String trailing = "trailing-default",
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.requiredLabelArg = $initArg(
          'requiredLabel',
          Arg.fixed(requiredLabel),
@@ -121,9 +125,9 @@ class ConstructorPositionalCorpusStoryInputArgs
        this.leadingArg = $initArg('leading', Arg.fixed(leading), null)!,
        this.trailingArg = $initArg('trailing', Arg.fixed(trailing), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> requiredLabelArg;
 
@@ -131,9 +135,9 @@ class ConstructorPositionalCorpusStoryInputArgs
 
   final Arg<String> trailingArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get requiredLabel => requiredLabelArg.value;
 
@@ -143,8 +147,8 @@ class ConstructorPositionalCorpusStoryInputArgs
 
   @override
   List<Arg?> get list => [
-    descriptionArg,
-    usageArg,
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
     requiredLabelArg,
     leadingArg,
     trailingArg,

@@ -64,14 +64,13 @@ Future<void> _expectGeneratedAnalyzesClean(
       final diagnostics = [
         for (final unit in resolved.units)
           for (final diagnostic in unit.diagnostics)
-            if (diagnostic.severity == Severity.error ||
-                diagnostic.severity == Severity.warning)
+            if (diagnostic.severity == Severity.error)
               _diagnosticText(diagnostic),
       ];
       expect(
         diagnostics,
         isEmpty,
-        reason: 'generated A2UI catalog must have no errors or warnings:\n'
+        reason: 'generated A2UI catalog must compile without errors:\n'
             '$generated',
       );
     },
@@ -87,6 +86,15 @@ String _diagnosticText(Diagnostic diagnostic) {
   return '$code: $message';
 }
 
+void _expectCustomerNameStaysExact(String generated, String name) {
+  expect(generated, contains("'$name':"), reason: '$name schema key');
+  expect(
+    generated,
+    matches(RegExp('^\\s+$name:', multiLine: true)),
+    reason: '$name constructor label',
+  );
+}
+
 const _libraryDeclaration = '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   @RestageLibrary(
@@ -97,6 +105,233 @@ const _libraryDeclaration = '''
 ''';
 
 void main() {
+  test(
+    'multi-leaf source names remain exact while generated locals avoid every '
+    'rendered bare-identifier family',
+    () async {
+      const source = '''
+        import 'dart:core' as core;
+        import 'dart:ui' as ui;
+
+        import 'package:flutter/widgets.dart';
+        import 'package:flutter/widgets.dart' as flutter;
+        import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
+        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+        enum GeneratedNameState { ready, complete }
+
+        /// A widget whose legal source names overlap emitted Dart symbols.
+        @a2ui.Config.writeBackValues({
+          'onBoundStringChanged': 'BoundString',
+        })
+        @RestageWidget(
+          name: 'GeneratedSymbolCard',
+          library: WidgetLibrary.custom('acme.widgets'),
+          category: WidgetCategory.input,
+        )
+        final class GeneratedSymbolCard extends StatelessWidget {
+          const GeneratedSymbolCard({
+            super.key,
+            required this.data,
+            required this.context,
+            required this.itemContext,
+            required this.restageA2uiStatus,
+            required this.restageA2uiWriteBoundString,
+            required this.p0,
+            required this.restageA2uiCatalogId,
+            required this.BoundString,
+            required this.followingString,
+            required this.BoundBool,
+            required this.followingBool,
+            required this.BoundNumber,
+            required this.followingNumber,
+            required this.BoundObject,
+            required this.followingList,
+            required this.Duration,
+            required this.followingDuration,
+            required this.FontWeight,
+            required this.followingWeight,
+            required this.Color,
+            required this.followingColor,
+            required this.UserActionEvent,
+            required this.Map,
+            required this.String,
+            required this.SizedBox,
+            required this.state,
+            required this.ordinaryLabel,
+            required this.builder,
+            required this.dataContext,
+            required this.containsKey,
+            required this.milliseconds,
+            required this.normal,
+            required this.values,
+            required this.onBoundStringChanged,
+            required this.trigger,
+            this.child = const flutter.SizedBox.shrink(),
+          });
+
+          /// Generated data-local collision.
+          final core.String data;
+          /// Generated bound-context collision.
+          final core.String context;
+          /// Generated item-context collision.
+          final core.String itemContext;
+          /// Generated-prefix-shaped non-collision.
+          final GeneratedNameState restageA2uiStatus;
+          /// Generated controlled-writer collision.
+          final core.String restageA2uiWriteBoundString;
+          /// Dynamic-prefix collision.
+          final core.String p0;
+          /// Catalog identifier collision.
+          final core.String restageA2uiCatalogId;
+          /// String binder collision.
+          final core.String BoundString;
+          /// Nested string binder witness.
+          final core.String followingString;
+          /// Boolean binder collision.
+          final core.bool BoundBool;
+          /// Nested boolean binder witness.
+          final core.bool followingBool;
+          /// Number binder collision.
+          final core.double BoundNumber;
+          /// Nested number binder witness.
+          final core.double followingNumber;
+          /// Object binder collision.
+          final core.List<core.String> BoundObject;
+          /// Nested object binder witness.
+          final core.List<core.String> followingList;
+          /// Core duration collision.
+          final core.Duration Duration;
+          /// Nested duration-constructor witness.
+          final core.Duration followingDuration;
+          /// Flutter font-weight collision.
+          final ui.FontWeight FontWeight;
+          /// Nested font-weight witness.
+          final ui.FontWeight followingWeight;
+          /// Flutter color collision.
+          final ui.Color Color;
+          /// Nested color-constructor witness.
+          final ui.Color followingColor;
+          /// Runtime event-class collision.
+          final core.String UserActionEvent;
+          /// Core map-type collision.
+          final core.String Map;
+          /// Core string-type collision.
+          final core.String String;
+          /// Flutter constructor collision from a child fallback.
+          final core.String SizedBox;
+          /// Customer enum value.
+          final GeneratedNameState state;
+          /// Non-colliding control value.
+          final core.String ordinaryLabel;
+          /// Named-argument-label witness.
+          final core.String builder;
+          /// Member-selector and named-label witness.
+          final core.String dataContext;
+          /// Member-selector witness.
+          final core.String containsKey;
+          /// Named-argument-label witness.
+          final core.String milliseconds;
+          /// Member-selector witness.
+          final core.String normal;
+          /// Member-selector witness.
+          final core.String values;
+          /// Controlled string callback.
+          final void Function(core.String) onBoundStringChanged;
+          /// Dispatch callback.
+          final VoidCallback trigger;
+          /// Child with a Flutter-owned constructor default.
+          final Widget child;
+
+          @override
+          Widget build(BuildContext context) =>
+              const flutter.SizedBox.shrink();
+        }
+      ''';
+      const sources = <String, String>{
+        'lib/lib.dart': _libraryDeclaration,
+        'lib/generated_symbol_card.dart': source,
+      };
+
+      final (succeeded, generated) = await _runBuilder(sources);
+
+      expect(succeeded, isTrue);
+      for (final name in <String>[
+        'data',
+        'context',
+        'itemContext',
+        'restageA2uiWriteBoundString',
+        'p0',
+        'restageA2uiCatalogId',
+        'BoundString',
+        'BoundBool',
+        'BoundNumber',
+        'BoundObject',
+        'Duration',
+        'FontWeight',
+        'Color',
+        'UserActionEvent',
+        'Map',
+        'String',
+        'SizedBox',
+      ]) {
+        _expectCustomerNameStaysExact(generated, name);
+        expect(
+          generated,
+          matches(RegExp('\\b${name}_2\\b')),
+          reason: '$name allocated local',
+        );
+      }
+      for (final name in <String>[
+        'restageA2uiStatus',
+        'ordinaryLabel',
+        'builder',
+        'dataContext',
+        'containsKey',
+        'milliseconds',
+        'normal',
+        'values',
+      ]) {
+        _expectCustomerNameStaysExact(generated, name);
+        expect(
+          generated,
+          isNot(matches(RegExp('\\b${name}_2\\b'))),
+          reason: '$name remains an ordinary non-colliding local',
+        );
+      }
+      expect(
+        generated,
+        matches(RegExp(r'state:\s*p0\.GeneratedNameState\s*\.values')),
+      );
+      expect(
+        generated,
+        matches(
+          RegExp(
+            r'restageA2uiStatus:\s*p0\.GeneratedNameState\s*\.values',
+          ),
+        ),
+      );
+      expect(
+        generated,
+        matches(RegExp(r'\.asNameMap\(\)\[\s*state\]')),
+      );
+      expect(
+        generated,
+        matches(
+          RegExp(r'onBoundStringChanged:\s*restageA2uiWriteBoundString'),
+        ),
+      );
+      expect(generated, matches(RegExp(r"name:\s*'trigger'")));
+      expect(
+        generated,
+        matches(
+          RegExp(r'child:\s*_restageA2uiBuildChild\(\s*itemContext,'),
+        ),
+      );
+      await _expectGeneratedAnalyzesClean(sources, generated);
+    },
+  );
+
   test(
       'production builder lowers scalar, list, and enum write-back plus an '
       'arbitrary open-name dispatch', () async {

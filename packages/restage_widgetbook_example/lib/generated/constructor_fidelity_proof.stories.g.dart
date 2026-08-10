@@ -60,22 +60,22 @@ class ConstructorFidelityProofStory
 class ConstructorFidelityProofStoryInputArgs
     extends StoryArgs<ConstructorFidelityProof> {
   ConstructorFidelityProofStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? label,
     Arg<bool>? enabled,
     Arg<String>? optionalText,
     Arg<bool>? onChanged,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg(
            "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
          ),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg(
            "Use to verify generated constructor binding and callback write-back.",
          ),
@@ -90,20 +90,24 @@ class ConstructorFidelityProofStoryInputArgs
        this.onChangedArg = $initArg('onChanged', onChanged, BoolArg(false))!;
 
   ConstructorFidelityProofStoryInputArgs.fixed({
-    String description =
+    String restageMetadataDescription =
         "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
-    String usage =
+    String restageMetadataUsage =
         "Use to verify generated constructor binding and callback write-back.",
     String label = "",
     bool enabled = true,
     String optionalText = "constructor-default",
     bool onChanged = false,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.labelArg = $initArg('label', Arg.fixed(label), null)!,
        this.enabledArg = $initArg('enabled', Arg.fixed(enabled), null)!,
        this.optionalTextArg = $initArg(
@@ -113,9 +117,9 @@ class ConstructorFidelityProofStoryInputArgs
        )!,
        this.onChangedArg = $initArg('onChanged', Arg.fixed(onChanged), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> labelArg;
 
@@ -125,9 +129,9 @@ class ConstructorFidelityProofStoryInputArgs
 
   final Arg<bool> onChangedArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get label => labelArg.value;
 
@@ -139,8 +143,8 @@ class ConstructorFidelityProofStoryInputArgs
 
   @override
   List<Arg?> get list => [
-    descriptionArg,
-    usageArg,
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
     labelArg,
     enabledArg,
     optionalTextArg,

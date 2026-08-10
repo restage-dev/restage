@@ -108,15 +108,16 @@ void main() {
       test('$name: build.yaml build_extensions match the getter', () {
         if (name == 'widgetbook_stories') {
           // Widgetbook story outputs are discovered from the consuming
-          // package's annotated sources at builder creation time. The codegen
-          // package itself has no such source, so BuilderOptions.empty returns
-          // an empty dynamic map here; build.yaml still needs one
-          // representative input/output pair for build_runner registration.
+          // package's syntax-broad source census at builder creation time. The
+          // fixed unwritten sentinel keeps the package step scheduled when an
+          // existing hand-authored story excludes its stem; analyzer-resolved
+          // identities decide which remaining candidates are actually written.
           expect(
             declared[name],
             {
-              'lib/widgets/promo_banner.dart': [
-                'lib/generated/promo_banner.stories.dart',
+              r'$lib$': [
+                'generated/.restage_widgetbook_story_builder',
+                'generated/promo_banner.stories.dart',
               ],
             },
           );

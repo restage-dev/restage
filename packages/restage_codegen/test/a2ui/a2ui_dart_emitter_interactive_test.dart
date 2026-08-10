@@ -1187,48 +1187,51 @@ void main() {
   });
 
   group('write-back lowering — scaffolding namespace hygiene', () {
-    test('a leaf property in the reserved _restageA2ui namespace scopes out',
-        () {
-      // The generated identifier would shadow a reserved scaffolding/prelude
-      // local (e.g. `_restageA2uiPath_*`, `_restageA2uiArg_*`), so it fails
-      // closed rather than mis-resolve. Reserving the whole namespace closes
-      // the class by construction.
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'Widget',
-            flutterType: 'package:fixture/fixture.dart#Widget',
-            properties: [prop('_restageA2uiArg_x', PropertyType.string)],
-          ),
-        ]),
-      );
-      expect(plan.widgets.single.fields, isEmpty);
-      expect(
-        plan.coverage.omittedFields.single.fieldName,
-        '_restageA2uiArg_x',
-      );
+    test('a leaf property sharing the generated prefix remains bound', () {
+      final catalog = catalogWith([
+        entry(
+          name: 'Widget',
+          flutterType: 'package:fixture/fixture.dart#Widget',
+          properties: [prop('restageA2uiStatus', PropertyType.string)],
+        ),
+      ]);
+      final plan = classifyA2uiCatalogDart(catalog);
+      final source = emitA2uiCatalogDart(catalog);
+
+      expect(plan.widgets.single.fields, hasLength(1));
+      expect(plan.coverage.omittedFields, isEmpty);
+      expect(source, contains("value: data['restageA2uiStatus']"));
+      expect(source, contains('restageA2uiStatus: restageA2uiStatus ??'));
     });
 
-    test('a #lit write-back value prop in the reserved namespace is unbindable',
-        () {
-      // A value prop whose identifier is in the reserved namespace is not a
-      // bindable leaf, so its callback fails closed (#lit, not write-back).
-      final plan = classifyA2uiCatalogDart(
-        catalogWith([
-          entry(
-            name: 'Widget',
-            flutterType: 'package:fixture/fixture.dart#Widget',
-            properties: [
-              prop('_restageA2uiArg_value', PropertyType.boolean),
-              prop('onChanged', PropertyType.event),
-            ],
-          ),
-        ]),
-        eventSeam: _writeBackSeam(A2uiScalarType.boolean, widget: 'Widget'),
+    test('a write-back value sharing the generated prefix remains paired', () {
+      final catalog = catalogWith([
+        entry(
+          name: 'Widget',
+          flutterType: 'package:fixture/fixture.dart#Widget',
+          properties: [
+            prop('restageA2uiValue', PropertyType.boolean),
+            prop('onChanged', PropertyType.event),
+          ],
+        ),
+      ]);
+      final eventSeam = _writeBackSeam(
+        A2uiScalarType.boolean,
+        widget: 'Widget',
       );
-      expect(plan.widgets.single.writeBacks, isEmpty);
-      final reasons = plan.coverage.omittedFields.map((o) => o.reason).toSet();
-      expect(reasons, contains(A2uiDartCoverageReason.writeBackValueNotBound));
+      final plan = classifyA2uiCatalogDart(
+        catalog,
+        eventSeam: eventSeam,
+      );
+      final source = emitA2uiCatalogDart(catalog, eventSeam: eventSeam);
+
+      expect(plan.widgets.single.writeBacks, hasLength(1));
+      expect(plan.coverage.omittedFields, isEmpty);
+      expect(source, contains("source: data['restageA2uiValue']"));
+      expect(
+        source,
+        contains('onChanged: restageA2uiWriteRestageA2uiValue'),
+      );
     });
   });
 

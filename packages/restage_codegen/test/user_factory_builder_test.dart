@@ -3,6 +3,7 @@ import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -348,6 +349,59 @@ void main() {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: const {},
+      );
+    });
+
+    test('admitted-then-skipped factory emission is a hard coherence failure',
+        () {
+      const emittableBeforeFailure = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'EmittableBeforeFailure',
+        library: WidgetLibrary.custom('acme.design_system'),
+        category: WidgetCategory.layout,
+        description: 'Valid fixture before the malformed entry.',
+        flutterType: 'package:acme/widgets.dart#EmittableBeforeFailure',
+        childrenSlot: ChildrenSlot.none,
+        properties: <PropertyEntry>[],
+      );
+      const malformedHistorical = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'MalformedHistorical',
+        library: WidgetLibrary.custom('acme.design_system'),
+        category: WidgetCategory.layout,
+        description: 'Historical malformed fixture.',
+        flutterType: 'package:acme/widgets.dart#MalformedHistorical',
+        childrenSlot: ChildrenSlot.single,
+        properties: <PropertyEntry>[],
+      );
+
+      expect(
+        () => emitAdmittedUserFactoriesDart(
+          const <WidgetEntry>[
+            emittableBeforeFailure,
+            malformedHistorical,
+          ],
+        ),
+        throwsA(
+          isA<StateError>()
+              .having(
+                (error) => error.message,
+                'message',
+                allOf(
+                  contains('catalog/factory coherence failure'),
+                  contains('MalformedHistorical'),
+                  contains('package:acme/widgets.dart#MalformedHistorical'),
+                  contains('Catalog names default to the Dart class'),
+                  contains('shared admission predicate'),
+                  contains('No generated output was written'),
+                ),
+              )
+              .having(
+                (error) => error.message,
+                'manual glue recommendation',
+                isNot(contains('hand-written')),
+              ),
+        ),
       );
     });
   });

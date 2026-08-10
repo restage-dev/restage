@@ -255,8 +255,13 @@ void _writeWidgetEntry(
     ..writeln('${indent}WidgetEntry(')
     ..writeln('$indent  wireId: ${_wireIdLiteral(w.wireId)},')
     ..writeln('$indent  name: ${_escapeDart(w.name)},')
-    ..writeln('$indent  library: ${_libraryFieldRef(w.library)},')
-    ..writeln('$indent  category: WidgetCategory.${w.category.name},')
+    ..writeln('$indent  library: ${_libraryFieldRef(w.library)},');
+  if (w.category case final category?) {
+    buf.writeln('$indent  category: WidgetCategory.${category.name},');
+  } else {
+    buf.writeln('$indent  category: null,');
+  }
+  buf
     ..writeln('$indent  description: ${_escapeDart(w.description)},')
     ..writeln('$indent  flutterType: ${_escapeDart(w.flutterType)},')
     ..writeln('$indent  childrenSlot: ChildrenSlot.${w.childrenSlot.name},')

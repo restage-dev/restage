@@ -16,15 +16,20 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/8e4004111eb3fc57fbaf61626bcd13b97d56103b3659ae5bbbb6671d7f3ff878",
+    "$id": "restage:catalog/sha256/0477e1db003486649990d3549632a9a4c08c5912e7ada7daa5cfc2c3a95546e9",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/8e4004111eb3fc57fbaf61626bcd13b97d56103b3659ae5bbbb6671d7f3ff878",
+    "catalogId": "restage:catalog/sha256/0477e1db003486649990d3549632a9a4c08c5912e7ada7daa5cfc2c3a95546e9",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "AcmeBanner": {
         "type": "object",
         "properties": {
+          "props": {
+            "type": "object",
+            "properties": {},
+            "required": []
+          },
           "component": {
             "type": "string",
             "enum": [
@@ -33,7 +38,8 @@
           }
         },
         "required": [
-          "component"
+          "component",
+          "props"
         ]
       },
       "Column": {
@@ -88,7 +94,7 @@
     },
     "functions": {},
     "systemPromptFragments": [
-      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/8e4004111eb3fc57fbaf61626bcd13b97d56103b3659ae5bbbb6671d7f3ff878\"."
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/0477e1db003486649990d3549632a9a4c08c5912e7ada7daa5cfc2c3a95546e9\"."
     ]
   }
 }

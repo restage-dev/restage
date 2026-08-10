@@ -53,11 +53,12 @@ void main() {
 
     test(
         'returns null when every entry is structurally non-emittable '
-        '(e.g. declares childrenSlot.single without a canonical child '
-        'property)', () {
-      // `childrenSlot: ChildrenSlot.single` without a property named
-      // `child` of type widget is one of the rejection paths in
-      // `_isMechanicallyEmittable`. The catalog accepts this shape;
+        '(e.g. malformed historical wire slot without its property)', () {
+      // A historical `ChildrenSlot.single` wire value without the corresponding
+      // `child` property is one rejection path in `_isMechanicallyEmittable`.
+      // Customer annotations can no longer create this malformed shape, but
+      // decoded or manually assembled wire entries still need a hard guard.
+      // The catalog model accepts this shape;
       // the factory emitter skips it. With every entry skipped the
       // emitter should produce no output rather than an empty helper.
       // The default `properties: const []` already drops the canonical
@@ -329,6 +330,7 @@ void main() {
               name: 'child',
               type: PropertyType.widget,
               description: 'Optional wrapped child.',
+              constructorNullable: true,
             ),
           ],
         ),
@@ -366,5 +368,152 @@ void main() {
         contains("children: source.childList(<Object>['children'])"),
       );
     });
+
+    test(
+      'required nullable widget decoders and casts follow constructor '
+      'nullability for named and positional arguments',
+      () {
+        final src = emitUserFactoriesDart([
+          _widgetEntry(
+            name: 'RequiredNullableRegions',
+            properties: const <PropertyEntry>[
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'positionalNullable',
+                type: PropertyType.widget,
+                description: 'Required nullable positional region.',
+                required: true,
+                positional: true,
+                constructorNullable: true,
+                widgetType: 'PreferredSizeWidget',
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'positionalControl',
+                type: PropertyType.widget,
+                description: 'Required non-nullable positional control.',
+                required: true,
+                positional: true,
+                widgetType: 'PreferredSizeWidget',
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'namedNullable',
+                type: PropertyType.widget,
+                description: 'Required nullable named region.',
+                required: true,
+                constructorNullable: true,
+                widgetType: 'PreferredSizeWidget',
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'namedControl',
+                type: PropertyType.widget,
+                description: 'Required non-nullable named control.',
+                required: true,
+                widgetType: 'PreferredSizeWidget',
+              ),
+            ],
+          ),
+        ]);
+
+        expect(src, isNotNull);
+        final flat = src!.replaceAll(RegExp(r'\s+'), ' ');
+        expect(
+          flat,
+          contains(
+            "source.optionalChild(<Object>['positionalNullable']) "
+            'as PreferredSizeWidget?',
+          ),
+        );
+        expect(
+          flat,
+          contains(
+            "source.child(<Object>['positionalControl']) "
+            'as PreferredSizeWidget',
+          ),
+        );
+        expect(
+          flat,
+          contains(
+            "namedNullable: source.optionalChild(<Object>['namedNullable']) "
+            'as PreferredSizeWidget?',
+          ),
+        );
+        expect(
+          flat,
+          contains(
+            "namedControl: source.child(<Object>['namedControl']) "
+            'as PreferredSizeWidget',
+          ),
+        );
+      },
+    );
+
+    test(
+      'customer factories lower every exact widget and widget-list property',
+      () {
+        final src = emitUserFactoriesDart([
+          _widgetEntry(
+            name: 'MultiRegion',
+            properties: const <PropertyEntry>[
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'header',
+                type: PropertyType.widget,
+                description: 'Header region.',
+                required: true,
+                positional: true,
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'primaryActions',
+                type: PropertyType.widgetList,
+                description: 'Primary actions.',
+                required: true,
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'footer',
+                type: PropertyType.widget,
+                description: 'Optional footer.',
+                constructorNullable: true,
+              ),
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'secondaryActions',
+                type: PropertyType.widgetList,
+                description: 'Optional secondary actions.',
+                constructorNullable: true,
+              ),
+            ],
+          ),
+        ]);
+
+        expect(src, isNotNull);
+        final flat = src!.replaceAll(RegExp(r'\s+'), ' ');
+        expect(
+          flat,
+          contains("source.child(<Object>['header'])"),
+        );
+        expect(
+          flat,
+          contains(
+            "primaryActions: source.childList(<Object>['primaryActions'])",
+          ),
+        );
+        expect(
+          flat,
+          contains("footer: source.optionalChild(<Object>['footer'])"),
+        );
+        expect(
+          flat,
+          contains(
+            "secondaryActions: source.isList(<Object>['secondaryActions']) "
+            "? source.childList(<Object>['secondaryActions']) : null",
+          ),
+        );
+      },
+    );
   });
 }

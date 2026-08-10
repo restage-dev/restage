@@ -25,29 +25,37 @@
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff",
+    "$id": "restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff",
+    "catalogId": "restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
       "Callout": {
         "type": "object",
         "description": "A message callout that wraps an optional child.",
         "properties": {
-          "message": {
-            "type": "string",
-            "description": "The callout message."
-          },
-          "child": {
-            "description": "The wrapped child content.",
-            "anyOf": [
-              {
-                "type": "string"
+          "props": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "description": "The callout message."
               },
-              {
-                "type": "null"
+              "detail": {
+                "description": "The wrapped detail content.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
+            },
+            "required": [
+              "message"
             ]
           },
           "component": {
@@ -59,23 +67,54 @@
         },
         "required": [
           "component",
-          "message"
+          "props"
         ]
       },
       "ComparisonPanel": {
         "type": "object",
-        "description": "A headed panel that lays out a list of child widgets.",
+        "description": "A headed panel with an introduction, examples, and conclusion.",
         "properties": {
-          "heading": {
-            "type": "string",
-            "description": "The panel heading."
-          },
-          "children": {
-            "type": "array",
-            "description": "The compared child widgets.",
-            "items": {
-              "type": "string"
-            }
+          "props": {
+            "type": "object",
+            "properties": {
+              "heading": {
+                "type": "string",
+                "description": "The panel heading."
+              },
+              "introduction": {
+                "description": "Content shown before the lesson examples.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "examples": {
+                "type": "array",
+                "description": "The lesson example widgets.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "conclusion": {
+                "description": "Content shown after the lesson examples.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "heading",
+              "examples"
+            ]
           },
           "component": {
             "type": "string",
@@ -86,17 +125,24 @@
         },
         "required": [
           "component",
-          "heading",
-          "children"
+          "props"
         ]
       },
       "CtaButton": {
         "type": "object",
         "description": "A call-to-action button that dispatches a tap event.",
         "properties": {
-          "label": {
-            "type": "string",
-            "description": "The button caption."
+          "props": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "The button caption."
+              }
+            },
+            "required": [
+              "label"
+            ]
           },
           "component": {
             "type": "string",
@@ -107,48 +153,56 @@
         },
         "required": [
           "component",
-          "label"
+          "props"
         ]
       },
       "IntegerListPicker": {
         "type": "object",
         "description": "Adds values to a bound integer list.",
         "properties": {
-          "selected": {
-            "description": "The selected integer values.",
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
+          "props": {
+            "type": "object",
+            "properties": {
+              "selected": {
+                "description": "The selected integer values.",
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
                   },
-                  "args": {
+                  {
                     "type": "object",
-                    "additionalProperties": true
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
                   }
-                },
-                "required": [
-                  "call"
                 ]
               }
+            },
+            "required": [
+              "selected"
             ]
           },
           "component": {
@@ -160,7 +214,7 @@
         },
         "required": [
           "component",
-          "selected"
+          "props"
         ]
       },
       "ProductCard": {
@@ -261,13 +315,21 @@
             "type": "object",
             "description": "Renders a structured product (nested price, tags, features, attributes, size).",
             "properties": {
-              "product": {
-                "description": "The product to display.",
-                "$ref": "#/$defs/Product"
+              "props": {
+                "type": "object",
+                "properties": {
+                  "product": {
+                    "description": "The product to display.",
+                    "$ref": "#/$defs/Product"
+                  }
+                },
+                "required": [
+                  "product"
+                ]
               }
             },
             "required": [
-              "product"
+              "props"
             ]
           }
         },
@@ -288,42 +350,51 @@
         "type": "object",
         "description": "A prompt with a checkable answer bound to a boolean value.",
         "properties": {
-          "prompt": {
-            "type": "string",
-            "description": "The quiz prompt."
-          },
-          "selected": {
-            "description": "Whether the answer is selected.",
-            "oneOf": [
-              {
-                "type": "boolean"
+          "props": {
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": "string",
+                "description": "The quiz prompt."
               },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
+              "selected": {
+                "description": "Whether the answer is selected.",
+                "oneOf": [
+                  {
+                    "type": "boolean"
                   },
-                  "args": {
+                  {
                     "type": "object",
-                    "additionalProperties": true
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
                   }
-                },
-                "required": [
-                  "call"
                 ]
               }
+            },
+            "required": [
+              "prompt",
+              "selected"
             ]
           },
           "component": {
@@ -335,46 +406,53 @@
         },
         "required": [
           "component",
-          "prompt",
-          "selected"
+          "props"
         ]
       },
       "RatingPicker": {
         "type": "object",
         "description": "A 1–5 star rating control bound to an integer value.",
         "properties": {
-          "rating": {
-            "description": "The selected rating, 1 through 5.",
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
+          "props": {
+            "type": "object",
+            "properties": {
+              "rating": {
+                "description": "The selected rating, 1 through 5.",
+                "oneOf": [
+                  {
+                    "type": "integer"
                   },
-                  "args": {
+                  {
                     "type": "object",
-                    "additionalProperties": true
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
                   }
-                },
-                "required": [
-                  "call"
                 ]
               }
+            },
+            "required": [
+              "rating"
             ]
           },
           "component": {
@@ -386,203 +464,56 @@
         },
         "required": [
           "component",
-          "rating"
+          "props"
         ]
       },
       "ScalarListPanel": {
         "type": "object",
         "description": "Renders string, integer, number, and boolean lists.",
         "properties": {
-          "labels": {
-            "description": "String list values.",
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
+          "props": {
+            "type": "object",
+            "properties": {
+              "labels": {
+                "description": "String list values.",
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   },
-                  "args": {
+                  {
                     "type": "object",
-                    "additionalProperties": true
-                  }
-                },
-                "required": [
-                  "call"
-                ]
-              }
-            ]
-          },
-          "counts": {
-            "description": "Integer list values.",
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
                   },
-                  "args": {
+                  {
                     "type": "object",
-                    "additionalProperties": true
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
                   }
-                },
-                "required": [
-                  "call"
-                ]
-              }
-            ]
-          },
-          "weights": {
-            "description": "Number list values.",
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "number"
-                }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
                 ]
               },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
-                  },
-                  "args": {
-                    "type": "object",
-                    "additionalProperties": true
-                  }
-                },
-                "required": [
-                  "call"
-                ]
-              }
-            ]
-          },
-          "measurements": {
-            "description": "Dart num list values.",
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "number"
-                }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
-                  },
-                  "args": {
-                    "type": "object",
-                    "additionalProperties": true
-                  }
-                },
-                "required": [
-                  "call"
-                ]
-              }
-            ]
-          },
-          "flags": {
-            "description": "Boolean list values.",
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "boolean"
-                }
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
-                  },
-                  "args": {
-                    "type": "object",
-                    "additionalProperties": true
-                  }
-                },
-                "required": [
-                  "call"
-                ]
-              }
-            ]
-          },
-          "maybeCounts": {
-            "description": "Optional integer list values.",
-            "oneOf": [
-              {
-                "anyOf": [
+              "counts": {
+                "description": "Integer list values.",
+                "oneOf": [
                   {
                     "type": "array",
                     "items": {
@@ -590,80 +521,239 @@
                     }
                   },
                   {
-                    "type": "null"
-                  }
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
-                  },
-                  "args": {
                     "type": "object",
-                    "additionalProperties": true
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
                   }
-                },
-                "required": [
-                  "call"
                 ]
-              }
-            ]
-          },
-          "fallbackCounts": {
-            "description": "Integer list values with a fallback.",
-            "oneOf": [
-              {
-                "anyOf": [
+              },
+              "weights": {
+                "description": "Number list values.",
+                "oneOf": [
                   {
                     "type": "array",
                     "items": {
-                      "type": "integer"
+                      "type": "number"
                     }
                   },
                   {
-                    "type": "null"
-                  }
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
-                  },
-                  "args": {
                     "type": "object",
-                    "additionalProperties": true
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
                   }
-                },
-                "required": [
-                  "call"
+                ]
+              },
+              "measurements": {
+                "description": "Dart num list values.",
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "flags": {
+                "description": "Boolean list values.",
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "boolean"
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "maybeCounts": {
+                "description": "Optional integer list values.",
+                "oneOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
+                ]
+              },
+              "fallbackCounts": {
+                "description": "Integer list values with a fallback.",
+                "oneOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "call": {
+                        "type": "string"
+                      },
+                      "args": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "call"
+                    ]
+                  }
                 ]
               }
+            },
+            "required": [
+              "labels",
+              "counts",
+              "weights",
+              "measurements",
+              "flags"
             ]
           },
           "component": {
@@ -675,20 +765,24 @@
         },
         "required": [
           "component",
-          "labels",
-          "counts",
-          "weights",
-          "measurements",
-          "flags"
+          "props"
         ]
       },
       "SectionHeader": {
         "type": "object",
         "description": "A titled section header.",
         "properties": {
-          "title": {
-            "type": "string",
-            "description": "The header title."
+          "props": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "The header title."
+              }
+            },
+            "required": [
+              "title"
+            ]
           },
           "component": {
             "type": "string",
@@ -699,15 +793,15 @@
         },
         "required": [
           "component",
-          "title"
+          "props"
         ]
       }
     },
     "functions": {},
     "systemPromptFragments": [
-      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff\".",
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a\".",
       "Callout: Use for a short highlighted aside around optional content.",
-      "ComparisonPanel: A headed panel that lays out a list of child widgets.",
+      "ComparisonPanel: A headed panel with an introduction, examples, and conclusion.",
       "QuizCheck: A prompt with a checkable answer bound to a boolean value.",
       "SectionHeader: A titled section header.",
       "CtaButton: A call-to-action button that dispatches a tap event.",

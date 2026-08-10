@@ -19,7 +19,7 @@ final Catalog kUserCatalog = Catalog(
       description: 'Wraps a single child in a colored border.',
       flutterType:
           'package:restage_example/widgets/acme_border.dart#AcmeBorder',
-      childrenSlot: ChildrenSlot.single,
+      childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
           wireId: WireId('p0001'),
@@ -45,7 +45,7 @@ final Catalog kUserCatalog = Catalog(
       category: WidgetCategory.layout,
       description: 'Overlays a list of children in z-order.',
       flutterType: 'package:restage_example/widgets/acme_stack.dart#AcmeStack',
-      childrenSlot: ChildrenSlot.list,
+      childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
           wireId: WireId('p0003'),
