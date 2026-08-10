@@ -14,7 +14,9 @@ import 'package:restage_codegen/src/customer_structured_discovery.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/json_scalar_type.dart';
+import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/rfw_callback_signature.dart';
+import 'package:restage_codegen/src/target_routing_reader.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
@@ -108,6 +110,62 @@ final class WidgetVisitorResult {
   final List<PropertyExclusion> exclusions;
 }
 
+/// A constructor-derived target component projection for a non-widget-catalog
+/// source kind such as `ScreenSource`.
+///
+/// The projection deliberately reuses the same constructor-input lowering as
+/// `@RestageWidget`; callers supply only the target-owned component identity
+/// and transient planning metadata.
+@internal
+final class ConstructorComponentProjection {
+  /// Creates one immutable projection result.
+  ConstructorComponentProjection({
+    required this.entry,
+    required List<Issue> issues,
+    required List<StructuredEntry> structuredTypes,
+    required Map<String, String> slotTargets,
+    required Set<String> nullableStructuredSlots,
+    required Map<String, String> localUnrenderable,
+    required Map<String, String> componentUnrenderable,
+    required Map<String, ReconstructionPlan> reconstructionPlans,
+    required List<PropertyExclusion> exclusions,
+  })  : issues = List.unmodifiable(issues),
+        structuredTypes = List.unmodifiable(structuredTypes),
+        slotTargets = Map.unmodifiable(slotTargets),
+        nullableStructuredSlots = Set.unmodifiable(nullableStructuredSlots),
+        localUnrenderable = Map.unmodifiable(localUnrenderable),
+        componentUnrenderable = Map.unmodifiable(componentUnrenderable),
+        reconstructionPlans = Map.unmodifiable(reconstructionPlans),
+        exclusions = List.unmodifiable(exclusions);
+
+  /// Target-local component entry consumed by the existing target planner.
+  final WidgetEntry entry;
+
+  /// Fail-loud and informational projection diagnostics.
+  final List<Issue> issues;
+
+  /// Customer structured types reachable from the constructor surface.
+  final List<StructuredEntry> structuredTypes;
+
+  /// Constructor owner/slot keys to structured source identities.
+  final Map<String, String> slotTargets;
+
+  /// Nullable structured slots retained for native value planning.
+  final Set<String> nullableStructuredSlots;
+
+  /// Structured source identities that cannot be reconstructed.
+  final Map<String, String> localUnrenderable;
+
+  /// Component identity to a target-specific unrenderability reason.
+  final Map<String, String> componentUnrenderable;
+
+  /// Analyzer-derived reconstruction recipes for structured values.
+  final Map<String, ReconstructionPlan> reconstructionPlans;
+
+  /// Optional constructor inputs omitted under the ordinary target rules.
+  final List<PropertyExclusion> exclusions;
+}
+
 /// Chooses the format-specific projection rules for [visitRestageWidgets].
 enum WidgetVisitorTarget {
   /// Preserve the existing RFW catalog vocabulary and requiredness semantics.
@@ -131,7 +189,7 @@ ElementAnnotation? _catalogAnnotation(Element element, String name) =>
 
 /// Walks [library] for classes annotated with `@RestageWidget`. For each:
 /// - Extracts the annotation's catalog metadata (name, library, category,
-///   description, and childrenSlot).
+///   description).
 /// - Synthesizes `flutterType` from the annotated class's library URI +
 ///   class name.
 /// - Walks public constructor-bound inputs in constructor order, applies an
@@ -148,6 +206,151 @@ WidgetVisitorResult visitRestageWidgets(
   LibraryElement library,
   AssetId assetId, {
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
+}) =>
+    _visitRestageWidgets(
+      library,
+      assetId,
+      target: target,
+    );
+
+/// Package-aware variant used by sibling builders after they have indexed all
+/// tracked authored libraries and exact `@RestageLibrary` export ownership.
+WidgetVisitorResult visitRestageWidgetsInPackage(
+  LibraryElement library,
+  AssetId assetId, {
+  required RestageWidgetPackageFacts packageFacts,
+  WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
+}) =>
+    _visitRestageWidgets(
+      library,
+      assetId,
+      target: target,
+      ownershipByWidget: packageFacts.ownershipByWidget,
+    );
+
+/// Projects [constructorFacts] through an ordinary target constructor-input
+/// vocabulary without requiring the source class to be a `@RestageWidget`.
+///
+/// This is a target adapter, not a second source frontend: exact class and
+/// constructor facts remain analyzer-owned inputs supplied by the shared
+/// package index. The returned [WidgetEntry] is a transient target plan and is
+/// never serialized as the format-general customer catalog.
+@internal
+ConstructorComponentProjection projectConstructorComponent({
+  required ClassElement element,
+  required AssetId assetId,
+  required WidgetConstructorFacts constructorFacts,
+  required String componentName,
+  required String flutterType,
+  required String description,
+  required int sinceVersion,
+  required WidgetLibrary planningLibrary,
+  required WidgetVisitorTarget target,
+}) {
+  final issues = <Issue>[];
+  final exclusions = <PropertyExclusion>[];
+  final projectedConstructorFacts = projectWidgetConstructorFacts(
+    element,
+    assetId,
+    constructorFacts,
+    target: _emitTarget(target),
+  );
+  final structured = discoverCustomerStructured(
+    widgetClasses: <ClassElement>[element],
+    widgetInputs: <ClassElement, List<WidgetConstructorInput>>{
+      element: projectedConstructorFacts.inputs,
+    },
+    assetId: assetId,
+    issues: issues,
+    widgetLibraries: <ClassElement, WidgetLibrary>{
+      element: planningLibrary,
+    },
+  );
+  final mapPlans = <String, MapPlan>{...structured.mapPlans};
+  final recordPlans = <String, RecordPlan>{...structured.recordPlans};
+  final widgetUnrenderable = <String, String>{};
+  final properties = <PropertyEntry>[];
+  for (final input in projectedConstructorFacts.inputs) {
+    final property = _readPropertyInput(
+      input,
+      assetId,
+      issues,
+      structured,
+      target: target,
+      library: planningLibrary,
+      widgetFlutterType: flutterType,
+      widgetUnrenderable: widgetUnrenderable,
+      exclusions: exclusions,
+      mapPlans: mapPlans,
+      recordPlans: recordPlans,
+    );
+    if (property != null) properties.add(property);
+  }
+  _validateTargetPositionalExclusions(
+    className: element.name ?? '<unnamed>',
+    classLocation: '${assetId.path}#${element.name ?? '<unnamed>'}',
+    target: target,
+    inputs: projectedConstructorFacts.inputs,
+    allInputs: projectedConstructorFacts.allInputs,
+    properties: properties,
+    exclusions: exclusions,
+    issues: issues,
+  );
+  addProjectedConstructorOrderMigrationNotice(
+    element,
+    projectedConstructorFacts,
+    assetId,
+    target: _emitTarget(target),
+    emittedPropertyNames: properties.map((property) => property.name).toSet(),
+    issues: issues,
+  );
+  for (final reason in widgetUnrenderable.values) {
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedPropertyType,
+        message: 'Native ${target.name} component "$componentName" cannot '
+            'be emitted: '
+            '$reason',
+        location: '${assetId.path}#${element.name ?? '<unnamed>'}',
+      ),
+    );
+  }
+  final entry = WidgetEntry(
+    wireId: WireId.unallocatedWidget,
+    name: componentName,
+    library: planningLibrary,
+    category: null,
+    description: description,
+    flutterType: flutterType,
+    childrenSlot: ChildrenSlot.none,
+    properties: properties,
+    sinceVersion: sinceVersion,
+  );
+  final nullableStructuredSlots = <String>{
+    ...structured.nullableStructuredSlots,
+    for (final property in properties)
+      if (property.constructorNullable &&
+          isCustomerRecordPropertySlot(property))
+        structuredSlotKey(entry.flutterType, property.name),
+  };
+  return ConstructorComponentProjection(
+    entry: entry,
+    issues: issues,
+    structuredTypes: structured.structuredTypes,
+    slotTargets: structured.slotTargets,
+    nullableStructuredSlots: nullableStructuredSlots,
+    localUnrenderable: structured.localUnrenderable,
+    componentUnrenderable: widgetUnrenderable,
+    reconstructionPlans: structured.reconstructionPlans,
+    exclusions: exclusions,
+  );
+}
+
+WidgetVisitorResult _visitRestageWidgets(
+  LibraryElement library,
+  AssetId assetId, {
+  required WidgetVisitorTarget target,
+  Map<String, List<WidgetLibrary>>? ownershipByWidget,
 }) {
   final widgets = <WidgetEntry>[];
   final issues = <Issue>[];
@@ -155,13 +358,28 @@ WidgetVisitorResult visitRestageWidgets(
   // Identify the `@RestageWidget` classes once so a structured pre-pass can
   // discover the customer value types their properties reference before the
   // per-widget property build reads them.
-  final widgetClasses = [
+  final annotatedWidgetClasses = [
     for (final cls in library.classes)
       if (_catalogAnnotation(cls, 'RestageWidget') != null) cls,
   ];
+  final widgetClasses = <ClassElement>[];
+  for (final cls in annotatedWidgetClasses) {
+    final routing = readWidgetTargetRouting(
+      cls,
+      assetId,
+      target: _emitTarget(target),
+    );
+    issues.addAll(routing.issues);
+    if (routing.valid && routing.enabled) widgetClasses.add(cls);
+  }
   final constructorFacts = <ClassElement, WidgetConstructorFacts>{};
   for (final cls in widgetClasses) {
-    final facts = readWidgetConstructorFacts(cls, assetId);
+    final facts = projectWidgetConstructorFacts(
+      cls,
+      assetId,
+      readWidgetConstructorFacts(cls, assetId),
+      target: _emitTarget(target),
+    );
     constructorFacts[cls] = facts;
     issues.addAll(
       facts.issues.map(
@@ -174,14 +392,31 @@ WidgetVisitorResult visitRestageWidgets(
       ),
     );
   }
+  final metadataByClass = <ClassElement, _ResolvedWidgetMetadata>{};
+  for (final cls in widgetClasses) {
+    final annotation = _catalogAnnotation(cls, 'RestageWidget')!;
+    final metadata = _resolveWidgetMetadata(
+      cls,
+      annotation,
+      assetId,
+      issues,
+      ownershipByWidget: ownershipByWidget,
+    );
+    if (metadata != null) metadataByClass[cls] = metadata;
+  }
+  final resolvedWidgetClasses = metadataByClass.keys.toList(growable: false);
   final structured = discoverCustomerStructured(
-    widgetClasses: widgetClasses,
+    widgetClasses: resolvedWidgetClasses,
     widgetInputs: {
       for (final entry in constructorFacts.entries)
         entry.key: entry.value.inputs,
     },
     assetId: assetId,
     issues: issues,
+    widgetLibraries: {
+      for (final entry in metadataByClass.entries)
+        entry.key: entry.value.library,
+    },
   );
   final mapPlans = <String, MapPlan>{...structured.mapPlans};
   final recordPlans = <String, RecordPlan>{...structured.recordPlans};
@@ -193,11 +428,10 @@ WidgetVisitorResult visitRestageWidgets(
   // decoder for their type. Recorded rather than raised, because an optional
   // input the compiler cannot decode is ordinary Dart omission.
   final exclusions = <PropertyExclusion>[];
-  for (final cls in widgetClasses) {
-    final annotation = _catalogAnnotation(cls, 'RestageWidget')!;
+  for (final cls in resolvedWidgetClasses) {
     final entry = _readWidgetAnnotation(
       cls,
-      annotation,
+      metadataByClass[cls]!,
       assetId,
       issues,
       structured,
@@ -262,9 +496,15 @@ WidgetVisitorResult visitRestageWidgets(
   );
 }
 
+EmitTarget _emitTarget(WidgetVisitorTarget target) => switch (target) {
+      WidgetVisitorTarget.rfw => EmitTarget.rfw,
+      WidgetVisitorTarget.widgetbook => EmitTarget.widgetbook,
+      WidgetVisitorTarget.a2ui => EmitTarget.a2ui,
+    };
+
 WidgetEntry? _readWidgetAnnotation(
   ClassElement cls,
-  ElementAnnotation annotation,
+  _ResolvedWidgetMetadata metadata,
   AssetId assetId,
   List<Issue> issues,
   CustomerStructuredDiscovery structured, {
@@ -275,7 +515,6 @@ WidgetEntry? _readWidgetAnnotation(
   required Map<String, RecordPlan> recordPlans,
   required WidgetConstructorFacts constructorFacts,
 }) {
-  final value = annotation.computeConstantValue();
   final className = cls.name ?? '<unnamed>';
   final widgetLocation = '${assetId.path}#$className';
   if (constructorFacts.issues.any(
@@ -285,80 +524,10 @@ WidgetEntry? _readWidgetAnnotation(
   )) {
     return null;
   }
-  if (value == null) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingAnnotationField,
-        message: '@RestageWidget on $className could not be const-evaluated. '
-            'Check that every argument is a compile-time constant '
-            '(no references to non-const variables, no null where a '
-            'non-nullable value is required).',
-        location: widgetLocation,
-      ),
-    );
-    return null;
-  }
-  if (cls.isAbstract || (cls.name?.startsWith('_') ?? false)) {
-    issues.add(
-      Issue(
-        code: IssueCode.invalidWidgetClass,
-        message: '@RestageWidget on $className: customer widget classes must '
-            'be public and non-abstract so generated factories can construct '
-            'them.',
-        location: widgetLocation,
-      ),
-    );
-    return null;
-  }
-
-  final name = value.getField('name')?.toStringValue();
-  final libraryNamespace =
-      value.getField('library')?.getField('namespace')?.toStringValue();
-  final categoryName = _enumName(value.getField('category'));
-  final explicitDescription =
-      value.getField('description')?.toStringValue() ?? '';
-  final description = explicitDescription.trim().isNotEmpty
-      ? explicitDescription
-      : normalizeDartdoc(cls.documentationComment);
-
-  if (name == null || libraryNamespace == null || categoryName == null) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingAnnotationField,
-        message: 'Missing required fields on @RestageWidget for $className '
-            '(name/library/category).',
-        location: widgetLocation,
-      ),
-    );
-    return null;
-  }
-  if (description == null) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingCatalogDescription,
-        message: '$className requires either RestageWidget.description or '
-            'Dart documentation on the class.',
-        location: widgetLocation,
-      ),
-    );
-  }
-
-  final library = WidgetLibrary.fromNamespace(libraryNamespace);
-  final category =
-      WidgetCategory.values.where((e) => e.name == categoryName).firstOrNull;
-  if (category == null) {
-    issues.add(
-      Issue(
-        code: IssueCode.unknownEnumValue,
-        message: 'Unknown category "$categoryName". $_unknownEnumHint',
-        location: widgetLocation,
-      ),
-    );
-    return null;
-  }
-
-  final childrenSlot =
-      _childrenSlotFromAnnotation(value, issues, widgetLocation);
+  final name = metadata.name;
+  final library = metadata.library;
+  final category = metadata.category;
+  final description = metadata.description;
   final flutterType = _flutterTypeOf(cls);
 
   final properties = <PropertyEntry>[];
@@ -382,14 +551,23 @@ WidgetEntry? _readWidgetAnnotation(
   }
   _validateTargetPositionalExclusions(
     className: className,
+    classLocation: widgetLocation,
     target: target,
     inputs: constructorFacts.inputs,
+    allInputs: constructorFacts.allInputs,
     properties: properties,
     exclusions: exclusions.skip(exclusionStart),
     issues: issues,
   );
+  addProjectedConstructorOrderMigrationNotice(
+    cls,
+    constructorFacts,
+    assetId,
+    target: _emitTarget(target),
+    emittedPropertyNames: properties.map((property) => property.name).toSet(),
+    issues: issues,
+  );
   if (description == null) return null;
-
   return WidgetEntry(
     wireId: WireId.unallocatedWidget,
     name: name,
@@ -397,8 +575,177 @@ WidgetEntry? _readWidgetAnnotation(
     category: category,
     description: description,
     flutterType: flutterType,
-    childrenSlot: childrenSlot,
+    childrenSlot: ChildrenSlot.none,
     properties: properties,
+  );
+}
+
+final class _ResolvedWidgetMetadata {
+  const _ResolvedWidgetMetadata({
+    required this.name,
+    required this.library,
+    required this.category,
+    required this.description,
+  });
+
+  final String name;
+  final WidgetLibrary library;
+  final WidgetCategory? category;
+  final String? description;
+}
+
+_ResolvedWidgetMetadata? _resolveWidgetMetadata(
+  ClassElement cls,
+  ElementAnnotation annotation,
+  AssetId assetId,
+  List<Issue> issues, {
+  required Map<String, List<WidgetLibrary>>? ownershipByWidget,
+}) {
+  final value = annotation.computeConstantValue();
+  final className = cls.name ?? '<unnamed>';
+  final widgetLocation = '${assetId.path}#$className';
+  if (value == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingAnnotationField,
+        message: '@RestageWidget on $className could not be const-evaluated. '
+            'Check that every argument is a compile-time constant.',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  }
+  if (cls.isAbstract || (cls.name?.startsWith('_') ?? false)) {
+    issues.add(
+      Issue(
+        code: IssueCode.invalidWidgetClass,
+        message: '@RestageWidget on $className: customer widget classes must '
+            'be public and non-abstract so generated factories can construct '
+            'them.',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  }
+
+  final explicitName = value.getField('name')?.toStringValue();
+  if (explicitName != null && explicitName.trim().isEmpty) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingAnnotationField,
+        message: '@RestageWidget on $className has an empty explicit `name`; '
+            'omit the override to use the Dart class name.',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  }
+  final name = explicitName ?? className;
+
+  final explicitNamespace =
+      value.getField('library')?.getField('namespace')?.toStringValue();
+  final explicitLibrary = explicitNamespace == null
+      ? null
+      : WidgetLibrary.fromNamespace(explicitNamespace);
+  final candidates = ownershipByWidget == null
+      ? const <WidgetLibrary>[]
+      : ownershipByWidget[restageWidgetElementIdentity(cls)] ??
+          const <WidgetLibrary>[];
+  final candidateList =
+      candidates.map((candidate) => '"${candidate.namespace}"').join(', ');
+  final WidgetLibrary library;
+  if (explicitLibrary != null) {
+    if (candidates.isNotEmpty &&
+        !candidates.any(
+          (candidate) => candidate.namespace == explicitLibrary.namespace,
+        )) {
+      issues.add(
+        Issue(
+          code: IssueCode.missingAnnotationField,
+          message: '@RestageWidget on $className explicitly selects '
+              '"${explicitLibrary.namespace}", but its exporting '
+              '@RestageLibrary declaration(s) are $candidateList.',
+          location: widgetLocation,
+        ),
+      );
+      return null;
+    }
+    library = explicitLibrary;
+  } else if (ownershipByWidget == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingAnnotationField,
+        message: '@RestageWidget on $className omits `library`, but this '
+            'single-library visitor has no complete package ownership index.',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  } else if (candidates.isEmpty) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingAnnotationField,
+        message: '@RestageWidget on $className has no owning @RestageLibrary '
+            'export. Export the class from exactly one annotated barrel or '
+            'provide an explicit `library` override.',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  } else if (candidates.length > 1) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingAnnotationField,
+        message: '@RestageWidget on $className has multiple owning '
+            '@RestageLibrary exports: $candidateList. '
+            'Provide an explicit `library` override selecting one.',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  } else {
+    library = candidates.single;
+  }
+
+  final rawCategory = value.getField('category');
+  final categoryName = _enumName(rawCategory);
+  final category = categoryName == null
+      ? null
+      : WidgetCategory.values
+          .where((candidate) => candidate.name == categoryName)
+          .firstOrNull;
+  if (rawCategory != null && !rawCategory.isNull && category == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.unknownEnumValue,
+        message: 'Unknown category "$categoryName". $_unknownEnumHint',
+        location: widgetLocation,
+      ),
+    );
+    return null;
+  }
+
+  final explicitDescription =
+      value.getField('description')?.toStringValue() ?? '';
+  final description = explicitDescription.trim().isNotEmpty
+      ? explicitDescription
+      : normalizeDartdoc(cls.documentationComment);
+  if (description == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingCatalogDescription,
+        message: '$className requires either RestageWidget.description or '
+            'Dart documentation on the class.',
+        location: widgetLocation,
+      ),
+    );
+  }
+
+  return _ResolvedWidgetMetadata(
+    name: name,
+    library: library,
+    category: category,
+    description: description,
   );
 }
 
@@ -978,23 +1325,29 @@ PropertyType? _inferPropertyType(
 
 void _validateTargetPositionalExclusions({
   required String className,
+  required String classLocation,
   required WidgetVisitorTarget target,
   required List<WidgetConstructorInput> inputs,
+  required List<WidgetConstructorInput> allInputs,
   required List<PropertyEntry> properties,
   required Iterable<PropertyExclusion> exclusions,
   required List<Issue> issues,
 }) {
-  final inputIndex = {
-    for (final (index, input) in inputs.indexed) input.name: index,
-  };
+  final selectedFormals = Set<FormalParameterElement>.identity()
+    ..addAll(inputs.map((input) => input.formal));
   final includedPositional = {
     for (final property in properties)
       if (property.positional) property.name,
   };
-  for (final exclusion in exclusions) {
-    final excludedIndex = inputIndex[exclusion.property];
-    if (excludedIndex == null || !inputs[excludedIndex].positional) continue;
-    final later = inputs
+  final automaticByProperty = {
+    for (final exclusion in exclusions) exclusion.property: exclusion,
+  };
+  for (final (excludedIndex, input) in allInputs.indexed) {
+    if (!input.positional) continue;
+    final authored = !selectedFormals.contains(input.formal) && !input.required;
+    final automatic = automaticByProperty[input.name];
+    if (!authored && automatic == null) continue;
+    final later = allInputs
         .skip(excludedIndex + 1)
         .where(
           (input) =>
@@ -1002,16 +1355,19 @@ void _validateTargetPositionalExclusions({
         )
         .firstOrNull;
     if (later == null) continue;
+    final exclusionKind = authored
+        ? 'excluded with @Ignore for the ${target.name} target'
+        : 'auto-excluded for the ${target.name} target';
     issues.add(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
-        message: 'Constructor input $className.${exclusion.property} cannot '
-            'be auto-excluded for the ${target.name} target while later '
+        message: 'Constructor input $className.${input.name} cannot be '
+            '$exclusionKind while later '
             'positional input ${later.name} is included, because excluding an '
             'earlier positional would shift the arguments after it. Make '
-            '${exclusion.property} named, or ensure ${later.name} and all '
+            '${input.name} named, or ensure ${later.name} and all '
             'later positional inputs are omitted too.',
-        location: exclusion.location,
+        location: automatic?.location ?? '$classLocation.${input.name}',
       ),
     );
   }
@@ -1074,25 +1430,6 @@ bool _isA2uiScalarList(DartType type) {
   }
   final element = type.typeArguments.single;
   return classifyJsonScalarType(element) != null;
-}
-
-ChildrenSlot _childrenSlotFromAnnotation(
-  DartObject value,
-  List<Issue> issues,
-  String location,
-) {
-  final name = _enumName(value.getField('childrenSlot'));
-  if (name == null) return ChildrenSlot.none;
-  final match = ChildrenSlot.values.where((e) => e.name == name).firstOrNull;
-  if (match != null) return match;
-  issues.add(
-    Issue(
-      code: IssueCode.unknownEnumValue,
-      message: 'Unknown childrenSlot "$name". $_unknownEnumHint',
-      location: location,
-    ),
-  );
-  return ChildrenSlot.none;
 }
 
 /// Reads the string `name` of an enum-valued [DartObject] via the analyzer's

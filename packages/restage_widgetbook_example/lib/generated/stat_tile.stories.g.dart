@@ -44,20 +44,20 @@ class StatTileStory extends Story<StatTile, StatTileStoryInputArgs> {
 
 class StatTileStoryInputArgs extends StoryArgs<StatTile> {
   StatTileStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? label,
     Arg<String>? value,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg(
            "A labelled value tile, e.g. \"Active users\" over \"1,204\".",
          ),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg(
            "A labelled value tile, e.g. \"Active users\" over \"1,204\".",
          ),
@@ -66,37 +66,46 @@ class StatTileStoryInputArgs extends StoryArgs<StatTile> {
        this.valueArg = $initArg('value', value, StringArg("1,204"))!;
 
   StatTileStoryInputArgs.fixed({
-    String description =
+    String restageMetadataDescription =
         "A labelled value tile, e.g. \"Active users\" over \"1,204\".",
-    String usage =
+    String restageMetadataUsage =
         "A labelled value tile, e.g. \"Active users\" over \"1,204\".",
     String label = "Active users",
     String value = "1,204",
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.labelArg = $initArg('label', Arg.fixed(label), null)!,
        this.valueArg = $initArg('value', Arg.fixed(value), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> labelArg;
 
   final Arg<String> valueArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get label => labelArg.value;
 
   String get value => valueArg.value;
 
   @override
-  List<Arg?> get list => [descriptionArg, usageArg, labelArg, valueArg];
+  List<Arg?> get list => [
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
+    labelArg,
+    valueArg,
+  ];
 }

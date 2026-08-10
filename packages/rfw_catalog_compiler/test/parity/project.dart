@@ -43,10 +43,17 @@ Map<String, Object?> _projectWidget(
   required Map<WireIdRef, String> tokenNames,
   required Map<WireIdRef, StructuredEntry> structuredByRef,
 }) {
+  final category = widget.category;
+  if (category == null) {
+    throw StateError(
+      'Legacy built-in parity projection requires WidgetEntry.category for '
+      '${widget.library.namespace}:${widget.name}.',
+    );
+  }
   return {
     'name': widget.name,
     'library': widget.library.namespace,
-    'category': widget.category.name,
+    'category': category.name,
     'description': widget.description,
     'flutterType': widget.flutterType,
     'childrenSlot': widget.childrenSlot.name,

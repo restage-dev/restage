@@ -9,16 +9,15 @@ import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// A customer `@RestageWidget` paired with its resolved class element — the
-/// production build phase discovers these off `buildStep.resolver` and the
-/// merged catalog: the `entry` carries the catalog property names + types, the
-/// `element` carries the constructor parameter types + field annotations the
-/// analyzer-fed seams read.
+/// One authored A2UI component paired with its resolved class element. The
+/// `entry` carries catalog property names + types; the `element` carries the
+/// constructor parameter types + field annotations the analyzer-fed seams
+/// read.
 typedef A2uiWidgetElement = ({WidgetEntry entry, ClassElement element});
 
-/// The three analyzer-fed A2UI seams produced from resolved `@RestageWidget`
-/// elements — the inputs the production A2UI emitter (`emitA2uiCatalogDart` /
-/// `emitA2uiCatalog`) threads alongside the catalog.
+/// The three analyzer-fed A2UI seams produced from resolved customer-widget
+/// and native-screen elements — the inputs the production A2UI emitter
+/// (`emitA2uiCatalogDart` / `emitA2uiCatalog`) threads alongside the catalog.
 typedef A2uiSeams = ({
   A2uiRichShapes richShapes,
   A2uiEventSeam eventSeam,
@@ -26,9 +25,9 @@ typedef A2uiSeams = ({
   List<Issue> issues,
 });
 
-/// Assembles the three A2UI read legs from resolved customer-widget elements,
+/// Assembles the three A2UI read legs from resolved authored components,
 /// closing the build-phase auto-wiring: for each catalog property of each
-/// widget,
+/// component,
 ///
 ///  * an `event` property reflects its constructor parameter into the EVENT
 ///    seam (the same `reflectType` leg the rich-shape path uses), and reads the

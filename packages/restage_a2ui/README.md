@@ -51,23 +51,45 @@ dev_dependencies:
   build_runner: ^2.4.0
 ```
 
-**2. Annotate a widget.** A normal Flutter widget plus `@RestageWidget` is
-enough to include its supported public constructor inputs. Use
-`@RestageProperty` only for shared metadata overrides such as constraints or an
-explicit description. A value property paired with a matching-type
-`ValueChanged` callback wires the two-way binding automatically — no pairing
-annotation needed.
+**2. Declare the library once.** Add a typed barrel that declares the custom
+library's namespace and capability version, then exactly re-export the widgets
+it owns. The build phase reads `capabilityVersion` from this declaration and
+stamps it into the generated catalog.
+
+```dart
+// lib/restage_imports.dart
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+export 'widgets/rating_picker.dart';
+// … export your other @RestageWidget files
+
+final class AcmeWidgets extends WidgetLibrary {
+  const AcmeWidgets();
+
+  @override
+  final String namespace = 'acme.widgets';
+}
+
+const WidgetLibrary acmeWidgets = AcmeWidgets();
+
+@RestageLibrary(library: acmeWidgets, capabilityVersion: 1)
+const restageCatalog = 0;
+```
+
+**3. Annotate a widget.** A normal Flutter widget plus bare `@RestageWidget()`
+is enough to include its supported public constructor inputs. The class name
+becomes the component name, the exact exporting barrel supplies its library,
+and an omitted category means root placement. Use `@RestageProperty` only for
+shared metadata overrides such as constraints or an explicit description. A
+value property paired with a matching-type `ValueChanged` callback wires the
+two-way binding automatically — no pairing annotation needed.
 
 ```dart
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-@RestageWidget(
-  name: 'RatingPicker',
-  library: WidgetLibrary.custom('acme.widgets'),
-  category: WidgetCategory.input,
-  description: 'A 1–5 star rating control bound to an integer value.',
-)
+/// A 1–5 star rating control bound to an integer value.
+@RestageWidget()
 class RatingPicker extends StatelessWidget {
   const RatingPicker({required this.rating, required this.onRatingChanged, super.key});
 
@@ -88,23 +110,11 @@ class RatingPicker extends StatelessWidget {
 (A property typed as your own **data class** auto-generates a rich nested schema — see
 [Rich data](#rich-data--structured-restagewidget-properties).)
 
-**3. Declare the library.** A barrel that declares your custom library — its namespace and capability
-version — and re-exports the widgets that belong to it. The build phase reads `capabilityVersion` off this
-declaration and stamps it into the generated catalog.
-
-```dart
-// lib/restage_imports.dart
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-
-export 'widgets/rating_picker.dart';
-// … export your other @RestageWidget files
-
-@RestageLibrary(
-  library: WidgetLibrary.custom('acme.widgets'),
-  capabilityVersion: 1, // bump when you add a widget or make a render-affecting change
-)
-const restageLibrary = 0;
-```
+For advanced placement or identity control, keep typed overrides on the
+widget: `@RestageWidget(library: WidgetLibrary.custom('acme.widgets'),
+category: WidgetCategory.input)`. The explicit library disambiguates multiple
+exact owners; `name:` is also available when a stable component key must differ
+from the Dart class name.
 
 **4. Enable the A2UI builder.** It is opt-in (`auto_apply: none`) because the generated catalog imports
 `genui`. If you target A2UI only (not RFW delivery), also turn the three RFW customer builders **off** —
@@ -138,12 +148,28 @@ dart run build_runner build
   widget builder) that genui renders against, plus the content-derived `restageA2uiCatalogId`.
 - `restage_a2ui_catalog.a2ui.json` — the A2UI-standard catalog document (`{ restageCapability, a2uiCatalog }`). Each
   `a2uiCatalog.components.<Name>` carries that component's full data schema — the *same* schema genui's own
-  `Catalog.toCapabilitiesJson()` would emit (the data fields plus the injected `component` discriminator) — so
-  a producer can generate payloads against this document alone. Two notes that follow genui's conventions: each
-  component schema is a **standalone schema resource** (a recursive component keeps genui's component-root-relative
-  `#/$defs/…` pointers, so resolve `$ref` *within* the component schema, not against the whole file); and `id` +
-  `component` are **reserved A2UI envelope keys** — genui strips them from a component's data, so don't name a
-  top-level `@RestageWidget` field either (nest it in a data class if you need that name).
+  `Catalog.toCapabilitiesJson()` would emit — so a producer can generate payloads against this document alone.
+  Every generated customer component has one required object-valued `props` property. The A2UI envelope owns
+  `id` and `component`; every exact Dart constructor input lives under `props`. A source input may therefore be
+  named `id`, `component`, `catalogId`, or even `props` without escaping or aliasing it. Recursive component
+  schemas remain **standalone schema resources**: resolve component-root-relative `#/$defs/…` pointers within
+  the component schema, not against the whole catalog file.
+
+The uniform customer payload shape is:
+
+```json
+{
+  "id": "rating-control",
+  "component": "RatingPicker",
+  "props": {
+    "rating": 4
+  }
+}
+```
+
+`Widget` and `List<Widget>` inputs follow the same rule: their exact property
+names under `props` carry a component ID or list of component IDs. No input must
+be named `child` or `children`.
 
 Typed `RestageConstraints` are projected onto the literal arm of a generated field schema. They describe
 the accepted literal catalog shape; values resolved from `{path}` or `{call}` remain application data, so
@@ -283,12 +309,8 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 @a2ui.Config.usage(
   'Use for a short highlighted aside around optional content.',
 )
-@RestageWidget(
-  name: 'Callout',
-  library: WidgetLibrary.custom('acme.widgets'),
-  category: WidgetCategory.decoration,
-  description: 'A message callout that wraps an optional child.',
-)
+/// A message callout that wraps an optional child.
+@RestageWidget()
 class Callout extends StatelessWidget { /* … */ }
 ```
 
@@ -319,7 +341,8 @@ class Money {
   final String currency;
 }
 
-@RestageWidget(name: 'PriceTag', library: WidgetLibrary.custom('acme.widgets'), /* … */)
+/// Displays a structured price value.
+@RestageWidget()
 class PriceTag extends StatelessWidget {
   const PriceTag({required this.price, super.key});
 
@@ -335,8 +358,9 @@ A required value that is missing from the payload **fails the widget safe** — 
 renders a fabricated value. Sealed-class **unions** are not yet recognized; a union-typed property scopes
 out with a clear diagnostic rather than rendering wrong (recognition is a tracked follow-up).
 
-> Note: rich structured properties target the A2UI catalog. Native (RFW) paywall delivery of a custom data
-> class is planned, not yet available.
+> RFW delivery admits supported customer structured objects, maps, records, and lists only when Restage can
+> form a reconstruction plan for the exact property. Unsupported structured shapes fail generation loudly
+> rather than being silently dropped or decoded as a different shape.
 
 ## Why a pre-render check
 

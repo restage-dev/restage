@@ -39,6 +39,55 @@ Catalog _mixedCatalog({int? acmeCapabilityVersion = 3}) {
 
 void main() {
   group('emitA2uiCatalog — components', () {
+    test('nests every customer field beneath one required props object', () {
+      const customerLibrary = WidgetLibrary.custom('acme.widgets');
+      final result = emitA2uiCatalog(
+        Catalog(
+          schemaVersion: kSupportedSchemaVersion,
+          generatedAt: '1970-01-01T00:00:00Z',
+          libraries: {
+            customerLibrary: const LibraryInfo(
+              version: '1.0.0',
+              capabilityVersion: 1,
+            ),
+          },
+          widgets: [
+            entry(
+              name: 'CollisionCard',
+              library: customerLibrary,
+              properties: [
+                prop('id', PropertyType.string, required: true),
+                prop('component', PropertyType.string),
+                prop('catalogId', PropertyType.string),
+                prop('props', PropertyType.string),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.components.single.dataSchema, {
+        'type': 'object',
+        'properties': {
+          'props': {
+            'type': 'object',
+            'properties': {
+              'id': {'type': 'string'},
+              'component': {'type': 'string'},
+              'catalogId': {'type': 'string'},
+              'props': {'type': 'string'},
+            },
+            'required': ['id'],
+          },
+          'component': {
+            'type': 'string',
+            'enum': ['CollisionCard'],
+          },
+        },
+        'required': ['component', 'props'],
+      });
+    });
+
     test('injects the discriminator into the per-property data schema', () {
       // emitA2uiCatalog emits over the A2UI-emittable set, so the fixtures use
       // emittable widgets (scalar/enum/child-with-field), never an unrealistic

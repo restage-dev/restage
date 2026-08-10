@@ -8,6 +8,7 @@
       }
     ],
     "perItemSinceVersion": {
+      "BareCatalogCard": 1,
       "CatalogShowcase": 1,
       "ConstructorFidelityCorpus": 1,
       "ConstructorFidelityProof": 1,
@@ -15,17 +16,45 @@
       "FeaturePanel": 1,
       "FeatureRow": 1,
       "PriceBadge": 1,
-      "StatTile": 1
+      "RequiredNullableWidgetProof": 1,
+      "StatTile": 1,
+      "opaque_screen_proof": 1
     }
   },
   "a2uiCatalog": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9",
+    "$id": "restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e",
     "title": "Restage A2UI Catalog",
     "description": "A2UI component catalog generated from Restage widget source.",
-    "catalogId": "restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9",
+    "catalogId": "restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
+      "BareCatalogCard": {
+        "type": "object",
+        "description": "A root-level customer card using only the ordinary Restage marker.",
+        "properties": {
+          "props": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Visible card label."
+              }
+            },
+            "required": []
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "BareCatalogCard"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "props"
+        ]
+      },
       "CatalogShowcase": {
         "$defs": {
           "CatalogShowcaseData": {
@@ -48,76 +77,95 @@
           },
           "__a2ui_root__": {
             "type": "object",
-            "description": "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child slots, and customer-owned structured data.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+            "description": "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
             "properties": {
-              "title": {
-                "type": "string",
-                "description": "Visible customer title."
-              },
-              "enabled": {
-                "description": "Whether the customer control is enabled.",
-                "oneOf": [
-                  {
-                    "type": "boolean"
+              "props": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Visible customer title."
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
+                  "enabled": {
+                    "description": "Whether the customer control is enabled.",
+                    "oneOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": [
+                          "call"
+                        ]
                       }
-                    },
-                    "required": [
-                      "path"
                     ]
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
+                  "status": {
+                    "type": "string",
+                    "description": "Current customer state.",
+                    "enum": [
+                      "ready",
+                      "processing"
+                    ]
+                  },
+                  "hero": {
+                    "type": "string",
+                    "description": "Customer widget shown before the detail list."
+                  },
+                  "details": {
+                    "type": "array",
+                    "description": "Customer detail widgets shown in source order.",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "footer": {
+                    "description": "Optional customer widget shown after the detail list.",
+                    "anyOf": [
+                      {
                         "type": "string"
                       },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
+                      {
+                        "type": "null"
                       }
-                    },
-                    "required": [
-                      "call"
                     ]
+                  },
+                  "data": {
+                    "description": "Customer-owned structured information.",
+                    "$ref": "#/$defs/CatalogShowcaseData"
                   }
+                },
+                "required": [
+                  "title",
+                  "status",
+                  "hero",
+                  "details",
+                  "data"
                 ]
-              },
-              "status": {
-                "type": "string",
-                "description": "Current customer state.",
-                "enum": [
-                  "ready",
-                  "processing"
-                ]
-              },
-              "header": {
-                "type": "string",
-                "description": "Customer widget shown before the content list."
-              },
-              "children": {
-                "type": "array",
-                "description": "Customer widgets shown in source order.",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "data": {
-                "description": "Customer-owned structured information.",
-                "$ref": "#/$defs/CatalogShowcaseData"
               }
             },
             "required": [
-              "title",
-              "status",
-              "header",
-              "children",
-              "data"
+              "props"
             ]
           }
         },
@@ -171,42 +219,170 @@
             "type": "object",
             "description": "Broad reusable fixture for accepted named constructor shapes.",
             "properties": {
-              "value": {
-                "type": "string",
-                "description": "Generic value inherited by the concrete customer widget."
-              },
-              "ordinaryLabel": {
-                "type": "string",
-                "description": "Ordinary one-to-one constructor binding."
-              },
-              "requiredNamed": {
-                "type": "string",
-                "description": "Required named field formal."
-              },
-              "nullableText": {
-                "description": "Explicit nullable null default.",
-                "anyOf": [
-                  {
-                    "type": "string"
+              "props": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "description": "Generic value inherited by the concrete customer widget."
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "nullableSeed": {
-                "description": "Nullable input with a non-null constructor default.",
-                "anyOf": [
-                  {
-                    "type": "string"
+                  "ordinaryLabel": {
+                    "type": "string",
+                    "description": "Ordinary one-to-one constructor binding."
                   },
-                  {
-                    "type": "null"
+                  "requiredNamed": {
+                    "type": "string",
+                    "description": "Required named field formal."
+                  },
+                  "nullableText": {
+                    "description": "Explicit nullable null default.",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "nullableSeed": {
+                    "description": "Nullable input with a non-null constructor default.",
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "enabled": {
+                    "description": "Scalar constructor default and write-back candidate.",
+                    "oneOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": [
+                          "call"
+                        ]
+                      }
+                    ]
+                  },
+                  "count": {
+                    "description": "Integer constructor default and second write-back candidate.",
+                    "oneOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {
+                            "type": "string"
+                          },
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": [
+                          "call"
+                        ]
+                      }
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "description": "Enum constructor default.",
+                    "enum": [
+                      "ready",
+                      "processing"
+                    ]
+                  },
+                  "directColor": {
+                    "type": "string",
+                    "description": "Direct const invocation default."
+                  },
+                  "publicColor": {
+                    "type": "string",
+                    "description": "Public static constant reference default."
+                  },
+                  "data": {
+                    "description": "Nested customer-structured default.",
+                    "$ref": "#/$defs/ConstructorCorpusData"
                   }
+                },
+                "required": [
+                  "value",
+                  "ordinaryLabel",
+                  "requiredNamed"
                 ]
+              }
+            },
+            "required": [
+              "props"
+            ]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": [
+              "ConstructorFidelityCorpus"
+            ]
+          }
+        },
+        "required": [
+          "component"
+        ]
+      },
+      "ConstructorFidelityProof": {
+        "type": "object",
+        "description": "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
+        "properties": {
+          "props": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Required positional label."
               },
               "enabled": {
-                "description": "Scalar constructor default and write-back candidate.",
+                "description": "Optional named value whose omission preserves the Dart default.",
                 "oneOf": [
                   {
                     "type": "boolean"
@@ -239,126 +415,14 @@
                   }
                 ]
               },
-              "count": {
-                "description": "Integer constructor default and second write-back candidate.",
-                "oneOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "path"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "call": {
-                        "type": "string"
-                      },
-                      "args": {
-                        "type": "object",
-                        "additionalProperties": true
-                      }
-                    },
-                    "required": [
-                      "call"
-                    ]
-                  }
-                ]
-              },
-              "mode": {
+              "optionalText": {
                 "type": "string",
-                "description": "Enum constructor default.",
-                "enum": [
-                  "ready",
-                  "processing"
-                ]
-              },
-              "directColor": {
-                "type": "string",
-                "description": "Direct const invocation default."
-              },
-              "publicColor": {
-                "type": "string",
-                "description": "Public static constant reference default."
-              },
-              "data": {
-                "description": "Nested customer-structured default.",
-                "$ref": "#/$defs/ConstructorCorpusData"
+                "description": "Optional text used to distinguish authored values from defaults."
               }
             },
             "required": [
-              "value",
-              "ordinaryLabel",
-              "requiredNamed"
+              "label"
             ]
-          }
-        },
-        "$ref": "#/$defs/__a2ui_root__",
-        "properties": {
-          "component": {
-            "type": "string",
-            "enum": [
-              "ConstructorFidelityCorpus"
-            ]
-          }
-        },
-        "required": [
-          "component"
-        ]
-      },
-      "ConstructorFidelityProof": {
-        "type": "object",
-        "description": "A compact executable proof that all generated targets invoke Dart's constructor contract rather than merely emitting source bytes.",
-        "properties": {
-          "label": {
-            "type": "string",
-            "description": "Required positional label."
-          },
-          "enabled": {
-            "description": "Optional named value whose omission preserves the Dart default.",
-            "oneOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "path"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "call": {
-                    "type": "string"
-                  },
-                  "args": {
-                    "type": "object",
-                    "additionalProperties": true
-                  }
-                },
-                "required": [
-                  "call"
-                ]
-              }
-            ]
-          },
-          "optionalText": {
-            "type": "string",
-            "description": "Optional text used to distinguish authored values from defaults."
           },
           "component": {
             "type": "string",
@@ -369,24 +433,32 @@
         },
         "required": [
           "component",
-          "label"
+          "props"
         ]
       },
       "ConstructorPositionalCorpus": {
         "type": "object",
         "description": "Reusable positional-hole fixture.",
         "properties": {
-          "requiredLabel": {
-            "type": "string",
-            "description": "Required positional value."
-          },
-          "leading": {
-            "type": "string",
-            "description": "Earlier optional positional value."
-          },
-          "trailing": {
-            "type": "string",
-            "description": "Later optional positional value used to prove hole preservation."
+          "props": {
+            "type": "object",
+            "properties": {
+              "requiredLabel": {
+                "type": "string",
+                "description": "Required positional value."
+              },
+              "leading": {
+                "type": "string",
+                "description": "Earlier optional positional value."
+              },
+              "trailing": {
+                "type": "string",
+                "description": "Later optional positional value used to prove hole preservation."
+              }
+            },
+            "required": [
+              "requiredLabel"
+            ]
           },
           "component": {
             "type": "string",
@@ -397,30 +469,39 @@
         },
         "required": [
           "component",
-          "requiredLabel"
+          "props"
         ]
       },
       "FeaturePanel": {
         "type": "object",
         "description": "A panel with a customer header and customer content widgets.",
         "properties": {
-          "header": {
-            "description": "Customer widget shown as the panel header.",
-            "anyOf": [
-              {
-                "type": "string"
+          "props": {
+            "type": "object",
+            "properties": {
+              "header": {
+                "description": "Customer widget shown as the panel header.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
-              {
-                "type": "null"
+              "children": {
+                "type": "array",
+                "description": "Customer widgets shown in the panel body.",
+                "items": {
+                  "type": "string"
+                }
               }
+            },
+            "required": [
+              "header",
+              "children"
             ]
-          },
-          "children": {
-            "type": "array",
-            "description": "Customer widgets shown in the panel body.",
-            "items": {
-              "type": "string"
-            }
           },
           "component": {
             "type": "string",
@@ -431,21 +512,29 @@
         },
         "required": [
           "component",
-          "header",
-          "children"
+          "props"
         ]
       },
       "FeatureRow": {
         "type": "object",
         "description": "A feature-list row: check icon, title, and subtitle.",
         "properties": {
-          "title": {
-            "type": "string",
-            "description": "Feature title."
-          },
-          "subtitle": {
-            "type": "string",
-            "description": "Supporting line under the title."
+          "props": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Feature title."
+              },
+              "subtitle": {
+                "type": "string",
+                "description": "Supporting line under the title."
+              }
+            },
+            "required": [
+              "title",
+              "subtitle"
+            ]
           },
           "component": {
             "type": "string",
@@ -456,21 +545,29 @@
         },
         "required": [
           "component",
-          "title",
-          "subtitle"
+          "props"
         ]
       },
       "PriceBadge": {
         "type": "object",
         "description": "A compact price pill, e.g. \"$9.99 / mo\".",
         "properties": {
-          "price": {
-            "type": "string",
-            "description": "Formatted price, e.g. \"$9.99\"."
-          },
-          "period": {
-            "type": "string",
-            "description": "Billing period suffix, e.g. \"mo\"."
+          "props": {
+            "type": "object",
+            "properties": {
+              "price": {
+                "type": "string",
+                "description": "Formatted price, e.g. \"$9.99\"."
+              },
+              "period": {
+                "type": "string",
+                "description": "Billing period suffix, e.g. \"mo\"."
+              }
+            },
+            "required": [
+              "price",
+              "period"
+            ]
           },
           "component": {
             "type": "string",
@@ -481,21 +578,86 @@
         },
         "required": [
           "component",
-          "price",
-          "period"
+          "props"
+        ]
+      },
+      "RequiredNullableWidgetProof": {
+        "type": "object",
+        "description": "Executable RFW proof for required nullable and non-nullable widget inputs.",
+        "properties": {
+          "props": {
+            "type": "object",
+            "properties": {
+              "positionalNullable": {
+                "description": "Required positional input that may explicitly be null.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "positionalControl": {
+                "type": "string",
+                "description": "Required non-nullable positional control."
+              },
+              "namedNullable": {
+                "description": "Required named input that may explicitly be null.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "namedControl": {
+                "type": "string",
+                "description": "Required non-nullable named control."
+              }
+            },
+            "required": [
+              "positionalNullable",
+              "positionalControl",
+              "namedNullable",
+              "namedControl"
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "RequiredNullableWidgetProof"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "props"
         ]
       },
       "StatTile": {
         "type": "object",
         "description": "A labelled value tile, e.g. \"Active users\" over \"1,204\".",
         "properties": {
-          "label": {
-            "type": "string",
-            "description": "Caption text."
-          },
-          "value": {
-            "type": "string",
-            "description": "Value text."
+          "props": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Caption text."
+              },
+              "value": {
+                "type": "string",
+                "description": "Value text."
+              }
+            },
+            "required": [
+              "label",
+              "value"
+            ]
           },
           "component": {
             "type": "string",
@@ -506,14 +668,82 @@
         },
         "required": [
           "component",
-          "label",
-          "value"
+          "props"
+        ]
+      },
+      "opaque_screen_proof": {
+        "type": "object",
+        "description": "Native screen used to verify opaque A2UI and Widgetbook integration.\n\nOne authored class feeds RFW, A2UI, and Widgetbook in the normal build.",
+        "properties": {
+          "props": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Constructor-bound title retained by native targets."
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "Constructor-bound state retained by native targets."
+              },
+              "tone": {
+                "type": "string",
+                "description": "Typed preview state retained by native targets.",
+                "enum": [
+                  "calm",
+                  "urgent"
+                ]
+              },
+              "data": {
+                "type": "string",
+                "description": "Customer data retained under its exact Dart name."
+              },
+              "context": {
+                "type": "string",
+                "description": "Customer context retained under its exact Dart name."
+              },
+              "itemContext": {
+                "type": "string",
+                "description": "Customer item context retained under its exact Dart name."
+              },
+              "restageA2uiStatus": {
+                "type": "string",
+                "description": "Customer enum retained despite matching a generated-local prefix.",
+                "enum": [
+                  "calm",
+                  "urgent"
+                ]
+              },
+              "description": {
+                "type": "string",
+                "description": "Editable customer description shown beside Restage metadata."
+              },
+              "usage": {
+                "type": "string",
+                "description": "Editable customer usage shown beside Restage metadata."
+              }
+            },
+            "required": [
+              "title"
+            ]
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "opaque_screen_proof"
+            ]
+          }
+        },
+        "required": [
+          "component",
+          "props"
         ]
       }
     },
     "functions": {},
     "systemPromptFragments": [
-      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9\".",
+      "For every A2UI createSurface message, set catalogId to \"restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e\".",
+      "BareCatalogCard: A root-level customer card using only the ordinary Restage marker.",
       "CatalogShowcase: Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
       "ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.",
       "ConstructorFidelityProof: Use to verify generated constructor binding and callback write-back.",
@@ -521,7 +751,9 @@
       "FeaturePanel: Use to group a compact catalog summary.",
       "FeatureRow: A feature-list row: check icon, title, and subtitle.",
       "PriceBadge: A compact price pill, e.g. \"$9.99 / mo\".",
-      "StatTile: A labelled value tile, e.g. \"Active users\" over \"1,204\"."
+      "RequiredNullableWidgetProof: Executable RFW proof for required nullable and non-nullable widget inputs.",
+      "StatTile: A labelled value tile, e.g. \"Active users\" over \"1,204\".",
+      "opaque_screen_proof: Use for the final action in a native onboarding flow."
     ]
   }
 }

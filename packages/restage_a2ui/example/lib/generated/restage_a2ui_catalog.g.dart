@@ -27,24 +27,30 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A message callout that wraps an optional child.',
         properties: {
-          'message': S.string(
-            description: 'The callout message.',
-          ),
-          'child': S.combined(
-              description: 'The wrapped child content.',
-              anyOf: [S.string(), S.nil()])
+          'props': S.object(
+            properties: {
+              'message': S.string(
+                description: 'The callout message.',
+              ),
+              'detail': S.combined(
+                  description: 'The wrapped detail content.',
+                  anyOf: [S.string(), S.nil()])
+            },
+            required: <String>['message'],
+          )
         },
-        required: <String>['message'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['message'],
+          value: props['message'],
           builder: (context, message) => p1.Callout(
             message: message ?? '',
-            child: data.containsKey('child')
-                ? _restageA2uiBuildChild(itemContext, data['child'])
+            detail: props.containsKey('detail')
+                ? _restageA2uiBuildChild(itemContext, props['detail'])
                 : null,
           ),
         );
@@ -53,24 +59,44 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'ComparisonPanel',
       dataSchema: S.object(
-        description: 'A headed panel that lays out a list of child widgets.',
+        description:
+            'A headed panel with an introduction, examples, and conclusion.',
         properties: {
-          'heading': S.string(
-            description: 'The panel heading.',
-          ),
-          'children': S.list(
-              description: 'The compared child widgets.', items: S.string())
+          'props': S.object(
+            properties: {
+              'heading': S.string(
+                description: 'The panel heading.',
+              ),
+              'introduction': S.combined(
+                  description: 'Content shown before the lesson examples.',
+                  anyOf: [S.string(), S.nil()]),
+              'examples': S.list(
+                  description: 'The lesson example widgets.',
+                  items: S.string()),
+              'conclusion': S.combined(
+                  description: 'Content shown after the lesson examples.',
+                  anyOf: [S.string(), S.nil()])
+            },
+            required: <String>['heading', 'examples'],
+          )
         },
-        required: <String>['heading', 'children'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['heading'],
+          value: props['heading'],
           builder: (context, heading) => p2.ComparisonPanel(
             heading: heading ?? '',
-            children: _restageA2uiBuildChildren(itemContext, data['children']),
+            introduction: props.containsKey('introduction')
+                ? _restageA2uiBuildChild(itemContext, props['introduction'])
+                : null,
+            examples: _restageA2uiBuildChildren(itemContext, props['examples']),
+            conclusion: props.containsKey('conclusion')
+                ? _restageA2uiBuildChild(itemContext, props['conclusion'])
+                : null,
           ),
         );
       },
@@ -81,34 +107,42 @@ List<CatalogItem> buildRestageCatalogItems() {
         description:
             'A prompt with a checkable answer bound to a boolean value.',
         properties: {
-          'prompt': S.string(
-            description: 'The quiz prompt.',
-          ),
-          'selected': S
-              .combined(description: 'Whether the answer is selected.', oneOf: [
-            S.boolean(),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ])
+          'props': S.object(
+            properties: {
+              'prompt': S.string(
+                description: 'The quiz prompt.',
+              ),
+              'selected': S.combined(
+                  description: 'Whether the answer is selected.',
+                  oneOf: [
+                    S.boolean(),
+                    S.object(
+                        properties: {'path': S.string()},
+                        required: <String>['path']),
+                    S.object(properties: {
+                      'call': S.string(),
+                      'args': S.object(additionalProperties: true)
+                    }, required: <String>[
+                      'call'
+                    ])
+                  ])
+            },
+            required: <String>['prompt', 'selected'],
+          )
         },
-        required: <String>['prompt', 'selected'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         final restageA2uiSelfPathSelected = '${itemContext.id}.selected';
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['prompt'],
+          value: props['prompt'],
           builder: (context, prompt) => _RestageA2uiControlledValue(
             dataContext: itemContext.dataContext,
-            source: data['selected'],
-            sourcePresent: data.containsKey('selected'),
+            source: props['selected'],
+            sourcePresent: props.containsKey('selected'),
             surfaceId: itemContext.surfaceId,
             catalogId: restageA2uiCatalogId,
             componentId: itemContext.id,
@@ -137,17 +171,23 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A titled section header.',
         properties: {
-          'title': S.string(
-            description: 'The header title.',
+          'props': S.object(
+            properties: {
+              'title': S.string(
+                description: 'The header title.',
+              )
+            },
+            required: <String>['title'],
           )
         },
-        required: <String>['title'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['title'],
+          value: props['title'],
           builder: (context, title) => p4.SectionHeader(
             title: title ?? '',
           ),
@@ -159,17 +199,23 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A call-to-action button that dispatches a tap event.',
         properties: {
-          'label': S.string(
-            description: 'The button caption.',
+          'props': S.object(
+            properties: {
+              'label': S.string(
+                description: 'The button caption.',
+              )
+            },
+            required: <String>['label'],
           )
         },
-        required: <String>['label'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['label'],
+          value: props['label'],
           builder: (context, label) => p0.CtaButton(
             label: label ?? '',
             onPressed: () => itemContext.dispatchEvent(UserActionEvent(
@@ -183,28 +229,36 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'Adds values to a bound integer list.',
         properties: {
-          'selected':
-              S.combined(description: 'The selected integer values.', oneOf: [
-            S.list(items: S.integer()),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ])
+          'props': S.object(
+            properties: {
+              'selected': S.combined(
+                  description: 'The selected integer values.',
+                  oneOf: [
+                    S.list(items: S.integer()),
+                    S.object(
+                        properties: {'path': S.string()},
+                        required: <String>['path']),
+                    S.object(properties: {
+                      'call': S.string(),
+                      'args': S.object(additionalProperties: true)
+                    }, required: <String>[
+                      'call'
+                    ])
+                  ])
+            },
+            required: <String>['selected'],
+          )
         },
-        required: <String>['selected'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         final restageA2uiSelfPathSelected = '${itemContext.id}.selected';
         return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          source: data['selected'],
-          sourcePresent: data.containsKey('selected'),
+          source: props['selected'],
+          sourcePresent: props.containsKey('selected'),
           surfaceId: itemContext.surfaceId,
           catalogId: restageA2uiCatalogId,
           componentId: itemContext.id,
@@ -283,17 +337,23 @@ List<CatalogItem> buildRestageCatalogItems() {
           description:
               'Renders a structured product (nested price, tags, features, attributes, size).',
           properties: {
-            'product': S.combined(
-                description: 'The product to display.',
-                $ref: '#/\$defs/Product')
+            'props': S.object(
+              properties: {
+                'product': S.combined(
+                    description: 'The product to display.',
+                    $ref: '#/\$defs/Product')
+              },
+              required: <String>['product'],
+            )
           },
-          required: <String>['product'],
+          required: <String>['props'],
         )
       }),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         final _restageA2uiArg_product =
-            _restageA2uiBuild_Product(data['product'], 0);
+            _restageA2uiBuild_Product(props['product'], 0);
         if (_restageA2uiArg_product == null) return const SizedBox.shrink();
         return p5.ProductCard(
           product: _restageA2uiArg_product,
@@ -305,30 +365,36 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A 1–5 star rating control bound to an integer value.',
         properties: {
-          'rating': S.combined(
-              description: 'The selected rating, 1 through 5.',
-              oneOf: [
-                S.integer(),
-                S.object(
-                    properties: {'path': S.string()},
-                    required: <String>['path']),
-                S.object(properties: {
-                  'call': S.string(),
-                  'args': S.object(additionalProperties: true)
-                }, required: <String>[
-                  'call'
-                ])
-              ])
+          'props': S.object(
+            properties: {
+              'rating': S.combined(
+                  description: 'The selected rating, 1 through 5.',
+                  oneOf: [
+                    S.integer(),
+                    S.object(
+                        properties: {'path': S.string()},
+                        required: <String>['path']),
+                    S.object(properties: {
+                      'call': S.string(),
+                      'args': S.object(additionalProperties: true)
+                    }, required: <String>[
+                      'call'
+                    ])
+                  ])
+            },
+            required: <String>['rating'],
+          )
         },
-        required: <String>['rating'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         final restageA2uiSelfPathRating = '${itemContext.id}.rating';
         return _RestageA2uiControlledValue(
           dataContext: itemContext.dataContext,
-          source: data['rating'],
-          sourcePresent: data.containsKey('rating'),
+          source: props['rating'],
+          sourcePresent: props.containsKey('rating'),
           surfaceId: itemContext.surfaceId,
           catalogId: restageA2uiCatalogId,
           componentId: itemContext.id,
@@ -352,78 +418,10 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'Renders string, integer, number, and boolean lists.',
         properties: {
-          'labels': S.combined(description: 'String list values.', oneOf: [
-            S.list(items: S.string()),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ]),
-          'counts': S.combined(description: 'Integer list values.', oneOf: [
-            S.list(items: S.integer()),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ]),
-          'weights': S.combined(description: 'Number list values.', oneOf: [
-            S.list(items: S.number()),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ]),
-          'measurements':
-              S.combined(description: 'Dart num list values.', oneOf: [
-            S.list(items: S.number()),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ]),
-          'flags': S.combined(description: 'Boolean list values.', oneOf: [
-            S.list(items: S.boolean()),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ]),
-          'maybeCounts':
-              S.combined(description: 'Optional integer list values.', oneOf: [
-            S.combined(anyOf: [S.list(items: S.integer()), S.nil()]),
-            S.object(
-                properties: {'path': S.string()}, required: <String>['path']),
-            S.object(properties: {
-              'call': S.string(),
-              'args': S.object(additionalProperties: true)
-            }, required: <String>[
-              'call'
-            ])
-          ]),
-          'fallbackCounts': S.combined(
-              description: 'Integer list values with a fallback.',
-              oneOf: [
-                S.combined(anyOf: [S.list(items: S.integer()), S.nil()]),
+          'props': S.object(
+            properties: {
+              'labels': S.combined(description: 'String list values.', oneOf: [
+                S.list(items: S.string()),
                 S.object(
                     properties: {'path': S.string()},
                     required: <String>['path']),
@@ -433,39 +431,120 @@ List<CatalogItem> buildRestageCatalogItems() {
                 }, required: <String>[
                   'call'
                 ])
-              ])
+              ]),
+              'counts': S.combined(description: 'Integer list values.', oneOf: [
+                S.list(items: S.integer()),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ]),
+              'weights': S.combined(description: 'Number list values.', oneOf: [
+                S.list(items: S.number()),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ]),
+              'measurements':
+                  S.combined(description: 'Dart num list values.', oneOf: [
+                S.list(items: S.number()),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ]),
+              'flags': S.combined(description: 'Boolean list values.', oneOf: [
+                S.list(items: S.boolean()),
+                S.object(
+                    properties: {'path': S.string()},
+                    required: <String>['path']),
+                S.object(properties: {
+                  'call': S.string(),
+                  'args': S.object(additionalProperties: true)
+                }, required: <String>[
+                  'call'
+                ])
+              ]),
+              'maybeCounts': S.combined(
+                  description: 'Optional integer list values.',
+                  oneOf: [
+                    S.combined(anyOf: [S.list(items: S.integer()), S.nil()]),
+                    S.object(
+                        properties: {'path': S.string()},
+                        required: <String>['path']),
+                    S.object(properties: {
+                      'call': S.string(),
+                      'args': S.object(additionalProperties: true)
+                    }, required: <String>[
+                      'call'
+                    ])
+                  ]),
+              'fallbackCounts': S.combined(
+                  description: 'Integer list values with a fallback.',
+                  oneOf: [
+                    S.combined(anyOf: [S.list(items: S.integer()), S.nil()]),
+                    S.object(
+                        properties: {'path': S.string()},
+                        required: <String>['path']),
+                    S.object(properties: {
+                      'call': S.string(),
+                      'args': S.object(additionalProperties: true)
+                    }, required: <String>[
+                      'call'
+                    ])
+                  ])
+            },
+            required: <String>[
+              'labels',
+              'counts',
+              'weights',
+              'measurements',
+              'flags'
+            ],
+          )
         },
-        required: <String>[
-          'labels',
-          'counts',
-          'weights',
-          'measurements',
-          'flags'
-        ],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundObject(
           dataContext: itemContext.dataContext,
-          value: data['labels'],
+          value: props['labels'],
           builder: (context, labels) => BoundObject(
             dataContext: itemContext.dataContext,
-            value: data['counts'],
+            value: props['counts'],
             builder: (context, counts) => BoundObject(
               dataContext: itemContext.dataContext,
-              value: data['weights'],
+              value: props['weights'],
               builder: (context, weights) => BoundObject(
                 dataContext: itemContext.dataContext,
-                value: data['measurements'],
+                value: props['measurements'],
                 builder: (context, measurements) => BoundObject(
                   dataContext: itemContext.dataContext,
-                  value: data['flags'],
+                  value: props['flags'],
                   builder: (context, flags) => BoundObject(
                     dataContext: itemContext.dataContext,
-                    value: data['maybeCounts'],
+                    value: props['maybeCounts'],
                     builder: (context, maybeCounts) => BoundObject(
                       dataContext: itemContext.dataContext,
-                      value: data['fallbackCounts'],
+                      value: props['fallbackCounts'],
                       builder: (context, fallbackCounts) => p7.ScalarListPanel(
                         labels:
                             ((labels is List ? labels.cast<Object?>() : null) ??
@@ -499,8 +578,8 @@ List<CatalogItem> buildRestageCatalogItems() {
                                     const <Object?>[])
                                 .whereType<bool>()
                                 .toList(growable: false),
-                        maybeCounts: (data.containsKey('maybeCounts')
-                                ? (data['maybeCounts'] == null
+                        maybeCounts: (props.containsKey('maybeCounts')
+                                ? (props['maybeCounts'] == null
                                     ? null
                                     : (maybeCounts is List
                                         ? maybeCounts.cast<Object?>()
@@ -510,8 +589,8 @@ List<CatalogItem> buildRestageCatalogItems() {
                                 (value) => value is num ? value.toInt() : null)
                             .whereType<int>()
                             .toList(growable: false),
-                        fallbackCounts: (data.containsKey('fallbackCounts')
-                                ? (data['fallbackCounts'] == null
+                        fallbackCounts: (props.containsKey('fallbackCounts')
+                                ? (props['fallbackCounts'] == null
                                     ? null
                                     : ((fallbackCounts is List
                                             ? fallbackCounts.cast<Object?>()
@@ -541,12 +620,12 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff';
+    'restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a';
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/f49ea2d3254223390102abe6dcca8899151aabf3533f706808c0ddba852d63ff".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a".',
   'Callout: Use for a short highlighted aside around optional content.',
-  'ComparisonPanel: A headed panel that lays out a list of child widgets.',
+  'ComparisonPanel: A headed panel with an introduction, examples, and conclusion.',
   'QuizCheck: A prompt with a checkable answer bound to a boolean value.',
   'SectionHeader: A titled section header.',
   'CtaButton: A call-to-action button that dispatches a tap event.',

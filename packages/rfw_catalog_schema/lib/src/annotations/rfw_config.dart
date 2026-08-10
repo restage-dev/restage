@@ -10,5 +10,14 @@ import 'package:meta/meta_meta.dart';
 @Target({TargetKind.classType})
 final class Config {
   /// Creates an RFW configuration overlay.
-  const Config();
+  const Config({this.enabled});
+
+  /// Controls whether the annotated customer widget participates in RFW emit.
+  // ignore: avoid_positional_boolean_parameters
+  const Config.enabled(bool enabled) : this(enabled: enabled);
+
+  /// Whether this customer widget participates in RFW emit.
+  ///
+  /// `null` keeps the default enabled behavior.
+  final bool? enabled;
 }

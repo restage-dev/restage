@@ -16,21 +16,18 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// writing the output file rather than emit an empty registration helper.
 ///
 /// Reuses [emitFactoryFunction] for the per-widget body — built-in
-/// libraries and customer libraries share the same emission rules, so the
-/// generated factories handle scalar properties, structured-type
-/// decomposition, the canonical child / children slots, and event slots
-/// uniformly.
+/// libraries and customer libraries share scalar, structured, and event
+/// lowering. Customer factories additionally lower every exact `Widget` and
+/// `List<Widget>` constructor property without requiring author metadata.
 ///
 /// [onSkip] fires once per entry the factory emitter can't produce
-/// mechanically (e.g. `childrenSlot` declared without a canonical child
-/// property, unsupported `synthetic` strategy, malformed decomposition
-/// recipe — see `emitFactoryFunction`'s eligibility rules). The catalog
-/// emitter accepts the same entries unconditionally, so a customer who
-/// annotates a non-emittable widget would otherwise see the widget in
-/// `user_catalog.g.dart` but not in `user_factories.g.dart`, with no
-/// signal at build time — and an unhelpful "widget not found" at render
-/// time when a blob references it. Builders pass a `log.warning`-emitting
-/// callback so the gap surfaces in the build output.
+/// mechanically (e.g. an unsupported `synthetic` strategy or malformed
+/// decomposition recipe — see `emitFactoryFunction`'s eligibility rules).
+/// Production callers use `emitAdmittedUserFactoriesDart`, which always turns
+/// an admit-then-skip result into a hard coherence failure before any output is
+/// written. Direct permissive use of this lower-level function is confined to
+/// emitter tests and tooling that inspect historical or manually assembled
+/// non-emittable catalog shapes.
 String? emitUserFactoriesDart(
   List<WidgetEntry> widgets, {
   void Function(WidgetEntry skipped)? onSkip,
@@ -78,8 +75,12 @@ String? emitUserFactoriesDart(
 
   final emittable = <(WidgetEntry, String)>[];
   for (final entry in widgets) {
-    final body =
-        emitFactoryFunction(entry, customer: customer, aliases: aliasByUri);
+    final body = emitFactoryFunction(
+      entry,
+      customer: customer,
+      aliases: aliasByUri,
+      customerChildProperties: true,
+    );
     if (body == null) {
       onSkip?.call(entry);
       continue;
@@ -177,6 +178,17 @@ String? emitUserFactoriesDart(
       ..write(body);
   }
 
+  return formatGeneratedDart(buf.toString());
+}
+
+/// Emits a valid no-op registration source that replaces a stale aggregate.
+String emitEmptyUserFactoriesDart() {
+  final buf = StringBuffer();
+  writeGeneratedHeader(buf);
+  buf
+    ..writeln()
+    ..writeln('/// Registers the currently enabled customer RFW widgets.')
+    ..writeln('void registerRestageCustomerWidgets() {}');
   return formatGeneratedDart(buf.toString());
 }
 

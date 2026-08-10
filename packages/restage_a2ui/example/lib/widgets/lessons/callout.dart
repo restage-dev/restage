@@ -2,11 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// A lesson callout: a [message] plus an optional wrapped [child] slot.
-/// Exercises the canonical single-`child` slot (a customer widget nested inside
-/// a customer widget) alongside a scalar. The child slot is nullable — an A2UI
-/// child is a component-id reference that need not resolve, so the generated
-/// catalog lowers the slot to an optional child.
+/// A lesson callout: a [message] plus optional wrapped [detail] content.
+/// The arbitrary child-bearing name is preserved exactly. The input is
+/// nullable, so an unresolved A2UI component-id reference remains optional.
 @a2ui.Config.usage('Use for a short highlighted aside around optional content.')
 @RestageWidget(
   name: 'Callout',
@@ -15,16 +13,16 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   description: 'A message callout that wraps an optional child.',
 )
 class Callout extends StatelessWidget {
-  /// Creates a callout showing [message] above [child].
-  const Callout({required this.message, this.child, super.key});
+  /// Creates a callout showing [message] above [detail].
+  const Callout({required this.message, this.detail, super.key});
 
   /// The callout message.
   @RestageProperty(description: 'The callout message.')
   final String message;
 
-  /// The wrapped child — the canonical single-child slot (optional).
-  @RestageProperty(description: 'The wrapped child content.')
-  final Widget? child;
+  /// The optional wrapped detail content.
+  @RestageProperty(description: 'The wrapped detail content.')
+  final Widget? detail;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +30,7 @@ class Callout extends StatelessWidget {
       key: const ValueKey('callout'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [Text(message), ?child],
+      children: [Text(message), ?detail],
     );
   }
 }

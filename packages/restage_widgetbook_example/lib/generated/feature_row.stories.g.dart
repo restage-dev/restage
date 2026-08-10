@@ -44,18 +44,18 @@ class FeatureRowStory extends Story<FeatureRow, FeatureRowStoryInputArgs> {
 
 class FeatureRowStoryInputArgs extends StoryArgs<FeatureRow> {
   FeatureRowStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? title,
     Arg<String>? subtitle,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg("A feature-list row: check icon, title, and subtitle."),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg("A feature-list row: check icon, title, and subtitle."),
        )!,
        this.titleArg = $initArg(
@@ -70,35 +70,46 @@ class FeatureRowStoryInputArgs extends StoryArgs<FeatureRow> {
        )!;
 
   FeatureRowStoryInputArgs.fixed({
-    String description = "A feature-list row: check icon, title, and subtitle.",
-    String usage = "A feature-list row: check icon, title, and subtitle.",
+    String restageMetadataDescription =
+        "A feature-list row: check icon, title, and subtitle.",
+    String restageMetadataUsage =
+        "A feature-list row: check icon, title, and subtitle.",
     String title = "Unlimited projects",
     String subtitle = "No caps on what you ship.",
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.titleArg = $initArg('title', Arg.fixed(title), null)!,
        this.subtitleArg = $initArg('subtitle', Arg.fixed(subtitle), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> titleArg;
 
   final Arg<String> subtitleArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get title => titleArg.value;
 
   String get subtitle => subtitleArg.value;
 
   @override
-  List<Arg?> get list => [descriptionArg, usageArg, titleArg, subtitleArg];
+  List<Arg?> get list => [
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
+    titleArg,
+    subtitleArg,
+  ];
 }

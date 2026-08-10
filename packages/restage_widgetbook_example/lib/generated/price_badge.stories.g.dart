@@ -46,53 +46,63 @@ class PriceBadgeStory extends Story<PriceBadge, PriceBadgeStoryInputArgs> {
 
 class PriceBadgeStoryInputArgs extends StoryArgs<PriceBadge> {
   PriceBadgeStoryInputArgs({
-    Arg<String>? description,
-    Arg<String>? usage,
+    Arg<String>? restageMetadataDescription,
+    Arg<String>? restageMetadataUsage,
     Arg<String>? price,
     Arg<String>? period,
-  }) : this.descriptionArg = $initArg(
-         'description',
-         description,
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         restageMetadataDescription,
          StringArg("A compact price pill, e.g. \"\$9.99 / mo\"."),
        )!,
-       this.usageArg = $initArg(
-         'usage',
-         usage,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         restageMetadataUsage,
          StringArg("A compact price pill, e.g. \"\$9.99 / mo\"."),
        )!,
        this.priceArg = $initArg('price', price, StringArg("\$9.99"))!,
        this.periodArg = $initArg('period', period, StringArg("mo"))!;
 
   PriceBadgeStoryInputArgs.fixed({
-    String description = "A compact price pill, e.g. \"\$9.99 / mo\".",
-    String usage = "A compact price pill, e.g. \"\$9.99 / mo\".",
+    String restageMetadataDescription =
+        "A compact price pill, e.g. \"\$9.99 / mo\".",
+    String restageMetadataUsage = "A compact price pill, e.g. \"\$9.99 / mo\".",
     String price = "\$9.99",
     String period = "mo",
-  }) : this.descriptionArg = $initArg(
-         'description',
-         Arg.fixed(description),
+  }) : this.restageMetadataDescriptionArg = $initArg(
+         'restageMetadataDescription',
+         Arg.fixed(restageMetadataDescription),
          null,
        )!,
-       this.usageArg = $initArg('usage', Arg.fixed(usage), null)!,
+       this.restageMetadataUsageArg = $initArg(
+         'restageMetadataUsage',
+         Arg.fixed(restageMetadataUsage),
+         null,
+       )!,
        this.priceArg = $initArg('price', Arg.fixed(price), null)!,
        this.periodArg = $initArg('period', Arg.fixed(period), null)!;
 
-  final Arg<String> descriptionArg;
+  final Arg<String> restageMetadataDescriptionArg;
 
-  final Arg<String> usageArg;
+  final Arg<String> restageMetadataUsageArg;
 
   final Arg<String> priceArg;
 
   final Arg<String> periodArg;
 
-  String get description => descriptionArg.value;
+  String get restageMetadataDescription => restageMetadataDescriptionArg.value;
 
-  String get usage => usageArg.value;
+  String get restageMetadataUsage => restageMetadataUsageArg.value;
 
   String get price => priceArg.value;
 
   String get period => periodArg.value;
 
   @override
-  List<Arg?> get list => [descriptionArg, usageArg, priceArg, periodArg];
+  List<Arg?> get list => [
+    restageMetadataDescriptionArg,
+    restageMetadataUsageArg,
+    priceArg,
+    periodArg,
+  ];
 }

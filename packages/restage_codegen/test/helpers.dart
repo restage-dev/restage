@@ -14,6 +14,7 @@ import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
+import 'package:restage_codegen/src/target_routing_reader.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/type_inference.dart' as type_inference;
 import 'package:restage_codegen/src/widget_classification.dart';
@@ -186,6 +187,218 @@ import 'package:flutter/material.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ''';
 
+/// Builds a constrained constructor-default fixture for Widgetbook tests.
+String widgetbookConstrainedConstructorDefaultFixture({
+  required String family,
+  required String defaultExpression,
+  required bool matching,
+  bool collectionMaximumMismatch = false,
+}) {
+  if (family == 'customer structured-list length') {
+    return widgetbookConstrainedStructuredListDefaultFixture(
+      defaultExpression: defaultExpression,
+      matching: matching,
+      maximumMismatch: collectionMaximumMismatch,
+    );
+  }
+  final fixture = switch (family) {
+    'duration' => (
+        declarations: '''
+const defaultDuration = Duration(milliseconds: 150);
+const chainedDuration = defaultDuration;
+''',
+        className: 'ConstrainedDurationCard',
+        parameter: 'this.duration = $defaultExpression',
+        property: 'duration',
+        propertyType: 'Duration',
+        constraints: matching ? 'minimum: 100, maximum: 200' : 'minimum: 200',
+        build: 'const SizedBox()',
+        childrenSlot: '',
+      ),
+    'font weight' => (
+        declarations: '''
+const defaultWeight = FontWeight.w700;
+const chainedWeight = defaultWeight;
+''',
+        className: 'ConstrainedFontWeightCard',
+        parameter: 'this.weight = $defaultExpression',
+        property: 'weight',
+        propertyType: 'FontWeight',
+        constraints: matching ? 'minimum: 600, maximum: 800' : 'minimum: 800',
+        build: 'const SizedBox()',
+        childrenSlot: '',
+      ),
+    'color' => (
+        declarations: '''
+const defaultColor = Color(0xFF336699);
+const chainedColor = defaultColor;
+''',
+        className: 'ConstrainedColorCard',
+        parameter: 'this.color = $defaultExpression',
+        property: 'color',
+        propertyType: 'Color',
+        constraints:
+            matching ? r"pattern: r'^#FF336699$'" : r"pattern: r'^#FFFFFFFF$'",
+        build: 'const SizedBox()',
+        childrenSlot: '',
+      ),
+    'widget-list length' => (
+        declarations: '''
+const defaultChildren = <Widget>[SizedBox.shrink(), SizedBox.shrink()];
+const chainedChildren = defaultChildren;
+''',
+        className: 'ConstrainedChildrenCard',
+        parameter: 'this.children = $defaultExpression',
+        property: 'children',
+        propertyType: 'List<Widget>',
+        constraints: _widgetbookCollectionConstraints(
+          matching: matching,
+          maximumMismatch: collectionMaximumMismatch,
+        ),
+        build: 'Column(children: children)',
+        childrenSlot: 'childrenSlot: ChildrenSlot.list,',
+      ),
+    _ => throw ArgumentError.value(family, 'family'),
+  };
+  return '''
+import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+${fixture.declarations}
+@RestageWidget(
+  name: '${fixture.className}',
+  library: WidgetLibrary.custom('fixture.widgets'),
+  category: WidgetCategory.decoration,
+  description: 'A constrained constructor-default card.',
+  ${fixture.childrenSlot}
+)
+class ${fixture.className} extends StatelessWidget {
+  const ${fixture.className}({${fixture.parameter}});
+
+  /// Constrained constructor value.
+  @RestageProperty(
+    constraints: RestageConstraints(${fixture.constraints}),
+  )
+  final ${fixture.propertyType} ${fixture.property};
+
+  @override
+  Widget build(BuildContext context) => ${fixture.build};
+}
+''';
+}
+
+String _widgetbookCollectionConstraints({
+  required bool matching,
+  required bool maximumMismatch,
+}) {
+  if (matching) return 'minItems: 2, maxItems: 2';
+  if (maximumMismatch) return 'maxItems: 1';
+  return 'minItems: 3';
+}
+
+/// Builds a genuine customer structured-list constructor-default fixture for
+/// Widgetbook planner and source-renderer tests.
+String widgetbookConstrainedStructuredListDefaultFixture({
+  required String defaultExpression,
+  required bool matching,
+  bool maximumMismatch = false,
+}) {
+  final constraints = _widgetbookCollectionConstraints(
+    matching: matching,
+    maximumMismatch: maximumMismatch,
+  );
+  return '''
+import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+class CustomerItem {
+  const CustomerItem(this.label);
+
+  @RestageProperty(description: 'Customer item label.')
+  final String label;
+}
+
+const defaultItems = <CustomerItem>[
+  CustomerItem('one'),
+  CustomerItem('two'),
+];
+const chainedItems = defaultItems;
+
+@RestageWidget(
+  name: 'ConstrainedCustomerItemsCard',
+  library: WidgetLibrary.custom('fixture.widgets'),
+  category: WidgetCategory.decoration,
+  description: 'A constrained customer structured-list card.',
+)
+class ConstrainedCustomerItemsCard extends StatelessWidget {
+  const ConstrainedCustomerItemsCard({this.items = $defaultExpression});
+
+  @RestageProperty(
+    description: 'Customer-defined structured items.',
+    constraints: RestageConstraints($constraints),
+  )
+  final List<CustomerItem> items;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+''';
+}
+
+/// Builds a Widgetbook string-pattern fixture with either typed constraints or
+/// the legacy validation expression, and either a non-null or null seed.
+String widgetbookPatternValidationFixture({
+  required bool legacy,
+  required bool nullable,
+  required bool malformed,
+}) {
+  final sourceKind = legacy ? 'Legacy' : 'Typed';
+  final seedKind = nullable ? 'Nullable' : 'NonNull';
+  final className = '$sourceKind${seedKind}PatternCard';
+  final propertyType = nullable ? 'String?' : 'String';
+  final defaultValue = nullable ? 'null' : "'ready'";
+  final constraint = legacy
+      ? malformed
+          ? '''
+validationRule: ValidationExpr(
+        expression: 'matches("[")',
+        message: 'Must match.',
+      )'''
+              .trimLeft()
+          : r'''
+validationRule: ValidationExpr(
+        expression: r'matches("^(ready|set)$")',
+        message: 'Must match.',
+      )'''
+              .trimLeft()
+      : malformed
+          ? "constraints: RestageConstraints(pattern: '[')"
+          : r"constraints: RestageConstraints(pattern: r'^(ready|set)$')";
+  return '''
+import 'package:flutter/widgets.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: '$className',
+  library: WidgetLibrary.custom('fixture.widgets'),
+  category: WidgetCategory.decoration,
+  description: 'A Widgetbook pattern-validation card.',
+)
+class $className extends StatelessWidget {
+  const $className({this.value = $defaultValue});
+
+  @RestageProperty(
+    description: 'Pattern-constrained value.',
+    $constraint,
+  )
+  final $propertyType value;
+
+  @override
+  Widget build(BuildContext context) => Text(value ?? '');
+}
+''';
+}
+
 const String _kRootPackage = 'restage_codegen';
 
 /// Runs the source visitor against a map of synthetic source files
@@ -302,7 +515,8 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
   );
 }
 
-/// Resolves the A2UI target-config overlay for [className] in synthetic sources.
+/// Resolves the A2UI target-config overlay for [className] in synthetic
+/// sources.
 Future<A2uiTargetConfigFacts> runTargetConfigReadersOn(
   Map<String, String> sources, {
   String className = 'Probe',
@@ -326,6 +540,33 @@ Future<A2uiTargetConfigFacts> runTargetConfigReadersOn(
   return results.single;
 }
 
+/// Resolves the Widgetbook target-config overlay for [className].
+Future<WidgetbookTargetConfigFacts> runWidgetbookTargetConfigReaderOn(
+  Map<String, String> sources, {
+  String className = 'Probe',
+  String sourcePath = 'lib/probe.dart',
+  bool includeConstructorFacts = true,
+}) async {
+  final results = await _runOnLibraries<WidgetbookTargetConfigFacts?>(
+    sources,
+    packageName: 'apps_examples',
+    onLibrary: (library, assetId) async {
+      if (assetId.path != sourcePath) return null;
+      final element = library.classes
+          .where((candidate) => candidate.name == className)
+          .single;
+      return readWidgetbookTargetConfig(
+        element,
+        assetId,
+        constructorInputs: includeConstructorFacts
+            ? readWidgetConstructorFacts(element, assetId).inputs
+            : null,
+      );
+    },
+  );
+  return results.whereType<WidgetbookTargetConfigFacts>().single;
+}
+
 /// Resolves constructor facts for [className] in synthetic sources.
 Future<WidgetConstructorFacts> runWidgetConstructorFactsOn(
   Map<String, String> sources, {
@@ -339,6 +580,71 @@ Future<WidgetConstructorFacts> runWidgetConstructorFactsOn(
           .where((candidate) => candidate.name == className)
           .single;
       return readWidgetConstructorFacts(element, assetId);
+    },
+  );
+  return results.single;
+}
+
+/// Resolves and repeatedly projects constructor facts for [className].
+Future<WidgetConstructorFacts> runProjectedWidgetConstructorFactsOn(
+  Map<String, String> sources, {
+  required EmitTarget target,
+  int projections = 1,
+  Set<String>? emittedPropertyNames,
+  String className = 'Probe',
+}) async {
+  final results = await _runOnLibraries<WidgetConstructorFacts>(
+    sources,
+    packageName: 'apps_examples',
+    onLibrary: (library, assetId) async {
+      final element = library.classes
+          .where((candidate) => candidate.name == className)
+          .single;
+      var facts = readWidgetConstructorFacts(element, assetId);
+      for (var index = 0; index < projections; index++) {
+        facts = projectWidgetConstructorFacts(
+          element,
+          assetId,
+          facts,
+          target: target,
+        );
+      }
+      if (emittedPropertyNames != null) {
+        final issues = [...facts.issues];
+        addProjectedConstructorOrderMigrationNotice(
+          element,
+          facts,
+          assetId,
+          target: target,
+          emittedPropertyNames: emittedPropertyNames,
+          issues: issues,
+        );
+        facts = WidgetConstructorFacts(
+          inputs: facts.inputs,
+          allInputs: facts.allInputs,
+          issues: issues,
+        );
+      }
+      return facts;
+    },
+  );
+  return results.single;
+}
+
+/// Resolves one target's class-level routing configuration for [className].
+Future<WidgetTargetRoutingFacts> runWidgetTargetRoutingReaderOn(
+  Map<String, String> sources, {
+  required EmitTarget target,
+  String className = 'Probe',
+}) async {
+  final results = await _runOnLibraries<WidgetTargetRoutingFacts>(
+    sources,
+    packageName: 'apps_examples',
+    onLibrary: (library, assetId) async {
+      final element = library.classes
+          .where((candidate) => candidate.name == className)
+          .single;
+      return readWidgetTargetRouting(element, assetId, target: target);
     },
   );
   return results.single;
@@ -556,6 +862,7 @@ const Map<String, List<String>> _dartOnlyWorkspaceSourceEntrypoints = {
     'lib/rfw_catalog_schema.dart',
     'lib/rfw.dart',
     'lib/a2ui.dart',
+    'lib/widgetbook.dart',
   ],
 };
 

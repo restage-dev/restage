@@ -145,10 +145,14 @@ final class WidgetbookEnumValuePlan extends WidgetbookNativeValuePlan {
   const WidgetbookEnumValuePlan({
     required super.type,
     required this.member,
+    required this.ordinal,
   });
 
   /// Enum constant name.
   final String member;
+
+  /// Zero-based declaration position in the exact resolved enum.
+  final int ordinal;
 }
 
 /// Source-qualified top-level or static const member.
@@ -377,6 +381,10 @@ final class WidgetbookNativeValuePlanner {
       );
     }
 
+    final enumConstant =
+        propertyType == PropertyType.enumValue && value is String
+            ? _enumConstant(dartType, value)
+            : null;
     return switch (propertyType) {
       PropertyType.structured => _lowerStructured(
           ownerSourceType: ownerSourceType,
@@ -385,11 +393,11 @@ final class WidgetbookNativeValuePlanner {
           value: value,
           path: path,
         ),
-      PropertyType.enumValue
-          when value is String && _enumMembers(dartType).contains(value) =>
+      PropertyType.enumValue when enumConstant != null =>
         WidgetbookEnumValuePlan(
           type: type,
-          member: value,
+          member: enumConstant.member,
+          ordinal: enumConstant.ordinal,
         ),
       PropertyType.color => WidgetbookFrameworkValuePlan(
           type: type,
@@ -565,11 +573,16 @@ final class WidgetbookNativeValuePlanner {
           visiting: visiting,
         );
       case PropertyType.enumValue:
-        final members = _enumMembers(dartType);
-        if (members.isEmpty) {
+        final constants = _enumConstants(dartType);
+        if (constants.isEmpty) {
           throw StateError('Widgetbook preview at $path has no enum member.');
         }
-        return WidgetbookEnumValuePlan(type: type, member: members.first);
+        final first = constants.first;
+        return WidgetbookEnumValuePlan(
+          type: type,
+          member: first.member,
+          ordinal: first.ordinal,
+        );
       case PropertyType.color:
         return _lower(
           ownerSourceType: ownerSourceType,
@@ -874,6 +887,7 @@ final class WidgetbookNativeDartRenderer {
     required this.currentLibraryUri,
     required Iterable<WidgetbookDartValuePlan> values,
     this.currentLibraryAlias,
+    Map<String, String> fixedLibraryPrefixes = const {},
     Iterable<WidgetbookDartTypeUse> additionalTypeUses = const [],
     Iterable<DartBareSymbolImport> additionalBareSymbolImports = const [],
     Iterable<DartBareSymbolReservation> bareSymbolReservations = const [],
@@ -897,6 +911,7 @@ final class WidgetbookNativeDartRenderer {
       prefixStem: 'restage_native_',
       fixedPrefixes: {
         if (currentLibraryAlias case final alias?) currentLibraryUri: alias,
+        ...fixedLibraryPrefixes,
       },
       bareSymbolImports: bareSymbolImports,
       bareSymbolReservations: bareSymbolReservations,
@@ -932,8 +947,10 @@ final class WidgetbookNativeDartRenderer {
             owner: owner,
             member: member,
           ),
-        WidgetbookEnumValuePlan(:final type, :final member) =>
-          '${renderType(type.nonNullable)}.$member',
+        WidgetbookEnumValuePlan(:final type, :final member, :final ordinal) =>
+          member.startsWith('_')
+              ? '${renderType(type.nonNullable)}.values[$ordinal]'
+              : '${renderType(type.nonNullable)}.$member',
         WidgetbookStaticMemberValuePlan(
           :final libraryUri,
           :final owner,
@@ -1169,13 +1186,20 @@ String _dartLiteral(Object value) {
   return jsonEncode(value);
 }
 
-Set<String> _enumMembers(DartType type) {
+List<({String member, int ordinal})> _enumConstants(DartType type) {
   final element = type is InterfaceType ? type.element : null;
-  if (element is! EnumElement) return const {};
-  return {
-    for (final field in element.fields)
-      if (field.isEnumConstant && field.name != null) field.name!,
-  };
+  if (element is! EnumElement) return const [];
+  return [
+    for (final (ordinal, field) in element.constants.indexed)
+      if (field.name case final member?) (member: member, ordinal: ordinal),
+  ];
+}
+
+({String member, int ordinal})? _enumConstant(DartType type, String member) {
+  for (final constant in _enumConstants(type)) {
+    if (constant.member == member) return constant;
+  }
+  return null;
 }
 
 void _validateNativeInput(

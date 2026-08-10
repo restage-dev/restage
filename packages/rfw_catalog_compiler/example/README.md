@@ -8,29 +8,52 @@ lowers the result to the public catalog schema. It is the stage `restage_codegen
 drives when it compiles your custom widgets; you normally consume it through that
 build step rather than calling it by hand.
 
-## The input: an annotated widget
+## Declare the library once
 
-You expose a custom widget to the catalog by annotating it with `@RestageWidget`
-and its configurable properties with `@RestageProperty`:
+One exporting barrel declares the catalog library and the widgets it owns:
+
+```dart
+// lib/restage_imports.dart
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+export 'widgets/acme_border.dart';
+
+final class AcmeWidgets extends WidgetLibrary {
+  const AcmeWidgets();
+
+  @override
+  final String namespace = 'acme.widgets';
+}
+
+const WidgetLibrary acmeWidgets = AcmeWidgets();
+
+@RestageLibrary(
+  library: acmeWidgets,
+  capabilityVersion: 1,
+)
+const restageCatalog = 0;
+```
+
+## Mark the widget
+
+The widget itself keeps ordinary Flutter constructor syntax. Constructor-bound
+inputs and Dart documentation are inferred. `@RestageProperty` is optional
+metadata or an override for catalog facts that Dart cannot express:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-@RestageWidget(
-  name: 'AcmeBorder',
-  library: WidgetLibrary.custom('acme.widgets'),
-  category: WidgetCategory.layout,
-  description: 'Wraps a single child in a colored border.',
-  childrenSlot: ChildrenSlot.single,
-)
+/// Wraps a child in a colored border.
+@RestageWidget()
 class AcmeBorder extends StatelessWidget {
   const AcmeBorder({super.key, required this.child, this.color});
 
-  @RestageProperty(description: 'Wrapped child widget.', required: true)
+  /// Widget displayed inside the border.
   final Widget child;
 
-  @RestageProperty(description: 'Border color.', defaultBrandToken: 'primary')
+  /// Border color, or the theme primary color when omitted.
+  @RestageProperty(defaultBrandToken: 'primary')
   final Color? color;
 
   @override
@@ -54,9 +77,11 @@ From that source, `rfw_catalog_compiler` emits a catalog entry that records:
 
 - the widget's identity and a **stable wire ID** (so a published surface keeps
   rendering across catalog revisions),
-- each property's resolved value shape (here: a single child slot and an
-  optional, brand-token-defaulted color),
-- the metadata the editor and the renderer read.
+- each property's resolved value shape (here: the exact constructor-derived
+  `Widget` property named `child` and an optional, brand-token-defaulted
+  color),
+- class and property descriptions inferred from Dart documentation, plus the
+  optional color metadata.
 
 The compiled catalog is what lets a `.rfw` blob refer to `AcmeBorder` by a small
 inert identifier instead of shipping any widget code.

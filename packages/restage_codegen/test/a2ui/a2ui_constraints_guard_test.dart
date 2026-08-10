@@ -48,9 +48,11 @@ void main() {
       propagated,
     ).widgets.single;
 
+    final rootProperties =
+        a2uiWidgetDataSchemaMapForPlan(constrained)['properties']! as Map;
+    final props = rootProperties['props']! as Map;
     expect(
-      (a2uiWidgetDataSchemaMapForPlan(constrained)['properties']!
-          as Map)['count'],
+      (props['properties']! as Map)['count'],
       {
         'type': 'integer',
         'description': 'Count.',

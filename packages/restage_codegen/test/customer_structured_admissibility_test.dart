@@ -295,5 +295,24 @@ void main() {
       expect(admission.excluded, hasLength(1));
       expect(admission.excluded.single.reason, contains('Missing'));
     });
+
+    test(
+        'excludes-loud when whole-widget factory admission rejects an '
+        'otherwise renderable structured widget', () {
+      final admission = computeAdmission(
+        widgets: [_card],
+        structuredTypes: [_outer, _inner],
+        slotTargets: _slotTargets,
+        localUnrenderable: const {},
+        isWholeWidgetEmittable: (_) => false,
+      );
+      expect(admission.admitted, isEmpty);
+      expect(admission.excluded, hasLength(1));
+      expect(admission.excluded.single.widget, _card);
+      expect(
+        admission.excluded.single.reason,
+        contains('admitted-then-skipped incoherence'),
+      );
+    });
   });
 }

@@ -170,6 +170,52 @@ final class NoticeScreen extends StatelessWidget {
       );
     });
 
+    test('unsupported ScreenSource instance field reference fails generation',
+        () async {
+      const source = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'notice.rsscreen.g.dart';
+
+@ScreenSource(id: 'notice')
+final class NoticeScreen extends StatelessWidget {
+  const NoticeScreen({super.key, this.enabled = true});
+
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) => Text(enabled ? 'Enabled' : 'Disabled');
+}
+''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/onboarding/screens/notice.dart'),
+        source,
+      );
+
+      final logs = <LogRecord>[];
+      final result = await testBuilder(
+        onboardingScreenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/onboarding/screens/notice.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+        outputs: const {},
+      );
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.map((log) => log.message).join('\n'),
+        allOf(
+          contains('[unrecognizedMethodCall]'),
+          contains('SimpleIdentifierImpl `enabled`'),
+        ),
+      );
+    });
+
     test('stateful @OnboardingSource emits root state and handlers', () async {
       const source = '''
 import 'package:flutter/material.dart';
@@ -476,6 +522,103 @@ final class WelcomeScreen extends StatelessWidget {
       );
       expect(result.succeeded, isFalse);
       expect(logs.map((log) => log.message).join('\n'), contains('part'));
+    });
+
+    for (final decoy in _partDirectiveDecoys.entries) {
+      test(
+        '${decoy.key} part-directive decoy fails loudly with no RFW outputs',
+        () async {
+          final source = _screenWithPartDirectiveDecoy(decoy.value);
+          final input = AssetId(
+            'apps_examples',
+            'lib/onboarding/screens/part_decoy.dart',
+          );
+          final logs = <LogRecord>[];
+          final readerWriter = await readerWriterWithFilesystemSources(
+            rootPackage: 'apps_examples',
+          );
+          readerWriter.testing.writeString(input, source);
+
+          final result = await testBuilder(
+            onboardingScreenBuilder(BuilderOptions.empty),
+            {'apps_examples|${input.path}': source},
+            rootPackage: 'apps_examples',
+            readerWriter: readerWriter,
+            onLog: logs.add,
+            outputs: const {},
+          );
+
+          expect(result.succeeded, isFalse);
+          expect(
+            logs.map((log) => log.message).join('\n'),
+            contains('missingPartDirective'),
+          );
+          for (final path in const <String>[
+            'lib/onboarding/screens/part_decoy.rsscreen.g.dart',
+            'assets/onboarding/screens/part_decoy.rfwtxt',
+            'assets/onboarding/screens/part_decoy.rfw',
+            'assets/onboarding/screens/part_decoy.capability.json',
+          ]) {
+            expect(
+              result.readerWriter.testing.exists(
+                AssetId('apps_examples', path),
+              ),
+              isFalse,
+              reason: '$path must not be emitted for a directive decoy',
+            );
+          }
+        },
+      );
+    }
+
+    test('more than one ScreenSource rejects the complete RFW output family',
+        () async {
+      const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'welcome.rsscreen.g.dart';
+
+@ScreenSource(id: 'welcome')
+final class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Center();
+}
+
+@ScreenSource(id: 'welcome')
+final class AdditionalWelcomeScreen extends StatelessWidget {
+  const AdditionalWelcomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Center();
+}
+''';
+
+      final logs = <LogRecord>[];
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
+        source,
+      );
+
+      final result = await testBuilder(
+        onboardingScreenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/onboarding/screens/welcome.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+        outputs: const {},
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.map((log) => log.message).join('\n'),
+        contains('[invalidScreenSourceCount]'),
+      );
     });
 
     test('local OnboardingSource annotation lookalikes are ignored', () async {
@@ -826,6 +969,26 @@ final class extends StatelessWidget {
     });
   });
 }
+
+String _screenWithPartDirectiveDecoy(String decoy) => '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+$decoy
+
+@ScreenSource(id: 'part_decoy')
+final class PartDecoyScreen extends StatelessWidget {
+  const PartDecoyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Center();
+}
+''';
+
+const _partDirectiveDecoys = <String, String>{
+  'comment': "// part 'part_decoy.rsscreen.g.dart';",
+  'string': "const partDirectiveText = \"part 'part_decoy.rsscreen.g.dart';\";",
+};
 
 String _screenWithBody(String body) => '''
 import 'package:flutter/material.dart';

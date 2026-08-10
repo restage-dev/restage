@@ -15,7 +15,7 @@
       "category": "layout",
       "description": "Wraps a single child in a colored border.",
       "flutterType": "package:restage_example/widgets/acme_border.dart#AcmeBorder",
-      "childrenSlot": "single",
+      "childrenSlot": "none",
       "properties": [
         {
           "wireId": "p0001",
@@ -40,7 +40,7 @@
       "category": "layout",
       "description": "Overlays a list of children in z-order.",
       "flutterType": "package:restage_example/widgets/acme_stack.dart#AcmeStack",
-      "childrenSlot": "list",
+      "childrenSlot": "none",
       "properties": [
         {
           "wireId": "p0003",

@@ -18,6 +18,8 @@ Other changes:
 
 - Add `package:restage/a2ui.dart` and `package:restage/rfw.dart` convenience
   entrypoints for target-specific customer catalog configuration.
+- Add the Widgetbook configuration entrypoint and typed per-widget/per-input
+  emit-target routing annotations.
 - Remove the closed event-name export. Customer callback constructor properties
   now use their exact Dart names as event identities.
 - Purchase results carry the store-issued transaction identifier where one

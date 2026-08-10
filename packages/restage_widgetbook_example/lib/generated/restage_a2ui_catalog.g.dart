@@ -5,15 +5,20 @@
 import 'dart:async';
 import 'dart:ui' as p0;
 import 'package:flutter/widgets.dart';
-import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart' as p1;
-import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+import 'package:restage/restage.dart';
+import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart'
+    as p1;
+import 'package:restage_widgetbook_example/widgets/bare_catalog_card.dart'
     as p2;
+import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart' as p3;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
+    as p4;
 import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
-    as p3;
-import 'package:restage_widgetbook_example/widgets/feature_panel.dart' as p4;
-import 'package:restage_widgetbook_example/widgets/feature_row.dart' as p5;
-import 'package:restage_widgetbook_example/widgets/price_badge.dart' as p6;
-import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as p7;
+    as p5;
+import 'package:restage_widgetbook_example/widgets/feature_panel.dart' as p6;
+import 'package:restage_widgetbook_example/widgets/feature_row.dart' as p7;
+import 'package:restage_widgetbook_example/widgets/price_badge.dart' as p8;
+import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as p9;
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
@@ -24,368 +29,340 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 List<CatalogItem> buildRestageCatalogItems() {
   return <CatalogItem>[
     CatalogItem(
-      name: 'CatalogShowcase',
-      dataSchema: S.combined(
-        $ref: '#/\$defs/__a2ui_root__',
-        $defs: {
-          'CatalogShowcaseData': S.object(
-            description:
-                'Customer-owned structured information displayed by a [CatalogShowcase].',
+      name: 'BareCatalogCard',
+      dataSchema: S.object(
+        description:
+            'A root-level customer card using only the ordinary Restage marker.',
+        properties: {
+          'props': S.object(
             properties: {
-              'count': S.integer(description: 'Customer-owned count.'),
-              'note': S.string(description: 'Supporting customer text.'),
+              'label': S.string(
+                description: 'Visible card label.',
+              )
             },
-            required: <String>['count', 'note'],
-          ),
-          '__a2ui_root__': S.object(
-            description:
-                'A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child slots, and customer-owned structured data.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
-            properties: {
-              'title': S.string(description: 'Visible customer title.'),
-              'enabled': S.combined(
-                description: 'Whether the customer control is enabled.',
-                oneOf: [
-                  S.boolean(),
-                  S.object(
-                    properties: {'path': S.string()},
-                    required: <String>['path'],
-                  ),
-                  S.object(
-                    properties: {
-                      'call': S.string(),
-                      'args': S.object(additionalProperties: true),
-                    },
-                    required: <String>['call'],
-                  ),
-                ],
-              ),
-              'status': S.string(
-                description: 'Current customer state.',
-                enumValues: <Object?>['ready', 'processing'],
-              ),
-              'header': S.string(
-                description: 'Customer widget shown before the content list.',
-              ),
-              'children': S.list(
-                description: 'Customer widgets shown in source order.',
-                items: S.string(),
-              ),
-              'data': S.combined(
-                description: 'Customer-owned structured information.',
-                $ref: '#/\$defs/CatalogShowcaseData',
-              ),
-            },
-            required: <String>['title', 'status', 'header', 'children', 'data'],
-          ),
+            required: <String>[],
+          )
         },
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        final restageA2uiSelfPathEnabled = '${itemContext.id}.enabled';
-        final _restageA2uiArg_data = _restageA2uiBuild_CatalogShowcaseData(
-          data['data'],
-          0,
+        final props = (data['props']! as Map).cast<String, Object?>();
+        return BoundString(
+          dataContext: itemContext.dataContext,
+          value: props['label'],
+          builder: (context, label) => p2.BareCatalogCard(
+            label: label ?? 'Bare catalog card',
+          ),
         );
+      },
+    ),
+    CatalogItem(
+      name: 'CatalogShowcase',
+      dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
+        'CatalogShowcaseData': S.object(
+          description:
+              'Customer-owned structured information displayed by a [CatalogShowcase].',
+          properties: {
+            'count': S.integer(description: 'Customer-owned count.'),
+            'note': S.string(description: 'Supporting customer text.')
+          },
+          required: <String>['count', 'note'],
+        ),
+        '__a2ui_root__': S.object(
+          description:
+              'A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
+          properties: {
+            'props': S.object(
+              properties: {
+                'title': S.string(
+                  description: 'Visible customer title.',
+                ),
+                'enabled': S.combined(
+                    description: 'Whether the customer control is enabled.',
+                    oneOf: [
+                      S.boolean(),
+                      S.object(
+                          properties: {'path': S.string()},
+                          required: <String>['path']),
+                      S.object(properties: {
+                        'call': S.string(),
+                        'args': S.object(additionalProperties: true)
+                      }, required: <String>[
+                        'call'
+                      ])
+                    ]),
+                'status': S.string(
+                    description: 'Current customer state.',
+                    enumValues: <Object?>['ready', 'processing']),
+                'hero': S.string(
+                  description: 'Customer widget shown before the detail list.',
+                ),
+                'details': S.list(
+                    description:
+                        'Customer detail widgets shown in source order.',
+                    items: S.string()),
+                'footer': S.combined(
+                    description:
+                        'Optional customer widget shown after the detail list.',
+                    anyOf: [S.string(), S.nil()]),
+                'data': S.combined(
+                    description: 'Customer-owned structured information.',
+                    $ref: '#/\$defs/CatalogShowcaseData')
+              },
+              required: <String>['title', 'status', 'hero', 'details', 'data'],
+            )
+          },
+          required: <String>['props'],
+        )
+      }),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
+        final restageA2uiSelfPathEnabled = '${itemContext.id}.enabled';
+        final _restageA2uiArg_data =
+            _restageA2uiBuild_CatalogShowcaseData(props['data'], 0);
         if (_restageA2uiArg_data == null) return const SizedBox.shrink();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['title'],
+          value: props['title'],
           builder: (context, title) => _RestageA2uiControlledValue(
             dataContext: itemContext.dataContext,
-            source: data['enabled'],
-            sourcePresent: data.containsKey('enabled'),
+            source: props['enabled'],
+            sourcePresent: props.containsKey('enabled'),
             surfaceId: itemContext.surfaceId,
             catalogId: restageA2uiCatalogId,
             componentId: itemContext.id,
             field: 'enabled',
             selfPath: restageA2uiSelfPathEnabled,
             reportError: itemContext.reportError,
-            builder:
-                (
-                  context,
-                  restageA2uiRawEnabled,
-                  restageA2uiPresentEnabled,
-                  restageA2uiKindEnabled,
-                  restageA2uiWriteEnabled,
-                ) {
-                  final enabled = _restageA2uiBool(
-                    restageA2uiRawEnabled,
-                    restageA2uiKindEnabled,
-                  );
-                  return BoundString(
-                    dataContext: itemContext.dataContext,
-                    value: data['status'],
-                    builder: (context, status) => p1.CatalogShowcase(
-                      title: title ?? '',
-                      enabled: enabled ?? true,
-                      status:
-                          p1.CatalogShowcaseStatus.values.asNameMap()[status] ??
-                          p1.CatalogShowcaseStatus.values.first,
-                      header: _restageA2uiRequireChild(
-                        itemContext,
-                        data['header'],
-                        'CatalogShowcase.header',
-                      ),
-                      children: _restageA2uiBuildChildren(
-                        itemContext,
-                        data['children'],
-                      ),
-                      data: _restageA2uiArg_data,
-                      onChanged: restageA2uiWriteEnabled,
-                    ),
-                  );
-                },
+            builder: (context, restageA2uiRawEnabled, restageA2uiPresentEnabled,
+                restageA2uiKindEnabled, restageA2uiWriteEnabled) {
+              final enabled = _restageA2uiBool(
+                  restageA2uiRawEnabled, restageA2uiKindEnabled);
+              return BoundString(
+                dataContext: itemContext.dataContext,
+                value: props['status'],
+                builder: (context, status) => p3.CatalogShowcase(
+                  title: title ?? '',
+                  enabled: enabled ?? true,
+                  status: p3.CatalogShowcaseStatus.values.asNameMap()[status] ??
+                      p3.CatalogShowcaseStatus.values.first,
+                  hero: _restageA2uiRequireChild(
+                      itemContext, props['hero'], 'CatalogShowcase.hero'),
+                  details:
+                      _restageA2uiBuildChildren(itemContext, props['details']),
+                  footer: props.containsKey('footer')
+                      ? _restageA2uiBuildChild(itemContext, props['footer'])
+                      : null,
+                  data: _restageA2uiArg_data,
+                  onChanged: restageA2uiWriteEnabled,
+                ),
+              );
+            },
           ),
         );
       },
     ),
     CatalogItem(
       name: 'ConstructorFidelityCorpus',
-      dataSchema: S.combined(
-        $ref: '#/\$defs/__a2ui_root__',
-        $defs: {
-          'ConstructorCorpusData': S.object(
-            description:
-                'Customer-owned structured data with one nested object.',
-            properties: {
-              'count': S.integer(
-                description: 'Customer-owned scalar nested beside the object.',
-              ),
-              'nested': S.combined(
+      dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
+        'ConstructorCorpusData': S.object(
+          description: 'Customer-owned structured data with one nested object.',
+          properties: {
+            'count': S.integer(
+                description: 'Customer-owned scalar nested beside the object.'),
+            'nested': S.combined(
                 description: 'Nested customer object.',
-                $ref: '#/\$defs/ConstructorCorpusNestedData',
-              ),
-            },
-            required: <String>['count', 'nested'],
-          ),
-          'ConstructorCorpusNestedData': S.object(
-            description: 'Nested customer-owned immutable data.',
-            properties: {'label': S.string(description: 'Nested label.')},
-            required: <String>['label'],
-          ),
-          '__a2ui_root__': S.object(
-            description:
-                'Broad reusable fixture for accepted named constructor shapes.',
-            properties: {
-              'value': S.string(
-                description:
-                    'Generic value inherited by the concrete customer widget.',
-              ),
-              'ordinaryLabel': S.string(
-                description: 'Ordinary one-to-one constructor binding.',
-              ),
-              'requiredNamed': S.string(
-                description: 'Required named field formal.',
-              ),
-              'nullableText': S.combined(
-                description: 'Explicit nullable null default.',
-                anyOf: [S.string(), S.nil()],
-              ),
-              'nullableSeed': S.combined(
-                description:
-                    'Nullable input with a non-null constructor default.',
-                anyOf: [S.string(), S.nil()],
-              ),
-              'enabled': S.combined(
-                description:
-                    'Scalar constructor default and write-back candidate.',
-                oneOf: [
-                  S.boolean(),
-                  S.object(
-                    properties: {'path': S.string()},
-                    required: <String>['path'],
-                  ),
-                  S.object(
-                    properties: {
-                      'call': S.string(),
-                      'args': S.object(additionalProperties: true),
-                    },
-                    required: <String>['call'],
-                  ),
-                ],
-              ),
-              'count': S.combined(
-                description:
-                    'Integer constructor default and second write-back candidate.',
-                oneOf: [
-                  S.integer(),
-                  S.object(
-                    properties: {'path': S.string()},
-                    required: <String>['path'],
-                  ),
-                  S.object(
-                    properties: {
-                      'call': S.string(),
-                      'args': S.object(additionalProperties: true),
-                    },
-                    required: <String>['call'],
-                  ),
-                ],
-              ),
-              'mode': S.string(
-                description: 'Enum constructor default.',
-                enumValues: <Object?>['ready', 'processing'],
-              ),
-              'directColor': S.string(
-                description: 'Direct const invocation default.',
-              ),
-              'publicColor': S.string(
-                description: 'Public static constant reference default.',
-              ),
-              'data': S.combined(
-                description: 'Nested customer-structured default.',
-                $ref: '#/\$defs/ConstructorCorpusData',
-              ),
-            },
-            required: <String>['value', 'ordinaryLabel', 'requiredNamed'],
-          ),
-        },
-      ),
+                $ref: '#/\$defs/ConstructorCorpusNestedData')
+          },
+          required: <String>['count', 'nested'],
+        ),
+        'ConstructorCorpusNestedData': S.object(
+          description: 'Nested customer-owned immutable data.',
+          properties: {'label': S.string(description: 'Nested label.')},
+          required: <String>['label'],
+        ),
+        '__a2ui_root__': S.object(
+          description:
+              'Broad reusable fixture for accepted named constructor shapes.',
+          properties: {
+            'props': S.object(
+              properties: {
+                'value': S.string(
+                  description:
+                      'Generic value inherited by the concrete customer widget.',
+                ),
+                'ordinaryLabel': S.string(
+                  description: 'Ordinary one-to-one constructor binding.',
+                ),
+                'requiredNamed': S.string(
+                  description: 'Required named field formal.',
+                ),
+                'nullableText': S.combined(
+                    description: 'Explicit nullable null default.',
+                    anyOf: [S.string(), S.nil()]),
+                'nullableSeed': S.combined(
+                    description:
+                        'Nullable input with a non-null constructor default.',
+                    anyOf: [S.string(), S.nil()]),
+                'enabled': S.combined(
+                    description:
+                        'Scalar constructor default and write-back candidate.',
+                    oneOf: [
+                      S.boolean(),
+                      S.object(
+                          properties: {'path': S.string()},
+                          required: <String>['path']),
+                      S.object(properties: {
+                        'call': S.string(),
+                        'args': S.object(additionalProperties: true)
+                      }, required: <String>[
+                        'call'
+                      ])
+                    ]),
+                'count': S.combined(
+                    description:
+                        'Integer constructor default and second write-back candidate.',
+                    oneOf: [
+                      S.integer(),
+                      S.object(
+                          properties: {'path': S.string()},
+                          required: <String>['path']),
+                      S.object(properties: {
+                        'call': S.string(),
+                        'args': S.object(additionalProperties: true)
+                      }, required: <String>[
+                        'call'
+                      ])
+                    ]),
+                'mode': S.string(
+                    description: 'Enum constructor default.',
+                    enumValues: <Object?>['ready', 'processing']),
+                'directColor': S.string(
+                  description: 'Direct const invocation default.',
+                ),
+                'publicColor': S.string(
+                  description: 'Public static constant reference default.',
+                ),
+                'data': S.combined(
+                    description: 'Nested customer-structured default.',
+                    $ref: '#/\$defs/ConstructorCorpusData')
+              },
+              required: <String>['value', 'ordinaryLabel', 'requiredNamed'],
+            )
+          },
+          required: <String>['props'],
+        )
+      }),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         final restageA2uiSelfPathEnabled = '${itemContext.id}.enabled';
         final restageA2uiSelfPathCount = '${itemContext.id}.count';
         final _restageA2uiArg_data =
-            (_restageA2uiBuild_ConstructorCorpusData(data['data'], 0) ??
-            p2.ConstructorCorpusDefaults.publicData);
+            (_restageA2uiBuild_ConstructorCorpusData(props['data'], 0) ??
+                p4.ConstructorCorpusDefaults.publicData);
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['value'],
+          value: props['value'],
           builder: (context, value) => BoundString(
             dataContext: itemContext.dataContext,
-            value: data['ordinaryLabel'],
+            value: props['ordinaryLabel'],
             builder: (context, ordinaryLabel) => BoundString(
               dataContext: itemContext.dataContext,
-              value: data['requiredNamed'],
+              value: props['requiredNamed'],
               builder: (context, requiredNamed) => BoundString(
                 dataContext: itemContext.dataContext,
-                value: data['nullableText'],
+                value: props['nullableText'],
                 builder: (context, nullableText) => BoundString(
                   dataContext: itemContext.dataContext,
-                  value: data['nullableSeed'],
-                  builder: (context, nullableSeed) => _RestageA2uiControlledValue(
+                  value: props['nullableSeed'],
+                  builder: (context, nullableSeed) =>
+                      _RestageA2uiControlledValue(
                     dataContext: itemContext.dataContext,
-                    source: data['enabled'],
-                    sourcePresent: data.containsKey('enabled'),
+                    source: props['enabled'],
+                    sourcePresent: props.containsKey('enabled'),
                     surfaceId: itemContext.surfaceId,
                     catalogId: restageA2uiCatalogId,
                     componentId: itemContext.id,
                     field: 'enabled',
                     selfPath: restageA2uiSelfPathEnabled,
                     reportError: itemContext.reportError,
-                    builder:
-                        (
-                          context,
-                          restageA2uiRawEnabled,
-                          restageA2uiPresentEnabled,
-                          restageA2uiKindEnabled,
-                          restageA2uiWriteEnabled,
-                        ) {
-                          final enabled = _restageA2uiBool(
-                            restageA2uiRawEnabled,
-                            restageA2uiKindEnabled,
-                          );
-                          return _RestageA2uiControlledValue(
+                    builder: (context,
+                        restageA2uiRawEnabled,
+                        restageA2uiPresentEnabled,
+                        restageA2uiKindEnabled,
+                        restageA2uiWriteEnabled) {
+                      final enabled = _restageA2uiBool(
+                          restageA2uiRawEnabled, restageA2uiKindEnabled);
+                      return _RestageA2uiControlledValue(
+                        dataContext: itemContext.dataContext,
+                        source: props['count'],
+                        sourcePresent: props.containsKey('count'),
+                        surfaceId: itemContext.surfaceId,
+                        catalogId: restageA2uiCatalogId,
+                        componentId: itemContext.id,
+                        field: 'count',
+                        selfPath: restageA2uiSelfPathCount,
+                        reportError: itemContext.reportError,
+                        builder: (context,
+                            restageA2uiRawCount,
+                            restageA2uiPresentCount,
+                            restageA2uiKindCount,
+                            restageA2uiWriteCount) {
+                          final count = _restageA2uiNumber(
+                              restageA2uiRawCount, restageA2uiKindCount);
+                          return BoundString(
                             dataContext: itemContext.dataContext,
-                            source: data['count'],
-                            sourcePresent: data.containsKey('count'),
-                            surfaceId: itemContext.surfaceId,
-                            catalogId: restageA2uiCatalogId,
-                            componentId: itemContext.id,
-                            field: 'count',
-                            selfPath: restageA2uiSelfPathCount,
-                            reportError: itemContext.reportError,
-                            builder:
-                                (
-                                  context,
-                                  restageA2uiRawCount,
-                                  restageA2uiPresentCount,
-                                  restageA2uiKindCount,
-                                  restageA2uiWriteCount,
-                                ) {
-                                  final count = _restageA2uiNumber(
-                                    restageA2uiRawCount,
-                                    restageA2uiKindCount,
-                                  );
-                                  return BoundString(
-                                    dataContext: itemContext.dataContext,
-                                    value: data['mode'],
-                                    builder: (context, mode) => BoundString(
-                                      dataContext: itemContext.dataContext,
-                                      value: data['directColor'],
-                                      builder: (context, directColor) => BoundString(
-                                        dataContext: itemContext.dataContext,
-                                        value: data['publicColor'],
-                                        builder: (context, publicColor) =>
-                                            p2.ConstructorFidelityCorpus(
-                                              value: value ?? '',
-                                              ordinaryLabel:
-                                                  ordinaryLabel ?? '',
-                                              requiredNamed:
-                                                  requiredNamed ?? '',
-                                              nullableText:
-                                                  data.containsKey(
-                                                    'nullableText',
-                                                  )
-                                                  ? (data['nullableText'] ==
-                                                            null
-                                                        ? null
-                                                        : nullableText)
-                                                  : null,
-                                              nullableSeed:
-                                                  data.containsKey(
-                                                    'nullableSeed',
-                                                  )
-                                                  ? (data['nullableSeed'] ==
-                                                            null
-                                                        ? null
-                                                        : (nullableSeed ??
-                                                              'nullable-default'))
-                                                  : 'nullable-default',
-                                              enabled: enabled ?? true,
-                                              count: (count ?? 7).toInt(),
-                                              mode:
-                                                  p2
-                                                      .ConstructorCorpusMode
-                                                      .values
-                                                      .asNameMap()[mode] ??
-                                                  p2
-                                                      .ConstructorCorpusMode
-                                                      .ready,
-                                              directColor:
-                                                  _restageA2uiColor(
-                                                    directColor,
-                                                  ) ??
-                                                  const p0.Color.new(
-                                                    4279312947,
-                                                  ),
-                                              publicColor:
-                                                  _restageA2uiColor(
-                                                    publicColor,
-                                                  ) ??
-                                                  p2
-                                                      .ConstructorCorpusDefaults
-                                                      .publicColor,
-                                              data: _restageA2uiArg_data,
-                                              whenEnabledChanges:
-                                                  restageA2uiWriteEnabled,
-                                              reportCount:
-                                                  restageA2uiWriteCount,
-                                              resetProof: () =>
-                                                  itemContext.dispatchEvent(
-                                                    UserActionEvent(
-                                                      name: 'resetProof',
-                                                      sourceComponentId:
-                                                          itemContext.id,
-                                                    ),
-                                                  ),
-                                            ),
-                                      ),
-                                    ),
-                                  );
-                                },
+                            value: props['mode'],
+                            builder: (context, mode) => BoundString(
+                              dataContext: itemContext.dataContext,
+                              value: props['directColor'],
+                              builder: (context, directColor) => BoundString(
+                                dataContext: itemContext.dataContext,
+                                value: props['publicColor'],
+                                builder: (context, publicColor) =>
+                                    p4.ConstructorFidelityCorpus(
+                                  value: value ?? '',
+                                  ordinaryLabel: ordinaryLabel ?? '',
+                                  requiredNamed: requiredNamed ?? '',
+                                  nullableText:
+                                      props.containsKey('nullableText')
+                                          ? (props['nullableText'] == null
+                                              ? null
+                                              : nullableText)
+                                          : null,
+                                  nullableSeed:
+                                      props.containsKey('nullableSeed')
+                                          ? (props['nullableSeed'] == null
+                                              ? null
+                                              : (nullableSeed ??
+                                                  'nullable-default'))
+                                          : 'nullable-default',
+                                  enabled: enabled ?? true,
+                                  count: (count ?? 7).toInt(),
+                                  mode: p4.ConstructorCorpusMode.values
+                                          .asNameMap()[mode] ??
+                                      p4.ConstructorCorpusMode.ready,
+                                  directColor: _restageA2uiColor(directColor) ??
+                                      const p0.Color.new(4279312947),
+                                  publicColor: _restageA2uiColor(publicColor) ??
+                                      p4.ConstructorCorpusDefaults.publicColor,
+                                  data: _restageA2uiArg_data,
+                                  whenEnabledChanges: restageA2uiWriteEnabled,
+                                  reportCount: restageA2uiWriteCount,
+                                  resetProof: () => itemContext.dispatchEvent(
+                                      UserActionEvent(
+                                          name: 'resetProof',
+                                          sourceComponentId: itemContext.id)),
+                                ),
+                              ),
+                            ),
                           );
                         },
+                      );
+                    },
                   ),
                 ),
               ),
@@ -400,72 +377,68 @@ List<CatalogItem> buildRestageCatalogItems() {
         description:
             'A compact executable proof that all generated targets invoke Dart\'s constructor contract rather than merely emitting source bytes.',
         properties: {
-          'label': S.string(description: 'Required positional label.'),
-          'enabled': S.combined(
-            description:
-                'Optional named value whose omission preserves the Dart default.',
-            oneOf: [
-              S.boolean(),
-              S.object(
-                properties: {'path': S.string()},
-                required: <String>['path'],
+          'props': S.object(
+            properties: {
+              'label': S.string(
+                description: 'Required positional label.',
               ),
-              S.object(
-                properties: {
-                  'call': S.string(),
-                  'args': S.object(additionalProperties: true),
-                },
-                required: <String>['call'],
-              ),
-            ],
-          ),
-          'optionalText': S.string(
-            description:
-                'Optional text used to distinguish authored values from defaults.',
-          ),
+              'enabled': S.combined(
+                  description:
+                      'Optional named value whose omission preserves the Dart default.',
+                  oneOf: [
+                    S.boolean(),
+                    S.object(
+                        properties: {'path': S.string()},
+                        required: <String>['path']),
+                    S.object(properties: {
+                      'call': S.string(),
+                      'args': S.object(additionalProperties: true)
+                    }, required: <String>[
+                      'call'
+                    ])
+                  ]),
+              'optionalText': S.string(
+                description:
+                    'Optional text used to distinguish authored values from defaults.',
+              )
+            },
+            required: <String>['label'],
+          )
         },
-        required: <String>['label'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         final restageA2uiSelfPathEnabled = '${itemContext.id}.enabled';
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['label'],
+          value: props['label'],
           builder: (context, label) => _RestageA2uiControlledValue(
             dataContext: itemContext.dataContext,
-            source: data['enabled'],
-            sourcePresent: data.containsKey('enabled'),
+            source: props['enabled'],
+            sourcePresent: props.containsKey('enabled'),
             surfaceId: itemContext.surfaceId,
             catalogId: restageA2uiCatalogId,
             componentId: itemContext.id,
             field: 'enabled',
             selfPath: restageA2uiSelfPathEnabled,
             reportError: itemContext.reportError,
-            builder:
-                (
-                  context,
-                  restageA2uiRawEnabled,
-                  restageA2uiPresentEnabled,
-                  restageA2uiKindEnabled,
-                  restageA2uiWriteEnabled,
-                ) {
-                  final enabled = _restageA2uiBool(
-                    restageA2uiRawEnabled,
-                    restageA2uiKindEnabled,
-                  );
-                  return BoundString(
-                    dataContext: itemContext.dataContext,
-                    value: data['optionalText'],
-                    builder: (context, optionalText) =>
-                        p3.ConstructorFidelityProof(
-                          label ?? '',
-                          enabled: enabled ?? true,
-                          optionalText: optionalText ?? 'constructor-default',
-                          onChanged: restageA2uiWriteEnabled,
-                        ),
-                  );
-                },
+            builder: (context, restageA2uiRawEnabled, restageA2uiPresentEnabled,
+                restageA2uiKindEnabled, restageA2uiWriteEnabled) {
+              final enabled = _restageA2uiBool(
+                  restageA2uiRawEnabled, restageA2uiKindEnabled);
+              return BoundString(
+                dataContext: itemContext.dataContext,
+                value: props['optionalText'],
+                builder: (context, optionalText) => p5.ConstructorFidelityProof(
+                  label ?? '',
+                  enabled: enabled ?? true,
+                  optionalText: optionalText ?? 'constructor-default',
+                  onChanged: restageA2uiWriteEnabled,
+                ),
+              );
+            },
           ),
         );
       },
@@ -475,29 +448,37 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'Reusable positional-hole fixture.',
         properties: {
-          'requiredLabel': S.string(description: 'Required positional value.'),
-          'leading': S.string(
-            description: 'Earlier optional positional value.',
-          ),
-          'trailing': S.string(
-            description:
-                'Later optional positional value used to prove hole preservation.',
-          ),
+          'props': S.object(
+            properties: {
+              'requiredLabel': S.string(
+                description: 'Required positional value.',
+              ),
+              'leading': S.string(
+                description: 'Earlier optional positional value.',
+              ),
+              'trailing': S.string(
+                description:
+                    'Later optional positional value used to prove hole preservation.',
+              )
+            },
+            required: <String>['requiredLabel'],
+          )
         },
-        required: <String>['requiredLabel'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['requiredLabel'],
+          value: props['requiredLabel'],
           builder: (context, requiredLabel) => BoundString(
             dataContext: itemContext.dataContext,
-            value: data['leading'],
+            value: props['leading'],
             builder: (context, leading) => BoundString(
               dataContext: itemContext.dataContext,
-              value: data['trailing'],
-              builder: (context, trailing) => p2.ConstructorPositionalCorpus(
+              value: props['trailing'],
+              builder: (context, trailing) => p4.ConstructorPositionalCorpus(
                 requiredLabel ?? '',
                 leading ?? 'leading-default',
                 trailing ?? 'trailing-default',
@@ -513,22 +494,26 @@ List<CatalogItem> buildRestageCatalogItems() {
         description:
             'A panel with a customer header and customer content widgets.',
         properties: {
-          'header': S.combined(
-            description: 'Customer widget shown as the panel header.',
-            anyOf: [S.string(), S.nil()],
-          ),
-          'children': S.list(
-            description: 'Customer widgets shown in the panel body.',
-            items: S.string(),
-          ),
+          'props': S.object(
+            properties: {
+              'header': S.combined(
+                  description: 'Customer widget shown as the panel header.',
+                  anyOf: [S.string(), S.nil()]),
+              'children': S.list(
+                  description: 'Customer widgets shown in the panel body.',
+                  items: S.string())
+            },
+            required: <String>['header', 'children'],
+          )
         },
-        required: <String>['header', 'children'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
-        return p4.FeaturePanel(
-          header: _restageA2uiBuildChild(itemContext, data['header']),
-          children: _restageA2uiBuildChildren(itemContext, data['children']),
+        final props = (data['props']! as Map).cast<String, Object?>();
+        return p6.FeaturePanel(
+          header: _restageA2uiBuildChild(itemContext, props['header']),
+          children: _restageA2uiBuildChildren(itemContext, props['children']),
         );
       },
     ),
@@ -537,20 +522,30 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A feature-list row: check icon, title, and subtitle.',
         properties: {
-          'title': S.string(description: 'Feature title.'),
-          'subtitle': S.string(description: 'Supporting line under the title.'),
+          'props': S.object(
+            properties: {
+              'title': S.string(
+                description: 'Feature title.',
+              ),
+              'subtitle': S.string(
+                description: 'Supporting line under the title.',
+              )
+            },
+            required: <String>['title', 'subtitle'],
+          )
         },
-        required: <String>['title', 'subtitle'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['title'],
+          value: props['title'],
           builder: (context, title) => BoundString(
             dataContext: itemContext.dataContext,
-            value: data['subtitle'],
-            builder: (context, subtitle) => p5.FeatureRow(
+            value: props['subtitle'],
+            builder: (context, subtitle) => p7.FeatureRow(
               title: title ?? 'Unlimited projects',
               subtitle: subtitle ?? 'No caps on what you ship.',
             ),
@@ -563,22 +558,83 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A compact price pill, e.g. "\$9.99 / mo".',
         properties: {
-          'price': S.string(description: 'Formatted price, e.g. "\$9.99".'),
-          'period': S.string(description: 'Billing period suffix, e.g. "mo".'),
+          'props': S.object(
+            properties: {
+              'price': S.string(
+                description: 'Formatted price, e.g. "\$9.99".',
+              ),
+              'period': S.string(
+                description: 'Billing period suffix, e.g. "mo".',
+              )
+            },
+            required: <String>['price', 'period'],
+          )
         },
-        required: <String>['price', 'period'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['price'],
+          value: props['price'],
           builder: (context, price) => BoundString(
             dataContext: itemContext.dataContext,
-            value: data['period'],
-            builder: (context, period) =>
-                p6.PriceBadge(price: price ?? '\$9.99', period: period ?? 'mo'),
+            value: props['period'],
+            builder: (context, period) => p8.PriceBadge(
+              price: price ?? '\$9.99',
+              period: period ?? 'mo',
+            ),
           ),
+        );
+      },
+    ),
+    CatalogItem(
+      name: 'RequiredNullableWidgetProof',
+      dataSchema: S.object(
+        description:
+            'Executable RFW proof for required nullable and non-nullable widget inputs.',
+        properties: {
+          'props': S.object(
+            properties: {
+              'positionalNullable': S.combined(
+                  description:
+                      'Required positional input that may explicitly be null.',
+                  anyOf: [S.string(), S.nil()]),
+              'positionalControl': S.string(
+                description: 'Required non-nullable positional control.',
+              ),
+              'namedNullable': S.combined(
+                  description:
+                      'Required named input that may explicitly be null.',
+                  anyOf: [S.string(), S.nil()]),
+              'namedControl': S.string(
+                description: 'Required non-nullable named control.',
+              )
+            },
+            required: <String>[
+              'positionalNullable',
+              'positionalControl',
+              'namedNullable',
+              'namedControl'
+            ],
+          )
+        },
+        required: <String>['props'],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
+        return p4.RequiredNullableWidgetProof(
+          _restageA2uiBuildChild(itemContext, props['positionalNullable']),
+          _restageA2uiRequireChild(itemContext, props['positionalControl'],
+              'RequiredNullableWidgetProof.positionalControl'),
+          namedNullable:
+              _restageA2uiBuildChild(itemContext, props['namedNullable']),
+          namedControl: _restageA2uiRequireChild(
+              itemContext,
+              props['namedControl'],
+              'RequiredNullableWidgetProof.namedControl'),
         );
       },
     ),
@@ -587,22 +643,151 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.object(
         description: 'A labelled value tile, e.g. "Active users" over "1,204".',
         properties: {
-          'label': S.string(description: 'Caption text.'),
-          'value': S.string(description: 'Value text.'),
+          'props': S.object(
+            properties: {
+              'label': S.string(
+                description: 'Caption text.',
+              ),
+              'value': S.string(
+                description: 'Value text.',
+              )
+            },
+            required: <String>['label', 'value'],
+          )
         },
-        required: <String>['label', 'value'],
+        required: <String>['props'],
       ),
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
         return BoundString(
           dataContext: itemContext.dataContext,
-          value: data['label'],
+          value: props['label'],
           builder: (context, label) => BoundString(
             dataContext: itemContext.dataContext,
-            value: data['value'],
-            builder: (context, value) => p7.StatTile(
+            value: props['value'],
+            builder: (context, value) => p9.StatTile(
               label: label ?? 'Active users',
               value: value ?? '1,204',
+            ),
+          ),
+        );
+      },
+    ),
+    CatalogItem(
+      name: 'opaque_screen_proof',
+      dataSchema: S.object(
+        description:
+            'Native screen used to verify opaque A2UI and Widgetbook integration.\n\nOne authored class feeds RFW, A2UI, and Widgetbook in the normal build.',
+        properties: {
+          'props': S.object(
+            properties: {
+              'title': S.string(
+                description:
+                    'Constructor-bound title retained by native targets.',
+              ),
+              'enabled': S.boolean(
+                description:
+                    'Constructor-bound state retained by native targets.',
+              ),
+              'tone': S.string(
+                  description:
+                      'Typed preview state retained by native targets.',
+                  enumValues: <Object?>['calm', 'urgent']),
+              'data': S.string(
+                description:
+                    'Customer data retained under its exact Dart name.',
+              ),
+              'context': S.string(
+                description:
+                    'Customer context retained under its exact Dart name.',
+              ),
+              'itemContext': S.string(
+                description:
+                    'Customer item context retained under its exact Dart name.',
+              ),
+              'restageA2uiStatus': S.string(
+                  description:
+                      'Customer enum retained despite matching a generated-local prefix.',
+                  enumValues: <Object?>['calm', 'urgent']),
+              'description': S.string(
+                description:
+                    'Editable customer description shown beside Restage metadata.',
+              ),
+              'usage': S.string(
+                description:
+                    'Editable customer usage shown beside Restage metadata.',
+              )
+            },
+            required: <String>['title'],
+          )
+        },
+        required: <String>['props'],
+      ),
+      widgetBuilder: (itemContext) {
+        final data = itemContext.data as Map<String, Object?>;
+        final props = (data['props']! as Map).cast<String, Object?>();
+        return RestageSurfaceEventDispatcher(
+          onEvent: (eventId, value) {
+            itemContext.dispatchEvent(
+              UserActionEvent(
+                name: eventId,
+                sourceComponentId: itemContext.id,
+                context: <String, Object?>{'value': value},
+              ),
+            );
+          },
+          child: BoundString(
+            dataContext: itemContext.dataContext,
+            value: props['title'],
+            builder: (context, title) => BoundBool(
+              dataContext: itemContext.dataContext,
+              value: props['enabled'],
+              builder: (context, enabled) => BoundString(
+                dataContext: itemContext.dataContext,
+                value: props['tone'],
+                builder: (context, tone) => BoundString(
+                  dataContext: itemContext.dataContext,
+                  value: props['data'],
+                  builder: (context, data_2) => BoundString(
+                    dataContext: itemContext.dataContext,
+                    value: props['context'],
+                    builder: (context, context_2) => BoundString(
+                      dataContext: itemContext.dataContext,
+                      value: props['itemContext'],
+                      builder: (context, itemContext_2) => BoundString(
+                        dataContext: itemContext.dataContext,
+                        value: props['restageA2uiStatus'],
+                        builder: (context, restageA2uiStatus) => BoundString(
+                          dataContext: itemContext.dataContext,
+                          value: props['description'],
+                          builder: (context, description) => BoundString(
+                            dataContext: itemContext.dataContext,
+                            value: props['usage'],
+                            builder: (context, usage) => p1.OpaqueScreenProof(
+                              title: title ?? '',
+                              enabled: enabled ?? true,
+                              tone: p1.OpaqueScreenProofTone.values
+                                      .asNameMap()[tone] ??
+                                  p1.OpaqueScreenProofTone.calm,
+                              data: data_2 ?? 'Customer data',
+                              context: context_2 ?? 'Customer context',
+                              itemContext:
+                                  itemContext_2 ?? 'Customer item context',
+                              restageA2uiStatus: p1.OpaqueScreenProofTone.values
+                                      .asNameMap()[restageA2uiStatus] ??
+                                  p1.OpaqueScreenProofTone.calm,
+                              description:
+                                  description ?? 'Customer description',
+                              usage: usage ?? 'Customer usage',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -617,10 +802,11 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9';
+    'restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e';
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/f7fafb43851aee19ed173cdb591a4f1f036aff27d88081c5578aa80d507167e9".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e".',
+  'BareCatalogCard: A root-level customer card using only the ordinary Restage marker.',
   'CatalogShowcase: Use to verify a customer catalog across RFW, A2UI, and Widgetbook.',
   'ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.',
   'ConstructorFidelityProof: Use to verify generated constructor binding and callback write-back.',
@@ -628,7 +814,9 @@ const List<String> _restageA2uiSystemPromptFragments = <String>[
   'FeaturePanel: Use to group a compact catalog summary.',
   'FeatureRow: A feature-list row: check icon, title, and subtitle.',
   'PriceBadge: A compact price pill, e.g. "\$9.99 / mo".',
+  'RequiredNullableWidgetProof: Executable RFW proof for required nullable and non-nullable widget inputs.',
   'StatTile: A labelled value tile, e.g. "Active users" over "1,204".',
+  'opaque_screen_proof: Use for the final action in a native onboarding flow.',
 ];
 
 /// Builds the generated custom-only GenUI catalog identified by
@@ -638,15 +826,13 @@ const List<String> _restageA2uiSystemPromptFragments = <String>[
 /// [buildRestageCatalogItems] and assign the new Catalog an
 /// application-owned catalog ID.
 Catalog buildRestageCatalog() => Catalog(
-  buildRestageCatalogItems(),
-  catalogId: restageA2uiCatalogId,
-  systemPromptFragments: _restageA2uiSystemPromptFragments,
-);
+      buildRestageCatalogItems(),
+      catalogId: restageA2uiCatalogId,
+      systemPromptFragments: _restageA2uiSystemPromptFragments,
+    );
 
 Widget? _restageA2uiBuildChild(
-  CatalogItemContext itemContext,
-  Object? childId,
-) {
+    CatalogItemContext itemContext, Object? childId) {
   if (childId is! String || childId.isEmpty) return null;
   return itemContext.buildChild(childId);
 }
@@ -656,8 +842,7 @@ Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
   if (childId == null) {
     reason = 'the value was null or missing';
   } else if (childId is! String) {
-    reason =
-        'the value had runtime type ${childId.runtimeType}, '
+    reason = 'the value had runtime type ${childId.runtimeType}, '
         'but a String component id is required';
   } else if (childId.isEmpty) {
     reason = 'the value was the empty string';
@@ -671,26 +856,18 @@ Never _restageA2uiRequiredChildError(Object? childId, String propertyContext) {
   );
 }
 
-Never _restageA2uiRequiredChildBuildError(
-  String childId,
-  String propertyContext,
-  Object error,
-  StackTrace stackTrace,
-) {
+Never _restageA2uiRequiredChildBuildError(String childId,
+    String propertyContext, Object error, StackTrace stackTrace) {
   Error.throwWithStackTrace(
-    StateError(
-      'Required A2UI child "$propertyContext" with component id '
-      '"$childId" failed to build: $error',
-    ),
-    stackTrace,
-  );
+      StateError(
+        'Required A2UI child "$propertyContext" with component id '
+        '"$childId" failed to build: $error',
+      ),
+      stackTrace);
 }
 
 Widget _restageA2uiRequireChild(
-  CatalogItemContext itemContext,
-  Object? childId,
-  String propertyContext,
-) {
+    CatalogItemContext itemContext, Object? childId, String propertyContext) {
   if (childId is! String || childId.isEmpty) {
     _restageA2uiRequiredChildError(childId, propertyContext);
   }
@@ -702,27 +879,17 @@ Widget _restageA2uiRequireChild(
     child = itemContext.buildChild(childId);
   } catch (error, stackTrace) {
     _restageA2uiRequiredChildBuildError(
-      childId,
-      propertyContext,
-      error,
-      stackTrace,
-    );
+        childId, propertyContext, error, stackTrace);
   }
   if (child is FallbackWidget && child.error != null) {
-    _restageA2uiRequiredChildBuildError(
-      childId,
-      propertyContext,
-      child.error!,
-      child.stackTrace ?? StackTrace.current,
-    );
+    _restageA2uiRequiredChildBuildError(childId, propertyContext, child.error!,
+        child.stackTrace ?? StackTrace.current);
   }
   return child;
 }
 
 List<Widget> _restageA2uiBuildChildren(
-  CatalogItemContext itemContext,
-  Object? childIds,
-) {
+    CatalogItemContext itemContext, Object? childIds) {
   if (childIds is! List<Object?>) return const <Widget>[];
   return <Widget>[
     for (final childId in childIds)
@@ -735,16 +902,21 @@ Color? _restageA2uiColor(String? value) {
   if (value == null || value.isEmpty) return null;
   final normalized = value.startsWith('#')
       ? value.substring(1)
-      : value.startsWith('0x')
-      ? value.substring(2)
-      : value;
+      : value.startsWith(
+          '0x',
+        )
+          ? value.substring(2)
+          : value;
   final parsed = int.tryParse(normalized, radix: 16);
   if (parsed == null) return null;
   if (normalized.length <= 6) return Color(0xFF000000 | parsed);
   return Color(parsed);
 }
 
-FontWeight _restageA2uiFontWeight(num? value, FontWeight fallback) {
+FontWeight _restageA2uiFontWeight(
+  num? value,
+  FontWeight fallback,
+) {
   if (value == null) return fallback;
   final index = value.toInt();
   if (index < 0 || index >= FontWeight.values.length) {
@@ -757,56 +929,47 @@ T? _restageA2uiAs<T>(Object? v) => v is T ? v : null;
 
 const int _kA2uiMaxBuildDepth = 64;
 
-p1.CatalogShowcaseData? _restageA2uiBuild_CatalogShowcaseData(
-  Object? _raw,
-  int _depth,
-) {
+p3.CatalogShowcaseData? _restageA2uiBuild_CatalogShowcaseData(
+    Object? _raw, int _depth) {
   if (_depth > _kA2uiMaxBuildDepth) return null;
   if (_raw is! Map<String, Object?>) return null;
   final note = _restageA2uiAs<String>(_raw['note']);
   if (note == null) return null;
   final count = _restageA2uiAs<num>(_raw['count'])?.toInt();
   if (count == null) return null;
-  return p1.CatalogShowcaseData(note: note, count: count);
+  return p3.CatalogShowcaseData(note: note, count: count);
 }
 
-p2.ConstructorCorpusData? _restageA2uiBuild_ConstructorCorpusData(
-  Object? _raw,
-  int _depth,
-) {
+p4.ConstructorCorpusData? _restageA2uiBuild_ConstructorCorpusData(
+    Object? _raw, int _depth) {
   if (_depth > _kA2uiMaxBuildDepth) return null;
   if (_raw is! Map<String, Object?>) return null;
-  final nested = _restageA2uiBuild_ConstructorCorpusNestedData(
-    _raw['nested'],
-    _depth + 1,
-  );
+  final nested =
+      _restageA2uiBuild_ConstructorCorpusNestedData(_raw['nested'], _depth + 1);
   if (nested == null) return null;
   final count = _restageA2uiAs<num>(_raw['count'])?.toInt();
   if (count == null) return null;
-  return p2.ConstructorCorpusData(nested: nested, count: count);
+  return p4.ConstructorCorpusData(nested: nested, count: count);
 }
 
-p2.ConstructorCorpusNestedData? _restageA2uiBuild_ConstructorCorpusNestedData(
-  Object? _raw,
-  int _depth,
-) {
+p4.ConstructorCorpusNestedData? _restageA2uiBuild_ConstructorCorpusNestedData(
+    Object? _raw, int _depth) {
   if (_depth > _kA2uiMaxBuildDepth) return null;
   if (_raw is! Map<String, Object?>) return null;
   final label = _restageA2uiAs<String>(_raw['label']);
   if (label == null) return null;
-  return p2.ConstructorCorpusNestedData(label: label);
+  return p4.ConstructorCorpusNestedData(label: label);
 }
 
 enum _RestageA2uiSourceKind { literal, path, call, localOverride }
 
-typedef _RestageA2uiControlledBuilder =
-    Widget Function(
-      BuildContext context,
-      Object? rawValue,
-      bool sourcePresent,
-      _RestageA2uiSourceKind sourceKind,
-      ValueChanged<Object?> write,
-    );
+typedef _RestageA2uiControlledBuilder = Widget Function(
+  BuildContext context,
+  Object? rawValue,
+  bool sourcePresent,
+  _RestageA2uiSourceKind sourceKind,
+  ValueChanged<Object?> write,
+);
 
 final class _RestageA2uiControlledValue extends StatefulWidget {
   const _RestageA2uiControlledValue({
@@ -865,8 +1028,7 @@ final class _RestageA2uiControlledValueState
     super.didUpdateWidget(oldWidget);
     final nextDescriptor = _RestageA2uiSourceDescriptor.from(widget.source);
     final nextSemantic = _RestageA2uiSemanticIdentity.from(widget);
-    final bindingChanged =
-        !_descriptor.sameBinding(nextDescriptor) ||
+    final bindingChanged = !_descriptor.sameBinding(nextDescriptor) ||
         _semanticIdentity != nextSemantic ||
         oldWidget.componentId != widget.componentId ||
         oldWidget.field != widget.field ||
@@ -880,8 +1042,8 @@ final class _RestageA2uiControlledValueState
 
     final literalPayloadChanged =
         nextDescriptor.kind == _RestageA2uiSourceKind.literal &&
-        (!_restageA2uiLiteralEqual(oldWidget.source, widget.source) ||
-            oldWidget.sourcePresent != widget.sourcePresent);
+            (!_restageA2uiLiteralEqual(oldWidget.source, widget.source) ||
+                oldWidget.sourcePresent != widget.sourcePresent);
     if (literalPayloadChanged && !_hasOverride) {
       _invalidateSubscription();
       _sourceValue = widget.source;
@@ -898,11 +1060,11 @@ final class _RestageA2uiControlledValueState
     _semanticIdentity = semanticIdentity;
     _sourceValue = switch (descriptor.kind) {
       _RestageA2uiSourceKind.literal => widget.source,
-      _RestageA2uiSourceKind.path => widget.dataContext.getValue<Object?>(
-        DataPath(descriptor.path!),
-      ),
+      _RestageA2uiSourceKind.path =>
+        widget.dataContext.getValue<Object?>(DataPath(descriptor.path!)),
       _RestageA2uiSourceKind.call ||
-      _RestageA2uiSourceKind.localOverride => null,
+      _RestageA2uiSourceKind.localOverride =>
+        null,
     };
     _sourcePresent = widget.sourcePresent;
     _hasOverride = false;
@@ -914,24 +1076,21 @@ final class _RestageA2uiControlledValueState
     final literalPresence = widget.sourcePresent;
     final reportError = widget.reportError;
     _subscriptionReportError = reportError;
-    _subscription = widget.dataContext
-        .resolve(widget.source)
-        .listen(
-          (value) {
-            if (!mounted || subscribedEpoch != _epoch || _hasOverride) return;
-            setState(() {
-              _sourceValue = value;
-              _sourcePresent =
-                  _descriptor.kind == _RestageA2uiSourceKind.literal
-                  ? literalPresence
-                  : true;
-            });
-          },
-          onError: (Object error, StackTrace stack) {
-            if (!mounted || subscribedEpoch != _epoch) return;
-            reportError(error, stack);
-          },
-        );
+    _subscription = widget.dataContext.resolve(widget.source).listen(
+      (value) {
+        if (!mounted || subscribedEpoch != _epoch || _hasOverride) return;
+        setState(() {
+          _sourceValue = value;
+          _sourcePresent = _descriptor.kind == _RestageA2uiSourceKind.literal
+              ? literalPresence
+              : true;
+        });
+      },
+      onError: (Object error, StackTrace stack) {
+        if (!mounted || subscribedEpoch != _epoch) return;
+        reportError(error, stack);
+      },
+    );
   }
 
   void _invalidateSubscription() {
@@ -1030,7 +1189,9 @@ final class _RestageA2uiSourceDescriptor {
         callArgs: args is Map ? args : const <String, Object?>{},
       );
     }
-    return const _RestageA2uiSourceDescriptor._(_RestageA2uiSourceKind.literal);
+    return const _RestageA2uiSourceDescriptor._(
+      _RestageA2uiSourceKind.literal,
+    );
   }
 
   final _RestageA2uiSourceKind kind;
@@ -1043,9 +1204,8 @@ final class _RestageA2uiSourceDescriptor {
     return switch (kind) {
       _RestageA2uiSourceKind.literal => true,
       _RestageA2uiSourceKind.path => path == other.path,
-      _RestageA2uiSourceKind.call =>
-        callName == other.callName &&
-            _restageA2uiCallIdentityEqual(callArgs, other.callArgs),
+      _RestageA2uiSourceKind.call => callName == other.callName &&
+          _restageA2uiCallIdentityEqual(callArgs, other.callArgs),
       _RestageA2uiSourceKind.localOverride => false,
     };
   }
@@ -1061,12 +1221,13 @@ final class _RestageA2uiSemanticIdentity {
 
   factory _RestageA2uiSemanticIdentity.from(
     _RestageA2uiControlledValue widget,
-  ) => _RestageA2uiSemanticIdentity(
-    widget.surfaceId,
-    widget.catalogId,
-    widget.dataContext.dataModel,
-    widget.dataContext.path,
-  );
+  ) =>
+      _RestageA2uiSemanticIdentity(
+        widget.surfaceId,
+        widget.catalogId,
+        widget.dataContext.dataModel,
+        widget.dataContext.path,
+      );
 
   final String surfaceId;
   final String? catalogId;
@@ -1083,11 +1244,11 @@ final class _RestageA2uiSemanticIdentity {
 
   @override
   int get hashCode => Object.hash(
-    surfaceId,
-    catalogId,
-    identityHashCode(dataModel),
-    contextPath,
-  );
+        surfaceId,
+        catalogId,
+        identityHashCode(dataModel),
+        contextPath,
+      );
 }
 
 bool _restageA2uiCallIdentityEqual(Object? left, Object? right) {
@@ -1141,7 +1302,10 @@ bool _restageA2uiLiteralEqual(Object? left, Object? right) {
   return left.runtimeType == right.runtimeType && left == right;
 }
 
-num? _restageA2uiNumber(Object? rawValue, _RestageA2uiSourceKind sourceKind) {
+num? _restageA2uiNumber(
+  Object? rawValue,
+  _RestageA2uiSourceKind sourceKind,
+) {
   if (rawValue is num) return rawValue;
   if ((sourceKind == _RestageA2uiSourceKind.path ||
           sourceKind == _RestageA2uiSourceKind.call) &&
@@ -1151,7 +1315,10 @@ num? _restageA2uiNumber(Object? rawValue, _RestageA2uiSourceKind sourceKind) {
   return null;
 }
 
-bool? _restageA2uiBool(Object? rawValue, _RestageA2uiSourceKind sourceKind) {
+bool? _restageA2uiBool(
+  Object? rawValue,
+  _RestageA2uiSourceKind sourceKind,
+) {
   if (rawValue is bool) return rawValue;
   if (sourceKind == _RestageA2uiSourceKind.path) {
     if (rawValue is String) {

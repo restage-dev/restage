@@ -176,13 +176,21 @@ final class RestageCatalogGenAdapter {
 
   WidgetIR _widgetToIr(WidgetEntry widget) {
     final resolvedId = wireIds.widget?.call(widget) ?? widget.wireId;
+    final category = widget.category;
+    if (category == null) {
+      throw StateError(
+        'Built-in compiler requires WidgetEntry.category for '
+        '${widget.library.namespace}:${widget.name}. Customer catalogs with '
+        'root placement must not enter RestageCatalogGenAdapter.',
+      );
+    }
     return WidgetIR(
       wireId: resolvedId,
       source: _adapterClassElement,
       constructor: _adapterConstructorElement,
       name: widget.name,
       library: widget.library,
-      category: widget.category,
+      category: category,
       description: widget.description,
       properties: [
         for (final property in widget.properties)

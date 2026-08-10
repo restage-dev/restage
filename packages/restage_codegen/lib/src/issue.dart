@@ -44,6 +44,14 @@ enum IssueCode {
   /// two must agree.
   filenameMismatch,
 
+  /// A `@ScreenSource` owning library is outside the exact flow-screen source
+  /// topology consumed by the RFW screen builders.
+  invalidScreenSourceLocation,
+
+  /// A `@ScreenSource` owning library does not contain exactly one annotated
+  /// screen declaration.
+  invalidScreenSourceCount,
+
   // Expression-level
   /// Reference to an unknown class, value, or identifier.
   unresolvedIdentifier,
@@ -594,6 +602,8 @@ enum IssueCode {
         IssueCode.malformedTranslatorOutput ||
         IssueCode.malformedRawDsl ||
         IssueCode.malformedSourceInput ||
+        IssueCode.invalidScreenSourceLocation ||
+        IssueCode.invalidScreenSourceCount ||
         IssueCode.missingPartDirective ||
         IssueCode.generatedSymbolCollision ||
         IssueCode.missingScreenDescriptor ||

@@ -1,15 +1,22 @@
 import 'dart:math' as math;
 
+import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_legacy_constraint_parser.dart';
 import 'package:restage_codegen/src/callback_shape.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
+import 'package:restage_codegen/src/enum_constant_identity.dart';
+import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_native_value_plan.dart';
+import 'package:restage_codegen/src/widgetbook/widgetbook_property_capability.dart';
+import 'package:rfw_catalog_schema/constraint_validation.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:rfw_catalog_schema/widgetbook.dart' show StoryExpansion;
 
 /// Sidebar control selected after a value has been lowered to native Dart.
 enum WidgetbookStoryControl {
@@ -185,6 +192,10 @@ final class WidgetbookStoryChoicePropertyPlan
         assert(
           choices.length == choiceLabels.length,
           'every Widgetbook choice needs one human-facing label',
+        ),
+        assert(
+          _choiceValueIndex(choices, seed) >= 0,
+          'a choice property seed must belong to its choice domain',
         );
 
   @override
@@ -201,6 +212,22 @@ final class WidgetbookStoryChoicePropertyPlan
 
   /// Human-facing labels parallel to [choices].
   final List<String> choiceLabels;
+
+  /// Returns the structural typed index of [value] in [choices].
+  ///
+  /// Planning assertions, finite-domain deduplication, and source rendering
+  /// all use this identity seam. Rendered Dart source is deliberately not an
+  /// equality representation.
+  int choiceIndexOf(WidgetbookNativeValuePlan value) {
+    final index = _choiceValueIndex(choices, value);
+    if (index < 0) {
+      throw StateError(
+        "Widgetbook value for '${property.name}' is not one of its finite "
+        'choices.',
+      );
+    }
+    return index;
+  }
 }
 
 /// Read-only native property carried by a private generated wrapper.
@@ -249,6 +276,82 @@ final class WidgetbookStoryEventPropertyPlan
   final WidgetbookStoryCallbackPlan callback;
 }
 
+/// Count limits applied before story tuples are materialized.
+final class WidgetbookStoryLimitPolicy {
+  /// Creates a valid package-default and absolute limit pair.
+  const WidgetbookStoryLimitPolicy({
+    required this.defaultLimit,
+    required this.absoluteLimit,
+  })  : assert(defaultLimit > 0, 'the default story limit must be positive'),
+        assert(
+          absoluteLimit >= defaultLimit,
+          'the absolute story limit must cover the default limit',
+        );
+
+  /// Limit used when a widget does not declare `maxStories`.
+  final int defaultLimit;
+
+  /// Largest per-widget limit an annotation may request.
+  final int absoluteLimit;
+}
+
+const _widgetbookStoryLimits = WidgetbookStoryLimitPolicy(
+  defaultLimit: 32,
+  absoluteLimit: 256,
+);
+
+/// One typed finite value on a configured story axis.
+final class WidgetbookStoryAxisValuePlan {
+  /// Creates a typed axis value.
+  const WidgetbookStoryAxisValuePlan({
+    required this.value,
+    required this.identity,
+    required this.nameFragment,
+  });
+
+  /// Native Dart value supplied to the generated story.
+  final WidgetbookNativeValuePlan value;
+
+  /// Exact typed identity used for ordering and deduplication.
+  final String identity;
+
+  /// Deterministic Dart-identifier fragment used in story names.
+  final String nameFragment;
+}
+
+/// One configured finite property axis.
+final class WidgetbookStoryAxisPlan {
+  /// Creates a property axis whose first value is the selected default.
+  WidgetbookStoryAxisPlan({
+    required this.property,
+    required List<WidgetbookStoryAxisValuePlan> values,
+  }) : values = List.unmodifiable(values);
+
+  /// Source property in catalog declaration order.
+  final WidgetbookStoryPropertyPlan property;
+
+  /// Default-first, typed-deduplicated finite values.
+  final List<WidgetbookStoryAxisValuePlan> values;
+}
+
+/// One generated story tuple.
+final class WidgetbookStoryVariantPlan {
+  /// Creates a named tuple.
+  WidgetbookStoryVariantPlan({
+    required this.name,
+    required Map<String, WidgetbookStoryAxisValuePlan> valuesByProperty,
+  }) : valuesByProperty = Map.unmodifiable(valuesByProperty);
+
+  /// Semantic generated name (`Default` for the all-default tuple).
+  final String name;
+
+  /// Axis values keyed by exact source property name.
+  final Map<String, WidgetbookStoryAxisValuePlan> valuesByProperty;
+
+  /// Whether this is the stable all-default story.
+  bool get isDefault => name == 'Default';
+}
+
 /// Complete backend plan consumed by the Widgetbook story source renderer.
 final class WidgetbookStoryPlan {
   /// Creates a story plan.
@@ -256,6 +359,8 @@ final class WidgetbookStoryPlan {
     required this.widget,
     required this.properties,
     required this.exclusions,
+    required this.axes,
+    required this.variants,
   });
 
   /// Customer widget source facts.
@@ -266,6 +371,12 @@ final class WidgetbookStoryPlan {
 
   /// Constructor inputs omitted from this target's generated story.
   final List<PropertyExclusion> exclusions;
+
+  /// Configured finite axes in source property order.
+  final List<WidgetbookStoryAxisPlan> axes;
+
+  /// Materialized story tuples in deterministic output order.
+  final List<WidgetbookStoryVariantPlan> variants;
 
   /// Every native Dart value used by the emitted source.
   Iterable<WidgetbookDartValuePlan> get nativeValues sync* {
@@ -283,6 +394,11 @@ final class WidgetbookStoryPlan {
           }
       }
     }
+    for (final axis in axes) {
+      for (final axisValue in axis.values) {
+        yield axisValue.value;
+      }
+    }
   }
 }
 
@@ -290,6 +406,7 @@ final class WidgetbookStoryPlan {
 WidgetbookStoryPlan planWidgetbookStory({
   required WidgetbookCatalogSourceIndex index,
   required WidgetbookWidgetSource widget,
+  WidgetbookStoryLimitPolicy storyLimits = _widgetbookStoryLimits,
 }) {
   final unrenderable = index.unrenderableByWidget[widget.entry.flutterType];
   if (unrenderable != null) {
@@ -310,7 +427,15 @@ WidgetbookStoryPlan planWidgetbookStory({
   final properties = <WidgetbookStoryPropertyPlan>[];
 
   for (final property in widget.entry.properties) {
-    final constraints = widgetbookConstraintsFor(property);
+    final constraints = widgetbookConstraintsFor(
+      property,
+      path: '${widget.entry.name}.${property.name}',
+    );
+    validateWidgetbookConstraintApplicability(
+      property,
+      constraints,
+      path: '${widget.entry.name}.${property.name}',
+    );
     final input = widget.constructorInputs[property.name];
     if (input == null) {
       throw StateError(
@@ -352,7 +477,7 @@ WidgetbookStoryPlan planWidgetbookStory({
       input.type,
       path: '${widget.entry.name}.${property.name}',
     );
-    final choices = _choicePlans(
+    final initialChoices = _choicePlans(
       property: property,
       dartType: type,
       input: input,
@@ -364,8 +489,30 @@ WidgetbookStoryPlan planWidgetbookStory({
       property: property,
       input: input,
       lowerer: lowerer,
-      choices: choices.values,
+      choices: initialChoices.values,
     );
+    final seed = initialChoices.values.isEmpty
+        ? selected.value
+        : _canonicalFiniteChoiceSeed(
+            seed: selected.value,
+            provenance: selected.provenance,
+            choices: initialChoices.values,
+            widget: widget,
+            property: property,
+            input: input,
+            lowerer: lowerer,
+          );
+    final choices = initialChoices.values.isEmpty
+        ? initialChoices
+        : _choicePlansIncludingSeed(
+            initialChoices,
+            seed,
+            allowWiden: constraints.allowedValues == null,
+            seedPath: _finiteSeedPath(
+              selected.provenance,
+              property,
+            ),
+          );
     final description = _propertyDescription(
       property,
       seedProvenance: selected.provenance,
@@ -378,7 +525,7 @@ WidgetbookStoryPlan planWidgetbookStory({
           dartType: type,
           description: description,
           positional: property.positional,
-          seed: selected.value,
+          seed: seed,
           seedProvenance: selected.provenance,
           choices: choices.values,
           choiceLabels: choices.labels,
@@ -395,7 +542,7 @@ WidgetbookStoryPlan planWidgetbookStory({
               dartType: type,
               description: description,
               positional: property.positional,
-              seed: selected.value,
+              seed: seed,
               seedProvenance: selected.provenance,
             )
           : WidgetbookStoryEditablePropertyPlan._(
@@ -413,6 +560,12 @@ WidgetbookStoryPlan planWidgetbookStory({
 
   final widgetLocationPrefix =
       '${widget.sourceAsset.path}#${widget.className}.';
+  final axes = _planStoryAxes(widget, properties);
+  final variants = _planStoryVariants(
+    widget: widget,
+    axes: axes,
+    storyLimits: storyLimits,
+  );
   return WidgetbookStoryPlan(
     widget: widget,
     properties: List.unmodifiable(properties),
@@ -424,7 +577,481 @@ WidgetbookStoryPlan planWidgetbookStory({
             exclusion.location.startsWith(widgetLocationPrefix),
       ),
     ),
+    axes: List.unmodifiable(axes),
+    variants: List.unmodifiable(variants),
   );
+}
+
+List<WidgetbookStoryAxisPlan> _planStoryAxes(
+  WidgetbookWidgetSource widget,
+  List<WidgetbookStoryPropertyPlan> properties,
+) {
+  final configured = widget.targetConfig.properties;
+  if (configured.isEmpty) return const [];
+  final propertiesByName = {
+    for (final property in properties) property.property.name: property,
+  };
+  final axes = <WidgetbookStoryAxisPlan>[];
+  for (final property in properties) {
+    final name = property.property.name;
+    final config = configured[name];
+    if (config == null) continue;
+    if (property is WidgetbookStoryEventPropertyPlan) {
+      throw StateError(
+        'Widgetbook story config at ${_propertyConfigLocation(config)} cannot '
+        "turn callback property '$name' into a story axis. Callbacks are never "
+        'story axes.',
+      );
+    }
+    final input = widget.constructorInputs[name];
+    if (input == null) {
+      throw StateError(
+        "Widgetbook story config for '${widget.entry.name}.$name' does not "
+        'resolve to an unnamed-constructor property.',
+      );
+    }
+    _validateAxisPropertyFamily(
+      input,
+      config,
+      location: _propertyConfigLocation(config),
+    );
+    final seed = _propertySeed(property);
+    final defaultValue = seed is WidgetbookStaticMemberValuePlan
+        ? _axisValueFromStaticConstructorDefault(
+            property,
+            input,
+            path: '${widget.entry.name}.$name/default',
+          )
+        : _axisValueFromNative(
+            property,
+            seed,
+            path: '${widget.entry.name}.$name/default',
+          );
+    final selected = config.allValues
+        ? _allAxisValues(property, input)
+        : [
+            for (final value in config.storyValues ?? const <DartObject>[])
+              _axisValueFromDartObject(
+                property,
+                input,
+                value,
+                path: config.storyValuesLocation ??
+                    '${widget.sourceAsset.path}#${widget.className}.$name',
+              ),
+          ];
+    final values = <WidgetbookStoryAxisValuePlan>[defaultValue];
+    final identities = <String>{defaultValue.identity};
+    for (final value in selected) {
+      if (identities.add(value.identity)) values.add(value);
+    }
+    axes.add(WidgetbookStoryAxisPlan(property: property, values: values));
+  }
+  final unresolved = configured.keys
+      .where((name) => !propertiesByName.containsKey(name))
+      .toList(growable: false);
+  if (unresolved.isNotEmpty) {
+    throw StateError(
+      'Widgetbook story config for ${widget.entry.name} names property '
+      '${unresolved.join(', ')} that is not an admitted constructor input.',
+    );
+  }
+  return axes;
+}
+
+void _validateAxisPropertyFamily(
+  WidgetConstructorInput input,
+  WidgetbookPropertyTargetConfigFacts config, {
+  required String location,
+}) {
+  final type = input.type;
+  final element = type is InterfaceType ? type.element : null;
+  final isBool =
+      element?.library.identifier == 'dart:core' && element?.name == 'bool';
+  if (isBool || element is EnumElement) return;
+  final selector = config.allValues ? 'allValues' : 'storyValues';
+  final acceptedSet = config.allValues
+      ? 'allValues supports only exact bool and enum properties.'
+      : 'storyValues supports only the exact bool/enum/null accepted set.';
+  throw StateError(
+    'Widgetbook story config at $location uses $selector on '
+    '`${type.getDisplayString()}`. $acceptedSet',
+  );
+}
+
+String _propertyConfigLocation(WidgetbookPropertyTargetConfigFacts config) =>
+    config.storyValuesLocation ?? config.allValuesLocation ?? '<unknown>';
+
+WidgetbookNativeValuePlan _propertySeed(
+  WidgetbookStoryPropertyPlan property,
+) =>
+    switch (property) {
+      WidgetbookStoryEditablePropertyPlan(:final seed) ||
+      WidgetbookStoryChoicePropertyPlan(:final seed) ||
+      WidgetbookStoryNativePropertyPlan(:final seed) =>
+        seed,
+      WidgetbookStoryEventPropertyPlan() => throw StateError(
+          "callback property '${property.property.name}' has no data seed",
+        ),
+    };
+
+WidgetbookStoryAxisValuePlan _axisValueFromNative(
+  WidgetbookStoryPropertyPlan property,
+  WidgetbookNativeValuePlan value, {
+  required String path,
+}) {
+  return switch (value) {
+    WidgetbookNullValuePlan() => WidgetbookStoryAxisValuePlan(
+        value: value,
+        identity: '${_typeIdentity(value.type)}:null',
+        nameFragment: 'Null',
+      ),
+    WidgetbookScalarValuePlan(value: final bool scalar) =>
+      WidgetbookStoryAxisValuePlan(
+        value: value,
+        identity: 'dart:core#bool:$scalar',
+        nameFragment: scalar ? 'True' : 'False',
+      ),
+    WidgetbookEnumValuePlan(:final type, :final member, :final ordinal) =>
+      WidgetbookStoryAxisValuePlan(
+        value: value,
+        identity: '${_typeIdentity(type)}:$member@$ordinal',
+        nameFragment: _nameFragment(member, path: path),
+      ),
+    _ => throw StateError(
+        'Widgetbook story axis at $path has a default outside the exact '
+        'bool/enum/null accepted set for `${property.dartType.symbol}`.',
+      ),
+  };
+}
+
+WidgetbookStoryAxisValuePlan _axisValueFromStaticConstructorDefault(
+  WidgetbookStoryPropertyPlan property,
+  WidgetConstructorInput input, {
+  required String path,
+}) {
+  final value = input.formal.computeConstantValue();
+  if (value == null) {
+    throw StateError(
+      'Widgetbook story axis at $path could not evaluate its public const '
+      'constructor default.',
+    );
+  }
+  return _axisValueFromDartObject(
+    property,
+    input,
+    value,
+    path: path,
+  );
+}
+
+List<WidgetbookStoryAxisValuePlan> _allAxisValues(
+  WidgetbookStoryPropertyPlan property,
+  WidgetConstructorInput input,
+) {
+  final path = '${input.field.library.identifier}#'
+      '${input.field.enclosingElement.name}.${input.name}';
+  final type = input.type;
+  final element = type is InterfaceType ? type.element : null;
+  final values = <WidgetbookStoryAxisValuePlan>[];
+  if (element?.library.identifier == 'dart:core' && element?.name == 'bool') {
+    for (final value in const [false, true]) {
+      _validateSeed(property.property, value, path: path);
+      values.add(
+        WidgetbookStoryAxisValuePlan(
+          value: WidgetbookScalarValuePlan(
+            type: property.dartType,
+            value: value,
+          ),
+          identity: 'dart:core#bool:$value',
+          nameFragment: value ? 'True' : 'False',
+        ),
+      );
+    }
+  } else if (element is EnumElement) {
+    for (final (ordinal, constant) in element.constants.indexed) {
+      final member = constant.name;
+      if (member == null) continue;
+      _validateSeed(property.property, member, path: path);
+      values.add(
+        WidgetbookStoryAxisValuePlan(
+          value: WidgetbookEnumValuePlan(
+            type: property.dartType,
+            member: member,
+            ordinal: ordinal,
+          ),
+          identity: '${_typeIdentity(property.dartType)}:$member@$ordinal',
+          nameFragment: _nameFragment(member, path: path),
+        ),
+      );
+    }
+  } else {
+    throw StateError(
+      'Widgetbook story config at $path uses allValues on '
+      '`${type.getDisplayString()}`. allValues supports only exact bool and '
+      'enum properties.',
+    );
+  }
+  if (input.nullable) {
+    _validateSeed(property.property, null, path: path);
+    values.add(
+      WidgetbookStoryAxisValuePlan(
+        value: WidgetbookNullValuePlan(type: property.dartType),
+        identity: '${_typeIdentity(property.dartType)}:null',
+        nameFragment: 'Null',
+      ),
+    );
+  }
+  return values;
+}
+
+WidgetbookStoryAxisValuePlan _axisValueFromDartObject(
+  WidgetbookStoryPropertyPlan property,
+  WidgetConstructorInput input,
+  DartObject value, {
+  required String path,
+}) {
+  if (value.isNull) {
+    if (!input.nullable) {
+      throw StateError(
+        'Widgetbook story config at $path selects null for non-nullable '
+        "property '${input.name}'.",
+      );
+    }
+    _validateSeed(property.property, null, path: path);
+    return WidgetbookStoryAxisValuePlan(
+      value: WidgetbookNullValuePlan(type: property.dartType),
+      identity: '${_typeIdentity(property.dartType)}:null',
+      nameFragment: 'Null',
+    );
+  }
+
+  final expectedType = input.type;
+  final expectedElement =
+      expectedType is InterfaceType ? expectedType.element : null;
+  final boolValue = value.toBoolValue();
+  if (expectedElement?.library.identifier == 'dart:core' &&
+      expectedElement?.name == 'bool' &&
+      boolValue != null) {
+    _validateSeed(property.property, boolValue, path: path);
+    return WidgetbookStoryAxisValuePlan(
+      value: WidgetbookScalarValuePlan(
+        type: property.dartType,
+        value: boolValue,
+      ),
+      identity: 'dart:core#bool:$boolValue',
+      nameFragment: boolValue ? 'True' : 'False',
+    );
+  }
+
+  final canonical = expectedElement is EnumElement
+      ? canonicalAnalyzerEnumConstant(value, expectedElement)
+      : null;
+  if (canonical != null) {
+    final identity = canonical.identity;
+    _validateSeed(property.property, identity.member, path: path);
+    return WidgetbookStoryAxisValuePlan(
+      value: WidgetbookEnumValuePlan(
+        type: property.dartType,
+        member: identity.member,
+        ordinal: identity.ordinal,
+      ),
+      identity: '${identity.definingLibrary}#${identity.enumName}:'
+          '${identity.member}@${identity.ordinal}',
+      nameFragment: _nameFragment(identity.member, path: path),
+    );
+  }
+
+  throw StateError(
+    'Widgetbook story config at $path has a value outside the exact accepted '
+    "set for '${input.name}'. Use bool literals, members of the property's "
+    'resolved enum type, and null only when nullable.',
+  );
+}
+
+String _typeIdentity(WidgetbookDartTypePlan type) =>
+    '${type.libraryUri}#${type.symbol}';
+
+List<WidgetbookStoryVariantPlan> _planStoryVariants({
+  required WidgetbookWidgetSource widget,
+  required List<WidgetbookStoryAxisPlan> axes,
+  required WidgetbookStoryLimitPolicy storyLimits,
+}) {
+  final configuredLimit = widget.targetConfig.maxStories;
+  if (axes.isEmpty && configuredLimit == null) {
+    return [
+      WidgetbookStoryVariantPlan(
+        name: 'Default',
+        valuesByProperty: const {},
+      ),
+    ];
+  }
+  final limitContext = _storyLimitContext(
+    axes: axes,
+    configuredLimit: configuredLimit,
+    storyLimits: storyLimits,
+  );
+  if (configuredLimit != null && configuredLimit <= 0) {
+    throw StateError(
+      'Widgetbook maxStories for ${widget.entry.name} must be greater than '
+      'zero; received $configuredLimit. $limitContext Remove maxStories to '
+      'use the package default, or set it from 1 through '
+      '${storyLimits.absoluteLimit}.',
+    );
+  }
+  if (configuredLimit != null && configuredLimit > storyLimits.absoluteLimit) {
+    throw StateError(
+      'Widgetbook maxStories for ${widget.entry.name} is $configuredLimit, '
+      'above the absolute ceiling ${storyLimits.absoluteLimit}. $limitContext '
+      'Use independent expansion, select fewer values, or set maxStories no '
+      'higher than ${storyLimits.absoluteLimit}.',
+    );
+  }
+  final expansion = widget.targetConfig.expansion ?? StoryExpansion.independent;
+  final count = switch (expansion) {
+    StoryExpansion.independent => 1 +
+        axes.fold<int>(
+          0,
+          (total, axis) => total + math.max(0, axis.values.length - 1),
+        ),
+    StoryExpansion.cartesian => axes.fold<int>(
+        1,
+        (total, axis) => total * axis.values.length,
+      ),
+  };
+  final effectiveLimit = configuredLimit ?? storyLimits.defaultLimit;
+  if (count > effectiveLimit) {
+    throw StateError(
+      'Widgetbook story count for ${widget.entry.name} is $count '
+      'and exceeds its effective limit $effectiveLimit. $limitContext Use '
+      'independent expansion, select fewer values, or deliberately raise '
+      'maxStories within the absolute ceiling ${storyLimits.absoluteLimit}.',
+    );
+  }
+
+  final defaults = {
+    for (final axis in axes) axis.property.property.name: axis.values.first,
+  };
+  final tuples = <Map<String, WidgetbookStoryAxisValuePlan>>[];
+  switch (expansion) {
+    case StoryExpansion.independent:
+      tuples.add(defaults);
+      for (final axis in axes) {
+        final propertyName = axis.property.property.name;
+        for (final value in axis.values.skip(1)) {
+          tuples.add({...defaults, propertyName: value});
+        }
+      }
+    case StoryExpansion.cartesian:
+      final selectedIndexes = List<int>.filled(axes.length, 0);
+      for (var tupleIndex = 0; tupleIndex < count; tupleIndex++) {
+        var remainder = tupleIndex;
+        for (var axisIndex = axes.length - 1; axisIndex >= 0; axisIndex--) {
+          final cardinality = axes[axisIndex].values.length;
+          selectedIndexes[axisIndex] = remainder % cardinality;
+          remainder ~/= cardinality;
+        }
+        tuples.add(
+          Map.unmodifiable({
+            for (var axisIndex = 0; axisIndex < axes.length; axisIndex++)
+              axes[axisIndex].property.property.name:
+                  axes[axisIndex].values[selectedIndexes[axisIndex]],
+          }),
+        );
+      }
+  }
+
+  final variants = <WidgetbookStoryVariantPlan>[];
+  final names = <String, String>{};
+  final declarations = <String, String>{};
+  for (final tuple in tuples) {
+    final name = _storyName(axes, tuple);
+    final signature = axes
+        .map(
+          (axis) => '${axis.property.property.name}='
+              '${tuple[axis.property.property.name]!.identity}',
+        )
+        .join(', ');
+    final prior = names[name];
+    if (prior != null && prior != signature) {
+      throw StateError(
+        "Widgetbook story name '$name' collides after normalization for "
+        'tuples [$prior] and [$signature]. Rename a property or enum member.',
+      );
+    }
+    names[name] = signature;
+    final declaration = variants.isEmpty ? r'$RestageCatalog' : '\$$name';
+    final priorDeclaration = declarations[declaration];
+    if (priorDeclaration != null && priorDeclaration != signature) {
+      throw StateError(
+        "Widgetbook story declaration '$declaration' collides after "
+        'normalization for tuples [$priorDeclaration] and [$signature]. '
+        'Rename a property or enum member.',
+      );
+    }
+    declarations[declaration] = signature;
+    variants.add(
+      WidgetbookStoryVariantPlan(
+        name: name,
+        valuesByProperty: tuple,
+      ),
+    );
+  }
+  return variants;
+}
+
+String _storyLimitContext({
+  required List<WidgetbookStoryAxisPlan> axes,
+  required int? configuredLimit,
+  required WidgetbookStoryLimitPolicy storyLimits,
+}) {
+  final effectiveLimit = configuredLimit ?? storyLimits.defaultLimit;
+  final limitSource =
+      configuredLimit == null ? 'package default' : 'configured maxStories';
+  final cardinalities = axes.isEmpty
+      ? 'none'
+      : axes
+          .map(
+            (axis) => '${axis.property.property.name}=${axis.values.length}',
+          )
+          .join(', ');
+  return 'Effective limit: $effectiveLimit ($limitSource); package default: '
+      '${storyLimits.defaultLimit}; absolute ceiling: '
+      '${storyLimits.absoluteLimit}; axes/cardinalities: $cardinalities.';
+}
+
+String _storyName(
+  List<WidgetbookStoryAxisPlan> axes,
+  Map<String, WidgetbookStoryAxisValuePlan> tuple,
+) {
+  final out = StringBuffer();
+  for (final axis in axes) {
+    final propertyName = axis.property.property.name;
+    final value = tuple[propertyName]!;
+    if (value.identity == axis.values.first.identity) continue;
+    out
+      ..write(_nameFragment(propertyName, path: propertyName))
+      ..write(value.nameFragment);
+  }
+  return out.isEmpty ? 'Default' : out.toString();
+}
+
+String _nameFragment(String value, {required String path}) {
+  final words = value.split(RegExp(r'[_$]+')).where((word) => word.isNotEmpty);
+  final fragment = words
+      .map(
+        (word) => word.length == 1
+            ? word.toUpperCase()
+            : '${word[0].toUpperCase()}${word.substring(1)}',
+      )
+      .join();
+  if (fragment.isEmpty ||
+      !RegExp(r'^[A-Za-z][A-Za-z0-9]*$').hasMatch(fragment)) {
+    throw StateError(
+      "Widgetbook story name source '$value' at $path cannot be normalized "
+      'to a stable Dart identifier fragment.',
+    );
+  }
+  return fragment;
 }
 
 typedef _SeedSelection = ({
@@ -433,11 +1060,23 @@ typedef _SeedSelection = ({
 });
 
 /// Resolves typed or legacy property constraints to one backend view.
-RestageConstraints widgetbookConstraintsFor(PropertyEntry property) {
+RestageConstraints widgetbookConstraintsFor(
+  PropertyEntry property, {
+  String? path,
+}) {
   final legacy = property.validationRule;
-  return legacy == null
-      ? property.constraints
-      : parseA2uiLegacyConstraint(legacy.expression);
+  if (legacy == null) return property.constraints;
+  try {
+    return parseA2uiLegacyConstraint(legacy.expression);
+  } on A2uiLegacyConstraintParseException catch (error) {
+    throw StateError(
+      'Widgetbook validation rule at ${path ?? property.name}: authored '
+      'expression "${legacy.expression}" is invalid (${error.detail}). '
+      'Supported legacy forms are '
+      'range(<finite JSON number>, <finite JSON number>), '
+      'oneOf(<JSON scalar>, ...), and matches(<JSON string>).',
+    );
+  }
 }
 
 _SeedSelection _selectSeed({
@@ -451,7 +1090,11 @@ _SeedSelection _selectSeed({
   final constructorDefault = input.constructorDefault;
   final literal = property.defaultSource;
   if (constructorDefault is! NoWidgetConstructorDefault) {
-    final value = _portableConstructorDefault(input, property);
+    final value = _portableConstructorDefault(
+      input,
+      property,
+      hasFiniteChoices: choices.isNotEmpty,
+    );
     if (value != null) {
       return (
         value: value,
@@ -469,6 +1112,14 @@ _SeedSelection _selectSeed({
         'omission is semantically legal.',
       );
     }
+    if (choices.isNotEmpty) {
+      throw StateError(
+        'Widgetbook seed at /constructorDefaults/${property.name} cannot be '
+        'reduced losslessly to the native transport for its finite choice '
+        'domain. Change the constructor default, finite allowed values, or '
+        'catalog-facing wrapper.',
+      );
+    }
   }
 
   if (literal is LiteralDefault) {
@@ -478,7 +1129,12 @@ _SeedSelection _selectSeed({
       value: literal.value,
       path: '/defaults/${property.name}',
     );
-    _validateSeed(property, literal.value, path: '/defaults/${property.name}');
+    _validateSeed(
+      property,
+      literal.value,
+      path: '/defaults/${property.name}',
+      validateAllowedValues: choices.isEmpty,
+    );
     return (value: value, provenance: WidgetbookSeedProvenance.catalogLiteral);
   }
 
@@ -546,6 +1202,230 @@ typedef _ChoicePlans = ({
   List<String> labels,
 });
 
+_ChoicePlans _choicePlansIncludingSeed(
+  _ChoicePlans choices,
+  WidgetbookNativeValuePlan seed, {
+  required bool allowWiden,
+  required String seedPath,
+}) {
+  if (_choiceValueIndex(choices.values, seed) >= 0) return choices;
+  if (!allowWiden) {
+    throw StateError(
+      'Widgetbook seed at $seedPath violates its finite allowed-value '
+      'constraints.',
+    );
+  }
+  return (
+    values: [...choices.values, seed],
+    labels: [...choices.labels, _choiceSeedLabel(seed)],
+  );
+}
+
+WidgetbookNativeValuePlan _canonicalFiniteChoiceSeed({
+  required WidgetbookNativeValuePlan seed,
+  required WidgetbookSeedProvenance provenance,
+  required List<WidgetbookNativeValuePlan> choices,
+  required WidgetbookWidgetSource widget,
+  required PropertyEntry property,
+  required WidgetConstructorInput input,
+  required WidgetbookNativeValuePlanner lowerer,
+}) {
+  final path = _finiteSeedPath(provenance, property);
+  var value = seed;
+  if (provenance == WidgetbookSeedProvenance.constructorDefault) {
+    final canonical = _finiteConstructorDefaultValue(input, property);
+    if (!canonical.available) {
+      throw StateError(
+        'Widgetbook seed at $path cannot be reduced losslessly to the native '
+        'transport for its finite choice domain. Change the constructor '
+        'default, finite allowed values, or catalog-facing wrapper.',
+      );
+    }
+    value = lowerer.lowerProperty(
+      widget: widget,
+      property: property,
+      value: canonical.value,
+      path: path,
+    );
+  }
+  final choiceIndex = _choiceValueIndex(choices, value);
+  if (choiceIndex >= 0) return choices[choiceIndex];
+  if (widgetbookConstraintsFor(property).allowedValues != null) {
+    throw StateError(
+      'Widgetbook seed at $path violates its finite allowed-value '
+      'constraints.',
+    );
+  }
+  return value;
+}
+
+String _finiteSeedPath(
+  WidgetbookSeedProvenance provenance,
+  PropertyEntry property,
+) =>
+    switch (provenance) {
+      WidgetbookSeedProvenance.catalogLiteral => '/defaults/${property.name}',
+      WidgetbookSeedProvenance.constructorDefault =>
+        '/constructorDefaults/${property.name}',
+      WidgetbookSeedProvenance.finiteChoice =>
+        widgetbookConstraintsFor(property).allowedValues == null
+            ? '/generated/${property.name}'
+            : '/constraints/${property.name}/enum/0',
+      WidgetbookSeedProvenance.scalarPreview => '/preview/${property.name}',
+      WidgetbookSeedProvenance.nullableFallback => '/defaults/${property.name}',
+      WidgetbookSeedProvenance.synthesizedPreview =>
+        '/generated/${property.name}',
+    };
+
+int _choiceValueIndex(
+  List<WidgetbookNativeValuePlan> choices,
+  WidgetbookNativeValuePlan value,
+) =>
+    choices.indexWhere((choice) => _sameChoiceValue(choice, value));
+
+bool _sameChoiceValue(
+  WidgetbookNativeValuePlan left,
+  WidgetbookNativeValuePlan right,
+) {
+  if (!_sameChoiceType(left.type, right.type)) return false;
+  return switch ((left, right)) {
+    (WidgetbookNullValuePlan(), WidgetbookNullValuePlan()) => true,
+    (
+      WidgetbookScalarValuePlan(value: final leftValue),
+      WidgetbookScalarValuePlan(value: final rightValue),
+    ) =>
+      _sameScalarChoiceValue(left.type, leftValue, rightValue),
+    (
+      WidgetbookEnumValuePlan(
+        member: final leftMember,
+        ordinal: final leftOrdinal,
+      ),
+      WidgetbookEnumValuePlan(
+        member: final rightMember,
+        ordinal: final rightOrdinal,
+      ),
+    ) =>
+      leftMember == rightMember && leftOrdinal == rightOrdinal,
+    (
+      WidgetbookStaticMemberValuePlan(
+        libraryUri: final leftLibrary,
+        owner: final leftOwner,
+        member: final leftMember,
+      ),
+      WidgetbookStaticMemberValuePlan(
+        libraryUri: final rightLibrary,
+        owner: final rightOwner,
+        member: final rightMember,
+      ),
+    ) =>
+      leftLibrary == rightLibrary &&
+          leftOwner == rightOwner &&
+          leftMember == rightMember,
+    (
+      WidgetbookDartConstValuePlan(value: final leftValue),
+      WidgetbookDartConstValuePlan(value: final rightValue),
+    ) =>
+      leftValue == rightValue,
+    (
+      WidgetbookFrameworkValuePlan(
+        kind: final leftKind,
+        value: final leftValue,
+      ),
+      WidgetbookFrameworkValuePlan(
+        kind: final rightKind,
+        value: final rightValue,
+      ),
+    ) =>
+      leftKind == rightKind &&
+          _frameworkChoiceIdentity(leftKind, leftValue) ==
+              _frameworkChoiceIdentity(rightKind, rightValue),
+    _ => identical(left, right),
+  };
+}
+
+bool _sameScalarChoiceValue(
+  WidgetbookDartTypePlan type,
+  Object left,
+  Object right,
+) {
+  final signedReal = type.libraryUri == 'dart:core' &&
+      (type.symbol == 'double' || type.symbol == 'num');
+  if (signedReal && left is num && right is num && left == 0 && right == 0) {
+    return left.isNegative == right.isNegative;
+  }
+  return left == right;
+}
+
+Object _frameworkChoiceIdentity(
+  WidgetbookFrameworkLiteralKind kind,
+  Object value,
+) =>
+    switch (kind) {
+      WidgetbookFrameworkLiteralKind.color => _colorChoiceIdentity(value),
+      WidgetbookFrameworkLiteralKind.fontWeight =>
+        _fontWeightChoiceIdentity(value),
+      WidgetbookFrameworkLiteralKind.duration => value,
+      WidgetbookFrameworkLiteralKind.edgeInsets ||
+      WidgetbookFrameworkLiteralKind.alignment ||
+      WidgetbookFrameworkLiteralKind.offset ||
+      WidgetbookFrameworkLiteralKind.curve =>
+        value,
+    };
+
+int _colorChoiceIdentity(Object value) {
+  if (value is int) return value;
+  final text = (value as String).trim();
+  final digits = text.startsWith('#')
+      ? text.substring(1)
+      : text.toLowerCase().startsWith('0x')
+          ? text.substring(2)
+          : text;
+  return int.parse(digits.length == 6 ? 'FF$digits' : digits, radix: 16);
+}
+
+int _fontWeightChoiceIdentity(Object value) {
+  if (value is int) return value;
+  return switch (value as String) {
+    'normal' => 400,
+    'bold' => 700,
+    final member => int.parse(member.substring(1)),
+  };
+}
+
+bool _sameChoiceType(
+  WidgetbookDartTypePlan left,
+  WidgetbookDartTypePlan right,
+) {
+  if (left.libraryUri != right.libraryUri ||
+      left.symbol != right.symbol ||
+      left.nullable != right.nullable ||
+      left.typeArguments.length != right.typeArguments.length) {
+    return false;
+  }
+  for (var index = 0; index < left.typeArguments.length; index++) {
+    if (!_sameChoiceType(
+      left.typeArguments[index],
+      right.typeArguments[index],
+    )) {
+      return false;
+    }
+  }
+  return true;
+}
+
+String _choiceSeedLabel(WidgetbookNativeValuePlan seed) => switch (seed) {
+      WidgetbookNullValuePlan() => 'null',
+      WidgetbookScalarValuePlan(:final value) => '$value',
+      WidgetbookEnumValuePlan(:final member) => member,
+      WidgetbookStaticMemberValuePlan(:final member) => member,
+      WidgetbookFrameworkValuePlan(:final value) => '$value',
+      WidgetbookDartConstValuePlan() ||
+      WidgetbookListValuePlan() ||
+      WidgetbookPlaceholderWidgetValuePlan() ||
+      WidgetbookConstructorValuePlan() =>
+        'default',
+    };
+
 _ChoicePlans _choicePlans({
   required PropertyEntry property,
   required WidgetbookDartTypePlan dartType,
@@ -553,48 +1433,100 @@ _ChoicePlans _choicePlans({
   required WidgetbookNativeValuePlanner lowerer,
   required WidgetbookWidgetSource widget,
 }) {
+  final inputType = input.type;
+  final enumElement = inputType is InterfaceType ? inputType.element : null;
+  if (property.type == PropertyType.enumValue) {
+    if (enumElement is! EnumElement) {
+      throw StateError(
+        "property '${property.name}' does not resolve to an enum",
+      );
+    }
+    _validateImportableEnumType(
+      enumElement,
+      path: '${widget.entry.name}.${property.name}',
+    );
+  }
   final allowed = widgetbookConstraintsFor(property).allowedValues;
   if (allowed != null) {
     final choices = <WidgetbookNativeValuePlan>[];
+    final labels = <String>[];
     for (var index = 0; index < allowed.length; index++) {
       final path = '/constraints/${property.name}/enum/$index';
       _validateSeed(property, allowed[index], path: path);
-      choices.add(
-        lowerer.lowerProperty(
-          widget: widget,
-          property: property,
-          value: allowed[index],
-          path: path,
-        ),
+      final choice = lowerer.lowerProperty(
+        widget: widget,
+        property: property,
+        value: allowed[index],
+        path: path,
       );
+      if (_choiceValueIndex(choices, choice) >= 0) continue;
+      choices.add(choice);
+      labels.add('${allowed[index]}');
     }
-    return (
-      values: choices,
-      labels: [for (final value in allowed) '$value'],
-    );
+    return (values: choices, labels: labels);
   }
   if (property.type != PropertyType.enumValue) {
     return (values: const [], labels: const []);
   }
-  final type = input.type;
-  final element = type is InterfaceType ? type.element : null;
-  if (element is! EnumElement) {
-    throw StateError("property '${property.name}' does not resolve to an enum");
+  if (enumElement is! EnumElement) {
+    throw StateError(
+      "property '${property.name}' does not resolve to an enum",
+    );
   }
-  final members = element.fields
-      .where((field) => field.isEnumConstant)
-      .map((field) => field.name)
-      .whereType<String>()
-      .toList(growable: false);
-  if (members.isEmpty) {
-    throw StateError("enum property '${property.name}' has no members");
+  final constants = [
+    for (final (ordinal, field) in enumElement.constants.indexed)
+      if (field.name case final member?)
+        if (_seedSatisfiesConstraints(property, member))
+          (member: member, ordinal: ordinal),
+  ];
+  if (constants.isEmpty) {
+    throw StateError(
+      "enum property '${property.name}' has no members that satisfy its "
+      'constraints',
+    );
   }
+  final includeNullChoice = input.nullable &&
+      widget.targetConfig.properties.containsKey(property.name);
   return (
     values: [
-      for (final member in members)
-        WidgetbookEnumValuePlan(type: dartType, member: member),
+      for (final constant in constants)
+        WidgetbookEnumValuePlan(
+          type: dartType,
+          member: constant.member,
+          ordinal: constant.ordinal,
+        ),
+      if (includeNullChoice) WidgetbookNullValuePlan(type: dartType),
     ],
-    labels: members,
+    labels: [
+      for (final constant in constants) constant.member,
+      if (includeNullChoice) 'null',
+    ],
+  );
+}
+
+void _validateImportableEnumType(
+  EnumElement element, {
+  required String path,
+}) {
+  final library = element.library.identifier;
+  final name = element.name;
+  var importable = name != null && isPublicDartTypeIdentity(library, name);
+  if (importable) {
+    try {
+      publicDartImportUri(library);
+      // The resolver reports malformed or unmapped source identities as an
+      // Error; translate that failure to this customer property path.
+      // ignore: avoid_catching_errors
+    } on StateError {
+      importable = false;
+    }
+  }
+  if (importable) return;
+  throw StateError(
+    'Widgetbook enum property at $path has type '
+    '`${library.isEmpty ? '<unknown>' : library}#${name ?? '<unnamed>'}` '
+    'that cannot be named from generated Widgetbook source. Expose a public '
+    'enum type from an importable library or use a catalog-facing wrapper.',
   );
 }
 
@@ -634,55 +1566,332 @@ void _validateSynthesizedConstraints(PropertyEntry property) {
 
 WidgetbookNativeValuePlan? _portableConstructorDefault(
   WidgetConstructorInput input,
-  PropertyEntry property,
-) {
+  PropertyEntry property, {
+  required bool hasFiniteChoices,
+}) {
   final constructorDefault = input.constructorDefault;
   final parameterType = input.type;
   final type = WidgetbookDartTypePlan.fromAnalyzer(
     parameterType,
     path: '/constructorDefaults/${property.name}',
   );
-  switch (constructorDefault) {
-    case NoWidgetConstructorDefault() || UnsupportedWidgetConstructorDefault():
-      return null;
-    case StructuralWidgetConstructorDefault(:final value):
-      return WidgetbookDartConstValuePlan(type: type, value: value);
-    case NullWidgetConstructorDefault():
-      if (!input.nullable) return null;
-      _validateSeed(
-        property,
-        null,
-        path: '/constructorDefaults/${property.name}',
+  WidgetbookNativeValuePlan? plan;
+  if (property.type == PropertyType.enumValue &&
+      constructorDefault is! NoWidgetConstructorDefault) {
+    final canonical = _canonicalEnumConstructorDefault(input);
+    if (canonical != null) {
+      plan = WidgetbookEnumValuePlan(
+        type: type,
+        member: canonical.identity.member,
+        ordinal: canonical.identity.ordinal,
       );
-      return WidgetbookNullValuePlan(type: type);
-    case LiteralWidgetConstructorDefault(:final value):
-      if (value is double && !value.isFinite) return null;
-      _validateSeed(
-        property,
-        value,
-        path: '/constructorDefaults/${property.name}',
-      );
-      return WidgetbookScalarValuePlan(type: type, value: value);
-    case EnumWidgetConstructorDefault(:final member):
-      _validateSeed(
-        property,
-        member,
-        path: '/constructorDefaults/${property.name}',
-      );
-      return WidgetbookEnumValuePlan(type: type, member: member);
-    case StaticMemberWidgetConstructorDefault(
-        :final libraryUri,
-        :final owner,
-        :final member,
-      ):
-      if (!widgetbookConstraintsFor(property).isEmpty) return null;
-      return WidgetbookStaticMemberValuePlan(
+    }
+  }
+  plan ??= switch (constructorDefault) {
+    NoWidgetConstructorDefault() ||
+    UnsupportedWidgetConstructorDefault() =>
+      null,
+    StructuralWidgetConstructorDefault(:final value) =>
+      WidgetbookDartConstValuePlan(type: type, value: value),
+    NullWidgetConstructorDefault() =>
+      input.nullable ? WidgetbookNullValuePlan(type: type) : null,
+    LiteralWidgetConstructorDefault(:final value) =>
+      value is double && !value.isFinite
+          ? null
+          : WidgetbookScalarValuePlan(type: type, value: value),
+    EnumWidgetConstructorDefault() => null,
+    StaticMemberWidgetConstructorDefault(
+      :final libraryUri,
+      :final owner,
+      :final member,
+    ) =>
+      WidgetbookStaticMemberValuePlan(
         type: type,
         libraryUri: libraryUri,
         owner: owner,
         member: member,
-      );
+      ),
+  };
+  if (plan != null) {
+    _validateConstructorDefaultConstraints(
+      input,
+      property,
+      hasFiniteChoices: hasFiniteChoices,
+    );
   }
+  return plan;
+}
+
+AnalyzerEnumConstant? _canonicalEnumConstructorDefault(
+  WidgetConstructorInput input,
+) {
+  final value = input.formal.computeConstantValue();
+  final type = input.type;
+  final element = type is InterfaceType ? type.element : null;
+  if (value == null || value.isNull || element is! EnumElement) return null;
+  return canonicalAnalyzerEnumConstant(value, element);
+}
+
+// Semantic constraint input only. The exact emitted constructor-default plan
+// stays separate so successful validation never flattens a customer's const
+// identity or source reference.
+sealed class _ConstraintValidationTransport {
+  const _ConstraintValidationTransport();
+}
+
+final class _ScalarConstraintValidationTransport
+    extends _ConstraintValidationTransport {
+  const _ScalarConstraintValidationTransport(this.value);
+
+  final Object? value;
+}
+
+final class _CollectionConstraintValidationTransport
+    extends _ConstraintValidationTransport {
+  const _CollectionConstraintValidationTransport(this.length);
+
+  final int length;
+}
+
+void _validateConstructorDefaultConstraints(
+  WidgetConstructorInput input,
+  PropertyEntry property, {
+  required bool hasFiniteChoices,
+}) {
+  final constraints = widgetbookConstraintsFor(property);
+  final hasValueConstraint = constraints.minimum != null ||
+      constraints.exclusiveMinimum != null ||
+      constraints.maximum != null ||
+      constraints.exclusiveMaximum != null ||
+      constraints.allowedValues != null ||
+      constraints.pattern != null ||
+      constraints.minLength != null ||
+      constraints.maxLength != null ||
+      constraints.minItems != null ||
+      constraints.maxItems != null;
+  if (!hasValueConstraint) return;
+
+  final path = '/constructorDefaults/${property.name}';
+  final transport = _constructorConstraintValidationTransport(input, property);
+  if (transport == null) {
+    throw StateError(
+      'Widgetbook seed at $path cannot be reduced losslessly to the '
+      'target-neutral constraint-validation transport.',
+    );
+  }
+  final value = switch (transport) {
+    _ScalarConstraintValidationTransport(:final value) => value,
+    _CollectionConstraintValidationTransport() => transport,
+  };
+  _validateSeed(
+    property,
+    value,
+    path: path,
+    validateAllowedValues: !hasFiniteChoices,
+  );
+}
+
+_ConstraintValidationTransport? _constructorConstraintValidationTransport(
+  WidgetConstructorInput input,
+  PropertyEntry property,
+) {
+  final value = input.formal.computeConstantValue();
+  if (value == null) return null;
+  if (value.isNull) {
+    return input.nullable
+        ? const _ScalarConstraintValidationTransport(null)
+        : null;
+  }
+
+  if (property.type == PropertyType.widgetList ||
+      isCustomerStructuredListShape(property.valueShape)) {
+    final values = value.toListValue();
+    return values == null
+        ? null
+        : _CollectionConstraintValidationTransport(values.length);
+  }
+
+  final finite = _finiteConstructorDefaultValue(input, property);
+  if (!finite.available) return null;
+  if (property.type == PropertyType.color) {
+    final argb = finite.value;
+    if (argb is! int) return null;
+    return _ScalarConstraintValidationTransport(
+      '#${argb.toRadixString(16).padLeft(8, '0').toUpperCase()}',
+    );
+  }
+  return _ScalarConstraintValidationTransport(finite.value);
+}
+
+({bool available, Object? value}) _finiteConstructorDefaultValue(
+  WidgetConstructorInput input,
+  PropertyEntry property,
+) {
+  final value = input.formal.computeConstantValue();
+  if (value == null) return (available: false, value: null);
+  final transport = widgetbookFiniteChoiceTransport(property.type);
+  if (transport == null) return (available: false, value: null);
+  if (value.isNull) {
+    return (available: input.nullable, value: null);
+  }
+
+  final type = input.type;
+  final element = type is InterfaceType ? type.element : null;
+  bool isDartCore(String symbol) =>
+      element?.library.identifier == 'dart:core' && element?.name == symbol;
+  return switch (transport) {
+    WidgetbookFiniteChoiceTransport.boolean => () {
+        final decoded = isDartCore('bool') ? value.toBoolValue() : null;
+        return (available: decoded != null, value: decoded);
+      }(),
+    WidgetbookFiniteChoiceTransport.integer => () {
+        final decoded = isDartCore('int') ? value.toIntValue() : null;
+        return (available: decoded != null, value: decoded);
+      }(),
+    WidgetbookFiniteChoiceTransport.real => () {
+        if (!isDartCore('double') && !isDartCore('num')) {
+          return (available: false, value: null);
+        }
+        final decoded = value.toDoubleValue() ?? value.toIntValue()?.toDouble();
+        return (
+          available: decoded != null && decoded.isFinite,
+          value: decoded,
+        );
+      }(),
+    WidgetbookFiniteChoiceTransport.string => () {
+        final decoded = isDartCore('String') ? value.toStringValue() : null;
+        return (available: decoded != null, value: decoded);
+      }(),
+    WidgetbookFiniteChoiceTransport.enumMember => () {
+        final canonical = element is EnumElement
+            ? canonicalAnalyzerEnumConstant(value, element)
+            : null;
+        return (
+          available: canonical != null,
+          value: canonical?.identity.member,
+        );
+      }(),
+    WidgetbookFiniteChoiceTransport.color =>
+      _finiteColorConstructorValue(value),
+    WidgetbookFiniteChoiceTransport.durationMilliseconds =>
+      _finiteDurationConstructorValue(value),
+    WidgetbookFiniteChoiceTransport.fontWeight =>
+      _finiteFontWeightConstructorValue(value),
+  };
+}
+
+({bool available, Object? value}) _finiteColorConstructorValue(
+  DartObject value,
+) {
+  final invocation = _exactFrameworkInvocation(
+    value,
+    libraryUri: 'dart:ui',
+    owner: 'Color',
+  );
+  if (invocation == null) return (available: false, value: null);
+  final name = invocation.constructor.name;
+  if (name == 'new' || name == null || name.isEmpty) {
+    if (invocation.positionalArguments case [final argument]) {
+      final color = argument.toIntValue();
+      return (
+        available: color != null,
+        value: color == null ? null : color & 0xFFFFFFFF,
+      );
+    }
+    return (available: false, value: null);
+  }
+  if (name == 'fromARGB' && invocation.positionalArguments.length == 4) {
+    final [alpha, red, green, blue] = invocation.positionalArguments;
+    final channels = [
+      alpha.toIntValue(),
+      red.toIntValue(),
+      green.toIntValue(),
+      blue.toIntValue(),
+    ];
+    if (channels.any((channel) => channel == null)) {
+      return (available: false, value: null);
+    }
+    return (
+      available: true,
+      value: ((channels[0]! & 0xFF) << 24) |
+          ((channels[1]! & 0xFF) << 16) |
+          ((channels[2]! & 0xFF) << 8) |
+          (channels[3]! & 0xFF),
+    );
+  }
+  return (available: false, value: null);
+}
+
+({bool available, Object? value}) _finiteDurationConstructorValue(
+  DartObject value,
+) {
+  final invocation = _exactFrameworkInvocation(
+    value,
+    libraryUri: 'dart:core',
+    owner: 'Duration',
+  );
+  final name = invocation?.constructor.name;
+  if (invocation == null || name != 'new' && name != null && name.isNotEmpty) {
+    return (available: false, value: null);
+  }
+  const microsecondsPerUnit = <String, int>{
+    'days': Duration.microsecondsPerDay,
+    'hours': Duration.microsecondsPerHour,
+    'minutes': Duration.microsecondsPerMinute,
+    'seconds': Duration.microsecondsPerSecond,
+    'milliseconds': Duration.microsecondsPerMillisecond,
+    'microseconds': 1,
+  };
+  var totalMicroseconds = 0;
+  for (final entry in invocation.namedArguments.entries) {
+    final multiplier = microsecondsPerUnit[entry.key];
+    final argument = entry.value.toIntValue();
+    if (multiplier == null || argument == null) {
+      return (available: false, value: null);
+    }
+    totalMicroseconds += argument * multiplier;
+  }
+  if (totalMicroseconds % Duration.microsecondsPerMillisecond != 0) {
+    return (available: false, value: null);
+  }
+  return (
+    available: true,
+    value: totalMicroseconds ~/ Duration.microsecondsPerMillisecond,
+  );
+}
+
+({bool available, Object? value}) _finiteFontWeightConstructorValue(
+  DartObject value,
+) {
+  final invocation = _exactFrameworkInvocation(
+    value,
+    libraryUri: 'dart:ui',
+    owner: 'FontWeight',
+  );
+  final name = invocation?.constructor.name;
+  if (invocation == null ||
+      name != 'new' && name != null && name.isNotEmpty ||
+      invocation.positionalArguments.length != 1) {
+    return (available: false, value: null);
+  }
+  final weight = invocation.positionalArguments.single.toIntValue();
+  final representable =
+      weight != null && weight >= 100 && weight <= 900 && weight % 100 == 0;
+  return (available: representable, value: representable ? weight : null);
+}
+
+ConstructorInvocation? _exactFrameworkInvocation(
+  DartObject value, {
+  required String libraryUri,
+  required String owner,
+}) {
+  final invocation = value.constructorInvocation;
+  if (invocation == null) return null;
+  final enclosing = invocation.constructor.enclosingElement;
+  if (enclosing.library.identifier != libraryUri || enclosing.name != owner) {
+    return null;
+  }
+  return invocation;
 }
 
 WidgetbookStoryCallbackPlan _callbackPlan(
@@ -860,16 +2069,25 @@ void _validateSeed(
   PropertyEntry property,
   Object? value, {
   required String path,
+  bool validateAllowedValues = true,
 }) {
-  if (!_seedSatisfiesConstraints(property, value)) {
+  if (!_seedSatisfiesConstraints(
+    property,
+    value,
+    validateAllowedValues: validateAllowedValues,
+  )) {
     throw StateError('Widgetbook seed at $path violates its constraints.');
   }
 }
 
-bool _seedSatisfiesConstraints(PropertyEntry property, Object? value) {
+bool _seedSatisfiesConstraints(
+  PropertyEntry property,
+  Object? value, {
+  bool validateAllowedValues = true,
+}) {
   final constraints = widgetbookConstraintsFor(property);
   final allowed = constraints.allowedValues;
-  if (allowed != null && !allowed.contains(value)) {
+  if (validateAllowedValues && allowed != null && !allowed.contains(value)) {
     return false;
   }
   if (value is num) {
@@ -893,13 +2111,129 @@ bool _seedSatisfiesConstraints(PropertyEntry property, Object? value) {
       return false;
     }
   }
-  if (value is List) {
-    if (constraints.minItems != null && value.length < constraints.minItems! ||
-        constraints.maxItems != null && value.length > constraints.maxItems!) {
+  final itemCount = switch (value) {
+    List(:final length) => length,
+    _CollectionConstraintValidationTransport(:final length) => length,
+    _ => null,
+  };
+  if (itemCount != null) {
+    if (constraints.minItems != null && itemCount < constraints.minItems! ||
+        constraints.maxItems != null && itemCount > constraints.maxItems!) {
       return false;
     }
   }
   return true;
+}
+
+/// Validates shared constraint values before Widgetbook applicability checks.
+///
+/// Kept in the target planner library so tests can prove Widgetbook consumes
+/// the shared value contract without exposing a Widgetbook-specific API.
+void validateWidgetbookConstraintApplicability(
+  PropertyEntry property,
+  RestageConstraints constraints, {
+  required String path,
+}) {
+  final issue = validateRestageConstraintValues(constraints);
+  if (issue != null) {
+    final relativePath = issue.pathSuffix.startsWith('.')
+        ? issue.pathSuffix.substring(1)
+        : issue.pathSuffix;
+    late final String detail;
+    if (issue.message.startsWith('duplicate value ')) {
+      detail = 'duplicate $relativePath '
+          '${issue.message.substring('duplicate '.length)}';
+    } else if (relativePath.isEmpty) {
+      detail = issue.message;
+    } else {
+      detail = '$relativePath ${issue.message}';
+    }
+    throw StateError('Widgetbook constraints at $path: $detail.');
+  }
+
+  if (constraints.pattern case final pattern?) {
+    try {
+      RegExp(pattern);
+    } on FormatException {
+      throw StateError(
+        'Widgetbook constraints at $path: pattern is not valid Dart RegExp '
+        'syntax.',
+      );
+    }
+  }
+
+  final hasNumeric = constraints.minimum != null ||
+      constraints.exclusiveMinimum != null ||
+      constraints.maximum != null ||
+      constraints.exclusiveMaximum != null;
+  final numericProperty = property.type == PropertyType.integer ||
+      property.type == PropertyType.real ||
+      property.type == PropertyType.duration ||
+      property.type == PropertyType.fontWeight;
+  if (hasNumeric && !numericProperty) {
+    throw StateError(
+      'Widgetbook constraints at $path: numeric constraints are not valid for '
+      'PropertyType.${property.type.name}.',
+    );
+  }
+
+  final hasString = constraints.pattern != null ||
+      constraints.minLength != null ||
+      constraints.maxLength != null;
+  final stringProperty = property.type == PropertyType.string ||
+      property.type == PropertyType.color ||
+      property.type == PropertyType.enumValue;
+  if (hasString && !stringProperty) {
+    throw StateError(
+      'Widgetbook constraints at $path: string constraints are not valid for '
+      'PropertyType.${property.type.name}.',
+    );
+  }
+
+  final hasItems = constraints.minItems != null || constraints.maxItems != null;
+  final collectionProperty = property.type == PropertyType.widgetList ||
+      property.type == PropertyType.stringList ||
+      property.type == PropertyType.booleanList ||
+      isCustomerStructuredListShape(property.valueShape);
+  if (hasItems && !collectionProperty) {
+    throw StateError(
+      'Widgetbook constraints at $path: item constraints are not valid for '
+      'PropertyType.${property.type.name}.',
+    );
+  }
+
+  final allowedValues = constraints.allowedValues;
+  if (allowedValues == null) return;
+  if (widgetbookFiniteChoiceTransport(property.type) == null) {
+    throw StateError(
+      'Widgetbook constraints at $path: allowedValues requires a supported '
+      'scalar property; got PropertyType.${property.type.name}.',
+    );
+  }
+  for (var index = 0; index < allowedValues.length; index++) {
+    final value = allowedValues[index];
+    if (value == null) continue;
+    final compatible = switch (property.type) {
+      PropertyType.boolean => value is bool,
+      PropertyType.integer => value is int,
+      PropertyType.real ||
+      PropertyType.duration ||
+      PropertyType.fontWeight =>
+        value is num && value.isFinite,
+      PropertyType.string ||
+      PropertyType.color ||
+      PropertyType.enumValue =>
+        value is String,
+      _ => false,
+    };
+    if (!compatible) {
+      throw StateError(
+        'Widgetbook constraints at $path: allowedValues[$index] value $value '
+        '(${value.runtimeType}) is not compatible with '
+        'PropertyType.${property.type.name}.',
+      );
+    }
+  }
 }
 
 String _propertyDescription(

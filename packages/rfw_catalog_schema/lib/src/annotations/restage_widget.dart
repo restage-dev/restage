@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 import 'package:meta/meta_meta.dart';
 
+import 'package:rfw_catalog_schema/src/annotations/restage_library.dart';
 import 'package:rfw_catalog_schema/src/widget_library.dart';
 import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 
@@ -14,16 +15,34 @@ import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 /// annotation.
 ///
 /// Example:
+///
+/// `lib/restage_imports.dart`:
 /// ```dart
+/// import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+///
+/// export 'widgets/submit_button.dart';
+///
+/// final class AcmeWidgets extends WidgetLibrary {
+///   const AcmeWidgets();
+///
+///   @override
+///   final String namespace = 'acme.widgets';
+/// }
+///
+/// const WidgetLibrary acmeWidgets = AcmeWidgets();
+///
+/// @RestageLibrary(library: acmeWidgets, capabilityVersion: 1)
+/// const restageCatalog = 0;
+/// ```
+///
+/// `lib/widgets/submit_button.dart`:
+/// ```dart
+/// import 'package:flutter/material.dart';
 /// import 'package:rfw_catalog_schema/a2ui.dart' as a2ui;
-/// import 'package:rfw_catalog_schema/rfw.dart' as rfw;
+/// import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///
 /// @a2ui.Config.usage('Use for the primary form action.')
-/// @RestageWidget(
-///   name: 'SubmitButton',
-///   library: WidgetLibrary.custom('acme.widgets'),
-///   category: WidgetCategory.action,
-/// )
+/// @RestageWidget()
 /// class SubmitButton extends StatelessWidget {
 ///   const SubmitButton({
 ///     super.key,
@@ -47,37 +66,43 @@ import 'package:rfw_catalog_schema/src/widget_metadata.dart';
 @immutable
 @Target({TargetKind.classType})
 final class RestageWidget {
-  /// Const annotation constructor. [name], [library], and [category] are
-  /// required. When [description] is empty, code generation reads the
-  /// annotated class's Dart documentation.
+  /// Const annotation constructor.
+  ///
+  /// When [name] is omitted, code generation uses the annotated Dart class
+  /// name. When [library] is omitted, ownership is inferred from the exact
+  /// [RestageLibrary] barrel that exports the class. An omitted [category]
+  /// leaves the widget at the library root. When [description] is empty, code
+  /// generation reads the annotated class's Dart documentation.
   const RestageWidget({
-    required this.name,
-    required this.library,
-    required this.category,
+    this.name,
+    this.library,
+    this.category,
     this.description = '',
-    this.childrenSlot = ChildrenSlot.none,
     this.minSchemaVersion = 1,
   });
 
-  /// Catalog key. Must match the class name (e.g. `'ElevatedButton'`,
-  /// `'CupertinoButton'`) so codegen can disambiguate via import path.
-  final String name;
+  /// Optional catalog-key override.
+  ///
+  /// Omission uses the exact Dart class name. An explicitly supplied value
+  /// must contain non-whitespace characters.
+  final String? name;
 
-  /// Which sibling curated library this widget belongs to. Required so
-  /// authors declare design language explicitly.
-  final WidgetLibrary library;
+  /// Optional sibling-library override.
+  ///
+  /// Omission resolves ownership from exact [RestageLibrary] export
+  /// membership.
+  final WidgetLibrary? library;
 
-  /// Sub-grouping within the library. Drives editor palette placement.
-  final WidgetCategory category;
+  /// Optional sub-grouping within the library.
+  ///
+  /// Omission keeps the widget ungrouped at the library root.
+  final WidgetCategory? category;
 
   /// Description override for the widget.
   ///
   /// When empty, code generation reads the annotated class's Dart
   /// documentation.
   final String description;
-
-  /// Whether the widget accepts no, a single, or a list of children.
-  final ChildrenSlot childrenSlot;
 
   /// Catalog schema version that introduced this widget. Defaults to 1.
   final int minSchemaVersion;

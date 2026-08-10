@@ -13,7 +13,7 @@ Two custom widget libraries, authored as ordinary annotated Flutter widgets, are
 compiled by the build-time toolchain into a single genui A2UI catalog — no
 hand-written `CatalogItem`s, no hand-authored JSON schemas:
 
-- **`acme.widgets` (capability version 2)** — `CtaButton`, `IntegerListPicker`,
+- **`acme.widgets` (capability version 3)** — `CtaButton`, `IntegerListPicker`,
   `ProductCard`, `RatingPicker`, and `ScalarListPanel`.
 - **`acme.lessons` (capability version 1)** — `SectionHeader`, `Callout`, `ComparisonPanel`, `QuizCheck`.
 
@@ -35,6 +35,26 @@ The tests render the generated catalog through genui's real surface runtime and
 prove the pre-render check rejects a payload that references a component the
 catalog does not contain (fail-closed). See the [package README](../README.md) for
 the full step-by-step generation walkthrough.
+
+The lesson surface also executes the generated customer payload convention:
+protocol-owned `id` and `component` stay on the envelope, while every exact
+constructor input is nested under required `props`. `ComparisonPanel` proves
+three independently named child-bearing inputs (`introduction`, `examples`,
+and `conclusion`) on one class, and `Callout.detail` proves that no input needs
+to be named `child` or `children`.
+
+```json
+{
+  "id": "root",
+  "component": "ComparisonPanel",
+  "props": {
+    "heading": "Grammar showcase",
+    "introduction": "header",
+    "examples": ["callout", "quiz"],
+    "conclusion": "summary"
+  }
+}
+```
 
 ## Gate a payload before rendering
 

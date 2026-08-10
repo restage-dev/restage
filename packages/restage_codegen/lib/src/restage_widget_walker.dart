@@ -4,16 +4,18 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:glob/glob.dart';
+import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/customer_map_plan.dart';
 import 'package:restage_codegen/src/customer_record_plan.dart';
 import 'package:restage_codegen/src/customer_structured_admissibility.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
-    show DiagnosticSeverity, walkRestageLibrary;
+    show DiagnosticSeverity;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The admitted result of a per-package `@RestageWidget` walk: the
@@ -40,6 +42,22 @@ typedef RestageWidgetCollection = ({
   Map<String, int> stampedCapabilityVersions,
   List<PropertyExclusion> exclusions,
 });
+
+/// The exact whole-widget factory predicate used by the customer RFW walker.
+///
+/// This narrow seam keeps the permanent catalog/factory coherence test tied to
+/// the production customer-child configuration even when the remaining
+/// factory-rejection shapes can only enter through historical catalog data.
+@visibleForTesting
+bool isCustomerFactoryEmittableForWalker(
+  WidgetEntry widget, {
+  required CustomerReconstruction customer,
+}) =>
+    isFactoryEmittable(
+      widget,
+      customer: customer,
+      customerChildProperties: true,
+    );
 
 /// Walks every `lib/**.dart` asset in [buildStep]'s package for
 /// `@RestageWidget`-annotated classes, aggregates the resulting
@@ -82,6 +100,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   // conflicting redeclaration across files fails loud (not last-wins).
   final declaredCapabilityVersions = <String, int?>{};
 
+  final sources = <ResolvedPackageLibrary>[];
   await for (final assetId in buildStep.findAssets(Glob('lib/**.dart'))) {
     // Do not pre-filter with `resolver.isLibrary` — its implementation
     // calls `libraryFor` internally, so a guard would double the resolver
@@ -95,7 +114,20 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     } on NonLibraryAssetException {
       continue;
     }
-    final result = visitRestageWidgets(library, assetId);
+    sources.add((assetId: assetId, library: library));
+  }
+  sources
+      .sort((left, right) => left.assetId.path.compareTo(right.assetId.path));
+  final packageFacts = indexRestageWidgetPackage(sources);
+
+  for (final source in sources) {
+    final assetId = source.assetId;
+    final library = source.library;
+    final result = visitRestageWidgetsInPackage(
+      library,
+      assetId,
+      packageFacts: packageFacts,
+    );
     widgets.addAll(result.widgets);
     issues.addAll(result.issues);
     structuredTypes.addAll(result.structuredTypes);
@@ -121,7 +153,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
 
     // The customer library's declared `@RestageLibrary(capabilityVersion:)`,
     // if any (mirrors the A2UI builder's barrel read + conflict-detection).
-    final walk = walkRestageLibrary(barrel: library, barrelAssetId: assetId);
+    final walk = packageFacts.walksByAsset[assetId]!;
     for (final diagnostic in walk.diagnostics) {
       if (diagnostic.severity == DiagnosticSeverity.error) {
         issues.add(
@@ -206,8 +238,10 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     // Close the admit-then-skip gap: a structured-prop widget whose OTHER
     // props aren't all factory-emittable is excluded here, not
     // admitted-then-skipped (catalog + factory share this one admitted set).
-    isWholeWidgetEmittable: (widget) =>
-        isFactoryEmittable(widget, customer: emittabilityContext),
+    isWholeWidgetEmittable: (widget) => isCustomerFactoryEmittableForWalker(
+      widget,
+      customer: emittabilityContext,
+    ),
   );
   // Exclusion is a build-time capability loss the author needs to see, so it
   // is a warning: a builder's `info` is suppressed unless the build runs
@@ -361,7 +395,9 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
     );
   }
 
-  if (admittedWidgets.isEmpty) return null;
+  if (admittedWidgets.isEmpty && !packageFacts.hasWidgetDeclarations) {
+    return null;
+  }
 
   final ordered = admittedWidgets.toList()
     ..sort((a, b) {

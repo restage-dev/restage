@@ -8,23 +8,18 @@ void main() {
       library: WidgetLibrary.material,
       category: WidgetCategory.action,
       description: 'A call-to-action button.',
-      childrenSlot: ChildrenSlot.single,
     );
     expect(annotation.name, 'ElevatedButton');
     expect(annotation.library, WidgetLibrary.material);
     expect(annotation.category, WidgetCategory.action);
     expect(annotation.description, 'A call-to-action button.');
-    expect(annotation.childrenSlot, ChildrenSlot.single);
     expect(annotation.minSchemaVersion, 1);
   });
 
   test('RestageWidget defaults', () {
-    const annotation = RestageWidget(
-      name: 'Text',
-      library: WidgetLibrary.core,
-      category: WidgetCategory.decoration,
-      description: 'Static text.',
-    );
-    expect(annotation.childrenSlot, ChildrenSlot.none);
+    const annotation = RestageWidget(description: 'Static text.');
+    expect(annotation.name, isNull);
+    expect(annotation.library, isNull);
+    expect(annotation.category, isNull);
   });
 }

@@ -10,7 +10,7 @@ import 'package:restage_a2ui_example/restage_imports.dart';
 
 /// The end-to-end proof: the genui catalog generated from the example's
 /// `@RestageWidget` source (`dart run build_runner build`) renders the real
-/// customer widgets against genui 0.9.2 and the documented interactivity works —
+/// customer widgets against genui 0.10.1 and the documented interactivity works —
 /// a write-back round-trips (RatingPicker) and an event dispatches (CtaButton).
 ///
 /// This is the "it works" half of the ship-gate: the artifact a developer
@@ -29,7 +29,7 @@ Future<void> _pump(
       child: Builder(
         builder: (context) {
           final itemContext = CatalogItemContext(
-            data: data,
+            data: <String, Object?>{'props': data},
             id: 'root',
             type: type,
             buildChild: (childId, [dataContext]) => Text('child-$childId'),

@@ -10,15 +10,17 @@
 // optional Restage overlays, then re-run build_runner.
 
 import 'package:flutter/widgets.dart';
-import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart' as s0;
+import 'package:restage_widgetbook_example/widgets/bare_catalog_card.dart'
+    as s0;
+import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart' as s1;
 import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart'
-    as s1;
-import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
     as s2;
-import 'package:restage_widgetbook_example/widgets/feature_panel.dart' as s3;
-import 'package:restage_widgetbook_example/widgets/feature_row.dart' as s4;
-import 'package:restage_widgetbook_example/widgets/price_badge.dart' as s5;
-import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as s6;
+import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart'
+    as s3;
+import 'package:restage_widgetbook_example/widgets/feature_panel.dart' as s4;
+import 'package:restage_widgetbook_example/widgets/feature_row.dart' as s5;
+import 'package:restage_widgetbook_example/widgets/price_badge.dart' as s6;
+import 'package:restage_widgetbook_example/widgets/stat_tile.dart' as s7;
 import 'package:restage/restage.dart';
 
 /// Registers every emittable @RestageWidget-annotated class
@@ -32,27 +34,43 @@ void registerRestageCustomerWidgets() {
     capabilityVersion: 2,
     widgets: const <RestageWidgetFactory>[
       RestageWidgetFactory(
-        name: 'CatalogShowcase',
-        builder: _buildCatalogShowcase,
-      ),
+          name: 'BareCatalogCard', builder: _buildBareCatalogCard),
       RestageWidgetFactory(
-        name: 'ConstructorFidelityCorpus',
-        builder: _buildConstructorFidelityCorpus,
-      ),
+          name: 'CatalogShowcase', builder: _buildCatalogShowcase),
       RestageWidgetFactory(
-        name: 'ConstructorFidelityProof',
-        builder: _buildConstructorFidelityProof,
-      ),
+          name: 'ConstructorFidelityCorpus',
+          builder: _buildConstructorFidelityCorpus),
       RestageWidgetFactory(
-        name: 'ConstructorPositionalCorpus',
-        builder: _buildConstructorPositionalCorpus,
-      ),
+          name: 'ConstructorFidelityProof',
+          builder: _buildConstructorFidelityProof),
+      RestageWidgetFactory(
+          name: 'ConstructorPositionalCorpus',
+          builder: _buildConstructorPositionalCorpus),
       RestageWidgetFactory(name: 'FeaturePanel', builder: _buildFeaturePanel),
       RestageWidgetFactory(name: 'FeatureRow', builder: _buildFeatureRow),
       RestageWidgetFactory(name: 'PriceBadge', builder: _buildPriceBadge),
+      RestageWidgetFactory(
+          name: 'RequiredNullableWidgetProof',
+          builder: _buildRequiredNullableWidgetProof),
       RestageWidgetFactory(name: 'StatTile', builder: _buildStatTile),
     ],
   );
+}
+
+Widget _buildBareCatalogCard(BuildContext context, DataSource source) {
+  final _restagePresenceLabel = RestageRfwConstructorPresence.read(
+    source,
+    <Object>['label'],
+  );
+
+  return Function.apply(
+    s0.BareCatalogCard.new,
+    <Object?>[],
+    <Symbol, Object?>{
+      if (_restagePresenceLabel.supplied)
+        #label: source.v<String>(_restagePresenceLabel.valuePath),
+    },
+  ) as Widget;
 }
 
 Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
@@ -61,50 +79,40 @@ Widget _buildCatalogShowcase(BuildContext context, DataSource source) {
     <Object>['enabled'],
   );
 
-  return Function.apply(s0.CatalogShowcase.new, <Object?>[], <Symbol, Object?>{
-        #title:
-            source.v<String>(<Object>['title']) ??
-            (throw ArgumentError('CatalogShowcase.title is required.')),
-        if (_restagePresenceEnabled.supplied)
-          #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
-        #status:
-            RestageDecoders.enumByName<s0.CatalogShowcaseStatus>(
-              s0.CatalogShowcaseStatus.values,
-              source,
-              <Object>['status'],
-            ) ??
-            (throw ArgumentError('CatalogShowcase.status is required.')),
-        #onChanged:
-            source.handler<ValueChanged<bool>>(
+  return Function.apply(
+    s1.CatalogShowcase.new,
+    <Object?>[],
+    <Symbol, Object?>{
+      #title: source.v<String>(<Object>['title']) ??
+          (throw ArgumentError('CatalogShowcase.title is required.')),
+      if (_restagePresenceEnabled.supplied)
+        #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
+      #status: RestageDecoders.enumByName<s1.CatalogShowcaseStatus>(
+              s1.CatalogShowcaseStatus.values, source, <Object>['status']) ??
+          (throw ArgumentError('CatalogShowcase.status is required.')),
+      #onChanged: source.handler<ValueChanged<bool>>(
               <Object>['onChanged'],
               (trigger) =>
-                  (bool value) => trigger(<String, Object?>{'value': value}),
-            ) ??
-            (bool _) {},
-        #header: source.child(<Object>['header']),
-        #data: source.isMap(<Object>['data'])
-            ? s0.CatalogShowcaseData(
-                note:
-                    source.v<String>(<Object>['data', 'note']) ??
-                    (throw ArgumentError(
-                      'CatalogShowcaseData.note is required.',
-                    )),
-                count:
-                    source.v<int>(<Object>['data', 'count']) ??
-                    (throw ArgumentError(
-                      'CatalogShowcaseData.count is required.',
-                    )),
-              )
-            : (throw ArgumentError('CatalogShowcase.data is required.')),
-        #children: source.childList(<Object>['children']),
-      })
-      as Widget;
+                  (bool value) => trigger(<String, Object?>{'value': value})) ??
+          (bool _) {},
+      #hero: source.child(<Object>['hero']),
+      #details: source.childList(<Object>['details']),
+      #footer: source.optionalChild(<Object>['footer']),
+      #data: source.isMap(<Object>['data'])
+          ? s1.CatalogShowcaseData(
+              note: source.v<String>(<Object>['data', 'note']) ??
+                  (throw ArgumentError(
+                      'CatalogShowcaseData.note is required.')),
+              count: source.v<int>(<Object>['data', 'count']) ??
+                  (throw ArgumentError(
+                      'CatalogShowcaseData.count is required.')))
+          : (throw ArgumentError('CatalogShowcase.data is required.')),
+    },
+  ) as Widget;
 }
 
 Widget _buildConstructorFidelityCorpus(
-  BuildContext context,
-  DataSource source,
-) {
+    BuildContext context, DataSource source) {
   final _restagePresenceNullableText = RestageRfwConstructorPresence.read(
     source,
     <Object>['nullableText'],
@@ -138,108 +146,70 @@ Widget _buildConstructorFidelityCorpus(
     <Object>['data'],
   );
 
-  return Function.apply(s1.ConstructorFidelityCorpus.new, <Object?>[], <
-        Symbol,
-        Object?
-      >{
-        #value:
-            source.v<String>(<Object>['value']) ??
-            (throw ArgumentError(
-              'ConstructorFidelityCorpus.value is required.',
-            )),
-        #ordinaryLabel:
-            source.v<String>(<Object>['ordinaryLabel']) ??
-            (throw ArgumentError(
-              'ConstructorFidelityCorpus.ordinaryLabel is required.',
-            )),
-        #requiredNamed:
-            source.v<String>(<Object>['requiredNamed']) ??
-            (throw ArgumentError(
-              'ConstructorFidelityCorpus.requiredNamed is required.',
-            )),
-        if (_restagePresenceNullableText.supplied)
-          #nullableText: source.v<String>(
-            _restagePresenceNullableText.valuePath,
-          ),
-        if (_restagePresenceNullableSeed.supplied)
-          #nullableSeed: source.v<String>(
-            _restagePresenceNullableSeed.valuePath,
-          ),
-        if (_restagePresenceEnabled.supplied)
-          #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
-        if (_restagePresenceCount.supplied)
-          #count: source.v<int>(_restagePresenceCount.valuePath),
-        if (_restagePresenceMode.supplied)
-          #mode: RestageDecoders.enumByName<s1.ConstructorCorpusMode>(
-            s1.ConstructorCorpusMode.values,
+  return Function.apply(
+    s2.ConstructorFidelityCorpus.new,
+    <Object?>[],
+    <Symbol, Object?>{
+      #value: source.v<String>(<Object>['value']) ??
+          (throw ArgumentError('ConstructorFidelityCorpus.value is required.')),
+      #ordinaryLabel: source.v<String>(<Object>['ordinaryLabel']) ??
+          (throw ArgumentError(
+              'ConstructorFidelityCorpus.ordinaryLabel is required.')),
+      #requiredNamed: source.v<String>(<Object>['requiredNamed']) ??
+          (throw ArgumentError(
+              'ConstructorFidelityCorpus.requiredNamed is required.')),
+      if (_restagePresenceNullableText.supplied)
+        #nullableText: source.v<String>(_restagePresenceNullableText.valuePath),
+      if (_restagePresenceNullableSeed.supplied)
+        #nullableSeed: source.v<String>(_restagePresenceNullableSeed.valuePath),
+      if (_restagePresenceEnabled.supplied)
+        #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
+      if (_restagePresenceCount.supplied)
+        #count: source.v<int>(_restagePresenceCount.valuePath),
+      if (_restagePresenceMode.supplied)
+        #mode: RestageDecoders.enumByName<s2.ConstructorCorpusMode>(
+            s2.ConstructorCorpusMode.values,
             source,
-            _restagePresenceMode.valuePath,
-          ),
-        if (_restagePresenceDirectColor.supplied)
-          #directColor: ArgumentDecoders.color(
-            source,
-            _restagePresenceDirectColor.valuePath,
-          ),
-        if (_restagePresencePublicColor.supplied)
-          #publicColor: ArgumentDecoders.color(
-            source,
-            _restagePresencePublicColor.valuePath,
-          ),
-        if (_restagePresenceData.supplied)
-          #data: _restagePresenceData.hasValue
-              ? (source.isMap(<Object>[..._restagePresenceData.valuePath])
-                    ? s1.ConstructorCorpusData(
-                        nested:
-                            source.isMap(<Object>[
-                              ..._restagePresenceData.valuePath,
-                              'nested',
-                            ])
-                            ? s1.ConstructorCorpusNestedData(
-                                label:
-                                    source.v<String>(<Object>[
-                                      ..._restagePresenceData.valuePath,
-                                      'nested',
-                                      'label',
-                                    ]) ??
-                                    (throw ArgumentError(
-                                      'ConstructorCorpusNestedData.label is required.',
-                                    )),
-                              )
-                            : (throw ArgumentError(
-                                'ConstructorCorpusData.nested is required.',
-                              )),
-                        count:
-                            source.v<int>(<Object>[
-                              ..._restagePresenceData.valuePath,
-                              'count',
-                            ]) ??
-                            (throw ArgumentError(
-                              'ConstructorCorpusData.count is required.',
-                            )),
-                      )
-                    : (throw ArgumentError(
-                        'ConstructorFidelityCorpus.data is required.',
-                      )))
-              : (throw ArgumentError(
-                  'ConstructorFidelityCorpus.data is required.',
-                )),
-        #resetProof: source.voidHandler(<Object>['resetProof']) ?? () {},
-        #whenEnabledChanges:
-            source.handler<ValueChanged<bool>>(
+            _restagePresenceMode.valuePath),
+      if (_restagePresenceDirectColor.supplied)
+        #directColor: ArgumentDecoders.color(
+            source, _restagePresenceDirectColor.valuePath),
+      if (_restagePresencePublicColor.supplied)
+        #publicColor: ArgumentDecoders.color(
+            source, _restagePresencePublicColor.valuePath),
+      if (_restagePresenceData.supplied)
+        #data: _restagePresenceData.hasValue
+            ? (source.isMap(<Object>[..._restagePresenceData.valuePath])
+                ? s2.ConstructorCorpusData(
+                    nested: source.isMap(<Object>[..._restagePresenceData.valuePath, 'nested'])
+                        ? s2.ConstructorCorpusNestedData(
+                            label: source.v<String>(<Object>[
+                                  ..._restagePresenceData.valuePath,
+                                  'nested',
+                                  'label'
+                                ]) ??
+                                (throw ArgumentError(
+                                    'ConstructorCorpusNestedData.label is required.')))
+                        : (throw ArgumentError(
+                            'ConstructorCorpusData.nested is required.')),
+                    count: source
+                            .v<int>(<Object>[..._restagePresenceData.valuePath, 'count']) ??
+                        (throw ArgumentError('ConstructorCorpusData.count is required.')))
+                : (throw ArgumentError('ConstructorFidelityCorpus.data is required.')))
+            : (throw ArgumentError('ConstructorFidelityCorpus.data is required.')),
+      #resetProof: source.voidHandler(<Object>['resetProof']) ?? () {},
+      #whenEnabledChanges: source.handler<ValueChanged<bool>>(
               <Object>['whenEnabledChanges'],
               (trigger) =>
-                  (bool value) => trigger(<String, Object?>{'value': value}),
-            ) ??
-            (bool _) {},
-        #reportCount:
-            source.handler<ValueChanged<int>>(
+                  (bool value) => trigger(<String, Object?>{'value': value})) ??
+          (bool _) {},
+      #reportCount: source.handler<ValueChanged<int>>(
               <Object>['reportCount'],
               (trigger) =>
-                  (int value) => trigger(<String, Object?>{'value': value}),
-            ) ??
-            (int _) {},
-      })
-      as Widget;
+                  (int value) => trigger(<String, Object?>{'value': value})) ??
+          (int _) {},
+    },
+  ) as Widget;
 }
 
 Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
@@ -253,36 +223,27 @@ Widget _buildConstructorFidelityProof(BuildContext context, DataSource source) {
   );
 
   return Function.apply(
-        s2.ConstructorFidelityProof.new,
-        <Object?>[
-          source.v<String>(<Object>['label']) ??
-              (throw ArgumentError(
-                'ConstructorFidelityProof.label is required.',
-              )),
-        ],
-        <Symbol, Object?>{
-          if (_restagePresenceEnabled.supplied)
-            #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
-          if (_restagePresenceOptionalText.supplied)
-            #optionalText: source.v<String>(
-              _restagePresenceOptionalText.valuePath,
-            ),
-          #onChanged:
-              source.handler<ValueChanged<bool>>(
-                <Object>['onChanged'],
-                (trigger) =>
-                    (bool value) => trigger(<String, Object?>{'value': value}),
-              ) ??
-              (bool _) {},
-        },
-      )
-      as Widget;
+    s3.ConstructorFidelityProof.new,
+    <Object?>[
+      source.v<String>(<Object>['label']) ??
+          (throw ArgumentError('ConstructorFidelityProof.label is required.')),
+    ],
+    <Symbol, Object?>{
+      if (_restagePresenceEnabled.supplied)
+        #enabled: source.v<bool>(_restagePresenceEnabled.valuePath),
+      if (_restagePresenceOptionalText.supplied)
+        #optionalText: source.v<String>(_restagePresenceOptionalText.valuePath),
+      #onChanged: source.handler<ValueChanged<bool>>(
+              <Object>['onChanged'],
+              (trigger) =>
+                  (bool value) => trigger(<String, Object?>{'value': value})) ??
+          (bool _) {},
+    },
+  ) as Widget;
 }
 
 Widget _buildConstructorPositionalCorpus(
-  BuildContext context,
-  DataSource source,
-) {
+    BuildContext context, DataSource source) {
   final _restagePresenceLeading = RestageRfwConstructorPresence.read(
     source,
     <Object>['leading'],
@@ -292,31 +253,32 @@ Widget _buildConstructorPositionalCorpus(
     <Object>['trailing'],
   );
 
-  return Function.apply(s1.ConstructorPositionalCorpus.new, <Object?>[
-        source.v<String>(<Object>['requiredLabel']) ??
-            (throw ArgumentError(
-              'ConstructorPositionalCorpus.requiredLabel is required.',
-            )),
-        if (_restagePresenceLeading.supplied ||
-            _restagePresenceTrailing.supplied)
-          _restagePresenceLeading.supplied
-              ? (source.v<String>(_restagePresenceLeading.valuePath))
-              : 'leading-default',
-        if (_restagePresenceTrailing.supplied)
-          source.v<String>(_restagePresenceTrailing.valuePath),
-      ], <Symbol, Object?>{})
-      as Widget;
+  return Function.apply(
+    s2.ConstructorPositionalCorpus.new,
+    <Object?>[
+      source.v<String>(<Object>['requiredLabel']) ??
+          (throw ArgumentError(
+              'ConstructorPositionalCorpus.requiredLabel is required.')),
+      if (_restagePresenceLeading.supplied || _restagePresenceTrailing.supplied)
+        _restagePresenceLeading.supplied
+            ? (source.v<String>(_restagePresenceLeading.valuePath))
+            : 'leading-default',
+      if (_restagePresenceTrailing.supplied)
+        source.v<String>(_restagePresenceTrailing.valuePath),
+    ],
+    <Symbol, Object?>{},
+  ) as Widget;
 }
 
 Widget _buildFeaturePanel(BuildContext context, DataSource source) {
-  return s3.FeaturePanel(
-    header: source.child(<Object>['header']),
+  return s4.FeaturePanel(
+    header: source.optionalChild(<Object>['header']),
     children: source.childList(<Object>['children']),
   );
 }
 
 Widget _buildFeatureRow(BuildContext context, DataSource source) {
-  return s4.FeatureRow(
+  return s5.FeatureRow(
     title: source.v<String>(<Object>['title']) ?? 'Unlimited projects',
     subtitle:
         source.v<String>(<Object>['subtitle']) ?? 'No caps on what you ship.',
@@ -324,14 +286,24 @@ Widget _buildFeatureRow(BuildContext context, DataSource source) {
 }
 
 Widget _buildPriceBadge(BuildContext context, DataSource source) {
-  return s5.PriceBadge(
+  return s6.PriceBadge(
     price: source.v<String>(<Object>['price']) ?? '\$9.99',
     period: source.v<String>(<Object>['period']) ?? 'mo',
   );
 }
 
+Widget _buildRequiredNullableWidgetProof(
+    BuildContext context, DataSource source) {
+  return s2.RequiredNullableWidgetProof(
+    source.optionalChild(<Object>['positionalNullable']),
+    source.child(<Object>['positionalControl']),
+    namedNullable: source.optionalChild(<Object>['namedNullable']),
+    namedControl: source.child(<Object>['namedControl']),
+  );
+}
+
 Widget _buildStatTile(BuildContext context, DataSource source) {
-  return s6.StatTile(
+  return s7.StatTile(
     label: source.v<String>(<Object>['label']) ?? 'Active users',
     value: source.v<String>(<Object>['value']) ?? '1,204',
   );

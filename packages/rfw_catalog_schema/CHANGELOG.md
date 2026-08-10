@@ -12,10 +12,18 @@ release version and publication timing are assigned separately.
   catalog boundary.
 - Remove the closed event-name enum and event rename/declaration fields. An
   event's identity is now the exact callback constructor property name.
-- Add pure-Dart `a2ui.Config` target annotations with aggregate and composable
-  shorthand constructors. `rfw.Config` remains a const target marker.
+- Add pure-Dart target configuration annotations with aggregate and composable
+  shorthand constructors for A2UI, RFW, and Widgetbook.
+- Add `EmitTarget` and target-selective `@Ignore` authoring. Bare `@ignore` and
+  `@Ignore()` retain their all-target behavior.
+- Add class-level `enabled` configuration and a composable `Config.enabled`
+  shorthand for RFW, A2UI, and Widgetbook customer-widget targets.
 - Remove the deprecated target fields from `RestageWidget` and
   `RestageProperty`.
+- Remove public `RestageWidget.childrenSlot`. Customer child-bearing properties
+  are derived from every exact `Widget` and `List<Widget>` constructor input;
+  the `ChildrenSlot` enum and `WidgetEntry.childrenSlot` wire field remain for
+  curated built-ins and backwards-compatible decoding.
 
 ## 1.2.0
 

@@ -33,10 +33,12 @@ Map<String, String> assignA2uiSafeDefinitionKeys(
   return keys;
 }
 
-/// Whether [fieldName] collides with GenUI's flattened component envelope.
+/// Whether [fieldName] collides with GenUI's flattened built-in component
+/// envelope.
 ///
-/// This reservation applies only to top-level widget field roots. Nested rich
-/// data members with either name remain ordinary schema fields.
+/// Customer component fields live under `props` and do not use this
+/// reservation. For flat built-ins it applies only to top-level widget field
+/// roots; nested rich-data members remain ordinary schema fields.
 bool isReservedA2uiComponentEnvelopeField(String fieldName) =>
     fieldName == 'id' || fieldName == 'component';
 

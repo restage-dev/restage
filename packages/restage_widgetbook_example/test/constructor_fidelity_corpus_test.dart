@@ -77,7 +77,7 @@ void main() {
     expect(
       a2uiCatalog,
       allOf(<Matcher>[
-        contains('p2.ConstructorFidelityCorpus('),
+        contains('.ConstructorFidelityCorpus('),
         contains('restageA2uiWriteEnabled'),
         contains('restageA2uiWriteCount'),
         contains("name: 'resetProof'"),
@@ -144,8 +144,8 @@ void main() {
       rfwFactories,
       allOf(
         contains(
-          'if (_restagePresenceLeading.supplied ||\n'
-          '            _restagePresenceTrailing.supplied)',
+          'if (_restagePresenceLeading.supplied || '
+          '_restagePresenceTrailing.supplied)',
         ),
         contains(": 'leading-default'"),
         contains('if (_restagePresenceTrailing.supplied)'),

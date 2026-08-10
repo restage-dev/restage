@@ -1,8 +1,12 @@
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
+import 'package:restage_codegen/src/customer_structured_admissibility.dart';
+import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -733,72 +737,101 @@ void main() {
       );
     });
 
-    // THE ADMIT-THEN-SKIP COHERENCE ANCHOR. A widget this feature ADMITS for a
-    // structured prop must be EXCLUDED-loud if the widget is otherwise
-    // unemittable by the factory, so the catalog never carries a widget the
-    // factory would skip. Whole-widget emittability at the ONE admission point.
-    //
-    // The unemittable trigger here is `childrenSlot: ChildrenSlot.single` on a
-    // class with NO `child` widget property: the factory emitter's
-    // `_canonicalChildPropertyOf` finds no canonical child for the single slot,
-    // so it cannot mechanically construct the widget and skips it — hence the
-    // whole widget is excluded, not admitted-then-skipped.
-    //
-    // If that shape is ever MADE emittable, RE-ANCHOR this test on another
-    // still-unemittable trigger — do NOT delete it; the invariant it guards is
-    // permanent. (A direct customer-enum prop was the original trigger; it is
-    // no longer unemittable — the catalog build now carries the enum identity,
-    // so the widget is admitted + emitted, a path proven in
-    // customer_scalar_vocabulary_test.)
+    // THE PERMANENT ADMIT-THEN-SKIP COHERENCE ANCHOR. Customer source can no
+    // longer author the malformed canonical child slot that remains a real
+    // historical-catalog factory rejection. Exercise that rejection through
+    // the walker's production predicate (including
+    // `customerChildProperties: true`), then prove admission excludes it.
     test(
-        'a structured widget that is otherwise factory-unemittable is '
-        'EXCLUDED from the catalog (never admitted-then-factory-skipped)',
-        () async {
-      const mixed = '''
-        import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-        @RestageLibrary(
-          library: WidgetLibrary.custom('acme.design_system'),
-          capabilityVersion: 1,
-        )
-        const restageLibrary = 0;
-        class Badge { const Badge({required this.label}); final String label; }
-        @RestageWidget(name: 'PlainButton',
-          library: WidgetLibrary.custom('acme.design_system'),
-          category: WidgetCategory.input, description: 'CTA.')
-        class PlainButton { const PlainButton(); }
-        @RestageWidget(name: 'BadgeCard',
-          library: WidgetLibrary.custom('acme.design_system'),
-          category: WidgetCategory.decoration, description: 'c',
-          childrenSlot: ChildrenSlot.single)
-        class BadgeCard {
-          const BadgeCard({required this.badge});
-          @RestageProperty(description: 'b') final Badge badge;
-        }
-      ''';
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'restage_codegen',
+        'walker production factory rejection excludes a structured widget '
+        'before catalog emission', () async {
+      final visited = await runWidgetVisitorOn({
+        'lib/widgets.dart': source,
+      });
+      final original = visited.widgets.singleWhere(
+        (widget) => widget.name == 'BadgeCard',
       );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/widgets.dart'),
-        mixed,
+      final malformedHistorical = WidgetEntry(
+        wireId: original.wireId,
+        name: original.name,
+        library: original.library,
+        category: original.category,
+        description: original.description,
+        flutterType: original.flutterType,
+        childrenSlot: ChildrenSlot.single,
+        properties: original.properties,
+      );
+      final context = (
+        structuredBySourceType: {
+          for (final structured in visited.structuredTypes)
+            structured.sourceType: structured,
+        },
+        plansBySourceType: visited.reconstructionPlans,
+        mapPlans: visited.mapPlans,
+        recordPlans: visited.recordPlans,
+        slotTargets: visited.slotTargets,
+        nullableStructuredSlots: visited.nullableStructuredSlots,
+        aliases: const <String, String>{},
+      );
+      final customerListControl = WidgetEntry(
+        wireId: original.wireId,
+        name: original.name,
+        library: original.library,
+        category: original.category,
+        description: original.description,
+        flutterType: original.flutterType,
+        childrenSlot: ChildrenSlot.none,
+        properties: <PropertyEntry>[
+          ...original.properties,
+          const PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'regions',
+            type: PropertyType.widgetList,
+            description: 'Customer child regions.',
+            required: true,
+          ),
+        ],
       );
 
-      await testBuilder(
-        const UserCatalogBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/widgets.dart': mixed},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|lib/user_catalog.g.dart': decodedMatches(
-            allOf(
-              contains("name: 'PlainButton'"),
-              // BadgeCard is factory-unemittable (a single-child slot with no
-              // canonical `child` property) -> excluded from the catalog too
-              // (not admit-then-skip).
-              isNot(contains("name: 'BadgeCard'")),
-            ),
-          ),
-        },
+      expect(
+        isFactoryEmittable(customerListControl, customer: context),
+        isFalse,
+        reason: 'the default predicate retains curated widget-list policy',
+      );
+      expect(
+        isCustomerFactoryEmittableForWalker(
+          customerListControl,
+          customer: context,
+        ),
+        isTrue,
+        reason: 'the production walker must enable exact customer lists',
+      );
+
+      expect(
+        isCustomerFactoryEmittableForWalker(
+          malformedHistorical,
+          customer: context,
+        ),
+        isFalse,
+      );
+      final admission = computeAdmission(
+        widgets: [malformedHistorical],
+        structuredTypes: visited.structuredTypes,
+        slotTargets: visited.slotTargets,
+        localUnrenderable: visited.localUnrenderable,
+        widgetUnrenderable: visited.widgetUnrenderable,
+        mapPlans: visited.mapPlans,
+        isWholeWidgetEmittable: (widget) => isCustomerFactoryEmittableForWalker(
+          widget,
+          customer: context,
+        ),
+      );
+
+      expect(admission.admitted, isEmpty);
+      expect(admission.excluded, hasLength(1));
+      expect(
+        admission.excluded.single.reason,
+        contains('admitted-then-skipped incoherence'),
       );
     });
 

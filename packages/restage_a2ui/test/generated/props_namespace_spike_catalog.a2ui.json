@@ -1,0 +1,198 @@
+{
+  "a2uiCatalog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "restage:spike/a2ui-required-props/v0.9.1",
+    "catalogId": "restage:spike/a2ui-required-props/v0.9.1",
+    "a2uiProtocolVersion": "0.9.1",
+    "components": {
+      "CustomerCard": {
+        "$defs": {
+          "SpikeNode": {
+            "type": "object",
+            "properties": {
+              "label": {"type": "string"},
+              "child": {
+                "anyOf": [
+                  {"$ref": "#/$defs/SpikeNode"},
+                  {"type": "null"}
+                ]
+              }
+            },
+            "required": ["label"]
+          },
+          "__a2ui_root__": {
+            "type": "object",
+            "properties": {
+              "props": {
+                "type": "object",
+                "properties": {
+                  "id": {"type": "string"},
+                  "component": {"type": "string"},
+                  "catalogId": {"type": "string"},
+                  "props": {"type": "string"},
+                  "literalValue": {
+                    "oneOf": [
+                      {"type": "string"},
+                      {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                        "required": ["path"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {"type": "string"},
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": ["call"]
+                      }
+                    ]
+                  },
+                  "pathValue": {
+                    "oneOf": [
+                      {"type": "string"},
+                      {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                        "required": ["path"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {"type": "string"},
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": ["call"]
+                      }
+                    ]
+                  },
+                  "callValue": {
+                    "oneOf": [
+                      {"type": "string"},
+                      {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                        "required": ["path"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {"type": "string"},
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": ["call"]
+                      }
+                    ]
+                  },
+                  "node": {"$ref": "#/$defs/SpikeNode"},
+                  "counts": {
+                    "type": "object",
+                    "additionalProperties": {"type": "integer"}
+                  },
+                  "meta": {
+                    "type": "object",
+                    "properties": {
+                      "label": {"type": "string"},
+                      "count": {"type": "integer"}
+                    },
+                    "required": ["label", "count"]
+                  },
+                  "leading": {"type": "string"},
+                  "children": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  },
+                  "enabled": {
+                    "oneOf": [
+                      {"type": "boolean"},
+                      {
+                        "type": "object",
+                        "properties": {"path": {"type": "string"}},
+                        "required": ["path"]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "call": {"type": "string"},
+                          "args": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": ["call"]
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "component",
+                  "catalogId",
+                  "props",
+                  "literalValue",
+                  "pathValue",
+                  "callValue",
+                  "node",
+                  "counts",
+                  "meta",
+                  "leading",
+                  "children",
+                  "enabled"
+                ]
+              }
+            },
+            "required": ["props"]
+          }
+        },
+        "$ref": "#/$defs/__a2ui_root__",
+        "properties": {
+          "component": {
+            "type": "string",
+            "enum": ["CustomerCard"]
+          }
+        },
+        "required": ["component"]
+      },
+      "SpikeLeaf": {
+        "type": "object",
+        "properties": {
+          "props": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}},
+            "required": ["label"]
+          },
+          "component": {
+            "type": "string",
+            "enum": ["SpikeLeaf"]
+          }
+        },
+        "required": ["component", "props"]
+      },
+      "ExternalPropsCard": {
+        "type": "object",
+        "properties": {
+          "props": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}},
+            "required": ["label"]
+          },
+          "component": {
+            "type": "string",
+            "enum": ["ExternalPropsCard"]
+          }
+        },
+        "required": ["component", "props"]
+      }
+    },
+    "functions": {}
+  }
+}

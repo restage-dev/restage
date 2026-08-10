@@ -9,10 +9,13 @@ import 'package:analyzer/dart/element/type_visitor.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/enum_constant_identity.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _catalogSchemaOrigin = 'package:rfw_catalog_schema';
+const String _emitTargetOrigin =
+    'package:rfw_catalog_schema/src/annotations/emit_target.dart';
 
 ElementAnnotation? _catalogAnnotation(Element element, String name) =>
     firstAnnotationFromOriginAny(element, {name}, _catalogSchemaOrigin);
@@ -31,10 +34,17 @@ final class WidgetConstructorInput {
     required this.assertedNonNull,
     required this.nullable,
     required this.inherited,
+    this.ignoreTargets,
+    this.hasIgnore = false,
   });
 
   /// The local constructor formal, in constructor order.
   final FormalParameterElement formal;
+
+  /// Formal declarations from [formal] through its inherited constructor
+  /// chain, ending at the declaration that initializes [field].
+  Iterable<FormalParameterElement> get formalChain =>
+      widgetConstructorFormalChain(formal);
 
   /// The one public final field initialized by [formal].
   final FieldElement field;
@@ -56,6 +66,16 @@ final class WidgetConstructorInput {
 
   /// Whether [formal] is a supported super formal.
   final bool inherited;
+
+  /// Whether an authored `Ignore` applies, independently of decoder omission.
+  final bool hasIgnore;
+
+  /// Selected exclusion targets, or `null` for every target when ignored.
+  final Set<EmitTarget>? ignoreTargets;
+
+  /// Whether the authored exclusion applies to [target].
+  bool isIgnoredFor(EmitTarget target) =>
+      hasIgnore && (ignoreTargets == null || ignoreTargets!.contains(target));
 
   /// The public constructor/property name.
   String get name => formal.name ?? field.name ?? '<unnamed>';
@@ -221,15 +241,107 @@ final class WidgetConstructorFacts {
   /// Creates a normalized constructor fact set.
   WidgetConstructorFacts({
     required List<WidgetConstructorInput> inputs,
+    required List<WidgetConstructorInput> allInputs,
     required List<Issue> issues,
   })  : inputs = List.unmodifiable(inputs),
+        allInputs = List.unmodifiable(allInputs),
         issues = List.unmodifiable(issues);
 
   /// Supported inputs, in constructor declaration order.
   final List<WidgetConstructorInput> inputs;
 
+  /// Every neutral constructor input in declaration order, including inputs
+  /// selectively omitted from [inputs] by target projection.
+  final List<WidgetConstructorInput> allInputs;
+
   /// Loud failures and migration notices discovered during normalization.
   final List<Issue> issues;
+}
+
+/// Projects neutral constructor facts through one public emit target.
+WidgetConstructorFacts projectWidgetConstructorFacts(
+  ClassElement cls,
+  AssetId assetId,
+  WidgetConstructorFacts facts, {
+  required EmitTarget target,
+}) {
+  final issues = <Issue>[...facts.issues];
+  final inputs = <WidgetConstructorInput>[];
+  final className = cls.name ?? '<unnamed>';
+  final location = '${assetId.path}#$className';
+
+  for (final input in facts.inputs) {
+    if (!input.isIgnoredFor(target)) {
+      inputs.add(input);
+      continue;
+    }
+    final inputLocation = '$location.${input.name}';
+    if (input.formal.isRequired) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidWidgetConstructorInput,
+          message: 'Constructor input $className.${input.name} is required '
+              'and cannot be excluded with @Ignore. Give the parameter a '
+              'default, or expose a catalog-facing wrapper that omits it.',
+          location: inputLocation,
+        ),
+      );
+    } else if (input.assertedNonNull) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidWidgetConstructorInput,
+          message: 'Constructor input $className.${input.name} is guarded by '
+              'a non-null assert and cannot be excluded with @Ignore. '
+              'Assertions are removed from release builds, so omission '
+              'would not preserve the constructor contract. Give the '
+              'parameter an ordinary default, or expose a catalog-facing '
+              'wrapper that omits it.',
+          location: inputLocation,
+        ),
+      );
+    } else {
+      // The omission is validated against the final emitted positional set,
+      // after target capability exclusions are known.
+    }
+  }
+
+  _addMigrationNotices(
+    cls,
+    inputs,
+    assetId,
+    issues,
+    includeOrderNotice: false,
+  );
+  return WidgetConstructorFacts(
+    inputs: inputs,
+    allInputs: facts.allInputs,
+    issues: issues,
+  );
+}
+
+/// Returns [formal] and every analyzer-resolved inherited constructor formal.
+///
+/// The terminal element is ordinarily a field formal for an admitted inherited
+/// input. A malformed cycle fails loudly rather than leaving constructor
+/// authoring only partially inspected.
+Iterable<FormalParameterElement> widgetConstructorFormalChain(
+  FormalParameterElement formal,
+) sync* {
+  final seen = Set<FormalParameterElement>.identity();
+  FormalParameterElement? current = formal;
+  while (current != null) {
+    final declaration = current.baseElement;
+    if (!seen.add(declaration)) {
+      throw StateError(
+        'Constructor formal inheritance contains a cycle at '
+        "'${declaration.name ?? '<unnamed>'}'.",
+      );
+    }
+    yield declaration;
+    current = declaration is SuperFormalParameterElement
+        ? declaration.superConstructorParameter
+        : null;
+  }
 }
 
 /// Reads the unnamed generative constructor that generated factories call.
@@ -239,17 +351,10 @@ WidgetConstructorFacts readWidgetConstructorFacts(
 ) {
   final issues = <Issue>[];
   final inputs = <WidgetConstructorInput>[];
-  final ignoredFormals = <FormalParameterElement>{};
   final ignoredFields = <FieldElement>{};
   final className = cls.name ?? '<unnamed>';
   final location = '${assetId.path}#$className';
-  final constructor = cls.constructors
-      .where(
-        (candidate) =>
-            !candidate.isFactory &&
-            const {null, '', 'new'}.contains(candidate.name),
-      )
-      .firstOrNull;
+  final constructor = _unnamedGenerativeConstructor(cls);
   if (constructor == null) {
     issues.add(
       Issue(
@@ -259,7 +364,11 @@ WidgetConstructorFacts readWidgetConstructorFacts(
         location: location,
       ),
     );
-    return WidgetConstructorFacts(inputs: inputs, issues: issues);
+    return WidgetConstructorFacts(
+      inputs: inputs,
+      allInputs: inputs,
+      issues: issues,
+    );
   }
 
   for (final formal in constructor.formalParameters) {
@@ -284,55 +393,41 @@ WidgetConstructorFacts readWidgetConstructorFacts(
     final valid = resolved as _ResolvedInput;
     final assertedNonNull = _hasAssertedNonNullGuard(constructor, formal);
     final ignoreAnnotation = _inputAnnotation(formal, valid, 'Ignore');
-    if (ignoreAnnotation != null &&
-        ignoreAnnotation.computeConstantValue() == null) {
-      // The exclusion is spelled but does not resolve, so it cannot be
-      // honoured — and it must not be ignored either, because that would put
-      // the input back into the catalog without saying so.
+    _IgnoreSelection? ignoreSelection;
+    if (ignoreAnnotation != null) {
       ignoredFields.add(valid.field);
-      issues.add(
-        Issue(
-          code: IssueCode.invalidWidgetConstructorInput,
-          message: '@ignore on $className.$inputName could '
-              'not be resolved, so the exclusion cannot be honoured. Treating '
-              'it as absent would put the input back into the generated '
-              'catalog with nothing to show for it. Check that the annotation '
-              'is imported.',
-          location: inputLocation,
-        ),
-      );
-      continue;
-    }
-    final ignored = ignoreAnnotation != null;
-    if (ignored) {
-      ignoredFields.add(valid.field);
-      if (formal.isRequired) {
+      final ignoreValue = ignoreAnnotation.computeConstantValue();
+      if (ignoreValue == null) {
+        // The exclusion is spelled but does not resolve, so it cannot be
+        // honoured — and it must not be ignored either, because that would put
+        // the input back into the catalog without saying so.
         issues.add(
           Issue(
             code: IssueCode.invalidWidgetConstructorInput,
-            message: 'Constructor input $className.$inputName is required and '
-                'cannot be excluded with @Ignore. Give the parameter a '
-                'default, or expose a catalog-facing wrapper that omits it.',
+            message: ignoreAnnotation.element == null
+                ? '@ignore on $className.$inputName could not be resolved, so '
+                    'the exclusion cannot be honoured. Treating it as absent '
+                    'would put the input back into the generated catalog with '
+                    'nothing to show for it. Check that the annotation is '
+                    'imported.'
+                : '@Ignore on $className.$inputName could not be '
+                    'const-evaluated. Use a const list or set containing only '
+                    'rfw_catalog_schema EmitTarget values.',
             location: inputLocation,
           ),
         );
-      } else if (assertedNonNull) {
-        issues.add(
-          Issue(
-            code: IssueCode.invalidWidgetConstructorInput,
-            message: 'Constructor input $className.$inputName is guarded by a '
-                'non-null assert and cannot be excluded with @Ignore. '
-                'Assertions are removed from release builds, so omission '
-                'would not preserve the constructor contract. Give the '
-                'parameter an ordinary default, or expose a catalog-facing '
-                'wrapper that omits it.',
-            location: inputLocation,
-          ),
-        );
-      } else {
-        ignoredFormals.add(formal);
+        continue;
       }
-      continue;
+      ignoreSelection = _readIgnoreSelection(
+        ignoreValue,
+        className: className,
+        inputName: inputName,
+        location: inputLocation,
+        issues: issues,
+      );
+      if (ignoreSelection == null) {
+        continue;
+      }
     }
     final propertyAnnotation =
         _inputAnnotation(formal, valid, 'RestageProperty');
@@ -353,37 +448,10 @@ WidgetConstructorFacts readWidgetConstructorFacts(
         assertedNonNull: assertedNonNull,
         nullable: cls.library.typeSystem.isNullable(valid.type),
         inherited: valid.inherited,
+        hasIgnore: ignoreSelection != null,
+        ignoreTargets: ignoreSelection?.targets,
       ),
     );
-  }
-
-  final admittedFormals = {for (final input in inputs) input.formal};
-  final formals = constructor.formalParameters;
-  for (var index = 0; index < formals.length; index++) {
-    final ignoredFormal = formals[index];
-    if (!ignoredFormal.isPositional ||
-        !ignoredFormals.contains(ignoredFormal)) {
-      continue;
-    }
-    for (final laterFormal in formals.skip(index + 1)) {
-      if (!laterFormal.isPositional || !admittedFormals.contains(laterFormal)) {
-        continue;
-      }
-      final ignoredName = ignoredFormal.name ?? '<unnamed>';
-      final laterName = laterFormal.name ?? '<unnamed>';
-      issues.add(
-        Issue(
-          code: IssueCode.invalidWidgetConstructorInput,
-          message: 'Constructor input $className.$ignoredName cannot be '
-              'excluded while later positional input $laterName is included, '
-              'because excluding an earlier positional would shift the '
-              'arguments after it. Make $ignoredName named, or exclude '
-              '$laterName and all later positional inputs too.',
-          location: '$location.$ignoredName',
-        ),
-      );
-      break;
-    }
   }
 
   final boundFields = {
@@ -407,8 +475,115 @@ WidgetConstructorFacts readWidgetConstructorFacts(
     );
   }
 
-  _addMigrationNotices(cls, inputs, assetId, issues);
-  return WidgetConstructorFacts(inputs: inputs, issues: issues);
+  // Preserve the neutral fact reader's historical migration diagnostics.
+  // Selectively ignored inputs are added back only by target projection when
+  // that target actually includes them.
+  _addMigrationNotices(
+    cls,
+    inputs.where((input) => !input.hasIgnore).toList(growable: false),
+    assetId,
+    issues,
+  );
+  return WidgetConstructorFacts(
+    inputs: inputs,
+    allInputs: inputs,
+    issues: issues,
+  );
+}
+
+ConstructorElement? _unnamedGenerativeConstructor(ClassElement cls) =>
+    cls.constructors
+        .where(
+          (candidate) =>
+              !candidate.isFactory &&
+              const {null, '', 'new'}.contains(candidate.name),
+        )
+        .firstOrNull;
+
+final class _IgnoreSelection {
+  const _IgnoreSelection({required this.targets});
+
+  final Set<EmitTarget>? targets;
+}
+
+_IgnoreSelection? _readIgnoreSelection(
+  DartObject value, {
+  required String className,
+  required String inputName,
+  required String location,
+  required List<Issue> issues,
+}) {
+  final targetValue = value.getField('targets');
+  if (targetValue == null || targetValue.isNull) {
+    return const _IgnoreSelection(targets: null);
+  }
+  final values =
+      targetValue.toListValue() ?? targetValue.toSetValue()?.toList();
+  if (values == null) {
+    issues.add(
+      Issue(
+        code: IssueCode.invalidWidgetConstructorInput,
+        message: '@Ignore on $className.$inputName uses a custom const '
+            'Iterable that analyzer cannot enumerate. Use a const list or '
+            'set of EmitTarget values.',
+        location: location,
+      ),
+    );
+    return null;
+  }
+  if (values.isEmpty) {
+    issues.add(
+      Issue(
+        code: IssueCode.invalidWidgetConstructorInput,
+        message: '@Ignore targets on $className.$inputName must not be empty. '
+            'Omit targets to exclude every emit target.',
+        location: location,
+      ),
+    );
+    return null;
+  }
+  final targets = <EmitTarget>{};
+  for (final targetValue in values) {
+    final element = targetValue.type?.element;
+    if (element is! EnumElement ||
+        element.name != 'EmitTarget' ||
+        element.library.identifier != _emitTargetOrigin) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidWidgetConstructorInput,
+          message: '@Ignore on $className.$inputName accepts only values from '
+              'rfw_catalog_schema EmitTarget.',
+          location: location,
+        ),
+      );
+      return null;
+    }
+    final constant = canonicalAnalyzerEnumConstant(targetValue, element);
+    final target = switch (constant?.identity.member) {
+      'rfw' => EmitTarget.rfw,
+      'a2ui' => EmitTarget.a2ui,
+      'widgetbook' => EmitTarget.widgetbook,
+      _ => null,
+    };
+    if (target == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidWidgetConstructorInput,
+          message: '@Ignore on $className.$inputName contains an unknown '
+              'rfw_catalog_schema EmitTarget value.',
+          location: location,
+        ),
+      );
+      return null;
+    }
+    targets.add(target);
+  }
+  return _IgnoreSelection(
+    targets: Set.unmodifiable([
+      for (final target in EmitTarget.values)
+        if (targets.contains(target)) target,
+    ]),
+  );
 }
 
 bool _hasAssertedNonNullGuard(
@@ -1202,12 +1377,11 @@ FieldFormalParameterElement? _backingFieldFormal(
 FormalParameterElement? _terminalSuperConstructorParameter(
   SuperFormalParameterElement formal,
 ) {
-  final seen = <FormalParameterElement>{};
-  FormalParameterElement? current = formal;
-  while (current is SuperFormalParameterElement && seen.add(current)) {
-    current = current.superConstructorParameter;
+  FormalParameterElement? terminal;
+  for (final current in widgetConstructorFormalChain(formal)) {
+    terminal = current;
   }
-  return current;
+  return terminal is SuperFormalParameterElement ? null : terminal;
 }
 
 String? _fieldObstruction(FieldElement field, DartType type) {
@@ -1305,8 +1479,9 @@ void _addMigrationNotices(
   ClassElement cls,
   List<WidgetConstructorInput> inputs,
   AssetId assetId,
-  List<Issue> issues,
-) {
+  List<Issue> issues, {
+  bool includeOrderNotice = true,
+}) {
   final className = cls.name ?? '<unnamed>';
   for (final input in inputs) {
     final annotation = input.propertyAnnotation;
@@ -1328,15 +1503,81 @@ void _addMigrationNotices(
       message = null;
     }
     if (message == null) continue;
-    issues.add(
-      Issue(
-        code: IssueCode.constructorCatalogMigration,
-        message: message,
-        location: '${assetId.path}#$className.${input.name}',
-      ),
-    );
+    final location = '${assetId.path}#$className.${input.name}';
+    if (!issues.any(
+      (issue) =>
+          issue.code == IssueCode.constructorCatalogMigration &&
+          issue.location == location,
+    )) {
+      issues.add(
+        Issue(
+          code: IssueCode.constructorCatalogMigration,
+          message: message,
+          location: location,
+        ),
+      );
+    }
   }
 
+  if (includeOrderNotice) {
+    _addConstructorOrderMigrationNotice(
+      cls,
+      inputs,
+      assetId,
+      issues,
+    );
+  }
+}
+
+/// Adds target-specific order migration diagnostics after final property
+/// capability and positional-hole validation are known.
+@internal
+void addProjectedConstructorOrderMigrationNotice(
+  ClassElement cls,
+  WidgetConstructorFacts facts,
+  AssetId assetId, {
+  required EmitTarget target,
+  required Set<String> emittedPropertyNames,
+  required List<Issue> issues,
+}) {
+  if (!facts.allInputs.any((input) => input.ignoreTargets != null)) return;
+
+  final legallyOmittedFields = Set<FieldElement>.identity();
+  for (final (index, input) in facts.allInputs.indexed) {
+    if (input.ignoreTargets == null ||
+        !input.isIgnoredFor(target) ||
+        input.required) {
+      continue;
+    }
+    final createsPositionalHole = input.positional &&
+        facts.allInputs.skip(index + 1).any(
+              (later) =>
+                  later.positional && emittedPropertyNames.contains(later.name),
+            );
+    if (!createsPositionalHole) legallyOmittedFields.add(input.field);
+  }
+
+  _addConstructorOrderMigrationNotice(
+    cls,
+    facts.inputs,
+    assetId,
+    issues,
+    existingIssues: facts.issues,
+    messagePrefix: 'For the ${target.name} target, ',
+    omittedFields: legallyOmittedFields,
+  );
+}
+
+void _addConstructorOrderMigrationNotice(
+  ClassElement cls,
+  List<WidgetConstructorInput> inputs,
+  AssetId assetId,
+  List<Issue> issues, {
+  Iterable<Issue> existingIssues = const [],
+  String messagePrefix = '',
+  Set<FieldElement> omittedFields = const {},
+}) {
+  final className = cls.name ?? '<unnamed>';
   final annotated = [
     for (final input in inputs)
       if (input.propertyAnnotation != null) input,
@@ -1344,20 +1585,35 @@ void _addMigrationNotices(
 
   final fieldOrder = [
     for (final field in cls.fields)
-      if (_catalogAnnotation(field, 'RestageProperty') != null) field.name,
+      if (_catalogAnnotation(field, 'RestageProperty') != null &&
+          !omittedFields.contains(field))
+        field.name,
   ];
   final constructorOrder = [for (final input in annotated) input.name];
   if (fieldOrder.length == constructorOrder.length &&
       !_sameSequence(fieldOrder, constructorOrder)) {
-    issues.add(
-      Issue(
-        code: IssueCode.constructorCatalogMigration,
-        message: '$className catalog properties move from field order '
-            '${fieldOrder.join(', ')} to constructor order '
-            '${constructorOrder.join(', ')}.',
-        location: '${assetId.path}#$className',
-      ),
-    );
+    final location = '${assetId.path}#$className';
+    if (!issues.any(
+          (issue) =>
+              issue.code == IssueCode.constructorCatalogMigration &&
+              issue.location == location,
+        ) &&
+        !existingIssues.any(
+          (issue) =>
+              issue.code == IssueCode.constructorCatalogMigration &&
+              issue.location == location,
+        )) {
+      issues.add(
+        Issue(
+          code: IssueCode.constructorCatalogMigration,
+          message: '$messagePrefix$className catalog properties move '
+              'from field order '
+              '${fieldOrder.join(', ')} to constructor order '
+              '${constructorOrder.join(', ')}.',
+          location: location,
+        ),
+      );
+    }
   }
 }
 

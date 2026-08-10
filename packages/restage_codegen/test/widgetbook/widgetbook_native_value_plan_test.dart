@@ -96,6 +96,28 @@ void main() {
     );
   });
 
+  test('finite-choice transport census is exact and excludes length', () {
+    const expected = <PropertyType, WidgetbookFiniteChoiceTransport>{
+      PropertyType.boolean: WidgetbookFiniteChoiceTransport.boolean,
+      PropertyType.integer: WidgetbookFiniteChoiceTransport.integer,
+      PropertyType.real: WidgetbookFiniteChoiceTransport.real,
+      PropertyType.string: WidgetbookFiniteChoiceTransport.string,
+      PropertyType.color: WidgetbookFiniteChoiceTransport.color,
+      PropertyType.duration:
+          WidgetbookFiniteChoiceTransport.durationMilliseconds,
+      PropertyType.fontWeight: WidgetbookFiniteChoiceTransport.fontWeight,
+      PropertyType.enumValue: WidgetbookFiniteChoiceTransport.enumMember,
+    };
+    final actual = <PropertyType, WidgetbookFiniteChoiceTransport>{
+      for (final type in PropertyType.values)
+        if (widgetbookFiniteChoiceTransport(type) case final transport?)
+          type: transport,
+    };
+
+    expect(actual, expected);
+    expect(widgetbookFiniteChoiceTransport(PropertyType.length), isNull);
+  });
+
   test(
     'analyzer corpus lowers every admitted root and structured-leaf family',
     () async {
@@ -307,8 +329,8 @@ void main() {
                 "import 'package:flutter/widgets.dart' show Widget;",
               ),
               contains('class RichCardStoryInput'),
-              contains('final String description;'),
-              contains('final String usage;'),
+              contains('final String restageMetadataDescription;'),
+              contains('final String restageMetadataUsage;'),
               contains('const meta = widgetbook.Meta('),
               contains('restage_source.RichCard.new'),
               contains('const component = widgetbook.ComponentMeta('),

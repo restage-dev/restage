@@ -18,6 +18,82 @@ enum WidgetbookPropertyCapability {
   rejected,
 }
 
+/// Native transport used by a nonempty Widgetbook finite-choice domain.
+///
+/// This is the exhaustive admission seam shared by constraint validation and
+/// constructor-default canonicalization. Nullable `null` is orthogonal to the
+/// property's non-null transport.
+enum WidgetbookFiniteChoiceTransport {
+  /// JSON boolean.
+  boolean,
+
+  /// JSON integer.
+  integer,
+
+  /// Finite JSON number, normalized for the resolved Dart numeric type.
+  real,
+
+  /// JSON string.
+  string,
+
+  /// Color transport accepted by [PropertyType.color].
+  color,
+
+  /// Integer milliseconds accepted by [PropertyType.duration].
+  durationMilliseconds,
+
+  /// Font-weight member transport accepted by [PropertyType.fontWeight].
+  fontWeight,
+
+  /// Member name of the exact resolved enum.
+  enumMember,
+}
+
+/// Returns the finite-choice transport for [type], or `null` when the backend
+/// must not admit `allowedValues` for that property family.
+WidgetbookFiniteChoiceTransport? widgetbookFiniteChoiceTransport(
+  PropertyType type,
+) =>
+    switch (type) {
+      PropertyType.boolean => WidgetbookFiniteChoiceTransport.boolean,
+      PropertyType.integer => WidgetbookFiniteChoiceTransport.integer,
+      PropertyType.real => WidgetbookFiniteChoiceTransport.real,
+      PropertyType.string => WidgetbookFiniteChoiceTransport.string,
+      PropertyType.color => WidgetbookFiniteChoiceTransport.color,
+      PropertyType.duration =>
+        WidgetbookFiniteChoiceTransport.durationMilliseconds,
+      PropertyType.fontWeight => WidgetbookFiniteChoiceTransport.fontWeight,
+      PropertyType.enumValue => WidgetbookFiniteChoiceTransport.enumMember,
+      PropertyType.length ||
+      PropertyType.alignmentXY ||
+      PropertyType.stringList ||
+      PropertyType.booleanList ||
+      PropertyType.widget ||
+      PropertyType.widgetList ||
+      PropertyType.event ||
+      PropertyType.structured ||
+      PropertyType.dataReference ||
+      PropertyType.edgeInsets ||
+      PropertyType.alignment ||
+      PropertyType.offset ||
+      PropertyType.gradient ||
+      PropertyType.border ||
+      PropertyType.boxShadowList ||
+      PropertyType.locale ||
+      PropertyType.paint ||
+      PropertyType.shadowList ||
+      PropertyType.fontFeatureList ||
+      PropertyType.fontVariationList ||
+      PropertyType.textDecoration ||
+      PropertyType.shapeBorder ||
+      PropertyType.inlineSpan ||
+      PropertyType.decorationImage ||
+      PropertyType.selectionOptionList ||
+      PropertyType.curve ||
+      PropertyType.unknown =>
+        null,
+    };
+
 /// Classifies every catalog property kind for the Widgetbook backend.
 ///
 /// Keep this exhaustive. Admission and strict analyzer-type validation both

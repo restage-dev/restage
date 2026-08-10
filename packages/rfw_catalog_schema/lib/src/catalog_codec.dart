@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:rfw_catalog_schema/src/catalog.dart';
 import 'package:rfw_catalog_schema/src/compat_rule.dart';
+import 'package:rfw_catalog_schema/src/constraint_keywords.dart';
+import 'package:rfw_catalog_schema/src/constraint_value_validation.dart';
 import 'package:rfw_catalog_schema/src/dart_const_value.dart';
 import 'package:rfw_catalog_schema/src/dart_identifier.dart';
 import 'package:rfw_catalog_schema/src/decomposition_recipe.dart';
@@ -628,19 +630,6 @@ bool _isImportableDartLibraryUri(String value) {
   return true;
 }
 
-const Set<String> _knownConstraintKeywords = {
-  'minimum',
-  'exclusiveMinimum',
-  'maximum',
-  'exclusiveMaximum',
-  'enum',
-  'pattern',
-  'minLength',
-  'maxLength',
-  'minItems',
-  'maxItems',
-};
-
 const Set<PropertyType> _numericConstraintTypes = {
   PropertyType.integer,
   PropertyType.real,
@@ -752,150 +741,12 @@ void _validateConstraintValues(
   RestageConstraints constraints,
   String path,
 ) {
-  if (constraints.minimum != null && constraints.exclusiveMinimum != null) {
+  final issue = validateRestageConstraintValues(constraints);
+  if (issue != null) {
     throw CatalogSchemaException(
-      '$path: minimum and exclusiveMinimum are mutually exclusive',
+      '$path${issue.pathSuffix}: ${issue.message}',
     );
   }
-  if (constraints.maximum != null && constraints.exclusiveMaximum != null) {
-    throw CatalogSchemaException(
-      '$path: maximum and exclusiveMaximum are mutually exclusive',
-    );
-  }
-
-  for (final entry in <String, num?>{
-    'minimum': constraints.minimum,
-    'exclusiveMinimum': constraints.exclusiveMinimum,
-    'maximum': constraints.maximum,
-    'exclusiveMaximum': constraints.exclusiveMaximum,
-  }.entries) {
-    final value = entry.value;
-    if (value != null && !value.isFinite) {
-      throw CatalogSchemaException('$path.${entry.key}: must be finite');
-    }
-  }
-
-  final lower = constraints.minimum ?? constraints.exclusiveMinimum;
-  final upper = constraints.maximum ?? constraints.exclusiveMaximum;
-  if (lower != null && upper != null) {
-    final equalWithExclusive = lower == upper &&
-        (constraints.exclusiveMinimum != null ||
-            constraints.exclusiveMaximum != null);
-    if (lower > upper || equalWithExclusive) {
-      throw CatalogSchemaException(
-        '$path: contradictory numeric lower and upper bounds',
-      );
-    }
-  }
-
-  final allowedValues = constraints.allowedValues;
-  if (allowedValues != null) {
-    if (allowedValues.isEmpty) {
-      throw CatalogSchemaException('$path.allowedValues: must not be empty');
-    }
-    for (var i = 0; i < allowedValues.length; i++) {
-      final value = allowedValues[i];
-      if (value is! String &&
-          value is! num &&
-          value is! bool &&
-          value != null) {
-        throw CatalogSchemaException(
-          '$path.allowedValues[$i]: must be a JSON scalar; '
-          'got ${value.runtimeType}',
-        );
-      }
-      if (value is num && !value.isFinite) {
-        throw CatalogSchemaException(
-          '$path.allowedValues[$i]: numeric values must be finite',
-        );
-      }
-      for (var previous = 0; previous < i; previous++) {
-        if (allowedValues[previous] == value) {
-          throw CatalogSchemaException(
-            '$path.allowedValues[$i]: duplicate value $value',
-          );
-        }
-      }
-    }
-  }
-
-  _validateNonNegativePair(
-    constraints.minLength,
-    constraints.maxLength,
-    path: path,
-    minimumName: 'minLength',
-    maximumName: 'maxLength',
-  );
-  _validateNonNegativePair(
-    constraints.minItems,
-    constraints.maxItems,
-    path: path,
-    minimumName: 'minItems',
-    maximumName: 'maxItems',
-  );
-
-  for (final entry in constraints.extensions.entries) {
-    if (_knownConstraintKeywords.contains(entry.key)) {
-      throw CatalogSchemaException(
-        '$path.extensions["${entry.key}"]: collides with a known keyword',
-      );
-    }
-    _validateJsonSafeExtension(
-      entry.value,
-      '$path.extensions["${entry.key}"]',
-    );
-  }
-}
-
-void _validateNonNegativePair(
-  int? minimum,
-  int? maximum, {
-  required String path,
-  required String minimumName,
-  required String maximumName,
-}) {
-  if (minimum != null && minimum < 0) {
-    throw CatalogSchemaException('$path.$minimumName: must be non-negative');
-  }
-  if (maximum != null && maximum < 0) {
-    throw CatalogSchemaException('$path.$maximumName: must be non-negative');
-  }
-  if (minimum != null && maximum != null && minimum > maximum) {
-    throw CatalogSchemaException(
-      '$path: $minimumName must not exceed $maximumName',
-    );
-  }
-}
-
-void _validateJsonSafeExtension(Object? value, String path) {
-  if (value == null || value is String || value is bool) return;
-  if (value is num) {
-    if (!value.isFinite) {
-      throw CatalogSchemaException('$path: numeric values must be finite');
-    }
-    return;
-  }
-  if (value is List) {
-    for (var i = 0; i < value.length; i++) {
-      _validateJsonSafeExtension(value[i], '$path[$i]');
-    }
-    return;
-  }
-  if (value is Map) {
-    for (final entry in value.entries) {
-      if (entry.key is! String) {
-        throw CatalogSchemaException('$path: JSON objects require string keys');
-      }
-      _validateJsonSafeExtension(
-        entry.value,
-        '$path["${entry.key}"]',
-      );
-    }
-    return;
-  }
-  throw CatalogSchemaException(
-    '$path: value of type ${value.runtimeType} is not JSON-safe',
-  );
 }
 
 /// An `enumValue`-typed property must carry enum identity so the catalog
@@ -1572,7 +1423,7 @@ Map<String, dynamic> _widgetToJson(WidgetEntry w) => {
       'wireId': w.wireId.value,
       'name': w.name,
       'library': w.library.namespace,
-      'category': w.category.name,
+      if (w.category != null) 'category': w.category!.name,
       'description': w.description,
       'flutterType': w.flutterType,
       'childrenSlot': w.childrenSlot.name,
@@ -2736,7 +2587,7 @@ WidgetEntry _widgetFromJson(
       '$widgetPath: missing required string field: library',
     );
   }
-  if (j['category'] is! String) {
+  if (wireVersion == 4 && j['category'] is! String) {
     throw CatalogSchemaException(
       '$widgetPath: missing required string field: category',
     );
@@ -2787,12 +2638,14 @@ WidgetEntry _widgetFromJson(
     library: WidgetLibrary.fromNamespace(
       _requiredString(j, 'library', widgetPath),
     ),
-    category: _enumFromName(
-      WidgetCategory.values,
-      _requiredString(j, 'category', widgetPath),
-      'category',
-      widgetPath,
-    ),
+    category: j['category'] == null
+        ? null
+        : _enumFromName(
+            WidgetCategory.values,
+            _requiredString(j, 'category', widgetPath),
+            'category',
+            widgetPath,
+          ),
     description: _requiredString(j, 'description', widgetPath),
     flutterType: _requiredString(j, 'flutterType', widgetPath),
     childrenSlot: _enumFromName(
@@ -2888,7 +2741,7 @@ RestageConstraints _constraintsFromJson(Object? raw, String path) {
     maxItems: integer('maxItems'),
     extensions: {
       for (final entry in json.entries)
-        if (!_knownConstraintKeywords.contains(entry.key))
+        if (!restageConstraintWireKeywords.contains(entry.key))
           entry.key: entry.value,
     },
   );

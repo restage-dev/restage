@@ -31,35 +31,46 @@ void main() {
             as Map<String, Object?>;
   });
 
-  test('the golden payload is authorable from the .a2ui.json schemas alone', () {
-    for (final component in goldenLessonComponents) {
-      final name = component['component'] as String;
-      final schema = components[name];
-      expect(
-        schema,
-        isNotNull,
-        reason:
-            'stamp is missing a schema for $name — a producer could not '
-            'know the component exists',
-      );
-      final props = ((schema! as Map)['properties'] as Map).keys.toSet();
-      // Every property the golden payload SETS (scalars + slot refs) must be a
-      // declared property a producer could find in the stamp. `id`/`component`
-      // are the envelope discriminators, not authorable schema properties.
-      for (final key in component.keys) {
-        if (key == 'id' || key == 'component') continue;
+  test(
+    'the golden payload is authorable from the .a2ui.json schemas alone',
+    () {
+      for (final component in goldenLessonComponents) {
+        final name = component['component'] as String;
+        final schema = components[name];
         expect(
-          props,
-          contains(key),
+          schema,
+          isNotNull,
           reason:
-              '$name.$key is not declared in the structural stamp — a '
-              'producer could not author it from the catalog alone',
+              'stamp is missing a schema for $name — a producer could not '
+              'know the component exists',
+        );
+        final schemaMap = schema! as Map;
+        final envelopeProperties = (schemaMap['properties'] as Map);
+        expect(
+          envelopeProperties.keys,
+          containsAll(<String>['component', 'props']),
+        );
+        final propsSchema = envelopeProperties['props']! as Map;
+        final declaredProps = (propsSchema['properties']! as Map).keys.toSet();
+        final authoredProps = component['props']! as Map;
+        // Every exact property the golden payload sets (scalars + child refs)
+        // must be declared under the one required props namespace.
+        for (final key in authoredProps.keys) {
+          expect(
+            declaredProps,
+            contains(key),
+            reason:
+                '$name.$key is not declared in the structural stamp — a '
+                'producer could not author it from the catalog alone',
+          );
+        }
+        expect(
+          (schemaMap['required'] as List),
+          containsAll(<String>['component', 'props']),
         );
       }
-      // Every schema carries the `component` discriminator a producer must set.
-      expect(props, contains('component'));
-    }
-  });
+    },
+  );
 
   test('no PER-COMPONENT schema carries an auto-generated semantic usage '
       'field', () {
