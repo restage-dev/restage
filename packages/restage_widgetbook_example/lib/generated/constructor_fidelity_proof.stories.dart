@@ -20,7 +20,7 @@ class ConstructorFidelityProofStoryInput {
     this.label = "",
     this.enabled = true,
     this.optionalText = "constructor-default",
-    this.onChanged = false,
+    this.onChanged = true,
   });
 
   final String restageMetadataDescription;
@@ -68,8 +68,8 @@ final $RestageCatalog = _Story(
       description:
           "Optional text used to distinguish authored values from defaults. Default: the widget constructor's Dart default.",
     ),
-    onChanged: _RestageBoolArg(
-      false,
+    onChanged: _RestageEventArg(
+      true,
       description:
           "Arbitrarily named one-argument callback paired with [enabled].",
     ),
@@ -103,6 +103,15 @@ final class _RestageStringArg extends widgetbook.StringArg
 final class _RestageBoolArg extends widgetbook.BoolArg
     with _RestageArgDescription<bool> {
   _RestageBoolArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageEventArg extends widgetbook.Arg<bool>
+    with widgetbook.NoFields<bool>, _RestageArgDescription<bool> {
+  _RestageEventArg(super.value, {required String description})
     : restageDescription = description;
 
   @override

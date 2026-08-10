@@ -191,17 +191,17 @@ void main() {
       'lib/generated/bare_catalog_card.stories.g.dart':
           '9d1d0279d72c86bf074ee4ff532e3ec50ea545106b18a252de0cdc9adc096ee5',
       'lib/generated/catalog_showcase.stories.dart':
-          '60a83148671f5d30c34106f84bdab9c65b53efa619b96b01fe6d31b23ff3ced8',
+          'c36aaf102f313b3c81927eae8dd698f3c85a66624814b3389fdb33c21a2f0c7f',
       'lib/generated/catalog_showcase.stories.g.dart':
-          '20665c5f43183aad3be0bc44d38c23593991948a028f7a5c9b378e889db919a8',
+          '5fb8391fb085a49e2e9a5ee6aff5c5e04eba7907b91afd23e0139ad2531817c8',
       'lib/generated/constructor_fidelity_corpus.stories.dart':
-          '7c0d1e3958094e1f3f410524955dd5a281c4eca5853ed4634b7709587bc68a56',
+          'e8794adced2b139eee44e4b0581e4b6c9e2026392c2cea9d5cb717e70a19c966',
       'lib/generated/constructor_fidelity_corpus.stories.g.dart':
-          '577ccdbbe869575d39cdda9f70443268eedb20629f83f538324ebcaa1a824fe0',
+          '5054c7b54ab2909d7fb1f3577455ff8015962fd23643a7bf3f0818734782c975',
       'lib/generated/constructor_fidelity_proof.stories.dart':
-          'df8877e5cbb12551d30dbefd757e2c40604fa5e8a0fdc4a7ecdaf0e881c8812f',
+          'd4c7bf6d8356da191058488124c23d17d71240004f6eddd35362c09d1aed3635',
       'lib/generated/constructor_fidelity_proof.stories.g.dart':
-          'c7388314dab7f55874f7795382532ae16a1e3b6901559b51bf7bff5a3db03589',
+          'a4f73f6fda7b89d44aab07cb4d1b7c8809db216d11f5c6e9ef9341326b38cfd2',
       'lib/generated/constructor_positional_corpus.stories.dart':
           '228c83de986adc18ed0b016255d2bb9a85b02bc30abec70eef229ad7f2ef1391',
       'lib/generated/constructor_positional_corpus.stories.g.dart':

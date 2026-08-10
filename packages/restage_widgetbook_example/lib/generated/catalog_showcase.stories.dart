@@ -62,7 +62,7 @@ class CatalogShowcaseStoryInput {
     this.title = "",
     this.enabled = true,
     this.status = _RestageChoice2.value0,
-    this.onChanged = false,
+    this.onChanged = true,
     this.hero = const _RestageValue4.absent(),
     this.details = const _RestageValue5.absent(),
     this.footer = const _RestageValue6.absent(),
@@ -135,8 +135,8 @@ final $RestageCatalog = _Story(
       },
       description: "Current customer state.",
     ),
-    onChanged: _RestageBoolArg(
-      false,
+    onChanged: _RestageEventArg(
+      true,
       description: "Reports changes to [enabled].",
     ),
     hero: _RestageConstArg<_RestageValue4>(
@@ -183,8 +183,8 @@ final $EnabledFalse = _Story(
       },
       description: "Current customer state.",
     ),
-    onChanged: _RestageBoolArg(
-      false,
+    onChanged: _RestageEventArg(
+      true,
       description: "Reports changes to [enabled].",
     ),
     hero: _RestageConstArg<_RestageValue4>(
@@ -231,8 +231,8 @@ final $StatusProcessing = _Story(
       },
       description: "Current customer state.",
     ),
-    onChanged: _RestageBoolArg(
-      false,
+    onChanged: _RestageEventArg(
+      true,
       description: "Reports changes to [enabled].",
     ),
     hero: _RestageConstArg<_RestageValue4>(
@@ -281,6 +281,15 @@ final class _RestageStringArg extends widgetbook.StringArg
 final class _RestageBoolArg extends widgetbook.BoolArg
     with _RestageArgDescription<bool> {
   _RestageBoolArg(super.value, {required String description})
+    : restageDescription = description;
+
+  @override
+  final String restageDescription;
+}
+
+final class _RestageEventArg extends widgetbook.Arg<bool>
+    with widgetbook.NoFields<bool>, _RestageArgDescription<bool> {
+  _RestageEventArg(super.value, {required String description})
     : restageDescription = description;
 
   @override

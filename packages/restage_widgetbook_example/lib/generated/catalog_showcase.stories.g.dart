@@ -93,7 +93,7 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
            values: _RestageChoice2.values,
          ),
        )!,
-       this.onChangedArg = $initArg('onChanged', onChanged, BoolArg(false))!,
+       this.onChangedArg = $initArg('onChanged', onChanged, BoolArg(true))!,
        this.heroArg = $initArg(
          'hero',
          hero,
@@ -123,7 +123,7 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
     String title = "",
     bool enabled = true,
     _RestageChoice2 status = _RestageChoice2.value0,
-    bool onChanged = false,
+    bool onChanged = true,
     _RestageValue4 hero = const _RestageValue4.absent(),
     _RestageValue5 details = const _RestageValue5.absent(),
     _RestageValue6 footer = const _RestageValue6.absent(),

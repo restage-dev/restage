@@ -141,16 +141,16 @@ class ConstructorFidelityCorpusStoryInputArgs
          data,
          ConstArg(const _RestageValue10.absent()),
        )!,
-       this.resetProofArg = $initArg('resetProof', resetProof, BoolArg(false))!,
+       this.resetProofArg = $initArg('resetProof', resetProof, BoolArg(true))!,
        this.whenEnabledChangesArg = $initArg(
          'whenEnabledChanges',
          whenEnabledChanges,
-         BoolArg(false),
+         BoolArg(true),
        )!,
        this.reportCountArg = $initArg(
          'reportCount',
          reportCount,
-         BoolArg(false),
+         BoolArg(true),
        )!;
 
   ConstructorFidelityCorpusStoryInputArgs.fixed({
@@ -169,9 +169,9 @@ class ConstructorFidelityCorpusStoryInputArgs
     Color directColor = const restage_native_0.Color.new(4279312947),
     Color publicColor = restage_source.ConstructorCorpusDefaults.publicColor,
     _RestageValue10 data = const _RestageValue10.absent(),
-    bool resetProof = false,
-    bool whenEnabledChanges = false,
-    bool reportCount = false,
+    bool resetProof = true,
+    bool whenEnabledChanges = true,
+    bool reportCount = true,
   }) : this.restageMetadataDescriptionArg = $initArg(
          'restageMetadataDescription',
          Arg.fixed(restageMetadataDescription),
