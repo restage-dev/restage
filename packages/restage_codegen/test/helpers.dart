@@ -23,6 +23,8 @@ import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
+import 'design_package_sources.dart';
+
 /// The library URI under which [parseExpressionFromSourceForTest] mounts a
 /// synthetic source — its value-type stubs AND (for the native-decompose
 /// tests) its decompose-recipe identities both live here.
@@ -435,6 +437,7 @@ Future<OnboardingVisitorResult> runOnboardingVisitorOn(
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: packageName,
     includeFlutter: _importsFlutter(sources.values),
+    includeDesignPackages: importsDesignPackages(sources.values),
   );
   final assetMap = <String, String>{
     for (final entry in sources.entries)
@@ -695,6 +698,7 @@ Future<List<T>> _runOnLibraries<T>(
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: _kRootPackage,
     includeFlutter: _importsFlutter(sources.values),
+    includeDesignPackages: importsDesignPackages(sources.values),
   );
   final assetMap = <String, String>{
     for (final entry in sources.entries)
@@ -817,6 +821,7 @@ Future<TestReaderWriter> readerWriterWithFilesystemSources({
   required String rootPackage,
   bool? includeFlutter,
   bool includeIntl = false,
+  bool includeDesignPackages = false,
 }) async {
   final writer = TestReaderWriter(rootPackage: rootPackage);
   _writeSources(writer, await _cachedDartOnlyWorkspaceSources());
@@ -828,6 +833,11 @@ Future<TestReaderWriter> readerWriterWithFilesystemSources({
   }
   if (includeIntl) {
     _writeSources(writer, await _cachedIntlWorkspaceSources());
+  }
+  if (includeDesignPackages) {
+    for (final entry in kDesignPackageSources.entries) {
+      writer.testing.writeString(entry.key, entry.value);
+    }
   }
   return writer;
 }
@@ -1072,6 +1082,7 @@ Future<({ClassificationResult result, WidgetClassification named})>
     rootPackage: 'apps_examples',
     includeFlutter: _importsFlutter(sources.values),
     includeIntl: _importsIntl(sources.values),
+    includeDesignPackages: importsDesignPackages(sources.values),
   );
   final assetMap = <String, String>{
     for (final entry in sources.entries)

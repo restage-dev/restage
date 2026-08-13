@@ -317,9 +317,21 @@ String _typeDisplayName(DartType type) {
 
 // Deliberately mirrors the codegen-side framework value-type predicate. It
 // cannot currently be shared because restage_codegen depends on this package.
+//
+// The design-system packages carrying copies of the framework's material /
+// cupertino layers are framework libraries here too: those names are reserved
+// on the package registry to the framework vendor, so a look-alike cannot reach
+// them through an ordinary hosted dependency (a deliberate path or git
+// dependency declared under one of the names still can).
+// Compiling this repository's own catalogs is unaffected — those sources import
+// the framework directly — but a catalog compiled from sources that import the
+// design packages resolves its value types the same way either input spells
+// them.
 bool _isFrameworkValueTypeLibrary(Element? element) {
   if (element == null) return false;
   final identifier = element.library?.identifier ?? '';
   return identifier.startsWith('dart:') ||
-      identifier.startsWith('package:flutter/');
+      identifier.startsWith('package:flutter/') ||
+      identifier.startsWith('package:material_ui/') ||
+      identifier.startsWith('package:cupertino_ui/');
 }
