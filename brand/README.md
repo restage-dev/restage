@@ -4,9 +4,9 @@ This directory contains the official Restage marks, wordmarks, and lockups.
 
 ## Ownership
 
-Copyright © 2026 Jakob Calvén. All rights reserved.
+Copyright © 2026 Restage Inc. All rights reserved.
 
-Restage™ and the Restage logos are claimed as trademarks of Jakob Calvén in
+Restage™ and the Restage logos are claimed as trademarks of Restage Inc. in
 connection with the Restage software and related services.
 
 The software licenses elsewhere in this repository do not apply to files in
