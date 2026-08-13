@@ -17,7 +17,7 @@ Future<void> main() async {
   runRestageRenderBundleHarness(
     transport: transport,
     manifest: manifest,
-    engine: RenderEngine(flutterVersion: '3.44.8', renderer: 'skwasm'),
+    engine: RenderEngine(flutterVersion: '3.47.0', renderer: 'skwasm'),
     registerCustomerWidgets: registerRestageCustomerWidgets,
     initialize: (_) {},
   );

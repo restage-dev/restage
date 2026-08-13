@@ -8993,7 +8993,7 @@
       "library": "restage.core",
       "category": "decoration",
       "description": "Whether to show or hide a child.",
-      "flutterType": "package:flutter/src/widgets/visibility.dart#Visibility",
+      "flutterType": "package:flutter/src/widgets/indexed_stack.dart#Visibility",
       "childrenSlot": "single",
       "properties": [
         {

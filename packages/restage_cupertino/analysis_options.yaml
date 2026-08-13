@@ -8,6 +8,13 @@ analyzer:
     # non_const_argument_for_const_parameter. Its correctness is covered by the
     # wire-format golden tests, so it is excluded from lint.
     - lib/src/registration.g.dart
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   errors:
     # Sibling packages are depended on by path in this workspace. The publish
     # pipeline rewrites them to hosted version constraints before upload, and

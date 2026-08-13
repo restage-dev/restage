@@ -135,16 +135,16 @@ void main() {
         disposition: PurchaseIntentDisposition.notProvided,
         contract:
             'means authoritative provider evidence carries no purchase-intent '
-            'UUID or binding at all; this is the legacy, out-of-app, or '
-            'no-intent path',
+                'UUID or binding at all; this is the legacy, out-of-app, or '
+                'no-intent path',
       ),
       (
         disposition: PurchaseIntentDisposition.unmatched,
         contract:
             'means a provider-verified UUID or binding is present, the owner '
-            'is not cross-owner, but no eligible association is applied '
-            'because the eligible intent is missing, expired, has a '
-            'same-owner tuple mismatch, or has an attribution mismatch',
+                'is not cross-owner, but no eligible association is applied '
+                'because the eligible intent is missing, expired, has a '
+                'same-owner tuple mismatch, or has an attribution mismatch',
       ),
     ]) {
       test(

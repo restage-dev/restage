@@ -291,7 +291,7 @@ class RestageCli {
       );
     try {
       if (args.isEmpty && _hasTerminal()) {
-        return _consoleLauncher(_consoleControllerFactory());
+        return await _consoleLauncher(_consoleControllerFactory());
       }
       final result = await runZoned(
         () => runner.run(args),

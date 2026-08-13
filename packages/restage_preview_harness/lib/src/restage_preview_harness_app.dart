@@ -206,6 +206,11 @@ class _RestagePreviewHarnessAppState extends State<RestagePreviewHarnessApp> {
       try {
         final ready = await rasterController.prepare(request.env);
         if (!ready || _latestRequestedEpoch != request.epoch) {
+          // Handed back pending on purpose: this future is completed by
+          // whichever render pass settles the epoch, so awaiting it here would
+          // both stall inside the guard and route its outcome through the
+          // catch below.
+          // ignore: unawaited_return_in_try_block
           return completion;
         }
       } on Object {
