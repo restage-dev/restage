@@ -11,7 +11,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/src/render_bundle/deployed_origin_authority.dart';
 import 'package:yaml/yaml.dart';
 
-const _requiredFlutterVersion = '3.44.8';
+const _requiredFlutterVersion = '3.47.0';
 const _robotoFontSha256 =
     '79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95';
 const _robotoLicenseSha256 =

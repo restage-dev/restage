@@ -12,6 +12,13 @@ analyzer:
   # from lint loses no coverage.
   exclude:
     - lib/generated/restage_a2ui_catalog.g.dart
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   language:
     strict-casts: true
     strict-inference: true

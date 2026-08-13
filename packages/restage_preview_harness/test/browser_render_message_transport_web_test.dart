@@ -327,7 +327,7 @@ void main() {
       final server = RenderProtocolServer(
         transport: transport,
         manifest: _manifest(),
-        engine: RenderEngine(flutterVersion: '3.44.8', renderer: 'skwasm'),
+        engine: RenderEngine(flutterVersion: '3.47.0', renderer: 'skwasm'),
         supportedVersions: const <int>[renderProtocolV1],
         scheduleFrame: (callback) => callback(),
         initialize: (_) {},

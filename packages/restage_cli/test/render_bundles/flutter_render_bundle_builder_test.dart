@@ -104,7 +104,7 @@ _flutter.loader.load({
       String? workingDirectory,
     }) async {
       if (arguments case ['--version', '--machine']) {
-        return ProcessResult(1, 0, '{"frameworkVersion":"3.44.8"}', '');
+        return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
       }
       if (arguments case ['build', 'web', ...]) {
         final outputIndex = arguments.indexOf('--output');
@@ -245,7 +245,7 @@ _flutter.loader.load({
       }) async {
         calls.add((executable: executable, arguments: List.of(arguments)));
         if (arguments case ['--version', '--machine']) {
-          return ProcessResult(1, 0, '{"frameworkVersion":"3.44.8"}', '');
+          return ProcessResult(1, 0, '{"frameworkVersion":"3.47.0"}', '');
         }
         if (arguments case ['build', 'web', ...]) {
           buildNumber++;

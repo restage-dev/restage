@@ -8,3 +8,11 @@ analyzer:
   errors:
     todo: ignore
     invalid_dependency: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**

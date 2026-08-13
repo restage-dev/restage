@@ -6841,7 +6841,7 @@ final Catalog kRegistry = Catalog(
       library: WidgetLibrary.core,
       category: WidgetCategory.decoration,
       description: 'Whether to show or hide a child.',
-      flutterType: 'package:flutter/src/widgets/visibility.dart#Visibility',
+      flutterType: 'package:flutter/src/widgets/indexed_stack.dart#Visibility',
       childrenSlot: ChildrenSlot.single,
       properties: [
         PropertyEntry(

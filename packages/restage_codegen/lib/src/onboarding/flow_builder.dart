@@ -4919,22 +4919,23 @@ final class _FlowAction {
     this.duplicateOf,
   });
 
-  _FlowAction.invalidDuplicate({
+  factory _FlowAction.invalidDuplicate({
     required String fieldName,
     required String actionName,
     required String duplicateOf,
-  }) : this(
-          fieldName: fieldName,
-          descriptorName: fieldName,
-          parameterName: fieldName,
-          actionName: actionName,
-          idempotent: false,
-          inputType: 'void',
-          outputType: 'void',
-          inputDartType: null,
-          outputDartType: null,
-          duplicateOf: duplicateOf,
-        );
+  }) =>
+      _FlowAction(
+        fieldName: fieldName,
+        descriptorName: fieldName,
+        parameterName: fieldName,
+        actionName: actionName,
+        idempotent: false,
+        inputType: 'void',
+        outputType: 'void',
+        inputDartType: null,
+        outputDartType: null,
+        duplicateOf: duplicateOf,
+      );
 
   final String fieldName;
   final String descriptorName;

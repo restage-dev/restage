@@ -16,3 +16,11 @@ analyzer:
     # surface is marked @experimental so external packages don't pin to it;
     # as the in-house consumer we opt out of the resulting use warning.
     experimental_member_use: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**

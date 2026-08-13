@@ -106,7 +106,7 @@ Future<_MountedBundle> _mountBundle(
           transport: transport,
           manifest: manifest,
           engine: RenderEngine(
-            flutterVersion: '3.44.8',
+            flutterVersion: '3.47.0',
             renderer: 'skwasm',
           ),
           registerCustomerWidgets: registerRestageCustomerWidgets,
