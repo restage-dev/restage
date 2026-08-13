@@ -4574,6 +4574,31 @@ final class ExpressionTranslator {
       final candidates = findWidgetsByName(catalog, widgetName);
       entry = candidates.isEmpty ? null : candidates.first;
     }
+    // Silent-regression guard. Reaching the name fallback from a DESIGN-PACKAGE
+    // class means the canonical identity found nothing while the bare name
+    // found something — the mapping and the catalog disagree about where a
+    // framework symbol lives. Binding by name here is precisely the
+    // wrong-runtime-type bind that joining on identity exists to prevent, and
+    // nothing downstream would report it, so fail closed at the seam.
+    if (entry != null && !matchedByFlutterType && widgetClass != null) {
+      final declaringLibrary = widgetClass.library.identifier;
+      if (kDesignPackageLibraryPrefixes.any(declaringLibrary.startsWith)) {
+        issues.add(
+          Issue(
+            code: IssueCode.designPackageIdentityDrift,
+            message: "'$widgetName' is declared in '$declaringLibrary', which "
+                'canonicalises to an identity no catalog entry carries, while '
+                'the name alone matches the catalog entry '
+                "'${entry.library.namespace}.${entry.name}'. Binding by name "
+                'would render a different type. The identity mapping needs to '
+                'be reconciled with the package, most likely because a symbol '
+                'moved between files.',
+            location: _locationOf(anchor),
+          ),
+        );
+        return '';
+      }
+    }
     // A registered customer widget that can inline still inlines —
     // its composition travels in the blob and renders with no runtime factory.
     // One that cannot inline (imperative or not yet supported) falls

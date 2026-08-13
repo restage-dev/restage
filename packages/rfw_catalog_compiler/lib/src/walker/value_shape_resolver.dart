@@ -327,11 +327,22 @@ String _typeDisplayName(DartType type) {
 // the framework directly — but a catalog compiled from sources that import the
 // design packages resolves its value types the same way either input spells
 // them.
+/// The library prefixes a framework class may be declared under: the framework
+/// itself, plus the design-system packages carrying copies of its material /
+/// cupertino layers.
+///
+/// Stated once and shared, because more than one predicate in this package asks
+/// the same question and answering it differently in two places is the drift
+/// this list exists to prevent.
+const List<String> kFrameworkLibraryPrefixes = [
+  'package:flutter/',
+  'package:material_ui/',
+  'package:cupertino_ui/',
+];
+
 bool _isFrameworkValueTypeLibrary(Element? element) {
   if (element == null) return false;
   final identifier = element.library?.identifier ?? '';
   return identifier.startsWith('dart:') ||
-      identifier.startsWith('package:flutter/') ||
-      identifier.startsWith('package:material_ui/') ||
-      identifier.startsWith('package:cupertino_ui/');
+      kFrameworkLibraryPrefixes.any(identifier.startsWith);
 }
