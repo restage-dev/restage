@@ -14,21 +14,43 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 /// synthetic-test affordance layer their own name-fallback on top (see
 /// [isFlutterStaticOf]; the translator's `_frameworkOrUnresolved`).
 
-/// Resolves to `package:flutter/` — the strict gate for the `Colors` / `Icons` /
-/// theme-read arms. See the shared rationale above.
+/// The library prefixes a framework class may be declared under: the framework
+/// itself, plus the design-system packages carrying copies of its material /
+/// cupertino layers ([kDesignPackageFrameworkAreas]). All of those names are
+/// reserved on the package registry to the framework vendor, so a look-alike
+/// cannot reach them through an ordinary hosted dependency — see the fuller
+/// note on [kDesignPackageFrameworkAreas], including the path/git dependency
+/// that can still shadow them.
+const List<String> kFrameworkLibraryPrefixes = [
+  'package:flutter/',
+  ...kDesignPackageLibraryPrefixes,
+];
+
+/// Resolves to a framework library — the strict gate for the `Colors` /
+/// `Icons` / theme-read arms. See the shared rationale above.
 bool libraryIsFlutter(Element? element) =>
-    _libraryStartsWithAny(element, const ['package:flutter/']);
+    _libraryStartsWithAny(element, kFrameworkLibraryPrefixes);
 
 /// Resolves to a framework VALUE-TYPE library — the broader gate for the
 /// structured-value recognition arms. The value types the translator lowers
-/// span `package:flutter/` (`EdgeInsets` / `BorderRadius` / `Alignment` / shape
-/// borders), `dart:ui` (`Color` / `Offset` / `Locale` / `Paint` / `Shadow`),
-/// and `dart:core` (`Duration`); a customer cannot place a class in `dart:` /
-/// `package:flutter/`. See the shared rationale above [libraryIsFlutter].
+/// span the framework libraries (`EdgeInsets` / `BorderRadius` / `Alignment` /
+/// shape borders / `ButtonStyle`), `dart:ui` (`Color` / `Offset` / `Locale` /
+/// `Paint` / `Shadow`), and `dart:core` (`Duration`); an ordinary hosted
+/// dependency cannot declare a class under `dart:` or any of
+/// [kFrameworkLibraryPrefixes]. See the shared rationale above
+/// [libraryIsFlutter].
+///
+/// Deliberately NOT expressed as `!isApplicationDartLibrary(uri)`. That
+/// predicate answers a different question — whether generated code must import
+/// and prefix the library — and a design package needs a prefixed import even
+/// though the classes it declares are framework classes. The two answers
+/// diverge for exactly these packages, so they are computed separately.
 bool isFrameworkValueTypeLibrary(Element? element) {
   if (element == null) return false;
   final uri = element.library?.identifier;
-  return uri != null && !isApplicationDartLibrary(uri);
+  if (uri == null) return false;
+  return uri.startsWith('dart:') ||
+      kFrameworkLibraryPrefixes.any(uri.startsWith);
 }
 
 bool _libraryStartsWithAny(Element? element, List<String> prefixes) {

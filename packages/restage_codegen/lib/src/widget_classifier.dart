@@ -6,6 +6,7 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
@@ -22,8 +23,15 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// widget is keyed in the classification result map. Never carries a
 /// constructor suffix, so it matches both [WidgetEntry.flutterType] and the
 /// key the translator derives from a resolved widget construction.
+///
+/// The library URI is canonicalised ([canonicalFrameworkLibraryUri]) so a class
+/// declared in a design package keys to the framework identity the catalog
+/// records. The translator canonicalises identically; the two MUST agree, or a
+/// construction this function reports as "not a catalog widget" is one the
+/// translator still emits as one.
 String customWidgetKey(ClassElement cls) =>
-    '${cls.library.identifier}#${cls.name ?? '<unnamed>'}';
+    '${canonicalFrameworkLibraryUri(cls.library.identifier)}'
+    '#${cls.name ?? '<unnamed>'}';
 
 /// The chain of supertype elements above [cls], nearest first.
 Iterable<InterfaceElement> _supertypeChain(ClassElement cls) sync* {

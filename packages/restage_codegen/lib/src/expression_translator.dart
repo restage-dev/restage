@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/customer_structured_value_emitter.dart';
+import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
@@ -6488,7 +6489,11 @@ final class ExpressionTranslator {
   }
 
   String? _flutterTypeOfClass(ClassElement cls, {String? constructorName}) {
-    final libraryUri = cls.library.identifier;
+    // Canonicalised so a design-package class joins the catalog on the
+    // framework identity the catalog records. `customWidgetKey` canonicalises
+    // identically — the classifier and this lookup must not disagree about
+    // whether a construction is a catalog widget.
+    final libraryUri = canonicalFrameworkLibraryUri(cls.library.identifier);
     final className = cls.name;
     if (className == null || className.isEmpty) return null;
     final constructorSuffix = constructorName == null || constructorName.isEmpty

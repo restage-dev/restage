@@ -492,14 +492,72 @@ Set<String> dartConstValueLibraryUris(DartConstValue value) => switch (value) {
         },
     };
 
+/// The design-system packages that publish copies of the framework's
+/// material / cupertino layers, mapped to the framework area each one copies.
+///
+/// A class in one of these packages is treated as framework code rather than
+/// customer code. The names are reserved on the package registry to the
+/// framework vendor, so a look-alike cannot arrive through an ordinary hosted
+/// dependency — which is what lets the framework-vs-customer predicates accept
+/// them while keeping the value-substitution guarantee they exist to provide.
+///
+/// The guarantee is about ordinary dependencies, not an absolute: a deliberate
+/// path or git dependency declared under one of these names shadows the hosted
+/// package and would be accepted here. That is strictly weaker than the
+/// alternative it replaces — matching on a bare class name, which accepts a
+/// look-alike from anywhere with no declaration at all.
+const Map<String, String> kDesignPackageFrameworkAreas = {
+  'package:material_ui/': 'material',
+  'package:cupertino_ui/': 'cupertino',
+};
+
+/// The keys of [kDesignPackageFrameworkAreas], spelled out so they can be
+/// spread into a `const` list (a map's `keys` is not a constant expression).
+const List<String> kDesignPackageLibraryPrefixes = [
+  'package:material_ui/',
+  'package:cupertino_ui/',
+];
+
+/// The framework identity that [uri] denotes.
+///
+/// A design-package implementation library maps to the framework
+/// implementation library holding the same symbols — `package:material_ui/src/
+/// card.dart` to `package:flutter/src/material/card.dart`. The file basename is
+/// preserved on both sides of the copy, so this is a total mapping over the
+/// symbols the catalog names, not a heuristic: every catalog entry sourced from
+/// the framework's material / cupertino layers round-trips through it.
+///
+/// Any other URI — framework, SDK or customer — is returned unchanged.
+///
+/// Canonicalising at the points where an identity is DERIVED keeps every
+/// downstream join exact. Without it a design-package construction would miss
+/// its catalog entry by identity and fall through to a name lookup, which is
+/// how a different type silently binds to one of our entries.
+String canonicalFrameworkLibraryUri(String uri) {
+  for (final entry in kDesignPackageFrameworkAreas.entries) {
+    final implementationPrefix = '${entry.key}src/';
+    if (!uri.startsWith(implementationPrefix)) continue;
+    final rest = uri.substring(implementationPrefix.length);
+    return 'package:flutter/src/${entry.value}/$rest';
+  }
+  return uri;
+}
+
 /// Resolves an analyzer defining-library URI to an importable public URI.
 ///
 /// Flutter's analyzer elements commonly report `package:flutter/src/...` even
 /// when customer code imported a public barrel. Generated customer code must
-/// never import those implementation libraries directly.
+/// never import those implementation libraries directly — and the same holds
+/// for a design package's own `lib/src/`, which generated code must reach
+/// through that package's barrel rather than by naming its private tree.
 String publicDartImportUri(String sourceUri) {
   if (sourceUri.isEmpty || sourceUri.contains('#')) {
     throw StateError('Unimportable Dart library URI `$sourceUri`.');
+  }
+  for (final prefix in kDesignPackageFrameworkAreas.keys) {
+    if (!sourceUri.startsWith('${prefix}src/')) continue;
+    final package = prefix.substring('package:'.length, prefix.length - 1);
+    return '$prefix$package.dart';
   }
   const flutterImplementationPrefix = 'package:flutter/src/';
   if (!sourceUri.startsWith(flutterImplementationPrefix)) {
