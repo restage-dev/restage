@@ -283,8 +283,11 @@ bool _isCustomerAuthoredClass(DartType type) {
   final element = unwrapped.element;
   if (element is! ClassElement || element.isAbstract) return false;
   final libraryId = element.library.identifier;
+  // Mirrors the codegen-side customer-data-class test: a design package carries
+  // copies of the framework's own value types, and one of those has exactly the
+  // shape asked for below, so it must be excluded here too.
   if (libraryId.startsWith('dart:') ||
-      libraryId.startsWith('package:flutter/')) {
+      kFrameworkLibraryPrefixes.any(libraryId.startsWith)) {
     return false;
   }
   return element.constructors.any(

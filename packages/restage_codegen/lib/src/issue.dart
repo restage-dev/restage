@@ -124,6 +124,20 @@ enum IssueCode {
   /// named constructor surfaces this diagnostic.
   namedConstructorUnsupported,
 
+  /// A class declared in one of the design-system packages that carry copies
+  /// of the framework's material / cupertino layers shares its name with a
+  /// catalog widget, but the framework identity it canonicalises to matches no
+  /// catalog entry.
+  ///
+  /// That combination has exactly one cause: the identity mapping and the
+  /// catalog have diverged — most plausibly because the design package moved a
+  /// symbol between files, which the mapping derives from. Left alone the
+  /// construction would fall through to the bare-name lookup and bind to a
+  /// catalog entry whose runtime factory builds a DIFFERENT type, silently.
+  /// This fails the build instead, which is the whole point of joining on
+  /// identity rather than on a name.
+  designPackageIdentityDrift,
+
   /// A `PageView(...)` construction could not be lowered to the declarative
   /// paged surface. The children-list form maps to it, with an inline
   /// `PageController(initialPage:, viewportFraction:)` flattened onto the
@@ -563,6 +577,10 @@ enum IssueCode {
         IssueCode.unsupportedHelperPosition ||
         IssueCode.unknownWidget ||
         IssueCode.namedConstructorUnsupported ||
+        // Not a capability gap: nothing about the source needs to change, the
+        // toolchain's own identity mapping does. It is an error because the
+        // alternative is rendering the wrong type.
+        IssueCode.designPackageIdentityDrift ||
         IssueCode.pageViewFormUnsupported ||
         IssueCode.modalSheetFormUnsupported ||
         IssueCode.navigationFormUnsupported ||

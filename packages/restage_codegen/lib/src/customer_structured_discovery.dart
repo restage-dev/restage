@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/customer_structured_admissibility.dart'
     show reconstructionVariant, structuredSlotKey;
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -917,8 +918,14 @@ String? _widgetLibraryNamespace(ClassElement cls) {
 bool _isCustomerDataClass(ClassElement element) {
   if (element.isAbstract) return false;
   final libraryId = element.library.identifier;
+  // The design packages carry copies of the framework's own value types, and
+  // one of those has exactly the shape this predicate looks for: a generative
+  // constructor with parameters, declared outside the framework's own library
+  // prefix. Admitting it produces a structured entry keyed to the design
+  // package, which no catalog entry names, and the widget carrying it is
+  // dropped at admission with nothing to point at.
   if (libraryId.startsWith('dart:') ||
-      libraryId.startsWith('package:flutter/')) {
+      kFrameworkLibraryPrefixes.any(libraryId.startsWith)) {
     return false;
   }
   return element.constructors.any(
