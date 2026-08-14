@@ -21,6 +21,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'flow_test_support.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 const _baseUrl = 'https://surfaces.example.com';
 const _apiKey = 'rs_pk_test_abc123';
 const _installed = RestageBuiltInCatalogCapabilities.currentVersion;
@@ -33,6 +35,10 @@ const _flowRef = OnboardingFlowRef<Map<String, Object?>>(
   surface: Surface.onboarding,
   decodeResult: _decodeMapResult,
 );
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   setUp(Restage.debugReset);
@@ -2007,7 +2013,7 @@ Uint8List _envelope(
 }
 
 Map<String, Object?> _assignedBody(Uint8List envelope) => {
-      'envelope': base64Encode(envelope),
+      ..._delivery.describeEnvelope(envelope),
       'decision': 'assigned',
       'experimentId': 'exp_copy',
       'variantId': 'variant_a',
@@ -2015,14 +2021,14 @@ Map<String, Object?> _assignedBody(Uint8List envelope) => {
     };
 
 Map<String, Object?> _unassignedBody(Uint8List envelope) => {
-      'envelope': base64Encode(envelope),
+      ..._delivery.describeEnvelope(envelope),
     };
 
 Map<String, Object?> _requestBody(http.Request request) =>
     jsonDecode(request.body) as Map<String, Object?>;
 
 void _configureAnalytics(List<http.Request> requests) {
-  Restage.debugAnalyticsHttpClient = MockClient((request) async {
+  Restage.debugAnalyticsHttpClient = _delivery.client((request) async {
     requests.add(request);
     return http.Response('', 200);
   });
@@ -2097,7 +2103,7 @@ Future<void> _waitFor(bool Function() predicate) async {
 
 final class _ControlledServer {
   _ControlledServer() {
-    client = MockClient((request) {
+    client = _delivery.client((request) {
       requests.add(request);
       final response = Completer<http.Response>();
       responses.add(response);

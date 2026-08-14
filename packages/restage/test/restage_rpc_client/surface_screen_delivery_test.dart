@@ -3,9 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
+
+import '../support/hosted_artifact_delivery.dart';
+
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   group('RestageRpcClient.fetchSurfaceScreen', () {
@@ -26,7 +29,7 @@ void main() {
       final client = _client((http.Request request) async {
         seen = request;
         return http.Response(
-          SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(expected),
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(expected),
           200,
         );
       });
@@ -60,7 +63,8 @@ void main() {
       final client = _client((http.Request request) async {
         seen = request;
         return http.Response(
-          SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(_response()),
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+              _response()),
           200,
         );
       });
@@ -175,7 +179,7 @@ void main() {
     test('rejects a present response for a different identity', () async {
       final client = _client(
         (_) async => http.Response(
-          SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
             _response(slug: 'another_screen'),
           ),
           200,
@@ -198,7 +202,7 @@ void main() {
         () async {
       final client = _client(
         (_) async => http.Response(
-          SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
             _response(contractVersion: 8),
           ),
           200,
@@ -230,7 +234,7 @@ RestageRpcClient _client(
     RestageRpcClient(
       baseUrl: 'https://example.com',
       apiKey: 'rs_pk_test',
-      httpClient: MockClient(handler),
+      httpClient: _delivery.client(handler),
     );
 
 SurfaceScreenDeliveryRequestV1 _request({
@@ -245,7 +249,7 @@ SurfaceScreenDeliveryRequestV1 _request({
       meteringKey: meteringKey,
     );
 
-SurfaceScreenDeliveryResponseV1 _response({
+SurfaceScreenDeliveryDescriptorV1 _response({
   String slug = 'feature_announcement',
   int contractVersion = 7,
   SurfaceExperimentAssignmentV1? assignment,
@@ -275,12 +279,9 @@ SurfaceScreenDeliveryResponseV1 _response({
     payload: payload,
     publishedAt: DateTime.utc(2026, 8, 11),
   );
-  return SurfaceScreenDeliveryResponseV1(
+  return _delivery.describeScreen(
     document: document,
-    sourceKind: SurfaceSourceKind.screen,
-    payloadKind: SurfacePayloadKind.blob,
     contractVersion: contractVersion,
-    publishedRevision: document.version,
     contractFingerprint: contractFingerprint,
     eventContractHash: eventContractHash,
     assignment: assignment,

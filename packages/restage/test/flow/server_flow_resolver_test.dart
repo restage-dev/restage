@@ -12,6 +12,8 @@ import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// The built-in catalog version this SDK build installs. A delivered document
 /// at or below this renders; above it must fail closed — the authoritative
 /// installed-capability gate, independent of the ref floor.
@@ -32,6 +34,10 @@ const int _refFloorMinClient = _renderableMinClient + 2;
 /// fixtures that prove a document/artifact exceeding the ref floor fails
 /// closed.
 const int _aboveRefFloorMinClient = _refFloorMinClient + 1;
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   const baseUrl = 'https://surfaces.example.com';
@@ -215,7 +221,7 @@ void main() {
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient((request) async {
+      httpClient: _delivery.client((request) async {
         requests.add(request);
         final body = jsonDecode(request.body) as Map<String, Object?>;
         final surfaceType = Surface.values.byName(
@@ -223,7 +229,7 @@ void main() {
         );
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode(
+            ..._delivery.describeEnvelope(
               _envelope(
                 _validDocument(screenBytes: screenBytes),
                 screenBytes,
@@ -297,7 +303,7 @@ void main() {
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
+      httpClient: _delivery.client(
         (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 404),
       ),
     );
@@ -312,7 +318,7 @@ void main() {
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
+      httpClient: _delivery.client(
         (_) async => http.Response(jsonEncode({'error': 'unauthorized'}), 401),
       ),
     );
@@ -327,7 +333,7 @@ void main() {
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
+      httpClient: _delivery.client(
         (_) async => throw const SocketishException(),
       ),
     );
@@ -342,7 +348,7 @@ void main() {
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
+      httpClient: _delivery.client(
         (_) async => http.Response(jsonEncode({'not': 'envelope'}), 200),
       ),
     );
@@ -357,7 +363,7 @@ void main() {
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
+      httpClient: _delivery.client(
         (_) async =>
             http.Response(jsonEncode({'envelope': 'not!base64!'}), 200),
       ),
@@ -369,18 +375,15 @@ void main() {
     );
   });
 
-  test('fails closed when the envelope bytes do not decode', () async {
+  test('fails closed when the delivered content does not decode', () async {
+    // The description is truthful about bytes that are simply not a payload
+    // frame. The hash gate therefore passes and the frame gate is the one under
+    // test — declaring a hash the bytes do not have would only prove the other
+    // gate works, which the case below already does.
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
-        (_) async => http.Response(
-          jsonEncode({
-            'envelope': base64Encode(const [9, 9, 9, 9])
-          }),
-          200,
-        ),
-      ),
+      httpClient: _serveFrame(Uint8List.fromList(const [9, 9, 9, 9])),
     );
 
     await expectLater(
@@ -389,21 +392,42 @@ void main() {
     );
   });
 
-  test('fails closed when a screen blob in the payload is tampered', () async {
-    // The payload's canonical bytes carry the blob; flipping a blob byte after
-    // assembly breaks the codec's content-hash/isomorphism check at decode.
+  test('fails closed when the content served is not the content described',
+      () async {
+    // Content and description now travel separately, so tampering has two
+    // distinct shapes and this is the first: the bytes changed, the description
+    // did not. The hash the description states is no longer the hash of what
+    // arrived, so the content never reaches a decoder at all — it is refused as
+    // content that did not arrive, which is the rung this arm words as
+    // unavailable.
     final screenBytes = Uint8List.fromList([1, 2, 3]);
-    final envelope =
-        _envelope(_validDocument(screenBytes: screenBytes), screenBytes);
-    final tampered = Uint8List.fromList(envelope)
-      ..[envelope.length - 1] ^= 0xFF;
+    final honest = _payloadFrame(screenBytes);
+    final tampered = Uint8List.fromList(honest)..[honest.length - 1] ^= 0xFF;
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: MockClient(
-        (_) async => http.Response(
-            jsonEncode({'envelope': base64Encode(tampered)}), 200),
-      ),
+      httpClient: _serveFrame(tampered, describedAs: honest),
+    );
+
+    await expectLater(
+      resolver.resolve(flowRef),
+      throwsA(_flowUnavailable('unavailable')),
+    );
+  });
+
+  test('fails closed when a screen blob inside the frame is tampered',
+      () async {
+    // The second shape: bytes and description agree, and the frame is still
+    // internally inconsistent — the graph names a hash its screen bytes no
+    // longer have. Passing the hash gate is the point; this proves the frame's
+    // own closure check still runs behind it rather than being replaced by it.
+    final screenBytes = Uint8List.fromList([1, 2, 3]);
+    final frame = _payloadFrame(screenBytes);
+    final tampered = Uint8List.fromList(frame)..[frame.length - 1] ^= 0xFF;
+    final resolver = ServerFlowResolver(
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+      httpClient: _serveFrame(tampered),
     );
 
     await expectLater(
@@ -627,11 +651,10 @@ void main() {
     // before the resolver's defense-in-depth validate pass is reachable. We
     // hand-frame such a payload (the canonical encoder would otherwise reject
     // it) to prove the fail-closed boundary.
-    final envelope = _handFramedBrokenValidationEnvelope();
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: _server(envelope),
+      httpClient: _serveFrame(_handFramedBrokenValidationFrame()),
     );
 
     await expectLater(
@@ -850,10 +873,10 @@ MockClient _server(
   Uint8List envelope, {
   void Function(http.Request request)? onRequest,
 }) {
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     onRequest?.call(request);
     return http.Response(
-      jsonEncode({'envelope': base64Encode(envelope)}),
+      jsonEncode({..._delivery.describeEnvelope(envelope)}),
       200,
     );
   });
@@ -900,7 +923,7 @@ FlowDocument _validDocument({
 ///   payload  = u32be(len "flow") "flow" u32be(len json) json
 ///              u32be(screenCount) [u32be(idLen) id u32be(blobLen) blob]...
 ///   envelope = u32be(headerLen) headerJson payloadBytes
-Uint8List _handFramedBrokenValidationEnvelope() {
+Uint8List _handFramedBrokenValidationFrame() {
   final screenBytes = Uint8List.fromList([1, 2, 3]);
   final validJson = utf8.decode(
     FlowDocumentCodec.encodeCanonicalJson(
@@ -908,13 +931,47 @@ Uint8List _handFramedBrokenValidationEnvelope() {
   );
   final brokenJson =
       validJson.replaceFirst('"screen":"welcome"', '"screen":"missing"');
-  final payload = _framePayload(brokenJson, {'welcome': screenBytes});
-  return _frameEnvelope(
-    payload: payload,
-    surfaceType: 'onboarding',
+  return _framePayload(brokenJson, {'welcome': screenBytes});
+}
+
+/// The payload frame a valid document carries, as a publisher writes it.
+Uint8List _payloadFrame(Uint8List screenBytes) => FlowSurfacePayload(
+      flowDocument: _validDocument(screenBytes: screenBytes),
+      screenBlobs: {'welcome': screenBytes},
+    ).canonicalBytes;
+
+/// A stub that describes [frame] and serves it.
+///
+/// [describedAs] states the content the description CLAIMS, when that is
+/// deliberately not what is served.
+MockClient _serveFrame(Uint8List frame, {Uint8List? describedAs}) {
+  final claimed = describedAs ?? frame;
+  final body = _delivery.describeRaw(
+    surfaceType: Surface.onboarding,
     surfaceSlug: 'first_run',
     version: 1,
-    minClient: _refFloorMinClient,
+    publishedAt: DateTime.utc(2026),
+    content: claimed,
+  );
+  if (!identical(claimed, frame)) {
+    // Describe the honest bytes so the URL and hash are the honest ones, then
+    // register the tampered bytes AT that URL — which is exactly the substitution
+    // the hash gate exists to catch.
+    _delivery.substituteContent(
+      _delivery
+          .descriptorFor(
+            surfaceType: Surface.onboarding,
+            surfaceSlug: 'first_run',
+            version: 1,
+            publishedAt: DateTime.utc(2026),
+            content: claimed,
+          )
+          .artifactUrl,
+      frame,
+    );
+  }
+  return _delivery.client(
+    (_) async => http.Response(jsonEncode(body), 200),
   );
 }
 
@@ -928,31 +985,11 @@ Uint8List _framePayload(String flowJson, Map<String, Uint8List> blobs) {
     _appendLengthPrefixed(out, utf8.encode(id));
     _appendLengthPrefixed(out, blobs[id]!);
   }
+  // The requirement section, empty. Every readable payload format carries one,
+  // so a hand-written frame that omits it would be refused for the wrong
+  // reason and would stop probing the boundary this fixture exists for.
+  out.addAll(_u32be(0));
   return Uint8List.fromList(out);
-}
-
-Uint8List _frameEnvelope({
-  required Uint8List payload,
-  required String surfaceType,
-  required String surfaceSlug,
-  required int version,
-  required int minClient,
-}) {
-  final header = jsonEncode({
-    'contentHash': FlowContentHash.compute(payload).value,
-    'formatVersion': 1,
-    'minClient': minClient,
-    'publishedAtMicros': DateTime.utc(2026).microsecondsSinceEpoch,
-    'surfaceSlug': surfaceSlug,
-    'surfaceType': surfaceType,
-    'version': version,
-  });
-  final headerBytes = utf8.encode(header);
-  return Uint8List.fromList(<int>[
-    ..._u32be(headerBytes.length),
-    ...headerBytes,
-    ...payload,
-  ]);
 }
 
 void _appendLengthPrefixed(List<int> out, List<int> bytes) {

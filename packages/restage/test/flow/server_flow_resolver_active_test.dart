@@ -17,6 +17,8 @@ import 'package:restage_shared/restage_shared.dart';
 
 import 'flow_test_support.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// The installed built-in catalog version this SDK build ships. The active arm's
 /// retained installed-floor backstop rejects a document above it.
 const int _installed = RestageBuiltInCatalogCapabilities.currentVersion;
@@ -26,6 +28,10 @@ const int _installed = RestageBuiltInCatalogCapabilities.currentVersion;
 /// while leaving room for the installed-floor backstop fixture (a document at
 /// `_installed + 1`, within the ref floor but above the installed catalog).
 const int _refFloor = _installed + 2;
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   const baseUrl = 'https://surfaces.example.com';
@@ -544,11 +550,11 @@ MockClient _server(
   int? experimentEpoch,
   void Function(http.Request request)? onRequest,
 }) {
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     onRequest?.call(request);
     return http.Response(
       jsonEncode({
-        'envelope': base64Encode(envelope),
+        ..._delivery.describeEnvelope(envelope),
         if (experimentId != null) 'experimentId': experimentId,
         if (variantId != null) 'variantId': variantId,
         if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
@@ -566,11 +572,11 @@ MockClient _flakyServer(
   void Function(http.Request request)? onRequest,
 }) {
   var seen = 0;
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     onRequest?.call(request);
     if (seen++ < liveFor) {
       return http.Response(
-        jsonEncode({'envelope': base64Encode(envelope)}),
+        jsonEncode({..._delivery.describeEnvelope(envelope)}),
         200,
       );
     }
@@ -579,7 +585,7 @@ MockClient _flakyServer(
 }
 
 MockClient _notFoundServer() =>
-    MockClient((request) async => http.Response('not found', 404));
+    _delivery.client((request) async => http.Response('not found', 404));
 
 final class _TestBundle extends CachingAssetBundle {
   _TestBundle(this._assets);

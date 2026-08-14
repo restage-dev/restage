@@ -14,6 +14,8 @@ import 'package:rfw/formats.dart';
 
 import 'flow_test_support.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// The renderable built-in catalog floor: a baseline proof flow installs at the
 /// SDK's current built-in catalog version (distinct from the host-action
 /// contract `minClient`, which is the separate action-capability axis).
@@ -36,6 +38,10 @@ const int _refFloorMinClient = _renderableMinClient + 2;
 /// `RestageOnboarding` uses — so the assertions exercise the public stream, not
 /// a private capture. Per-branch emission correctness is covered exhaustively in
 /// `onboarding_events_test.dart`; this proves the delivery + stream integration.
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
+
 void main() {
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_proof';
@@ -313,15 +319,16 @@ Uint8List _encode(FlowDocument document, Map<String, Uint8List> blobs) {
 Uint8List _blob(String label) {
   final source = '''
 import restage.core;
+
 widget OnboardingScreen = Text(text: "$label");
 ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
 
 MockClient _server(Uint8List envelope) {
-  return MockClient(
+  return _delivery.client(
     (_) async => http.Response(
-      jsonEncode({'envelope': base64Encode(envelope)}),
+      jsonEncode({..._delivery.describeEnvelope(envelope)}),
       200,
     ),
   );

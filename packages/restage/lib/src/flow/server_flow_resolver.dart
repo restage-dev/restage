@@ -16,11 +16,11 @@ import 'package:restage_shared/restage_shared.dart'
         GeneralFlowRenderGate,
         LibraryRequirement,
         SurfaceDocument,
-        SurfaceDocumentCodec,
         Surface;
 
 import '../assets/bundled_asset_source.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
+import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
@@ -188,7 +188,28 @@ final class ServerFlowResolver
       );
     }
 
-    final surfaceDocument = _decode(flow, result.envelopeBytes);
+    // The exact arm has never had a soft ladder — it throws, and it says WHY.
+    // Keeping the two reasons apart matters here: a host told "could not read
+    // the content" for a delivery whose content never arrived would go looking
+    // at the wrong thing entirely.
+    final SurfaceDocument surfaceDocument;
+    switch (result.artifact) {
+      case SurfaceArtifactAssembled(:final document):
+        surfaceDocument = document;
+      case SurfaceArtifactUnavailable():
+        throw _error(
+          flow,
+          'unavailable',
+          'Flow "${flow.id}" version ${flow.version} is unavailable.',
+        );
+      case SurfaceArtifactUndecodable(:final error):
+        throw _error(
+          flow,
+          'decode_failed',
+          'Failed to decode surface document for "${flow.id}": $error.',
+          error,
+        );
+    }
     _checkEnvelopeIdentity(flow, surfaceDocument);
     final payload = surfaceDocument.payload;
     if (payload is! FlowSurfacePayload) {
@@ -340,11 +361,16 @@ final class ServerFlowResolver
       if (result == null || result.flowContractRequired) return null;
     }
 
+    // Both artifact refusals reach the same `null` the decode failure always
+    // did — this arm's ladder treats an unrenderable active exactly like an
+    // absent one.
     final SurfaceDocument surfaceDocument;
-    try {
-      surfaceDocument = SurfaceDocumentCodec.decode(result.envelopeBytes);
-    } on FormatException {
-      return null;
+    switch (result.artifact) {
+      case SurfaceArtifactAssembled(:final document):
+        surfaceDocument = document;
+      case SurfaceArtifactUnavailable():
+      case SurfaceArtifactUndecodable():
+        return null;
     }
     if (surfaceDocument.surfaceType != flow.surfaceType ||
         surfaceDocument.surfaceSlug != flow.id) {
@@ -458,11 +484,16 @@ final class ServerFlowResolver
     // Flow requests intentionally omit an assignment key. Any valid assignment
     // metadata on the response remains passive and is attached only after the
     // artifact passes the validation checks below.
+    // Both artifact refusals reach the same `null` the decode failure always
+    // did — this arm's ladder treats an unrenderable active exactly like an
+    // absent one.
     final SurfaceDocument surfaceDocument;
-    try {
-      surfaceDocument = SurfaceDocumentCodec.decode(result.envelopeBytes);
-    } on FormatException {
-      return null;
+    switch (result.artifact) {
+      case SurfaceArtifactAssembled(:final document):
+        surfaceDocument = document;
+      case SurfaceArtifactUnavailable():
+      case SurfaceArtifactUndecodable():
+        return null;
     }
 
     // Envelope identity, version-relaxed: the surface type + slug must still
@@ -594,19 +625,6 @@ final class ServerFlowResolver
         'Surface envelope (${surfaceDocument.surfaceType.wireName} '
             '"${surfaceDocument.surfaceSlug}" v${surfaceDocument.version}) does '
             'not match the requested flow "${flow.id}" v${flow.version}.',
-      );
-    }
-  }
-
-  SurfaceDocument _decode<R>(OnboardingFlowRef<R> flow, Uint8List bytes) {
-    try {
-      return SurfaceDocumentCodec.decode(bytes);
-    } on FormatException catch (e) {
-      throw _error(
-        flow,
-        'decode_failed',
-        'Failed to decode surface document for "${flow.id}": $e.',
-        e,
       );
     }
   }

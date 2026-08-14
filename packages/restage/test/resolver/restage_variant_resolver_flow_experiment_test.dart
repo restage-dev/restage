@@ -16,6 +16,12 @@ import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
+import '../support/hosted_artifact_delivery.dart';
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -587,7 +593,7 @@ void main() {
       apiKey: 'rs_pk_test',
       environment: RestageEnvironment.sandbox,
       baseUrl: 'https://surfaces.example.com',
-      httpClient: MockClient((request) async {
+      httpClient: _delivery.client((request) async {
         requests.add(_requestBody(request));
         return http.Response('unavailable', 503);
       }),
@@ -605,7 +611,7 @@ void main() {
 }
 
 MockClient _failingServer(List<String> bodies) {
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     bodies.add(request.body);
     return http.Response('unavailable', 503);
   });
@@ -624,7 +630,7 @@ http.Response _surfaceResponse(
 }) {
   return http.Response(
     jsonEncode(<String, Object?>{
-      'envelope': base64Encode(envelope),
+      ..._delivery.describeEnvelope(envelope),
       if (decision != null) 'decision': decision,
       if (experimentId != null) 'experimentId': experimentId,
       if (variantId != null) 'variantId': variantId,
@@ -824,7 +830,7 @@ Uint8List _screen(String text) {
 
 final class _ControlledSurfaceServer {
   _ControlledSurfaceServer() {
-    client = MockClient((request) {
+    client = _delivery.client((request) {
       final pending = _PendingSurfaceRequest(request);
       requests.add(pending);
       return pending.response.future;

@@ -11,6 +11,8 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 const int _installed = RestageBuiltInCatalogCapabilities.currentVersion;
 const int _refFloor = _installed + 2;
 
@@ -21,6 +23,10 @@ const flowRef = OnboardingFlowRef<Map<String, Object?>>(
   surface: Surface.general,
   decodeResult: _decodeMapResult,
 );
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   const baseUrl = 'https://surfaces.example.com';
@@ -222,8 +228,9 @@ AssetBundle _bundleFor(FlowDocument document, Uint8List screenBytes) {
 }
 
 MockClient _server(Uint8List envelope) {
-  return MockClient((request) async {
-    return http.Response(jsonEncode({'envelope': base64Encode(envelope)}), 200);
+  return _delivery.client((request) async {
+    return http.Response(
+        jsonEncode({..._delivery.describeEnvelope(envelope)}), 200);
   });
 }
 

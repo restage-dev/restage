@@ -19,8 +19,14 @@ import 'package:restage/src/runtime/library_runtime_registry.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' show encodeLibraryBlob, parseLibraryFile;
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// The resolver's capability ceiling — the installed built-in catalog version.
 const int _supportedVersion = RestageBuiltInCatalogCapabilities.currentVersion;
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   const baseUrl = 'https://surfaces.example.com';
@@ -158,7 +164,7 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient((request) async {
+        httpClient: _delivery.client((request) async {
           requests.add(request);
           final uploaded =
               (jsonDecode(request.body) as Map).containsKey('contract');
@@ -167,7 +173,7 @@ void main() {
           if (!uploaded) {
             return http.Response(
               jsonEncode({
-                'envelope': base64Encode(envelope),
+                ..._delivery.describeEnvelope(envelope),
                 'decision': 'clientIncompatible',
                 'contractRequired': true,
               }),
@@ -176,7 +182,7 @@ void main() {
           }
           return http.Response(
             jsonEncode({
-              'envelope': base64Encode(envelope),
+              ..._delivery.describeEnvelope(envelope),
               'decision': 'assigned',
               'experimentId': 'exp_paywall_copy',
               'variantId': 'variant_a',
@@ -213,11 +219,11 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient((request) async {
+        httpClient: _delivery.client((request) async {
           requests.add(request);
           return http.Response(
             jsonEncode({
-              'envelope': base64Encode(envelope),
+              ..._delivery.describeEnvelope(envelope),
               'decision': 'clientIncompatible',
               'contractRequired': true,
             }),
@@ -243,13 +249,13 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient((request) async {
+        httpClient: _delivery.client((request) async {
           // The client cannot render every arm: it sits out the experiment and
           // is served the pinned active version — no assignment metadata, no
           // contractRequired.
           return http.Response(
             jsonEncode({
-              'envelope': base64Encode(envelope),
+              ..._delivery.describeEnvelope(envelope),
               'decision': 'clientIncompatible',
             }),
             200,
@@ -294,10 +300,10 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => http.Response(
             jsonEncode({
-              'envelope': base64Encode([0, 1, 2, 3])
+              ..._delivery.describeEnvelope([0, 1, 2, 3])
             }),
             200,
           ),
@@ -468,7 +474,8 @@ void main() {
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
-          http.Response(jsonEncode({'envelope': base64Encode(envelope)}), 200),
+          http.Response(
+              jsonEncode({..._delivery.describeEnvelope(envelope)}), 200),
           http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ]),
       );
@@ -541,8 +548,9 @@ void main() {
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
         httpClient: _sequenceServer([
-          http.Response(jsonEncode({'envelope': base64Encode(good)}), 200),
-          http.Response(jsonEncode({'envelope': base64Encode(rejected)}), 200),
+          http.Response(jsonEncode({..._delivery.describeEnvelope(good)}), 200),
+          http.Response(
+              jsonEncode({..._delivery.describeEnvelope(rejected)}), 200),
         ]),
       );
 
@@ -565,7 +573,7 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ),
         assetFallback: _StubResolver(returns: assetVariant),
@@ -582,7 +590,7 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ),
         assetFallback: _StubResolver(
@@ -687,7 +695,7 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ),
         assetFallback: _StubResolver(returns: assetVariant),
@@ -846,7 +854,7 @@ void main() {
         apiKey: apiKey,
         environment: RestageEnvironment.production,
         baseUrl: baseUrl,
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ),
         assetFallback: AssetVariantResolver(bundle: bundle),
@@ -868,7 +876,7 @@ MockClient _server(
   int? experimentEpoch,
   void Function(http.Request request)? onRequest,
 }) {
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     onRequest?.call(request);
     return http.Response(
       _surfaceResponseJson(
@@ -889,7 +897,7 @@ String _surfaceResponseJson(
   int? experimentEpoch,
 }) {
   return jsonEncode({
-    'envelope': base64Encode(envelope),
+    ..._delivery.describeEnvelope(envelope),
     if (experimentId != null) 'experimentId': experimentId,
     if (variantId != null) 'variantId': variantId,
     if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
@@ -900,7 +908,7 @@ String _surfaceResponseJson(
 /// last one repeats once exhausted).
 MockClient _sequenceServer(List<http.Response> responses) {
   var i = 0;
-  return MockClient((_) async {
+  return _delivery.client((_) async {
     final response = responses[i < responses.length ? i : responses.length - 1];
     i++;
     return response;

@@ -19,7 +19,6 @@ import 'package:restage_shared/restage_shared.dart'
         InstalledCapability,
         LibraryRequirement,
         SurfaceDocument,
-        SurfaceDocumentCodec,
         Surface;
 
 import '../flow/flow_assignment.dart';
@@ -28,6 +27,7 @@ import '../flow/flow_experiment_artifact_metadata.dart';
 import '../flow/flow_experiment_mount.dart';
 import '../flow/flow_resolver.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
+import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/paywall_error.dart';
@@ -418,12 +418,18 @@ final class RestageVariantResolver
       }
     }
 
+    // Both artifact refusals land on the same rung they always have: a hosted
+    // surface that did not arrive and one that arrived unreadable are equally
+    // unrenderable, and both fall through to the ladder rather than throwing.
     final SurfaceDocument document;
-    try {
-      document = SurfaceDocumentCodec.decode(result.envelopeBytes);
-    } on FormatException catch (error) {
-      debugPrint('[restage] hosted paywall "$id" failed to decode: $error');
-      return const _FreshRejected();
+    switch (result.artifact) {
+      case SurfaceArtifactAssembled(document: final assembled):
+        document = assembled;
+      case SurfaceArtifactUnavailable():
+        return const _FreshRejected();
+      case SurfaceArtifactUndecodable(:final error):
+        debugPrint('[restage] hosted paywall "$id" failed to decode: $error');
+        return const _FreshRejected();
     }
 
     // Defense-in-depth: the served document must be the paywall we asked for.
@@ -911,11 +917,15 @@ final class _RestagePaywallExperimentPresentation
     required OnboardingFlowRef<R> requestedFlow,
     required bool exactVersion,
   }) {
+    // Absent and unreadable already reached the same `null` here; the artifact
+    // that never arrived joins them on that rung.
     final SurfaceDocument surface;
-    try {
-      surface = SurfaceDocumentCodec.decode(result.envelopeBytes);
-    } on FormatException {
-      return null;
+    switch (result.artifact) {
+      case SurfaceArtifactAssembled(:final document):
+        surface = document;
+      case SurfaceArtifactUnavailable():
+      case SurfaceArtifactUndecodable():
+        return null;
     }
     if (surface.surfaceType != Surface.paywall ||
         surface.surfaceSlug != requestedFlow.id ||

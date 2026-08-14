@@ -833,6 +833,11 @@ void main() {
     });
 
     test('freezes complete responses and rejects partial present metadata', () {
+      // The response type is no longer a wire type — it is what a reader
+      // ASSEMBLES once it has fetched the content a descriptor names. So this
+      // covers the two halves separately: the constructor's correlation rules,
+      // which are unchanged and are the whole reason the type survived the wire
+      // change, and the descriptor codec that now carries the wire.
       final fixture = _screenFixture();
       SurfaceDocument documentWithSlug(String slug) => SurfaceDocument(
             surfaceType: fixture.document.surfaceType,
@@ -855,31 +860,6 @@ void main() {
             contractFingerprint: fixture.contractFingerprint,
             eventContractHash: fixture.eventContractHash,
           );
-      final response = SurfaceScreenDeliveryResponseV1(
-        document: fixture.document,
-        sourceKind: SurfaceSourceKind.screen,
-        payloadKind: SurfacePayloadKind.blob,
-        contractVersion: 7,
-        publishedRevision: 12,
-        contractFingerprint: fixture.contractFingerprint,
-        eventContractHash: fixture.eventContractHash,
-        assignment: SurfaceExperimentAssignmentV1(
-          experimentId: 'exp_1',
-          variantId: 'treatment',
-          experimentEpoch: 3,
-        ),
-      );
-      final responseJson =
-          SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
-        response,
-      );
-      expect(responseJson, _screenResponseGolden);
-      expect(
-        SurfaceScreenDeliveryResponseV1Codec.decodeJson(responseJson)
-            .assignment!
-            .variantId,
-        'treatment',
-      );
       expect(
         responseForDocument(documentWithSlug('écran_欢迎')).document.surfaceSlug,
         'écran_欢迎',
@@ -909,76 +889,124 @@ void main() {
           eventContractHash: fixture.eventContractHash,
         ),
         throwsFormatException,
+        reason: 'publishedRevision must equal the document version',
       );
-      final responseMap = response.toJson();
+
+      final descriptor = SurfaceScreenDeliveryDescriptorV1(
+        artifact: _screenArtifactDescriptor(fixture),
+        sourceKind: SurfaceSourceKind.screen,
+        contractVersion: 7,
+        publishedRevision: 12,
+        contractFingerprint: fixture.contractFingerprint,
+        eventContractHash: fixture.eventContractHash,
+        assignment: SurfaceExperimentAssignmentV1(
+          experimentId: 'exp_1',
+          variantId: 'treatment',
+          experimentEpoch: 3,
+        ),
+      );
+      final descriptorJson =
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+        descriptor,
+      );
+      expect(descriptorJson, _screenDescriptorGolden);
+      expect(
+        SurfaceScreenDeliveryDescriptorV1Codec.decodeJson(descriptorJson)
+            .assignment!
+            .variantId,
+        'treatment',
+      );
+
+      // The completion is the correlation: the fingerprint is recomputed
+      // against the document assembled from fetched content, so a descriptor
+      // whose fingerprint does not describe that content cannot complete.
+      expect(
+        descriptor.completeWith(fixture.document).publishedRevision,
+        12,
+      );
+
+      final descriptorMap = descriptor.toJson();
       for (final field in const <String>[
         'schemaVersion',
-        'document',
+        'artifact',
         'sourceKind',
-        'payloadKind',
         'contractVersion',
         'publishedRevision',
         'contractFingerprint',
         'eventContractHash',
       ]) {
-        final missing = Map<String, Object?>.from(responseMap)..remove(field);
-        final nulled = Map<String, Object?>.from(responseMap)..[field] = null;
+        final missing = Map<String, Object?>.from(descriptorMap)..remove(field);
+        final nulled = Map<String, Object?>.from(descriptorMap)..[field] = null;
         expect(
-          () => SurfaceScreenDeliveryResponseV1Codec.decode(missing),
+          () => SurfaceScreenDeliveryDescriptorV1Codec.decode(missing),
           throwsFormatException,
-          reason: 'missing response $field',
+          reason: 'missing descriptor $field',
         );
         expect(
-          () => SurfaceScreenDeliveryResponseV1Codec.decode(nulled),
+          () => SurfaceScreenDeliveryDescriptorV1Codec.decode(nulled),
           throwsFormatException,
-          reason: 'null response $field',
+          reason: 'null descriptor $field',
         );
       }
       for (final field in const <String>[
         'contractFingerprint',
         'eventContractHash',
       ]) {
-        final malformed = Map<String, Object?>.from(responseMap)
+        final malformed = Map<String, Object?>.from(descriptorMap)
           ..[field] = 'sha256:0';
         expect(
-          () => SurfaceScreenDeliveryResponseV1Codec.decode(malformed),
+          () => SurfaceScreenDeliveryDescriptorV1Codec.decode(malformed),
           throwsFormatException,
-          reason: 'malformed response $field',
+          reason: 'malformed descriptor $field',
         );
       }
       expect(
-        () => SurfaceScreenDeliveryResponseV1Codec.decode(<String, Object?>{
-          ...responseMap,
+        () => SurfaceScreenDeliveryDescriptorV1Codec.decode(<String, Object?>{
+          ...descriptorMap,
           'unknown': true,
         }),
         throwsFormatException,
       );
 
-      final partialAssignment = Map<String, Object?>.from(responseMap)
+      final partialAssignment = Map<String, Object?>.from(descriptorMap)
         ..['assignment'] = <String, Object?>{
           'experimentId': 'exp_1',
         };
       expect(
-        () => SurfaceScreenDeliveryResponseV1Codec.decode(partialAssignment),
+        () => SurfaceScreenDeliveryDescriptorV1Codec.decode(partialAssignment),
         throwsFormatException,
       );
       expect(
-        () => SurfaceScreenDeliveryResponseV1Codec.decode(null),
+        () => SurfaceScreenDeliveryDescriptorV1Codec.decode(null),
         throwsFormatException,
       );
       expect(
-        () => SurfaceScreenDeliveryResponseV1Codec.decode(<String, Object?>{
-          ...responseMap,
+        () => SurfaceScreenDeliveryDescriptorV1Codec.decode(<String, Object?>{
+          ...descriptorMap,
           'assignment': null,
         }),
         throwsFormatException,
       );
-      final withoutAssignment = Map<String, Object?>.from(responseMap)
+      final withoutAssignment = Map<String, Object?>.from(descriptorMap)
         ..remove('assignment');
       expect(
-        SurfaceScreenDeliveryResponseV1Codec.decode(withoutAssignment)
+        SurfaceScreenDeliveryDescriptorV1Codec.decode(withoutAssignment)
             .assignment,
         isNull,
+      );
+
+      // This wire delivers exactly one shape, so an artifact that makes no
+      // shape claim — legitimate on the shape-agnostic route — is a missing
+      // field here rather than a deliberate silence.
+      final artifactMap = Map<String, Object?>.from(
+        descriptorMap['artifact']! as Map<String, Object?>,
+      )..remove('payloadKind');
+      expect(
+        () => SurfaceScreenDeliveryDescriptorV1Codec.decode(<String, Object?>{
+          ...descriptorMap,
+          'artifact': artifactMap,
+        }),
+        throwsFormatException,
       );
     });
   });
@@ -1189,5 +1217,41 @@ const String _screenManifestGolden =
     '{"schemaVersion":1,"publications":[{"artifacts":[{"contentHash":"sha256:039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81","id":"feature_announcement","path":"assets/restage/generated/feature_announcement/screen.rfw","role":"screenBlob"},{"contentHash":"sha256:bb3712909c6331779b86e5634d5bb13dff4cc12fd7c7da28a999114498e6d66c","id":"feature_announcement","path":"assets/restage/generated/feature_announcement/screen.capability.json","role":"capabilitySidecar"}],"publication":{"capabilities":{"builtInFloor":1,"requiredLibraries":[]},"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContract":{"schemaVersion":1,"events":[]},"eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5","payloadContentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","payloadKind":"blob","slug":"feature_announcement","sourceKind":"screen","surface":"general","contractVersion":7}}]}';
 const String _screenUploadGolden =
     '{"schemaVersion":1,"publication":{"capabilities":{"builtInFloor":1,"requiredLibraries":[]},"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContract":{"schemaVersion":1,"events":[]},"eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5","payloadContentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","payloadKind":"blob","slug":"feature_announcement","sourceKind":"screen","surface":"general","contractVersion":7},"payload":"AAAABGJsb2IAAAABAAAAAwECAwAAAAA"}';
-const String _screenResponseGolden =
-    '{"schemaVersion":1,"document":"AAAA_3siY29udGVudEhhc2giOiJzaGEyNTY6N2NhYTYxNGViY2MxODAwZmIwZTJhZWY3ZjQwNjZjMzJmNjU4OWY2YjYyZDM3MzI5MDFlYjFkN2Q2MTdmOTIzZCIsImZvcm1hdFZlcnNpb24iOjIsIm1pbkNsaWVudCI6MSwicHVibGlzaGVkQXRNaWNyb3MiOjE3ODY0MDY0MDAwMDAwMDAsInJlcXVpcmVkTGlicmFyaWVzIjpbXSwic3VyZmFjZVNsdWciOiJmZWF0dXJlX2Fubm91bmNlbWVudCIsInN1cmZhY2VUeXBlIjoiZ2VuZXJhbCIsInZlcnNpb24iOjEyfQAAAARibG9iAAAAAQAAAAMBAgMAAAAA","sourceKind":"screen","payloadKind":"blob","contractVersion":7,"publishedRevision":12,"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5","assignment":{"experimentId":"exp_1","variantId":"treatment","experimentEpoch":3}}';
+
+/// The descriptor a screen delivery puts on the wire, frozen.
+///
+/// Deliberately short. The document it used to inline is gone; what is left is
+/// where the content is, what it must hash to, and the contract facts that
+/// travel beside it — which is the whole point of the change.
+const String _screenDescriptorGolden =
+    '{"schemaVersion":1,"artifact":{"artifactPass":"v1.k1.4102444800.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactUrl":"https://artifacts.example/artifacts/orgs/1/artifacts/1/sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","contentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","descriptorVersion":1,"payloadFormatVersion":1,"payloadKind":"blob","publishedAtMicros":1786406400000000,"surfaceSlug":"feature_announcement","surfaceType":"general","version":12},"sourceKind":"screen","contractVersion":7,"publishedRevision":12,"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5","assignment":{"experimentId":"exp_1","variantId":"treatment","experimentEpoch":3}}';
+
+/// The artifact half of the frozen descriptor above, built from the same
+/// fixture so the two cannot drift apart.
+SurfaceArtifactDescriptorV1 _screenArtifactDescriptor(
+  ({
+    SurfacePublicationManifestV1 manifest,
+    SurfacePublicationUploadRequestV1 upload,
+    SurfacePublicationV1 publication,
+    BlobSurfacePayload payload,
+    SurfaceDocument document,
+    Map<String, List<int>> files,
+    String sidecarPath,
+    String eventContractHash,
+    String contractFingerprint,
+  }) fixture,
+) {
+  final hash = fixture.payload.contentHash;
+  return SurfaceArtifactDescriptorV1(
+    payloadFormatVersion: 1,
+    surfaceType: fixture.document.surfaceType,
+    surfaceSlug: fixture.document.surfaceSlug,
+    version: fixture.document.version,
+    publishedAtMicros:
+        fixture.document.publishedAt.toUtc().microsecondsSinceEpoch,
+    contentHash: hash,
+    artifactUrl: 'https://artifacts.example/artifacts/orgs/1/artifacts/1/$hash',
+    artifactPass: 'v1.k1.4102444800.${'a' * 64}',
+    payloadKind: SurfacePayloadKind.blob.wireName,
+  );
+}

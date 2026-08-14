@@ -233,9 +233,43 @@ class FakeSurfaceServer extends http.BaseClient {
 
   final Uint8List _envelope;
 
+  /// Where this stand-in says its content lives. Never resolved on a network —
+  /// the same object answers for it.
+  static const String _origin = 'https://artifacts.invalid';
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final body = jsonEncode({'envelope': base64Encode(_envelope)});
+    final document = SurfaceDocumentCodec.decode(_envelope);
+    final content = document.payload.canonicalBytes;
+    final url = '$_origin/artifacts/orgs/1/artifacts/'
+        '$kSurfaceArtifactPayloadFormatVersion/${document.contentHash}';
+
+    // Delivery is two exchanges: a description of the surface, then its
+    // content. Answering both here keeps the demo on the real wire — a
+    // stand-in that skipped the second exchange would exercise a delivery path
+    // the app never actually takes.
+    if (request.url.toString() == url) {
+      return http.StreamedResponse(
+        Stream<List<int>>.value(content),
+        200,
+        request: request,
+      );
+    }
+
+    final body = jsonEncode({
+      'artifact': SurfaceArtifactDescriptorV1(
+        payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion,
+        surfaceType: document.surfaceType,
+        surfaceSlug: document.surfaceSlug,
+        version: document.version,
+        publishedAtMicros: document.publishedAt.toUtc().microsecondsSinceEpoch,
+        contentHash: document.contentHash,
+        artifactUrl: url,
+        // Shaped like a real pass. Nothing here verifies one; that is the
+        // edge's job, and this stand-in is not the edge.
+        artifactPass: 'v1.k1.4102444800.${'0' * 64}',
+      ).toJson(),
+    });
     return http.StreamedResponse(
       Stream<List<int>>.value(utf8.encode(body)),
       200,

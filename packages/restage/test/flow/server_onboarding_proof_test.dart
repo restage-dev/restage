@@ -12,6 +12,8 @@ import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// The renderable built-in catalog floor: a baseline proof flow (Text / Center /
 /// ElevatedButton) installs at the SDK's current built-in catalog version.
 const int _renderableMinClient =
@@ -31,6 +33,10 @@ const int _aboveRefFloorMinClient = _refFloorMinClient + 1;
 /// `ServerFlowResolver` injected fetches a published onboarding flow from a fake
 /// server and renders + traverses it end to end, and fails closed to the
 /// unavailable policy on every server-side failure.
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
+
 void main() {
   const baseUrl = 'https://surfaces.example.com';
   const apiKey = 'rs_pk_test_proof';
@@ -78,7 +84,7 @@ void main() {
       (tester) async {
     await _pumpUnavailable(
       tester,
-      MockClient((_) async => http.Response('', 404)),
+      _delivery.client((_) async => http.Response('', 404)),
     );
     expect(find.text('fallback:unavailable'), findsOneWidget);
   });
@@ -221,6 +227,7 @@ import restage.core;
 import restage.material;
 import restage.cupertino;
 
+
 widget OnboardingScreen = Center(
   child: ElevatedButton(
     onPressed: event "$event" {},
@@ -232,9 +239,9 @@ widget OnboardingScreen = Center(
 }
 
 MockClient _server(Uint8List envelope) {
-  return MockClient(
+  return _delivery.client(
     (_) async => http.Response(
-      jsonEncode({'envelope': base64Encode(envelope)}),
+      jsonEncode({..._delivery.describeEnvelope(envelope)}),
       200,
     ),
   );
