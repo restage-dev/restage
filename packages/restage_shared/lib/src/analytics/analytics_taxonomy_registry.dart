@@ -30,6 +30,13 @@ final class AnalyticsEventSpec {
 
 final AnalyticsEventSpec _tier1 = AnalyticsEventSpec(tier: AnalyticsTier.tier1);
 
+/// The canonical name for "a delivery resolved but its content never arrived".
+///
+/// Named here, beside the registry, so the emitter and the registration cannot
+/// be two different strings that look alike.
+const String kSurfaceArtifactFetchFailedEventName =
+    'surface_artifact_fetch_failed';
+
 /// Lifecycle event names whose meaning requires a flow-shaped artifact.
 ///
 /// The set is deliberately kept separate from the event registry: the
@@ -88,6 +95,15 @@ final Map<String, AnalyticsEventSpec> kAnalyticsRegistry =
 
   // --- Tier 1: canonical root presentation (all surface types) ---
   'surface_presented': _tier1,
+
+  // --- Tier 1: delivery infrastructure (all surface types) ---
+  // A surface whose description resolved but whose content could not be
+  // fetched. The client falls back and the end user sees something reasonable,
+  // which is exactly why this has to be reported: the failure is otherwise
+  // invisible from the outside. Registered explicitly rather than left to the
+  // registry's tolerance of unknown names — a keep-all signal should be
+  // declared where sampling is decided, not inferred.
+  kSurfaceArtifactFetchFailedEventName: _tier1,
 
   // --- Tier 1: engagement-flow lifecycle (surface-agnostic) ---
   'flow_started': _tier1,

@@ -8,6 +8,8 @@ import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// The package and library a fixture bundle claims to have been built from.
 const String kFixturePackageName = 'example_app';
 const String kFixtureAuthoredLibrary = 'lib/screens.dart';
@@ -110,7 +112,13 @@ final class ScreenFixture<E> {
     );
   }
 
-  SurfaceScreenDeliveryResponseV1 delivery({
+  /// The stub delivery this fixture describes surfaces through — and, just as
+  /// importantly, serves their content from. A screen delivery is two exchanges
+  /// now, and a fixture that only owned the first would let a test pass while
+  /// the half of the wire that carries the pixels was never exercised.
+  final HostedArtifactFixture hostedDelivery = HostedArtifactFixture();
+
+  SurfaceScreenDeliveryDescriptorV1 delivery({
     Uint8List? hostedBlob,
     int publishedRevision = 7,
     int? contractVersion,
@@ -131,12 +139,9 @@ final class ScreenFixture<E> {
       payload: payload,
       publishedAt: DateTime.utc(2026, 8, 11),
     );
-    return SurfaceScreenDeliveryResponseV1(
+    return hostedDelivery.describeScreen(
       document: document,
-      sourceKind: SurfaceSourceKind.screen,
-      payloadKind: SurfacePayloadKind.blob,
       contractVersion: contractVersion ?? ref.contractVersion,
-      publishedRevision: publishedRevision,
       contractFingerprint: ref.contractFingerprint,
       eventContractHash: ref.eventContract.hash,
       assignment: assignment,

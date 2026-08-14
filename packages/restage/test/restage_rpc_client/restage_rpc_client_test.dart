@@ -11,6 +11,20 @@ import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:restage/src/restage_rpc_client/surface_artifact_assembly.dart';
+
+import '../support/hosted_artifact_delivery.dart';
+
+/// The delivery this file's stub server speaks for. It both describes surfaces
+/// and answers for their content, so no test here can accidentally stub half a
+/// wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
+
+/// A description of a one-screen surface carrying [blob], with its content
+/// held ready to serve.
+Map<String, Object?> _blobDelivery(List<int> blob) =>
+    _delivery.describe(testBlobDocument(blob));
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -50,7 +64,7 @@ void main() {
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
-        httpClient: MockClient((request) async {
+        httpClient: _delivery.client((request) async {
           seen = request;
           return http.Response(
             jsonEncode(<String, Object?>{
@@ -75,7 +89,7 @@ void main() {
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => http.Response(
             jsonEncode(<String, Object?>{
               'purchaseIntentId': 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -100,7 +114,7 @@ void main() {
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
-        httpClient: MockClient((_) async {
+        httpClient: _delivery.client((_) async {
           requests += 1;
           return http.Response(jsonEncode(_acceptedResponse()), 200);
         }),
@@ -118,7 +132,7 @@ void main() {
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
         debugFailTransactionReports: true,
-        httpClient: MockClient((request) async {
+        httpClient: _delivery.client((request) async {
           paths.add(request.url.path);
           return http.Response(
             jsonEncode(<String, Object?>{
@@ -141,7 +155,7 @@ void main() {
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
         debugFailTransactionReports: false,
-        httpClient: MockClient((_) async {
+        httpClient: _delivery.client((_) async {
           requests += 1;
           return http.Response(jsonEncode(_acceptedResponse()), 200);
         }),
@@ -161,7 +175,7 @@ void main() {
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
         debugFailTransactionReports: true,
-        httpClient: MockClient((_) async {
+        httpClient: _delivery.client((_) async {
           requests += 1;
           return http.Response(jsonEncode(_acceptedResponse()), 200);
         }),
@@ -180,7 +194,7 @@ void main() {
     test('POSTs to /sdk/v1/reportTransaction with Bearer auth and JSON body',
         () async {
       late http.Request seen;
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         seen = req;
         return http.Response(
           jsonEncode(_acceptedResponse()),
@@ -203,7 +217,7 @@ void main() {
     });
 
     test('returns explicit acceptance with no entitlements', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode(_acceptedResponse()),
           200,
@@ -224,7 +238,7 @@ void main() {
     });
 
     test('returns parsed evidence, disposition, and entitlements', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode(_acceptedResponse(entitled: true)),
           200,
@@ -258,7 +272,7 @@ void main() {
         final client = RestageRpcClient(
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
-          httpClient: MockClient(
+          httpClient: _delivery.client(
             (req) async => http.Response(jsonEncode(body), 200),
           ),
         );
@@ -273,7 +287,7 @@ void main() {
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (req) async => http.Response(jsonEncode(body), 200),
         ),
       );
@@ -286,7 +300,7 @@ void main() {
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (req) async => http.Response(jsonEncode(body), 200),
         ),
       );
@@ -303,7 +317,7 @@ void main() {
         final client = RestageRpcClient(
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
-          httpClient: MockClient(
+          httpClient: _delivery.client(
             (_) async => http.Response(
               jsonEncode(<String, Object?>{
                 'accepted': true,
@@ -335,7 +349,7 @@ void main() {
 
     test('returns null on 4xx (distinguishing transport failure from empty)',
         () async {
-      final mock = MockClient((req) async => http.Response('', 401));
+      final mock = _delivery.client((req) async => http.Response('', 401));
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
@@ -348,7 +362,7 @@ void main() {
     });
 
     test('returns null on 5xx', () async {
-      final mock = MockClient((req) async => http.Response('', 503));
+      final mock = _delivery.client((req) async => http.Response('', 503));
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
@@ -361,7 +375,7 @@ void main() {
     });
 
     test('returns null when the transport throws', () async {
-      final mock = MockClient(
+      final mock = _delivery.client(
         (req) async => throw http.ClientException('boom', req.url),
       );
       final client = RestageRpcClient(
@@ -384,7 +398,7 @@ void main() {
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
-        httpClient: MockClient(
+        httpClient: _delivery.client(
           (_) async => throw StateError(_request.storeVerificationData),
         ),
       );
@@ -397,7 +411,7 @@ void main() {
     });
 
     test('returns null when the response body is malformed JSON', () async {
-      final mock = MockClient(
+      final mock = _delivery.client(
         (req) async => http.Response('not-json{', 200),
       );
       final client = RestageRpcClient(
@@ -412,7 +426,7 @@ void main() {
     });
 
     test('returns null when the response body is not a JSON object', () async {
-      final mock = MockClient(
+      final mock = _delivery.client(
         (req) async => http.Response('["scalar-array"]', 200),
       );
       final client = RestageRpcClient(
@@ -431,7 +445,7 @@ void main() {
       // A 200 whose entitlements list has a structurally-invalid entry (the
       // fail-loud EntitlementSummary.fromJson throws on it) must degrade to
       // null, not throw out of the call.
-      final mock = MockClient(
+      final mock = _delivery.client(
         (req) async => http.Response(
           jsonEncode(<String, Object?>{
             ..._acceptedResponse(),
@@ -458,7 +472,7 @@ void main() {
     test('POSTs to /sdk/v1/syncEntitlements with the sync request body',
         () async {
       late http.Request seen;
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         seen = req;
         return http.Response(
           jsonEncode(<String, Object?>{'entitlements': <Object?>[]}),
@@ -483,7 +497,7 @@ void main() {
     });
 
     test('returns null when the request fails', () async {
-      final mock = MockClient((req) async => http.Response('', 503));
+      final mock = _delivery.client((req) async => http.Response('', 503));
       final client = RestageRpcClient(
         baseUrl: 'https://example.com',
         apiKey: 'rs_pk_test',
@@ -497,7 +511,7 @@ void main() {
 
     test('degrades gracefully when the server returns an unknown status',
         () async {
-      final mock = MockClient((req) async => http.Response(
+      final mock = _delivery.client((req) async => http.Response(
             jsonEncode({
               'entitlements': [
                 {
@@ -532,18 +546,18 @@ void main() {
         final client = RestageRpcClient(
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
-          httpClient: MockClient((request) async {
+          httpClient: _delivery.client((request) async {
             requests.add(request);
             return http.Response(
               jsonEncode(
                 requests.length == 1
                     ? {
-                        'envelope': base64Encode([1, 2, 3]),
+                        ..._blobDelivery([1, 2, 3]),
                         'contractRequired': true,
                         'flowContractRequired': false,
                       }
                     : {
-                        'envelope': base64Encode([1, 2, 3]),
+                        ..._blobDelivery([1, 2, 3]),
                         'contractRequired': false,
                         'flowContractRequired': true,
                       },
@@ -618,11 +632,11 @@ void main() {
           final client = RestageRpcClient(
             baseUrl: 'https://example.com',
             apiKey: key,
-            httpClient: MockClient((request) async {
+            httpClient: _delivery.client((request) async {
               requests.add(request);
               return http.Response(
                 jsonEncode({
-                  'envelope': base64Encode([requests.length]),
+                  ..._blobDelivery([requests.length]),
                 }),
                 200,
               );
@@ -650,10 +664,10 @@ void main() {
     );
 
     test('returns envelope bytes with valid assignment metadata', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode([1, 2, 3]),
+            ..._blobDelivery([1, 2, 3]),
             'experimentId': 'exp_paywall_copy',
             'variantId': 'variant_a',
             'experimentEpoch': 3,
@@ -673,17 +687,17 @@ void main() {
       );
 
       expect(result, isNotNull);
-      expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(assembledBlob(result!.artifact), orderedEquals([1, 2, 3]));
       expect(result.experimentId, 'exp_paywall_copy');
       expect(result.variantId, 'variant_a');
       expect(result.experimentEpoch, 3);
     });
 
     test('parses the serve decision when present', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode([1, 2, 3]),
+            ..._blobDelivery([1, 2, 3]),
             'decision': 'assigned',
             'experimentId': 'exp_paywall_copy',
             'variantId': 'variant_a',
@@ -708,10 +722,10 @@ void main() {
     });
 
     test('preserves current behaviour when the decision is absent', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode([1, 2, 3]),
+            ..._blobDelivery([1, 2, 3]),
           }),
           200,
         );
@@ -729,17 +743,17 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!.decision, isNull);
-      expect(result.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(assembledBlob(result.artifact), orderedEquals([1, 2, 3]));
     });
 
     test(
         'degrades gracefully on an UNRECOGNISED decision string: it is '
         'carried as an opaque value and never throws (forward-compat with a '
         'newer server)', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode([1, 2, 3]),
+            ..._blobDelivery([1, 2, 3]),
             // A value a future server (e.g. a later phase's clientIncompatible)
             // may emit that this client build does not recognise.
             'decision': 'someFutureDecisionValue',
@@ -761,15 +775,15 @@ void main() {
       // The surface still resolves (the unknown decision does not fail the
       // fetch); the value is carried opaquely for the caller to interpret.
       expect(result, isNotNull);
-      expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(assembledBlob(result!.artifact), orderedEquals([1, 2, 3]));
       expect(result.decision, 'someFutureDecisionValue');
     });
 
     test('ignores a non-string decision without failing the fetch', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode([1, 2, 3]),
+            ..._blobDelivery([1, 2, 3]),
             'decision': 42,
           }),
           200,
@@ -788,14 +802,14 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!.decision, isNull);
-      expect(result.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(assembledBlob(result.artifact), orderedEquals([1, 2, 3]));
     });
 
     test('treats null assignment metadata as no assignment metadata', () async {
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         return http.Response(
           jsonEncode({
-            'envelope': base64Encode([1, 2, 3]),
+            ..._blobDelivery([1, 2, 3]),
             'experimentId': null,
             'variantId': null,
             'experimentEpoch': null,
@@ -815,7 +829,7 @@ void main() {
       );
 
       expect(result, isNotNull);
-      expect(result!.envelopeBytes, orderedEquals([1, 2, 3]));
+      expect(assembledBlob(result!.artifact), orderedEquals([1, 2, 3]));
       expect(result.experimentId, isNull);
       expect(result.variantId, isNull);
       expect(result.experimentEpoch, isNull);
@@ -824,50 +838,50 @@ void main() {
     test('fails closed on malformed assignment metadata', () async {
       final cases = <Map<String, Object?>>[
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': 'exp'
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'variantId': 'variant_a'
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': '',
           'variantId': 'variant_a',
           'experimentEpoch': 3,
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': ' exp ',
           'variantId': 'variant_a',
           'experimentEpoch': 3,
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': 'exp',
           'variantId': 'variant\u0000a',
           'experimentEpoch': 3,
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': 'exp',
           'variantId': 1,
           'experimentEpoch': 3,
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': 'exp',
           'variantId': 'variant_a',
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': 'exp',
           'variantId': 'variant_a',
           'experimentEpoch': 0,
         },
         {
-          'envelope': base64Encode([1]),
+          ..._blobDelivery([1]),
           'experimentId': 'exp',
           'variantId': 'variant_a',
           'experimentEpoch': '3',
@@ -878,7 +892,7 @@ void main() {
         final client = RestageRpcClient(
           baseUrl: 'https://example.com',
           apiKey: 'rs_pk_test',
-          httpClient: MockClient(
+          httpClient: _delivery.client(
             (_) async => http.Response(jsonEncode(body), 200),
           ),
         );
@@ -895,11 +909,11 @@ void main() {
     test('includes version in the body when an exact version is requested',
         () async {
       late http.Request seen;
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         seen = req;
         return http.Response(
             jsonEncode({
-              'envelope': base64Encode([1, 2])
+              ..._blobDelivery([1, 2]),
             }),
             200);
       });
@@ -925,11 +939,11 @@ void main() {
     test('OMITS version from the body when version is null (active arm)',
         () async {
       late http.Request seen;
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         seen = req;
         return http.Response(
             jsonEncode({
-              'envelope': base64Encode([1, 2])
+              ..._blobDelivery([1, 2]),
             }),
             200);
       });
@@ -954,11 +968,11 @@ void main() {
 
     test('includes assignmentKey only when the caller provides one', () async {
       final seenBodies = <Map<String, dynamic>>[];
-      final mock = MockClient((req) async {
+      final mock = _delivery.client((req) async {
         seenBodies.add((jsonDecode(req.body) as Map).cast());
         return http.Response(
             jsonEncode({
-              'envelope': base64Encode([1, 2])
+              ..._blobDelivery([1, 2]),
             }),
             200);
       });
@@ -987,6 +1001,171 @@ void main() {
         'surfaceType': 'paywall',
         'surfaceSlug': 'pro_upgrade',
       });
+    });
+  });
+
+  group('RestageRpcClient artifact holding', () {
+    test('a second resolve of the same artifact does not fetch it again',
+        () async {
+      // An artifact is content-addressed: naming the same one twice names bytes
+      // this client already has and already verified.
+      final stub = _deliveringClient(testBlobDocument(const [7, 7, 7]));
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: stub.client,
+      );
+
+      final first = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+      final second = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(assembledBlob(first!.artifact), orderedEquals(const [7, 7, 7]));
+      expect(assembledBlob(second!.artifact), orderedEquals(const [7, 7, 7]));
+      expect(stub.posts, hasLength(2), reason: 'both resolves still happen');
+      expect(
+        stub.delivery.artifactRequests,
+        hasLength(1),
+        reason: 'the content is fetched once',
+      );
+      // The pass goes with the fetch. Nothing else in the suite would notice if
+      // it stopped: every real store answers 403 without it, and none of them
+      // are here.
+      expect(
+        stub.delivery.artifactRequests.single
+            .headers[surfaceArtifactPassHeader],
+        testArtifactPass,
+      );
+      expect(
+        stub.delivery.artifactRequests.single.followRedirects,
+        isFalse,
+        reason: 'a redirect would re-send the pass to whatever host it named',
+      );
+    });
+
+    test('holding is bounded by size, not by how many artifacts there are',
+        () async {
+      // Eight entries sounds small and is eighty megabytes at the publish
+      // ceiling. Two artifacts, each over half the bound, cannot both be held —
+      // and the older one is what goes.
+      final delivery = HostedArtifactFixture();
+      final big = List<int>.filled(5 * 1024 * 1024, 7);
+      final other = List<int>.filled(5 * 1024 * 1024, 9);
+      final bodies = <Map<String, Object?>>[
+        delivery.describe(testBlobDocument(big)),
+        delivery.describe(testBlobDocument(other)),
+        delivery.describe(testBlobDocument(big)),
+      ];
+      var next = 0;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: delivery.client(
+          (_) async => http.Response(jsonEncode(bodies[next++]), 200),
+        ),
+      );
+
+      for (var i = 0; i != bodies.length; i += 1) {
+        await client.fetchSurface(
+          surfaceType: 'paywall',
+          surfaceSlug: 'pro_upgrade',
+        );
+      }
+
+      expect(
+        delivery.artifactRequests,
+        hasLength(3),
+        reason: 'the first artifact was evicted to make room for the second, '
+            'so re-resolving it fetches again',
+      );
+    });
+
+    test(
+        'the same bytes under a different payload format are not the same '
+        'artifact', () async {
+      // The hash alone would make these one entry, and the first fetched would
+      // answer for the other — a different frame shape read by a different
+      // decoder, from a different place. Harmless with one format; silently
+      // wrong with two.
+      final delivery = HostedArtifactFixture();
+      final document = testBlobDocument(const [7, 7, 7]);
+      final bodies = <Map<String, Object?>>[
+        delivery.describe(document),
+        delivery.describeRaw(
+          surfaceType: document.surfaceType,
+          surfaceSlug: document.surfaceSlug,
+          version: document.version,
+          publishedAt: document.publishedAt,
+          content: document.payload.canonicalBytes,
+          payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion + 1,
+        ),
+      ];
+      var next = 0;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: delivery.client(
+          (_) async => http.Response(jsonEncode(bodies[next++]), 200),
+        ),
+      );
+
+      await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+      final second = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      // The second delivery names a format this build cannot read. The version
+      // gate lives in the description's own codec, so it is refused before the
+      // seam is reached and before a byte is fetched — which is also the proof
+      // that the entry held from the first resolve was not silently reused for
+      // an artifact that merely shares its hash.
+      expect(second, isNull);
+      expect(
+        delivery.artifactRequests,
+        hasLength(1),
+        reason: 'the unreadable delivery costs no request',
+      );
+    });
+
+    test('content that failed its checks is not held', () async {
+      // Holding it would hand the next resolve a refusal it had already earned,
+      // without the fetch that might now succeed.
+      final delivery = HostedArtifactFixture();
+      final document = testBlobDocument(const [7, 7, 7]);
+      final body = delivery.describe(document);
+      delivery.substituteContent(
+        (body['artifact']! as Map<String, Object?>)['artifactUrl']! as String,
+        const <int>[0, 0, 0],
+      );
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: delivery.client(
+          (_) async => http.Response(jsonEncode(body), 200),
+        ),
+      );
+
+      final first = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+      final second = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(first!.artifact, isA<SurfaceArtifactUnavailable>());
+      expect(second!.artifact, isA<SurfaceArtifactUnavailable>());
+      expect(delivery.artifactRequests, hasLength(2));
     });
   });
 
@@ -1045,7 +1224,7 @@ void main() {
         isNotNull,
         reason: 'the surface still resolves without a metering key',
       );
-      expect(result!.envelopeBytes, isNotEmpty);
+      expect(assembledBlob(result!.artifact), isNotEmpty);
       expect(_captured.single.containsKey('meteringKey'), isFalse);
     });
   });
@@ -1055,11 +1234,11 @@ final _captured = <Map<String, dynamic>>[];
 
 MockClient _bodies() {
   _captured.clear();
-  return MockClient((req) async {
+  return _delivery.client((req) async {
     _captured.add((jsonDecode(req.body) as Map).cast());
     return http.Response(
       jsonEncode({
-        'envelope': base64Encode([1, 2])
+        ..._blobDelivery([1, 2]),
       }),
       200,
     );
@@ -1131,4 +1310,21 @@ Map<String, Object?> _acceptedResponse({bool entitled = false}) {
         },
     ],
   };
+}
+
+/// A delivery of [document] with its content held ready, on its own fixture so
+/// the held-content assertions are not disturbed by the file-wide one.
+({MockClient client, HostedArtifactFixture delivery, List<http.Request> posts})
+    _deliveringClient(SurfaceDocument document) {
+  final delivery = HostedArtifactFixture();
+  final posts = <http.Request>[];
+  final body = delivery.describe(document);
+  return (
+    client: delivery.client((request) async {
+      posts.add(request);
+      return http.Response(jsonEncode(body), 200);
+    }),
+    delivery: delivery,
+    posts: posts,
+  );
 }

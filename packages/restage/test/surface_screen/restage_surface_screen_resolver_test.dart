@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
@@ -33,7 +32,7 @@ void main() {
     final client = RestageRpcClient(
       baseUrl: _baseUrl,
       apiKey: _apiKey,
-      httpClient: MockClient((request) async {
+      httpClient: fixture.hostedDelivery.client((request) async {
         requests.add(request);
         final body = jsonDecode(request.body) as Map<String, Object?>;
         final assigned = body['assignmentKey'] == null
@@ -44,7 +43,7 @@ void main() {
                 experimentEpoch: 2,
               );
         return http.Response(
-          SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
             fixture.delivery(
               hostedBlob: hostedBlob,
               publishedRevision: 8,
@@ -107,7 +106,8 @@ void main() {
         rpcClientProvider: () => RestageRpcClient(
           baseUrl: _baseUrl,
           apiKey: _apiKey,
-          httpClient: MockClient((_) async => http.Response('', statusCode)),
+          httpClient: fixture.hostedDelivery
+              .client((_) async => http.Response('', statusCode)),
         ),
       );
 
@@ -128,7 +128,7 @@ void main() {
         client: RestageRpcClient(
           baseUrl: _baseUrl,
           apiKey: _apiKey,
-          httpClient: MockClient(
+          httpClient: fixture.hostedDelivery.client(
             (_) async => http.Response('unavailable', statusCode),
           ),
         ),
@@ -154,7 +154,7 @@ void main() {
         client: RestageRpcClient(
           baseUrl: _baseUrl,
           apiKey: _apiKey,
-          httpClient: MockClient((_) async => throw failure),
+          httpClient: fixture.hostedDelivery.client((_) async => throw failure),
         ),
         fallback: fallback,
       );
@@ -173,7 +173,8 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient((_) async => throw StateError('bad client')),
+        httpClient: fixture.hostedDelivery
+            .client((_) async => throw StateError('bad client')),
       ),
       fallback: fallback,
     );
@@ -193,7 +194,7 @@ void main() {
         client: RestageRpcClient(
           baseUrl: _baseUrl,
           apiKey: _apiKey,
-          httpClient: MockClient(
+          httpClient: fixture.hostedDelivery.client(
             (_) async => http.Response('delivery rejected', statusCode),
           ),
         ),
@@ -221,7 +222,8 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient((_) async => http.Response('', 404)),
+        httpClient:
+            fixture.hostedDelivery.client((_) async => http.Response('', 404)),
       ),
       fallback: fallback,
     );
@@ -240,7 +242,8 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient((_) async => http.Response('{}', 200)),
+        httpClient: fixture.hostedDelivery
+            .client((_) async => http.Response('{}', 200)),
       ),
       fallback: fallback,
     );
@@ -260,9 +263,10 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient(
+        httpClient: fixture.hostedDelivery.client(
           (_) async => http.Response(
-            SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(response),
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
+                response),
             200,
           ),
         ),
@@ -289,9 +293,9 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient(
+        httpClient: fixture.hostedDelivery.client(
           (_) async => http.Response(
-            SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
               fixture.delivery(),
             ),
             200,
@@ -331,9 +335,9 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient(
+        httpClient: fixture.hostedDelivery.client(
           (_) async => http.Response(
-            SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
               fixture.delivery(),
             ),
             200,
@@ -357,9 +361,9 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient(
+        httpClient: fixture.hostedDelivery.client(
           (_) async => http.Response(
-            SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+            SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
               fixture.delivery(publishedRevision: 4),
             ),
             200,
@@ -384,7 +388,8 @@ void main() {
       client: RestageRpcClient(
         baseUrl: _baseUrl,
         apiKey: _apiKey,
-        httpClient: MockClient((_) async => http.Response('', 404)),
+        httpClient:
+            fixture.hostedDelivery.client((_) async => http.Response('', 404)),
       ),
       fallback: fallback,
     );

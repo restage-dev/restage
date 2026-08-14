@@ -52,6 +52,7 @@ export 'src/rfw_preview_reservation.dart';
 export 'src/surface_contract/surface_publication_contract.dart';
 export 'src/surface_contract/surface_screen_contract_fingerprint.dart';
 export 'src/surface_contract/surface_screen_event_schema.dart';
+export 'src/surface_delivery/surface_artifact_descriptor.dart';
 export 'src/surface_document/surface_document.dart';
 export 'src/surface_document/surface_document_codec.dart';
 export 'src/theme/theme_data_contract.dart';

@@ -10,6 +10,11 @@ import 'package:restage_shared/restage_shared.dart';
 import '../billing/purchase_token_digest.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
+import 'surface_artifact_assembly.dart';
+import 'surface_delivery_evidence.dart';
+
+/// The header a fetch presents its artifact pass in.
+const String surfaceArtifactPassHeader = 'X-Restage-Artifact-Pass';
 
 /// SDK-internal fence evaluated immediately before a surface request posts.
 @internal
@@ -55,7 +60,7 @@ final class FlowContractFetchRequest {
 final class SurfaceFetchResult {
   /// Creates a hosted surface fetch result.
   const SurfaceFetchResult({
-    required this.envelopeBytes,
+    required this.artifact,
     this.decision,
     this.experimentId,
     this.variantId,
@@ -64,8 +69,15 @@ final class SurfaceFetchResult {
     this.flowContractRequired = false,
   });
 
-  /// Base64-decoded `SurfaceDocument` envelope bytes.
-  final Uint8List envelopeBytes;
+  /// What the artifact half of this delivery produced: the assembled document,
+  /// nothing (the fetch did not deliver it), or a refusal to decode it.
+  ///
+  /// A result exists whenever the SERVER answered, so the retry signals below
+  /// are readable even when the artifact is not — a client asked to re-send its
+  /// capability contract must be able to do so without the artifact of a
+  /// response it is about to discard.
+  @internal
+  final SurfaceArtifactOutcome artifact;
 
   /// The server's serve decision for this fetch, when present. Carried
   /// verbatim as an opaque string — an unrecognised value is preserved as-is,
@@ -216,6 +228,29 @@ class RestageRpcClient {
   final String _apiKey;
   final http.Client _client;
   final bool _debugFailTransactionReports;
+
+  /// Artifacts fetched and verified by this client, by identity.
+  ///
+  /// Per client and in memory only — the durable offline floor is the app's own
+  /// bundled asset, and always was. This exists to stop a re-resolve of the
+  /// same surface paying for the same bytes twice in one session.
+  final Map<_ArtifactIdentity, Uint8List> _artifacts =
+      <_ArtifactIdentity, Uint8List>{};
+
+  /// How much held content one client keeps, in bytes.
+  ///
+  /// Bounded by SIZE rather than by count, because size is what runs out. A
+  /// count of eight sounds small and is eighty megabytes at the publish
+  /// ceiling — an unbounded cache with a polite name. Eviction is
+  /// insertion-ordered rather than by use: a cleverer policy would need
+  /// per-entry bookkeeping to beat "forget the oldest" at this scale, and would
+  /// cost more than the fetch it saves.
+  ///
+  /// A single artifact larger than this is simply never held. It is served
+  /// normally; it just does not evict everything else on the way past.
+  static const int _maxHeldArtifactBytes = 8 * 1024 * 1024;
+
+  int _heldArtifactBytes = 0;
 
   /// Durably creates or exactly replays an immutable purchase intent.
   ///
@@ -377,38 +412,172 @@ class RestageRpcClient {
       },
     );
     if (json == null) return null;
-    final envelope = json['envelope'];
-    if (envelope is! String) {
-      debugPrint('[restage] surface response missing the envelope field');
+
+    final assignment = _parseSurfaceAssignmentMetadata(json);
+    if (assignment == null) {
+      debugPrint('[restage] surface assignment metadata was malformed');
       return null;
     }
+    final rawDecision = json['decision'];
+    final decision = rawDecision is String ? rawDecision : null;
+    final rawContractRequired = json['contractRequired'];
+    final contractRequired =
+        rawContractRequired is bool ? rawContractRequired : false;
+    final rawFlowContractRequired = json['flowContractRequired'];
+    final flowContractRequired =
+        rawFlowContractRequired is bool ? rawFlowContractRequired : false;
+
+    final SurfaceArtifactDescriptorV1 descriptor;
     try {
-      final assignment = _parseSurfaceAssignmentMetadata(json);
-      if (assignment == null) {
-        debugPrint('[restage] surface assignment metadata was malformed');
-        return null;
-      }
-      final rawDecision = json['decision'];
-      final decision = rawDecision is String ? rawDecision : null;
-      final rawContractRequired = json['contractRequired'];
-      final contractRequired =
-          rawContractRequired is bool ? rawContractRequired : false;
-      final rawFlowContractRequired = json['flowContractRequired'];
-      final flowContractRequired =
-          rawFlowContractRequired is bool ? rawFlowContractRequired : false;
-      return SurfaceFetchResult(
-        envelopeBytes: base64Decode(envelope),
-        decision: decision,
-        experimentId: assignment.experimentId,
-        variantId: assignment.variantId,
-        experimentEpoch: assignment.experimentEpoch,
-        contractRequired: contractRequired,
-        flowContractRequired: flowContractRequired,
-      );
+      descriptor = SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
     } on FormatException catch (error) {
-      debugPrint('[restage] surface envelope was not valid base64: $error');
+      // Includes the version gates: a delivery this build does not understand
+      // is refused HERE, before a byte of it is fetched.
+      debugPrint('[restage] surface delivery was not readable: $error');
       return null;
     }
+
+    // A response that only asks for the capability contract is about to be
+    // discarded by the caller, so fetching its artifact would spend a request
+    // on bytes nobody will read — and a failure of that request would look like
+    // a delivery failure instead of the retry it actually is.
+    final artifact = contractRequired || flowContractRequired
+        ? const SurfaceArtifactUnavailable(
+            SurfaceArtifactFetchFailure.transport,
+          )
+        : await _resolveArtifact(descriptor);
+
+    return SurfaceFetchResult(
+      artifact: artifact,
+      decision: decision,
+      experimentId: assignment.experimentId,
+      variantId: assignment.variantId,
+      experimentEpoch: assignment.experimentEpoch,
+      contractRequired: contractRequired,
+      flowContractRequired: flowContractRequired,
+    );
+  }
+
+  /// Fetches, verifies and assembles the artifact [descriptor] names.
+  ///
+  /// The single place the two halves of a delivery are joined. Every failure
+  /// on the way — the request, the store's answer, the bytes themselves —
+  /// funnels into one outcome type and is reported once, here, so a resolver's
+  /// fallback is never taken in silence.
+  Future<SurfaceArtifactOutcome> _resolveArtifact(
+    SurfaceArtifactDescriptorV1 descriptor,
+  ) async {
+    // An artifact is content-addressed, so a re-resolve that names the same one
+    // is naming bytes this client already holds and verified. Re-fetching them
+    // would spend a request to learn nothing.
+    //
+    // Keyed on the artifact's WHOLE identity, not on its hash alone. The hash
+    // is only half of it: the same bytes stored under two payload formats are
+    // two different artifacts, in two different places, read by two different
+    // decoders. Keying on the hash would make them one entry, and the first one
+    // fetched would answer for the other. Harmless while one format exists;
+    // wrong the moment a second does, and silently so.
+    final identity = _ArtifactIdentity(
+      payloadFormatVersion: descriptor.payloadFormatVersion,
+      contentHash: descriptor.contentHash,
+    );
+    final held = _artifacts[identity];
+    if (held != null) {
+      // Re-assembled from THIS delivery's description, never replayed from the
+      // one that filled the cache: the version, publication time and shape
+      // claim belong to the resolve, not to the bytes.
+      return _reported(
+        descriptor,
+        assembleSurfaceArtifact(descriptor: descriptor, artifactBytes: held),
+      );
+    }
+
+    Uint8List? bytes;
+    var failure = SurfaceArtifactFetchFailure.transport;
+    try {
+      // The pass travels with this request, so the request has to be encrypted
+      // — the same rule, from the same function, that the configured origin is
+      // held to. A description naming a cleartext origin is a description this
+      // client will not act on, whoever wrote it.
+      assertSecureUrl(descriptor.artifactUrl, label: 'artifact URL');
+      bytes = await _fetchArtifactBytes(descriptor);
+    } on InsecureBaseUrlException {
+      failure = SurfaceArtifactFetchFailure.unreadableDescription;
+    } on _ArtifactFetchRefused catch (refused) {
+      failure = refused.failure;
+    } on Object {
+      // Shape-only: the URL carries a pass.
+      failure = SurfaceArtifactFetchFailure.transport;
+    }
+
+    final outcome = assembleSurfaceArtifact(
+      descriptor: descriptor,
+      artifactBytes: bytes,
+      fetchFailure: failure,
+    );
+    if (outcome is SurfaceArtifactAssembled && bytes != null) {
+      // Held only once it has been verified and decoded. Caching bytes that
+      // failed either gate would hand the next resolve a refusal it had already
+      // earned, and would do it without a fetch that might now succeed.
+      if (bytes.length <= _maxHeldArtifactBytes) {
+        while (_artifacts.isNotEmpty &&
+            _heldArtifactBytes + bytes.length > _maxHeldArtifactBytes) {
+          _heldArtifactBytes -=
+              _artifacts.remove(_artifacts.keys.first)!.length;
+        }
+        _artifacts[identity] = bytes;
+        _heldArtifactBytes += bytes.length;
+      }
+    }
+    return _reported(descriptor, outcome);
+  }
+
+  /// Reports [outcome] if it is a refusal, and returns it either way.
+  ///
+  /// Both the fetched and the held path funnel through here. A refusal that
+  /// only one of them reported would be a failure whose visibility depended on
+  /// whether the same artifact had been resolved earlier in the session.
+  SurfaceArtifactOutcome _reported(
+    SurfaceArtifactDescriptorV1 descriptor,
+    SurfaceArtifactOutcome outcome,
+  ) {
+    if (outcome is SurfaceArtifactUnavailable) {
+      debugPrint(
+        '[restage] surface "${descriptor.surfaceSlug}" resolved but its '
+        'content could not be fetched (${outcome.reason.wireName})',
+      );
+      SurfaceDeliveryEvidence.artifactFetchFailed(
+        surfaceType: descriptor.surfaceType,
+        surfaceSlug: descriptor.surfaceSlug,
+        version: descriptor.version,
+        reason: outcome.reason.wireName,
+      );
+    }
+    return outcome;
+  }
+
+  /// GETs the artifact [descriptor] names, presenting its pass.
+  ///
+  /// Redirects are NOT followed. A redirect would re-send the pass to whatever
+  /// host the response named — and the whole blast radius of a leaked pass is
+  /// "one object, ten minutes", which only holds while the pass reaches the
+  /// origin the server chose and nobody else.
+  Future<Uint8List> _fetchArtifactBytes(
+    SurfaceArtifactDescriptorV1 descriptor,
+  ) async {
+    final request = http.Request('GET', Uri.parse(descriptor.artifactUrl))
+      ..followRedirects = false
+      ..headers[surfaceArtifactPassHeader] = descriptor.artifactPass;
+    final response = await http.Response.fromStream(
+      await _client.send(request),
+    );
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw const _ArtifactFetchRefused(SurfaceArtifactFetchFailure.refused);
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw const _ArtifactFetchRefused(SurfaceArtifactFetchFailure.status);
+    }
+    return response.bodyBytes;
   }
 
   /// Fetches one exact standalone-screen contract family.
@@ -475,14 +644,48 @@ class RestageRpcClient {
       );
     }
 
-    final SurfaceScreenDeliveryResponseV1 delivery;
+    final SurfaceScreenDeliveryDescriptorV1 described;
     try {
-      delivery = SurfaceScreenDeliveryResponseV1Codec.decodeJson(response.body);
+      described = SurfaceScreenDeliveryDescriptorV1Codec.decodeJson(
+        response.body,
+      );
     } on Object {
       debugPrint('[restage] standalone-screen delivery response was malformed');
       return const SurfaceScreenDeliveryInvalidResponse(
         SurfaceScreenDeliveryInvalidResponseReason.malformed,
       );
+    }
+
+    // The content is fetched and assembled through the same seam every other
+    // surface uses, and only then handed to the delivery response's own
+    // constructor — so the fingerprint is recomputed against the document that
+    // was actually assembled out of the fetched bytes, which is the only
+    // version of that check that says anything about them.
+    final artifact = await _resolveArtifact(described.artifact);
+    final SurfaceScreenDeliveryResponseV1 delivery;
+    switch (artifact) {
+      case SurfaceArtifactAssembled(:final document):
+        try {
+          delivery = described.completeWith(document);
+        } on FormatException {
+          debugPrint(
+            '[restage] standalone-screen delivery did not match its content',
+          );
+          return const SurfaceScreenDeliveryInvalidResponse(
+            SurfaceScreenDeliveryInvalidResponseReason.malformed,
+          );
+        }
+      case SurfaceArtifactUnavailable():
+        // The delivery resolved and its content did not arrive. Treated as
+        // transport unavailability, which is what it is, and which is the one
+        // classification eligible for the bundled fallback — the alternative
+        // would fail a screen the app can render perfectly well offline.
+        return const SurfaceScreenDeliveryTransportUnavailable();
+      case SurfaceArtifactUndecodable():
+        debugPrint('[restage] standalone-screen content was malformed');
+        return const SurfaceScreenDeliveryInvalidResponse(
+          SurfaceScreenDeliveryInvalidResponseReason.malformed,
+        );
     }
 
     if (delivery.document.surfaceType != request.surface ||
@@ -733,4 +936,37 @@ _SurfaceAssignmentMetadata? _parseSurfaceAssignmentMetadata(
 
 bool _isValidSurfaceAssignmentToken(String value) {
   return value.isNotEmpty && value.trim() == value && !value.contains('\u0000');
+}
+
+/// A store answered, and not with the artifact.
+final class _ArtifactFetchRefused implements Exception {
+  const _ArtifactFetchRefused(this.failure);
+
+  final SurfaceArtifactFetchFailure failure;
+}
+
+/// What makes two fetched artifacts the same artifact.
+///
+/// Both parts, always. The content hash says what the bytes are; the payload
+/// format version says what shape they are stored in and which decoder reads
+/// them — and it is part of the object's physical location, so the same hash
+/// under two formats is two objects.
+@immutable
+final class _ArtifactIdentity {
+  const _ArtifactIdentity({
+    required this.payloadFormatVersion,
+    required this.contentHash,
+  });
+
+  final int payloadFormatVersion;
+  final String contentHash;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _ArtifactIdentity &&
+      other.payloadFormatVersion == payloadFormatVersion &&
+      other.contentHash == contentHash;
+
+  @override
+  int get hashCode => Object.hash(payloadFormatVersion, contentHash);
 }

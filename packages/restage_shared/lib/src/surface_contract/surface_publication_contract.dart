@@ -14,8 +14,8 @@ import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_contract_fingerprint.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_event_schema.dart';
+import 'package:restage_shared/src/surface_delivery/surface_artifact_descriptor.dart';
 import 'package:restage_shared/src/surface_document/surface_document.dart';
-import 'package:restage_shared/src/surface_document/surface_document_codec.dart';
 
 const int _surfacePublicationSchemaVersion = 1;
 
@@ -1029,14 +1029,118 @@ final class SurfaceScreenDeliveryResponseV1 {
   final String contractFingerprint;
   final String eventContractHash;
   final SurfaceExperimentAssignmentV1? assignment;
+}
 
+/// What a standalone-screen delivery puts on the wire.
+///
+/// Everything [SurfaceScreenDeliveryResponseV1] carries EXCEPT the rendered
+/// document, plus where to fetch the bytes that make one. The rendered document
+/// is no longer sent inline; it is assembled by the reader from
+/// [artifact] and the payload frame that artifact names, and only then handed
+/// to [SurfaceScreenDeliveryResponseV1]'s constructor — which is unchanged, so
+/// every correlation this contract has ever enforced (the fingerprint recompute
+/// against the assembled document, `publishedRevision == document.version`, the
+/// screen/blob shape requirement) is enforced on exactly the same terms and in
+/// exactly the same place.
+///
+/// The payload SHAPE is not a field here: it rides [artifact] with everything
+/// else the publication record claims about the bytes, so there is one place a
+/// claim about the artifact can be made and one place it is checked.
+@immutable
+final class SurfaceScreenDeliveryDescriptorV1 {
+  /// Creates a standalone-screen delivery descriptor.
+  factory SurfaceScreenDeliveryDescriptorV1({
+    required SurfaceArtifactDescriptorV1 artifact,
+    required SurfaceSourceKind sourceKind,
+    required int contractVersion,
+    required int publishedRevision,
+    required String contractFingerprint,
+    required String eventContractHash,
+    SurfaceExperimentAssignmentV1? assignment,
+  }) {
+    if (sourceKind != SurfaceSourceKind.screen) {
+      throw const FormatException(
+        'A generic screen delivery descriptor requires a screen source.',
+      );
+    }
+    // The shape claim is optional on an artifact descriptor in general — the
+    // shape-agnostic serve route legitimately makes none. This wire is not
+    // general: it delivers exactly one shape, so an absent claim here is a
+    // missing field rather than a deliberate silence.
+    if (artifact.payloadKind != SurfacePayloadKind.blob.wireName) {
+      throw const FormatException(
+        'A generic screen delivery descriptor requires a blob artifact.',
+      );
+    }
+    if (contractVersion < 1 || publishedRevision < 1) {
+      throw const FormatException(
+        'Delivery descriptor versions must be positive.',
+      );
+    }
+    if (publishedRevision != artifact.version) {
+      throw const FormatException(
+        'publishedRevision must equal the artifact version.',
+      );
+    }
+    SurfaceContractJson.requireSha256(
+      contractFingerprint,
+      'delivery descriptor.contractFingerprint',
+    );
+    SurfaceContractJson.requireSha256(
+      eventContractHash,
+      'delivery descriptor.eventContractHash',
+    );
+    return SurfaceScreenDeliveryDescriptorV1._(
+      artifact: artifact,
+      sourceKind: sourceKind,
+      contractVersion: contractVersion,
+      publishedRevision: publishedRevision,
+      contractFingerprint: contractFingerprint,
+      eventContractHash: eventContractHash,
+      assignment: assignment,
+    );
+  }
+
+  const SurfaceScreenDeliveryDescriptorV1._({
+    required this.artifact,
+    required this.sourceKind,
+    required this.contractVersion,
+    required this.publishedRevision,
+    required this.contractFingerprint,
+    required this.eventContractHash,
+    required this.assignment,
+  });
+
+  /// The publication schema this descriptor speaks.
+  static const int schemaVersion = _surfacePublicationSchemaVersion;
+
+  /// Where the payload frame is, what it must hash to, and what the record
+  /// claims about it.
+  final SurfaceArtifactDescriptorV1 artifact;
+
+  /// Always [SurfaceSourceKind.screen] on this wire.
+  final SurfaceSourceKind sourceKind;
+
+  /// The contract family version this delivery answers.
+  final int contractVersion;
+
+  /// The published revision being delivered.
+  final int publishedRevision;
+
+  /// Fingerprint of the family's declared contract.
+  final String contractFingerprint;
+
+  /// Content hash of the family's event contract.
+  final String eventContractHash;
+
+  /// The experiment arm this delivery was assigned, when there was one.
+  final SurfaceExperimentAssignmentV1? assignment;
+
+  /// The descriptor as wire JSON.
   Map<String, Object?> toJson() => <String, Object?>{
         'schemaVersion': schemaVersion,
-        'document': SurfaceContractJson.encodeBase64Url(
-          SurfaceDocumentCodec.encode(document),
-        ),
+        'artifact': artifact.toJson(),
         'sourceKind': sourceKind.wireName,
-        'payloadKind': payloadKind.wireName,
         'contractVersion': contractVersion,
         'publishedRevision': publishedRevision,
         'contractFingerprint': contractFingerprint,
@@ -1044,15 +1148,15 @@ final class SurfaceScreenDeliveryResponseV1 {
         if (assignment != null) 'assignment': assignment!.toJson(),
       };
 
-  static SurfaceScreenDeliveryResponseV1 fromJson(Object? value) {
+  /// Decodes a descriptor strictly.
+  static SurfaceScreenDeliveryDescriptorV1 fromJson(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.allowedKeys(
       json,
       const {
         'schemaVersion',
-        'document',
+        'artifact',
         'sourceKind',
-        'payloadKind',
         'contractVersion',
         'publishedRevision',
         'contractFingerprint',
@@ -1061,19 +1165,13 @@ final class SurfaceScreenDeliveryResponseV1 {
       },
       r'$',
     );
-    _requireSchemaVersion(json, 'surface screen delivery response');
-    return SurfaceScreenDeliveryResponseV1(
-      document: SurfaceDocumentCodec.decode(
-        SurfaceContractJson.decodeCanonicalBase64Url(
-          SurfaceContractJson.requiredString(json, 'document', r'$'),
-          r'$.document',
-        ),
+    _requireSchemaVersion(json, 'surface screen delivery descriptor');
+    return SurfaceScreenDeliveryDescriptorV1(
+      artifact: SurfaceArtifactDescriptorV1Codec.decode(
+        SurfaceContractJson.requiredValue(json, 'artifact', r'$'),
       ),
       sourceKind: SurfaceSourceKind.fromWireName(
         SurfaceContractJson.requiredString(json, 'sourceKind', r'$'),
-      ),
-      payloadKind: SurfacePayloadKind.fromWireName(
-        SurfaceContractJson.requiredString(json, 'payloadKind', r'$'),
       ),
       contractVersion: SurfaceContractJson.requiredPositiveInt(
         json,
@@ -1103,28 +1201,52 @@ final class SurfaceScreenDeliveryResponseV1 {
           : null,
     );
   }
+
+  /// Completes this descriptor into a delivery response with [document].
+  ///
+  /// The one place the two halves are joined. It deliberately routes through
+  /// [SurfaceScreenDeliveryResponseV1]'s own constructor rather than
+  /// reconstructing the checks: the fingerprint recompute has to run against
+  /// the document that was actually assembled from fetched bytes, or it proves
+  /// nothing about them.
+  SurfaceScreenDeliveryResponseV1 completeWith(SurfaceDocument document) =>
+      SurfaceScreenDeliveryResponseV1(
+        document: document,
+        sourceKind: sourceKind,
+        payloadKind: SurfacePayloadKind.fromWireName(artifact.payloadKind!),
+        contractVersion: contractVersion,
+        publishedRevision: publishedRevision,
+        contractFingerprint: contractFingerprint,
+        eventContractHash: eventContractHash,
+        assignment: assignment,
+      );
 }
 
-abstract final class SurfaceScreenDeliveryResponseV1Codec {
-  static SurfaceScreenDeliveryResponseV1 decode(Object? value) =>
-      SurfaceScreenDeliveryResponseV1.fromJson(value);
+/// Strict codec for [SurfaceScreenDeliveryDescriptorV1].
+abstract final class SurfaceScreenDeliveryDescriptorV1Codec {
+  /// Decodes a descriptor from a decoded JSON value.
+  static SurfaceScreenDeliveryDescriptorV1 decode(Object? value) =>
+      SurfaceScreenDeliveryDescriptorV1.fromJson(value);
 
-  static SurfaceScreenDeliveryResponseV1 decodeJson(String source) => decode(
+  /// Decodes a descriptor from a JSON document.
+  static SurfaceScreenDeliveryDescriptorV1 decodeJson(String source) => decode(
         SurfaceContractJson.decode(
           source,
-          label: 'surface screen delivery response',
+          label: 'surface screen delivery descriptor',
         ),
       );
 
+  /// Encodes a descriptor to wire JSON.
   static Map<String, Object?> encode(
-    SurfaceScreenDeliveryResponseV1 response,
+    SurfaceScreenDeliveryDescriptorV1 descriptor,
   ) =>
-      response.toJson();
+      descriptor.toJson();
 
+  /// Encodes a descriptor to a canonical JSON document.
   static String encodeCanonicalJson(
-    SurfaceScreenDeliveryResponseV1 response,
+    SurfaceScreenDeliveryDescriptorV1 descriptor,
   ) =>
-      SurfaceContractJson.encode(encode(response));
+      SurfaceContractJson.encode(encode(descriptor));
 }
 
 const Set<String> _publicationFields = <String>{

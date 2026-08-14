@@ -18,6 +18,7 @@ import '../billing/purchase_attribution.dart';
 import '../billing/signed_native_offer.dart';
 import '../metering/metering_token_store.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
+import '../restage_rpc_client/surface_delivery_evidence.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_resolver.dart';
@@ -251,6 +252,7 @@ abstract final class Restage {
       enabled: analyticsEnabled,
     );
     _configureSurfaceMeteringKeyProvider(baseUrl: baseUrl);
+    SurfaceDeliveryEvidence.install(_emitSurfaceArtifactFetchFailed);
     if (baseUrl != null) {
       // Microtask-defer so `configure` stays sync-returning. The cold-start
       // sync runs after the host's `runApp` settles. Re-calls of
@@ -619,6 +621,49 @@ abstract final class Restage {
         ),
         label: event.name,
         flushAfterEnqueue: _isMeteredExposureEvent(event),
+      ),
+    );
+  }
+
+  /// Reports a delivery whose description resolved and whose content did not
+  /// arrive.
+  ///
+  /// Built here rather than at the delivery path, and directly rather than
+  /// through the paywall-shaped event hierarchy: the failure is surface-general
+  /// — it happens identically to an onboarding flow, a message and a survey —
+  /// and the hierarchy's only load-failure member names a paywall. The
+  /// canonical presentation event next door is emitted the same way for the
+  /// same reason.
+  static void _emitSurfaceArtifactFetchFailed({
+    required Surface surfaceType,
+    required String surfaceSlug,
+    required int version,
+    required String reason,
+  }) {
+    final transport = _analyticsTransport;
+    final identity = _analyticsIdentity;
+    final appContext = _analyticsAppContext;
+    if (transport == null || identity == null || appContext == null) return;
+    final snapshot = _IdentitySnapshot.capture(identity);
+    unawaited(
+      _enqueue(
+        transport,
+        identity,
+        (anonymousId) => AnalyticsEvent(
+          eventId: identity.newEventId(),
+          name: kSurfaceArtifactFetchFailedEventName,
+          occurredAt: DateTime.now().toUtc(),
+          surface: surfaceType.wireName,
+          surfaceId: surfaceSlug,
+          surfaceVersion: '$version',
+          surfaceSessionId: snapshot.surfaceSessionId,
+          anonymousId: anonymousId,
+          sessionId: snapshot.sessionId,
+          userId: snapshot.userId,
+          appContext: appContext,
+          properties: <String, Object?>{'reason': reason},
+        ),
+        label: kSurfaceArtifactFetchFailedEventName,
       ),
     );
   }
@@ -1453,6 +1498,7 @@ abstract final class Restage {
     SurfaceAssignmentKeyProvider.clear();
     _meteringTokenStore = null;
     SurfaceMeteringKeyProvider.clear();
+    SurfaceDeliveryEvidence.clear();
     debugAnalyticsHttpClient = null;
     _unregisterLifecycleObserver();
     LibraryRuntimeRegistry.clear();

@@ -9,6 +9,8 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../support/hosted_artifact_delivery.dart';
+
 /// Artifact-owned attribution across the server-flow ladder: the assignment
 /// stamped onto the served [ResolvedFlow] is ALWAYS the assignment of the
 /// artifact that actually rendered (fresh / hold-last-good / bundled), NEVER the
@@ -16,6 +18,10 @@ import 'package:restage_shared/restage_shared.dart';
 /// this invariant without a request-side assignment key.
 const int _installed = RestageBuiltInCatalogCapabilities.currentVersion;
 const int _refFloor = _installed + 2;
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   const baseUrl = 'https://surfaces.example.com';
@@ -203,7 +209,7 @@ AssetBundle _bundleFor(FlowDocument document, Uint8List screenBytes) {
 }
 
 MockClient _server(Uint8List envelope, {FlowAssignment? assignment}) {
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     return http.Response(_body(envelope, assignment), 200);
   });
 }
@@ -212,14 +218,14 @@ MockClient _sequenceServer(
   List<({Uint8List envelope, FlowAssignment? assignment})> responses,
 ) {
   var index = 0;
-  return MockClient((request) async {
+  return _delivery.client((request) async {
     final response = responses[index++];
     return http.Response(_body(response.envelope, response.assignment), 200);
   });
 }
 
 String _body(Uint8List envelope, FlowAssignment? assignment) => jsonEncode({
-      'envelope': base64Encode(envelope),
+      ..._delivery.describeEnvelope(envelope),
       if (assignment != null) ...{
         'experimentId': assignment.experimentId,
         'variantId': assignment.variantId,

@@ -19,6 +19,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../flow/flow_test_support.dart'
     show registerThrowingWidget, resolvedFlow, screenBlob;
+import '../support/hosted_artifact_delivery.dart';
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -1674,7 +1679,7 @@ Uint8List _resettingFlowScreenBlob() {
 
 final class _ControlledHostedServer {
   _ControlledHostedServer() {
-    client = MockClient((request) {
+    client = _delivery.client((request) {
       final pending = _PendingHostedRequest(request);
       requests.add(pending);
       return pending.response.future;
@@ -1823,7 +1828,7 @@ http.Response _hostedResponse(
 }) {
   return http.Response(
     jsonEncode({
-      'envelope': base64Encode(envelope),
+      ..._delivery.describeEnvelope(envelope),
       if (decision != null) 'decision': decision,
       if (experimentId != null) 'experimentId': experimentId,
       if (variantId != null) 'variantId': variantId,

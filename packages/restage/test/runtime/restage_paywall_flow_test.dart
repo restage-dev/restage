@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
@@ -17,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../flow/flow_test_support.dart'
     show registerThrowingWidget, throwingResolvedFlow;
+import '../support/hosted_artifact_delivery.dart';
 
 /// A delivered baseline paywall is at or below the installed built-in catalog
 /// version; using it keeps these fixtures renderable on this build (the
@@ -63,7 +63,7 @@ class _SpyRestageRpcClient extends RestageRpcClient {
       : super(
           baseUrl: 'https://attribution.test',
           apiKey: 'k',
-          httpClient: MockClient((_) async => http.Response('', 200)),
+          httpClient: _delivery.client((_) async => http.Response('', 200)),
         );
 
   final List<ReportTransactionRequest> reportTransactionCalls =
@@ -427,6 +427,10 @@ Future<void> _pumpFlowPaywall(
   ));
   await tester.pumpAndSettle();
 }
+
+/// The stub delivery for this file: it describes surfaces AND answers for
+/// their content, so no test here can stub half a wire.
+final HostedArtifactFixture _delivery = HostedArtifactFixture();
 
 void main() {
   setUp(() {
@@ -980,7 +984,7 @@ void main() {
       'a flow-hosted paywall emits one canonical root with served attribution',
       (tester) async {
     final requests = <http.Request>[];
-    Restage.debugAnalyticsHttpClient = MockClient((request) async {
+    Restage.debugAnalyticsHttpClient = _delivery.client((request) async {
       requests.add(request);
       return http.Response('', 200);
     });
@@ -1193,9 +1197,9 @@ void main() {
       apiKey: 'rs_pk_test_x',
       environment: RestageEnvironment.production,
       baseUrl: 'https://surfaces.example.com',
-      httpClient: MockClient(
+      httpClient: _delivery.client(
         (_) async => http.Response(
-          jsonEncode({'envelope': base64Encode(hostedFlowEnvelope)}),
+          jsonEncode({..._delivery.describeEnvelope(hostedFlowEnvelope)}),
           200,
         ),
       ),
