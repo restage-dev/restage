@@ -305,8 +305,14 @@ void main() {
     },
   );
 
+  // The failing subtree sits inside the inner boundary, so the inner boundary
+  // owns the report and holds the provisional token. What the exact-identity
+  // match decides is whether the nested build claim releases that token or
+  // leaves it to be committed as a definitive render failure — observable as
+  // the owning transaction's remaining ability to report render success. The
+  // outer lease is uninvolved either way, and must stay unblocked.
   testWidgets(
-    'identical ErrorWidget claim releases the outer provisional lease token',
+    'identical ErrorWidget claim releases the owning provisional lease token',
     (tester) async {
       final observed = await _runIdentityClaimScenario(
         tester,
@@ -322,6 +328,7 @@ void main() {
         innerErrors: 1,
         outerIsCommitted: true,
         innerIsCommitted: false,
+        innerCanReportRenderSuccess: true,
         outerFallbacks: 0,
         innerFallbacks: 1,
         escaped: null,
@@ -330,7 +337,7 @@ void main() {
   );
 
   testWidgets(
-    'non-identical ErrorWidget claim cannot release the outer provisional '
+    'non-identical ErrorWidget claim cannot release the owning provisional '
     'lease token',
     (tester) async {
       final observed = await _runIdentityClaimScenario(
@@ -340,15 +347,16 @@ void main() {
 
       expect(observed, (
         outerCommitted: true,
-        outerPainted: false,
-        outerReady: false,
-        outerAfterCommit: false,
-        outerErrors: 1,
+        outerPainted: true,
+        outerReady: true,
+        outerAfterCommit: true,
+        outerErrors: 0,
         innerErrors: 1,
         outerIsCommitted: true,
         innerIsCommitted: false,
-        outerFallbacks: 1,
-        innerFallbacks: 0,
+        innerCanReportRenderSuccess: false,
+        outerFallbacks: 0,
+        innerFallbacks: 1,
         escaped: null,
       ));
     },
@@ -554,6 +562,7 @@ Future<
       int innerErrors,
       bool outerIsCommitted,
       bool innerIsCommitted,
+      bool innerCanReportRenderSuccess,
       int outerFallbacks,
       int innerFallbacks,
       Object? escaped,
@@ -658,6 +667,7 @@ Future<
     innerErrors: innerErrors,
     outerIsCommitted: outer.isCommitted,
     innerIsCommitted: inner.isCommitted,
+    innerCanReportRenderSuccess: inner.canReportFrameworkRenderSuccess,
     outerFallbacks: find.text('outer fallback').evaluate().length,
     innerFallbacks: find.text('inner fallback').evaluate().length,
     escaped: tester.takeException(),
