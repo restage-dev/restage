@@ -52,9 +52,10 @@ class RuntimeErrorBoundary extends StatefulWidget {
 
   /// Reports the first frame whose descendant paint completed successfully.
   ///
-  /// When provided, layout and paint reports structurally owned by the guarded
-  /// render subtree terminate this boundary, including independently flushed
-  /// relayout and repaint work.
+  /// Layout and paint reports structurally owned by the guarded render subtree
+  /// terminate this boundary — including independently flushed relayout and
+  /// repaint work — whether or not this callback is supplied. Supplying it only
+  /// adds the success notification; it does not arm the failure path.
   final VoidCallback? onFirstPaintSuccess;
 
   @override
@@ -399,7 +400,12 @@ class _RuntimeErrorBoundaryState extends State<RuntimeErrorBoundary> {
       boundary: this,
       child: widget.child,
     );
-    if (widget.onFirstPaintSuccess == null) return guarded;
+    // The probe is the boundary's only marker in the render tree, so it is
+    // mounted unconditionally. Structural failure ownership is a property of
+    // guarding a subtree, not of wanting to be told about success: the
+    // framework reports a descendant layout or paint exception instead of
+    // rethrowing it, so without the marker such a failure is indistinguishable
+    // from a clean frame and would be reported as one.
     return _RuntimeErrorBoundaryPaintProbe(boundary: this, child: guarded);
   }
 
