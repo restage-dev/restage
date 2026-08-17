@@ -729,7 +729,10 @@ final class RestageCodegenBuilder implements Builder {
     BuildStep buildStep,
     PaywallSourceFound source,
   ) async {
-    final compilation = await compileTrackedPackageSurfaces(buildStep);
+    final compilation = await compileTrackedPackageSurfaces(
+      buildStep,
+      builderKey: 'restage_codegen:paywall_codegen',
+    );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
     final stem = p.basenameWithoutExtension(buildStep.inputId.path);

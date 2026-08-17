@@ -1,11 +1,13 @@
 builders:
   # Placement options are accepted identically on every placement-affected
   # builder key, with identical defaults. Build Runner has no cross-builder
-  # options channel, so "configure it once" is honest only through root
-  # global_options or through repeating the same target options on each key.
-  # A package that configures one key and not another gets a loud "placement
-  # options divergence between Restage builder targets" error rather than a
-  # silently missing output.
+  # options channel, so a consumer repeats the same target options on each
+  # key (a YAML anchor writes the values once). Root global_options is not a
+  # remedy: it is itself keyed per builder, and it overrides the options
+  # every package in the build sets for itself. A package that configures
+  # one key and not another gets a loud "placement options divergence
+  # between Restage builder targets" error rather than a silently missing
+  # output.
   restage_source_roster:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['restageSourceRosterBuilder']

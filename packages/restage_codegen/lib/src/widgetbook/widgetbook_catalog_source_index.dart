@@ -256,9 +256,12 @@ final class WidgetbookCatalogIndexCache {
         'Placement options divergence between Restage builder targets for '
         'package $packageName: the source index was resolved under '
         '[${cached.placement}] and is now requested under [$placement]. '
-        'Every placement-affected Restage builder key must be configured '
-        'with the same options — set them once under global_options, or '
-        'repeat them identically on each target.',
+        'Every placement-affected Restage builder key must carry identical '
+        'placement options. In build.yaml, set the same options on each '
+        'restage_codegen builder key under targets; a YAML anchor lets you '
+        'write the values once. Do not set them under global_options: root '
+        'global_options overrides the options every package in the build '
+        'sets for itself.',
       );
     }
     if (cached != null && cached.fingerprint == fingerprint) {

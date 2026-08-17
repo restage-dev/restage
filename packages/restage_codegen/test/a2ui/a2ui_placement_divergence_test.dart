@@ -93,7 +93,15 @@ void main() {
       // "they disagree" leaves the developer to guess which key to change.
       expect(report, contains('output_root=-'));
       expect(report, contains('output_root=tool/restage'));
-      expect(report, contains('global_options'));
+      // The remedy must name the disagreeing builder keys and steer away
+      // from global_options, never toward it: root global_options overrides
+      // the options every package in the build sets for itself.
+      expect(
+        report,
+        contains('restage_codegen:restage_package_surface_compiler'),
+      );
+      expect(report, contains('restage_codegen:user_a2ui_catalog'));
+      expect(report, contains('Do not set them under global_options'));
     });
 
     test('identical options on both keys build cleanly', () async {

@@ -76,7 +76,11 @@ final class RestageSourceRosterBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(buildStep, _plan);
+    await registerRestagePlacementSignature(
+      buildStep,
+      _plan,
+      builderKey: 'restage_codegen:restage_source_roster',
+    );
 
     final packageName = buildStep.inputId.package;
     final roster = await collectRestageSourceRoster(buildStep, plan: _plan);

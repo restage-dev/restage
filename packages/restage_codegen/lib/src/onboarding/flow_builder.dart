@@ -245,6 +245,7 @@ final class OnboardingFlowBuilder implements Builder {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      builderKey: 'restage_codegen:${surface.wireName}_flow_codegen',
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
