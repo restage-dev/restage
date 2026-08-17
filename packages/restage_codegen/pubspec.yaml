@@ -45,14 +45,32 @@ dependencies:
     path: ../rfw_catalog_schema
 
 dev_dependencies:
-  # Directly imported by the persistent build_runner proof; keep the
-  # workspace-resolved version bounded to the currently locked major.
-  build_config: ">=1.3.0 <2.0.0"
-  build_runner: ">=2.4.0 <3.0.0"
-  build_test: ">=2.2.0 <4.0.0"
-  # Directly imported by the persistent build_runner proof; keep the
-  # workspace-resolved version bounded to the currently locked major.
-  built_collection: ">=5.1.1 <6.0.0"
+  # PINNED EXACTLY, and not by preference.
+  #
+  # The persistent build proof in `test/` reaches into these packages' `src/`
+  # libraries. It does that because the configuration it needs cannot be
+  # expressed through the public test API: that API registers a post-process
+  # builder with `hideOutput` hard-set, and synthesizes a target's `sources`
+  # from the literal input paths of each call rather than from a glob. A build
+  # written through it is therefore neither source-output nor incremental, and
+  # measures the harness instead of the build system.
+  #
+  # `src/` is not covered by semver, and a PATCH release has already refactored
+  # it out from under this proof — `TestingOverrides.flattenOutput` was removed
+  # and `BuildPlan.load` changed to take a single positional argument, five
+  # analyzer errors. Ranges let that arrive silently in any tree that resolves
+  # fresh. Exact pins make both a locked and an unlocked resolve agree.
+  #
+  # These are dev-dependencies, so they are not transitive: nothing a consumer
+  # of this package resolves is affected. Raising them is a deliberate act that
+  # must re-verify the proof against the new internals.
+  #
+  # `build` itself is a regular dependency above and keeps its range; pinning
+  # `build_runner` holds it in place transitively.
+  build_config: 1.3.0
+  build_runner: 2.15.0
+  build_test: 3.5.15
+  built_collection: 5.1.1
   # Resolves `package:intl/` in the recognizer tests so NumberFormat
   # constructions parse as resolved InstanceCreationExpressions (the
   # element-gated recognition path); not a runtime dependency of the toolchain.
