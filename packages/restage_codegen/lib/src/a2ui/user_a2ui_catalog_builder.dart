@@ -119,7 +119,11 @@ final class UserA2uiCatalogBuilder implements Builder {
     // it would be the one placement-affected key that never meets the others,
     // and a package configuring a different root here than on the outputs key
     // would get a quietly split layout instead of a diagnostic.
-    await registerRestagePlacementSignature(buildStep, plan);
+    await registerRestagePlacementSignature(
+      buildStep,
+      plan,
+      builderKey: 'restage_codegen:user_a2ui_catalog',
+    );
 
     final walk = await _walkCustomerWidgets(buildStep);
     final nativeScreens = await _projectNativeScreens(buildStep);

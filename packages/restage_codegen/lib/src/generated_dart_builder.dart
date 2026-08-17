@@ -29,7 +29,11 @@ final class RestageGeneratedDartBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(buildStep, plan);
+    await registerRestagePlacementSignature(
+      buildStep,
+      plan,
+      builderKey: 'restage_codegen:generated_dart',
+    );
 
     final libraryPath = buildStep.inputId.path;
     if (!isAuthoredDartLibraryAsset(buildStep.inputId)) return;
@@ -77,8 +81,11 @@ final class RestageGeneratedDartBuilder implements Builder {
       'generated part for $libraryPath was compiled at ${elsewhere.join(', ')} '
       'but this builder resolved ${neutralPartPath(plan, libraryPath)} from '
       '[${restagePlacementSignature(plan)}]. Every placement-affected Restage '
-      'builder key must be configured with the same options — set them once '
-      'under global_options, or repeat them identically on each target.',
+      'builder key must carry identical placement options. In build.yaml, set '
+      'the same options on each restage_codegen builder key under targets; a '
+      'YAML anchor lets you write the values once. Do not set them under '
+      'global_options: root global_options overrides the options every '
+      'package in the build sets for itself.',
     );
   }
 }

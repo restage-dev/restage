@@ -12,8 +12,8 @@ import '../helpers.dart';
 /// that configures one Restage builder key and forgets another is told.
 ///
 /// Build Runner has no cross-builder options channel: each key accepts the
-/// same options with the same defaults, and "configure it once" is honest
-/// only through root global options or repeated target options. Before this
+/// same options with the same defaults, and the honest configuration is the
+/// same target options repeated on each key. Before this
 /// record existed, only the builders that compile surfaces ever met, so a
 /// divergent portable-output root on the outputs key wrote bundles and the
 /// index under a root nothing else agreed with, silently.
@@ -98,8 +98,8 @@ void main() {
     });
 
     test('every key carrying the same configuration agrees', () async {
-      // What the diagnostic itself tells the developer to do: set the option
-      // once under global options so every key resolves it identically.
+      // What the diagnostic itself tells the developer to do: repeat the
+      // same options on every key so each resolves the plan identically.
       const options = BuilderOptions({'output_root': 'tool/restage'});
       final result = await _run([
         const RestageSourceRosterBuilder(options),

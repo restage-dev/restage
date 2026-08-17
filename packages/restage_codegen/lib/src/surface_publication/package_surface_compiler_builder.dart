@@ -55,19 +55,22 @@ final class TrackedPackageSurfaceCompilation {
 /// Scans only tracked build assets and invokes the package compiler's resolved
 /// frontends and strict artifact adapters.
 ///
-/// [plan] is the calling builder's own resolved placement. Build Runner has
-/// no cross-builder options channel, so every placement-affected Restage
+/// [plan] is the calling builder's own resolved placement, and [builderKey]
+/// is its `build.yaml` key (diagnostics only). Build Runner has no
+/// cross-builder options channel, so every placement-affected Restage
 /// builder key accepts the same options with the same defaults; two callers
 /// resolving different placement for one package is a configuration error and
-/// is reported as one.
+/// is reported as one, naming both keys.
 Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
   BuildStep buildStep, {
+  required String builderKey,
   RestageOutputPlacementPlan? plan,
 }) async {
   final cache = await buildStep.fetchResource(_trackedCompilationResource);
   return cache.get(
     buildStep,
     plan ?? RestageOutputPlacementPlan.defaults,
+    builderKey: builderKey,
   );
 }
 
@@ -458,9 +461,14 @@ final class _TrackedCompilationCache {
 
   Future<TrackedPackageSurfaceCompilation> get(
     BuildStep buildStep,
-    RestageOutputPlacementPlan plan,
-  ) async {
-    await registerRestagePlacementSignature(buildStep, plan);
+    RestageOutputPlacementPlan plan, {
+    required String builderKey,
+  }) async {
+    await registerRestagePlacementSignature(
+      buildStep,
+      plan,
+      builderKey: builderKey,
+    );
     return _byPackage.putIfAbsent(
       buildStep.inputId.package,
       () => _compileTrackedPackageSurfaces(buildStep, plan),
@@ -486,6 +494,7 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      builderKey: 'restage_codegen:restage_package_surface_compiler',
     );
     for (final issue in compilation.issues) {
       log.severe(issue.toLogString());

@@ -73,7 +73,11 @@ final class WidgetbookStoryBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(buildStep, _placement);
+    await registerRestagePlacementSignature(
+      buildStep,
+      _placement,
+      builderKey: 'restage_codegen:widgetbook_stories',
+    );
 
     final cache = await buildStep.fetchResource(_widgetbookCatalogResource);
     final index = await cache.getOrLoad(buildStep, _placement);

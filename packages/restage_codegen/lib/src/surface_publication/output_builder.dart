@@ -31,7 +31,11 @@ final class RestageOutputsBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    await registerRestagePlacementSignature(buildStep, plan);
+    await registerRestagePlacementSignature(
+      buildStep,
+      plan,
+      builderKey: 'restage_codegen:outputs',
+    );
 
     final bundle = await readRestageCompilerHandoff(buildStep);
     if (bundle == null) return;
