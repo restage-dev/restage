@@ -4572,6 +4572,62 @@ Object x() => surfaceEvent(Probe.next);
       );
     });
 
+    test(
+        'a style value outside the literal constructor form names the '
+        'decompose remedy, not a missing property', () async {
+      // A whole style object the recipe cannot match (a theme read, a
+      // variable, a function result) used to fall through to the generic
+      // "Property 'style' is not declared on 'Text'" report, which points
+      // away from the actual remedy: the argument IS supported, as a literal
+      // constructor the compiler decomposes.
+      final r = t.translate(
+        await parseExpressionFromSourceForTest('''
+          $_nativeExpressionSourceStubs
+          Object x(TextStyle themeStyle) => Text(
+            text: "Hi",
+            style: themeStyle,
+          );
+        '''),
+      );
+      expect(
+        r.issues.map((i) => i.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(
+        r.issues.map((i) => i.message),
+        contains(
+          contains(
+            "Property 'style' on 'Text' takes a literal TextStyle "
+            'constructor',
+          ),
+        ),
+      );
+      expect(
+        r.issues.map((i) => i.message),
+        isNot(contains(contains('is not declared on'))),
+      );
+    });
+
+    test('an undecomposable decoration value gets the same remedy', () async {
+      // Same mechanism, different (widget, argument) pair: the check is
+      // recipe-driven, not a Text special case.
+      final r = t.translate(
+        await parseExpressionFromSourceForTest('''
+          $_nativeExpressionSourceStubs
+          Object x(Object themed) => Container(decoration: themed);
+        '''),
+      );
+      expect(
+        r.issues.map((i) => i.message),
+        contains(
+          contains(
+            "Property 'decoration' on 'Container' takes a literal "
+            'BoxDecoration constructor',
+          ),
+        ),
+      );
+    });
+
     test('diagnoses unsupported custom button shapes instead of dropping them',
         () async {
       final r = t.translate(
@@ -4662,8 +4718,13 @@ Object x() => surfaceEvent(Probe.next);
       );
     });
 
-    test('non-recipe structured arg falls through to regular property lookup',
-        () async {
+    test(
+        'a non-recipe structured value in a decompose-only slot reports the '
+        'literal-constructor remedy', () async {
+      // Foo() matches no decomposition recipe. The slot itself is real, so
+      // the report names the constructor the recipe decomposes instead of
+      // claiming the property does not exist; either way the value is
+      // rejected loudly, never silently dropped.
       final r = t.translate(
         await parseExpressionFromSourceForTest('''
           $_nativeExpressionSourceStubs
@@ -4673,7 +4734,16 @@ Object x() => surfaceEvent(Probe.next);
       );
       expect(
         r.issues.map((i) => i.code),
-        contains(IssueCode.unknownProperty),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(
+        r.issues.map((i) => i.message),
+        contains(
+          contains(
+            "Property 'decoration' on 'Container' takes a literal "
+            'BoxDecoration constructor',
+          ),
+        ),
       );
     });
   });

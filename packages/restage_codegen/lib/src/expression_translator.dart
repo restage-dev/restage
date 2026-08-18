@@ -2458,6 +2458,14 @@ final class ExpressionTranslator {
 
       final prop = entry.properties.firstWhereOrNull((p) => p.name == name);
       if (prop == null) {
+        if (_reportUndecomposableArgument(
+          entry,
+          name,
+          arg.expression,
+          issues,
+        )) {
+          return '';
+        }
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
@@ -4873,6 +4881,9 @@ final class ExpressionTranslator {
 
       final prop = entry.properties.where((p) => p.name == name).firstOrNull;
       if (prop == null) {
+        if (_reportUndecomposableArgument(entry, name, a.expression, issues)) {
+          continue;
+        }
         issues.add(
           Issue(
             code: IssueCode.unknownProperty,
@@ -6529,6 +6540,55 @@ final class ExpressionTranslator {
 
   /// Returns hoisted flat-property emissions when [expr] matches a native
   /// decomposition recipe for [entry]'s constructor argument [argName].
+  /// Reports the decompose-only mismatch for [entry].[argName] and returns
+  /// true when that argument targets a native decomposition recipe, so the
+  /// caller skips the generic unknown-property report.
+  ///
+  /// Such an argument is compiled by decomposing a literal constructor of the
+  /// recipe's structured type into flat catalog properties, and the catalog
+  /// declares no property under the argument's own name. Without this check,
+  /// an author passing a value the recipe cannot match (a theme read, a
+  /// variable, a function result) would be told the argument does not exist
+  /// at all, which points away from the actual remedy.
+  bool _reportUndecomposableArgument(
+    WidgetEntry entry,
+    String argName,
+    Expression expr,
+    List<Issue> issues,
+  ) {
+    final recipes =
+        entry.decomposes.where((r) => r.targetArg == argName).toList();
+    if (recipes.isEmpty) return false;
+    // The source-type fragment is the constructor name the author writes
+    // (`TextStyle`, `BoxDecoration`), which is what the remedy must name;
+    // the entry's display name is advisory and may differ.
+    final typeNames = recipes
+        .map(
+          (r) => _nativeCatalogIndex
+              .structuredByRef(r.structuredRef)
+              ?.sourceType
+              .split('#')
+              .last,
+        )
+        .whereType<String>()
+        .toSet()
+        .toList()
+      ..sort();
+    final typeLabel = typeNames.isEmpty ? '' : '${typeNames.join(' or ')} ';
+    issues.add(
+      Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        message: "Property '$argName' on '${entry.name}' takes a literal "
+            '${typeLabel}constructor. The compiler decomposes it into flat '
+            'catalog properties at build time and cannot decompose this '
+            'expression. Construct the value inline; values inside it, like '
+            'a Theme.of(context) color, resolve when the surface renders.',
+        location: _locationOf(expr),
+      ),
+    );
+    return true;
+  }
+
   List<String>? _tryDecompose(
     WidgetEntry entry,
     String argName,
