@@ -17,4 +17,12 @@ void main() {
     // it's a binding.
     expect(s, r'$X.XX');
   });
+
+  test('paywallPriceFor returns the shared unbound-price const', () {
+    // The Dart-authoring path and the compiled-surface placeholder injector
+    // must never drift apart — both return the one shared literal.
+    expect(paywallPriceFor(slot: 'primary'), kRestageUnboundPriceLabel);
+    expect(
+        paywallPriceFor(productId: 'pro_monthly'), kRestageUnboundPriceLabel);
+  });
 }

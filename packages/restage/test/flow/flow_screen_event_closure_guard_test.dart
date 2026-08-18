@@ -44,8 +44,24 @@ void main() {
     populateFlowScreenData(
       ctx,
       dc,
-      priceQueries: const {},
+      // A non-empty priceQueries signals commerce context, so this test
+      // exercises the same populateProductData path (unconditionally writes
+      // a 'products' map) it always has — this guard is about which
+      // namespaces get projected, not the unbound-price placeholder. The
+      // placeholder args are unused on that branch; empty/inert values
+      // suffice.
+      priceQueries: const {
+        'p': PriceInfo(
+          localizedPrice: r'$9.99',
+          priceMicros: 9990000,
+          currency: 'USD',
+          title: 'P',
+          description: '',
+        ),
+      },
       includeInheritedData: true,
+      placeholderKeys: const {},
+      shouldLogPlaceholder: false,
     );
 
     // The three projected namespaces are present.

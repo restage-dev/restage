@@ -1,11 +1,14 @@
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show debugPrint, defaultTargetPlatform, kDebugMode, kIsWeb;
 import 'package:flutter/material.dart'
     show ColorScheme, IconThemeData, MediaQueryData, TextStyle;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
+
+import '../authoring/paywall_price_for.dart' show kRestageUnboundPriceLabel;
 
 /// Live price data for one product, resolved at runtime from StoreKit / Play.
 ///
@@ -142,6 +145,61 @@ void populateProductData(
     byProduct[p.slot] = entry;
   }
   target.update('products', byProduct);
+}
+
+/// The unbound-price placeholder entry every key in [populatePlaceholderProductData]
+/// gets. Mirrors the always-present subkeys of a live (non-trial) entry from
+/// [populateProductData] — `localizedPrice`/`priceMicros`/`currency`/`title`/
+/// `description`/`isTrial` — so a reference to any of those resolves instead
+/// of hitting a missing value. `trialDurationDays` is conditional even on a
+/// live entry (present only when `isTrial` is true), so it is absent here
+/// too, exactly as a live product with no trial would be.
+const Map<String, Object?> _kPlaceholderProductEntry = <String, Object?>{
+  'localizedPrice': kRestageUnboundPriceLabel,
+  'priceMicros': 0,
+  'currency': 'XXX', // ISO 4217 "no currency"
+  'title': 'Product',
+  'description': '',
+  'isTrial': false,
+};
+
+/// Populates the `data.products.*` namespace on [target] with the shared
+/// unbound-price placeholder, one full entry per key in [referencedKeys].
+///
+/// Sibling of [populateProductData], used in its place when
+/// `Restage.hasCommerceContext` is false: there is no resolved price to
+/// show, but (unlike [populateProductData], which skips a product with no
+/// resolved price) every referenced key gets a full placeholder entry, so
+/// the surface renders instead of failing closed. [referencedKeys] comes
+/// from walking the decoded blob (`referencedProductSlots`) — the compiled
+/// artifact itself is the only source of which keys a no-context render
+/// needs, since there are no registered products to enumerate.
+///
+/// A no-op (including no log, regardless of [shouldLog]) when
+/// [referencedKeys] is empty: the blob has no `data.products.*` reference,
+/// so there is nothing to inject and no behavior to report.
+///
+/// [shouldLog] lets a caller enforce "at most once per surface load" across
+/// repeated calls over the same stage/screen (e.g. a later re-population
+/// triggered by a dependency change) — the caller owns that per-object
+/// state; this function only decides whether the current call logs.
+void populatePlaceholderProductData(
+  DynamicContent target,
+  Set<String> referencedKeys, {
+  required bool shouldLog,
+}) {
+  if (referencedKeys.isEmpty) return;
+  target.update('products', <String, Object?>{
+    for (final key in referencedKeys) key: _kPlaceholderProductEntry,
+  });
+  if (shouldLog && kDebugMode) {
+    final keys = (referencedKeys.toList()..sort()).join(', ');
+    debugPrint(
+      '[restage] rendered placeholder prices for [$keys]; no products, '
+      'priceQueries, or billingGateway configured. Connect products to '
+      'bind live prices.',
+    );
+  }
 }
 
 /// Populates the `data.device.*` namespace on [target].

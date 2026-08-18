@@ -35,6 +35,15 @@ Other changes:
   assignments are scrubbed and never trusted.
 - Google Play prepaid base plans are not accepted through the bundled gateway.
   Direct gateway calls keep their existing product behavior.
+- A surface with a `paywallPriceFor` price binding and no commerce context
+  configured (no products, no `billingGateway`, no `priceQueries`) now
+  renders the same `$X.XX` placeholder the plain-Dart authoring path already
+  shows, instead of a blank surface. Whenever any commerce context exists,
+  a missing price still fails closed exactly as before. **Caveat:**
+  `PaywallLoadFailed` with `render_error` no longer fires for a price-bound
+  surface in the no-commerce-context case, since the surface now renders
+  successfully — a host that relied on that event to trigger fallback UI in
+  a storeless demo will see the new placeholder behavior instead.
 
 ## 1.3.0
 

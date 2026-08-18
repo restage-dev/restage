@@ -76,6 +76,70 @@ void main() {
   });
 
   testWidgets(
+      'no commerce context: a flow screen binding a price renders the '
+      'shared placeholder instead of failing closed', (tester) async {
+    Restage.debugReset();
+    addTearDown(Restage.debugReset);
+    // No Restage.configure(products: ...), no billingGateway, no
+    // priceQueries below — the walk over the screen's decoded library must
+    // find the 'annual' reference and inject the placeholder.
+
+    final blob = priceScreenBlob();
+    final controller = controllerFor(
+      resolvedFlow(screenBlobs: {'welcome': blob}),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageScreenView(controller: controller),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+
+    expect(find.text(r'$X.XX'), findsOneWidget);
+  });
+
+  testWidgets(
+      'commerce context present (product registered, slot unresolved): a '
+      'flow screen binding a price still fails closed', (tester) async {
+    // The flow-side second quadrant of the paywall widget-level 2x2: context
+    // present but the slot never resolved must NOT render the placeholder. It
+    // must fail closed, exactly as it did before the placeholder existed.
+    Restage.debugReset();
+    Restage.configure(
+      apiKey: 'pk_test',
+      products: const [
+        RestageProduct(id: 'pro_annual', slot: 'annual', entitlement: 'pro'),
+      ],
+    );
+    addTearDown(Restage.debugReset);
+
+    final blob = priceScreenBlob();
+    FlowUnavailableError? captured;
+    final controller = controllerFor(
+      resolvedFlow(screenBlobs: {'welcome': blob}),
+      onUnavailable: (error) => captured = error,
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      // priceQueries deliberately omits 'pro_annual' — the product is
+      // registered but its price never resolved.
+      child: RestageScreenView(controller: controller),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text(r'$X.XX'), findsNothing);
+    expect(controller.isUnavailable, isTrue);
+    expect(captured?.reason, 'render_failed');
+    expect(controller.hasRenderedContent, isFalse);
+  });
+
+  testWidgets(
       'routes the screen event through the controller and re-renders the new '
       'current screen', (tester) async {
     final controller = controllerFor(resolvedFlow());

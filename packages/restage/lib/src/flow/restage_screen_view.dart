@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
 
 import '../runtime/error_boundary.dart';
+import '../runtime/product_reference_walk.dart';
 import '../runtime/state_variables.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
@@ -73,6 +74,12 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
   int? _entryId;
   bool _dependenciesReady = false;
 
+  /// The current screen's placeholder-lane state (memoized referenced keys +
+  /// sticky log flag), walked once in [_sync] when its library is set and
+  /// replaced on each new screen — reused by every later re-population
+  /// instead of re-walking per call.
+  PlaceholderProductLane? _placeholderLane;
+
   @override
   void initState() {
     super.initState();
@@ -133,6 +140,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     _entryId = entryId;
     _runtime = _libraries.runtimeFor(library);
     _data = DynamicContent();
+    _placeholderLane = PlaceholderProductLane(library);
     _populateData();
   }
 
@@ -148,13 +156,17 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
 
   void _populateData() {
     final data = _data;
-    if (data == null) return;
-    populateFlowScreenData(
+    final lane = _placeholderLane;
+    if (data == null || lane == null) return;
+    final tookPlaceholderLane = populateFlowScreenData(
       context,
       data,
       priceQueries: widget.priceQueries,
       includeInheritedData: _dependenciesReady,
+      placeholderKeys: lane.keys,
+      shouldLogPlaceholder: !lane.logged,
     );
+    if (tookPlaceholderLane) lane.logged = true;
   }
 
   @override

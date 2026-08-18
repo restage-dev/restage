@@ -32,6 +32,7 @@ import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
 import 'library_runtime_registry.dart';
+import 'product_reference_walk.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
 import 'paywall_error.dart';
@@ -335,36 +336,59 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   @override
+  void didUpdateWidget(RestagePaywall oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A fresh priceQueries map is the documented way a host supplies newly
+    // resolved prices after mount. Re-running the product lane here is what
+    // lets a surface that started with no commerce context (rendering the
+    // placeholder) heal to live prices once the host has them, instead of
+    // being frozen in the placeholder lane for its whole lifetime.
+    if (identical(oldWidget.priceQueries, widget.priceQueries)) return;
+    for (final stage in <_BlobStage?>[_blobPresentation, _pendingBlobStage]) {
+      if (stage == null) continue;
+      _populateBlobProductLane(stage);
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Publish the host theme into `data.theme.*` — once at mount, then on
     // every ambient-theme change. Reading Theme / DefaultTextStyle here
-    // registers the dependency, so this re-fires when either changes. Gated
-    // so an unrelated dependency change (or a fresh-but-equal ThemeData
-    // instance) does not re-publish.
+    // registers the dependency, so this re-fires when either changes.
+    // `themeChanged` gates the theme republish only (an unrelated dependency
+    // change, or a fresh-but-equal ThemeData instance, must not re-publish
+    // unchanged theme data) — it does NOT gate the product lane below, which
+    // re-runs on every dependency-change opportunity so commerce context
+    // that arrives after the initial render (e.g. `Restage.configure()`
+    // racing a fast load) heals off the placeholder, mirroring the flow
+    // lanes' population site.
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final iconTheme = theme.iconTheme;
     final defaultTextStyle = DefaultTextStyle.of(context).style;
-    if (colorScheme == _lastThemeColorScheme &&
-        iconTheme == _lastThemeIconTheme &&
-        defaultTextStyle == _lastThemeTextStyle) {
-      return;
+    final themeChanged = colorScheme != _lastThemeColorScheme ||
+        iconTheme != _lastThemeIconTheme ||
+        defaultTextStyle != _lastThemeTextStyle;
+    if (themeChanged) {
+      _lastThemeColorScheme = colorScheme;
+      _lastThemeIconTheme = iconTheme;
+      _lastThemeTextStyle = defaultTextStyle;
     }
-    _lastThemeColorScheme = colorScheme;
-    _lastThemeIconTheme = iconTheme;
-    _lastThemeTextStyle = defaultTextStyle;
     for (final stage in <_BlobStage?>[
       _blobPresentation,
       _pendingBlobStage,
     ]) {
       if (stage == null) continue;
-      populateThemeData(
-        stage.data,
-        colorScheme: colorScheme,
-        iconTheme: iconTheme,
-        defaultTextStyle: defaultTextStyle,
-      );
+      _populateBlobProductLane(stage);
+      if (themeChanged) {
+        populateThemeData(
+          stage.data,
+          colorScheme: colorScheme,
+          iconTheme: iconTheme,
+          defaultTextStyle: defaultTextStyle,
+        );
+      }
     }
   }
 
@@ -1708,6 +1732,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       cacheHit: cacheHit,
       transaction: transaction,
       analyticsPresentation: analyticsPresentation,
+      library: library,
     );
     _populateBlobData(stage);
 
@@ -1739,11 +1764,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   void _populateBlobData(_BlobStage stage) {
-    populateProductData(
-      stage.data,
-      products: Restage.configuredProducts,
-      priceQueries: widget.priceQueries,
-    );
+    _populateBlobProductLane(stage);
     final mq = MediaQuery.maybeOf(context);
     if (mq != null) {
       populateDeviceData(
@@ -1763,6 +1784,33 @@ class _RestagePaywallState extends State<RestagePaywall> {
         iconTheme: iconTheme,
         defaultTextStyle: textStyle,
       );
+    }
+  }
+
+  /// Populates `data.products.*` on [stage], selected by
+  /// `Restage.hasCommerceContext`: context present uses live resolved prices
+  /// (unchanged fail-closed semantics); no context uses the shared
+  /// placeholder for [stage]'s memoized [_BlobStage.placeholderLane].
+  ///
+  /// Called at initial stage construction (via [_populateBlobData]) and again
+  /// from [didUpdateWidget] (a `priceQueries` change) and
+  /// [didChangeDependencies] (any dependency change) — the two seams that
+  /// let commerce context arriving after the initial render heal a surface
+  /// off the placeholder instead of freezing it there for its lifetime.
+  void _populateBlobProductLane(_BlobStage stage) {
+    if (Restage.hasCommerceContext(priceQueries: widget.priceQueries)) {
+      populateProductData(
+        stage.data,
+        products: Restage.configuredProducts,
+        priceQueries: widget.priceQueries,
+      );
+    } else {
+      populatePlaceholderProductData(
+        stage.data,
+        stage.placeholderLane.keys,
+        shouldLog: !stage.placeholderLane.logged,
+      );
+      stage.placeholderLane.logged = true;
     }
   }
 
@@ -2526,7 +2574,8 @@ final class _BlobStage {
     required this.cacheHit,
     required this.transaction,
     required this.analyticsPresentation,
-  });
+    required WidgetLibrary library,
+  }) : placeholderLane = PlaceholderProductLane(library);
 
   final BlobPaywallPayload payload;
   final Runtime runtime;
@@ -2537,6 +2586,13 @@ final class _BlobStage {
   final bool cacheHit;
   final FirstPaintLeaseTransaction transaction;
   final RootAnalyticsPresentation analyticsPresentation;
+
+  /// This stage's placeholder-lane state (memoized referenced keys + sticky
+  /// log flag), walked once at construction from the stage's decoded widget
+  /// library — a later re-population (a `priceQueries` change, or a
+  /// dependency-change heal check) reuses it without re-decoding or
+  /// re-walking.
+  final PlaceholderProductLane placeholderLane;
 
   _BlobStage? previousBlob;
   RestageFlowController<void>? previousFlow;
