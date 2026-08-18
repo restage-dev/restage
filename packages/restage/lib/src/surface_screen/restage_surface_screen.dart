@@ -16,6 +16,7 @@ import '../flow/flow_runtime_support.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/library_runtime_registry.dart';
+import '../runtime/product_reference_walk.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart' show PriceInfo;
 import 'surface_screen_runtime_provenance.dart';
@@ -211,18 +212,22 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
       runtime: runtime,
       data: DynamicContent(),
       presentation: presentation,
+      library: library,
     );
   }
 
   void _populateData() {
     final stage = _stage;
     if (stage == null) return;
-    populateFlowScreenData(
+    final tookPlaceholderLane = populateFlowScreenData(
       context,
       stage.data,
       priceQueries: const <String, PriceInfo>{},
       includeInheritedData: _dependenciesReady,
+      placeholderKeys: stage.placeholderLane.keys,
+      shouldLogPlaceholder: !stage.placeholderLane.logged,
     );
+    if (tookPlaceholderLane) stage.placeholderLane.logged = true;
   }
 
   void _handleEvent(_ScreenStage stage, String name, Object? value) {
@@ -307,19 +312,26 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
 }
 
 final class _ScreenStage {
-  const _ScreenStage({
+  _ScreenStage({
     required this.provenance,
     required this.resolved,
     required this.runtime,
     required this.data,
     required this.presentation,
-  });
+    required WidgetLibrary library,
+  }) : placeholderLane = PlaceholderProductLane(library);
 
   final SurfaceScreenRuntimeProvenance provenance;
   final ResolvedSurfaceScreen resolved;
   final Runtime runtime;
   final DynamicContent data;
   final RootAnalyticsPresentation presentation;
+
+  /// This screen's placeholder-lane state (memoized referenced keys + sticky
+  /// log flag), walked once at construction from the screen's decoded widget
+  /// library — a later data re-population reuses it without re-decoding
+  /// [resolved]'s blob.
+  final PlaceholderProductLane placeholderLane;
 
   void dispose() {
     presentation.dispose();

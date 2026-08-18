@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
 import '../runtime/error_boundary.dart';
+import '../runtime/product_reference_walk.dart';
 import '../runtime/state_variables.dart';
 import 'flow_chrome.dart';
 import 'flow_controller.dart';
@@ -315,6 +316,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       entryId: entryId,
       runtime: _libraries.runtimeFor(library),
       data: DynamicContent(),
+      library: library,
     );
     _stack.add(mounted);
     _populateData(mounted);
@@ -333,12 +335,15 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   }
 
   void _populateData(_MountedScreen screen) {
-    populateFlowScreenData(
+    final tookPlaceholderLane = populateFlowScreenData(
       context,
       screen.data,
       priceQueries: widget.priceQueries,
       includeInheritedData: _dependenciesReady,
+      placeholderKeys: screen.placeholderLane.keys,
+      shouldLogPlaceholder: !screen.placeholderLane.logged,
     );
+    if (tookPlaceholderLane) screen.placeholderLane.logged = true;
   }
 
   /// Drops mounted screens the controller no longer lists as reachable (e.g. a
@@ -870,11 +875,20 @@ class _MountedScreen {
     required this.entryId,
     required this.runtime,
     required this.data,
-  });
+    required WidgetLibrary library,
+  }) : placeholderLane = PlaceholderProductLane(library);
 
   final int entryId;
   final Runtime runtime;
   final DynamicContent data;
+
+  /// This screen's placeholder-lane state (memoized referenced keys + sticky
+  /// log flag), walked once at construction from the screen's decoded widget
+  /// library — a later data re-population (e.g. a `priceQueries` change)
+  /// reuses it without re-deriving the library from the controller, which
+  /// only tracks the *current* screen (a kept-mounted back-stack entry needs
+  /// its own).
+  final PlaceholderProductLane placeholderLane;
 
   /// A stable key for this screen's RFW content subtree. When a cover→reveal
   /// episode rebuilds the transition wrapper fresh (see [episode]), the content

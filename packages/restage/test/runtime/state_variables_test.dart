@@ -97,6 +97,93 @@ void main() {
     });
   });
 
+  group('populatePlaceholderProductData', () {
+    test('writes a full placeholder entry per referenced key', () {
+      final dc = DynamicContent();
+      populatePlaceholderProductData(dc, {'annual', 'monthly'},
+          shouldLog: true);
+
+      final products = _readKey(dc, 'products') as Map;
+      expect(products.keys, unorderedEquals(['annual', 'monthly']));
+      for (final entry in products.values) {
+        final map = entry as Map;
+        expect(map['localizedPrice'], r'$X.XX');
+        expect(map['priceMicros'], 0);
+        expect(map['currency'], 'XXX');
+        expect(map['title'], 'Product');
+        expect(map['description'], '');
+        expect(map['isTrial'], false);
+      }
+    });
+
+    test('the injected localizedPrice equals paywallPriceFor\'s return', () {
+      // The Dart-authoring path and the compiled-surface placeholder must
+      // never drift apart — both come from the one shared const.
+      final dc = DynamicContent();
+      populatePlaceholderProductData(dc, {'annual'}, shouldLog: true);
+
+      final products = _readKey(dc, 'products') as Map;
+      final entry = products['annual'] as Map;
+      expect(entry['localizedPrice'], paywallPriceFor(slot: 'annual'));
+    });
+
+    test('is a no-op for an empty key set', () {
+      final dc = DynamicContent();
+      populatePlaceholderProductData(dc, const {}, shouldLog: true);
+
+      // No 'products' key was ever written.
+      expect(_readKey(dc, 'products'), missing);
+    });
+
+    group('debug log', () {
+      late void Function(String?, {int? wrapWidth}) originalDebugPrint;
+      late List<String> messages;
+
+      setUp(() {
+        originalDebugPrint = debugPrint;
+        messages = <String>[];
+        debugPrint = (String? message, {int? wrapWidth}) {
+          if (message != null) messages.add(message);
+        };
+      });
+
+      tearDown(() {
+        debugPrint = originalDebugPrint;
+      });
+
+      test(
+          'logs the sorted placeholder keys when shouldLog is true and '
+          'keys are non-empty', () {
+        final dc = DynamicContent();
+        populatePlaceholderProductData(dc, {'monthly', 'annual'},
+            shouldLog: true);
+
+        expect(messages, hasLength(1));
+        // The codebase-wide debugPrint convention: every SDK log line
+        // starts with the '[restage] ' tag.
+        expect(messages.single, startsWith('[restage] '));
+        expect(messages.single, contains('[annual, monthly]'));
+      });
+
+      test(
+          'does not log when the key set is empty, even with shouldLog '
+          'true', () {
+        final dc = DynamicContent();
+        populatePlaceholderProductData(dc, const {}, shouldLog: true);
+
+        expect(messages, isEmpty);
+      });
+
+      test('does not log when shouldLog is false, even with non-empty keys',
+          () {
+        final dc = DynamicContent();
+        populatePlaceholderProductData(dc, {'annual'}, shouldLog: false);
+
+        expect(messages, isEmpty);
+      });
+    });
+  });
+
   group('populateDeviceData', () {
     test('includes locale, platform, screen dimensions, safe-area insets', () {
       final dc = DynamicContent();

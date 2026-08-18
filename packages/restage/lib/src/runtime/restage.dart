@@ -38,6 +38,7 @@ import 'library_runtime_registry.dart';
 import 'first_paint_lease_guard.dart';
 import 'restage_identity.dart';
 import 'restage_paywall.dart';
+import 'state_variables.dart';
 import 'restage_widget_factory.dart';
 import 'restage_widget_library_registration.dart';
 
@@ -82,6 +83,11 @@ abstract final class Restage {
   // tests. The `billingGateway` getter materializes on first read; tests that
   // never invoke a purchase / restore never instantiate it.
   static BillingGateway? _billingGateway;
+  // True only when a host passed `billingGateway:` explicitly to [configure].
+  // The bundled auto-installed gateway (below) must never set this — it
+  // exists whether or not a host has any real commerce set up, so its
+  // presence alone can't signal commerce context. See [hasCommerceContext].
+  static bool _hostSuppliedBillingGateway = false;
   static PurchaseCoordinator? _purchaseCoordinator;
   static int _purchaseCoordinatorEpoch = 0;
 
@@ -227,6 +233,7 @@ abstract final class Restage {
     // The current bundled asset resolvers do not read `locale` or `identity`.
     if (billingGateway != null) {
       _billingGateway = billingGateway;
+      _hostSuppliedBillingGateway = true;
     }
     final configuredGateway = _billingGateway;
     if (configuredGateway is InAppPurchaseGateway &&
@@ -782,6 +789,24 @@ abstract final class Restage {
   /// Products configured via [configure]. Used by the slot resolution
   /// path in `RestagePaywall` and the billing layer.
   static List<RestageProduct> get configuredProducts => _products;
+
+  /// True when the host has supplied any explicit commerce context: at
+  /// least one product registered via `configure(products: ...)`, an
+  /// explicit `billingGateway:` passed to `configure` (the auto-installed
+  /// bundled gateway never counts), or a non-empty [priceQueries] for this
+  /// render.
+  ///
+  /// A rendering surface uses this to choose between failing closed on a
+  /// missing price (context present — the fail-safe posture, always on when
+  /// there is real commerce to protect) and rendering the shared
+  /// unbound-price placeholder (no context — a storeless demo or preview,
+  /// where a blank surface teaches nothing). See [kRestageUnboundPriceLabel].
+  static bool hasCommerceContext({
+    required Map<String, PriceInfo> priceQueries,
+  }) =>
+      _products.isNotEmpty ||
+      _hostSuppliedBillingGateway ||
+      priceQueries.isNotEmpty;
 
   /// Look up a product by its author-named slot (e.g. `'primary'`).
   /// Returns `null` when no configured product matches.
@@ -1477,6 +1502,7 @@ abstract final class Restage {
     _entitlementsController?.close();
     _entitlementsController = null;
     _billingGateway = null;
+    _hostSuppliedBillingGateway = false;
     _purchaseCoordinatorEpoch += 1;
     _purchaseCoordinator?.cancel();
     _purchaseCoordinator = null;
