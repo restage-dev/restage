@@ -38,15 +38,30 @@ melos:
       exec: dart analyze
     format:
       description: >-
-        Format check across all packages, excluding emitter-generated
-        fixtures (test/generated/*.g.dart + package example catalogs) whose
-        codegen style diverges from `dart format` by design.
+        Format check across all packages. Generated Dart is excluded: its
+        layout is the emitter's business and drifts across `dart format`
+        versions. Keep this list identical to the CI workflow's.
       run: |
-        find packages apps -name '*.dart' \
+        find packages apps tool -name '*.dart' \
+          -not -name '*.g.dart' \
           -not -path '*/test/generated/*' \
-          -not -path '*/example/lib/*.g.dart' \
+          -not -path '*/restage.generated/*' \
           -not -path '*/.dart_tool/*' -print0 \
           | xargs -0 dart format --output=none --set-exit-if-changed
+    cli:install:
+      description: >-
+        Compile the `restage` CLI to a native binary and install it at
+        $PUB_CACHE/bin/restage. The compiled binary skips the pub-global
+        wrapper's per-invocation snapshot rebuild.
+      run: |
+        set -euo pipefail
+        cd packages/restage_cli
+        OUT="${PUB_CACHE:-$HOME/.pub-cache}/bin/restage"
+        mkdir -p "$(dirname "$OUT")"
+        dart compile exe bin/restage.dart -o "$OUT"
+        chmod +x "$OUT"
+        echo "Installed: $OUT"
+        echo "Run: restage --help"
     test:
       description: Run tests across all test/-bearing packages (delegates).
       run: melos run test:dart && melos run test:flutter

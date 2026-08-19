@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # No branch filter on pull_request: a PR is tested whatever it targets. The
+  # filter here was boilerplate, and it silently skipped every PR in a stack
+  # except the one based on main, leaving the rest green on a 3-second check.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -39,13 +41,16 @@ jobs:
         run: dart tool/publish_closeout_test.dart
 
       - name: Format check
-        # Exclude emitter-generated fixtures (test/generated/*.g.dart and
-        # package example catalogs) whose codegen output diverges from
-        # `dart format` by design.
+        # Generated Dart is excluded. Emitter output is not hand-maintained, its
+        # layout is the emitter's business, and it drifts across `dart format`
+        # versions independently of anything a change here can control. `dart
+        # analyze` still covers it, which is the check that matters for
+        # generated code.
         run: |
           find packages apps tool -name '*.dart' \
+            -not -name '*.g.dart' \
             -not -path '*/test/generated/*' \
-            -not -path '*/example/lib/*.g.dart' \
+            -not -path '*/restage.generated/*' \
             -not -path '*/.dart_tool/*' -print0 \
             | xargs -0 dart format --output=none --set-exit-if-changed
 
