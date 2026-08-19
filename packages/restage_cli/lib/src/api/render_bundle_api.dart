@@ -113,15 +113,12 @@ final class RenderBundleApi {
 
     try {
       final authorization = _authorizationHeader(_credential);
-      final raw = await _rpc.call(
-        'renderBundle',
-        'prepareUpload',
-        <String, dynamic>{
-          'projectSlug': project,
-          'channel': channel,
-          'organizationId': ?organizationId,
-        },
-      );
+      final raw = await _rpc
+          .call('renderBundle', 'prepareUpload', <String, dynamic>{
+            'projectSlug': project,
+            'channel': channel,
+            'organizationId': ?organizationId,
+          });
       if (raw is! String) throw const RenderBundleUploadException();
       final uploadUri = _validatedUploadUri(
         raw,
