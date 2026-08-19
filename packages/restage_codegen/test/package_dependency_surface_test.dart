@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
-  test('published dependency surface matches the pre-Phase-3 contract', () {
+  test('published dependency surface stays frozen', () {
     final pubspec =
         loadYaml(File('pubspec.yaml').readAsStringSync()) as YamlMap;
     final dependencies =
@@ -30,7 +30,7 @@ void main() {
         'rfw_catalog_compiler',
         'rfw_catalog_schema',
       },
-      reason: 'Phase 3 may not expand restage_codegen published dependencies.',
+      reason: 'restage_codegen must not gain published dependencies.',
     );
     expect(
       devDependencies,

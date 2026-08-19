@@ -362,7 +362,7 @@ void main() {
   // ---------------------------------------------------------------------------
   // Command registration
   // Asserts that `restage surface --help` and `restage paywall --help` list
-  // the lifecycle subcommands added in this chapter. These tests do not
+  // the lifecycle subcommands. These tests do not
   // make any network calls — the help text is produced entirely by the
   // command-runner and redirected to the stdout sink via the print zone.
   // ---------------------------------------------------------------------------
