@@ -35,6 +35,8 @@ void main() {
     expect(PaywallApi, isNotNull);
     expect(PaywallSummary, isNotNull);
     expect(SurfaceApi, isNotNull);
+    expect(SurfacePublicationApi, isNotNull);
+    expect(SurfacePublicationUploadResult, isNotNull);
     expect(SurfaceNotFound, isNotNull);
     expect(FileCredentialStore, isNotNull);
   });
@@ -42,9 +44,10 @@ void main() {
   test(
     'api.dart re-exports the restage_shared types used in its signatures',
     () {
-      // SurfaceApi/PaywallApi signatures name these; re-exporting them lets a
-      // consumer name them without a second `package:restage_shared` import.
-      expect(SurfaceType.paywall.wireName, 'paywall');
+      // Shared surface and publication signatures remain nameable from the
+      // public barrel without a second `package:restage_shared` import.
+      expect(Surface.general.wireName, 'general');
+      expect(SurfacePublicationUploadRequestV1, isNotNull);
       expect(
         const LibraryRequirement(namespace: 'restage.material', minVersion: 1),
         isA<LibraryRequirement>(),

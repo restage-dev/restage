@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -47,6 +48,35 @@ void main() {
     expect(binding.context!.experimentId, 'exp-survey');
     expect(binding.context!.variantId, 'variant-a');
     expect(binding.context!.experimentEpoch, 4);
+  });
+
+  test('retains source and payload kind through active and deferred bindings',
+      () async {
+    final presented = <RootAnalyticsEventContext>[];
+    final identity = _identity();
+    await identity.anonymousId();
+    RootAnalyticsRuntime.install(
+      identity: identity,
+      onSurfacePresented: presented.add,
+    );
+    final presentation = RootAnalyticsRuntime.createPresentation(
+      surface: AnalyticsSurface.general,
+      surfaceId: 'maintenance-notice',
+      sourceKind: SurfaceSourceKind.screen,
+      payloadKind: SurfacePayloadKind.blob,
+    )..stage(surfaceVersion: '3');
+
+    presentation.activate();
+    final deferred = presentation.captureDeferredContext();
+    final activeBinding = _bindingFrom(presentation);
+    final deferredBinding = _bindingFrom(deferred);
+
+    expect(presented.single.sourceKind, SurfaceSourceKind.screen);
+    expect(presented.single.payloadKind, SurfacePayloadKind.blob);
+    expect(activeBinding.sourceKind, SurfaceSourceKind.screen);
+    expect(activeBinding.payloadKind, SurfacePayloadKind.blob);
+    expect(deferredBinding.sourceKind, SurfaceSourceKind.screen);
+    expect(deferredBinding.payloadKind, SurfacePayloadKind.blob);
   });
 
   test('a partial experiment triple is normalized to all-null at staging',

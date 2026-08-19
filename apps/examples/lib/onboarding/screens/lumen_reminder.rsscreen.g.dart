@@ -3,7 +3,7 @@ part of 'lumen_reminder.dart';
 abstract final class LumenReminderScreenDescriptor {
   const LumenReminderScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'lumen_reminder',
     artifactPath: 'lumen_reminder.rfw',
     version: 1,

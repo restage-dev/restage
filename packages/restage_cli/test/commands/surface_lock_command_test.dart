@@ -28,7 +28,31 @@ void main() {
     }
   });
 
-  http.Response lockOkResponse() => http.Response('', 200);
+  http.Response lockOkResponse({required bool frozen}) => http.Response(
+    jsonEncode({
+      '__className__': 'SurfaceContractIdentityOperationResult',
+      'identity': {
+        '__className__': 'SurfaceIdentityReference',
+        'surfaceType': 'paywall',
+        'surfaceSlug': 'pro',
+      },
+      'frozen': frozen,
+      'affectedFamilies': [
+        {
+          '__className__': 'SurfaceContractFamilyEffectView',
+          'family': {
+            '__className__': 'SurfaceContractFamilyReference',
+            'surfaceType': 'paywall',
+            'surfaceSlug': 'pro',
+            'sourceKind': 'paywall',
+          },
+          'activePublishedRevisionBefore': 2,
+          'activePublishedRevisionAfter': 2,
+        },
+      ],
+    }),
+    200,
+  );
 
   CommandRunner<int> makeRunner({
     required bool lock,
@@ -61,7 +85,7 @@ void main() {
         Map<String, dynamic>? capturedBody;
         final client = mockHttpClient((req) {
           capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
-          return lockOkResponse();
+          return lockOkResponse(frozen: true);
         });
 
         final out = StringBuffer();
@@ -90,6 +114,7 @@ void main() {
         expect(capturedBody!['locked'], true);
         expect(out.toString(), contains('Froze "pro"'));
         expect(out.toString(), contains('production'));
+        expect(out.toString(), contains('non-versioned paywall: r2 -> r2'));
       },
     );
 
@@ -97,7 +122,7 @@ void main() {
       Map<String, dynamic>? capturedBody;
       final client = mockHttpClient((req) {
         capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
-        return lockOkResponse();
+        return lockOkResponse(frozen: false);
       });
 
       final out = StringBuffer();
@@ -125,6 +150,7 @@ void main() {
       expect(capturedBody!['method'], 'setSurfaceLock');
       expect(capturedBody!['locked'], false);
       expect(out.toString(), contains('Unfroze "pro"'));
+      expect(out.toString(), contains('non-versioned paywall: r2 -> r2'));
     });
 
     test(

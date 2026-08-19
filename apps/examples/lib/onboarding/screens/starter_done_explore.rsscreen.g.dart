@@ -3,7 +3,7 @@ part of 'starter_done_explore.dart';
 abstract final class StarterDoneExploreScreenDescriptor {
   const StarterDoneExploreScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'starter_done_explore',
     artifactPath: 'starter_done_explore.rfw',
     version: 1,

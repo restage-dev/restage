@@ -10,7 +10,8 @@ import 'package:restage_shared/restage_shared.dart';
 /// Typed wrapper over the backend's `surface` RPC endpoint.
 ///
 /// Mirrors the paywall API client with two differences: every call threads
-/// the surface type (`'paywall'` / `'onboarding'` / `'message'` / `'survey'`)
+/// the surface type (`'paywall'` / `'onboarding'` / `'message'` / `'survey'` /
+/// `'general'`)
 /// into the arg map, and the methods target the `'surface'` endpoint. HTTP
 /// failures throw [RestageApiException], which the caller decodes with
 /// [decodeSurfaceTypedException] to recover the typed [SurfaceException]
@@ -144,6 +145,7 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    int? contractVersion,
   }) async {
     final raw = await _api.call('surface', 'surfaceStatus', <String, dynamic>{
       'projectSlug': project,
@@ -155,8 +157,12 @@ class SurfaceApi {
         'environmentTargetId': environmentTargetId,
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
+      'contractVersion': contractVersion,
     });
-    return SurfaceStatusResult.fromJson(raw as Map<String, dynamic>);
+    return SurfaceStatusResult.fromJson(
+      raw as Map<String, dynamic>,
+      environmentSlug: environment,
+    );
   }
 
   /// Audit timeline for one surface in [environment]. Includes chained and
@@ -170,6 +176,7 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    int? contractVersion,
   }) async {
     final raw = await _api
         .call('surface', 'listSurfaceHistory', <String, dynamic>{
@@ -182,11 +189,50 @@ class SurfaceApi {
             'environmentTargetId': environmentTargetId,
           if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
           'organizationId': ?organizationId,
+          'contractVersion': contractVersion,
         });
     return [
       for (final item in raw as List<dynamic>)
         SurfaceAuditLogEntry.fromJson(item as Map<String, dynamic>),
     ];
+  }
+
+  /// Read the immutable revision history for one exact generated family.
+  ///
+  /// The nested family reference is the generated backend model. Its
+  /// non-versioned flow/paywall form intentionally omits `contractVersion`;
+  /// standalone screens carry their positive contract version.
+  Future<SurfaceContractFamilyHistoryResult> surfaceContractHistory({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required SurfaceSourceKind sourceKind,
+    int? contractVersion,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+  }) async {
+    final family = <String, dynamic>{
+      '__className__': 'SurfaceContractFamilyReference',
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'sourceKind': sourceKind.wireName,
+      if (contractVersion != null) 'contractVersion': contractVersion,
+    };
+    final raw = await _api
+        .call('surface', 'surfaceContractHistory', <String, dynamic>{
+          'projectSlug': project,
+          'appSlug': app,
+          'environmentSlug': environment,
+          'family': family,
+          if (environmentTargetId != null)
+            'environmentTargetId': environmentTargetId,
+          if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
+          'organizationId': ?organizationId,
+        });
+    return SurfaceContractFamilyHistoryResult.fromJson(raw);
   }
 
   /// Full organization audit stream. Requires the admin role.
@@ -239,7 +285,7 @@ class SurfaceApi {
   ///
   /// [organizationId] disambiguates the owning organization when the caller
   /// belongs to several; when omitted the backend resolves it.
-  Future<void> kill({
+  Future<SurfaceIdentityMutationResult?> kill({
     required String project,
     required String app,
     required SurfaceType surfaceType,
@@ -251,7 +297,7 @@ class SurfaceApi {
     RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
-    await _api.call('surface', 'killSurface', <String, dynamic>{
+    final raw = await _api.call('surface', 'killSurface', <String, dynamic>{
       'projectSlug': project,
       'appSlug': app,
       'surfaceType': surfaceType.wireName,
@@ -264,6 +310,10 @@ class SurfaceApi {
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
+    return SurfaceIdentityMutationResult.fromJsonOrNull(
+      raw,
+      environmentSlug: environment,
+    );
   }
 
   /// Set or clear the surface's publish-lock. When [locked] is true no further
@@ -272,7 +322,7 @@ class SurfaceApi {
   ///
   /// [organizationId] disambiguates the owning organization when the caller
   /// belongs to several; when omitted the backend resolves it.
-  Future<void> setLock({
+  Future<SurfaceIdentityMutationResult?> setLock({
     required String project,
     required String app,
     required SurfaceType surfaceType,
@@ -284,7 +334,7 @@ class SurfaceApi {
     RuntimePlane? runtimePlane,
     int? organizationId,
   }) async {
-    await _api.call('surface', 'setSurfaceLock', <String, dynamic>{
+    final raw = await _api.call('surface', 'setSurfaceLock', <String, dynamic>{
       'projectSlug': project,
       'appSlug': app,
       'surfaceType': surfaceType.wireName,
@@ -297,17 +347,20 @@ class SurfaceApi {
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
     });
+    return SurfaceIdentityMutationResult.fromJsonOrNull(
+      raw,
+      environmentSlug: environment,
+    );
   }
 
-  /// Roll a blob-shaped surface back to [toVersion] by re-pointing the
-  /// active-version pointer. [lockAfter] freezes the surface after the
-  /// re-point to prevent accidental overwrite. [reason] is recorded in the
-  /// audit trail. The backend rejects a flow-shaped surface. Requires the
-  /// admin role.
+  /// Roll one exact family back to [toVersion] by re-pointing its active
+  /// revision pointer. [lockAfter] freezes the identity after the re-point to
+  /// prevent accidental overwrite. [reason] is recorded in the audit trail.
+  /// Requires the admin role.
   ///
   /// [organizationId] disambiguates the owning organization when the caller
   /// belongs to several; when omitted the backend resolves it.
-  Future<void> rollback({
+  Future<SurfaceFamilyMutationResult?> rollback({
     required String project,
     required String app,
     required SurfaceType surfaceType,
@@ -319,8 +372,9 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    int? contractVersion,
   }) async {
-    await _api.call('surface', 'rollbackSurface', <String, dynamic>{
+    final raw = await _api.call('surface', 'rollbackSurface', <String, dynamic>{
       'projectSlug': project,
       'appSlug': app,
       'surfaceType': surfaceType.wireName,
@@ -333,7 +387,48 @@ class SurfaceApi {
         'environmentTargetId': environmentTargetId,
       if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
       'organizationId': ?organizationId,
+      'contractVersion': contractVersion,
     });
+    return SurfaceFamilyMutationResult.fromJsonOrNull(
+      raw,
+      environmentSlug: environment,
+    );
+  }
+
+  /// Activate one exact family revision without changing any other family
+  /// pointer. A null [contractVersion] explicitly selects the existing
+  /// non-versioned flow/paywall lineage.
+  Future<SurfaceFamilyMutationResult> activate({
+    required String project,
+    required String app,
+    required SurfaceType surfaceType,
+    required String surfaceSlug,
+    required String environment,
+    required int publishedRevision,
+    required String reason,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+    int? contractVersion,
+  }) async {
+    final raw = await _api.call('surface', 'activateSurface', <String, dynamic>{
+      'projectSlug': project,
+      'appSlug': app,
+      'surfaceType': surfaceType.wireName,
+      'surfaceSlug': surfaceSlug,
+      'environmentSlug': environment,
+      'publishedRevision': publishedRevision,
+      'reason': reason,
+      if (environmentTargetId != null)
+        'environmentTargetId': environmentTargetId,
+      if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
+      'organizationId': ?organizationId,
+      'contractVersion': contractVersion,
+    });
+    return SurfaceFamilyMutationResult.fromJson(
+      raw,
+      environmentSlug: environment,
+    );
   }
 
   /// Informational preview of a rollback to [toVersion]: how it is expected to
@@ -352,6 +447,7 @@ class SurfaceApi {
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
+    int? contractVersion,
   }) async {
     final raw = await _api
         .call('surface', 'rollbackPreflight', <String, dynamic>{
@@ -365,6 +461,7 @@ class SurfaceApi {
             'environmentTargetId': environmentTargetId,
           if (runtimePlane != null) 'runtimePlane': runtimePlane.wireName,
           'organizationId': ?organizationId,
+          'contractVersion': contractVersion,
         });
     return RollbackPreflightResult.fromJson(raw as Map<String, dynamic>);
   }

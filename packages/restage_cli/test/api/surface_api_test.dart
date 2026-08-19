@@ -384,6 +384,54 @@ void main() {
       );
       expect(fake.lastArgs!.containsKey('organizationId'), isFalse);
     });
+
+    test(
+      'decodes identity-wide affected families without narrowing them',
+      () async {
+        final fake = FakeRestageApi(
+          response: {
+            'identity': {'surfaceType': 'general', 'surfaceSlug': 'journey'},
+            'frozen': true,
+            'affectedFamilies': [
+              {
+                'family': {
+                  'surfaceType': 'general',
+                  'surfaceSlug': 'journey',
+                  'sourceKind': 'screen',
+                  'contractVersion': 2,
+                },
+                'activePublishedRevisionBefore': 5,
+              },
+              {
+                'family': {
+                  'surfaceType': 'general',
+                  'surfaceSlug': 'journey',
+                  'sourceKind': 'flowGraph',
+                },
+                'activePublishedRevisionBefore': 4,
+              },
+            ],
+          },
+        );
+
+        final result = await SurfaceApi(fake).kill(
+          project: 'p',
+          app: 'a',
+          surfaceType: SurfaceType.general,
+          surfaceSlug: 'journey',
+          environment: 'production',
+          frozen: true,
+          reason: 'incident',
+        );
+
+        expect(result, isNotNull);
+        expect(result!.surfaceType, 'general');
+        expect(result.environmentSlug, 'production');
+        expect(result.affectedFamilies, hasLength(2));
+        expect(result.affectedFamilies.first.contractVersion, 2);
+        expect(result.affectedFamilies.last.contractVersion, isNull);
+      },
+    );
   });
 
   group('SurfaceApi.setLock', () {
@@ -452,6 +500,84 @@ void main() {
       );
       expect(fake.lastArgs!.containsKey('organizationId'), isFalse);
     });
+
+    test(
+      'threads an exact family version and decodes the family result',
+      () async {
+        final fake = FakeRestageApi(
+          response: {
+            'family': {
+              'surfaceType': 'general',
+              'surfaceSlug': 'status',
+              'sourceKind': 'screen',
+              'contractVersion': 3,
+            },
+            'publishedRevision': 2,
+            'activePublishedRevisionBefore': 4,
+            'activePublishedRevisionAfter': 2,
+            'identityFrozenAfter': false,
+          },
+        );
+
+        final result = await SurfaceApi(fake).rollback(
+          project: 'p',
+          app: 'a',
+          surfaceType: SurfaceType.general,
+          surfaceSlug: 'status',
+          environment: 'production',
+          toVersion: 2,
+          lockAfter: false,
+          reason: 'restore',
+          contractVersion: 3,
+        );
+
+        expect(fake.lastArgs!['contractVersion'], 3);
+        expect(result, isNotNull);
+        expect(result!.contractVersion, 3);
+        expect(result.sourceKind, 'screen');
+        expect(result.activeRevisionBefore, 4);
+        expect(result.activeRevisionAfter, 2);
+        expect(result.frozen, isFalse);
+      },
+    );
+  });
+
+  group('SurfaceApi.activate', () {
+    test(
+      'targets one exact family and preserves a null non-versioned address',
+      () async {
+        final fake = FakeRestageApi(
+          response: {
+            'family': {
+              'surfaceType': 'paywall',
+              'surfaceSlug': 'pro',
+              'sourceKind': 'paywall',
+            },
+            'publishedRevision': 3,
+            'activePublishedRevisionAfter': 3,
+            'identityFrozenAfter': false,
+          },
+        );
+
+        final result = await SurfaceApi(fake).activate(
+          project: 'p',
+          app: 'a',
+          surfaceType: SurfaceType.paywall,
+          surfaceSlug: 'pro',
+          environment: 'production',
+          publishedRevision: 3,
+          reason: 'restore',
+          contractVersion: null,
+        );
+
+        expect(fake.lastMethod, 'activateSurface');
+        expect(fake.lastArgs!['publishedRevision'], 3);
+        expect(fake.lastArgs!.containsKey('contractVersion'), isTrue);
+        expect(fake.lastArgs!['contractVersion'], isNull);
+        expect(result.sourceKind, 'paywall');
+        expect(result.activeRevisionAfter, 3);
+      },
+    );
   });
 
   group('SurfaceApi.surfaceStatus', () {
@@ -485,10 +611,128 @@ void main() {
       expect(fake.lastArgs!['surfaceType'], 'paywall');
       expect(fake.lastArgs!['surfaceSlug'], 'pro');
       expect(fake.lastArgs!['environmentSlug'], 'production');
+      expect(fake.lastArgs!.containsKey('contractVersion'), isTrue);
+      expect(fake.lastArgs!['contractVersion'], isNull);
       expect(result.liveVersion, 2);
       expect(result.deliveryShape, 'blob');
       expect(result.supportsRollback, isTrue);
       expect(result.versions, hasLength(1));
+    });
+
+    test('passes a positive standalone contract version exactly', () async {
+      final fake = FakeRestageApi(
+        response: {
+          'surfaceType': 'general',
+          'surfaceSlug': 'status',
+          'environmentSlug': 'production',
+          'contractVersion': 4,
+          'liveVersion': 2,
+          'locked': false,
+          'deliveryShape': 'blob',
+          'versions': <dynamic>[],
+        },
+      );
+
+      final result = await SurfaceApi(fake).surfaceStatus(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.general,
+        surfaceSlug: 'status',
+        environment: 'production',
+        contractVersion: 4,
+      );
+
+      expect(fake.lastArgs!['contractVersion'], 4);
+      expect(result.contractVersion, 4);
+    });
+  });
+
+  group('SurfaceApi generated family history', () {
+    test('sends an exact positive screen family reference', () async {
+      final fake = FakeRestageApi(
+        response: {
+          '__className__': 'SurfaceContractFamilyView',
+          'family': {
+            '__className__': 'SurfaceContractFamilyReference',
+            'surfaceType': 'general',
+            'surfaceSlug': 'welcome',
+            'sourceKind': 'screen',
+            'contractVersion': 7,
+          },
+          'payloadKind': 'blob',
+          'activePublishedRevision': 4,
+          'revisions': [
+            {
+              '__className__': 'SurfaceContractPublishedRevisionView',
+              'publishedRevision': 4,
+              'publishedAt': '2026-06-29T18:17:51.000Z',
+              'contentHash': 'sha-4',
+              'minClient': 1,
+              'payloadKind': 'blob',
+              'isActive': true,
+            },
+          ],
+        },
+      );
+
+      final result = await SurfaceApi(fake).surfaceContractHistory(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.general,
+        surfaceSlug: 'welcome',
+        environment: 'production',
+        sourceKind: SurfaceSourceKind.screen,
+        contractVersion: 7,
+        environmentTargetId: 11,
+        runtimePlane: RuntimePlane.sandbox,
+        organizationId: 7,
+      );
+
+      expect(fake.lastEndpoint, 'surface');
+      expect(fake.lastMethod, 'surfaceContractHistory');
+      expect(fake.lastArgs!['projectSlug'], 'p');
+      expect(fake.lastArgs!['appSlug'], 'a');
+      expect(fake.lastArgs!['environmentSlug'], 'production');
+      expect(fake.lastArgs!['environmentTargetId'], 11);
+      expect(fake.lastArgs!['runtimePlane'], 'sandbox');
+      expect(fake.lastArgs!['organizationId'], 7);
+      expect(fake.lastArgs!['family'], {
+        '__className__': 'SurfaceContractFamilyReference',
+        'surfaceType': 'general',
+        'surfaceSlug': 'welcome',
+        'sourceKind': 'screen',
+        'contractVersion': 7,
+      });
+      expect(result.family.surfaceType, 'general');
+      expect(result.family.contractVersion, 7);
+      expect(result.revisions.single.publishedRevision, 4);
+    });
+
+    test('omits contractVersion for the non-versioned lineage', () async {
+      final fake = FakeRestageApi(
+        response: {
+          'family': {
+            'surfaceType': 'paywall',
+            'surfaceSlug': 'pro',
+            'sourceKind': 'paywall',
+          },
+          'revisions': <dynamic>[],
+        },
+      );
+
+      final result = await SurfaceApi(fake).surfaceContractHistory(
+        project: 'p',
+        app: 'a',
+        surfaceType: SurfaceType.paywall,
+        surfaceSlug: 'pro',
+        environment: 'staging',
+        sourceKind: SurfaceSourceKind.paywall,
+      );
+
+      final family = fake.lastArgs!['family'] as Map<String, dynamic>;
+      expect(family.containsKey('contractVersion'), isFalse);
+      expect(result.family.contractVersion, isNull);
+      expect(result.family.sourceKind, 'paywall');
     });
   });
 
@@ -528,6 +772,8 @@ void main() {
         expect(fake.lastArgs!['surfaceSlug'], 'pro');
         expect(fake.lastArgs!['environmentSlug'], 'staging');
         expect(fake.lastArgs!['organizationId'], 7);
+        expect(fake.lastArgs!.containsKey('contractVersion'), isTrue);
+        expect(fake.lastArgs!['contractVersion'], isNull);
         expect(rows.single.action, 'surfacePublished');
       },
     );

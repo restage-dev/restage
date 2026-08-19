@@ -71,6 +71,19 @@ AnalyticsEvent mapRestageEventToEnvelope(
   final flowId = map['flowId'] as String?;
   final paywallId = event.paywallId;
 
+  final sourceKind = rootAttribution?.sourceKind?.wireName;
+  final payloadKind = rootAttribution?.payloadKind?.wireName;
+  if (!isAnalyticsEventEligibleForArtifact(
+    eventName: event.name,
+    sourceKind: sourceKind,
+    payloadKind: payloadKind,
+  )) {
+    throw FormatException(
+      'Analytics event "${event.name}" is not eligible for artifact '
+      'sourceKind="$sourceKind" payloadKind="$payloadKind".',
+    );
+  }
+
   final String? eventSurface;
   final String? eventSurfaceId;
   final String? eventSurfaceSessionId;

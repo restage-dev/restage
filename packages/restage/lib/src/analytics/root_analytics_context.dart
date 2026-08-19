@@ -1,6 +1,7 @@
 import 'dart:collection';
 
 import 'package:meta/meta.dart';
+import 'package:restage_shared/restage_shared.dart';
 
 import 'analytics_identity.dart';
 
@@ -21,6 +22,8 @@ final class RootAnalyticsEventContext {
     required this.experimentId,
     required this.variantId,
     required this.experimentEpoch,
+    this.sourceKind,
+    this.payloadKind,
     this.canonicalEventId,
     this.canonicalOccurredAt,
   });
@@ -33,6 +36,8 @@ final class RootAnalyticsEventContext {
   final String? experimentId;
   final String? variantId;
   final int? experimentEpoch;
+  final SurfaceSourceKind? sourceKind;
+  final SurfacePayloadKind? payloadKind;
   final String? canonicalEventId;
   final DateTime? canonicalOccurredAt;
 
@@ -49,6 +54,8 @@ final class RootAnalyticsEventContext {
         experimentId: experimentId,
         variantId: variantId,
         experimentEpoch: experimentEpoch,
+        sourceKind: sourceKind,
+        payloadKind: payloadKind,
         canonicalEventId: eventId,
         canonicalOccurredAt: occurredAt,
       );
@@ -64,15 +71,21 @@ final class RootAnalyticsEventBinding {
   RootAnalyticsEventBinding.active(RootAnalyticsEventContext context)
       : surface = context.surface,
         surfaceId = context.surfaceId,
+        sourceKind = context.sourceKind,
+        payloadKind = context.payloadKind,
         context = context;
 
   const RootAnalyticsEventBinding.anonymous({
     required this.surface,
     required this.surfaceId,
+    this.sourceKind,
+    this.payloadKind,
   }) : context = null;
 
   final String surface;
   final String surfaceId;
+  final SurfaceSourceKind? sourceKind;
+  final SurfacePayloadKind? payloadKind;
   final RootAnalyticsEventContext? context;
 }
 
@@ -91,10 +104,14 @@ final class RootAnalyticsAnonymousContext
   const RootAnalyticsAnonymousContext({
     required this.surface,
     required this.surfaceId,
+    this.sourceKind,
+    this.payloadKind,
   });
 
   final String surface;
   final String surfaceId;
+  final SurfaceSourceKind? sourceKind;
+  final SurfacePayloadKind? payloadKind;
 
   @override
   T runWithEventContext<T>(T Function() action) =>
@@ -102,6 +119,8 @@ final class RootAnalyticsAnonymousContext
         RootAnalyticsEventBinding.anonymous(
           surface: surface,
           surfaceId: surfaceId,
+          sourceKind: sourceKind,
+          payloadKind: payloadKind,
         ),
         action,
       );
@@ -194,11 +213,15 @@ abstract final class RootAnalyticsRuntime {
   static RootAnalyticsPresentation createPresentation({
     required String surface,
     required String surfaceId,
+    SurfaceSourceKind? sourceKind,
+    SurfacePayloadKind? payloadKind,
   }) {
     final identity = _identity;
     final presentation = RootAnalyticsPresentation._(
       surface: surface,
       surfaceId: surfaceId,
+      sourceKind: sourceKind,
+      payloadKind: payloadKind,
       identity: identity,
       identityGeneration: identity?.generation,
       authorityEpoch: _authorityEpoch,
@@ -279,6 +302,8 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
   RootAnalyticsPresentation._({
     required this.surface,
     required this.surfaceId,
+    required this.sourceKind,
+    required this.payloadKind,
     required AnalyticsIdentity? identity,
     required int? identityGeneration,
     required int authorityEpoch,
@@ -288,6 +313,8 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
 
   final String surface;
   final String surfaceId;
+  final SurfaceSourceKind? sourceKind;
+  final SurfacePayloadKind? payloadKind;
   final AnalyticsIdentity? _identity;
   final int? _identityGeneration;
   final int _authorityEpoch;
@@ -341,6 +368,8 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
       experimentId: hasCompleteExperimentTriple ? experimentId : null,
       variantId: hasCompleteExperimentTriple ? variantId : null,
       experimentEpoch: hasCompleteExperimentTriple ? experimentEpoch : null,
+      sourceKind: sourceKind,
+      payloadKind: payloadKind,
     );
   }
 
@@ -390,6 +419,8 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
       RootAnalyticsDeferredContext._(
         surface: surface,
         surfaceId: surfaceId,
+        sourceKind: sourceKind,
+        payloadKind: payloadKind,
         identity: _identity,
         identityGeneration: _identityGeneration,
         authorityEpoch: _authorityEpoch,
@@ -406,6 +437,8 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
         ? RootAnalyticsEventBinding.anonymous(
             surface: surface,
             surfaceId: surfaceId,
+            sourceKind: sourceKind,
+            payloadKind: payloadKind,
           )
         : RootAnalyticsEventBinding.active(context);
   }
@@ -438,6 +471,8 @@ final class RootAnalyticsDeferredContext implements RootAnalyticsContextSource {
   const RootAnalyticsDeferredContext._({
     required this.surface,
     required this.surfaceId,
+    required this.sourceKind,
+    required this.payloadKind,
     required AnalyticsIdentity? identity,
     required int? identityGeneration,
     required int authorityEpoch,
@@ -449,6 +484,8 @@ final class RootAnalyticsDeferredContext implements RootAnalyticsContextSource {
 
   final String surface;
   final String surfaceId;
+  final SurfaceSourceKind? sourceKind;
+  final SurfacePayloadKind? payloadKind;
   final AnalyticsIdentity? _identity;
   final int? _identityGeneration;
   final int _authorityEpoch;
@@ -467,6 +504,8 @@ final class RootAnalyticsDeferredContext implements RootAnalyticsContextSource {
         ? RootAnalyticsEventBinding.anonymous(
             surface: surface,
             surfaceId: surfaceId,
+            sourceKind: sourceKind,
+            payloadKind: payloadKind,
           )
         : RootAnalyticsEventBinding.active(context);
     return RootAnalyticsRuntime._runWithBinding(binding, action);

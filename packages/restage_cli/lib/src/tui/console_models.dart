@@ -87,11 +87,28 @@ class ConsoleSurface {
     required this.surfaceType,
     required this.slug,
     required this.name,
+    this.contractVersion,
+    this.sourceKind,
+    this.payloadKind,
+    this.hasManifestIdentity = false,
   });
 
   final String surfaceType;
   final String slug;
   final String name;
+
+  /// Positive standalone-screen family version, when the current generated
+  /// manifest supplied one.
+  final int? contractVersion;
+
+  /// Authored source kind from the generated identity.
+  final String? sourceKind;
+
+  /// Payload kind from the generated identity.
+  final String? payloadKind;
+
+  /// Whether this surface was resolved from the current generated manifest.
+  final bool hasManifestIdentity;
 }
 
 class ConsoleActivityEntry {

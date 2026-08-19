@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -8,9 +9,12 @@ import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/organization_resolution.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/publication/publication_errors.dart';
+import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_cli/src/tui/console_controller.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -31,12 +35,14 @@ class DefaultConsoleRepository implements ConsoleRepository {
   SurfaceApi? _surfaceApi;
   ConsoleContext? _context;
   int? _organizationId;
+  Map<String, SurfaceLifecycleIdentity> _manifestIdentities = const {};
 
   @override
   Future<ConsoleSnapshot> load() async {
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await _readCredential(store);
     final loaded = await _loadConfig();
+    _manifestIdentities = await _loadManifestIdentities(loaded.source.parent);
     final config = loaded.config;
     final environment = _requireEnvironment(config);
     final endpoint = _resolveEndpoint(config, credential);
@@ -91,15 +97,19 @@ class DefaultConsoleRepository implements ConsoleRepository {
     }
 
     try {
+      final identity =
+          _manifestIdentities[_identityKey(surface.surfaceType, surface.slug)];
       return await surfaceApi.surfaceStatus(
         project: context.project,
         app: context.app,
-        surfaceType: SurfaceType.fromWireName(surface.surfaceType),
+        surfaceType:
+            identity?.surface ?? SurfaceType.fromWireName(surface.surfaceType),
         surfaceSlug: surface.slug,
         environment: context.environment,
         organizationId: organizationId,
         environmentTargetId: context.environmentTargetId,
         runtimePlane: context.runtimePlane,
+        contractVersion: identity?.contractVersion,
       );
     } on RestageApiException catch (e) {
       throw _apiException(e);
@@ -386,6 +396,7 @@ class DefaultConsoleRepository implements ConsoleRepository {
         SurfaceType.onboarding,
         SurfaceType.message,
         SurfaceType.survey,
+        SurfaceType.general,
       ]) {
         final summaries = await surfaceApi.list(
           project: config.project,
@@ -394,14 +405,24 @@ class DefaultConsoleRepository implements ConsoleRepository {
           organizationId: organization.organizationId,
           appId: app.appId,
         );
-        surfaces.addAll([
-          for (final summary in summaries)
+        for (final summary in summaries) {
+          final identity =
+              _manifestIdentities[_identityKey(
+                summary.surfaceType,
+                summary.slug,
+              )];
+          surfaces.add(
             ConsoleSurface(
               surfaceType: summary.surfaceType,
               slug: summary.slug,
               name: summary.name,
+              contractVersion: identity?.contractVersion,
+              sourceKind: identity?.sourceKind.wireName,
+              payloadKind: identity?.payloadKind?.wireName,
+              hasManifestIdentity: identity != null,
             ),
-        ]);
+          );
+        }
       }
       return surfaces;
     } on RestageApiException catch (e) {
@@ -415,6 +436,41 @@ class DefaultConsoleRepository implements ConsoleRepository {
     final outcome = renderGenericTypedError(e);
     if (outcome != null) return ConsoleLoadException(outcome.message);
     return ConsoleLoadException('Could not contact the backend: ${e.body}');
+  }
+
+  Future<Map<String, SurfaceLifecycleIdentity>> _loadManifestIdentities(
+    Directory projectRoot,
+  ) async {
+    final manifestFile = File(
+      p.join(projectRoot.path, surfacePublicationManifestRelativePath),
+    );
+    final invalidMarker = File(
+      p.join(projectRoot.path, surfacePublicationInvalidRelativePath),
+    );
+    if (!manifestFile.existsSync() && !invalidMarker.existsSync()) {
+      return const {};
+    }
+    try {
+      final loaded = await SurfacePublicationManifestLoader().load(
+        projectRoot: projectRoot,
+      );
+      return {
+        for (final entry in loaded.manifest.publications)
+          _identityKey(
+            entry.publication.surface.wireName,
+            entry.publication.slug,
+          ): SurfaceLifecycleIdentity(
+            surface: entry.publication.surface,
+            slug: entry.publication.slug,
+            sourceKind: entry.publication.sourceKind,
+            payloadKind: entry.publication.payloadKind,
+            contractVersion: entry.publication.contractVersion,
+            fromManifest: true,
+          ),
+      };
+    } on PublicationManifestException catch (e) {
+      throw ConsoleLoadException(e.message);
+    }
   }
 
   bool _containsSlug(List<Object> values, String slug) {
@@ -438,6 +494,9 @@ class DefaultConsoleRepository implements ConsoleRepository {
     );
   }
 }
+
+String _identityKey(String surfaceType, String slug) =>
+    '$surfaceType\u0000$slug';
 
 typedef _ConsoleEnvironmentSelection = ({
   List<ConsoleEnvironmentTarget> targets,

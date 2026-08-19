@@ -85,6 +85,62 @@ void main() {
     expect(envelope.surfaceSessionId, 'flow-sess-1');
   });
 
+  test('an authoritative general flow stays attributed to general', () {
+    const root = RootAnalyticsEventContext(
+      identityGeneration: 1,
+      surface: AnalyticsSurface.general,
+      surfaceId: 'account-recovery',
+      surfaceVersion: '4',
+      surfaceSessionId: 'general-session-1',
+      experimentId: null,
+      variantId: null,
+      experimentEpoch: null,
+      sourceKind: SurfaceSourceKind.flowGraph,
+      payloadKind: SurfacePayloadKind.flow,
+    );
+
+    final envelope = map(
+      const FlowCompleted(
+        flowId: 'account-recovery',
+        flowVersion: 2,
+        flowSessionId: 'flow-session-1',
+      ),
+      rootAttribution: RootAnalyticsEventBinding.active(root),
+    );
+
+    expect(envelope.surface, AnalyticsSurface.general);
+    expect(envelope.surface, isNot(AnalyticsSurface.onboarding));
+    expect(envelope.surfaceId, 'account-recovery');
+    expect(envelope.surfaceVersion, '4');
+  });
+
+  test('a standalone general blob cannot emit flow completion', () {
+    const root = RootAnalyticsEventContext(
+      identityGeneration: 1,
+      surface: AnalyticsSurface.general,
+      surfaceId: 'maintenance-notice',
+      surfaceVersion: '3',
+      surfaceSessionId: 'general-session-1',
+      experimentId: null,
+      variantId: null,
+      experimentEpoch: null,
+      sourceKind: SurfaceSourceKind.screen,
+      payloadKind: SurfacePayloadKind.blob,
+    );
+
+    expect(
+      () => map(
+        const FlowCompleted(
+          flowId: 'maintenance-notice',
+          flowVersion: 1,
+          flowSessionId: 'should-not-count',
+        ),
+        rootAttribution: RootAnalyticsEventBinding.active(root),
+      ),
+      throwsFormatException,
+    );
+  });
+
   test('PaywallViewed.publishedVersion promotes to envelope surfaceVersion',
       () {
     final envelope = map(

@@ -3,7 +3,7 @@ part of 'crave_ready.dart';
 abstract final class CraveReadyScreenDescriptor {
   const CraveReadyScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'crave_ready',
     artifactPath: 'crave_ready.rfw',
     version: 1,

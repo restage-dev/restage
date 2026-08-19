@@ -51,6 +51,7 @@ void main() {
         _emptySurfaceList,
         _emptySurfaceList,
         _emptySurfaceList,
+        _emptySurfaceList,
         (request) {
           statusBody = jsonDecode(request.body) as Map<String, dynamic>;
           expect(statusBody!['method'], 'surfaceStatus');
@@ -128,6 +129,7 @@ void main() {
           _listEnvironments,
           _listEnvironmentTargets,
           _listPaywalls,
+          _emptySurfaceList,
           _emptySurfaceList,
           _emptySurfaceList,
           _emptySurfaceList,
@@ -235,6 +237,7 @@ void main() {
         _listSameSlugLegacyEnvironments,
         _listSameSlugTargets,
         _listPaywalls,
+        _emptySurfaceList,
         _emptySurfaceList,
         _emptySurfaceList,
         _emptySurfaceList,
@@ -408,7 +411,10 @@ http.Response _listPaywalls(http.Request request) {
 http.Response _emptySurfaceList(http.Request request) {
   final body = jsonDecode(request.body) as Map<String, dynamic>;
   expect(body['method'], 'list');
-  expect(body['surfaceType'], isIn(['onboarding', 'message', 'survey']));
+  expect(
+    body['surfaceType'],
+    isIn(['onboarding', 'message', 'survey', 'general']),
+  );
   expect(body['organizationId'], 7);
   expect(body['appId'], 5);
   return http.Response(jsonEncode(<Map<String, dynamic>>[]), 200);

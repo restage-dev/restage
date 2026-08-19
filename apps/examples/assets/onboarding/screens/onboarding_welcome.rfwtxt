@@ -1,0 +1,5 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget OnboardingScreen = FilledButton(onPressed: event "continue" {}, child: Text(text: "Continue"));

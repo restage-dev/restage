@@ -87,12 +87,19 @@ void main() {
       ).run(['surface', 'list', '--all', '-C', tempDir.path]);
 
       expect(exitCode, 0);
-      expect(seenTypes, ['paywall', 'onboarding', 'message', 'survey']);
+      expect(seenTypes, [
+        'paywall',
+        'onboarding',
+        'message',
+        'survey',
+        'general',
+      ]);
       final out = stdout.toString();
       expect(out, contains('paywall\tpaywall-surface'));
       expect(out, contains('onboarding\tonboarding-surface'));
       expect(out, contains('message\tmessage-surface'));
       expect(out, contains('survey\tsurvey-surface'));
+      expect(out, contains('general\tgeneral-surface'));
     });
 
     test('--json emits typed surface summaries', () async {

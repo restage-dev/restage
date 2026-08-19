@@ -3,7 +3,7 @@ part of 'ready.dart';
 abstract final class ReadyScreenDescriptor {
   const ReadyScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'ready',
     artifactPath: 'ready.rfw',
     version: 1,

@@ -40,6 +40,7 @@ export 'src/flow/restage_surface_flow.dart';
 export 'src/flow/restage_screen_view.dart';
 export 'src/flow/server_flow_resolver.dart';
 export 'src/flow/system_back_policy.dart';
+export 'src/surface_screen/surface_screen.dart';
 export 'package:restage_shared/restage_shared.dart'
     show
         ChildrenSlot,
@@ -57,6 +58,7 @@ export 'package:restage_shared/restage_shared.dart'
         SurfaceType,
         SurfacePayloadKind,
         SurfaceSourceKind,
+        SurfaceExperimentAssignmentV1,
         FlowActionSchema,
         FlowActionSchemaField,
         FlowBranchPredicate,

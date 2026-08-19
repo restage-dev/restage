@@ -28,11 +28,15 @@ void main() {
     }
   });
 
-  http.Response statusResponse({int? liveVersion = 1}) => http.Response(
+  http.Response statusResponse({
+    int? liveVersion = 1,
+    String surfaceType = 'paywall',
+    String surfaceSlug = 'pro',
+  }) => http.Response(
     jsonEncode({
       '__className__': 'SurfaceStatusResult',
-      'surfaceType': 'paywall',
-      'surfaceSlug': 'pro',
+      'surfaceType': surfaceType,
+      'surfaceSlug': surfaceSlug,
       'environmentSlug': 'staging',
       'liveVersion': liveVersion,
       'locked': false,
@@ -150,7 +154,90 @@ void main() {
     );
 
     test(
-      '(c) missing --reason exits 1 with Required: --reason, kill not called',
+      '(c) prints every affected family without a narrowing selector',
+      () async {
+        Map<String, dynamic>? capturedKillBody;
+        final client = scriptedHttpClient([
+          (req) {
+            final body = jsonDecode(req.body) as Map<String, dynamic>;
+            expect(body['surfaceType'], 'general');
+            return statusResponse(
+              surfaceType: 'general',
+              surfaceSlug: 'journey',
+            );
+          },
+          (req) {
+            capturedKillBody = jsonDecode(req.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                'identity': {
+                  'surfaceType': 'general',
+                  'surfaceSlug': 'journey',
+                },
+                'frozen': true,
+                'affectedFamilies': [
+                  {
+                    'family': {
+                      'surfaceType': 'general',
+                      'surfaceSlug': 'journey',
+                      'sourceKind': 'screen',
+                      'contractVersion': 1,
+                    },
+                    'activePublishedRevisionBefore': 5,
+                    'activePublishedRevisionAfter': null,
+                  },
+                  {
+                    'family': {
+                      'surfaceType': 'general',
+                      'surfaceSlug': 'journey',
+                      'sourceKind': 'flowGraph',
+                    },
+                    'activePublishedRevisionBefore': 4,
+                    'activePublishedRevisionAfter': null,
+                  },
+                ],
+              }),
+              200,
+            );
+          },
+        ]);
+
+        final out = StringBuffer();
+        final code =
+            await makeRunner(
+              stdout: out,
+              stderr: StringBuffer(),
+              httpClient: client,
+              fixedSurfaceType: SurfaceType.general,
+            ).run([
+              'kill',
+              'journey',
+              '--env',
+              'staging',
+              '--reason',
+              'x',
+              '--yes',
+              '--frozen',
+              '--project',
+              'p',
+              '--app',
+              'a',
+            ]);
+
+        expect(code, 0);
+        expect(capturedKillBody, isNotNull);
+        expect(capturedKillBody!, isNot(contains('contractVersion')));
+        expect(out.toString(), contains('contract v1: r5 -> inactive'));
+        expect(
+          out.toString(),
+          contains('non-versioned flowGraph: r4 -> inactive'),
+        );
+        expect(out.toString(), isNot(contains('published r')));
+      },
+    );
+
+    test(
+      '(d) missing --reason exits 1 with Required: --reason, kill not called',
       () async {
         var apiCalled = false;
         final client = mockHttpClient((req) {
@@ -184,7 +271,7 @@ void main() {
       },
     );
 
-    test('(d) live production --yes exits 1, '
+    test('(e) live production --yes exits 1, '
         'kill not called', () async {
       var killCalled = false;
       final client = scriptedHttpClient([
@@ -223,7 +310,7 @@ void main() {
     });
 
     test(
-      '(e) interactive decline prints Aborted. and exits 1, kill NOT called',
+      '(f) interactive decline prints Aborted. and exits 1, kill NOT called',
       () async {
         var killCalled = false;
         final client = scriptedHttpClient([

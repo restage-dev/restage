@@ -27,6 +27,9 @@ abstract final class AnalyticsSurface {
   /// Survey surface.
   static const String survey = 'survey';
 
+  /// Surface with no specialized product semantics.
+  static const String general = 'general';
+
   /// App-wide source (lifecycle/entitlement events fired with no surface).
   static const String app = 'app';
 
@@ -40,6 +43,7 @@ abstract final class AnalyticsSurface {
     onboarding,
     message,
     survey,
+    general,
     app,
     billing,
   };

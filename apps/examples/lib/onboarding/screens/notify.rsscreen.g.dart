@@ -3,7 +3,7 @@ part of 'notify.dart';
 abstract final class NotifyScreenDescriptor {
   const NotifyScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'notify',
     artifactPath: 'notify.rfw',
     version: 1,

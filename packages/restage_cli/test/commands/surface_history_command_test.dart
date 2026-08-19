@@ -37,7 +37,7 @@ void main() {
   });
 
   test(
-    'prints server surface history and threads configured organization',
+    'prints exact family history and threads configured organization',
     () async {
       Map<String, dynamic>? historyBody;
       final client = scriptedHttpClient([
@@ -51,29 +51,36 @@ void main() {
         (request) {
           historyBody = jsonDecode(request.body) as Map<String, dynamic>;
           return http.Response(
-            jsonEncode([
-              {
-                '__className__': 'SurfaceAuditLogEntryView',
-                'action': 'surfacePublished',
-                'actorType': 'human',
-                'actorEmail': 'owner@example.com',
-                'outcome': 'success',
-                'severity': 'notice',
-                'targetType': 'surface',
-                'targetId': '42',
-                'occurredAt': '2026-06-29T18:17:51.000Z',
-                'reason': 'demo publish',
-                'context': {
-                  'surfaceSlug': 'pro',
-                  'surfaceType': 'paywall',
-                  'environmentSlug': 'staging',
-                  'publishedVersion': '2',
-                },
-                'chainState': 'chained',
-                'chainVerified': true,
-                'entryId': 99,
+            jsonEncode({
+              '__className__': 'SurfaceContractFamilyView',
+              'family': {
+                '__className__': 'SurfaceContractFamilyReference',
+                'surfaceType': 'paywall',
+                'surfaceSlug': 'pro',
+                'sourceKind': 'paywall',
               },
-            ]),
+              'activePublishedRevision': 2,
+              'revisions': [
+                {
+                  '__className__': 'SurfaceContractPublishedRevisionView',
+                  'publishedRevision': 2,
+                  'publishedAt': '2026-06-29T18:17:51.000Z',
+                  'contentHash': 'sha-2',
+                  'minClient': 1,
+                  'payloadKind': 'blob',
+                  'isActive': true,
+                },
+                {
+                  '__className__': 'SurfaceContractPublishedRevisionView',
+                  'publishedRevision': 1,
+                  'publishedAt': '2026-06-28T18:17:51.000Z',
+                  'contentHash': 'sha-1',
+                  'minClient': 1,
+                  'payloadKind': 'blob',
+                  'isActive': false,
+                },
+              ],
+            }),
             200,
           );
         },
@@ -96,17 +103,20 @@ void main() {
 
       expect(code, 0);
       expect(historyBody, isNotNull);
-      expect(historyBody!['method'], 'listSurfaceHistory');
+      expect(historyBody!['method'], 'surfaceContractHistory');
       expect(historyBody!['projectSlug'], 'alpha');
       expect(historyBody!['appSlug'], 'mobile');
       expect(historyBody!['environmentSlug'], 'staging');
-      expect(historyBody!['surfaceType'], 'paywall');
-      expect(historyBody!['surfaceSlug'], 'pro');
       expect(historyBody!['organizationId'], 7);
-      expect(out.toString(), contains('surfacePublished'));
-      expect(out.toString(), contains('owner@example.com'));
-      expect(out.toString(), contains('demo publish'));
-      expect(out.toString(), contains('verified'));
+      expect(historyBody!['family'], {
+        '__className__': 'SurfaceContractFamilyReference',
+        'surfaceType': 'paywall',
+        'surfaceSlug': 'pro',
+        'sourceKind': 'paywall',
+      });
+      expect(out.toString(), contains('family: non-versioned paywall'));
+      expect(out.toString(), contains('r2'));
+      expect(out.toString(), contains('sha-2'));
     },
   );
 }

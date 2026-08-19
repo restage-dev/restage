@@ -30,6 +30,22 @@ final class AnalyticsEventSpec {
 
 final AnalyticsEventSpec _tier1 = AnalyticsEventSpec(tier: AnalyticsTier.tier1);
 
+/// Lifecycle event names whose meaning requires a flow-shaped artifact.
+///
+/// The set is deliberately kept separate from the event registry: the
+/// registry answers whether an event is known and how it is sampled, while
+/// this set answers whether a known event is meaningful for one artifact
+/// shape. Unknown event names remain soft-allowed below.
+const Set<String> kFlowLifecycleAnalyticsEventNames = <String>{
+  'flow_started',
+  'flow_completed',
+  'flow_unavailable',
+  'flow_custom_event',
+  'onboarding_step_viewed',
+  'onboarding_skipped',
+  'onboarding_permission_response',
+};
+
 /// The single-sourced event taxonomy: canonical name → `{tier,
 /// requiredProperties}`. Read by the SDK (warn on unknown), the ingest
 /// validator (derive `tier`), and the schema docs — the validator==SDK
@@ -109,6 +125,24 @@ bool isRegisteredAnalyticsEvent(String name) =>
 
 /// The (server-derived) tier for [name].
 String tierForEvent(String name) => lookupAnalyticsEvent(name).tier;
+
+/// Whether [eventName] is eligible for the supplied published artifact shape.
+///
+/// A missing shape preserves the legacy event bridge, which predates generated
+/// source/payload metadata. Once either discriminator is present, flow
+/// lifecycle events are admitted only for the exact `flowGraph`/`flow` pair.
+/// This prevents a standalone `screen`/`blob` artifact from being counted as a
+/// completed flow without turning unknown event names or future surfaces into
+/// decode failures.
+bool isAnalyticsEventEligibleForArtifact({
+  required String eventName,
+  String? sourceKind,
+  String? payloadKind,
+}) {
+  if (!kFlowLifecycleAnalyticsEventNames.contains(eventName)) return true;
+  if (sourceKind == null && payloadKind == null) return true;
+  return sourceKind == 'flowGraph' && payloadKind == 'flow';
+}
 
 bool _setEquals(Set<String> a, Set<String> b) =>
     a.length == b.length && a.containsAll(b);

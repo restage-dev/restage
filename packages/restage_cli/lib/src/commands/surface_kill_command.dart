@@ -8,6 +8,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -82,13 +83,16 @@ class SurfaceKillCommand extends Command<int> {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
     if (slug == null) return 1;
 
-    // Step 2: resolve surface type.
-    final surfaceType = resolveSurfaceTypeArg(
+    // Step 2: resolve the current manifest identity. Kill is identity-wide;
+    // it intentionally does not accept a contract-version selector.
+    final identity = await resolveSurfaceLifecycleIdentity(
       argResults: argResults,
-      fixedType: _fixedType,
+      fixedSurfaceType: _fixedType,
+      slug: slug,
       stderr: _stderr,
+      requireExplicitSourceKindForFallback: false,
     );
-    if (surfaceType == null) return 1;
+    if (identity == null) return 1;
 
     // Step 3: require a non-empty audit reason.
     final reason = await requireReason(
@@ -128,7 +132,7 @@ class SurfaceKillCommand extends Command<int> {
         status = await SurfaceApi(api).surfaceStatus(
           project: ctx.project,
           app: ctx.app,
-          surfaceType: surfaceType,
+          surfaceType: identity.surface,
           surfaceSlug: slug,
           environment: ctx.environment,
           environmentTargetId: ctx.environmentTargetId,
@@ -144,7 +148,7 @@ class SurfaceKillCommand extends Command<int> {
           ? '— (none)'
           : 'v${status.liveVersion}';
       final impactLine =
-          'Kill ${surfaceType.wireName} "$slug" in ${ctx.environment} '
+          'Kill ${identity.surface.wireName} "$slug" in ${ctx.environment} '
           '(currently serving $liveLabel).';
 
       // Step 8: confirm the destructive operation.
@@ -171,11 +175,12 @@ class SurfaceKillCommand extends Command<int> {
       }
 
       // Step 9: call kill.
+      SurfaceIdentityMutationResult? mutation;
       try {
-        await SurfaceApi(api).kill(
+        mutation = await SurfaceApi(api).kill(
           project: ctx.project,
           app: ctx.app,
-          surfaceType: surfaceType,
+          surfaceType: identity.surface,
           surfaceSlug: slug,
           environment: ctx.environment,
           frozen: frozen,
@@ -195,6 +200,9 @@ class SurfaceKillCommand extends Command<int> {
       _stdout.writeln(
         'Killed "$slug" in ${ctx.environment}${frozen ? ' (frozen)' : ''}.',
       );
+      if (mutation != null) {
+        writeAffectedFamilyMutation(_stdout, mutation);
+      }
       return 0;
     } finally {
       if (_httpClient == null) api.close();

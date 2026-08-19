@@ -3,7 +3,7 @@ part of 'stride_reminders.dart';
 abstract final class StrideRemindersScreenDescriptor {
   const StrideRemindersScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'stride_reminders',
     artifactPath: 'stride_reminders.rfw',
     version: 1,

@@ -4,13 +4,16 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart'
     show kCohortImpactNotePrefix;
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/tui/console_command_executor.dart';
 import 'package:restage_cli/src/tui/console_models.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
+import '../_helpers/publication_fixtures.dart';
 import '../_helpers/test_fixtures.dart';
 
 void main() {
@@ -338,29 +341,39 @@ void main() {
 
   test('publish routes through surface publish command core', () async {
     final fixture = await _seedExecutorFixture(environment: 'staging');
-    await seedRfw(fixture.dir, 'pro', ordinaryRfwBlob());
+    final entry = await seedGeneratedPaywall(fixture.dir, slug: 'pro');
 
-    var saveCalls = 0;
     var publishCalls = 0;
     final client = scriptedHttpClient([
       (request) {
-        saveCalls++;
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['method'], 'save');
-        expect(body['surfaceType'], 'paywall');
-        expect(body['surfaceSlug'], 'pro');
-        return http.Response('null', 200);
-      },
-      (request) {
         publishCalls++;
         final body = jsonDecode(request.body) as Map<String, dynamic>;
-        expect(body['method'], 'publish');
-        expect(body['surfaceType'], 'paywall');
-        expect(body['surfaceSlug'], 'pro');
+        expect(body['method'], surfacePublicationUploadMethod);
         expect(body['environmentSlug'], 'staging');
         expect(body['environmentTargetId'], 12);
         expect(body['runtimePlane'], 'sandbox');
-        return http.Response('3', 200);
+        final wireUpload = body['upload'] as Map<String, dynamic>;
+        final upload = SurfacePublicationUploadRequestV1Codec.decodeJson(
+          wireUpload['canonicalJson'] as String,
+        );
+        expect(upload.publication.surface, entry.publication.surface);
+        expect(upload.publication.slug, entry.publication.slug);
+        expect(upload.publication.sourceKind, entry.publication.sourceKind);
+        expect(upload.publication.payloadKind, entry.publication.payloadKind);
+        return http.Response(
+          jsonEncode({
+            'family': {
+              '__className__': 'SurfaceContractFamilyReference',
+              'surfaceType': entry.publication.surface.wireName,
+              'surfaceSlug': entry.publication.slug,
+              'sourceKind': entry.publication.sourceKind.wireName,
+            },
+            'storedPublishedRevision': 3,
+            'activePublishedRevision': 3,
+            'identityFrozen': false,
+          }),
+          200,
+        );
       },
     ]);
 
@@ -376,7 +389,6 @@ void main() {
     );
 
     expect(result.exitCode, 0);
-    expect(saveCalls, 1);
     expect(publishCalls, 1);
   });
 

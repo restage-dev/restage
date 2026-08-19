@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:convert';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
@@ -6,13 +6,13 @@ import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
-import 'package:restage_cli/src/commands/audit_rendering.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Show server audit history for one surface in one environment.
+/// Show immutable revision history for one exact generated surface family.
 class SurfaceHistoryCommand extends Command<int> {
   /// Construct a history command.
   SurfaceHistoryCommand({
@@ -32,6 +32,8 @@ class SurfaceHistoryCommand extends Command<int> {
       argParser,
       withType: fixedSurfaceType == null,
       withReason: false,
+      withContractVersion: true,
+      withSourceKind: true,
     );
     argParser.addFlag(
       'json',
@@ -51,19 +53,21 @@ class SurfaceHistoryCommand extends Command<int> {
   String get name => 'history';
 
   @override
-  String get description => 'Show server audit history for a surface.';
+  String get description => 'Show published revisions for a surface family.';
 
   @override
   Future<int> run() async {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
     if (slug == null) return 1;
 
-    final surfaceType = resolveSurfaceTypeArg(
+    final identity = await resolveSurfaceLifecycleIdentity(
       argResults: argResults,
-      fixedType: _fixedType,
+      fixedSurfaceType: _fixedType,
+      slug: slug,
       stderr: _stderr,
+      requireExplicitSourceKindForFallback: _fixedType == null,
     );
-    if (surfaceType == null) return 1;
+    if (identity == null) return 1;
 
     final ctx = await loadLifecycleContext(
       argResults: argResults,
@@ -87,26 +91,52 @@ class SurfaceHistoryCommand extends Command<int> {
     }
 
     try {
-      final rows = await SurfaceApi(api).listSurfaceHistory(
+      final history = await SurfaceApi(api).surfaceContractHistory(
         project: ctx.project,
         app: ctx.app,
-        surfaceType: surfaceType,
+        surfaceType: identity.surface,
         surfaceSlug: slug,
         environment: ctx.environment,
+        sourceKind: identity.sourceKind,
+        contractVersion: identity.contractVersion,
         environmentTargetId: ctx.environmentTargetId,
         runtimePlane: ctx.runtimePlane,
         organizationId: ctx.organizationId,
       );
       if (argResults?['json'] as bool? ?? false) {
-        writeAuditLogJson(_stdout, rows);
+        _stdout.writeln(jsonEncode(history.toJson()));
       } else {
-        writeAuditLogTable(_stdout, rows);
+        _writeFamilyHistoryTable(_stdout, history);
       }
       return 0;
     } on RestageApiException catch (e) {
       return _renderError(e);
     } finally {
       if (_httpClient == null) api.close();
+    }
+  }
+
+  void _writeFamilyHistoryTable(
+    StringSink stdout,
+    SurfaceContractFamilyHistoryResult history,
+  ) {
+    final active = history.activePublishedRevision == null
+        ? '— (none)'
+        : 'r${history.activePublishedRevision}';
+    stdout.writeln(
+      'family: ${history.family.familyAddress}  '
+      'active: $active  payload: ${history.payloadKind ?? '—'}',
+    );
+    stdout.writeln(
+      'REVISION\tACTIVE\tPUBLISHED AT\tCONTENT HASH\tMIN CLIENT\tPAYLOAD',
+    );
+    for (final revision in history.revisions) {
+      stdout.writeln(
+        'r${revision.publishedRevision}\t${revision.isActive}\t'
+        '${revision.publishedAt.toUtc().toIso8601String()}\t'
+        '${revision.contentHash}\t${revision.minClient}\t'
+        '${revision.payloadKind}',
+      );
     }
   }
 
