@@ -21,6 +21,9 @@ import '../restage_rpc_client/restage_rpc_client.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_resolver.dart';
+import '../surface_screen/asset_surface_screen_resolver.dart';
+import '../surface_screen/restage_surface_screen_resolver.dart';
+import '../surface_screen/surface_screen_types.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/restage_hosted_update_channel.dart';
@@ -50,6 +53,8 @@ abstract final class Restage {
   static RestageEnvironment _environment = RestageEnvironment.production;
   static VariantResolver _defaultResolver = const AssetVariantResolver();
   static FlowResolver _defaultFlowResolver = const AssetFlowResolver();
+  static SurfaceScreenResolver _defaultSurfaceScreenResolver =
+      const AssetSurfaceScreenResolver();
   static int _configurationGeneration = 0;
   static List<RestageProduct> _products = const [];
   static Map<String, RestageProduct> _productsBySlot = const {};
@@ -118,6 +123,10 @@ abstract final class Restage {
   /// flows use [AssetFlowResolver]; this method does not enable hosted flow
   /// delivery.
   ///
+  /// Pass [surfaceScreenResolver] to choose the independently published screen
+  /// source. When omitted, the generated manifest-aware hosted resolver is
+  /// installed and falls back only to the exact bundled screen closure.
+  ///
   /// [baseUrl] is the entitlement service origin (e.g.
   /// `'https://api.example.com'`). When omitted, the SDK does not call
   /// the entitlement endpoints — the optimistic local-grant path stays
@@ -147,6 +156,7 @@ abstract final class Restage {
     RestageEnvironment environment = RestageEnvironment.production,
     VariantResolver? resolver,
     FlowResolver? flowResolver,
+    SurfaceScreenResolver? surfaceScreenResolver,
     List<RestageProduct> products = const [],
     Locale? locale,
     Future<RestageIdentity?> Function()? identity,
@@ -181,6 +191,13 @@ abstract final class Restage {
           baseUrl: baseUrl,
         );
     _defaultFlowResolver = flowResolver ?? const AssetFlowResolver();
+    _defaultSurfaceScreenResolver = surfaceScreenResolver ??
+        RestageSurfaceScreenResolver(
+          apiKey: apiKey,
+          environment: environment,
+          baseUrl: baseUrl,
+          rpcClientProvider: _requireRpcClient,
+        );
     _products = List.unmodifiable(products);
     _productsBySlot = Map.unmodifiable({for (final p in products) p.slot: p});
     _productsById = Map.unmodifiable({for (final p in products) p.id: p});
@@ -704,6 +721,14 @@ abstract final class Restage {
   /// The default is [AssetFlowResolver]; hosted flow delivery is not installed
   /// by [configure].
   static FlowResolver get defaultFlowResolver => _defaultFlowResolver;
+
+  /// Resolver used when [RestageSurfaceScreen] has no explicit resolver.
+  ///
+  /// Without [configure], this is [AssetSurfaceScreenResolver]. After
+  /// configuration without an override, it validates hosted delivery against
+  /// the generated standalone-screen manifest before rendering.
+  static SurfaceScreenResolver get defaultSurfaceScreenResolver =>
+      _defaultSurfaceScreenResolver;
 
   /// Monotonic identity of mutable SDK configuration used by hosted mounts.
   @internal
@@ -1394,6 +1419,7 @@ abstract final class Restage {
     _environment = RestageEnvironment.production;
     _defaultResolver = const AssetVariantResolver();
     _defaultFlowResolver = const AssetFlowResolver();
+    _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
     _products = const [];
     _productsBySlot = const {};
     _productsById = const {};

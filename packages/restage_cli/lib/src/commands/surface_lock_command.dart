@@ -8,6 +8,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -74,13 +75,16 @@ class SurfaceLockCommand extends Command<int> {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
     if (slug == null) return 1;
 
-    // Step 2: resolve surface type.
-    final surfaceType = resolveSurfaceTypeArg(
+    // Step 2: resolve the current manifest identity. Freeze and unfreeze are
+    // identity-wide and deliberately have no contract-version selector.
+    final identity = await resolveSurfaceLifecycleIdentity(
       argResults: argResults,
-      fixedType: _fixedType,
+      fixedSurfaceType: _fixedType,
+      slug: slug,
       stderr: _stderr,
+      requireExplicitSourceKindForFallback: false,
     );
-    if (surfaceType == null) return 1;
+    if (identity == null) return 1;
 
     // Step 3: require a non-empty audit reason.
     final reason = await requireReason(
@@ -114,11 +118,12 @@ class SurfaceLockCommand extends Command<int> {
     }
     try {
       // Step 6: set or clear the publish lock.
+      SurfaceIdentityMutationResult? mutation;
       try {
-        await SurfaceApi(api).setLock(
+        mutation = await SurfaceApi(api).setLock(
           project: ctx.project,
           app: ctx.app,
-          surfaceType: surfaceType,
+          surfaceType: identity.surface,
           surfaceSlug: slug,
           environment: ctx.environment,
           locked: _lock,
@@ -141,6 +146,9 @@ class SurfaceLockCommand extends Command<int> {
       _stdout.writeln(
         '${_lock ? 'Froze' : 'Unfroze'} "$slug" in ${ctx.environment}.',
       );
+      if (mutation != null) {
+        writeAffectedFamilyMutation(_stdout, mutation);
+      }
       return 0;
     } finally {
       if (_httpClient == null) api.close();

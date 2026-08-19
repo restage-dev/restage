@@ -6,6 +6,7 @@ import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
@@ -61,15 +62,38 @@ class LifecycleContext {
 ///
 /// [withType] adds `--type` for commands that need a surface-type selector.
 /// [withReason] adds `--reason` for commands that record an audit reason.
+/// [withSourceKind] adds the typed source-kind selector used by exact family
+/// lifecycle commands. It is intentionally separate from the surface category.
 void addLifecycleOptions(
   ArgParser parser, {
   required bool withType,
   required bool withReason,
+  bool withContractVersion = false,
+  bool withSourceKind = false,
 }) {
   if (withType) {
     parser.addOption(
       'type',
-      help: 'Surface type (required): onboarding, message, survey, paywall.',
+      help:
+          'Surface type (optional with a generated manifest): onboarding, '
+          'message, survey, paywall, general.',
+    );
+  }
+  if (withSourceKind) {
+    parser.addOption(
+      'source-kind',
+      help:
+          'Authored source kind for an explicit family selector: screen, '
+          'flowGraph, or paywall. `screen` requires --contract-version; '
+          'specialized `paywall` is non-versioned.',
+    );
+  }
+  if (withContractVersion) {
+    parser.addOption(
+      'contract-version',
+      help:
+          'Positive standalone-screen contract version. Omit for the '
+          'non-versioned flow/paywall lineage.',
     );
   }
   parser
@@ -258,14 +282,6 @@ Future<bool> confirmDestructive({
   return interactive.confirm('Proceed?');
 }
 
-/// Surface types every lifecycle command accepts (matches the publish set).
-const _lifecycleSurfaceTypes = <SurfaceType>{
-  SurfaceType.onboarding,
-  SurfaceType.message,
-  SurfaceType.survey,
-  SurfaceType.paywall,
-};
-
 /// Exactly-one positional `<slug>`, or null after a precise error.
 String? resolveSingleSlug({
   required ArgResults? argResults,
@@ -294,7 +310,7 @@ SurfaceType? resolveSurfaceTypeArg({
 }) {
   if (fixedType != null) return fixedType;
   final raw = argResults?['type'] as String?;
-  final valid = _lifecycleSurfaceTypes.map((t) => t.wireName).join(', ');
+  final valid = kLifecycleSurfaceTypes.map((t) => t.wireName).join(', ');
   if (raw == null || raw.isEmpty) {
     stderr.writeln('Required: --type <$valid>.');
     return null;
@@ -306,7 +322,7 @@ SurfaceType? resolveSurfaceTypeArg({
     stderr.writeln('Invalid --type "$raw". Valid values: $valid.');
     return null;
   }
-  if (!_lifecycleSurfaceTypes.contains(type)) {
+  if (!kLifecycleSurfaceTypes.contains(type)) {
     stderr.writeln('Invalid --type "$raw". Valid values: $valid.');
     return null;
   }
@@ -329,3 +345,39 @@ String renderSurfaceException(SurfaceException e) => switch (e) {
   SurfaceVersionNotFound(:final surfaceSlug, :final toVersion) =>
     "Version v$toVersion not found for '$surfaceSlug'.",
 };
+
+/// Print the complete family effect returned by an identity-wide mutation.
+///
+/// Identity-wide controls deliberately do not narrow this output to the
+/// family selected by a manifest entry. The server response is the authority
+/// for the affected set.
+void writeAffectedFamilyMutation(
+  StringSink stdout,
+  SurfaceIdentityMutationResult result,
+) {
+  final type = result.surfaceType.isEmpty ? 'surface' : result.surfaceType;
+  final environment = result.environmentSlug.isEmpty
+      ? ''
+      : ' in ${result.environmentSlug}';
+  stdout.writeln(
+    'Identity: $type "${result.surfaceSlug}"$environment  '
+    'frozen: ${result.frozen}',
+  );
+  stdout.writeln('Affected families:');
+  if (result.affectedFamilies.isEmpty) {
+    stdout.writeln('  none');
+    return;
+  }
+  for (final family in result.affectedFamilies) {
+    stdout.writeln(
+      '  ${family.familyAddress}: '
+      '${_revisionLabel(family.activeRevisionBefore)} -> '
+      '${_revisionLabel(family.activeRevisionAfter)}'
+      '${family.publishedRevision == null ? '' : '  '
+                'published r${family.publishedRevision}'}',
+    );
+  }
+}
+
+String _revisionLabel(int? revision) =>
+    revision == null ? 'inactive' : 'r$revision';

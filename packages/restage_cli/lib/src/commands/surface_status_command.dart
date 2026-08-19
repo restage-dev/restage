@@ -7,6 +7,7 @@ import 'package:restage_cli/src/api/surface_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -40,6 +41,8 @@ class SurfaceStatusCommand extends Command<int> {
       argParser,
       withType: fixedSurfaceType == null,
       withReason: false,
+      withContractVersion: true,
+      withSourceKind: true,
     );
   }
 
@@ -63,12 +66,14 @@ class SurfaceStatusCommand extends Command<int> {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
     if (slug == null) return 1;
 
-    final surfaceType = resolveSurfaceTypeArg(
+    final identity = await resolveSurfaceLifecycleIdentity(
       argResults: argResults,
-      fixedType: _fixedType,
+      fixedSurfaceType: _fixedType,
+      slug: slug,
       stderr: _stderr,
+      requireExplicitSourceKindForFallback: _fixedType == null,
     );
-    if (surfaceType == null) return 1;
+    if (identity == null) return 1;
 
     final ctx = await loadLifecycleContext(
       argResults: argResults,
@@ -94,12 +99,13 @@ class SurfaceStatusCommand extends Command<int> {
       final status = await SurfaceApi(api).surfaceStatus(
         project: ctx.project,
         app: ctx.app,
-        surfaceType: surfaceType,
+        surfaceType: identity.surface,
         surfaceSlug: slug,
         environment: ctx.environment,
         environmentTargetId: ctx.environmentTargetId,
         runtimePlane: ctx.runtimePlane,
         organizationId: ctx.organizationId,
+        contractVersion: identity.contractVersion,
       );
       _printStatus(status);
       return 0;
@@ -132,6 +138,14 @@ class SurfaceStatusCommand extends Command<int> {
       'live: $liveLabel  locked: ${status.locked}  '
       'shape: ${status.deliveryShape}$modeSegment',
     );
+    if (status.families.isNotEmpty) {
+      for (final family in status.families) {
+        final active = family.activeRevision == null
+            ? '— (none)'
+            : 'r${family.activeRevision}';
+        _stdout.writeln('  ${family.familyAddress}  active: $active');
+      }
+    }
     for (final v in status.versions) {
       final activeMarker = v.isActive ? ' (active)' : '';
       final mode = v.deliveryMode != null ? '  ${v.deliveryMode}' : '';

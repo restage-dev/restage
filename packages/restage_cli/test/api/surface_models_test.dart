@@ -49,6 +49,87 @@ void main() {
       expect(result.deliveryShape, 'flow');
       expect(result.liveVersion, isNull);
     });
+
+    test(
+      'decodes the identity-wide family projection and revisions aliases',
+      () {
+        final result = SurfaceStatusResult.fromJson({
+          'identity': {'surfaceType': 'general', 'surfaceSlug': 'journey'},
+          'environmentSlug': 'production',
+          'frozen': true,
+          'families': [
+            {
+              'family': {
+                'surfaceType': 'general',
+                'surfaceSlug': 'journey',
+                'sourceKind': 'screen',
+                'contractVersion': 2,
+              },
+              'payloadKind': 'blob',
+              'activePublishedRevision': 4,
+              'revisions': [
+                {
+                  'publishedRevision': 4,
+                  'publishedAt': '2026-06-25T00:00:00.000Z',
+                  'contentHash': 'abc',
+                  'isActive': true,
+                },
+              ],
+            },
+          ],
+        });
+
+        expect(result.surfaceType, 'general');
+        expect(result.surfaceSlug, 'journey');
+        expect(result.isFrozen, isTrue);
+        expect(result.families.single.contractVersion, 2);
+        expect(result.families.single.activeRevision, 4);
+        expect(result.liveVersion, 4);
+        expect(result.deliveryShape, 'blob');
+        expect(result.supportsRollback, isTrue);
+        expect(result.families.single.versions.single.version, 4);
+      },
+    );
+  });
+
+  group('family mutation models', () {
+    test('decodes generated identity and family operation result shapes', () {
+      final identity = SurfaceIdentityMutationResult.fromJsonOrNull({
+        'identity': {'surfaceType': 'general', 'surfaceSlug': 'journey'},
+        'frozen': true,
+        'affectedFamilies': [
+          {
+            'family': {'sourceKind': 'screen', 'contractVersion': 2},
+            'activePublishedRevisionBefore': 7,
+            'activePublishedRevisionAfter': null,
+          },
+        ],
+      }, environmentSlug: 'production');
+      expect(identity, isNotNull);
+      expect(identity!.environmentSlug, 'production');
+      expect(identity.affectedFamilies.single.familyAddress, 'contract v2');
+      expect(identity.affectedFamilies.single.activeRevisionBefore, 7);
+      expect(identity.affectedFamilies.single.activeRevisionAfter, isNull);
+
+      final family = SurfaceFamilyMutationResult.fromJsonOrNull({
+        'family': {
+          'surfaceType': 'general',
+          'surfaceSlug': 'journey',
+          'sourceKind': 'screen',
+          'contractVersion': 2,
+        },
+        'publishedRevision': 3,
+        'activePublishedRevisionBefore': 1,
+        'activePublishedRevisionAfter': 3,
+        'identityFrozenAfter': false,
+      }, environmentSlug: 'production');
+      expect(family, isNotNull);
+      expect(family!.contractVersion, 2);
+      expect(family.sourceKind, 'screen');
+      expect(family.environmentSlug, 'production');
+      expect(family.activeRevisionAfter, 3);
+      expect(family.frozen, isFalse);
+    });
   });
 
   group('RollbackPreflightResult', () {

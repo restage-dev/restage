@@ -3,7 +3,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('AnalyticsSurface', () {
-    test('known set is the six blessed surfaces', () {
+    test('known set includes every blessed surface', () {
       expect(
         AnalyticsSurface.known,
         {
@@ -11,6 +11,7 @@ void main() {
           AnalyticsSurface.onboarding,
           AnalyticsSurface.message,
           AnalyticsSurface.survey,
+          AnalyticsSurface.general,
           AnalyticsSurface.app,
           AnalyticsSurface.billing,
         },
@@ -20,6 +21,7 @@ void main() {
     test('values are canonical snake/lower strings', () {
       expect(AnalyticsSurface.paywall, 'paywall');
       expect(AnalyticsSurface.onboarding, 'onboarding');
+      expect(AnalyticsSurface.general, 'general');
       expect(AnalyticsSurface.billing, 'billing');
     });
 

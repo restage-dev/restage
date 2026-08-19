@@ -1,11 +1,28 @@
 import 'package:args/args.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('exact family help separates source kind from surface category', () {
+    final parser = ArgParser();
+    addLifecycleOptions(
+      parser,
+      withType: true,
+      withReason: false,
+      withContractVersion: true,
+      withSourceKind: true,
+    );
+
+    expect(parser.usage, contains('--source-kind'));
+    expect(parser.usage, contains('screen'));
+    expect(parser.usage, contains('flowGraph'));
+    expect(parser.usage, contains('specialized `paywall`'));
+  });
+
   // ---------------------------------------------------------------------------
   // confirmDestructive
   // ---------------------------------------------------------------------------
@@ -271,12 +288,13 @@ void main() {
       expect(err.toString(), contains('notatype'));
     });
 
-    test('accepts all four lifecycle surface types', () {
+    test('accepts all five lifecycle surface types', () {
       for (final t in [
         SurfaceType.onboarding,
         SurfaceType.message,
         SurfaceType.survey,
         SurfaceType.paywall,
+        SurfaceType.general,
       ]) {
         final args = _parseWith({'type': t.wireName});
         final result = resolveSurfaceTypeArg(
@@ -286,6 +304,47 @@ void main() {
         );
         expect(result, t, reason: 'Expected ${t.wireName} to be accepted');
       }
+    });
+  });
+
+  group('writeAffectedFamilyMutation', () {
+    test('prints every family address and pointer transition', () {
+      final out = StringBuffer();
+      writeAffectedFamilyMutation(
+        out,
+        const SurfaceIdentityMutationResult(
+          surfaceType: 'general',
+          surfaceSlug: 'journey',
+          environmentSlug: 'staging',
+          frozen: true,
+          affectedFamilies: [
+            SurfaceAffectedFamily(
+              contractVersion: 1,
+              sourceKind: 'screen',
+              payloadKind: 'blob',
+              publishedRevision: null,
+              activeRevisionBefore: 4,
+              activeRevisionAfter: null,
+            ),
+            SurfaceAffectedFamily(
+              contractVersion: null,
+              sourceKind: 'flowGraph',
+              payloadKind: 'flow',
+              publishedRevision: null,
+              activeRevisionBefore: 2,
+              activeRevisionAfter: null,
+            ),
+          ],
+        ),
+      );
+
+      expect(out.toString(), contains('Identity: general "journey"'));
+      expect(out.toString(), contains('Affected families:'));
+      expect(out.toString(), contains('contract v1: r4 -> inactive'));
+      expect(
+        out.toString(),
+        contains('non-versioned flowGraph: r2 -> inactive'),
+      );
     });
   });
 }

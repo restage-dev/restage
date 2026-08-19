@@ -178,13 +178,16 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         _SurfaceFilter.all => _SurfaceFilter.message,
         _SurfaceFilter.paywall => _SurfaceFilter.survey,
         _SurfaceFilter.onboarding => _SurfaceFilter.survey,
-        _SurfaceFilter.message || _SurfaceFilter.survey => null,
+        _SurfaceFilter.message => null,
+        _SurfaceFilter.survey => _SurfaceFilter.general,
+        _SurfaceFilter.general => null,
       };
     }
     if (delta < 0) {
       return switch (_surfaceFilter) {
         _SurfaceFilter.message => _SurfaceFilter.all,
         _SurfaceFilter.survey => _SurfaceFilter.paywall,
+        _SurfaceFilter.general => _SurfaceFilter.survey,
         _SurfaceFilter.all ||
         _SurfaceFilter.paywall ||
         _SurfaceFilter.onboarding => null,
@@ -1266,6 +1269,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
             _filterChip(_SurfaceFilter.message),
             const SizedBox(width: 1),
             _filterChip(_SurfaceFilter.survey),
+            const SizedBox(width: 1),
+            _filterChip(_SurfaceFilter.general),
           ],
         ),
         const SizedBox(height: 1),
@@ -1387,6 +1392,10 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       _SurfaceFilter.survey =>
         state.surfaces
             .where((surface) => surface.surfaceType == 'survey')
+            .toList(),
+      _SurfaceFilter.general =>
+        state.surfaces
+            .where((surface) => surface.surfaceType == 'general')
             .toList(),
     };
   }
@@ -1629,9 +1638,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     final shapeText =
         '${status?.deliveryShape ?? '-'}'
         '${activeMode != null ? ' ($activeMode)' : ''}';
-    final deliveryText = status?.supportsRollback == false
-        ? 'delivery $shapeText version-pinned'
-        : latestHash == null
+    final deliveryText = latestHash == null
         ? 'delivery $shapeText / $lockedText'
         : '$latestHash delivery $shapeText / $lockedText';
     return Column(
@@ -1723,12 +1730,38 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     if (surface == null || context == null) {
       return 'surface ${action.commandName} -';
     }
-    return 'surface ${action.commandName} ${surface.slug} '
-        '--type ${surface.surfaceType} '
-        '--project ${context.project} '
-        '--app ${context.app} '
-        '--env ${context.environment} '
-        '--plane ${context.runtimePlane.wireName}';
+    final contractVersion = surface.contractVersion;
+    final selectorArgs = <String>[
+      if (!surface.hasManifestIdentity) ...['--type', surface.surfaceType],
+      if (!surface.hasManifestIdentity && action == _DetailAction.rollback) ...[
+        '--source-kind',
+        _fallbackSourceKind(surface),
+      ],
+      if (action == _DetailAction.rollback && contractVersion != null) ...[
+        '--contract-version',
+        '$contractVersion',
+      ],
+    ];
+    return [
+      'surface',
+      action.commandName,
+      surface.slug,
+      ...selectorArgs,
+      '--project',
+      context.project,
+      '--app',
+      context.app,
+      '--env',
+      context.environment,
+      '--plane',
+      context.runtimePlane.wireName,
+    ].join(' ');
+  }
+
+  String _fallbackSourceKind(ConsoleSurface surface) {
+    if (surface.sourceKind != null) return surface.sourceKind!;
+    if (surface.contractVersion != null) return 'screen';
+    return surface.surfaceType == 'paywall' ? 'paywall' : 'flowGraph';
   }
 
   Component _actionChip(_DetailAction action) {
@@ -1893,7 +1926,8 @@ enum _SurfaceFilter {
   paywall,
   onboarding,
   message,
-  survey;
+  survey,
+  general;
 
   String get shortLabel {
     return switch (this) {
@@ -1902,6 +1936,7 @@ enum _SurfaceFilter {
       _SurfaceFilter.onboarding => 'onbd',
       _SurfaceFilter.message => 'msg',
       _SurfaceFilter.survey => 'surv',
+      _SurfaceFilter.general => 'gen',
     };
   }
 }

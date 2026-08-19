@@ -209,7 +209,7 @@ void main() {
       expect(capturedStatusBody!['organizationId'], 7);
     });
 
-    test('generic surface group works with --type', () async {
+    test('generic surface group requires an explicit source kind', () async {
       final out = StringBuffer();
       final runner = CommandRunner<int>('restage', '')
         ..addCommand(
@@ -225,6 +225,8 @@ void main() {
         'status',
         'pro',
         '--type',
+        'paywall',
+        '--source-kind',
         'paywall',
         '--project',
         'p',

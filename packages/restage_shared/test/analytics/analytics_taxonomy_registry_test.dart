@@ -74,6 +74,66 @@ void main() {
     });
   });
 
+  group('artifact-shape eligibility', () {
+    test('flow lifecycle needs the exact flowGraph/flow shape', () {
+      expect(
+        isAnalyticsEventEligibleForArtifact(
+          eventName: 'flow_completed',
+          sourceKind: 'screen',
+          payloadKind: 'blob',
+        ),
+        isFalse,
+      );
+      expect(
+        isAnalyticsEventEligibleForArtifact(
+          eventName: 'flow_started',
+          sourceKind: 'screen',
+          payloadKind: 'blob',
+        ),
+        isFalse,
+      );
+      expect(
+        isAnalyticsEventEligibleForArtifact(
+          eventName: 'flow_completed',
+          sourceKind: 'flowGraph',
+          payloadKind: 'flow',
+        ),
+        isTrue,
+      );
+    });
+
+    test('non-flow and unknown names retain forward-compatible eligibility',
+        () {
+      expect(
+        isAnalyticsEventEligibleForArtifact(
+          eventName: 'paywall_viewed',
+          sourceKind: 'screen',
+          payloadKind: 'blob',
+        ),
+        isTrue,
+      );
+      expect(
+        isAnalyticsEventEligibleForArtifact(
+          eventName: 'future_event',
+          sourceKind: 'screen',
+          payloadKind: 'blob',
+        ),
+        isTrue,
+      );
+      expect(
+        isAnalyticsEventEligibleForArtifact(eventName: 'flow_completed'),
+        isTrue,
+      );
+      expect(
+        isAnalyticsEventEligibleForArtifact(
+          eventName: 'flow_completed',
+          sourceKind: 'screen',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('AnalyticsEventSpec value semantics', () {
     test('equality + hashCode', () {
       expect(

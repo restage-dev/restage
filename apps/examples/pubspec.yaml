@@ -64,6 +64,11 @@ flutter:
     - assets/paywalls/screens/
     - assets/onboarding/screens/
     - assets/onboarding/flows/
+    - assets/general/screens/
+    - assets/general/flows/
+    - assets/message/screens/
+    - assets/message/flows/
+    - assets/restage/
   fonts:
     - family: Roboto
       fonts:

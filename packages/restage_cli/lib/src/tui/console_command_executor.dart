@@ -58,7 +58,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
       args: [
         'surface',
         'rollback',
-        ..._surfaceArgs(context, surface),
+        ..._surfaceArgs(context, surface, familyScoped: true),
         '--reason',
         reason,
         '--to-version',
@@ -79,7 +79,7 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     return _run([
       'surface',
       'rollback',
-      ..._surfaceArgs(context, surface),
+      ..._surfaceArgs(context, surface, familyScoped: true),
       '--to-version',
       '$toVersion',
       '--preview',
@@ -125,11 +125,25 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }
 
   /// The shared target-selection arguments every surface lifecycle command
-  /// takes: slug, type, project, app, environment, and resolved plane.
-  List<String> _surfaceArgs(ConsoleContext context, ConsoleSurface surface) => [
+  /// takes: slug, type/source-kind, project, app, environment, and resolved
+  /// plane. A console surface without the current manifest still carries the
+  /// legacy category, so supply the explicit source-kind selector required by
+  /// exact lifecycle commands rather than making the command resolver guess.
+  List<String> _surfaceArgs(
+    ConsoleContext context,
+    ConsoleSurface surface, {
+    bool familyScoped = false,
+  }) => [
     surface.slug,
-    '--type',
-    surface.surfaceType,
+    if (!surface.hasManifestIdentity) ...[
+      '--type',
+      surface.surfaceType,
+      if (familyScoped) ...['--source-kind', _fallbackSourceKind(surface)],
+    ],
+    if (familyScoped && surface.contractVersion != null) ...[
+      '--contract-version',
+      '${surface.contractVersion}',
+    ],
     '--project',
     context.project,
     '--app',
@@ -139,6 +153,12 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
     '--plane',
     context.runtimePlane.wireName,
   ];
+
+  String _fallbackSourceKind(ConsoleSurface surface) {
+    if (surface.sourceKind != null) return surface.sourceKind!;
+    if (surface.contractVersion != null) return 'screen';
+    return surface.surfaceType == 'paywall' ? 'paywall' : 'flowGraph';
+  }
 
   Future<ConsoleOperationResult> _runLifecycle({
     required ConsoleContext context,

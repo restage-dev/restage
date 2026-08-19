@@ -8,6 +8,7 @@ import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -20,10 +21,8 @@ import 'package:restage_shared/restage_shared.dart';
 ///   - non-null → typed-group convenience (e.g. `paywall rollback`; no
 ///     `--type`).
 ///
-/// Works for paywalls AND flow surfaces (onboarding / message / survey) — the
-/// re-point reaches a flow surface's active-arm clients. The one case still
-/// refused is rolling a paywall back to a flow-shaped version (a lowered
-/// navigation paywall), which the hosted paywall path cannot active-serve yet.
+/// Works for paywalls AND flow surfaces (onboarding / message / survey /
+/// general) — the re-point reaches the selected family's active-arm clients.
 /// The target version must exist in the published history; the command
 /// validates this and previews the cohort impact before confirming.
 ///
@@ -55,6 +54,8 @@ class SurfaceRollbackCommand extends Command<int> {
       argParser,
       withType: fixedSurfaceType == null,
       withReason: true,
+      withContractVersion: true,
+      withSourceKind: true,
     );
     argParser
       ..addOption(
@@ -93,8 +94,7 @@ class SurfaceRollbackCommand extends Command<int> {
 
   @override
   String get description =>
-      'Roll a surface back to a previous version (paywalls and flow surfaces). '
-      'Rolling a paywall back to a flow-shaped version is not yet supported.';
+      'Roll a surface family back to a previous published revision.';
 
   @override
   Future<int> run() async {
@@ -102,13 +102,17 @@ class SurfaceRollbackCommand extends Command<int> {
     final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
     if (slug == null) return 1;
 
-    // Step 2: resolve surface type.
-    final surfaceType = resolveSurfaceTypeArg(
+    // Step 2: resolve the exact family from the generated manifest or an
+    // approved explicit fallback.
+    final identity = await resolveSurfaceLifecycleIdentity(
       argResults: argResults,
-      fixedType: _fixedType,
+      fixedSurfaceType: _fixedType,
+      slug: slug,
       stderr: _stderr,
+      requireExplicitSourceKindForFallback: _fixedType == null,
     );
-    if (surfaceType == null) return 1;
+    if (identity == null) return 1;
+    final surfaceType = identity.surface;
 
     // Step 3: parse --to-version (required int).
     final toVersionRaw = argResults!['to-version'] as String?;
@@ -173,6 +177,7 @@ class SurfaceRollbackCommand extends Command<int> {
           environmentTargetId: ctx.environmentTargetId,
           runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
+          contractVersion: identity.contractVersion,
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);
@@ -212,6 +217,7 @@ class SurfaceRollbackCommand extends Command<int> {
           environmentTargetId: ctx.environmentTargetId,
           runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
+          contractVersion: identity.contractVersion,
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);
@@ -272,6 +278,7 @@ class SurfaceRollbackCommand extends Command<int> {
           environmentTargetId: ctx.environmentTargetId,
           runtimePlane: ctx.runtimePlane,
           organizationId: ctx.organizationId,
+          contractVersion: identity.contractVersion,
         );
       } on RestageApiException catch (e) {
         return _renderError(e, surfaceType);

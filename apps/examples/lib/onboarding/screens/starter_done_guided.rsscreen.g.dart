@@ -3,7 +3,7 @@ part of 'starter_done_guided.dart';
 abstract final class StarterDoneGuidedScreenDescriptor {
   const StarterDoneGuidedScreenDescriptor._();
 
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
+  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
     id: 'starter_done_guided',
     artifactPath: 'starter_done_guided.rfw',
     version: 1,

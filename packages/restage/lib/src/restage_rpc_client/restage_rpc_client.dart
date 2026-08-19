@@ -106,6 +106,64 @@ final class SurfaceStamp {
   final String? watchChannel;
 }
 
+/// Outcome of a strict standalone-screen delivery request.
+///
+/// Only [SurfaceScreenDeliveryAbsent] and
+/// [SurfaceScreenDeliveryTransportUnavailable] are eligible for bundled
+/// fallback. A present response that fails strict decoding or correlation is
+/// represented by [SurfaceScreenDeliveryInvalidResponse].
+sealed class SurfaceScreenDeliveryResult {
+  /// Creates a strict standalone-screen delivery outcome.
+  const SurfaceScreenDeliveryResult();
+}
+
+/// A strict standalone-screen delivery response matching the request identity.
+final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
+  /// Creates an available standalone-screen delivery outcome.
+  const SurfaceScreenDeliveryAvailable(this.response);
+
+  /// The strict shared delivery response.
+  final SurfaceScreenDeliveryResponseV1 response;
+}
+
+/// The requested standalone screen has no active hosted response.
+final class SurfaceScreenDeliveryAbsent extends SurfaceScreenDeliveryResult {
+  /// Creates an ordinary hosted-absence outcome.
+  const SurfaceScreenDeliveryAbsent();
+}
+
+/// The request could not obtain a hosted response.
+final class SurfaceScreenDeliveryTransportUnavailable
+    extends SurfaceScreenDeliveryResult {
+  /// Creates a transport-unavailable outcome.
+  const SurfaceScreenDeliveryTransportUnavailable();
+}
+
+/// Why a present standalone-screen response was rejected.
+enum SurfaceScreenDeliveryInvalidResponseReason {
+  /// The server deterministically rejected the strict delivery request.
+  requestRejected,
+
+  /// The strict shared response codec rejected the response.
+  malformed,
+
+  /// The response document did not match the requested surface identity.
+  identityMismatch,
+
+  /// The response contract version did not match the requested pin.
+  contractMismatch,
+}
+
+/// A present standalone-screen response that cannot be trusted.
+final class SurfaceScreenDeliveryInvalidResponse
+    extends SurfaceScreenDeliveryResult {
+  /// Creates an invalid-response outcome with a safe classification.
+  const SurfaceScreenDeliveryInvalidResponse(this.reason);
+
+  /// The failed response check.
+  final SurfaceScreenDeliveryInvalidResponseReason reason;
+}
+
 /// HTTP/JSON client for the SDK's `/sdk/v1` endpoints.
 ///
 /// The SDK's shared `/sdk/v1` RPC client: it syncs entitlements, reports
@@ -353,6 +411,102 @@ class RestageRpcClient {
     }
   }
 
+  /// Fetches one exact standalone-screen contract family.
+  ///
+  /// The request and successful response use the strict shared V1 codecs.
+  /// Absence and transport unavailability remain distinct from a present
+  /// response that is malformed or does not correlate to [request], allowing
+  /// callers to apply their own fallback policy without accepting an
+  /// untrusted response.
+  Future<SurfaceScreenDeliveryResult> fetchSurfaceScreen(
+    SurfaceScreenDeliveryRequestV1 request,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/sdk/v1/surface');
+    final body = SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(
+      request,
+    );
+
+    final http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: body,
+      );
+    } on TimeoutException {
+      debugPrint(
+        '[restage] standalone-screen delivery request failed before a response',
+      );
+      return const SurfaceScreenDeliveryTransportUnavailable();
+    } on http.ClientException {
+      debugPrint(
+        '[restage] standalone-screen delivery request failed before a response',
+      );
+      return const SurfaceScreenDeliveryTransportUnavailable();
+    } on Object {
+      debugPrint(
+        '[restage] standalone-screen delivery request failed unexpectedly',
+      );
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.requestRejected,
+      );
+    }
+
+    if (response.statusCode == 204 || response.statusCode == 404) {
+      return const SurfaceScreenDeliveryAbsent();
+    }
+    if (_isRetryableSurfaceScreenDeliveryStatus(response.statusCode)) {
+      debugPrint(
+        '[restage] standalone-screen delivery request failed with '
+        'status ${response.statusCode}',
+      );
+      return const SurfaceScreenDeliveryTransportUnavailable();
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      debugPrint(
+        '[restage] standalone-screen delivery request was rejected with '
+        'status ${response.statusCode}',
+      );
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.requestRejected,
+      );
+    }
+
+    final SurfaceScreenDeliveryResponseV1 delivery;
+    try {
+      delivery = SurfaceScreenDeliveryResponseV1Codec.decodeJson(response.body);
+    } on Object {
+      debugPrint('[restage] standalone-screen delivery response was malformed');
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.malformed,
+      );
+    }
+
+    if (delivery.document.surfaceType != request.surface ||
+        delivery.document.surfaceSlug != request.slug) {
+      debugPrint(
+        '[restage] standalone-screen delivery response did not match '
+        'the requested identity',
+      );
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.identityMismatch,
+      );
+    }
+    if (delivery.contractVersion != request.contractVersion) {
+      debugPrint(
+        '[restage] standalone-screen delivery response did not match '
+        'the requested contract version',
+      );
+      return const SurfaceScreenDeliveryInvalidResponse(
+        SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
+      );
+    }
+    return SurfaceScreenDeliveryAvailable(delivery);
+  }
+
   /// Fetches the active-version stamp for a surface without downloading its
   /// content envelope.
   ///
@@ -498,6 +652,12 @@ class RestageRpcClient {
     return out;
   }
 }
+
+bool _isRetryableSurfaceScreenDeliveryStatus(int statusCode) =>
+    switch (statusCode) {
+      408 || 429 || 500 || 502 || 503 || 504 => true,
+      _ => false,
+    };
 
 const bool _debugTransactionReportOutageRequested = bool.fromEnvironment(
   'RESTAGE_DEBUG_FAIL_TRANSACTION_REPORTS',

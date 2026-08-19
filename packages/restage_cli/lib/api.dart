@@ -14,7 +14,12 @@
 library;
 
 export 'package:restage_shared/restage_shared.dart'
-    show LibraryRequirement, SurfaceType;
+    show
+        LibraryRequirement,
+        Surface,
+        SurfacePublicationUploadRequestV1,
+        SurfacePublicationUploadRequestV1Codec,
+        SurfaceType;
 
 export 'src/api/auth_api.dart';
 export 'src/api/auth_models.dart';
@@ -25,6 +30,7 @@ export 'src/api/paywall_api.dart';
 export 'src/api/paywall_models.dart';
 export 'src/api/render_bundle_api.dart';
 export 'src/api/surface_api.dart';
+export 'src/api/surface_publication_api.dart';
 export 'src/api/typed_error_models.dart';
 export 'src/api/surface_models.dart';
 export 'src/api/restage_api.dart'

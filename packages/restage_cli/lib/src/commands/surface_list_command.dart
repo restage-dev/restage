@@ -31,7 +31,7 @@ class SurfaceListCommand extends Command<int> {
     argParser
       ..addOption(
         'type',
-        help: 'Surface type: paywall, onboarding, message, survey.',
+        help: 'Surface type: paywall, onboarding, message, survey, general.',
       )
       ..addFlag(
         'all',
@@ -234,4 +234,5 @@ const _listableSurfaceTypes = <SurfaceType>[
   SurfaceType.onboarding,
   SurfaceType.message,
   SurfaceType.survey,
+  SurfaceType.general,
 ];

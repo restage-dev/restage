@@ -307,8 +307,63 @@ void main() {
       expect(
         tester.terminalState,
         containsText(
-          'surface rollback pro --type paywall --project default --app default --env staging --plane live',
+          'surface rollback pro --type paywall --source-kind paywall',
         ),
+      );
+      expect(
+        tester.terminalState,
+        containsText('--project default --app default --env staging'),
+      );
+    }, size: const Size(160, 32));
+  });
+
+  test('manifest-backed preview uses the exact family address', () async {
+    await testNocterm('manifest-backed action preview', (tester) async {
+      final controller = ConsoleController(
+        repository: ManifestConsoleRepository(),
+      );
+      await tester.pumpComponent(RestageConsoleApp(controller: controller));
+      await tester.pump();
+      await tester.pump();
+
+      await tester.sendArrowDown();
+      await tester.pump();
+      expect(
+        tester.terminalState,
+        containsText(
+          'surface publish pro --project default --app default --env staging '
+          '--plane live',
+        ),
+      );
+      expect(tester.terminalState, isNot(containsText('--type paywall')));
+
+      await tester.sendKey(LogicalKey.tab);
+      await tester.sendKey(LogicalKey.tab);
+      await tester.pump();
+      await tester.sendArrowDown();
+      await tester.sendArrowDown();
+      await tester.sendArrowDown();
+      await tester.pump();
+      expect(
+        tester.terminalState,
+        containsText(
+          'surface rollback pro --contract-version 3 --project default '
+          '--app default --env staging --plane live',
+        ),
+      );
+
+      await tester.sendArrowDown();
+      await tester.pump();
+      expect(
+        tester.terminalState,
+        containsText(
+          'surface kill pro --project default --app default --env staging '
+          '--plane live',
+        ),
+      );
+      expect(
+        tester.terminalState,
+        isNot(containsText('surface kill pro --contract-version')),
       );
     }, size: const Size(160, 32));
   });
@@ -1162,7 +1217,7 @@ void main() {
     });
   });
 
-  test('detail panel labels flow rollback as unsupported', () async {
+  test('detail panel allows flow rollback', () async {
     await testNocterm('detail labels flow rollback', (tester) async {
       final controller = ConsoleController(repository: FakeConsoleRepository());
       await tester.pumpComponent(RestageConsoleApp(controller: controller));
@@ -1177,12 +1232,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(tester.terminalState, containsText('Rollback unsupported'));
       // The shape line now carries the active version's delivery mode.
-      expect(
-        tester.terminalState,
-        containsText('flow (general) version-pinned'),
-      );
+      expect(tester.terminalState, containsText('flow (general) / unlocked'));
     }, size: const Size(160, 32));
   });
 
@@ -1560,6 +1611,30 @@ class FakeConsoleRepository implements ConsoleRepository {
     failedCheck: null,
     lastRunAt: DateTime.parse('2026-06-29T18:30:00.000Z'),
   );
+}
+
+class ManifestConsoleRepository extends FakeConsoleRepository {
+  @override
+  Future<ConsoleSnapshot> load() async {
+    final snapshot = await super.load();
+    return ConsoleSnapshot(
+      context: snapshot.context,
+      projects: snapshot.projects,
+      apps: snapshot.apps,
+      environments: snapshot.environments,
+      surfaces: [
+        ConsoleSurface(
+          surfaceType: 'paywall',
+          slug: 'pro',
+          name: 'Pro',
+          contractVersion: 3,
+          sourceKind: 'screen',
+          payloadKind: 'blob',
+          hasManifestIdentity: true,
+        ),
+      ],
+    );
+  }
 }
 
 /// Navigate from the initial console state to the rollback prompt on the
