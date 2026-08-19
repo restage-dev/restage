@@ -1,5 +1,9 @@
-/// Returns a small Dart source file that scaffolds a usable starter
+/// Returns a small Dart source file that scaffolds a usable canonical starter
 /// paywall for [paywallName].
+///
+/// Callers save the source under the matching filename stem. The annotation
+/// intentionally omits an explicit ID so the generated publication identity
+/// demonstrates canonical filename derivation.
 ///
 /// The generated widget is flat enough that the codegen pipeline can
 /// translate it into an `.rfw` without any custom-widget registration —
@@ -12,7 +16,7 @@ import 'package:restage/restage.dart';
 
 /// A starter paywall — replace this with your own design. Edit, then
 /// run `dart run build_runner build` to produce the compiled `.rfw`.
-@PaywallSource(id: '$paywallName')
+@Paywall()
 class ${_pascalCase(paywallName)}Paywall extends StatelessWidget {
   const ${_pascalCase(paywallName)}Paywall({super.key});
 

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'lumen_welcome.rsscreen.g.dart';
+part 'restage.generated/lumen_welcome.restage.g.dart';
 
 /// Onboarding — the calm welcome screen for the meditation flow.
 ///
 /// Fixed calm palette (the flow renders on its own surface, not the host
 /// theme). The full-width CTA uses an `Expanded` child in a `Row` so it
 /// survives lowering.
-@ScreenSource(id: 'lumen_welcome')
+@Screen()
 class LumenWelcomeScreen extends StatelessWidget {
   /// Advances to the experience question.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const LumenWelcomeScreen({super.key});
 
@@ -82,7 +82,7 @@ class LumenWelcomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: onboardingEvent(next),
+                      onPressed: surfaceEvent(next),
                       child: const Text(
                         'Get started',
                         style: TextStyle(

@@ -397,8 +397,8 @@ void main() {
 }
 
 /// The workspace package config used by build_test points at the checked-out
-/// package sources, while this phase may be testing a worktree whose SDK
-/// annotation files have not been merged into that checkout yet. Replace only
+/// package sources, which may not yet contain the annotation under test.
+/// Replace only
 /// the imported annotation source so the test still exercises analyzer
 /// provenance rather than a local lookalike.
 Future<VisitorResult> _runCanonicalVisitorOn(

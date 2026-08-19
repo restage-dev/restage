@@ -187,7 +187,10 @@ void main() {
 
     expect(exitCode, 1);
     expect(networkCalls, 0);
-    expect(stderr.toString(), contains('No generated publication manifest'));
+    expect(
+      stderr.toString(),
+      contains('No generated publication output index'),
+    );
   });
 
   test(
@@ -247,7 +250,7 @@ void main() {
           ),
         ],
       );
-      await writeGeneratedManifest(tempDir, [entry]);
+      await writeGeneratedOutput(tempDir, [entry]);
 
       var networkCalls = 0;
       final client = MockClient((_) async {

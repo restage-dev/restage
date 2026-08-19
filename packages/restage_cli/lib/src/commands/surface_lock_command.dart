@@ -19,8 +19,10 @@ import 'package:restage_shared/restage_shared.dart';
 /// Unfreezing restores the default behaviour: the next publish activates.
 ///
 /// Usable two ways via [fixedSurfaceType]:
-///   - null → generic `surface freeze`/`surface unfreeze` group (requires `--type`).
-///   - non-null → typed-group convenience (e.g. `paywall freeze`; no `--type`).
+///   - null → generic `surface freeze`/`surface unfreeze` group, normally
+///     resolved from the generated manifest.
+///   - non-null → typed-group compatibility convenience (e.g. `paywall freeze`;
+///     no `--type`).
 ///
 /// Requires a non-empty `--reason` for the audit trail. Because freeze and
 /// unfreeze are reversible, no destructive-op confirmation prompt is needed.
@@ -30,7 +32,7 @@ class SurfaceLockCommand extends Command<int> {
   /// [lock] selects the direction: true → freeze, false → unfreeze. Pass
   /// [fixedSurfaceType] to pin the surface type (e.g. for the `paywall`
   /// convenience group); omit it for the generic `surface` group, which
-  /// requires the operator to pass `--type`.
+  /// normally resolves identity from the generated manifest.
   SurfaceLockCommand({
     required bool lock,
     required StringSink stdout,

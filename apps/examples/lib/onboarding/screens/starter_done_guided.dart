@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'starter_done_guided.rsscreen.g.dart';
+part 'restage.generated/starter_done_guided.restage.g.dart';
 
 /// Starter onboarding — the "guided" ending.
 ///
 /// The decision routes here when the user chose the guided path. It is a real,
 /// distinct screen (not a recoloured shared one), so the fork is visible in the
 /// delivered surface itself. `finish` completes the flow.
-@ScreenSource(id: 'starter_done_guided')
+@Screen()
 class StarterDoneGuidedScreen extends StatelessWidget {
   /// Completes onboarding.
-  static const finish = OnboardingEvent<void>('finish');
+  static const finish = SurfaceEvent<void>('finish');
 
   /// Const constructor.
   const StarterDoneGuidedScreen({super.key});
@@ -43,7 +43,7 @@ class StarterDoneGuidedScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(finish),
+                onPressed: surfaceEvent(finish),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

@@ -212,6 +212,7 @@ final class ExpressionTranslator {
     required this.helpers,
     this.customWidgetClassifications = const <String, WidgetClassification>{},
     this.customWidgetBlueprints = const <String, CustomWidgetBlueprint>{},
+    this.canonicalPaywallIdFor,
   }) : _isFrameworkValueType = isFrameworkValueTypeLibrary;
 
   /// Test-only override of the framework-value-type predicate the
@@ -232,7 +233,15 @@ final class ExpressionTranslator {
     required bool Function(Element?) frameworkLibraryPredicate,
     this.customWidgetClassifications = const <String, WidgetClassification>{},
     this.customWidgetBlueprints = const <String, CustomWidgetBlueprint>{},
+    this.canonicalPaywallIdFor,
   }) : _isFrameworkValueType = frameworkLibraryPredicate;
+
+  /// Resolves canonical pushed-paywall identities from the package roster.
+  ///
+  /// The normal translator leaves this null because only the aggregate package
+  /// compiler owns canonical source identity. Legacy `@PaywallSource`
+  /// navigation still resolves through its compatibility annotation field.
+  final CanonicalPaywallIdFor? canonicalPaywallIdFor;
 
   /// The framework-value-type predicate the value-substitution gate keys on —
   /// [isFrameworkValueTypeLibrary] in production, overridden only via
@@ -797,7 +806,10 @@ final class ExpressionTranslator {
             break;
         }
 
-        final trigger = recogniseNavigationTrigger(expr);
+        final trigger = recogniseNavigationTrigger(
+          expr,
+          canonicalPaywallIdFor: canonicalPaywallIdFor,
+        );
         switch (trigger) {
           case NavigationRecognised(navigation: final recognised):
             final eventName = navigation.eventFor(recognised);
@@ -3287,6 +3299,7 @@ final class ExpressionTranslator {
   }) {
     final scanner = _RootNavigationTriggerScanner(
       buildContextParameter: buildContextParameter,
+      canonicalPaywallIdFor: canonicalPaywallIdFor,
     );
     expr.accept(scanner);
     if (scanner.resultDrop != null) {
@@ -7229,9 +7242,13 @@ final class _NavigationTriggerEntry {
 }
 
 final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
-  _RootNavigationTriggerScanner({required this.buildContextParameter});
+  _RootNavigationTriggerScanner({
+    required this.buildContextParameter,
+    required this.canonicalPaywallIdFor,
+  });
 
   final Element? buildContextParameter;
+  final CanonicalPaywallIdFor? canonicalPaywallIdFor;
   final List<RecognisedNavigation> recognised = [];
   String? resultDrop;
 
@@ -7245,7 +7262,10 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
         break;
     }
 
-    final outcome = recogniseNavigationTrigger(node);
+    final outcome = recogniseNavigationTrigger(
+      node,
+      canonicalPaywallIdFor: canonicalPaywallIdFor,
+    );
     if (!_isNavigationTriggerSlot(node)) {
       switch (outcome) {
         case NavigationRecognised():

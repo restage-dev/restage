@@ -12,7 +12,7 @@ import 'gallery_dismiss.dart';
 /// This is the *host* side: the small amount of app code that gives the flow
 /// somewhere to run. It composes the public flow primitives directly — a
 /// [RestageFlowController] (the brain) under a [RestageFlowView] (the rendering
-/// surface) — rather than the convenience `RestageOnboarding` widget, because
+/// surface) — rather than the convenience `RestageSurfaceFlow` widget, because
 /// the embedded paywall step needs the view's `onScreenEvent` seam to route the
 /// purchase **through billing**: the flow advances to the subscribed state only
 /// on a successful purchase outcome, never on a bare tap.
@@ -177,7 +177,7 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
     if (controller == null) {
       return const ColoredBox(color: Color(0xFFF7F5FB));
     }
-    return RestageOnboardingEventDispatcher(
+    return RestageSurfaceEventDispatcher(
       onEvent: controller.handleEvent,
       child: RestageFlowView<LumenOnboardingResult>(
         controller: controller,

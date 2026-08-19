@@ -5,9 +5,12 @@ import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart'
     show AssetBundle, ByteData, CachingAssetBundle;
 import 'package:restage/restage.dart';
-import 'package:restage/src/surface_screen/surface_screen_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+
+/// The package and library a fixture bundle claims to have been built from.
+const String kFixturePackageName = 'example_app';
+const String kFixtureAuthoredLibrary = 'lib/screens.dart';
 
 final class ScreenFixture<E> {
   ScreenFixture._({
@@ -16,7 +19,8 @@ final class ScreenFixture<E> {
     required this.capabilities,
     required this.blob,
     required this.contentHash,
-    required this.bundle,
+    required this.locator,
+    required this.sidecarBytes,
   });
 
   final SurfaceScreenRef<E> ref;
@@ -24,20 +28,64 @@ final class ScreenFixture<E> {
   final CapabilityManifest capabilities;
   final Uint8List blob;
   final String contentHash;
-  final AssetBundle bundle;
 
-  ResolvedSurfaceScreen bundled() => ResolvedSurfaceScreen.bundled(
-        surface: ref.surface,
-        slug: ref.slug,
-        contractVersion: ref.contractVersion,
-        sourceKind: ref.sourceKind,
-        payloadKind: ref.payloadKind,
-        capabilities: capabilities,
-        contractFingerprint: ref.contractFingerprint,
-        eventContractHash: ref.eventContract.hash,
-        blob: blob,
-        contentHash: contentHash,
+  /// The locator naming this fixture's screen closure inside [bundleBytes].
+  final SurfaceScreenBundleLocator locator;
+  final Uint8List sidecarBytes;
+
+  String get blobSha256 => CapabilitySidecar.hashBlob(blob);
+
+  SurfaceScreenRuntimeProvenance get provenance => ref.provenance;
+
+  /// The exact `.rsbundle` bytes [locator] addresses.
+  ///
+  /// The bundle also carries the screen's inspection text, which no locator
+  /// entry names — a real bundle carries more than one screen's closure.
+  Uint8List bundleBytes({Uint8List? blobOverride}) => RestageBundleCodec.encode(
+        RestageBundle(
+          packageName: kFixturePackageName,
+          authoredLibraryPath: kFixtureAuthoredLibrary,
+          entries: <RestageBundleEntry>[
+            RestageBundleEntry(
+              logicalPath: locator.screenBlob.logicalPath,
+              role: RestageBundleEntryRoleV1.screenBlob,
+              bytes: blobOverride ?? blob,
+            ),
+            RestageBundleEntry(
+              logicalPath: locator.capabilitySidecar.logicalPath,
+              role: RestageBundleEntryRoleV1.capabilitySidecar,
+              bytes: sidecarBytes,
+            ),
+            RestageBundleEntry(
+              logicalPath: 'assets/restage/surface_screens/${ref.slug}.rfwtxt',
+              role: RestageBundleEntryRoleV1.rfwText,
+              bytes: Uint8List.fromList(utf8.encode('widget Inspection = ();')),
+            ),
+          ],
+        ),
       );
+
+  /// An asset bundle serving [bundleBytes] at the locator's asset key.
+  AssetBundle assetBundle({Uint8List? bytes}) => TestAssetBundle(
+        <String, Uint8List>{locator.assetKey: bytes ?? bundleBytes()},
+      );
+
+  ResolvedSurfaceScreen bundled({Uint8List? blobOverride}) {
+    final bytes = blobOverride ?? blob;
+    return ResolvedSurfaceScreen.bundled(
+      surface: ref.surface,
+      slug: ref.slug,
+      contractVersion: ref.contractVersion,
+      sourceKind: ref.sourceKind,
+      payloadKind: ref.payloadKind,
+      capabilities: capabilities,
+      contractFingerprint: ref.contractFingerprint,
+      eventContractHash: ref.eventContract.hash,
+      blob: bytes,
+      contentHash: _payloadHash(bytes, capabilities),
+      bundledEntryHash: CapabilitySidecar.hashBlob(bytes),
+    );
+  }
 
   ResolvedSurfaceScreen hosted({
     Uint8List? hostedBlob,
@@ -106,6 +154,7 @@ ScreenFixture<String> stringScreenFixture({
   GeneratedSurfaceScreenEventDecoder<String>? decoder,
   CapabilityManifest? capabilities,
   Uint8List? blob,
+  bool packagesBundle = true,
 }) {
   final effectiveCapabilities = capabilities ??
       CapabilityManifest(builtInFloor: 1, requiredLibraries: const []);
@@ -116,36 +165,17 @@ ScreenFixture<String> stringScreenFixture({
           arguments: const SurfaceScreenEventNoArgumentsV1(),
         ),
       ]);
-  final eventHash = SurfaceScreenEventContractHashV1.hash(effectiveSchema);
-  final fingerprint = SurfaceScreenContractFingerprintV1.hash(
-    sourceKind: SurfaceSourceKind.screen,
-    payloadKind: SurfacePayloadKind.blob,
-    capabilities: effectiveCapabilities,
-    eventContractHash: eventHash,
-  );
-  final ref = SurfaceScreenRef<String>.generated(
+  return _fixtureFor(
+    surface: surface,
     slug: slug,
     contractVersion: contractVersion,
-    capabilities: effectiveCapabilities,
-    surface: surface,
-    contractFingerprint: fingerprint,
-    eventContract: SurfaceScreenEventContract<String>.generated(
-      hash: eventHash,
-      decodeValidated: decoder ?? (name, _) => name,
-    ),
-  );
-  final screenBlob = blob ?? rfwScreenBlob(text: text, event: emittedEvent);
-  final contentHash = _payloadHash(screenBlob, effectiveCapabilities);
-  return ScreenFixture<String>._(
-    ref: ref,
     schema: effectiveSchema,
     capabilities: effectiveCapabilities,
-    blob: screenBlob,
-    contentHash: contentHash,
-    bundle: manifestBundleFor(
-      ref: ref,
-      schema: effectiveSchema,
-      blob: screenBlob,
+    blob: blob ?? rfwScreenBlob(text: text, event: emittedEvent),
+    packagesBundle: packagesBundle,
+    eventContract: (hash) => SurfaceScreenEventContract<String>.generated(
+      hash: hash,
+      decodeValidated: decoder ?? (name, _) => name,
     ),
   );
 }
@@ -156,160 +186,82 @@ ScreenFixture<Never> neverScreenFixture({
   int contractVersion = 1,
   String text = 'Event-free screen',
   String emittedEvent = 'unexpected',
+}) =>
+    _fixtureFor(
+      surface: surface,
+      slug: slug,
+      contractVersion: contractVersion,
+      schema:
+          SurfaceScreenEventSchemaV1(events: const <SurfaceScreenEventV1>[]),
+      capabilities:
+          CapabilityManifest(builtInFloor: 1, requiredLibraries: const []),
+      blob: rfwScreenBlob(text: text, event: emittedEvent),
+      packagesBundle: true,
+      eventContract: (hash) =>
+          SurfaceScreenEventContract<Never>.none(hash: hash),
+    );
+
+/// Builds the generated shape end to end: bundle closure, then provenance
+/// describing it, then the reference carrying that provenance.
+ScreenFixture<E> _fixtureFor<E>({
+  required Surface surface,
+  required String slug,
+  required int contractVersion,
+  required SurfaceScreenEventSchemaV1 schema,
+  required CapabilityManifest capabilities,
+  required Uint8List blob,
+  required bool packagesBundle,
+  required SurfaceScreenEventContract<E> Function(String hash) eventContract,
 }) {
-  final capabilities =
-      CapabilityManifest(builtInFloor: 1, requiredLibraries: const []);
-  final schema =
-      SurfaceScreenEventSchemaV1(events: const <SurfaceScreenEventV1>[]);
-  final eventHash = SurfaceScreenEventContractHashV1.hash(schema);
-  final fingerprint = SurfaceScreenContractFingerprintV1.hash(
-    sourceKind: SurfaceSourceKind.screen,
-    payloadKind: SurfacePayloadKind.blob,
-    capabilities: capabilities,
-    eventContractHash: eventHash,
+  final sidecarBytes = Uint8List.fromList(
+    utf8.encode(
+      jsonEncode(
+        CapabilitySidecar(
+          blobSha256: CapabilitySidecar.hashBlob(blob),
+          manifest: capabilities,
+        ).toJson(),
+      ),
+    ),
   );
-  final ref = SurfaceScreenRef<Never>.generated(
+  final locator = SurfaceScreenBundleLocator(
+    assetKey: 'assets/restage/bundles/screens.rsbundle',
+    packageName: kFixturePackageName,
+    authoredLibraryPath: kFixtureAuthoredLibrary,
+    entries: <SurfaceScreenBundleEntryReference>[
+      SurfaceScreenBundleEntryReference(
+        logicalPath: 'assets/restage/surface_screens/$slug.rfw',
+        role: RestageBundleEntryRoleV1.screenBlob,
+        byteLength: blob.length,
+        sha256: CapabilitySidecar.hashBlob(blob),
+      ),
+      SurfaceScreenBundleEntryReference(
+        logicalPath: 'assets/restage/surface_screens/$slug.capabilities.json',
+        role: RestageBundleEntryRoleV1.capabilitySidecar,
+        byteLength: sidecarBytes.length,
+        sha256: CapabilitySidecar.hashBlob(sidecarBytes),
+      ),
+    ],
+  );
+  final provenance = SurfaceScreenRuntimeProvenance(
+    surface: surface,
     slug: slug,
     contractVersion: contractVersion,
     capabilities: capabilities,
-    surface: surface,
-    contractFingerprint: fingerprint,
-    eventContract: SurfaceScreenEventContract<Never>.none(hash: eventHash),
+    eventSchema: schema,
+    bundle: packagesBundle ? locator : null,
   );
-  final blob = rfwScreenBlob(text: text, event: emittedEvent);
-  return ScreenFixture<Never>._(
-    ref: ref,
+  return ScreenFixture<E>._(
+    ref: SurfaceScreenRef<E>.generated(
+      provenance: provenance,
+      eventContract: eventContract(provenance.eventContractHash),
+    ),
     schema: schema,
     capabilities: capabilities,
     blob: blob,
     contentHash: _payloadHash(blob, capabilities),
-    bundle: manifestBundleFor(ref: ref, schema: schema, blob: blob),
+    sidecarBytes: sidecarBytes,
+    locator: locator,
   );
-}
-
-AssetBundle manifestBundleFor<E>({
-  required SurfaceScreenRef<E> ref,
-  required SurfaceScreenEventSchemaV1 schema,
-  required Uint8List blob,
-}) {
-  final payload = BlobSurfacePayload(
-    minClient: ref.capabilities.builtInFloor,
-    blob: blob,
-    requiredLibraries: ref.capabilities.requiredLibraries,
-  );
-  final blobPath = 'assets/restage/surface_screens/${ref.slug}.rfw';
-  final sidecarPath =
-      'assets/restage/surface_screens/${ref.slug}.capabilities.json';
-  final sidecarBytes = Uint8List.fromList(
-    utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: ref.capabilities,
-        ).toJson(),
-      ),
-    ),
-  );
-  final publication = SurfacePublicationV1(
-    surface: ref.surface,
-    slug: ref.slug,
-    sourceKind: SurfaceSourceKind.screen,
-    payloadKind: SurfacePayloadKind.blob,
-    payloadContentHash: payload.contentHash,
-    contractVersion: ref.contractVersion,
-    capabilities: ref.capabilities,
-    eventContract: schema,
-    eventContractHash: ref.eventContract.hash,
-    contractFingerprint: ref.contractFingerprint,
-  );
-  final entry = SurfacePublicationManifestEntryV1(
-    publication: publication,
-    artifacts: <SurfacePublicationArtifactV1>[
-      SurfacePublicationArtifactV1(
-        contentHash: CapabilitySidecar.hashBlob(blob),
-        path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
-        id: ref.slug,
-      ),
-      SurfacePublicationArtifactV1(
-        contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
-        path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
-        id: ref.slug,
-      ),
-    ],
-  );
-  final manifest = SurfacePublicationManifestV1(
-    publications: <SurfacePublicationManifestEntryV1>[entry],
-  );
-  return TestAssetBundle(<String, Uint8List>{
-    kSurfaceScreenPublicationManifestAsset: Uint8List.fromList(
-      utf8.encode(
-          SurfacePublicationManifestV1Codec.encodeCanonicalJson(manifest)),
-    ),
-    blobPath: blob,
-    sidecarPath: sidecarBytes,
-  });
-}
-
-AssetBundle paywallSourceManifestBundle<E>({
-  required SurfaceScreenRef<E> reference,
-  required Uint8List blob,
-}) {
-  final payload = BlobSurfacePayload(
-    minClient: reference.capabilities.builtInFloor,
-    blob: blob,
-    requiredLibraries: reference.capabilities.requiredLibraries,
-  );
-  final blobPath = 'assets/restage/surface_screens/${reference.slug}.rfw';
-  final sidecarPath =
-      'assets/restage/surface_screens/${reference.slug}.capabilities.json';
-  final sidecarBytes = Uint8List.fromList(
-    utf8.encode(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: reference.capabilities,
-        ).toJson(),
-      ),
-    ),
-  );
-  final entry = SurfacePublicationManifestEntryV1(
-    publication: SurfacePublicationV1(
-      surface: Surface.paywall,
-      slug: reference.slug,
-      sourceKind: SurfaceSourceKind.paywall,
-      payloadKind: SurfacePayloadKind.blob,
-      payloadContentHash: payload.contentHash,
-    ),
-    artifacts: <SurfacePublicationArtifactV1>[
-      SurfacePublicationArtifactV1(
-        contentHash: CapabilitySidecar.hashBlob(blob),
-        path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
-        id: reference.slug,
-      ),
-      SurfacePublicationArtifactV1(
-        contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
-        path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
-        id: reference.slug,
-      ),
-    ],
-  );
-  return TestAssetBundle(<String, Uint8List>{
-    kSurfaceScreenPublicationManifestAsset: Uint8List.fromList(
-      utf8.encode(
-        SurfacePublicationManifestV1Codec.encodeCanonicalJson(
-          SurfacePublicationManifestV1(
-            publications: <SurfacePublicationManifestEntryV1>[entry],
-          ),
-        ),
-      ),
-    ),
-    blobPath: blob,
-    sidecarPath: sidecarBytes,
-  });
 }
 
 Uint8List rfwScreenBlob({required String text, required String event}) {
@@ -327,13 +279,8 @@ widget OnboardingScreen = GestureDetector(
 Uint8List rfwSourceBlob(String source) =>
     Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 
-void installManifestBundle(AssetBundle bundle) {
-  SurfaceScreenManifestRegistry.debugAssetBundle = bundle;
-}
-
 void resetSurfaceScreenTestState() {
   Restage.debugReset();
-  SurfaceScreenManifestRegistry.debugReset();
 }
 
 final class FixedScreenResolver implements SurfaceScreenResolver {
@@ -372,6 +319,22 @@ final class FixedBundledScreenResolver implements BundledSurfaceScreenResolver {
   Future<ResolvedSurfaceScreen> resolve<E>(SurfaceScreenRef<E> screen) async {
     calls += 1;
     return _result;
+  }
+}
+
+/// A bundled resolver that always refuses, as an application packaging no
+/// bundles does.
+final class AbsentBundledScreenResolver
+    implements BundledSurfaceScreenResolver {
+  var calls = 0;
+
+  @override
+  Future<ResolvedSurfaceScreen> resolve<E>(SurfaceScreenRef<E> screen) async {
+    calls += 1;
+    throw const SurfaceScreenUnavailableError(
+      reason: SurfaceScreenUnavailableReason.missing,
+      message: 'No packaged bundle is available for this screen.',
+    );
   }
 }
 

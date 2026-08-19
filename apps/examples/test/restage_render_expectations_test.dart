@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +7,8 @@ import 'package:restage_example/widgets/streak_badge.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
 import 'restage_render_expectations.dart';
+
+import '_support/bundled_artifacts.dart';
 
 class _StaticResolver implements VariantResolver {
   _StaticResolver(this.bytes);
@@ -32,7 +32,7 @@ Future<List<PaywallLoadFailed>> _mountCustomBadgePaywall(
   final bytes = Uint8List.fromList(
     encodeLibraryBlob(
       parseLibraryFile(
-        File('assets/paywalls/custom_badge.rfwtxt').readAsStringSync(),
+        readDeliveryText('assets/paywalls/custom_badge.rfwtxt'),
       ),
     ),
   );

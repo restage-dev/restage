@@ -5,7 +5,7 @@ import '../screens/stride_ready.dart';
 import '../screens/stride_reminders.dart';
 import '../screens/stride_welcome.dart';
 
-part 'stride_first_run.rsflow.g.dart';
+part 'restage.generated/stride_first_run.restage.g.dart';
 
 /// Stride's first-run onboarding: welcome → goals → reminder priming → ready.
 ///
@@ -23,7 +23,7 @@ part 'stride_first_run.rsflow.g.dart';
 /// `outbound`-declared fields, already filtered by the runtime (never raw flow
 /// state). The host reads `result['completed']`, with no generated class in
 /// between. Author the surface with
-/// `RestageOnboarding<Map<String, Object?>>` (see `stride_first_run_demo.dart`).
+/// `RestageSurfaceFlow<Map<String, Object?>>` (see `stride_first_run_demo.dart`).
 /// The untyped shape is what lets the *same* runtime interpret a flow the app
 /// never compiled against — an editor-authored or over-the-air composition.
 ///
@@ -56,8 +56,8 @@ part 'stride_first_run.rsflow.g.dart';
 /// screen's "Maybe later" fires a `skip` custom event the flow declares but does
 /// not route — the host listens for it and carries the user into the app
 /// without the grant. The flow describes intent; the app acts on it.
-@FlowSource(
-  id: 'stride_first_run',
+@FlowGraph(
+  surface: Surface.onboarding,
   version: 2,
   delivery: FlowDeliveryMode.general,
 )

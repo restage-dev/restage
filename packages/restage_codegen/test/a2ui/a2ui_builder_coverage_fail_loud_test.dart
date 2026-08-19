@@ -42,7 +42,7 @@ Future<(bool succeeded, String logs)> _runBuilder(
   final result = await runWithNativeScreenPackageGraphForTesting(
     packageGraphSource: _appPackageGraph,
     body: () => testBuilder(
-      const UserA2uiCatalogBuilder(BuilderOptions.empty),
+      UserA2uiCatalogBuilder(BuilderOptions.empty),
       {for (final e in allSources.entries) 'apps_examples|${e.key}': e.value},
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
@@ -125,7 +125,7 @@ void main() {
         import 'package:flutter/widgets.dart';
         import 'package:restage/restage.dart' as restage;
 
-        part 'dropped_screen.rsscreen.g.dart';
+        part 'restage.generated/dropped_screen.restage.g.dart';
 
         @restage.ScreenSource(id: 'dropped_screen')
         final class DroppedScreen extends StatelessWidget {
@@ -150,6 +150,41 @@ void main() {
       expect(logs, isNot(contains("The @RestageWidget 'dropped_screen'")));
     });
 
+    test('a dropped canonical Screen diagnostic uses the canonical source kind',
+        () async {
+      const source = '''
+        import 'package:flutter/widgets.dart';
+        import 'package:restage/restage.dart' as restage;
+
+        part 'restage.generated/dropped_canonical_screen.restage.g.dart';
+
+        @restage.Screen(
+          id: 'dropped_canonical_screen',
+          surface: restage.Surface.general,
+        )
+        final class DroppedCanonicalScreen extends StatelessWidget {
+          const DroppedCanonicalScreen({super.key, required this.onScrub});
+
+          /// Unsupported three-argument callback.
+          final void Function(String, int, double) onScrub;
+
+          @override
+          Widget build(BuildContext context) => const SizedBox.shrink();
+        }
+      ''';
+
+      final (succeeded, logs) = await _runBuilder({
+        'lib/features/dropped_canonical_screen.dart': source,
+      });
+
+      expect(succeeded, isFalse);
+      expect(logs, contains("The @Screen 'dropped_canonical_screen'"));
+      expect(
+        logs,
+        isNot(contains("The @ScreenSource 'dropped_canonical_screen'")),
+      );
+    });
+
     test(
         'an optional unsupported ScreenSource property warns with the native '
         'source kind', () async {
@@ -157,7 +192,7 @@ void main() {
         import 'package:flutter/widgets.dart';
         import 'package:restage/restage.dart' as restage;
 
-        part 'optional_screen.rsscreen.g.dart';
+        part 'restage.generated/optional_screen.restage.g.dart';
 
         @restage.ScreenSource(id: 'optional_screen')
         final class OptionalScreen extends StatelessWidget {

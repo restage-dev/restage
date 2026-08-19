@@ -37,7 +37,7 @@ final class RecognisedNavigation {
   /// The static screen construction returned by the route builder.
   final InstanceCreationExpression pushedScreen;
 
-  /// The `@PaywallSource(id:)` resolved from [pushedScreen].
+  /// The normalized Restage paywall identity resolved from [pushedScreen].
   final String paywallSourceId;
 }
 
@@ -192,9 +192,10 @@ const String kNavigationBuilderUnsupportedReason =
     'the route builder must synchronously return one static screen '
     'construction without reading its BuildContext';
 
-/// Fatal-defer reason for pushed screens that are not paywall sources.
+/// Fatal-defer reason for pushed screens that are not Restage paywalls.
 const String kNavigationPushedScreenUnsupportedReason =
-    'the pushed screen must be a resolved @PaywallSource class';
+    'the pushed screen must be a resolved @Paywall class or a deprecated '
+    '@PaywallSource compatibility class';
 
 /// Fatal-defer reason for `Navigator.pop(context, result)` in flow content.
 const String kNavigationNavigatorPopResultReason =
@@ -231,14 +232,24 @@ bool isNavigationTriggerSlotName(String name) =>
     name == 'onPressed' || name == 'onTap';
 
 /// The Restage SDK library origin used to look-alike-guard the pushed screen's
-/// `@PaywallSource` annotation (a customer annotation of the same name from a
-/// different package must not be accepted).
+/// `@Paywall` or `@PaywallSource` annotation (a customer annotation of the
+/// same name from a different package must not be accepted).
 const String _kSdkLibraryOrigin = 'package:restage';
+
+/// Resolves the roster-owned effective ID for a canonical `@Paywall` class.
+///
+/// Canonical IDs, including omitted IDs, are normalized by package ownership
+/// before navigation lowering. Legacy `@PaywallSource` keeps its annotation
+/// field as a compatibility frontend and does not use this resolver.
+typedef CanonicalPaywallIdFor = String? Function(ClassElement declaration);
 
 /// Recognises the only navigation trigger form that can be lowered without
 /// dropping a route result: `() => Navigator.push(...)` or the block
 /// equivalent.
-NavigationTriggerOutcome recogniseNavigationTrigger(Expression slotValue) {
+NavigationTriggerOutcome recogniseNavigationTrigger(
+  Expression slotValue, {
+  CanonicalPaywallIdFor? canonicalPaywallIdFor,
+}) {
   if (slotValue is! FunctionExpression) {
     return const NavigationNotRecognised();
   }
@@ -263,7 +274,10 @@ NavigationTriggerOutcome recogniseNavigationTrigger(Expression slotValue) {
 
   switch (_recogniseNavigatorPush(call)) {
     case _NavigatorPushRecognised(:final route):
-      switch (_recogniseRoute(route)) {
+      switch (_recogniseRoute(
+        route,
+        canonicalPaywallIdFor: canonicalPaywallIdFor,
+      )) {
         case _RouteRecognised(
             :final routeType,
             :final route,
@@ -381,21 +395,34 @@ NavigatorPopBackOutcome recogniseNavigatorPopBack(Expression slotValue) {
   return const NavigatorPopNotRecognised();
 }
 
-/// The `@PaywallSource(id:)` resolved from [pushedScreen], or `null`.
+/// The normalized Restage paywall identity resolved from [pushedScreen], or
+/// `null`.
 ///
-/// Origin-guarded against the Restage SDK library so a customer annotation that
-/// happens to be named `PaywallSource` (from a different package) is not
-/// accepted as a valid pushed paywall screen (the look-alike-safe discipline).
-String? pushedPaywallSourceId(InstanceCreationExpression pushedScreen) {
+/// Canonical `@Paywall` declarations consume [canonicalPaywallIdFor], which
+/// reads the package roster's effective identity. Deprecated
+/// `@PaywallSource(id:)` declarations retain their field as a compatibility
+/// frontend. Both forms are origin-guarded against the Restage SDK so customer
+/// lookalikes cannot be accepted as pushed paywall screens.
+String? pushedPaywallSourceId(
+  InstanceCreationExpression pushedScreen, {
+  CanonicalPaywallIdFor? canonicalPaywallIdFor,
+}) {
   final classElement = pushedScreen.constructorName.type.element;
   if (classElement is! ClassElement) return null;
   final annotation = firstAnnotationFromOriginAny(
     classElement,
-    const {'PaywallSource'},
+    const {'Paywall', 'PaywallSource'},
     _kSdkLibraryOrigin,
   );
-  final value = annotation?.computeConstantValue();
-  return value?.getField('id')?.toStringValue();
+  if (annotation == null) return null;
+  final annotationClass = resolvedAnnotationClass(annotation);
+  if (annotationClass == null) return null;
+  return switch (annotationClass.name) {
+    'Paywall' => canonicalPaywallIdFor?.call(classElement),
+    'PaywallSource' =>
+      annotation.computeConstantValue()?.getField('id')?.toStringValue(),
+    _ => null,
+  };
 }
 
 bool _hasNoParameters(FunctionExpression expression) {
@@ -600,7 +627,10 @@ final class _RouteUnsupported extends _RouteOutcome {
   final String reason;
 }
 
-_RouteOutcome _recogniseRoute(Expression routeExpression) {
+_RouteOutcome _recogniseRoute(
+  Expression routeExpression, {
+  CanonicalPaywallIdFor? canonicalPaywallIdFor,
+}) {
   final route = _unwrapParens(routeExpression);
   if (route is! InstanceCreationExpression) {
     return const _RouteUnsupported(kNavigationRouteUnsupportedReason);
@@ -638,7 +668,10 @@ _RouteOutcome _recogniseRoute(Expression routeExpression) {
 
   switch (recogniseStaticNavigationBuilder(builder)) {
     case NavigationBuilderRecognised(:final screen):
-      final paywallSourceId = pushedPaywallSourceId(screen);
+      final paywallSourceId = pushedPaywallSourceId(
+        screen,
+        canonicalPaywallIdFor: canonicalPaywallIdFor,
+      );
       if (paywallSourceId == null) {
         return const _RouteUnsupported(
           kNavigationPushedScreenUnsupportedReason,

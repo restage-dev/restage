@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 import '../screens/permission.dart';
 import '../screens/ready.dart';
 
-part 'permission_flow.rsflow.g.dart';
+part 'restage.generated/permission_flow.restage.g.dart';
 
 @FlowSource(id: 'permission_flow', version: 1, minClient: 1)
 final class PermissionFlow extends RestageFlow {

@@ -33,7 +33,7 @@ import 'package:restage/restage.dart';
 /// `$4.17/month` equivalent) is authored as literal text so it stays internally
 /// consistent; the standalone 1-month price binds to the live monthly slot. The
 /// purchase is live-bound per plan via `paywallPurchase(slot:)`.
-@PaywallSource(id: 'sentinel_protection')
+@Paywall()
 class SentinelProtectionPaywall extends StatefulWidget {
   const SentinelProtectionPaywall({super.key});
 

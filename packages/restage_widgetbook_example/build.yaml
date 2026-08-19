@@ -1,7 +1,29 @@
+# Ships generated surfaces inside the package's Flutter assets so the example
+# runs standalone. `bundled_runtime` routes only `.rsbundle` containers.
+#
+# Build Runner has no cross-builder options channel, so the option is repeated
+# identically on every placement-affected Restage builder key — including the
+# two this package opts into.
 targets:
   $default:
     builders:
       restage_codegen:user_a2ui_catalog:
         enabled: true
+        options:
+          bundled_runtime: true
       restage_codegen:widgetbook_stories:
         enabled: true
+        options:
+          bundled_runtime: true
+      restage_codegen:restage_source_roster:
+        options:
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options:
+          bundled_runtime: true
+      restage_codegen:generated_dart:
+        options:
+          bundled_runtime: true
+      restage_codegen:outputs:
+        options:
+          bundled_runtime: true

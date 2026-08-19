@@ -31,8 +31,8 @@ void main() {
       'survey_flow_codegen': surveyFlowBuilder,
       'restage_source_roster': restageSourceRosterBuilder,
       'restage_package_surface_compiler': restagePackageSurfaceCompilerBuilder,
-      'restage_surface_publication_bundle':
-          restageSurfacePublicationBundleBuilder,
+      'outputs': restageOutputsBuilder,
+      'generated_dart': restageGeneratedDartBuilder,
       'user_catalog': userCatalogBuilder,
       'user_catalog_json': userCatalogJsonBuilder,
       'factory_functions': factoryFunctionBuilder,
@@ -58,8 +58,8 @@ void main() {
       'restage_source_roster': 'restageSourceRosterBuilder',
       'restage_package_surface_compiler':
           'restagePackageSurfaceCompilerBuilder',
-      'restage_surface_publication_bundle':
-          'restageSurfacePublicationBundleBuilder',
+      'outputs': 'restageOutputsBuilder',
+      'generated_dart': 'restageGeneratedDartBuilder',
       'user_catalog': 'userCatalogBuilder',
       'user_catalog_json': 'userCatalogJsonBuilder',
       'factory_functions': 'factoryFunctionBuilder',
@@ -70,8 +70,6 @@ void main() {
 
     late Map<String, Map<String, List<String>>> declared;
     late Map<String, List<String>> factoryNames;
-    late Map<String, List<String>> appliesBuilders;
-    late YamlMap postProcessBuilders;
 
     setUpAll(() {
       final root = loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
@@ -95,27 +93,20 @@ void main() {
               name as String,
           ],
       };
-      appliesBuilders = {
-        for (final builder in builders.entries)
-          builder.key as String: [
-            for (final name in ((builder.value as YamlMap)['applies_builders']
-                    as YamlList? ??
-                YamlList()))
-              name as String,
-          ],
-      };
-      postProcessBuilders = root['post_process_builders'] as YamlMap;
     });
 
     test('build.yaml declares exactly the builders the package exposes', () {
       expect(declared.keys.toSet(), factories.keys.toSet());
     });
 
-    test('A2UI artifacts have one declared colocated generated path', () {
+    test('A2UI artifacts have one declared default generated path', () {
+      // The declared family is the DEFAULT placement resolution. Both files
+      // hang off the package step because a configured portable-output root
+      // may sit outside lib/, which a lib-rooted extension cannot express.
       const expected = {
-        r'$lib$': [
-          'generated/restage_a2ui_catalog.g.dart',
-          'generated/restage_a2ui_catalog.a2ui.json',
+        r'$package$': [
+          'lib/generated/restage_a2ui_catalog.g.dart',
+          'lib/generated/restage_a2ui_catalog.a2ui.json',
         ],
       };
       expect(declared['user_a2ui_catalog'], expected);
@@ -138,7 +129,7 @@ void main() {
             {
               r'$lib$': [
                 'generated/.restage_widgetbook_story_builder',
-                'generated/promo_banner.stories.dart',
+                'restage.generated/promo_banner.stories.dart',
               ],
             },
           );
@@ -168,24 +159,16 @@ void main() {
       }
     });
 
-    test('the surface publication post-process owner is wired strictly', () {
-      final definition =
-          postProcessBuilders['restage_surface_publication_owner'] as YamlMap;
-      expect(definition['import'], 'package:restage_codegen/builder.dart');
+    test(
+        'the unified outputs builder is a normal builder with no '
+        'post-process stage', () {
+      final root = loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
       expect(
-        definition['builder_factory'],
-        'restageSurfacePublicationOutputOwner',
-      );
-      expect(definition['input_extensions'], ['.bundle.json']);
-      expect(definition['build_to'], 'source');
-      expect(
-        restageSurfacePublicationOutputOwner(BuilderOptions.empty)
-            .inputExtensions,
-        ['.bundle.json'],
-      );
-      expect(
-        appliesBuilders['restage_surface_publication_bundle'],
-        contains('restage_codegen:restage_surface_publication_owner'),
+        root.containsKey('post_process_builders'),
+        isFalse,
+        reason: 'Generated-output materialization is a normal builder with '
+            'statically predictable buildExtensions; a post-process builder '
+            'cannot declare static outputs and is not permitted.',
       );
       final compilerOutputs = restagePackageSurfaceCompilerBuilder(
         BuilderOptions.empty,
@@ -193,12 +176,6 @@ void main() {
       expect(
         compilerOutputs,
         ['lib/src/surface_publication/surface_publication.compiler.json'],
-      );
-      expect(
-        compilerOutputs,
-        everyElement(isNot(endsWith('.bundle.json'))),
-        reason: 'The internal compiler handoff must not trigger the '
-            'post-process owner; only the normalized aggregate may do so.',
       );
     });
   });
@@ -269,7 +246,7 @@ void main() {
         'user_catalog_json',
         'factory_functions',
         'user_factories',
-        'restage_surface_publication_bundle',
+        'outputs',
       };
       for (final consumer in consumers) {
         expect(
@@ -281,11 +258,10 @@ void main() {
       }
     });
 
-    test('the fixed publication chain is compiler then aggregate then owner',
-        () {
+    test('the fixed publication chain is compiler then unified outputs', () {
       expect(
         runsBefore['restage_package_surface_compiler'],
-        contains('restage_codegen:restage_surface_publication_bundle'),
+        contains('restage_codegen:outputs'),
       );
       expect(
         runsBefore['paywall_flow_codegen'],

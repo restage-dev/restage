@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'maintenance.rsscreen.g.dart';
+part 'restage.generated/maintenance.restage.g.dart';
 
 @Screen(surface: Surface.message)
 final class MaintenanceNotice extends StatelessWidget {

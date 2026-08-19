@@ -15,6 +15,8 @@ import 'package:restage_preview_harness/restage_preview_harness.dart';
 import 'package:restage_preview_host/restage_preview_host.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
 
+import '_support/bundled_artifacts.dart';
+
 final class _Transport implements RenderMessageTransport {
   final _messages =
       StreamController<RenderTransportMessage>.broadcast(sync: true);
@@ -113,7 +115,7 @@ Future<_MountedBundle> _mountBundle(
       ),
     ),
   );
-  final blob = File('assets/paywalls/pulse_paywall.rfw').readAsBytesSync();
+  final blob = readDeliveryArtifact('assets/paywalls/pulse_paywall.rfw');
   transport.render(Uint8List.fromList(blob));
   await tester.pump();
   await tester.pump();
@@ -154,7 +156,7 @@ void main() {
   setUp(Restage.debugReset);
 
   test('uses the exact canonical PulseBadge blob', () {
-    final blob = File('assets/paywalls/pulse_paywall.rfw').readAsBytesSync();
+    final blob = readDeliveryArtifact('assets/paywalls/pulse_paywall.rfw');
     expect(blob, hasLength(1428));
     expect(
       sha256.convert(blob).toString(),

@@ -83,7 +83,7 @@ class _ReelCancelDemoState extends State<ReelCancelDemo> {
     if (_outcome != _Outcome.none) {
       return _OutcomeScreen(retained: _outcome == _Outcome.retained);
     }
-    return RestageOnboarding<ReelCancelResult>(
+    return RestageSurfaceFlow<ReelCancelResult>(
       flow: ReelCancelFlowDescriptor.ref,
       actions: _actions,
       onComplete: (result) => _settle(_Outcome.retained),

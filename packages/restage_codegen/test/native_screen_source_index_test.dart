@@ -96,6 +96,39 @@ void main() {
         expect(probe.logs.join('\n'), contains('invalidScreenSourceCount'));
       });
     });
+
+    test(
+      'indexes package-wide canonical screens with implicit and colocated '
+      'explicit IDs alongside legacy compatibility sources',
+      () async {
+        final probe = await _runIndexProbe(
+          const {
+            'lib/features/implicit_notice.dart': _canonicalImplicitNotice,
+            'lib/features/message_bundle.dart': _canonicalMessageBundle,
+            'lib/onboarding/screens/legacy_notice.dart': _legacyNotice,
+          },
+          consumer: consumer,
+          addGeneratedPartDirective: false,
+        );
+
+        expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+        const implicitIdentity =
+            'identity=package:apps_examples/features/implicit_notice.dart#'
+            'ImplicitNotice';
+        for (final expected in const <String>[
+          'id=implicit_notice',
+          'version=2',
+          'minClient=3',
+          'events=continued:continue:String',
+          'id=stable-first',
+          'id=stable-second',
+          'id=legacy_notice',
+        ]) {
+          expect(probe.output, contains(expected));
+        }
+        expect(probe.output, contains(implicitIdentity));
+      },
+    );
   }
 
   for (final config in const {
@@ -110,7 +143,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 ${config.value}
 
-part 'enabled_${config.key}.rsscreen.g.dart';
+part 'restage.generated/enabled_${config.key}.restage.g.dart';
 
 @ScreenSource(id: 'enabled_${config.key}')
 @target.Config.enabled(false)
@@ -145,7 +178,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw.dart' as rfw;
 
-part 'enabled_null.rsscreen.g.dart';
+part 'restage.generated/enabled_null.restage.g.dart';
 
 @ScreenSource(id: 'enabled_null')
 @rfw.Config(enabled: null)
@@ -1120,7 +1153,7 @@ String _screenSource(
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-${includeGeneratedPart ? "part '${generatedPartStem ?? id}.rsscreen.g.dart';" : ''}
+${includeGeneratedPart ? "part 'restage.generated/${generatedPartStem ?? id}.restage.g.dart';" : ''}
 $partDirectiveDecoy
 
 @ScreenSource(id: '$id')
@@ -1143,9 +1176,67 @@ class AdditionalAdmissionScreen extends StatelessWidget {
 ''';
 
 const _partDirectiveDecoys = <String, String>{
-  'comment': "// part 'part_decoy.rsscreen.g.dart';",
-  'string': "const partDirectiveText = \"part 'part_decoy.rsscreen.g.dart';\";",
+  'comment': "// part 'restage.generated/part_decoy.restage.g.dart';",
+  'string':
+      "const partDirectiveText = \"part 'restage.generated/part_decoy.restage.g.dart';\";",
 };
+
+const _canonicalImplicitNotice = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/implicit_notice.restage.g.dart';
+
+@Screen(surface: Surface.general, version: 2, minClient: 3)
+final class ImplicitNotice extends StatelessWidget {
+  const ImplicitNotice({super.key, required this.title});
+
+  static const continued = SurfaceEvent<String>('continue');
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Text(title);
+}
+''';
+
+const _canonicalMessageBundle = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/message_bundle.restage.g.dart';
+
+@Screen(id: 'stable-first', surface: Surface.message)
+final class StableFirst extends StatelessWidget {
+  const StableFirst({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+@Screen(id: 'stable-second', surface: Surface.message)
+final class StableSecond extends StatelessWidget {
+  const StableSecond({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+const _legacyNotice = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/legacy_notice.restage.g.dart';
+
+@ScreenSource(id: 'legacy_notice')
+final class LegacyNotice extends StatelessWidget {
+  const LegacyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
 
 String _withGeneratedPartDirective(String path, String source) {
   final match = RegExp(
@@ -1163,7 +1254,7 @@ String _withGeneratedPartDirective(String path, String source) {
   return source.replaceRange(
     offset,
     offset,
-    "\n\npart '$stem.rsscreen.g.dart';",
+    "\n\npart 'restage.generated/$stem.restage.g.dart';",
   );
 }
 

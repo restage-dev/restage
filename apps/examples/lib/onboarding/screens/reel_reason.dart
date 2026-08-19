@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'reel_reason.rsscreen.g.dart';
+part 'restage.generated/reel_reason.restage.g.dart';
 
 /// Survey — the first cancellation question ("Why are you leaving?").
 ///
@@ -11,10 +11,10 @@ part 'reel_reason.rsscreen.g.dart';
 /// event — each card is one trigger for the single forward transition. The
 /// option cards are written out in full rather than via a helper because the
 /// transpiler lowers literal widget trees, not method calls in widget position.
-@ScreenSource(id: 'reel_reason')
+@Screen()
 class ReelReasonScreen extends StatelessWidget {
   /// Advances to the frequency question.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const ReelReasonScreen({super.key});
 
@@ -58,7 +58,7 @@ class ReelReasonScreen extends StatelessWidget {
               ),
               const SizedBox(height: 26),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -90,7 +90,7 @@ class ReelReasonScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -122,7 +122,7 @@ class ReelReasonScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -154,7 +154,7 @@ class ReelReasonScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),

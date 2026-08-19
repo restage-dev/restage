@@ -53,6 +53,7 @@ export 'package:restage_shared/restage_shared.dart'
         RestageProduct,
         RestageProperty,
         RestageWidget,
+        RestageBundleEntryRoleV1,
         Surface,
         // ignore: deprecated_member_use
         SurfaceType,

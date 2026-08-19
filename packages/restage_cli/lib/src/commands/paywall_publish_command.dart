@@ -12,11 +12,16 @@ import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
+import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Publish one generated specialized paywall from its exact manifest closure.
+///
+/// This is retained as a deprecated compatibility command. New workflows use
+/// `restage surface publish <slug>` so the generated manifest remains the
+/// visible authority for every surface category.
 class PaywallPublishCommand extends Command<int> {
   /// Construct a paywall publish command.
   PaywallPublishCommand({
@@ -25,11 +30,13 @@ class PaywallPublishCommand extends Command<int> {
     required Interactive interactive,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
+    PublicationBundleReader? bundleReader,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
        _credentialStore = credentialStore,
-       _httpClient = httpClient {
+       _httpClient = httpClient,
+       _bundleReader = bundleReader {
     argParser
       ..addOption(
         'organization',
@@ -51,8 +58,8 @@ class PaywallPublishCommand extends Command<int> {
         abbr: 'C',
         defaultsTo: '.',
         help:
-            'Directory to locate restage_config.yaml and the fixed generated '
-            'publication manifest. It does not select artifacts.',
+            'Directory to locate restage_config.yaml and generated publication '
+            'metadata. It does not select artifacts.',
       );
     addRuntimePlaneOption(argParser);
   }
@@ -62,13 +69,15 @@ class PaywallPublishCommand extends Command<int> {
   final Interactive _interactive;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
+  final PublicationBundleReader? _bundleReader;
 
   @override
   String get name => 'publish';
 
   @override
   String get description =>
-      'Publish a generated paywall from its manifest artifact closure.';
+      'Deprecated compatibility publish for a specialized paywall; prefer '
+      '`surface publish`.';
 
   @override
   Future<int> run() async {
@@ -115,10 +124,9 @@ class PaywallPublishCommand extends Command<int> {
           'screen.',
         );
       }
-      assembled = await SurfacePublicationAssembler().assemble(
-        loaded: manifest,
-        entry: entry,
-      );
+      assembled = await SurfacePublicationAssembler(
+        bundleReader: _bundleReader,
+      ).assemble(loaded: manifest, entry: entry);
     } on PublicationException catch (error) {
       _stderr.writeln(error.message);
       return 1;

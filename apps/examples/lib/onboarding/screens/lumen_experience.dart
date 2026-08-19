@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'lumen_experience.rsscreen.g.dart';
+part 'restage.generated/lumen_experience.restage.g.dart';
 
 /// Onboarding — the meditation-experience question.
 ///
@@ -9,10 +9,10 @@ part 'lumen_experience.rsscreen.g.dart';
 /// advances. The flow is linear (the answer tailors the experience, it does not
 /// fork the graph), so every option fires the same [next] event — each option
 /// card is one of several triggers for the single forward transition.
-@ScreenSource(id: 'lumen_experience')
+@Screen()
 class LumenExperienceScreen extends StatelessWidget {
   /// Advances to the goal question.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const LumenExperienceScreen({super.key});
 
@@ -50,7 +50,7 @@ class LumenExperienceScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -90,7 +90,7 @@ class LumenExperienceScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -130,7 +130,7 @@ class LumenExperienceScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(

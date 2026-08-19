@@ -26,7 +26,7 @@ const double kChromeLadderThemeSize = 34;
 
 /// A runnable tour of the chrome customization ladder over a single flow.
 ///
-/// The same short onboarding flow is hosted by [RestageOnboarding] while a
+/// The same short onboarding flow is hosted by [RestageSurfaceFlow] while a
 /// control switches the active [ChromeRung], so the back affordance visibly
 /// changes — its icon/color/size (Theme), the whole widget (Slots), or its
 /// position (Layout) — and a toggle flips the chrome between persistent (framing
@@ -55,7 +55,7 @@ class _ChromeLadderDemoState extends State<ChromeLadderDemo> {
   late bool _persistent = widget.initialPersistent;
 
   // Built once: switching rungs must re-render the chrome without restarting
-  // the flow (RestageOnboarding restarts only when flow/resolver/actions
+  // the flow (RestageSurfaceFlow restarts only when flow/resolver/actions
   // change), so the flow position is preserved as you tour the rungs.
   late final FirstRunActions _actions = FirstRunActions(
     requestNotifications: (args, context) async =>
@@ -145,7 +145,7 @@ class _ChromeLadderDemoState extends State<ChromeLadderDemo> {
 
   Widget _onboarding() {
     final layoutRung = _rung == ChromeRung.layout;
-    return RestageOnboarding<FirstRunResult>(
+    return RestageSurfaceFlow<FirstRunResult>(
       flow: FirstRunFlowDescriptor.ref,
       actions: _actions,
       unavailable: FlowUnavailablePolicy.fallback(
@@ -165,7 +165,7 @@ class _ChromeLadderDemoState extends State<ChromeLadderDemo> {
   // The demo's own controls — a rung selector + the persistentChrome toggle —
   // so the chrome change is observable live. These live outside the flow; the
   // flow position is preserved as the rung switches (the actions registry is
-  // built once, so RestageOnboarding does not restart). The bar reads from the
+  // built once, so RestageSurfaceFlow does not restart). The bar reads from the
   // theme so it stays legible in both light and dark mode.
   Widget _controlBar() {
     final colorScheme = Theme.of(context).colorScheme;

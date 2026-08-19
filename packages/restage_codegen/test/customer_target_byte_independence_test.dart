@@ -21,7 +21,7 @@ const _a2uiOutputs = <String>[
   'lib/generated/restage_a2ui_catalog.a2ui.json',
 ];
 const _widgetbookOutputs = <String>[
-  'lib/generated/target_probe.stories.dart',
+  'lib/widgets/restage.generated/target_probe.stories.dart',
 ];
 
 const _rfwBuilders = <Builder>[
@@ -29,12 +29,12 @@ const _rfwBuilders = <Builder>[
   UserCatalogJsonBuilder(BuilderOptions.empty),
   UserFactoryBuilder(BuilderOptions.empty),
 ];
-const _a2uiBuilders = <Builder>[
+final _a2uiBuilders = <Builder>[
   UserA2uiCatalogBuilder(BuilderOptions.empty),
 ];
 const _widgetbookBuilders = <Builder>[
   WidgetbookStoryBuilder({
-    r'$lib$': ['generated/target_probe.stories.dart'],
+    r'$lib$': ['widgets/restage.generated/target_probe.stories.dart'],
   }),
 ];
 
@@ -54,7 +54,7 @@ void main() {
       outputs: _widgetbookOutputs,
     );
     final mixed = await _build(
-      builders: const [
+      builders: [
         ..._rfwBuilders,
         ..._a2uiBuilders,
         ..._widgetbookBuilders,
@@ -74,7 +74,7 @@ void main() {
   test('an A2UI-only pairing mutation changes no sibling output family',
       () async {
     final primary = await _build(
-      builders: const [
+      builders: [
         ..._rfwBuilders,
         ..._a2uiBuilders,
         ..._widgetbookBuilders,
@@ -86,7 +86,7 @@ void main() {
       ],
     );
     final secondary = await _build(
-      builders: const [
+      builders: [
         ..._rfwBuilders,
         ..._a2uiBuilders,
         ..._widgetbookBuilders,
@@ -112,7 +112,7 @@ void main() {
 
   test('redundant explicit name and library are byte-neutral for every target',
       () async {
-    const builders = [
+    final builders = [
       ..._rfwBuilders,
       ..._a2uiBuilders,
       ..._widgetbookBuilders,

@@ -293,7 +293,7 @@ import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'disc_flow.rsflow.g.dart';
+part 'restage.generated/disc_flow.restage.g.dart';
 
 @FlowSource(id: 'disc_flow', version: 1, minClient: 3$deliveryArg)
 final class DiscFlow extends RestageFlow {
@@ -340,6 +340,8 @@ Future<_BuildResult> _build(Map<String, String> sources) async {
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,
     rootPackage: 'apps_examples',
@@ -356,7 +358,7 @@ String _screenSource(String id, String className, String eventName) => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @ScreenSource(id: '$id')
 final class $className extends StatelessWidget {

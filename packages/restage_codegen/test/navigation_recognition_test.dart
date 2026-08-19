@@ -118,6 +118,121 @@ void main() {
       final navigation = (outcome as NavigationRecognised).navigation;
       expect(pushedPaywallSourceId(navigation.pushedScreen), 'details');
     });
+
+    test('resolves an omitted canonical @Paywall id through package authority',
+        () async {
+      final outcome = recogniseNavigationTrigger(
+        await _parseNavigationSlot(
+          '''
+() => Navigator.push<void>(
+  context,
+  MaterialPageRoute<void>(
+    builder: (_) => const DetailsScreen(),
+  ),
+)
+''',
+          annotation: '@Paywall()',
+        ),
+        canonicalPaywallIdFor: (declaration) =>
+            declaration.name == 'DetailsScreen' ? 'details' : null,
+      );
+
+      expect(outcome, isA<NavigationRecognised>());
+      expect(
+        (outcome as NavigationRecognised).navigation.paywallSourceId,
+        'details',
+      );
+    });
+
+    test('keeps an explicit canonical ID authoritative after a file move',
+        () async {
+      final outcome = recogniseNavigationTrigger(
+        await _parseNavigationSlot(
+          '''
+() => Navigator.push<void>(
+  context,
+  MaterialPageRoute<void>(
+    builder: (_) => const DetailsScreen(),
+  ),
+)
+''',
+          annotation: "@Paywall(id: 'published_offer')",
+        ),
+        canonicalPaywallIdFor: (declaration) =>
+            declaration.name == 'DetailsScreen' ? 'published_offer' : null,
+      );
+
+      expect(outcome, isA<NavigationRecognised>());
+      expect(
+        (outcome as NavigationRecognised).navigation.paywallSourceId,
+        'published_offer',
+      );
+    });
+
+    test('gives canonical and legacy pushed paywalls the same identity',
+        () async {
+      final legacy = recogniseNavigationTrigger(
+        await _parseNavigationSlot('''
+() => Navigator.push<void>(
+  context,
+  MaterialPageRoute<void>(
+    builder: (_) => const DetailsScreen(),
+  ),
+)
+'''),
+      );
+      final canonical = recogniseNavigationTrigger(
+        await _parseNavigationSlot(
+          '''
+() => Navigator.push<void>(
+  context,
+  MaterialPageRoute<void>(
+    builder: (_) => const DetailsScreen(),
+  ),
+)
+''',
+          annotation: '@Paywall()',
+        ),
+        canonicalPaywallIdFor: (declaration) =>
+            declaration.name == 'DetailsScreen' ? 'details' : null,
+      );
+
+      expect(legacy, isA<NavigationRecognised>());
+      expect(canonical, isA<NavigationRecognised>());
+      expect(
+        (canonical as NavigationRecognised).navigation.paywallSourceId,
+        (legacy as NavigationRecognised).navigation.paywallSourceId,
+      );
+    });
+
+    test('rejects a resolved local @Paywall lookalike', () async {
+      final outcome = recogniseNavigationTrigger(
+        await _parseNavigationSlot(
+          '''
+() => Navigator.push<void>(
+  context,
+  MaterialPageRoute<void>(
+    builder: (_) => const DetailsScreen(),
+  ),
+)
+''',
+          annotation: '@Paywall()',
+          includeRestageImport: false,
+          declarations: '''
+class Paywall {
+  const Paywall();
+}
+''',
+        ),
+        canonicalPaywallIdFor: (_) => 'poisoned',
+      );
+
+      expect(outcome, isA<NavigationFormUnsupported>());
+      expect(
+        (outcome as NavigationFormUnsupported).reason,
+        kNavigationPushedScreenUnsupportedReason,
+      );
+    });
   });
 
   group('Navigator pop-back recognition', () {
@@ -162,16 +277,23 @@ void main() {
   });
 }
 
-Future<Expression> _parseNavigationSlot(String expression) {
+Future<Expression> _parseNavigationSlot(
+  String expression, {
+  String annotation = "@PaywallSource(id: 'details')",
+  bool includeRestageImport = true,
+  String declarations = '',
+}) {
   return parseExpressionFromSourceForTest(
     '''
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/widgets.dart' as fw;
-import 'package:restage/restage.dart';
+${includeRestageImport ? "import 'package:restage/restage.dart';" : ''}
 
-@PaywallSource(id: 'details')
+$declarations
+
+$annotation
 class DetailsScreen extends StatelessWidget {
   const DetailsScreen();
   Widget build(BuildContext context) => const SizedBox();

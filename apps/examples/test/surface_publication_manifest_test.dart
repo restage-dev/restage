@@ -4,125 +4,116 @@ import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import 'package:restage_example/surfaces/categorized_screens.dart';
-import 'package:restage_example/surfaces/general_flow.dart';
-import 'package:restage_example/surfaces/message_offer_flow.dart';
 
+/// The shipped publication closure, asserted through the artifacts the app
+/// actually ships.
+///
+/// Generated surfaces are packaged as deterministic `.rsbundle` containers
+/// declared in `pubspec.yaml`, not as loose blobs beside them, so this reads
+/// the same way the runtime does: through the generated bundle locator and the
+/// asset-backed bundle provider. It deliberately touches no build metadata —
+/// the index and publication manifest are reproducible build output, while a
+/// bundle and its generated descriptor are what a released package contains.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('manifest closure matches generated publication artifacts', () async {
-    final manifest = SurfacePublicationManifestV1Codec.decodeJson(
-      await rootBundle.loadString(
-        'assets/restage/surface-publication-manifest.json',
-      ),
-    );
-    final byIdentity = <String, SurfacePublicationManifestEntryV1>{
-      for (final entry in manifest.publications)
-        '${entry.publication.surface.wireName}/${entry.publication.slug}':
-            entry,
+  const provider = AssetSurfaceScreenBundleProvider();
+
+  final screens = <String, SurfaceScreenRef<Object?>>{
+    'onboarding_welcome': onboardingWelcomeRef,
+    'message_notice': messageNoticeRef,
+    'general_status': generalStatusRef,
+  };
+
+  test('every generated screen resolves its packaged bundle closure', () async {
+    for (final entry in screens.entries) {
+      final ref = entry.value;
+      final locator = ref.provenance.bundle;
+      expect(
+        locator,
+        isNotNull,
+        reason: '${entry.key} ships bundled and must carry a bundle locator.',
+      );
+
+      final bundle = await provider.load(locator!);
+      expect(bundle.packageName, 'restage_example');
+      expect(bundle.authoredLibraryPath, locator.authoredLibraryPath);
+
+      final byPath = <String, RestageBundleEntry>{
+        for (final packaged in bundle.entries) packaged.logicalPath: packaged,
+      };
+      for (final reference in locator.entries) {
+        final packaged = byPath[reference.logicalPath];
+        expect(
+          packaged,
+          isNotNull,
+          reason: '${entry.key} references ${reference.logicalPath}, which is '
+              'absent from ${locator.assetKey}.',
+        );
+        expect(packaged!.role, reference.role);
+        expect(packaged.byteLength, reference.byteLength);
+        expect(packaged.sha256, reference.sha256);
+        expect(packaged.bytes, hasLength(reference.byteLength));
+      }
+
+      // The two roles every screen closure needs to render must be present as
+      // real bytes, not merely declared.
+      expect(byPath, contains(locator.screenBlob.logicalPath));
+      expect(byPath, contains(locator.capabilitySidecar.logicalPath));
+    }
+  });
+
+  test('generated screen identity matches its packaged provenance', () {
+    for (final entry in screens.entries) {
+      final ref = entry.value;
+      expect(ref.provenance.slug, entry.key);
+      expect(ref.sourceKind, SurfaceSourceKind.screen);
+      expect(ref.payloadKind, SurfacePayloadKind.blob);
+      expect(ref.contractFingerprint, ref.provenance.contractFingerprint);
+      expect(ref.eventContract.hash, ref.provenance.eventContractHash);
+      expect(ref.capabilities.builtInFloor,
+          ref.provenance.capabilities.builtInFloor);
+    }
+
+    expect(onboardingWelcomeRef.surface, Surface.onboarding);
+    expect(messageNoticeRef.surface, Surface.message);
+    expect(generalStatusRef.surface, Surface.general);
+  });
+
+  test('flow documents ship inside their authored library bundles', () async {
+    // Each authored library owns one bundle, so a flow's document travels in
+    // the bundle named after the library that declares it.
+    const flows = <String, String>{
+      'assets/restage/bundles/lib/surfaces/general_flow.rsbundle':
+          'assets/general/flows/general_journey.flow.json',
+      'assets/restage/bundles/lib/surfaces/message_offer_flow.rsbundle':
+          'assets/message/flows/message_offer.flow.json',
     };
 
-    final onboarding =
-        _screenEntry<OnboardingWelcomeEvent>(byIdentity, onboardingWelcomeRef);
-    final message =
-        _screenEntry<MessageNoticeEvent>(byIdentity, messageNoticeRef);
-    final general =
-        _screenEntry<GeneralStatusEvent>(byIdentity, generalStatusRef);
-    final generalFlow = _entryFor(
-      byIdentity,
-      surface: generalJourneyRef.surface,
-      slug: generalJourneyRef.id,
-    );
-    final messageFlow = _entryFor(
-      byIdentity,
-      surface: messageOfferRef.surface,
-      slug: messageOfferRef.id,
-    );
-    final paywall = manifest.publications.singleWhere(
-      (entry) =>
-          entry.publication.surface == Surface.paywall &&
-          entry.publication.sourceKind == SurfaceSourceKind.paywall,
-    );
-    expect(
-      messageFlow.artifacts.any(
-        (artifact) => artifact.id == 'paywall_${paywall.publication.slug}',
-      ),
-      isTrue,
-    );
-
-    expect(onboarding.publication.sourceKind, SurfaceSourceKind.screen);
-    expect(onboarding.publication.payloadKind, SurfacePayloadKind.blob);
-    expect(message.publication.sourceKind, SurfaceSourceKind.screen);
-    expect(message.publication.payloadKind, SurfacePayloadKind.blob);
-    expect(general.publication.sourceKind, SurfaceSourceKind.screen);
-    expect(general.publication.payloadKind, SurfacePayloadKind.blob);
-    expect(generalFlow.publication.sourceKind, SurfaceSourceKind.flowGraph);
-    expect(generalFlow.publication.payloadKind, SurfacePayloadKind.flow);
-    expect(messageFlow.publication.sourceKind, SurfaceSourceKind.flowGraph);
-    expect(messageFlow.publication.payloadKind, SurfacePayloadKind.flow);
-    expect(paywall.publication.sourceKind, SurfaceSourceKind.paywall);
-    expect(paywall.publication.payloadKind, SurfacePayloadKind.blob);
-    expect(paywall.publication.surface, Surface.paywall);
-
-    expect(onboarding.publication.contractVersion,
-        onboardingWelcomeRef.contractVersion);
-    expect(
-      onboarding.publication.eventContractHash,
-      onboardingWelcomeRef.eventContract.hash,
-    );
-    expect(
-      onboarding.publication.contractFingerprint,
-      onboardingWelcomeRef.contractFingerprint,
-    );
-    expect(
-        message.publication.contractVersion, messageNoticeRef.contractVersion);
-    expect(
-      message.publication.eventContractHash,
-      messageNoticeRef.eventContract.hash,
-    );
-    expect(
-      message.publication.contractFingerprint,
-      messageNoticeRef.contractFingerprint,
-    );
-    expect(
-      general.publication.contractVersion,
-      generalStatusRef.contractVersion,
-    );
-    expect(
-      general.publication.eventContractHash,
-      generalStatusRef.eventContract.hash,
-    );
-    expect(
-      general.publication.contractFingerprint,
-      generalStatusRef.contractFingerprint,
-    );
-
-    final files = <String, List<int>>{};
-    for (final entry in manifest.publications) {
-      for (final artifact in entry.artifacts) {
-        files[artifact.path] = await _loadAsset(artifact.path);
-      }
+    for (final entry in flows.entries) {
+      final bundle = await _loadBundle(entry.key);
+      final document = bundle.entries.singleWhere(
+        (packaged) => packaged.logicalPath == entry.value,
+        orElse: () => throw StateError(
+          '${entry.value} is absent from ${entry.key}.',
+        ),
+      );
+      expect(document.role, RestageBundleEntryRoleV1.flowDocument);
+      // The packaged bytes must be the canonical encoding the runtime expects.
+      final decoded = FlowDocumentCodec.decodeJson(
+        String.fromCharCodes(document.bytes),
+      );
+      expect(
+        String.fromCharCodes(document.bytes),
+        String.fromCharCodes(FlowDocumentCodec.encodeCanonicalJson(decoded)),
+      );
     }
-    final closures = manifest.validateArtifactClosure(files);
-    expect(closures, hasLength(manifest.publications.length));
   });
 }
 
-Future<List<int>> _loadAsset(String path) async {
-  final data = await rootBundle.load(path);
-  final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-  return bytes;
+Future<RestageBundle> _loadBundle(String assetKey) async {
+  final data = await rootBundle.load(assetKey);
+  return RestageBundleCodec.decode(
+    data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+  );
 }
-
-SurfacePublicationManifestEntryV1 _entryFor(
-  Map<String, SurfacePublicationManifestEntryV1> byIdentity, {
-  required Surface surface,
-  required String slug,
-}) =>
-    byIdentity['${surface.wireName}/$slug']!;
-
-SurfacePublicationManifestEntryV1 _screenEntry<E>(
-  Map<String, SurfacePublicationManifestEntryV1> byIdentity,
-  SurfaceScreenRef<E> screen,
-) =>
-    _entryFor(byIdentity, surface: screen.surface, slug: screen.slug);

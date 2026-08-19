@@ -225,18 +225,22 @@ void main() {
   test('a stale declared artifact fails before network I/O', () async {
     await seedProject();
     final entry = await seedGeneratedPaywall(tempDir);
-    final blob = File(
-      p.join(
-        tempDir.path,
-        entry.artifacts
-            .firstWhere(
-              (artifact) =>
-                  artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
-            )
-            .path,
+    final blobPath = entry.artifacts
+        .firstWhere(
+          (artifact) =>
+              artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
+        )
+        .path;
+    // Rebuild the bundle around different screen bytes so only the
+    // cross-layer comparison against the index and manifest can catch it.
+    await rewriteBundleEntryBytes(
+      tempDir,
+      bundlePath: GeneratedOutputLayout.generatedDirectory.bundlePathFor(
+        fixtureLibraryPath,
       ),
+      entryPath: blobPath,
+      bytes: ordinaryRfwBlob().reversed.toList(),
     );
-    await blob.writeAsBytes(const <int>[1, 2, 3]);
     var networkCalls = 0;
     final client = MockClient((_) async {
       networkCalls++;
@@ -253,7 +257,7 @@ void main() {
 
     expect(exitCode, 1);
     expect(networkCalls, 0);
-    expect(stderr.toString(), contains('stale or incomplete'));
+    expect(stderr.toString(), contains('bundle entry hash mismatch'));
   });
 
   test('the invalid marker fails before network I/O', () async {
@@ -328,6 +332,9 @@ void main() {
 
     expect(exitCode, 1);
     expect(networkCalls, 0);
-    expect(stderr.toString(), contains('No generated publication manifest'));
+    expect(
+      stderr.toString(),
+      contains('No generated publication output index'),
+    );
   });
 }

@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/discovery_api.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
@@ -441,15 +440,6 @@ class DefaultConsoleRepository implements ConsoleRepository {
   Future<Map<String, SurfaceLifecycleIdentity>> _loadManifestIdentities(
     Directory projectRoot,
   ) async {
-    final manifestFile = File(
-      p.join(projectRoot.path, surfacePublicationManifestRelativePath),
-    );
-    final invalidMarker = File(
-      p.join(projectRoot.path, surfacePublicationInvalidRelativePath),
-    );
-    if (!manifestFile.existsSync() && !invalidMarker.existsSync()) {
-      return const {};
-    }
     try {
       final loaded = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
@@ -468,6 +458,10 @@ class DefaultConsoleRepository implements ConsoleRepository {
             fromManifest: true,
           ),
       };
+    } on PublicationGenerationRequiredException {
+      // A project that has not generated any output yet simply contributes no
+      // local identities; only stale or invalid output is worth reporting.
+      return const {};
     } on PublicationManifestException catch (e) {
       throw ConsoleLoadException(e.message);
     }

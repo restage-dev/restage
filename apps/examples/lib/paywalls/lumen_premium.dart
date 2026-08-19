@@ -17,7 +17,7 @@ import 'package:restage/restage.dart';
 /// body is moderate, so the layout pins the CTA below an
 /// `Expanded(SingleChildScrollView(...))` so the buy button never falls below
 /// the fold on a small device.
-@PaywallSource(id: 'lumen_premium')
+@Paywall()
 class LumenPremiumPaywall extends StatefulWidget {
   const LumenPremiumPaywall({super.key});
 

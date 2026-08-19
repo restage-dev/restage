@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_debt.rsscreen.g.dart';
+part 'restage.generated/tally_debt.restage.g.dart';
 
 /// Onboarding — the debt-payoff setup (the "Pay off debt" fork destination).
 ///
 /// A genuinely goal-specific screen: a payoff-date hero + the avalanche-strategy
 /// explainer + an interest-saved stat. Reached only when the user picked the
 /// debt goal; [next] continues to the routing decision.
-@ScreenSource(id: 'tally_debt')
+@Screen()
 class TallyDebtScreen extends StatelessWidget {
   /// Continues to the plan recap.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const TallyDebtScreen({super.key});
 
@@ -157,7 +157,7 @@ class TallyDebtScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(next),
+                onPressed: surfaceEvent(next),
                 child: const Text(
                   'Continue',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

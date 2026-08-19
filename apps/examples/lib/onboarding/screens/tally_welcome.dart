@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_welcome.rsscreen.g.dart';
+part 'restage.generated/tally_welcome.restage.g.dart';
 
 /// Onboarding — the welcome / value-prop screen.
 ///
 /// The single CTA starts the personalization flow (the next screen is the goal
 /// fork — the answer that branches the path).
-@ScreenSource(id: 'tally_welcome')
+@Screen()
 class TallyWelcomeScreen extends StatelessWidget {
   /// Starts the goal-personalization flow.
-  static const start = OnboardingEvent<void>('start');
+  static const start = SurfaceEvent<void>('start');
 
   const TallyWelcomeScreen({super.key});
 
@@ -125,7 +125,7 @@ class TallyWelcomeScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(start),
+                onPressed: surfaceEvent(start),
                 child: const Text(
                   'Get started',
                   style: TextStyle(

@@ -16,8 +16,12 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
+import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
+import 'package:restage_codegen/src/screen_source_admission.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -170,13 +174,11 @@ final class OnboardingFlowBuilder implements Builder {
     final flowOutput = _flowOutputDir(surface.wireName);
     final extensions = <String, List<String>>{
       '$flowSource/{{name}}.dart': [
-        '$flowSource/{{name}}.rsflow.g.dart',
         '$flowOutput/{{name}}.flow.json',
       ],
     };
     if (surface == Surface.onboarding) {
       extensions['lib/general/flows/{{name}}.dart'] = const [
-        'lib/general/flows/{{name}}.rsflow.g.dart',
         'assets/general/flows/{{name}}.flow.json',
       ];
     }
@@ -227,29 +229,23 @@ final class OnboardingFlowBuilder implements Builder {
     final compiled = result.flows.single;
     final stem = p.basenameWithoutExtension(assetId.path);
     final surfaceSeg = compiled.surface.wireName;
-    await Future.wait<void>([
-      buildStep.writeAsString(
-        AssetId(
-          assetId.package,
-          '${_flowSourceDir(surfaceSeg)}/$stem.rsflow.g.dart',
-        ),
-        compiled.generatedPart,
+    await buildStep.writeAsBytes(
+      AssetId(
+        assetId.package,
+        '${_flowOutputDir(surfaceSeg)}/$stem.flow.json',
       ),
-      buildStep.writeAsBytes(
-        AssetId(
-          assetId.package,
-          '${_flowOutputDir(surfaceSeg)}/$stem.flow.json',
-        ),
-        compiled.flowDocumentBytes,
-      ),
-    ]);
+      compiled.flowDocumentBytes,
+    );
   }
 
   Future<void> _writeCanonicalFallback(
     BuildStep buildStep,
     List<NormalizedFlowSource> flows,
   ) async {
-    final compilation = await compileTrackedPackageSurfaces(buildStep);
+    final compilation = await compileTrackedPackageSurfaces(
+      buildStep,
+      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+    );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
     final selected = flows.first;
@@ -258,11 +254,8 @@ final class OnboardingFlowBuilder implements Builder {
     final canonicalPath =
         'assets/${selected.surface.wireName}/flows/${selected.id}.flow.json';
     final destinationPath = 'assets/$inputSurface/flows/$stem.flow.json';
-    final partPath = '${p.posix.dirname(buildStep.inputId.path)}/'
-        '$stem.rsflow.g.dart';
     final document = publication.artifacts[canonicalPath];
-    final generatedPart = compilation.generatedParts[partPath];
-    if (document == null || generatedPart == null) {
+    if (document == null) {
       _surfaceIssues([
         Issue(
           code: IssueCode.missingScreenDescriptor,
@@ -272,16 +265,10 @@ final class OnboardingFlowBuilder implements Builder {
         ),
       ]);
     }
-    await Future.wait<void>([
-      buildStep.writeAsBytes(
-        AssetId(buildStep.inputId.package, destinationPath),
-        document,
-      ),
-      buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, partPath),
-        generatedPart,
-      ),
-    ]);
+    await buildStep.writeAsBytes(
+      AssetId(buildStep.inputId.package, destinationPath),
+      document,
+    );
   }
 }
 
@@ -459,6 +446,7 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
   Iterable<ResolvedClassFlowScreen> resolvedScreens = const [],
   Map<NormalizedFlowIdentity, List<int>> childFlowDocuments = const {},
   Set<String>? declarationIdentities,
+  RestageOutputPlacementPlan? plan,
 }) async {
   final issues = <Issue>[];
   final sourceText = await buildStep.readAsString(assetId);
@@ -489,16 +477,13 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
   }
 
   final stem = p.basenameWithoutExtension(assetId.path);
-  final expectedPart = '$stem.rsflow.g.dart';
-  if (!_hasPartDirective(sourceText, expectedPart)) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingPartDirective,
-        message: "Missing `part '$expectedPart';` directive.",
-        location: assetId.path,
-      ),
-    );
-  }
+  issues.addAll(
+    neutralPartDirectiveIssuesForSource(
+      sourceText: sourceText,
+      libraryPath: assetId.path,
+      plan: plan ?? RestageOutputPlacementPlan.defaults,
+    ),
+  );
   final resolvedScreenList = resolvedScreens.toList(growable: false);
   final legacyScreenDescriptors = resolvedScreenList.isEmpty
       ? await _loadImportedScreenDescriptors(buildStep, assetId, issues)
@@ -776,6 +761,12 @@ Future<MethodDeclaration?> _resolvedBuildFlow(
   return null;
 }
 
+/// Resolves the screen descriptors an imported legacy screen library
+/// contributes, from the screen source itself.
+///
+/// The descriptors are read from the authored declaration rather than from a
+/// previously generated part, so this lane never depends on another builder
+/// having already written generated Dart, and never on a warm asset graph.
 Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
   BuildStep buildStep,
   AssetId flowAssetId,
@@ -791,11 +782,21 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
     final screenPath = p.normalize(p.join(p.dirname(flowAssetId.path), uri));
     if (!screenPath.startsWith(screenSourceDir)) continue;
     final stem = p.basenameWithoutExtension(screenPath);
-    final generatedId = AssetId(
-      flowAssetId.package,
-      '$screenSourceDir/$stem.rsscreen.g.dart',
-    );
-    if (!await buildStep.canRead(generatedId)) {
+    final screenAsset = AssetId(flowAssetId.package, screenPath);
+    final found = <OnboardingScreenSourceFound>[];
+    if (await buildStep.canRead(screenAsset) &&
+        await buildStep.resolver.isLibrary(screenAsset)) {
+      final admission = await inspectScreenSourceAdmission(
+        buildStep,
+        assetId: screenAsset,
+        library: await buildStep.resolver.libraryFor(
+          screenAsset,
+          allowSyntaxErrors: true,
+        ),
+      );
+      found.addAll(admission.visitorResult.sources);
+    }
+    if (found.isEmpty) {
       issues.add(
         Issue(
           code: IssueCode.missingScreenDescriptor,
@@ -806,33 +807,18 @@ Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
       );
       continue;
     }
-    final generated = await buildStep.readAsString(generatedId);
-    for (final descriptor in _parseScreenDescriptors(generated)) {
-      descriptors[descriptor.name] = descriptor;
+    for (final screen in found) {
+      final name = '${screen.className}Descriptor';
+      descriptors[name] = _ScreenDescriptor(
+        name: name,
+        id: screen.id,
+        artifactPath: '${screen.id}.rfw',
+        version: screen.version,
+        minClient: screen.minClient,
+      );
     }
   }
   return descriptors;
-}
-
-List<_ScreenDescriptor> _parseScreenDescriptors(String source) {
-  final pattern = RegExp(
-    r'abstract final class\s+(\w+Descriptor)[\s\S]*?'
-    r'(?:OnboardingScreenRef|SurfaceScreenRef)\s*\([\s\S]*?'
-    r"id:\s*'([^']+)'[\s\S]*?"
-    r"artifactPath:\s*'([^']+)'[\s\S]*?"
-    r'version:\s*(\d+)[\s\S]*?'
-    r'minClient:\s*(\d+)',
-  );
-  return [
-    for (final match in pattern.allMatches(source))
-      _ScreenDescriptor(
-        name: match.group(1)!,
-        id: match.group(2)!,
-        artifactPath: match.group(3)!,
-        version: int.parse(match.group(4)!),
-        minClient: int.parse(match.group(5)!),
-      ),
-  ];
 }
 
 Future<_LoweredFlow?> _lowerFlow(
@@ -4794,13 +4780,6 @@ String _actionParameterName(String fieldName, Set<String> usedNames) {
     suffix += 1;
   }
   return candidate;
-}
-
-bool _hasPartDirective(String source, String expectedPart) {
-  final pattern = RegExp(
-    "part\\s+['\"]${RegExp.escape(expectedPart)}['\"]\\s*;",
-  );
-  return pattern.hasMatch(source);
 }
 
 bool _hasTopLevelDeclaration(LibraryElement library, String name) {

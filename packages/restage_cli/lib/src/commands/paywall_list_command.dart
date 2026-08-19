@@ -62,7 +62,9 @@ class PaywallListCommand extends Command<int> {
   String get name => 'list';
 
   @override
-  String get description => 'List paywalls in the current project and app.';
+  String get description =>
+      'Compatibility view of paywalls; use `surface list --type paywall` '
+      'for the generic surface view.';
 
   @override
   Future<int> run() async {

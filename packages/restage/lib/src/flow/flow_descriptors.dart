@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../surface_screen/surface_screen_runtime_provenance.dart';
+
 /// Base type for valid flow transition targets.
 sealed class FlowTargetRef {
   const FlowTargetRef();
@@ -125,18 +127,38 @@ final class SurfaceScreenEventContract<E> {
 /// A generated reference for an independently published ordinary screen.
 ///
 /// It is deliberately generic in its generated event type and contains no
-/// authoritative artifact path.
+/// authoritative artifact path. Its identity and contract come from the
+/// [provenance] it carries, so a reference cannot exist without the contract
+/// that describes it, and the two cannot drift apart.
 @immutable
 final class SurfaceScreenRef<E> extends FlowScreenRef {
   /// Creates a generated standalone screen reference.
-  const SurfaceScreenRef.generated({
-    required super.slug,
-    required super.contractVersion,
-    required this.capabilities,
-    required this.surface,
-    required this.contractFingerprint,
+  ///
+  /// Everything but the typed event decoder is taken from [provenance]. The
+  /// decoder is generated separately and carries the hash the build computed
+  /// for the schema, so requiring the two hashes to agree catches a decoder
+  /// generated against a different version of the schema.
+  SurfaceScreenRef.generated({
+    required this.provenance,
     required this.eventContract,
-  });
+  })  : surface = provenance.surface,
+        capabilities = provenance.capabilities,
+        contractFingerprint = provenance.contractFingerprint,
+        super(
+          slug: provenance.slug,
+          contractVersion: provenance.contractVersion,
+        ) {
+    if (eventContract.hash != provenance.eventContractHash) {
+      throw ArgumentError.value(
+        eventContract.hash,
+        'eventContract',
+        'does not match the event schema in this screen provenance',
+      );
+    }
+  }
+
+  /// The compiled-in contract this reference resolves against.
+  final SurfaceScreenRuntimeProvenance provenance;
 
   @override
   final CapabilityManifest capabilities;
@@ -444,7 +466,7 @@ final class FlowActionBinding<A, R> {
 
 /// Registry implemented by generated action collections.
 ///
-/// Passing a registry to `RestageOnboarding` is optional for flows with no host
+/// Passing a registry to `RestageSurfaceFlow` is optional for flows with no host
 /// actions and required for flows whose document declares action contracts.
 abstract interface class FlowActionRegistry {
   /// Installed bindings keyed by authored action id.
@@ -551,7 +573,7 @@ ScreenNodeDef screen(FlowScreenRef ref) {
 /// Creates a flow-screen reference for a Dart-authored paywall.
 ///
 /// The code generator emits a flow-screen adapter artifact for
-/// `@PaywallSource(id: ...)` paywalls at
+/// canonical `@Paywall(...)` sources at
 /// `assets/paywalls/screens/paywall_<id>.rfw`.
 /// Use this reference in `buildFlow()` when the paywall should stay inside the
 /// flow's back stack instead of being opened by host navigation after

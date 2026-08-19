@@ -274,8 +274,7 @@ const _source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'authoring.rsscreen.g.dart';
-part 'authoring.rsflow.g.dart';
+part 'restage.generated/authoring.restage.g.dart';
 
 @Screen(id: 'welcome')
 final class Welcome extends StatelessWidget {

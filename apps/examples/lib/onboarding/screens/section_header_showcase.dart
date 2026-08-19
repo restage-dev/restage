@@ -3,20 +3,20 @@ import 'package:restage/restage.dart';
 
 import '../../widgets/section_header.dart';
 
-part 'section_header_showcase.rsscreen.g.dart';
+part 'restage.generated/section_header_showcase.restage.g.dart';
 
 /// A general screen that showcases a record-backed section header.
 ///
 /// The surface is authored as ordinary Flutter and compiled to a committed
 /// screen artifact. Both record-shaped properties are reconstructed by the
 /// generated widget factory when that artifact renders.
-@ScreenSource(id: 'section_header_showcase')
+@Screen()
 class SectionHeaderShowcaseScreen extends StatelessWidget {
   /// Continues from the showcased section.
-  static const act = OnboardingEvent<void>('act');
+  static const act = SurfaceEvent<void>('act');
 
   /// Dismisses the surface (host-handled custom event).
-  static const dismiss = OnboardingEvent<void>('dismiss');
+  static const dismiss = SurfaceEvent<void>('dismiss');
 
   /// Const constructor.
   const SectionHeaderShowcaseScreen({super.key});
@@ -34,7 +34,7 @@ class SectionHeaderShowcaseScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed: onboardingEvent(dismiss),
+                    onPressed: surfaceEvent(dismiss),
                     icon: Icon(
                       Icons.close_rounded,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -75,7 +75,7 @@ class SectionHeaderShowcaseScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(act),
+                onPressed: surfaceEvent(act),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

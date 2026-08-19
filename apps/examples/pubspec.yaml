@@ -60,15 +60,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/fonts/fallback/Roboto_LICENSE.txt
+    # Hand-authored demo blob, not generated output.
     - assets/paywalls/
-    - assets/paywalls/screens/
-    - assets/onboarding/screens/
-    - assets/onboarding/flows/
-    - assets/general/screens/
-    - assets/general/flows/
-    - assets/message/screens/
-    - assets/message/flows/
-    - assets/restage/
+    # Generated surfaces ship as deterministic `.rsbundle` containers rather
+    # than loose blobs. A Flutter directory entry is not recursive, so each
+    # bundle directory is listed; the tree mirrors the authored `lib/` layout.
+    - assets/restage/bundles/lib/onboarding/flows/
+    - assets/restage/bundles/lib/onboarding/screens/
+    - assets/restage/bundles/lib/paywalls/
+    - assets/restage/bundles/lib/surfaces/
   fonts:
     - family: Roboto
       fonts:

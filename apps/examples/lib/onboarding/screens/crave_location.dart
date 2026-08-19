@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'crave_location.rsscreen.g.dart';
+part 'restage.generated/crave_location.restage.g.dart';
 
 /// Permission-priming — the location pre-permission primer (the host-action
 /// gate).
@@ -16,14 +16,14 @@ part 'crave_location.rsscreen.g.dart';
 ///   leaves the user here — the choice below is always available.
 /// - **Not now** fires [skip], a host-handled custom event (not a graph
 ///   transition): the host carries the user into the app without the grant.
-@ScreenSource(id: 'crave_location')
+@Screen()
 class CraveLocationScreen extends StatelessWidget {
   /// Requests the OS location permission via the host action, then advances on
   /// a granted result.
-  static const allow = OnboardingEvent<void>('allow');
+  static const allow = SurfaceEvent<void>('allow');
 
   /// Skips the permission; the host carries on without it.
-  static const skip = OnboardingEvent<void>('skip');
+  static const skip = SurfaceEvent<void>('skip');
 
   const CraveLocationScreen({super.key});
 
@@ -49,7 +49,7 @@ class CraveLocationScreen extends StatelessWidget {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: onboardingEvent(skip),
+                    onPressed: surfaceEvent(skip),
                     child: const Text(
                       'Not now',
                       style: TextStyle(
@@ -115,7 +115,7 @@ class CraveLocationScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: onboardingEvent(allow),
+                      onPressed: surfaceEvent(allow),
                       child: const Text(
                         'Use current location',
                         style: TextStyle(

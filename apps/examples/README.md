@@ -33,20 +33,21 @@ appear in the gallery's first "Starters" section.
 
 | Starter | File(s) | Shows |
 |---|---|---|
-| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | `@PaywallSource` with a two-plan tap-to-select, `paywallPriceFor(slot:)`, and `paywallPurchase(slot:)` — the selection + money path lower into the delivered blob. |
+| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | `@Paywall` with a two-plan tap-to-select, `paywallPriceFor(slot:)`, and `paywallPurchase(slot:)` — the selection + money path lower into the delivered blob. |
 | **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that navigates, `.write`s the captured answer, and routes the ending on it with a `decision()` — answer-driven branching. |
 | **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | The smallest flow — one screen (a notice / "any screen you render"): the CTA completes, the × is a host-handled `dismiss`. |
 | **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | A `@RestageWidget` (`StatBadge`) whose pure-composition `build` is **inlined into the blob** by codegen, so your own widget renders through RFW inside a delivered surface — no runtime factory. |
 
-> **Where files live.** A paywall must be in `lib/paywalls/`, an onboarding
-> screen in `lib/onboarding/screens/`, and a flow in `lib/onboarding/flows/`.
-> The build-time codegen watches exactly those directories, and a screen's `id`
-> must match its file name. The starters follow that convention (they aren't in
-> a separate folder); the gallery's "Starters" section is what groups them.
+> **Where files live.** The gallery keeps paywall, screen, and flow sources in
+> readable `lib/paywalls/`, `lib/onboarding/screens/`, and `lib/onboarding/flows/`
+> folders. Those are source-layout conventions, not publication selectors. The
+> annotations declare source semantics and category; generated metadata records
+> the resolved identity and publication artifact closure. The gallery's
+> "Starters" section is what groups these files.
 
 ### Paywalls (`lib/paywalls/`)
 
-Each paywall is a `@PaywallSource`-annotated `StatefulWidget` written in
+Each paywall is a `@Paywall`-annotated `StatefulWidget` written in
 ordinary Flutter. All six are fixed-brand surfaces (deliberate literal-color
 palettes) and present a real plan *choice*: tap a plan and its selection
 indicator updates (in that surface's own visual language) while the purchase
@@ -65,13 +66,13 @@ host code.
 | `lumen_premium` (Lumen) | Calm meditation selector | Tap-to-select rows with a moving radio; also the subscription climax of the meditation onboarding flow |
 
 `fluent_pro` additionally demonstrates **screen navigation**: its "VIEW ALL
-PLANS" control is a real `Navigator.push` to a second `@PaywallSource`
+PLANS" control is a real `Navigator.push` to a second `@Paywall`
 (`fluent_pro_choose_plan`), which the build-time codegen lowers to a 2-screen
 flow (entry → choose-a-plan), hosted transparently by `RestagePaywall`.
 
 Each paywall appears in the gallery twice: a local widget mount (the authoring
 preview, with placeholder prices) and the delivered render blob
-(`RestagePaywall(id:)` decoding the bundled `.rfw`, with live prices from the
+(`RestagePaywall(id:)` decoding the bundled generated artifact, with live prices from the
 example product config in `lib/stub_products.dart`). On the delivered tiles the
 demo host wires `onEvent` to a small SnackBar so every tap has a visible
 result: purchases, and the Restore / Terms / Privacy actions that fire host
@@ -83,6 +84,10 @@ The gallery also includes a minimal `hello` blob (rendered straight through
 ### Engagement surfaces (`lib/onboarding/`)
 
 The same pipeline drives multi-screen engagement surfaces, not just paywalls.
+Flow sources use `@FlowGraph(surface: Surface.<category>)`, and codegen emits a
+typed `SurfaceFlowRef<R>` for the generated flow. The runtime mounts that ref
+with `RestageSurfaceFlow<R>`; `RestageOnboarding` is the onboarding-only
+compatibility facade.
 The gallery presents four:
 
 - **Meditation onboarding → paywall** (`flows/lumen_onboarding.dart`), a calm
@@ -115,10 +120,9 @@ Standalone SDK-mechanic demos, curated into the gallery's "Capabilities" and
   a dev how-to: one flow shown at the five chrome-customization levels (Default
   / Theme / Slots / Layout / DIY).
 
-A handful of additional `lib/main_*.dart` entrypoints are dev-only smokes for
-specific capabilities (the sheet-lowering paths, the selection controls, the
-server-driven onboarding path) and are runnable with `flutter run -t` but not
-listed in the gallery.
+Three further `lib/main_*.dart` entrypoints are runnable with `flutter run -t`
+but are not listed in the gallery: `main_plan_board_demo.dart`,
+`main_section_header_demo.dart`, and `main_render_bundle.dart`.
 
 ### Custom widgets (`lib/widgets/`)
 
@@ -131,58 +135,58 @@ above.
 
 ## The author → build → preview loop
 
-A paywall is a `StatefulWidget` annotated `@PaywallSource`, written in ordinary
+A paywall is a `StatefulWidget` annotated `@Paywall`, written in ordinary
 Flutter. The build-time codegen lowers it:
 
 ```
-lib/paywalls/<name>.dart  ──(dart run build_runner build)──▶  assets/paywalls/<name>.rfwtxt
-                                                              assets/paywalls/<name>.rfw
+lib/paywalls/<name>.dart  ──(dart run build_runner build)──▶  lib/paywalls/restage.generated/<name>.restage.g.dart
+                                                              assets/restage/bundles/lib/paywalls/<name>.rsbundle
 ```
 
-The `.rfwtxt` is the human-readable codegen output; the `.rfw` is the binary
-blob the runtime decodes. Both are committed. For a fast loop on an
-already-authored paywall, recompile just `.rfwtxt → .rfw`:
+The generated part carries the typed descriptor; the `.rsbundle` carries the
+exact delivery bytes the runtime decodes, so one surface is one addressable
+artifact rather than a set of loose blobs. The manifest at
+`lib/generated/restage.publication.json` records the exact closure for each
+surface. Both are build outputs; the bundles are committed here so the gallery
+runs from a fresh clone, and the manifest is not.
+
+`assets/paywalls/hello.rfw` is the one exception: a hand-authored blob kept to
+show what the format looks like, not something the build produces.
+
+Publish a surface and iterate over the air:
 
 ```sh
-dart run tool/build_paywall.dart            # one-shot compile of every .rfwtxt
-dart run tool/build_paywall.dart --watch    # rebuild on save
+restage surface publish fluent_pro
 ```
 
-Preview a compiled paywall live in the desktop host:
-
-```sh
-restage preview assets/paywalls/fluent_pro.rfw
-```
-
-And when it looks right, publish it and iterate over the air:
-
-```sh
-restage paywall publish fluent_pro
-```
-
-Flutter doesn't hot-reload bundled assets; after a `.rfw` rebuild, hot-restart
-the running app (press `R` in `flutter run`).
+Flutter doesn't hot-reload bundled assets; after a rebuild, hot-restart the
+running app (press `R` in `flutter run`).
 
 ### Onboarding & messages
 
-Flows are authored the same way, under `lib/onboarding/`:
+Flows are authored with `@FlowGraph(surface: ...)`. The gallery keeps them under
+`lib/onboarding/` as a readable source layout:
 
 ```
-lib/onboarding/screens/<screen>.dart  ──▶  <screen>.rsscreen.g.dart + assets/onboarding/screens/<screen>.rfw
-lib/onboarding/flows/<flow>.dart      ──▶  <flow>.rsflow.g.dart    + assets/onboarding/flows/<flow>.flow.json
+lib/onboarding/screens/<screen>.dart  ──▶  screens/restage.generated/<screen>.restage.g.dart
+lib/onboarding/flows/<flow>.dart      ──▶  flows/restage.generated/<flow>.restage.g.dart
 ```
+
+The generated artifact paths are outputs of the declared surface category. The
+fixed manifest at `lib/generated/restage.publication.json` is the
+publication authority, including the flow document's screen-artifact closure.
 
 A message is just the smallest flow (one screen, one terminal state), so it
 lives here too (see `flows/apex_drop.dart`).
 
-> **Build note:** the generated flow descriptor (`<flow>.rsflow.g.dart`) is not
-> yet auto-formatted by the codegen, so after a `build_runner` regen, run
-> `dart format` over it before committing. (The generated screen descriptors are
-> already format-clean; this is a known gap on the flow descriptor only.)
+> **Build note:** the generated flow descriptor is not yet auto-formatted by the
+> codegen, so after a `build_runner` regen, run `dart format` over it before
+> committing. (The generated screen descriptors are already format-clean; this is
+> a known gap on the flow descriptor only.)
 
 ## Authoring an interactive paywall
 
-A `@PaywallSource` is a `StatefulWidget`, so selection state lives directly in
+A `@Paywall` is a `StatefulWidget`, so selection state lives directly in
 the widget's `State` as a plain field: a `bool` for a two-plan choice, an `int`
 for a tier strip. Tapping a plan calls `setState` to update that field; the
 selection indicator and which plan the purchase CTA buys are both driven by

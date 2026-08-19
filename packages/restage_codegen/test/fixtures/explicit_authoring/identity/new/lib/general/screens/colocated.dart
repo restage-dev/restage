@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'colocated.rsscreen.g.dart';
+part 'restage.generated/colocated.restage.g.dart';
 
 @Screen(id: 'first_notice', surface: Surface.general)
 final class FirstColocatedNotice extends StatelessWidget {

@@ -124,24 +124,81 @@ Future<void> seedCapabilitySidecar(
   );
 }
 
-/// Locate the repo's real `first_run` onboarding fixture directory
-/// (`apps/examples/assets/onboarding`), walking up from the current
-/// working directory (the package dir under `dart test`).
-Directory locateOnboardingFixtures() {
+/// The checkout this test is running inside, found by walking up from the
+/// current working directory (the package dir under `dart test`) to the
+/// nearest `.git`.
+///
+/// The walk STOPS there, and that bound is the point of this function. An
+/// earlier version searched for a fixture directory instead and simply kept
+/// walking when it was missing — so in a git worktree it climbed out of the
+/// checkout entirely and found the fixture in whatever other checkout happened
+/// to sit above it. Tests then passed locally against a tree that was not the
+/// tree under test, and failed in CI, which has only one checkout and no
+/// neighbour to borrow from. A fixture this can no longer reach must fail
+/// loudly rather than resolve somewhere else.
+///
+/// `.git` is a directory in a clone and a file in a worktree; both count.
+Directory locateCheckoutRoot() {
   var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final candidate = Directory(
-      p.join(dir.path, 'apps', 'examples', 'assets', 'onboarding'),
-    );
-    if (candidate.existsSync()) return candidate;
+  while (true) {
+    final marker = p.join(dir.path, '.git');
+    if (Directory(marker).existsSync() || File(marker).existsSync()) return dir;
     final parent = dir.parent;
-    if (parent.path == dir.path) break;
+    if (parent.path == dir.path) {
+      throw StateError(
+        'Could not locate the checkout root (no .git) above '
+        '${Directory.current.path}',
+      );
+    }
     dir = parent;
   }
-  throw StateError(
-    'Could not locate apps/examples/assets/onboarding from '
-    '${Directory.current.path}',
+}
+
+/// Directory holding the example app's committed surface bundles, inside THIS
+/// checkout.
+Directory locateExampleBundles() {
+  final root = locateCheckoutRoot();
+  final bundles = Directory(
+    p.join(
+      root.path,
+      'apps',
+      'examples',
+      'assets',
+      'restage',
+      'bundles',
+      'lib',
+    ),
   );
+  if (!bundles.existsSync()) {
+    throw StateError(
+      'Example bundles are missing from this checkout: ${bundles.path}',
+    );
+  }
+  return bundles;
+}
+
+/// Write every entry of the bundle at [bundlePath] into [root], each at its
+/// own logical delivery path, and return them by logical path.
+///
+/// The bundle is the tracked artifact, so its bytes are the same bytes the
+/// generator emitted — which is what makes the content hashes inside a flow
+/// document agree with the screen blobs seeded beside it.
+Future<Map<String, Uint8List>> _unpackBundle(
+  Directory root,
+  String bundlePath,
+) async {
+  final bundle = RestageBundleCodec.decode(
+    await File(bundlePath).readAsBytes(),
+  );
+  final written = <String, Uint8List>{};
+  for (final entry in bundle.entries) {
+    final destination = File(p.join(root.path, entry.logicalPath));
+    await destination.parent.create(recursive: true);
+    final bytes = entry.bytes;
+    await destination.writeAsBytes(bytes);
+    written[entry.logicalPath] = bytes;
+  }
+  return written;
 }
 
 /// Copy the real `first_run` flow document and its referenced screen blobs
@@ -153,100 +210,54 @@ Directory locateOnboardingFixtures() {
 /// faithful payload assembles without a stale-blob error. Each screen's
 /// capability sidecar is copied alongside its blob, since the flow assembler
 /// reads them to union the flow's required libraries.
+///
+/// Read from the tracked `.rsbundle`s rather than a loose asset tree: the
+/// bundles ARE the shipped artifact, and a loose mirror of them is a second
+/// copy that can rot or, as happened here, be deleted while the tests that
+/// depend on it keep passing against another checkout.
 Future<String> seedSurfaceFlow(
   Directory dir, {
   String type = 'onboarding',
   String slug = 'first_run',
 }) async {
-  final src = locateOnboardingFixtures();
+  final bundles = locateExampleBundles();
   final flowsDst = Directory(p.join(dir.path, 'assets', type, 'flows'));
   final screensDst = Directory(p.join(dir.path, 'assets', type, 'screens'));
   await flowsDst.create(recursive: true);
   await screensDst.create(recursive: true);
 
-  final flowJson = await File(
-    p.join(src.path, 'flows', 'first_run.flow.json'),
-  ).readAsString();
+  final flowEntries = await _unpackBundle(
+    dir,
+    p.join(bundles.path, type, 'flows', 'first_run.rsbundle'),
+  );
+  final flowJson = utf8.decode(
+    flowEntries['assets/$type/flows/first_run.flow.json']!,
+  );
   final flowPath = p.join(flowsDst.path, '$slug.flow.json');
   await File(flowPath).writeAsString(flowJson);
 
   final doc = FlowDocumentCodec.decodeJson(flowJson);
   for (final artifact in doc.screenArtifacts.values) {
-    await File(
-      p.join(src.path, 'screens', artifact.path),
-    ).copy(p.join(screensDst.path, artifact.path));
-    final sidecarName =
-        '${p.basenameWithoutExtension(artifact.path)}.capability.json';
-    await File(
-      p.join(src.path, 'screens', sidecarName),
-    ).copy(p.join(screensDst.path, sidecarName));
+    await _unpackBundle(
+      dir,
+      p.join(
+        bundles.path,
+        type,
+        'screens',
+        '${p.basenameWithoutExtension(artifact.path)}.rsbundle',
+      ),
+    );
   }
   return flowPath;
 }
 
-/// Copy the real `fluent_pro` navigation-lowered paywall flow into [dir]
-/// under the codegen on-disk layout — the flow document at
-/// `assets/paywalls/<slug>.flow.json` and its screen blobs (+ capability
-/// sidecars) at `assets/paywalls/screens/`.
-///
-/// Unlike [seedSurfaceFlow], a paywall flow's screens do NOT sit in a sibling
-/// `screens/` directory next to the flow document. They use the canonical
-/// paywall screens directory, so a paywall flow publish must point the
-/// assembler there rather than at the default sibling.
-///
-/// Returns the resolved flow JSON path. When [dropSidecarFor] is a screen
-/// artifact path, that screen's `.capability.json` sidecar is NOT copied, so
-/// the flow assembler fails closed (the missing-sidecar case).
-Future<String> seedPaywallFlow(
-  Directory dir, {
-  String slug = 'fluent_pro',
-  String? dropSidecarFor,
-}) async {
-  final assetsRoot = locateOnboardingFixtures().parent;
-  final paywallsDst = Directory(p.join(dir.path, 'assets', 'paywalls'));
-  final screensDst = Directory(p.join(dir.path, kPaywallScreensAssetDir));
-  await paywallsDst.create(recursive: true);
-  await screensDst.create(recursive: true);
-
-  final flowJson = await File(
-    p.join(assetsRoot.path, 'paywalls', '$slug.flow.json'),
-  ).readAsString();
-  final flowPath = p.join(paywallsDst.path, '$slug.flow.json');
-  await File(flowPath).writeAsString(flowJson);
-
-  final doc = FlowDocumentCodec.decodeJson(flowJson);
-  for (final artifact in doc.screenArtifacts.values) {
-    await File(
-      p.join(assetsRoot.path, 'paywalls', 'screens', artifact.path),
-    ).copy(p.join(screensDst.path, artifact.path));
-    if (artifact.path == dropSidecarFor) continue;
-    final sidecarName =
-        '${p.basenameWithoutExtension(artifact.path)}.capability.json';
-    await File(
-      p.join(assetsRoot.path, 'paywalls', 'screens', sidecarName),
-    ).copy(p.join(screensDst.path, sidecarName));
-  }
-  return flowPath;
-}
-
-/// Copy a real blob-shaped paywall (a single `.rfw` plus its capability
-/// sidecar) into [dir] at `assets/paywalls/<slug>.rfw`. A blob paywall has no
-/// `<slug>.flow.json`, so a publish resolves it through the single-blob
-/// assembler.
-Future<void> seedPaywallBlob(
-  Directory dir, {
-  String slug = 'ascend_premium',
-}) async {
-  final assetsRoot = locateOnboardingFixtures().parent;
-  final paywallsDst = Directory(p.join(dir.path, 'assets', 'paywalls'));
-  await paywallsDst.create(recursive: true);
-  await File(
-    p.join(assetsRoot.path, 'paywalls', '$slug.rfw'),
-  ).copy(p.join(paywallsDst.path, '$slug.rfw'));
-  await File(
-    p.join(assetsRoot.path, 'paywalls', '$slug.capability.json'),
-  ).copy(p.join(paywallsDst.path, '$slug.capability.json'));
-}
+// seedPaywallFlow and seedPaywallBlob lived here and are gone. Both read the
+// same deleted loose asset tree as the old seed above, both had no callers,
+// and neither could have run — so they were not dormant helpers waiting to be
+// useful, they were two more ways to resolve a fixture outside this checkout.
+// The paywall bundles they wanted are tracked
+// (apps/examples/assets/restage/bundles/lib/paywalls/), so rebuilding either
+// on top of _unpackBundle is small if a test ever needs one.
 
 /// Build an [http.Client] that returns the same response for every
 /// request, computed by [handler]. Useful when the test only cares

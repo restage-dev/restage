@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'declined.rsscreen.g.dart';
+part 'restage.generated/declined.restage.g.dart';
 
 @Screen()
 final class DeclinedScreen extends StatelessWidget {

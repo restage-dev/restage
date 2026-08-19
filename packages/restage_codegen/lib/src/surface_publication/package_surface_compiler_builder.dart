@@ -18,10 +18,12 @@ import 'package:restage_codegen/src/paywall_flow_builder.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
-import 'package:restage_codegen/src/surface_publication/dynamic_output_owner.dart';
+import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
+import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
@@ -52,20 +54,32 @@ final class TrackedPackageSurfaceCompilation {
 
 /// Scans only tracked build assets and invokes the package compiler's resolved
 /// frontends and strict artifact adapters.
+///
+/// [plan] is the calling builder's own resolved placement. Build Runner has
+/// no cross-builder options channel, so every placement-affected Restage
+/// builder key accepts the same options with the same defaults; two callers
+/// resolving different placement for one package is a configuration error and
+/// is reported as one.
 Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
-  BuildStep buildStep,
-) async {
+  BuildStep buildStep, {
+  RestageOutputPlacementPlan? plan,
+}) async {
   final cache = await buildStep.fetchResource(_trackedCompilationResource);
-  return cache.get(buildStep);
+  return cache.get(
+    buildStep,
+    plan ?? RestageOutputPlacementPlan.defaults,
+  );
 }
 
 Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   BuildStep buildStep,
+  RestageOutputPlacementPlan plan,
 ) async {
   final issues = <Issue>[];
-  // C2a owns roster discovery; this lane consumes that exact production seam.
+  // The roster builder owns discovery; this lane consumes that exact production
+  // seam.
   // ignore: invalid_use_of_visible_for_testing_member
-  final roster = await collectRestageSourceRoster(buildStep);
+  final roster = await collectRestageSourceRoster(buildStep, plan: plan);
   issues.addAll(roster.issues);
   if (issues.isNotEmpty) return _invalidCompilation(issues);
 
@@ -151,6 +165,17 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         );
         final surface = screen.input.surface;
         if (surface == null) continue;
+        // Hashed once here, from the exact same bytes that become this
+        // library's bundle entries two lines above — never a second,
+        // independent serialization of the same content. Only needed when
+        // this package resolves bundled_runtime: true; the emitter fails
+        // loudly rather than silently omitting the locator in that case.
+        final bundleEntryMetadata = ResolvedScreenBundleEntryMetadata(
+          blobSha256: CapabilitySidecar.hashBlob(screen.blob),
+          blobByteLength: screen.blob.length,
+          sidecarSha256: CapabilitySidecar.hashBlob(capabilitySidecar),
+          sidecarByteLength: capabilitySidecar.length,
+        );
         final contract = inspectStandaloneScreenContract(
           ResolvedStandaloneScreenContractInput(
             assetId: assetId,
@@ -159,6 +184,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             slug: screen.input.id,
             contractVersion: screen.input.version,
             capabilities: capabilities,
+            plan: plan,
+            bundleEntryMetadata: bundleEntryMetadata,
           ),
         );
         issues.addAll(contract.issues);
@@ -283,6 +310,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     buildStep,
     jobs: canonicalPaywallJobs,
     rendered: rendered,
+    sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     issues: issues,
   );
   final classFlowScreens = <ResolvedClassFlowScreen>[];
@@ -356,10 +384,25 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues: issues,
       );
       if (bytes == null) continue;
+      // The flow document is borrowed from the per-surface builder's exact
+      // emitted bytes, so those never move. Only the generated reference is
+      // recompiled here, because a library's one generated part has a single
+      // writer and this is the channel that reaches it.
+      final recompiled = await compileResolvedClassFlows(
+        buildStep,
+        library: job.library,
+        assetId: job.assetId,
+        legacySurface: flow.surface,
+        includeCanonical: false,
+        declarationIdentities: {flow.declarationIdentity},
+      );
       precompiledFlows.add(
         CompiledFlowArtifact(
           declaration: flow.declaration,
           flowDocumentBytes: bytes,
+          generatedPart: recompiled.flows.length == 1
+              ? recompiled.flows.single.generatedPart
+              : null,
         ),
       );
     }
@@ -400,6 +443,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       artifacts: aggregateOwnedManifestFiles,
       borrowedArtifacts: bundle.borrowedManifestFiles,
       ownedOutputs: ownedOutputs,
+      artifactLibraryPaths: bundle.artifactLibraryPaths,
     ),
     generatedParts: bundle.generatedParts,
     issues: const [],
@@ -412,14 +456,20 @@ final Resource<_TrackedCompilationCache> _trackedCompilationResource =
 final class _TrackedCompilationCache {
   final Map<String, Future<TrackedPackageSurfaceCompilation>> _byPackage = {};
 
-  Future<TrackedPackageSurfaceCompilation> get(BuildStep buildStep) =>
-      _byPackage.putIfAbsent(
-        buildStep.inputId.package,
-        () => _compileTrackedPackageSurfaces(buildStep),
-      );
+  Future<TrackedPackageSurfaceCompilation> get(
+    BuildStep buildStep,
+    RestageOutputPlacementPlan plan,
+  ) async {
+    await registerRestagePlacementSignature(buildStep, plan);
+    return _byPackage.putIfAbsent(
+      buildStep.inputId.package,
+      () => _compileTrackedPackageSurfaces(buildStep, plan),
+    );
+  }
 }
 
-/// Fixed aggregate builder consumed by C2a's bundle/output owner.
+/// Fixed aggregate builder consumed by the outputs builder, which owns bundle
+/// and artifact placement.
 @internal
 final class PackageSurfaceCompilerBuilder implements Builder {
   const PackageSurfaceCompilerBuilder(this.options);
@@ -433,7 +483,10 @@ final class PackageSurfaceCompilerBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
-    final compilation = await compileTrackedPackageSurfaces(buildStep);
+    final compilation = await compileTrackedPackageSurfaces(
+      buildStep,
+      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+    );
     for (final issue in compilation.issues) {
       log.severe(issue.toLogString());
     }
@@ -744,8 +797,21 @@ Future<void> _compileCanonicalPaywalls(
   BuildStep buildStep, {
   required List<_CanonicalPaywallJob> jobs,
   required List<CompiledSurfaceArtifact> rendered,
+  required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
   required List<Issue> issues,
 }) async {
+  String? canonicalPaywallIdFor(ClassElement declaration) {
+    final identity =
+        '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
+    final source = sourcesByDeclarationIdentity[identity];
+    if (source == null ||
+        source.kind != RestageRosterSourceKind.paywall ||
+        !source.isCanonical) {
+      return null;
+    }
+    return source.effectiveId;
+  }
+
   final compiledById = <String, _CanonicalCompiledPaywall>{};
   for (final job in jobs) {
     final compilation = await compileResolvedPaywalls(
@@ -753,6 +819,7 @@ Future<void> _compileCanonicalPaywalls(
       library: job.library,
       assetId: job.assetId,
       sources: job.sources,
+      canonicalPaywallIdFor: canonicalPaywallIdFor,
     );
     issues.addAll(compilation.issues);
     for (final compiled in compilation.paywalls) {

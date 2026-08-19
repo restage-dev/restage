@@ -18,6 +18,75 @@ import '../helpers.dart';
 
 void main() {
   group('package surface compiler', () {
+    test('recognizes only the exact roster-owned generated part', () async {
+      const sourceId = 'apps_examples|lib/surfaces/categorized_screens.dart';
+      const source = '''
+part 'restage.generated/categorized_screens.restage.g.dart';
+part 'restage.generated/lookalike.restage.g.dart';
+
+final authoredCollisionRef = Object();
+''';
+      const ownGeneratedPart = '''
+part of '../categorized_screens.dart';
+
+final ownGeneratedRef = Object();
+''';
+      const foreignGeneratedPart = '''
+part of '../categorized_screens.dart';
+
+final foreignGeneratedRef = Object();
+''';
+
+      await resolveSources(
+        {
+          sourceId: source,
+          'apps_examples|lib/surfaces/restage.generated/categorized_screens.restage.g.dart':
+              ownGeneratedPart,
+          'apps_examples|lib/surfaces/restage.generated/lookalike.restage.g.dart':
+              foreignGeneratedPart,
+        },
+        (resolver) async {
+          final library = await resolver.libraryFor(AssetId.parse(sourceId));
+          final sourceDeclaration = RestageSourceDeclaration.frozen(
+            kind: RestageRosterSourceKind.screen,
+            libraryIdentity: library.identifier,
+            libraryPath: 'lib/surfaces/categorized_screens.dart',
+            declarationIdentity: '${library.identifier}#categorizedScreens',
+            sourcePath: 'lib/surfaces/categorized_screens.dart',
+            explicitId: 'categorized_screens',
+            span: const RestageSourceSpan(
+              path: 'lib/surfaces/categorized_screens.dart',
+              startLine: 1,
+              startColumn: 1,
+              endLine: 1,
+              endColumn: 1,
+            ),
+            identityClaims: const [],
+            outputs: const [
+              RestageOutputClaim(
+                path:
+                    'lib/surfaces/restage.generated/categorized_screens.restage.g.dart',
+                role: 'screen-descriptor',
+                builder: 'test',
+              ),
+            ],
+            isCanonical: true,
+          );
+
+          final names = topLevelNamesForGeneratedSymbolCollision(
+            library,
+            sourceDeclaration,
+          );
+          expect(names, isNot(contains('ownGeneratedRef')));
+          expect(names, contains('authoredCollisionRef'));
+          expect(names, contains('foreignGeneratedRef'));
+        },
+        resolverFor: sourceId,
+        rootPackage: 'apps_examples',
+        readAllSourcesFromFilesystem: true,
+      );
+    });
+
     test(
       'assembles general publications, neutral reuse, and an embedded paywall',
       () async {
@@ -141,16 +210,19 @@ void main() {
           bundle.manifestJson,
           reason: 'the strict manifest assembler round-trips canonical bytes',
         );
+        // One authored library shares one generated neutral part across
+        // every one of its declarations.
         expect(
-          bundle.generatedParts['lib/authoring.rsscreen.g.dart'],
-          allOf(
-            contains('SurfaceScreenRef<AnnouncementEvent>'),
-            contains('NeutralFlowScreenRef.generated'),
-          ),
+          bundle.generatedParts.keys,
+          contains('lib/restage.generated/authoring.restage.g.dart'),
         );
         expect(
-          bundle.generatedParts['lib/authoring.rsflow.g.dart'],
+          bundle
+              .generatedParts['lib/restage.generated/authoring.restage.g.dart'],
           allOf(
+            startsWith("part of '../authoring.dart';"),
+            contains('SurfaceScreenRef<AnnouncementEvent>'),
+            isNot(contains('NeutralFlowScreenRef.generated')),
             contains('const generalFlowRef ='),
             contains('SurfaceFlowRef<GeneralFlowResult>'),
             contains('final class GeneralFlowSeed implements FlowSeed'),
@@ -668,7 +740,7 @@ RestageSourceDeclaration _screenDeclaration({
     outputs: [
       if (kind == RestageRosterSourceKind.screen)
         RestageOutputClaim(
-          path: 'lib/authoring.rsscreen.g.dart',
+          path: 'lib/restage.generated/authoring.restage.g.dart',
           role: 'screen-descriptor',
           builder: 'test',
           ownershipKey: 'library:${library.identifier}',
@@ -729,7 +801,7 @@ RestageSourceDeclaration _flowDeclaration({
       ],
       outputs: [
         RestageOutputClaim(
-          path: 'lib/authoring.rsflow.g.dart',
+          path: 'lib/restage.generated/authoring.restage.g.dart',
           role: 'flow-descriptor',
           builder: 'test',
           ownershipKey: 'library:${library.identifier}',
@@ -868,8 +940,7 @@ const _source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'authoring.rsscreen.g.dart';
-part 'authoring.rsflow.g.dart';
+part 'restage.generated/authoring.restage.g.dart';
 
 @Screen(id: 'announcement', surface: Surface.general)
 final class Announcement extends StatelessWidget {

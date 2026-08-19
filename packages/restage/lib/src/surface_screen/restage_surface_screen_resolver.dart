@@ -9,7 +9,7 @@ import '../restage_rpc_client/restage_rpc_client.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'asset_surface_screen_resolver.dart';
-import 'surface_screen_manifest.dart';
+import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
 
 /// Resolves one generated screen from hosted delivery with verified bundled fallback.
@@ -42,7 +42,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
 
   @override
   Future<ResolvedSurfaceScreen> resolve<E>(SurfaceScreenRef<E> screen) async {
-    final manifest = await SurfaceScreenManifestRegistry.resolve(screen);
+    final provenance = screen.provenance;
     for (var attempt = 0; attempt != _maxIdentityAttempts; attempt += 1) {
       final lease = await SurfaceAssignmentKeyProvider.captureLease();
       if (!lease.isCurrent) continue;
@@ -60,7 +60,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
 
       final client = _rpcClient();
       if (client == null) {
-        return _resolveBundled(screen, manifest);
+        return _resolveBundled(screen, provenance);
       }
       final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
       if (!lease.isCurrent) continue;
@@ -75,7 +75,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
       if (!lease.isCurrent) continue;
       switch (result) {
         case SurfaceScreenDeliveryAvailable(:final response):
-          final resolved = _resolveHosted(response, manifest);
+          final resolved = _resolveHosted(response, provenance);
           if (resolved.assignment != null && lease.assignmentKey == null) {
             throw const SurfaceScreenUnavailableError(
               reason: SurfaceScreenUnavailableReason.contractMismatch,
@@ -87,7 +87,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
           return resolved;
         case SurfaceScreenDeliveryAbsent():
         case SurfaceScreenDeliveryTransportUnavailable():
-          return _resolveBundled(screen, manifest);
+          return _resolveBundled(screen, provenance);
         case SurfaceScreenDeliveryInvalidResponse(:final reason):
           throw _invalidHostedResponse(reason);
       }
@@ -110,13 +110,13 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
 
   ResolvedSurfaceScreen _resolveHosted(
     SurfaceScreenDeliveryResponseV1 response,
-    SurfaceScreenManifestEntry manifest,
+    SurfaceScreenRuntimeProvenance provenance,
   ) {
     final document = response.document;
     final payload = document.payload;
-    if (document.surfaceType != manifest.surface ||
-        document.surfaceSlug != manifest.slug ||
-        response.contractVersion != manifest.contractVersion) {
+    if (document.surfaceType != provenance.surface ||
+        document.surfaceSlug != provenance.slug ||
+        response.contractVersion != provenance.contractVersion) {
       throw const SurfaceScreenUnavailableError(
         reason: SurfaceScreenUnavailableReason.identityMismatch,
         message:
@@ -126,12 +126,12 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
     if (response.sourceKind != SurfaceSourceKind.screen ||
         response.payloadKind != SurfacePayloadKind.blob ||
         payload is! BlobSurfacePayload ||
-        response.contractFingerprint != manifest.contractFingerprint ||
-        response.eventContractHash != manifest.eventContractHash ||
-        document.minClient != manifest.capabilities.builtInFloor ||
+        response.contractFingerprint != provenance.contractFingerprint ||
+        response.eventContractHash != provenance.eventContractHash ||
+        document.minClient != provenance.capabilities.builtInFloor ||
         !listEquals(
           document.requiredLibraries,
-          manifest.capabilities.requiredLibraries,
+          provenance.capabilities.requiredLibraries,
         )) {
       throw const SurfaceScreenUnavailableError(
         reason: SurfaceScreenUnavailableReason.contractMismatch,
@@ -140,7 +140,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
       );
     }
     final capabilityVerdict = BlobRenderCapabilityGate.evaluate(
-      required: manifest.capabilities,
+      required: provenance.capabilities,
       installed: InstalledCapability(
         builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
         installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
@@ -160,7 +160,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
       publishedRevision: response.publishedRevision,
       sourceKind: response.sourceKind,
       payloadKind: response.payloadKind,
-      capabilities: manifest.capabilities,
+      capabilities: provenance.capabilities,
       contractFingerprint: response.contractFingerprint,
       eventContractHash: response.eventContractHash,
       blob: payload.blob,
@@ -172,25 +172,16 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
 
   Future<ResolvedSurfaceScreen> _resolveBundled<E>(
     SurfaceScreenRef<E> screen,
-    SurfaceScreenManifestEntry manifest,
+    SurfaceScreenRuntimeProvenance provenance,
   ) async {
     final resolved = await assetFallback.resolve(screen);
-    if (resolved.origin != SurfaceScreenOrigin.bundled ||
-        resolved.surface != manifest.surface ||
-        resolved.slug != manifest.slug ||
-        resolved.contractVersion != manifest.contractVersion ||
-        resolved.sourceKind != manifest.sourceKind ||
-        resolved.payloadKind != manifest.payloadKind ||
-        resolved.capabilities != manifest.capabilities ||
-        resolved.contractFingerprint != manifest.contractFingerprint ||
-        resolved.eventContractHash != manifest.eventContractHash ||
-        resolved.contentHash != manifest.contentHash ||
-        !listEquals(resolved.blob, manifest.bundledBlob)) {
+    if (resolved.origin != SurfaceScreenOrigin.bundled) {
       throw const SurfaceScreenUnavailableError(
         reason: SurfaceScreenUnavailableReason.contractMismatch,
-        message: 'Bundled screen content does not match the generated closure.',
+        message: 'The bundled fallback did not return bundled content.',
       );
     }
+    provenance.validateResolved(resolved);
     return resolved;
   }
 

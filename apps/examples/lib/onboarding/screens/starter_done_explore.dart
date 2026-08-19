@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'starter_done_explore.rsscreen.g.dart';
+part 'restage.generated/starter_done_explore.restage.g.dart';
 
 /// Starter onboarding — the "explore" ending.
 ///
 /// The decision routes here when the user chose to explore on their own — a
 /// genuinely different ending from the guided one. `finish` completes the flow.
-@ScreenSource(id: 'starter_done_explore')
+@Screen()
 class StarterDoneExploreScreen extends StatelessWidget {
   /// Completes onboarding.
-  static const finish = OnboardingEvent<void>('finish');
+  static const finish = SurfaceEvent<void>('finish');
 
   /// Const constructor.
   const StarterDoneExploreScreen({super.key});
@@ -42,7 +42,7 @@ class StarterDoneExploreScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(finish),
+                onPressed: surfaceEvent(finish),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

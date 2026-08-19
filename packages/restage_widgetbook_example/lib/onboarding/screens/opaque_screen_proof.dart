@@ -4,13 +4,13 @@ import 'package:restage/a2ui.dart' as a2ui;
 import 'package:restage/restage.dart';
 import 'package:restage/widgetbook.dart' as wb;
 
-part 'opaque_screen_proof.rsscreen.g.dart';
+part 'restage.generated/opaque_screen_proof.restage.g.dart';
 
 /// Native screen used to verify opaque A2UI and Widgetbook integration.
 ///
 /// One authored class feeds RFW, A2UI, and Widgetbook in the normal build.
 @a2ui.Config.usage('Use for the final action in a native onboarding flow.')
-@ScreenSource(id: 'opaque_screen_proof')
+@Screen(id: 'opaque_screen_proof', surface: Surface.onboarding)
 final class OpaqueScreenProof extends StatelessWidget {
   /// Creates the proof screen.
   const OpaqueScreenProof({

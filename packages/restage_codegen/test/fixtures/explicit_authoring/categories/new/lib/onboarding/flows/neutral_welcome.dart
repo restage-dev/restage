@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'neutral_welcome.rsflow.g.dart';
+part 'restage.generated/neutral_welcome.restage.g.dart';
 
 @FlowGraph(surface: Surface.onboarding)
 const onboardingWelcome = FlowDefinition(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'account.rsscreen.g.dart';
+part 'restage.generated/account.restage.g.dart';
 
 @ScreenSource(id: 'account')
 final class AccountScreen extends StatelessWidget {

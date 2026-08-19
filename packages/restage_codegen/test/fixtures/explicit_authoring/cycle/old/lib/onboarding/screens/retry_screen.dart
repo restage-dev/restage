@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'retry_screen.rsscreen.g.dart';
+part 'restage.generated/retry_screen.restage.g.dart';
 
 @ScreenSource(id: 'retry_screen')
 final class RetryScreen extends StatelessWidget {

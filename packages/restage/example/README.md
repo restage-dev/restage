@@ -6,15 +6,15 @@ all offline, no account.
 ## 1. Author a surface
 
 A surface is an ordinary Flutter widget annotated with its surface type
-(`@PaywallSource` here; `@ScreenSource` / `@FlowSource` for onboarding, messages,
-surveys, and full screens). It uses your own widgets and your app's theme.
+(`@Paywall` here; use `@Screen` or `@FlowGraph(surface: ...)` for ordinary
+screens and flows). It uses your own widgets and your app's theme.
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@PaywallSource(id: 'pro')
-class ProPaywall extends StatelessWidget {
+@Paywall(id: 'pro')
+final class ProPaywall extends StatelessWidget {
   const ProPaywall({super.key});
 
   @override
@@ -41,7 +41,16 @@ class ProPaywall extends StatelessWidget {
 dart run build_runner build
 ```
 
-This writes a small, inert `.rfw` render blob next to your source — commit it.
+This writes generated, inert render artifacts. Commit the generated output your
+app bundles. The fixed
+`lib/generated/restage.publication.json` records the publication
+identity and exact artifact closure; asset paths are outputs, not selectors.
+
+Publish the generated surface by slug:
+
+```sh
+restage surface publish pro
+```
 
 ## 3. Render it
 

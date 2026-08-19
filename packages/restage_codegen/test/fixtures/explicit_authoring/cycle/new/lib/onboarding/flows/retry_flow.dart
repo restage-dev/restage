@@ -4,7 +4,7 @@ import '../screens/failure.dart';
 import '../screens/retry_screen.dart';
 import '../screens/start.dart';
 
-part 'retry_flow.rsflow.g.dart';
+part 'restage.generated/retry_flow.restage.g.dart';
 
 const attempts = FlowStateRef<int>('attempts', defaultValue: 0);
 const retryRef = NodeRef('retry');

@@ -1,5 +1,6 @@
+import 'dart:convert';
+
 import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
@@ -10,16 +11,21 @@ import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
-import 'package:restage_codegen/src/surface_publication/dynamic_output_owner.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show FlowDeliveryMode, Surface;
+    show FlowDeliveryMode, Surface, kBaselineCatalogVersion;
 
 const String _restageOrigin = 'package:restage';
 const String _authoredDartGlob = 'lib/**.dart';
-const String _canonicalPublicationOwner =
-    'restage_codegen:restage_surface_publication_owner';
+const String _canonicalPublicationOwner = 'restage_codegen:outputs';
+
+/// The one builder that materializes every authored library's generated Dart
+/// part, whichever declaration kinds contribute to it.
+const String _canonicalGeneratedDartOwner = 'restage_codegen:generated_dart';
 
 const Map<String, RestageRosterSourceKind> _legacyAnnotationKinds = {
   'ScreenSource': RestageRosterSourceKind.screen,
@@ -49,9 +55,16 @@ final class RestageSourceRosterBuilder implements Builder {
   /// Creates the package owner.
   const RestageSourceRosterBuilder(this.options);
 
-  /// Builder options are reserved for a later frontend and do not alter the
-  /// package roster in this gate.
+  /// Builder options are otherwise reserved for a later frontend; the
+  /// resolved placement plan they yield only informs which physical paths
+  /// the fixed output-ownership claim below records.
   final BuilderOptions options;
+
+  /// The resolved placement plan used to claim the unified outputs
+  /// builder's package-wide physical outputs, so this roster's collision
+  /// bookkeeping reflects the same physical paths that builder writes.
+  RestageOutputPlacementPlan get _plan =>
+      RestageOutputPlacementPlan.fromBuilderOptions(options);
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -63,8 +76,11 @@ final class RestageSourceRosterBuilder implements Builder {
 
   @override
   Future<void> build(BuildStep buildStep) async {
+    await registerRestagePlacementSignature(buildStep, _plan);
+
     final packageName = buildStep.inputId.package;
-    final roster = await collectRestageSourceRoster(buildStep);
+    final roster = await collectRestageSourceRoster(buildStep, plan: _plan);
+    _logLegacyMigrationWarnings(roster);
     if (!roster.isValid) {
       for (final issue in roster.issues) {
         log.severe(issue.toLogString());
@@ -92,33 +108,88 @@ final class RestageSourceRosterBuilder implements Builder {
   }
 }
 
+void _logLegacyMigrationWarnings(RestageSourceRoster roster) {
+  for (final source in roster.declarations.where(
+    (declaration) => !declaration.isCanonical,
+  )) {
+    log.warning(
+      '${source.span.location}: Deprecated ${_legacyAnnotationName(source)} '
+      'compatibility frontend; replace it with '
+      '${_canonicalMigrationReplacement(source)}. Legacy directory routing '
+      'remains compatibility-only during migration.',
+    );
+  }
+}
+
+String _legacyAnnotationName(RestageSourceDeclaration source) =>
+    switch (source.kind) {
+      RestageRosterSourceKind.screen => '@ScreenSource',
+      RestageRosterSourceKind.paywall => '@PaywallSource',
+      RestageRosterSourceKind.flow => '@FlowSource',
+    };
+
+String _canonicalMigrationReplacement(RestageSourceDeclaration source) {
+  final arguments = <String>['id: ${jsonEncode(source.effectiveId)}'];
+  if (source.kind != RestageRosterSourceKind.paywall) {
+    arguments.add('surface: Surface.${source.surface!.name}');
+    if (source.version != 1) arguments.add('version: ${source.version}');
+    if (source.minClient != kBaselineCatalogVersion) {
+      arguments.add('minClient: ${source.minClient}');
+    }
+  }
+  if (source.kind == RestageRosterSourceKind.flow) {
+    final delivery = source.delivery ?? FlowDeliveryMode.typed;
+    if (delivery != FlowDeliveryMode.typed) {
+      arguments.add('delivery: FlowDeliveryMode.${delivery.name}');
+    }
+  }
+  final annotation = switch (source.kind) {
+    RestageRosterSourceKind.screen => 'Screen',
+    RestageRosterSourceKind.paywall => 'Paywall',
+    RestageRosterSourceKind.flow => 'FlowGraph',
+  };
+  return '@$annotation(${arguments.join(', ')})';
+}
+
 RestageSourceRoster _withFixedPublicationManifest({
   required String packageName,
   required RestageSourceRoster roster,
+  required RestageOutputPlacementPlan plan,
 }) {
-  const manifestIdentity = RestageIdentityClaim(
-    namespace: 'fixed-output',
-    key: kRestageSurfacePublicationManifestPath,
-  );
-  final output = RestageOwnedOutput(
-    path: kRestageSurfacePublicationManifestPath,
-    role: 'surface-publication-manifest',
-    builder: 'restage_codegen:restage_surface_publication_owner',
-    owner: 'package:$packageName#surface-publication',
-    declarationIdentity: 'package:$packageName#surface-publication',
-    identities: const [manifestIdentity],
-    span: const RestageSourceSpan(
-      path: kRestageSurfacePublicationManifestPath,
-      startLine: 1,
-      startColumn: 1,
-      endLine: 1,
-      endColumn: 1,
-    ),
-  );
+  RestageOwnedOutput fixedOutput({
+    required String path,
+    required String role,
+  }) =>
+      RestageOwnedOutput(
+        path: path,
+        role: role,
+        builder: _canonicalPublicationOwner,
+        owner: 'package:$packageName#surface-publication',
+        declarationIdentity: 'package:$packageName#surface-publication',
+        identities: [
+          RestageIdentityClaim(namespace: 'fixed-output', key: path),
+        ],
+        span: RestageSourceSpan(
+          path: path,
+          startLine: 1,
+          startColumn: 1,
+          endLine: 1,
+          endColumn: 1,
+        ),
+      );
   return RestageSourceRoster(
     declarations: roster.declarations,
     issues: roster.issues,
-    fixedOutputs: [output],
+    fixedOutputs: [
+      fixedOutput(
+        path: plan.publicationManifestPath,
+        role: 'surface-publication-manifest',
+      ),
+      fixedOutput(
+        path: plan.outputIndexPath,
+        role: 'restage-output-index',
+      ),
+    ],
   );
 }
 
@@ -130,8 +201,10 @@ RestageSourceRoster _withFixedPublicationManifest({
 /// consults a source directory for product meaning.
 @visibleForTesting
 Future<RestageSourceRoster> collectRestageSourceRoster(
-  BuildStep buildStep,
-) async {
+  BuildStep buildStep, {
+  RestageOutputPlacementPlan? plan,
+}) async {
+  final effectivePlan = plan ?? RestageOutputPlacementPlan.defaults;
   final sourceAssets = await buildStep
       .findAssets(Glob(_authoredDartGlob))
       .where(isAuthoredDartLibraryAsset)
@@ -157,11 +230,11 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
     }
 
     final checkedAdmissionKinds = <RestageRosterSourceKind>{};
-
-    await _collectCanonicalDeclarations(
+    var checkedNeutralPart = await _collectCanonicalDeclarations(
       buildStep: buildStep,
       assetId: assetId,
       library: library,
+      plan: effectivePlan,
       sourceTexts: sourceTexts,
       declarations: declarations,
       normalizedFlows: normalizedFlows,
@@ -171,18 +244,19 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
     for (final entry in _legacyAnnotationKinds.entries) {
       final kind = entry.value;
       final annotationName = entry.key;
-      final annotatedClasses = <ClassElement>[];
+      final annotated = <({ClassElement cls, ElementAnnotation annotation})>[];
       for (final cls in library.classes) {
-        if (firstAnnotationFromOriginAny(
-              cls,
-              {annotationName},
-              _restageOrigin,
-            ) !=
-            null) {
-          annotatedClasses.add(cls);
+        final annotation = firstAnnotationFromOriginAny(
+          cls,
+          {annotationName},
+          _restageOrigin,
+        );
+        if (annotation != null) {
+          annotated.add((cls: cls, annotation: annotation));
         }
       }
-      if (annotatedClasses.isEmpty) continue;
+      if (annotated.isEmpty) continue;
+      final annotatedClasses = [for (final entry in annotated) entry.cls];
 
       if (checkedAdmissionKinds.add(kind)) {
         final sourceText =
@@ -194,20 +268,19 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
             assetId: assetId,
             sourceText: sourceText,
             kind: kind,
+            plan: effectivePlan,
             annotatedClasses: annotatedClasses,
+            // Every kind in a library shares one generated part, so the
+            // directive is validated once no matter how many kinds admit.
+            checkNeutralPart: !checkedNeutralPart,
           ),
         );
+        checkedNeutralPart = true;
       }
 
-      for (final cls in annotatedClasses) {
+      for (final (:cls, :annotation) in annotated) {
         final sourcePath = _elementSourcePath(cls, assetId);
         final span = _sourceSpan(cls, sourcePath);
-        final annotation = firstAnnotationFromOriginAny(
-          cls,
-          {annotationName},
-          _restageOrigin,
-        );
-        if (annotation == null) continue;
 
         final value = annotation.computeConstantValue();
         if (value == null) {
@@ -234,7 +307,11 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
           continue;
         }
 
-        final outputs = _legacyOutputClaims(kind, assetId);
+        final outputs = _legacyOutputClaims(
+          kind,
+          assetId,
+          plan: effectivePlan,
+        );
         if (outputs == null) {
           issues.add(
             Issue(
@@ -303,19 +380,23 @@ Future<RestageSourceRoster> collectRestageSourceRoster(
   return _withFixedPublicationManifest(
     packageName: buildStep.inputId.package,
     roster: roster,
+    plan: effectivePlan,
   );
 }
 
-Future<void> _collectCanonicalDeclarations({
+/// Collects this library's canonical declarations, returning whether it
+/// validated the library's generated `part` directive.
+Future<bool> _collectCanonicalDeclarations({
   required BuildStep buildStep,
   required AssetId assetId,
   required LibraryElement library,
+  required RestageOutputPlacementPlan plan,
   required Map<AssetId, String> sourceTexts,
   required List<RestageSourceDeclaration> declarations,
   required List<NormalizedFlowSource> normalizedFlows,
   required List<Issue> issues,
 }) async {
-  final canonicalParts = <RestageRosterSourceKind>{};
+  var checkedNeutralPart = false;
 
   for (final cls in library.classes) {
     final screenAnnotation = firstAnnotationFromOriginAny(
@@ -368,15 +449,14 @@ Future<void> _collectCanonicalDeclarations({
       continue;
     }
 
-    if (kind == RestageRosterSourceKind.screen && canonicalParts.add(kind)) {
+    if (kind == RestageRosterSourceKind.screen && !checkedNeutralPart) {
+      checkedNeutralPart = true;
       issues.addAll(
-        await _canonicalPartIssues(
+        await _neutralPartIssues(
           buildStep: buildStep,
           assetId: assetId,
           sourceTexts: sourceTexts,
-          suffix: kind == RestageRosterSourceKind.flow
-              ? 'rsflow.g.dart'
-              : 'rsscreen.g.dart',
+          plan: plan,
         ),
       );
     }
@@ -402,6 +482,7 @@ Future<void> _collectCanonicalDeclarations({
           id: id,
           libraryIdentity: library.identifier,
           libraryPath: assetId.path,
+          plan: plan,
         ),
         surface: metadata.surface,
         version: metadata.version,
@@ -429,7 +510,7 @@ Future<void> _collectCanonicalDeclarations({
             ) !=
             null,
       );
-  if (!hasCanonicalFlow) return;
+  if (!hasCanonicalFlow) return checkedNeutralPart;
 
   final frontend = await inspectFlowDefinitions(
     library,
@@ -438,25 +519,16 @@ Future<void> _collectCanonicalDeclarations({
   );
   issues.addAll(frontend.issues);
   normalizedFlows.addAll(frontend.flows);
-  if (frontend.flows.isEmpty) return;
+  if (frontend.flows.isEmpty) return checkedNeutralPart;
 
-  final sourceText = sourceTexts[assetId] ??= await buildStep.readAsString(
-    assetId,
-  );
-  final parsed = parseString(
-    content: sourceText,
-    path: assetId.path,
-    throwIfDiagnostics: false,
-  ).unit;
-  final expectedPart = '${_fileStem(assetId.path)}.rsflow.g.dart';
-  if (!parsed.directives.whereType<PartDirective>().any(
-        (directive) => directive.uri.stringValue == expectedPart,
-      )) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingPartDirective,
-        message: "Missing `part '$expectedPart';` directive.",
-        location: assetId.path,
+  if (!checkedNeutralPart) {
+    checkedNeutralPart = true;
+    issues.addAll(
+      await _neutralPartIssues(
+        buildStep: buildStep,
+        assetId: assetId,
+        sourceTexts: sourceTexts,
+        plan: plan,
       ),
     );
   }
@@ -497,6 +569,7 @@ Future<void> _collectCanonicalDeclarations({
           id: id,
           libraryIdentity: library.identifier,
           libraryPath: assetId.path,
+          plan: plan,
         ),
         surface: flow.surface,
         version: flow.version,
@@ -506,6 +579,7 @@ Future<void> _collectCanonicalDeclarations({
       ),
     );
   }
+  return checkedNeutralPart;
 }
 
 @immutable
@@ -606,33 +680,20 @@ _CanonicalClassMetadata? _canonicalClassMetadata(
   );
 }
 
-Future<List<Issue>> _canonicalPartIssues({
+Future<List<Issue>> _neutralPartIssues({
   required BuildStep buildStep,
   required AssetId assetId,
   required Map<AssetId, String> sourceTexts,
-  required String suffix,
+  required RestageOutputPlacementPlan plan,
 }) async {
   final sourceText = sourceTexts[assetId] ??= await buildStep.readAsString(
     assetId,
   );
-  final parsed = parseString(
-    content: sourceText,
-    path: assetId.path,
-    throwIfDiagnostics: false,
-  ).unit;
-  final expectedPart = '${_fileStem(assetId.path)}.$suffix';
-  if (parsed.directives.whereType<PartDirective>().any(
-        (directive) => directive.uri.stringValue == expectedPart,
-      )) {
-    return const [];
-  }
-  return [
-    Issue(
-      code: IssueCode.missingPartDirective,
-      message: "Missing `part '$expectedPart';` directive.",
-      location: assetId.path,
-    ),
-  ];
+  return neutralPartDirectiveIssuesForSource(
+    sourceText: sourceText,
+    libraryPath: assetId.path,
+    plan: plan,
+  );
 }
 
 List<RestageIdentityClaim> _canonicalIdentityClaims({
@@ -667,23 +728,20 @@ List<RestageOutputClaim> _canonicalOutputClaims({
   required String id,
   required String libraryIdentity,
   required String libraryPath,
+  required RestageOutputPlacementPlan plan,
 }) {
   final surfaceKey = surface?.wireName ?? 'neutral';
-  final sourceDirectory = libraryPath.substring(
-    0,
-    libraryPath.lastIndexOf('/') + 1,
-  );
-  final partSuffix = kind == RestageRosterSourceKind.flow
-      ? 'rsflow.g.dart'
-      : 'rsscreen.g.dart';
+  // Screens and flows in one library share one generated part. The claim is
+  // deliberately identical across kinds so the ownership key, not the
+  // filename, is what makes the shared claim legal.
   final part = kind == RestageRosterSourceKind.paywall
       ? null
       : RestageOutputClaim(
-          path: '$sourceDirectory${_fileStem(libraryPath)}.$partSuffix',
+          path: neutralPartPath(plan, libraryPath),
           role: kind == RestageRosterSourceKind.flow
               ? 'flow-descriptor'
               : 'screen-descriptor',
-          builder: _canonicalPublicationOwner,
+          builder: _canonicalGeneratedDartOwner,
           ownershipKey: 'canonical-library:$libraryIdentity',
         );
 
@@ -959,7 +1017,9 @@ List<Issue> _legacyAdmissionIssues({
   required AssetId assetId,
   required String sourceText,
   required RestageRosterSourceKind kind,
+  required RestageOutputPlacementPlan plan,
   required List<ClassElement> annotatedClasses,
+  required bool checkNeutralPart,
 }) {
   final issues = <Issue>[];
   final parsed = parseString(
@@ -997,33 +1057,25 @@ List<Issue> _legacyAdmissionIssues({
     );
   }
 
-  if (kind == RestageRosterSourceKind.screen ||
-      kind == RestageRosterSourceKind.flow) {
-    final stem = _fileStem(assetId.path);
-    final suffix = kind == RestageRosterSourceKind.screen
-        ? 'rsscreen.g.dart'
-        : 'rsflow.g.dart';
-    final expectedPart = '$stem.$suffix';
-    final hasPart = parsed.directives.whereType<PartDirective>().any(
-          (directive) => directive.uri.stringValue == expectedPart,
-        );
-    if (!hasPart) {
-      issues.add(
-        Issue(
-          code: IssueCode.missingPartDirective,
-          message: "Missing `part '$expectedPart';` directive.",
-          location: assetId.path,
-        ),
-      );
-    }
+  if (checkNeutralPart &&
+      (kind == RestageRosterSourceKind.screen ||
+          kind == RestageRosterSourceKind.flow)) {
+    issues.addAll(
+      neutralPartDirectiveIssues(
+        unit: parsed,
+        libraryPath: assetId.path,
+        plan: plan,
+      ),
+    );
   }
   return issues;
 }
 
 List<RestageOutputClaim>? _legacyOutputClaims(
   RestageRosterSourceKind kind,
-  AssetId assetId,
-) {
+  AssetId assetId, {
+  required RestageOutputPlacementPlan plan,
+}) {
   final path = assetId.path;
   switch (kind) {
     case RestageRosterSourceKind.screen:
@@ -1031,14 +1083,14 @@ List<RestageOutputClaim>? _legacyOutputClaims(
       if (match == null) return null;
       final surface = match.group(1)!;
       final stem = match.group(2)!;
-      final sourceDir = 'lib/$surface/screens';
       final outputDir = 'assets/$surface/screens';
       final builder = 'restage_codegen:${surface}_screen_codegen';
       return [
         RestageOutputClaim(
-          path: '$sourceDir/$stem.rsscreen.g.dart',
+          path: neutralPartPath(plan, path),
           role: 'descriptor',
-          builder: builder,
+          builder: _canonicalGeneratedDartOwner,
+          ownershipKey: 'library-part:$path',
         ),
         RestageOutputClaim(
           path: '$outputDir/$stem.rfwtxt',
@@ -1061,14 +1113,14 @@ List<RestageOutputClaim>? _legacyOutputClaims(
       if (match == null) return null;
       final surface = match.group(1)!;
       final stem = match.group(2)!;
-      final sourceDir = 'lib/$surface/flows';
       final outputDir = 'assets/$surface/flows';
       final builder = 'restage_codegen:${surface}_flow_codegen';
       return [
         RestageOutputClaim(
-          path: '$sourceDir/$stem.rsflow.g.dart',
+          path: neutralPartPath(plan, path),
           role: 'descriptor',
-          builder: builder,
+          builder: _canonicalGeneratedDartOwner,
+          ownershipKey: 'library-part:$path',
         ),
         RestageOutputClaim(
           path: '$outputDir/$stem.flow.json',
@@ -1121,7 +1173,7 @@ List<RestageOutputClaim>? _legacyOutputClaims(
   }
 }
 
-/// Returns only the identity namespaces this pre-frontend lane can prove.
+/// Returns only the identity namespaces this pass can prove.
 ///
 /// The surface segment is retained in the legacy source namespace so two
 /// source declarations in different surfaces do not accidentally freeze a

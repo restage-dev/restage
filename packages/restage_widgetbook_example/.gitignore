@@ -1,0 +1,22 @@
+
+# Restage generated output.
+#
+# Portable build metadata and build-time intermediates are ignored by artifact
+# name: they are reproducible from the authored sources by
+# `dart run build_runner build`, and tracking them adds hundreds of kilobytes of
+# churn to every generation. Generated Dart is NOT ignored — it is ordinary
+# source the analyzer and the compiler read.
+restage.outputs.json
+restage.publication.json
+restage_a2ui_catalog.a2ui.json
+surface_publication.compiler.json
+assets/restage/source-index.json
+assets/restage/output-roster.json
+*.restage.md
+
+# Bundles are build output too, but the ones routed into the Flutter asset
+# directory are tracked: this example is checked in so it runs from a fresh
+# clone, and an untracked bundle would leave it unable to render its own
+# surfaces.
+*.rsbundle
+!assets/restage/bundles/**/*.rsbundle

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'ready.rsscreen.g.dart';
+part 'restage.generated/ready.restage.g.dart';
 
 /// First-run onboarding — the "you're set" screen.
 ///
@@ -10,10 +10,10 @@ part 'ready.rsscreen.g.dart';
 /// to the paywall: tapping [start] completes the flow, and the host's
 /// `onComplete` callback navigates to the paywall (the flow never launches a
 /// paywall itself — the host owns navigation).
-@ScreenSource(id: 'ready')
+@Screen()
 class ReadyScreen extends StatelessWidget {
   /// Completes the flow; the host then opens the paywall.
-  static const start = OnboardingEvent<void>('start');
+  static const start = SurfaceEvent<void>('start');
 
   const ReadyScreen({super.key});
 
@@ -83,7 +83,7 @@ class ReadyScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(start),
+                      onPressed: surfaceEvent(start),
                       child: const Text(
                         'Continue',
                         style: TextStyle(

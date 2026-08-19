@@ -142,7 +142,7 @@ void main() {
   static const event = SurfaceEvent<int>('évent');
   static const dismiss = SurfaceEvent<void>('dismiss\n');
 ''',
-          part: "part 'maintenance_notice.rsflow.g.dart';",
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
         ),
         emitted,
       );
@@ -152,9 +152,23 @@ void main() {
       expect(emitted, contains('Map<String, Object?> arguments'));
       expect(emitted, isNot(contains('artifactPath')));
       expect(emitted, isNot(contains('.validate')));
+
+      // The reference takes its identity and contract from provenance, and
+      // the schema travels as canonical JSON so the runtime hashes the exact
+      // value this build hashed.
+      expect(emitted, contains('SurfaceScreenRuntimeProvenance.generated('));
+      expect(emitted, contains('provenance: _maintenanceNoticeProvenance'));
+      expect(emitted, contains('eventSchemaJson:'));
+      expect(emitted, contains(r'{\"schemaVersion\":1,\"events\":['));
+      // The fingerprint and event hash are derived at runtime, never
+      // restated here. A generated constant repeating what this build
+      // computed could only ever agree with itself, so emitting one would
+      // silently disarm the encoder-agreement check on the reference.
+      expect(emitted, isNot(contains('contractFingerprint:')));
+      expect(emitted, isNot(contains(contract.contractFingerprint)));
       expect(
         sha256.convert(utf8.encode(emitted)).toString(),
-        '4e6220eba5b5d271bb604ea13b95f0c96ddc7aaee864b45aff1e748dc1042b85',
+        '2dc905655681252051cc0f9e3ef5f8f575624532b12a79de1ad5a6e7fb1f2de5',
         reason: emitted,
       );
     });
@@ -472,7 +486,36 @@ final class LookalikeNotice extends StatelessWidget {
       expect(messages, contains('custom and unsupported collection types'));
     });
 
-    test('rejects neutral/mismatched annotations and generated name collisions',
+    test('accepts symbols from the exact warm generated sibling part',
+        () async {
+      final inspection = await _inspect(
+        _screenSource(
+          className: 'WarmNotice',
+          annotation: "@Screen(id: 'warm_notice', surface: Surface.general)",
+          events: "  static const finish = SurfaceEvent<void>('finish');",
+          part: "part 'restage.generated/maintenance_notice.restage.g.dart';",
+        ),
+        className: 'WarmNotice',
+        slug: 'warm_notice',
+        additionalSources: {
+          'apps_examples|lib/restage.generated/maintenance_notice.restage.g.dart':
+              '''
+part of '../maintenance_notice.dart';
+
+final warmNoticeRef = Object();
+final _warmNoticeEvents = Object();
+final _decodeValidatedWarmNoticeEvent = Object();
+final WarmNoticeEvent = Object();
+final WarmNoticeFinishEvent = Object();
+''',
+        },
+      );
+
+      expect(inspection.issues, isEmpty);
+      expect(inspection.contract, isNotNull);
+    });
+
+    test('rejects authored and foreign lookalike generated collisions',
         () async {
       final neutral = await _inspect(
         _screenSource(
@@ -517,6 +560,33 @@ final collisionNoticeRef = Object();
         collision.issues.map((issue) => issue.message).join('\n'),
         contains('Generated standalone screen symbol collisionNoticeRef'),
       );
+
+      final foreign = await _inspect(
+        _screenSource(
+          className: 'ForeignNotice',
+          annotation: "@Screen(id: 'foreign_notice', surface: Surface.general)",
+          events: "  static const finish = SurfaceEvent<void>('finish');",
+          part: "part 'restage.generated/lookalike.restage.g.dart';",
+        ),
+        className: 'ForeignNotice',
+        slug: 'foreign_notice',
+        additionalSources: {
+          'apps_examples|lib/restage.generated/lookalike.restage.g.dart': '''
+part of '../maintenance_notice.dart';
+
+final foreignNoticeRef = Object();
+final _foreignNoticeEvents = Object();
+final _decodeValidatedForeignNoticeEvent = Object();
+final ForeignNoticeEvent = Object();
+final ForeignNoticeFinishEvent = Object();
+''',
+        },
+      );
+      expect(foreign.contract, isNull);
+      expect(
+        foreign.issues.map((issue) => issue.message).join('\n'),
+        contains('Generated standalone screen symbol foreignNoticeRef'),
+      );
     });
   });
 }
@@ -533,6 +603,7 @@ Future<StandaloneScreenContractInspection> _inspect(
   String slug = 'maintenance_notice',
   int contractVersion = 1,
   CapabilityManifest? capabilities,
+  Map<String, String> additionalSources = const {},
 }) async {
   final assetId = AssetId('apps_examples', 'lib/maintenance_notice.dart');
   final readerWriter = await readerWriterWithFilesystemSources(
@@ -541,6 +612,10 @@ Future<StandaloneScreenContractInspection> _inspect(
   readerWriter.testing.writeString(assetId, source);
 
   StandaloneScreenContractInspection? inspection;
+  final sources = <String, String>{
+    'apps_examples|lib/maintenance_notice.dart': source,
+    ...additionalSources,
+  };
   await testBuilder(
     _ScreenContractProbeBuilder((library, resolvedAssetId) {
       final screen = library.classes.singleWhere(
@@ -557,7 +632,7 @@ Future<StandaloneScreenContractInspection> _inspect(
         ),
       );
     }),
-    {'apps_examples|lib/maintenance_notice.dart': source},
+    sources,
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
   );
@@ -609,11 +684,22 @@ Future<void> _assertGeneratedPartAnalyzes(
   String generated,
 ) async {
   const sourceId = 'apps_examples|lib/maintenance_notice.dart';
-  const generatedId = 'apps_examples|lib/maintenance_notice.rsflow.g.dart';
+  const generatedId =
+      'apps_examples|lib/restage.generated/maintenance_notice.restage.g.dart';
+  // The package surface compiler never ships the header emitReferenceDart()
+  // writes: it strips it and substitutes one resolved relative to the part's
+  // placement (see _withoutPartHeader/_partOfHeader). Do the same here so
+  // this proves the emitted body resolves as the compiler would place it,
+  // not the header this call site bypasses.
+  final trimmed = generated.trim();
+  final withoutHeader = trimmed.startsWith('part of ')
+      ? trimmed.substring(trimmed.indexOf('\n') + 1).trim()
+      : trimmed;
+  final relocated = "part of '../maintenance_notice.dart';\n\n$withoutHeader";
   await resolveSources(
     {
       sourceId: source,
-      generatedId: generated,
+      generatedId: relocated,
     },
     (resolver) async {
       final library = await resolver.libraryFor(AssetId.parse(sourceId));
@@ -630,7 +716,7 @@ Future<void> _assertGeneratedPartAnalyzes(
             if (diagnostic.severity == Severity.error)
               diagnostic.problemMessage.messageText(includeUrl: false),
       ];
-      expect(errors, isEmpty, reason: generated);
+      expect(errors, isEmpty, reason: relocated);
     },
     resolverFor: sourceId,
     rootPackage: 'apps_examples',

@@ -119,7 +119,7 @@ import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'general_proof.rsflow.g.dart';
+part 'restage.generated/general_proof.restage.g.dart';
 
 @FlowSource(
   id: 'general_proof',
@@ -188,7 +188,7 @@ import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'general_first_run.rsflow.g.dart';
+part 'restage.generated/general_first_run.restage.g.dart';
 
 @FlowSource(
   id: 'general_first_run',
@@ -250,7 +250,7 @@ import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'typed_first_run.rsflow.g.dart';
+part 'restage.generated/typed_first_run.restage.g.dart';
 
 @FlowSource(id: 'typed_first_run', version: 1, minClient: 3)
 final class TypedFirstRunFlow extends RestageFlow {
@@ -292,7 +292,10 @@ Future<String> _buildFlowDart(Map<String, String> sources) async {
   final stem = _flowStem(sources);
   final result = await _run(sources);
   return result.readerWriter.testing.readString(
-    AssetId('apps_examples', 'lib/onboarding/flows/$stem.rsflow.g.dart'),
+    AssetId(
+      'apps_examples',
+      'lib/onboarding/flows/restage.generated/$stem.restage.g.dart',
+    ),
   );
 }
 
@@ -302,6 +305,8 @@ Future<TestBuilderResult> _run(Map<String, String> sources) async {
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,
     rootPackage: 'apps_examples',
@@ -329,7 +334,7 @@ String _screenSource(String id, String className, String eventName) => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @ScreenSource(id: '$id')
 final class $className extends StatelessWidget {
@@ -355,7 +360,7 @@ Future<void> _assertIdentityDecoderRuns(String generated) async {
     ..createSync(recursive: true);
   final script = File('${dir.path}/general_identity_check.dart');
   final source = generated.replaceFirst(
-    "part of 'general_first_run.dart';",
+    "part of '../general_first_run.dart';",
     "import 'package:restage/src/flow/flow_descriptors.dart';\n"
         "import 'package:restage_shared/restage_shared.dart' "
         'show FlowDeliveryMode, Surface;',

@@ -174,19 +174,22 @@ void main() {
     expect(child.onComplete, same(completion));
     expect(const NodeRef('later').id, 'later');
 
-    final screenRef = SurfaceScreenRef<Never>.generated(
+    // Built through the same entry point generated code uses, and using only
+    // what `package:restage/restage.dart` exports.
+    final screenProvenance = SurfaceScreenRuntimeProvenance.generated(
+      surface: Surface.general,
       slug: 'service_status',
       contractVersion: 1,
-      surface: Surface.general,
-      contractFingerprint:
-          'sha256:0000000000000000000000000000000000000000000000000000000000000000',
       capabilities: CapabilityManifest(
         builtInFloor: 1,
         requiredLibraries: const [],
       ),
-      eventContract: const SurfaceScreenEventContract<Never>.none(
-        hash:
-            'sha256:0000000000000000000000000000000000000000000000000000000000000000',
+      eventSchemaJson: '{"schemaVersion":1,"events":[]}',
+    );
+    final screenRef = SurfaceScreenRef<Never>.generated(
+      provenance: screenProvenance,
+      eventContract: SurfaceScreenEventContract<Never>.none(
+        hash: screenProvenance.eventContractHash,
       ),
     );
     expect(screenRef.surface, Surface.general);

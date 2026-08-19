@@ -7,7 +7,7 @@ import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
 
 /// The reserved event-payload field that carries a scalar event's value.
 ///
-/// A scalar `onboardingEvent(evt, value)` emits its value under this key
+/// A scalar `surfaceEvent(evt, value)` emits its value under this key
 /// (`{value: …}`), and a flow `.capture(key)` reads it via
 /// `EventFlowValueSource(key: kCapturedEventValueKey)` while writing the
 /// captured value into its own flow-state `key`. Single-sourced here so the

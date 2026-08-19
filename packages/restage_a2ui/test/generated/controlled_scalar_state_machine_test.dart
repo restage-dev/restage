@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'controlled_scalar_fixture.dart' as p0;
 import 'package:flutter/material.dart';
+import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:a2ui_core/a2ui_core.dart'
     show CreateSurfaceMessage, UpdateComponentsMessage, UpdateDataModelMessage;
 import 'package:flutter_test/flutter_test.dart';
@@ -679,6 +680,24 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/dec8541a3fcbc4d1cd86f9f21ce38fa9951419d4197c7d7f98ef5f6693176d91';
+
+/// Compact identity and capability metadata for the generated catalog.
+/// The producer-facing `.a2ui.json` remains a separate portable artifact.
+const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
+  schemaDialect: 'https://json-schema.org/draft/2020-12/schema',
+  a2uiProtocolVersion: '0.9.1',
+  catalogId: restageA2uiCatalogId,
+  fingerprint:
+      'sha256/dec8541a3fcbc4d1cd86f9f21ce38fa9951419d4197c7d7f98ef5f6693176d91',
+  catalogContentVersion: 1,
+  availableLibraries: <A2uiAvailableLibrary>[],
+  perItemSinceVersion: <String, int>{
+    'ControlledInt': 1,
+    'ControlledIntPair': 1,
+    'ControlledLeafFamilies': 1,
+    'ControlledScalarHost': 1,
+  },
+);
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
   'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/dec8541a3fcbc4d1cd86f9f21ce38fa9951419d4197c7d7f98ef5f6693176d91".',

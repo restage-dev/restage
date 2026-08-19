@@ -35,7 +35,7 @@ import 'package:restage/restage.dart';
 /// styled but not tappable — a per-word tap inside a rich-text run is not yet
 /// expressible in the render blob. The Terms / Privacy / Restore row below
 /// carries the working affordance.
-@PaywallSource(id: 'pulse_premium')
+@Paywall()
 class PulsePremiumPaywall extends StatefulWidget {
   const PulsePremiumPaywall({super.key});
 

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_recap_invest.rsscreen.g.dart';
+part 'restage.generated/tally_recap_invest.restage.g.dart';
 
 /// Onboarding — the investing recap (the decision's default branch).
 ///
 /// The routing decision sends the user here when the captured goal is `invest`
 /// (the default branch). A goal-specific ending: the funding step + an
 /// investing-specific CTA.
-@ScreenSource(id: 'tally_recap_invest')
+@Screen()
 class TallyRecapInvestScreen extends StatelessWidget {
   /// Completes onboarding.
-  static const finish = OnboardingEvent<void>('finish');
+  static const finish = SurfaceEvent<void>('finish');
 
   const TallyRecapInvestScreen({super.key});
 
@@ -115,7 +115,7 @@ class TallyRecapInvestScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(finish),
+                onPressed: surfaceEvent(finish),
                 child: const Text(
                   'Fund my account',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

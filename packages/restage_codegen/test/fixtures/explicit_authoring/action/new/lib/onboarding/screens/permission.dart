@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'permission.rsscreen.g.dart';
+part 'restage.generated/permission.restage.g.dart';
 
 @Screen()
 final class PermissionScreen extends StatelessWidget {

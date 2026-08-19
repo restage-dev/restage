@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:restage_a2ui_example/widgets/cta_button.dart' as p0;
 import 'package:restage_a2ui_example/widgets/lessons/callout.dart' as p1;
 import 'package:restage_a2ui_example/widgets/lessons/comparison_panel.dart'
@@ -621,6 +622,32 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a';
+
+/// Compact identity and capability metadata for the generated catalog.
+/// The producer-facing `.a2ui.json` remains a separate portable artifact.
+const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
+  schemaDialect: 'https://json-schema.org/draft/2020-12/schema',
+  a2uiProtocolVersion: '0.9.1',
+  catalogId: restageA2uiCatalogId,
+  fingerprint:
+      'sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a',
+  catalogContentVersion: 1,
+  availableLibraries: <A2uiAvailableLibrary>[
+    A2uiAvailableLibrary(namespace: 'acme.lessons', version: 1),
+    A2uiAvailableLibrary(namespace: 'acme.widgets', version: 3),
+  ],
+  perItemSinceVersion: <String, int>{
+    'Callout': 1,
+    'ComparisonPanel': 1,
+    'CtaButton': 1,
+    'IntegerListPicker': 1,
+    'ProductCard': 1,
+    'QuizCheck': 1,
+    'RatingPicker': 1,
+    'ScalarListPanel': 1,
+    'SectionHeader': 1,
+  },
+);
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
   'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a".',

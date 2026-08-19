@@ -25,7 +25,6 @@ void main() {
       'accepts valid hosted content, forwards assignment and metering context, and partitions cache by assignment key',
       () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     await _installMeteringKey();
     String? assignmentKey = 'assignment-a';
     SurfaceAssignmentKeyProvider.current = () => assignmentKey;
@@ -98,7 +97,6 @@ void main() {
 
   test('uses only the exact bundled closure for ordinary absence', () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     for (final statusCode in <int>[204, 404]) {
       final fallback = FixedBundledScreenResolver(fixture.bundled());
       final resolver = RestageSurfaceScreenResolver(
@@ -124,7 +122,6 @@ void main() {
   test('uses only the exact bundled closure for retryable availability',
       () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     for (final statusCode in <int>[408, 429, 500, 502, 503, 504]) {
       final fallback = FixedBundledScreenResolver(fixture.bundled());
       final resolver = _resolver(
@@ -148,7 +145,6 @@ void main() {
   test('uses only the exact bundled closure for I/O and timeout unavailability',
       () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     for (final failure in <Object>[
       http.ClientException('offline'),
       TimeoutException('delivery timed out'),
@@ -172,7 +168,6 @@ void main() {
 
   test('never falls back from an unexpected local delivery failure', () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     final fallback = FixedBundledScreenResolver(fixture.bundled());
     final resolver = _resolver(
       client: RestageRpcClient(
@@ -192,7 +187,6 @@ void main() {
 
   test('never falls back from deterministic hosted HTTP rejection', () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     for (final statusCode in <int>[400, 401, 403, 409, 413, 422, 501]) {
       final fallback = FixedBundledScreenResolver(fixture.bundled());
       final resolver = _resolver(
@@ -222,7 +216,6 @@ void main() {
       slug: fixture.ref.slug,
       text: 'Different bundled closure',
     );
-    installManifestBundle(fixture.bundle);
     final fallback = FixedBundledScreenResolver(altered.bundled());
     final resolver = _resolver(
       client: RestageRpcClient(
@@ -242,7 +235,6 @@ void main() {
 
   test('never falls back from a malformed present hosted response', () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     final fallback = FixedBundledScreenResolver(fixture.bundled());
     final resolver = _resolver(
       client: RestageRpcClient(
@@ -262,7 +254,6 @@ void main() {
 
   test('never falls back from a present contract-version mismatch', () async {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
     final fallback = FixedBundledScreenResolver(fixture.bundled());
     final response = fixture.delivery(contractVersion: 2);
     final resolver = _resolver(
@@ -293,7 +284,6 @@ void main() {
         requiredLibraries: const [],
       ),
     );
-    installManifestBundle(fixture.bundle);
     final fallback = FixedBundledScreenResolver(fixture.bundled());
     final resolver = _resolver(
       client: RestageRpcClient(
@@ -318,8 +308,95 @@ void main() {
     expect(fallback.calls, 0);
   });
 
-  testWidgets(
-      'configuration installs the manifest-aware standalone screen resolver',
+  test('accepts hosted required libraries that match by value', () async {
+    // The hosted document's library list arrives decoded from the wire, so it
+    // is never the same list instance the generated contract holds. Comparing
+    // the two by identity rejects every hosted screen that requires a customer
+    // library, so this fixture deliberately requires one.
+    const namespace = 'example.custom';
+    Restage.registerWidgetLibrary(
+      const WidgetLibrary.custom(namespace),
+      widgets: const <RestageWidgetFactory>[],
+      capabilityVersion: 3,
+    );
+    final fixture = stringScreenFixture(
+      capabilities: CapabilityManifest(
+        builtInFloor: 1,
+        requiredLibraries: const <LibraryRequirement>[
+          LibraryRequirement(namespace: namespace, minVersion: 2),
+        ],
+      ),
+    );
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: MockClient(
+          (_) async => http.Response(
+            SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+              fixture.delivery(),
+            ),
+            200,
+          ),
+        ),
+      ),
+      fallback: FixedBundledScreenResolver(fixture.bundled()),
+    );
+
+    final resolved = await resolver.resolve(fixture.ref);
+
+    expect(resolved.origin, SurfaceScreenOrigin.hosted);
+    expect(resolved.capabilities.requiredLibraries, hasLength(1));
+  });
+
+  test('serves hosted content when the application packages no bundles',
+      () async {
+    final fixture = stringScreenFixture(packagesBundle: false);
+    final fallback = AbsentBundledScreenResolver();
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: MockClient(
+          (_) async => http.Response(
+            SurfaceScreenDeliveryResponseV1Codec.encodeCanonicalJson(
+              fixture.delivery(publishedRevision: 4),
+            ),
+            200,
+          ),
+        ),
+      ),
+      fallback: fallback,
+    );
+
+    final resolved = await resolver.resolve(fixture.ref);
+
+    expect(resolved.origin, SurfaceScreenOrigin.hosted);
+    expect(resolved.publishedRevision, 4);
+    expect(fallback.calls, 0, reason: 'hosted content never needs a bundle');
+  });
+
+  test('fails closed when absent hosted content has no packaged bundle',
+      () async {
+    final fixture = stringScreenFixture(packagesBundle: false);
+    final fallback = AbsentBundledScreenResolver();
+    final resolver = _resolver(
+      client: RestageRpcClient(
+        baseUrl: _baseUrl,
+        apiKey: _apiKey,
+        httpClient: MockClient((_) async => http.Response('', 404)),
+      ),
+      fallback: fallback,
+    );
+
+    await expectLater(
+      resolver.resolve(fixture.ref),
+      throwsA(_unavailable(SurfaceScreenUnavailableReason.missing)),
+    );
+    expect(fallback.calls, 1);
+  });
+
+  testWidgets('configuration installs the hosted standalone screen resolver',
       (_) async {
     Restage.configure(apiKey: _apiKey, baseUrl: _baseUrl);
 

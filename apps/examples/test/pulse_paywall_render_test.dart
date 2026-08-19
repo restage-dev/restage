@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,6 +6,8 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/pulse_badge.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+
+import '_support/bundled_artifacts.dart';
 
 class _StaticResolver implements VariantResolver {
   _StaticResolver(this.bytes);
@@ -36,7 +37,7 @@ void main() {
     final bytes = Uint8List.fromList(
       encodeLibraryBlob(
         parseLibraryFile(
-          File('assets/paywalls/pulse_paywall.rfwtxt').readAsStringSync(),
+          readDeliveryText('assets/paywalls/pulse_paywall.rfwtxt'),
         ),
       ),
     );

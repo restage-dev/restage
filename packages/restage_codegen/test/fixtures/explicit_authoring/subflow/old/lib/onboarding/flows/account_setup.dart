@@ -4,7 +4,7 @@ import '../screens/account.dart';
 import '../screens/error.dart';
 import 'profile_flow.dart';
 
-part 'account_setup.rsflow.g.dart';
+part 'restage.generated/account_setup.restage.g.dart';
 
 const profileChildFlow = OnboardingFlowRef<Map<String, Object?>>(
   id: 'profile_flow',

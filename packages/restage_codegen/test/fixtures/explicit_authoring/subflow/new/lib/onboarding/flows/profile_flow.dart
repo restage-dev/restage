@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/profile.dart';
 
-part 'profile_flow.rsflow.g.dart';
+part 'restage.generated/profile_flow.restage.g.dart';
 
 const profileName = FlowStateRef<String>('profileName');
 

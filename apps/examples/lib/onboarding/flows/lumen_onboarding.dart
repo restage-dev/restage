@@ -6,7 +6,7 @@ import '../screens/lumen_recap.dart';
 import '../screens/lumen_reminder.dart';
 import '../screens/lumen_welcome.dart';
 
-part 'lumen_onboarding.rsflow.g.dart';
+part 'restage.generated/lumen_onboarding.restage.g.dart';
 
 /// A meditation onboarding flow that ends on an embedded subscription paywall.
 ///
@@ -20,7 +20,7 @@ part 'lumen_onboarding.rsflow.g.dart';
 /// forward transition per screen, so a personalization answer tailors the
 /// experience rather than forking the graph (the faithful pattern — real
 /// onboardings capture answers for tailoring, not an immediate path fork).
-@FlowSource(id: 'lumen_onboarding', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class LumenOnboardingFlow extends RestageFlow {
   /// Host action that requests the daily-reminder permission and reports the
   /// grant. The flow advances to the recap only on a granted result.
@@ -64,7 +64,7 @@ final class LumenOnboardingFlow extends RestageFlow {
             .on(LumenRecapScreen.next)
             .goTo(paywallScreen('lumen_premium')),
         screen(paywallScreen('lumen_premium'))
-            .on(PaywallFlowEvents.purchase)
+            .on(PaywallEvents.purchase)
             .goTo(done),
         end(done, result: {'subscribed': true}),
       ],

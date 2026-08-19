@@ -4,7 +4,7 @@ import '../screens/failure.dart';
 import '../screens/retry_screen.dart';
 import '../screens/start.dart';
 
-part 'retry_flow.rsflow.g.dart';
+part 'restage.generated/retry_flow.restage.g.dart';
 
 @FlowSource(id: 'retry_flow', version: 1, minClient: 1)
 final class RetryFlow extends RestageFlow {

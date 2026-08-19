@@ -5,7 +5,7 @@ import 'flows/minimal_onboarding.dart';
 
 /// Gallery host for the onboarding starter.
 ///
-/// The host side of a flow is small: hand `RestageOnboarding` the flow, say what
+/// The host side of a flow is small: hand `RestageSurfaceFlow` the flow, say what
 /// to do when it can't load (`unavailable`), act on completion, and supply the
 /// chrome (the back / close affordances). No billing — the flow ends on a plain
 /// screen. A real app delivers the same flow over the air by installing a server
@@ -16,7 +16,7 @@ class MinimalOnboardingDemo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageOnboarding<MinimalOnboardingResult>(
+    return RestageSurfaceFlow<MinimalOnboardingResult>(
       flow: MinimalOnboardingFlowDescriptor.ref,
       // Fail closed: if the flow can't be resolved, show a plain message rather
       // than a broken or partial surface.

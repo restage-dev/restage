@@ -10,7 +10,7 @@ import '../widgets/pulse_badge.dart';
 /// custom widget be *referenced* (never inlined) in a Dart-authored surface and
 /// resolved from the delivered blob through the registered runtime factory —
 /// the case no future transpiler increment could turn into an inline.
-@PaywallSource(id: 'pulse_paywall')
+@Paywall()
 class PulsePaywall extends StatefulWidget {
   /// Const constructor.
   const PulsePaywall({super.key});

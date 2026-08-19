@@ -314,8 +314,7 @@ const _source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'subflow_authoring.rsscreen.g.dart';
-part 'subflow_authoring.rsflow.g.dart';
+part 'restage.generated/subflow_authoring.restage.g.dart';
 
 @Screen(id: 'entry', minClient: 1)
 final class Entry extends StatelessWidget {

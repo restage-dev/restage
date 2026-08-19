@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:flutter/widgets.dart';
+import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../flow/flow_descriptors.dart';
@@ -52,33 +52,6 @@ final class SurfaceScreenUnavailableError implements Exception {
   String toString() => message;
 }
 
-/// Builds host UI for an unavailable standalone screen.
-typedef SurfaceScreenUnavailableBuilder = Widget Function(
-  BuildContext context,
-  SurfaceScreenUnavailableError error,
-);
-
-/// Required unavailable behavior for [RestageSurfaceScreen].
-@immutable
-final class SurfaceScreenUnavailablePolicy {
-  /// Shows host-provided fallback UI when the screen is unavailable.
-  const SurfaceScreenUnavailablePolicy.fallback({
-    required SurfaceScreenUnavailableBuilder builder,
-  })  : fallbackBuilder = builder,
-        hide = false;
-
-  /// Hides the screen when it is unavailable.
-  const SurfaceScreenUnavailablePolicy.hide()
-      : fallbackBuilder = null,
-        hide = true;
-
-  /// The fallback builder, when this policy presents fallback UI.
-  final SurfaceScreenUnavailableBuilder? fallbackBuilder;
-
-  /// Whether unavailable screen UI is intentionally hidden.
-  final bool hide;
-}
-
 /// Where a standalone screen was resolved.
 enum SurfaceScreenOrigin {
   /// The screen was loaded from the generated package assets.
@@ -103,6 +76,7 @@ final class ResolvedSurfaceScreen {
     required String eventContractHash,
     required Uint8List blob,
     required String contentHash,
+    String? bundledEntryHash,
   }) : this._(
           origin: SurfaceScreenOrigin.bundled,
           surface: surface,
@@ -116,6 +90,7 @@ final class ResolvedSurfaceScreen {
           eventContractHash: eventContractHash,
           blob: blob,
           contentHash: contentHash,
+          bundledEntryHash: bundledEntryHash,
           assignment: null,
           cacheHit: false,
         );
@@ -148,6 +123,7 @@ final class ResolvedSurfaceScreen {
           eventContractHash: eventContractHash,
           blob: blob,
           contentHash: contentHash,
+          bundledEntryHash: null,
           assignment: assignment,
           cacheHit: cacheHit,
         );
@@ -165,6 +141,7 @@ final class ResolvedSurfaceScreen {
     required this.eventContractHash,
     required Uint8List blob,
     required this.contentHash,
+    required this.bundledEntryHash,
     required this.assignment,
     required this.cacheHit,
   }) : blob = Uint8List.fromList(blob) {
@@ -181,6 +158,10 @@ final class ResolvedSurfaceScreen {
           'Bundled results cannot carry hosted delivery metadata.',
         );
       }
+    } else if (bundledEntryHash != null) {
+      throw ArgumentError(
+        'Hosted results cannot carry bundled entry metadata.',
+      );
     } else if (publishedRevision == null || publishedRevision! < 1) {
       throw ArgumentError.value(
         publishedRevision,
@@ -225,6 +206,13 @@ final class ResolvedSurfaceScreen {
 
   /// Canonical content hash for the resolved blob payload.
   final String contentHash;
+
+  /// SHA-256 of the exact bundle entry the blob came from, when it came from
+  /// a packaged bundle.
+  ///
+  /// This pins bundled content to one generated entry rather than merely to a
+  /// matching contract, so a repackaged bundle cannot substitute other bytes.
+  final String? bundledEntryHash;
 
   /// The exact hosted experiment assignment, when one was selected.
   final SurfaceExperimentAssignmentV1? assignment;

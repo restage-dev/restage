@@ -33,13 +33,53 @@
 
 ## Status
 
-The SDK ships the full delivery path today. The hosted Restage service that runs it for you is coming soon. Either way the resolvers are the same:
+The SDK ships the full delivery path today. The hosted Restage service that runs it for you is in private beta. Either way the generated references and fail-closed policies are the same:
 
-- **Single surfaces** (a paywall, a message) load `.rfw` assets through `AssetVariantResolver`, from `assets/paywalls/<id>.rfw`.
-- **Flows** (onboarding, surveys, any multi-screen surface) load generated flow JSON and screen `.rfw` assets through `AssetFlowResolver`.
+- **Standalone screens** use a generated `SurfaceScreenRef<E>` with
+  `RestageSurfaceScreen<E>`. The ref carries the screen's category, contract,
+  and generated event decoder.
+- **Specialized paywalls** use `@Paywall` source and `RestagePaywall` with
+  `AssetVariantResolver` when you bundle the generated paywall artifact. The
+  generated artifact path is an output, not the paywall's identity.
+- **Flows** (onboarding, surveys, messages, or general surfaces) use a generated
+  `SurfaceFlowRef<R>` with `RestageSurfaceFlow<R>`.
+- **Legacy compatibility:** `RestageOnboarding<R>` remains available as the
+  onboarding-only compatibility facade. New host code should use
+  `RestageSurfaceFlow<R>` for every flow category.
+- **Publication metadata:** `lib/generated/restage.publication.json`
+  is the generated authority for each surface identity and its exact artifact
+  closure. Source and asset directories do not select a publication.
 - **Hosted delivery:** `Restage.configure(baseUrl: …)` installs `RestageVariantResolver`. It fetches the active published surface and falls back to a bundled asset when the fetch is unavailable. Point `baseUrl` at your own backend now, or at the hosted service when it opens. Flows take the same hosted path through `ServerFlowResolver` (pass it as `flowResolver:`).
 
 Apps that bundle all their artifacts keep using the asset resolvers directly.
+
+## Authoring annotations and publication
+
+Declare the surface category where you author it:
+
+- `@Screen(surface: Surface.<category>)` creates an independently published
+  ordinary screen. `@Screen()` creates a reusable flow screen that inherits its
+  containing flow's category.
+- `@Paywall` creates a specialized paywall. A paywall can also be composed into
+  a flow of another category.
+- `@FlowGraph(surface: Surface.<category>)` creates a typed flow graph.
+
+Flow-screen interactions use typed `SurfaceEvent` descriptors and the
+`surfaceEvent(...)` callback helper; ordinary authoring does not use raw event
+name strings.
+
+The accepted categories are the closed `Surface` values: `onboarding`, `message`,
+`survey`, `paywall`, and `general`. Run the generator, then publish by the
+generated slug:
+
+```sh
+dart run build_runner build
+restage surface publish <slug>
+```
+
+The CLI reads the fixed generated manifest. `--type` is optional validation or
+disambiguation. `--path` is not a publication option, and a directory does not
+choose the artifact closure.
 
 ## Paywall quick start
 
@@ -95,9 +135,15 @@ This durability boundary belongs only to the bundled gateway. Custom
 receipt-bearing `BillingGateway` implementations and the RevenueCat adapter
 retain ownership of their own receipt recovery and store-completion durability.
 
-## Onboarding quick start
+## Flow quick start
 
 `restage_codegen` generates the `SurfaceFlowRef<R>` and, when the flow uses host actions, a `FlowActionRegistry`. The example below shows the public API that generated code and your app code use together.
+
+For the normal bundled path, `RestageSurfaceFlow` uses `AssetFlowResolver` by
+default; it can also be passed explicitly as shown below. The resolver loads
+the generated flow artifact closure from the app bundle. It does not determine
+the flow's identity or publication category; generated publication metadata is
+the authority for those.
 
 ```dart
 import 'package:flutter/widgets.dart';
@@ -115,6 +161,7 @@ abstract final class FirstRunFlowDescriptor {
     id: 'first_run',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: _decodeResult,
   );
 
@@ -159,13 +206,14 @@ final class FirstRunActions implements FlowActionRegistry {
   final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings;
 }
 
-class OnboardingEntry extends StatelessWidget {
-  const OnboardingEntry({super.key});
+class FlowEntry extends StatelessWidget {
+  const FlowEntry({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return RestageOnboarding<FirstRunResult>(
+    return RestageSurfaceFlow<FirstRunResult>(
       flow: FirstRunFlowDescriptor.ref,
+      resolver: const AssetFlowResolver(),
       actions: FirstRunActions(
         requestNotifications: (_, context) async {
           return const NotificationResult(granted: true);
@@ -235,7 +283,7 @@ Restage.configure(
 );
 
 // Per-widget override (wins over everything). An empty set opts this one out.
-RestageOnboarding<FirstRunResult>(
+RestageSurfaceFlow<FirstRunResult>(
   flow: welcomeFlow,
   liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
   unavailable: const FlowUnavailablePolicy.hide(),
@@ -303,11 +351,17 @@ It's all BSD-3-Clause and readable: see `lib/src/analytics/` and `lib/src/billin
 
 ## Build your artifacts
 
-Add `restage_codegen` as a dev dependency and run build_runner to generate descriptors, flow JSON, and screen `.rfw` assets:
+Add `restage_codegen` as a dev dependency and run build_runner to generate
+typed descriptors, flow documents, screen artifacts, and the publication
+manifest:
 
 ```sh
 dart run build_runner build
 ```
+
+Generated asset paths are implementation outputs. Use the generated refs at
+runtime and `restage surface publish <slug>` for publication; do not construct a
+publication by guessing a directory or passing an artifact path.
 
 Apps that depend on `restage` must build with `--no-tree-shake-icons`, because RFW builds `IconData` from runtime values:
 

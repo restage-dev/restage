@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'question.rsscreen.g.dart';
+part 'restage.generated/question.restage.g.dart';
 
 @Screen()
 final class QuestionScreen extends StatelessWidget {

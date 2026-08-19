@@ -63,7 +63,7 @@ class _ApexDropDemoState extends State<ApexDropDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return const _ShopScreen();
-    return RestageOnboarding<ApexDropResult>(
+    return RestageSurfaceFlow<ApexDropResult>(
       flow: ApexDropFlowDescriptor.ref,
       onComplete: (result) => _act(),
       onFlowUnavailable: (error) => _close(),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'derived_notice.rsscreen.g.dart';
+part 'restage.generated/derived_notice.restage.g.dart';
 
 @Screen(surface: Surface.general)
 final class DerivedNotice extends StatelessWidget {

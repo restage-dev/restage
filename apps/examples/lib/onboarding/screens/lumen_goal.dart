@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'lumen_goal.rsscreen.g.dart';
+part 'restage.generated/lumen_goal.restage.g.dart';
 
 /// Onboarding — the goal/reason question.
 ///
 /// A second personalization question. Like the experience screen, the flow is
 /// linear: each option fires the same [next] event (the answer tailors the
 /// recommendations, it does not fork the graph).
-@ScreenSource(id: 'lumen_goal')
+@Screen()
 class LumenGoalScreen extends StatelessWidget {
   /// Advances to the reminder priming screen.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const LumenGoalScreen({super.key});
 
@@ -49,7 +49,7 @@ class LumenGoalScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -89,7 +89,7 @@ class LumenGoalScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -129,7 +129,7 @@ class LumenGoalScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -169,7 +169,7 @@ class LumenGoalScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     GestureDetector(
-                      onTap: onboardingEvent(next),
+                      onTap: surfaceEvent(next),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(

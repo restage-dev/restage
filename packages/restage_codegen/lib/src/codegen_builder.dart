@@ -139,6 +139,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   required LibraryElement library,
   required AssetId assetId,
   required List<PaywallSourceFound> sources,
+  required String? Function(ClassElement declaration) canonicalPaywallIdFor,
 }) async {
   if (sources.isEmpty) {
     return ResolvedPaywallCompilationResult(
@@ -184,6 +185,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     helpers: helpers,
     customWidgetClassifications: classification.classifications,
     customWidgetBlueprints: classification.blueprints,
+    canonicalPaywallIdFor: canonicalPaywallIdFor,
   );
   final compiled = <CompiledPaywallArtifacts>[];
   for (final source in sources) {

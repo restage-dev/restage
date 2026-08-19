@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '_support/bundled_artifacts.dart';
+
 /// Proves the shape of the Stride v1→v2 delta on the **real generated
 /// documents**: adding a screen is a structural change the typed active-render
 /// gate refuses, but the general gate accepts. That is the whole point of
@@ -22,8 +24,7 @@ void main() {
     File('test/fixtures/stride_first_run.v1.flow.json').readAsStringSync(),
   );
   final v2 = FlowDocumentCodec.decodeJson(
-    File('assets/onboarding/flows/stride_first_run.flow.json')
-        .readAsStringSync(),
+    readDeliveryText('assets/onboarding/flows/stride_first_run.flow.json'),
   );
 
   test('the fixtures are the intended general v1 and v2 documents', () {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'apex_drop.rsscreen.g.dart';
+part 'restage.generated/apex_drop.restage.g.dart';
 
 /// A single-screen in-app message — a streetwear product "drop" announcement.
 ///
@@ -13,13 +13,13 @@ part 'apex_drop.rsscreen.g.dart';
 ///   the product / the shop). A CTA that "acts" is just a flow that completes.
 /// - **×** fires [dismiss], a flow custom event the host listens for to close
 ///   the message. Dismissing is not a graph transition — the message goes away.
-@ScreenSource(id: 'apex_drop')
+@Screen()
 class ApexDropScreen extends StatelessWidget {
   /// The primary action — completes the flow so the host can act on it.
-  static const act = OnboardingEvent<void>('act');
+  static const act = SurfaceEvent<void>('act');
 
   /// Dismisses the message (host-handled custom event).
-  static const dismiss = OnboardingEvent<void>('dismiss');
+  static const dismiss = SurfaceEvent<void>('dismiss');
 
   const ApexDropScreen({super.key});
 
@@ -37,7 +37,7 @@ class ApexDropScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed: onboardingEvent(dismiss),
+                    onPressed: surfaceEvent(dismiss),
                     icon: const Icon(
                       Icons.close_rounded,
                       color: Color(0xFF8C8C8C),
@@ -103,7 +103,7 @@ class ApexDropScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: onboardingEvent(act),
+                onPressed: surfaceEvent(act),
                 child: const Text(
                   'Shop the drop',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),

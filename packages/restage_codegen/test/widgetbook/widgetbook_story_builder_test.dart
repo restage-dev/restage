@@ -33,7 +33,7 @@ void main() {
         const {
           r'$lib$': [
             'generated/.restage_widgetbook_story_builder',
-            'generated/same_card.stories.dart',
+            'restage.generated/same_card.stories.dart',
           ],
         },
       );
@@ -72,8 +72,8 @@ class PlainCard {}
         const {
           r'$lib$': [
             'generated/.restage_widgetbook_story_builder',
-            'generated/imported_alias_card.stories.dart',
-            'generated/local_alias_card.stories.dart',
+            'restage.generated/imported_alias_card.stories.dart',
+            'restage.generated/local_alias_card.stories.dart',
           ],
         },
       );
@@ -112,8 +112,8 @@ class PackagePartCard {}
         const {
           r'$lib$': [
             'generated/.restage_widgetbook_story_builder',
-            'generated/package_part_card.stories.dart',
-            'generated/relative_part_card.stories.dart',
+            'restage.generated/package_part_card.stories.dart',
+            'restage.generated/relative_part_card.stories.dart',
           ],
         },
       );
@@ -143,7 +143,7 @@ class PackagePartCard {}
 @Deprecated('ownership probe')
 class ManualCard {}
 ''');
-        final generated = Directory('${lib.path}/generated')
+        final generated = Directory('${lib.path}/restage.generated')
           ..createSync(recursive: true);
         File('${generated.path}/manual_card.stories.dart').writeAsStringSync(
           probe.source,
@@ -153,7 +153,7 @@ class ManualCard {}
           lib,
         ).buildExtensions[r'$lib$']!;
         expect(
-          outputs.contains('generated/manual_card.stories.dart'),
+          outputs.contains('restage.generated/manual_card.stories.dart'),
           probe.owned,
           reason: probe.name,
         );
@@ -169,7 +169,7 @@ class ManualCard {}
     );
     try {
       final lib = Directory('${temp.path}/lib')..createSync(recursive: true);
-      final generated = Directory('${lib.path}/generated')
+      final generated = Directory('${lib.path}/restage.generated')
         ..createSync(recursive: true);
       File('${generated.path}/orphan_card.stories.dart').writeAsStringSync(
         _recognizableGeneratedManualStory,
@@ -182,7 +182,7 @@ class ManualCard {}
         const {
           r'$lib$': [
             'generated/.restage_widgetbook_story_builder',
-            'generated/orphan_card.stories.dart',
+            'restage.generated/orphan_card.stories.dart',
           ],
         },
       );
@@ -201,7 +201,7 @@ class ManualCard {}
 @Deprecated('customer-authored Widgetbook story')
 class ManualCard {}
 ''');
-      File('${lib.path}/generated/manual_card.stories.dart')
+      File('${lib.path}/restage.generated/manual_card.stories.dart')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(_foreignGeneratedManualStory);
       expect(
@@ -228,7 +228,7 @@ class ManualCard {}
 @Deprecated('syntax roster probe')
 class ManualCard {}
 ''');
-      File('${lib.path}/generated/manual_card.stories.dart')
+      File('${lib.path}/restage.generated/manual_card.stories.dart')
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(_recognizableGeneratedManualStory);
       expect(
@@ -239,7 +239,7 @@ class ManualCard {}
         const {
           r'$lib$': [
             'generated/.restage_widgetbook_story_builder',
-            'generated/manual_card.stories.dart',
+            'restage.generated/manual_card.stories.dart',
           ],
         },
       );
@@ -281,9 +281,9 @@ class PlainCard {}
         const {
           r'$lib$': [
             'generated/.restage_widgetbook_story_builder',
-            'generated/direct_card.stories.dart',
-            'generated/local_alias_card.stories.dart',
-            'generated/reserved_only_card.stories.dart',
+            'restage.generated/direct_card.stories.dart',
+            'restage.generated/local_alias_card.stories.dart',
+            'restage.generated/reserved_only_card.stories.dart',
           ],
         },
       );
@@ -322,9 +322,9 @@ class PlainCard {}
     await testBuilder(
       const WidgetbookStoryBuilder({
         r'$lib$': [
-          'generated/imported_alias_card.stories.dart',
-          'generated/local_alias_card.stories.dart',
-          'generated/reserved_only_card.stories.dart',
+          'restage.generated/imported_alias_card.stories.dart',
+          'restage.generated/local_alias_card.stories.dart',
+          'restage.generated/reserved_only_card.stories.dart',
         ],
       }),
       const {
@@ -335,9 +335,9 @@ class PlainCard {}
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       outputs: {
-        'apps_examples|lib/generated/imported_alias_card.stories.dart':
+        'apps_examples|lib/restage.generated/imported_alias_card.stories.dart':
             decodedMatches(contains('ImportedAliasCard')),
-        'apps_examples|lib/generated/local_alias_card.stories.dart':
+        'apps_examples|lib/restage.generated/local_alias_card.stories.dart':
             decodedMatches(contains('LocalAliasCard')),
       },
     );
@@ -355,7 +355,7 @@ class PlainCard {}
       }),
       const {
         'apps_examples|lib/manual_card.dart': _genuineManualCard,
-        'apps_examples|lib/generated/manual_card.stories.dart':
+        'apps_examples|lib/restage.generated/manual_card.stories.dart':
             _foreignGeneratedManualStory,
         'widgetbook|lib/widgetbook.dart': _widgetbookStub,
       },
@@ -370,7 +370,7 @@ class PlainCard {}
         contains('lib/manual_card.dart#ManualCard'),
         contains(
           'conflicts with the existing hand-authored Widgetbook story at '
-          'lib/generated/manual_card.stories.dart',
+          'lib/restage.generated/manual_card.stories.dart',
         ),
         contains('Move or rename the hand-authored story'),
         isNot(contains('Restart dart run build_runner watch')),
@@ -385,7 +385,7 @@ class PlainCard {}
     );
     await testBuilder(
       const WidgetbookStoryBuilder({
-        r'$lib$': ['generated/same_card.stories.dart'],
+        r'$lib$': ['restage.generated/same_card.stories.dart'],
       }),
       {
         'apps_examples|lib/genuine.dart': _genuineSameCard,
@@ -395,7 +395,8 @@ class PlainCard {}
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       outputs: {
-        'apps_examples|lib/generated/same_card.stories.dart': decodedMatches(
+        'apps_examples|lib/restage.generated/same_card.stories.dart':
+            decodedMatches(
           allOf(
             contains(
               '// GENERATED CODE - DO NOT MODIFY BY HAND\n'
@@ -420,7 +421,7 @@ class PlainCard {}
     final logs = <String>[];
     await testBuilder(
       const WidgetbookStoryBuilder({
-        r'$lib$': ['generated/same_card.stories.dart'],
+        r'$lib$': ['restage.generated/same_card.stories.dart'],
       }),
       {
         'apps_examples|lib/first.dart': _lookalikeSameCard,
@@ -441,7 +442,7 @@ class PlainCard {}
     final logs = <String>[];
     await testBuilder(
       const WidgetbookStoryBuilder({
-        r'$lib$': ['generated/same_card.stories.dart'],
+        r'$lib$': ['restage.generated/same_card.stories.dart'],
       }),
       const {
         'apps_examples|lib/first.dart': _firstGenuineSameCard,
@@ -456,7 +457,7 @@ class PlainCard {}
       logs.join('\n'),
       allOf(
         contains(
-          "Widgetbook story output 'lib/generated/same_card.stories.dart'",
+          "Widgetbook story output 'lib/restage.generated/same_card.stories.dart'",
         ),
         contains('lib/first.dart#SameCard'),
         contains('lib/second.dart#SameCard'),
@@ -472,7 +473,7 @@ class PlainCard {}
     final logs = <String>[];
     await testBuilder(
       const WidgetbookStoryBuilder({
-        r'$lib$': ['generated/same_card.stories.dart'],
+        r'$lib$': ['restage.generated/same_card.stories.dart'],
       }),
       const {
         'apps_examples|lib/part_owner.dart': _partOwnerLibrary,
@@ -509,7 +510,7 @@ class PlainCard {}
     final logs = <String>[];
     await testBuilder(
       const WidgetbookStoryBuilder({
-        r'$lib$': ['generated/same_card.stories.dart'],
+        r'$lib$': ['restage.generated/same_card.stories.dart'],
       }),
       const {
         'apps_examples|lib/package_part_owner.dart': _packagePartOwnerLibrary,
@@ -540,8 +541,8 @@ class PlainCard {}
     await testBuilder(
       const WidgetbookStoryBuilder({
         r'$lib$': [
-          'generated/first_card.stories.dart',
-          'generated/second_card.stories.dart',
+          'restage.generated/first_card.stories.dart',
+          'restage.generated/second_card.stories.dart',
         ],
       }),
       const {
@@ -552,9 +553,9 @@ class PlainCard {}
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       outputs: {
-        'apps_examples|lib/generated/first_card.stories.dart':
+        'apps_examples|lib/restage.generated/first_card.stories.dart':
             decodedMatches(contains('FirstCard')),
-        'apps_examples|lib/generated/second_card.stories.dart':
+        'apps_examples|lib/restage.generated/second_card.stories.dart':
             decodedMatches(contains('SecondCard')),
       },
     );
@@ -571,8 +572,8 @@ class PlainCard {}
         body: () => testBuilder(
           const WidgetbookStoryBuilder({
             r'$lib$': [
-              'generated/shared_card.stories.dart',
-              'generated/shared_screen.stories.dart',
+              'onboarding/screens/restage.generated/shared_card.stories.dart',
+              'onboarding/screens/restage.generated/shared_screen.stories.dart',
             ],
           }),
           const {
@@ -584,7 +585,7 @@ class PlainCard {}
           rootPackage: 'apps_examples',
           readerWriter: readerWriter,
           outputs: {
-            'apps_examples|lib/generated/shared_card.stories.dart':
+            'apps_examples|lib/onboarding/screens/restage.generated/shared_card.stories.dart':
                 decodedMatches(
               allOf(
                 contains('name: "shared"'),
@@ -592,7 +593,7 @@ class PlainCard {}
                 isNot(contains("path: 'Screens'")),
               ),
             ),
-            'apps_examples|lib/generated/shared_screen.stories.dart':
+            'apps_examples|lib/onboarding/screens/restage.generated/shared_screen.stories.dart':
                 decodedMatches(
               allOf(
                 contains('name: "shared"'),
@@ -609,13 +610,14 @@ class PlainCard {}
   test(
     'customer description and usage stay editable under exact Dart names',
     () async {
-      const output = 'apps_examples|lib/generated/metadata_card.stories.dart';
+      const output =
+          'apps_examples|lib/restage.generated/metadata_card.stories.dart';
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
       );
       await testBuilder(
         const WidgetbookStoryBuilder({
-          r'$lib$': ['generated/metadata_card.stories.dart'],
+          r'$lib$': ['restage.generated/metadata_card.stories.dart'],
         }),
         const {
           'apps_examples|lib/metadata_card.dart': _metadataCollisionCard,
@@ -652,7 +654,8 @@ class PlainCard {}
   test(
     'production ScreenSource story uses exact identity and Defaults.setup',
     () async {
-      const output = 'apps_examples|lib/generated/opaque_screen.stories.dart';
+      const output =
+          'apps_examples|lib/onboarding/screens/restage.generated/opaque_screen.stories.dart';
       const sourceRoot = 'package:apps_examples/onboarding/screens';
       const sourceUri = '$sourceRoot/opaque-screen-v1.dart';
       final readerWriter = await readerWriterWithFilesystemSources(
@@ -663,7 +666,7 @@ class PlainCard {}
         body: () => testBuilder(
           const WidgetbookStoryBuilder({
             r'$lib$': [
-              'generated/opaque_screen.stories.dart',
+              'onboarding/screens/restage.generated/opaque_screen.stories.dart',
             ],
           }),
           const {
@@ -716,8 +719,56 @@ class PlainCard {}
     },
   );
 
+  test(
+    'Widgetbook labels canonical native story collisions as '
+    'Screen declarations',
+    () async {
+      const firstPath = 'lib/features/first_collision.dart';
+      const secondPath = 'lib/features/second_collision.dart';
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final logs = <String>[];
+
+      final result = await runWithNativeScreenPackageGraphForTesting(
+        packageGraphSource: _screenSourcePackageGraph,
+        body: () => testBuilder(
+          const WidgetbookStoryBuilder({
+            r'$lib$': [
+              'features/restage.generated/collision_screen.stories.dart'
+            ],
+          }),
+          const {
+            'apps_examples|lib/features/first_collision.dart':
+                _firstCanonicalCollisionScreen,
+            'apps_examples|lib/features/second_collision.dart':
+                _secondCanonicalCollisionScreen,
+            'apps_examples|pubspec.yaml': _screenSourcePubspec,
+            'widgetbook|lib/widgetbook.dart': _widgetbookStub,
+          },
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+          onLog: (record) => logs.add(record.message),
+        ),
+      );
+
+      expect(result.succeeded, isFalse);
+      expect(
+        logs.join('\n'),
+        allOf(
+          contains('@Screen declarations'),
+          isNot(contains('@ScreenSource declarations')),
+          contains('$firstPath#CollisionScreen'),
+          contains('$secondPath#CollisionScreen'),
+        ),
+      );
+    },
+  );
+
   test('ScreenSource order migration is logged exactly once', () async {
-    const output = 'apps_examples|lib/generated/order_screen.stories.dart';
+    const output =
+        'apps_examples|lib/onboarding/screens/restage.generated/order_screen.stories.dart';
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
@@ -726,7 +777,9 @@ class PlainCard {}
       packageGraphSource: _screenSourcePackageGraph,
       body: () => testBuilder(
         const WidgetbookStoryBuilder({
-          r'$lib$': ['generated/order_screen.stories.dart'],
+          r'$lib$': [
+            'onboarding/screens/restage.generated/order_screen.stories.dart'
+          ],
         }),
         const {
           'apps_examples|lib/onboarding/screens/order_screen.dart':
@@ -751,7 +804,7 @@ class PlainCard {}
     'generated ScreenSource story compiles when its class shadows the '
     'Restage dispatcher',
     () async {
-      const output = 'apps_examples|lib/generated/'
+      const output = 'apps_examples|lib/onboarding/screens/restage.generated/'
           'restage_surface_event_dispatcher.stories.dart';
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
@@ -762,7 +815,7 @@ class PlainCard {}
         body: () => testBuilder(
           const WidgetbookStoryBuilder({
             r'$lib$': [
-              'generated/restage_surface_event_dispatcher.stories.dart',
+              'onboarding/screens/restage.generated/restage_surface_event_dispatcher.stories.dart',
             ],
           }),
           const {
@@ -798,7 +851,7 @@ class PlainCard {}
           'apps_examples|lib/onboarding/screens/dispatcher_named_screen.dart':
               _dispatcherNamedScreenSource,
           output: generated,
-          'apps_examples|lib/generated/'
+          'apps_examples|lib/onboarding/screens/restage.generated/'
                   'restage_surface_event_dispatcher.stories.g.dart':
               _dispatcherStoryPartStub,
           'widgetbook|lib/widgetbook.dart': _widgetbookStub,
@@ -807,7 +860,7 @@ class PlainCard {}
           final library = await resolver.libraryFor(
             AssetId(
               'apps_examples',
-              'lib/generated/restage_surface_event_dispatcher.stories.dart',
+              'lib/onboarding/screens/restage.generated/restage_surface_event_dispatcher.stories.dart',
             ),
           );
           final resolved =
@@ -838,7 +891,8 @@ class PlainCard {}
       () async {
         final source = _screenWithPartDirectiveDecoy(decoy.value);
         const inputPath = 'lib/onboarding/screens/part_decoy.dart';
-        const outputPath = 'lib/generated/part_decoy.stories.dart';
+        const outputPath =
+            'lib/onboarding/screens/restage.generated/part_decoy.stories.dart';
         final readerWriter = await readerWriterWithFilesystemSources(
           rootPackage: 'apps_examples',
         );
@@ -847,7 +901,9 @@ class PlainCard {}
           packageGraphSource: _screenSourcePackageGraph,
           body: () => testBuilder(
             const WidgetbookStoryBuilder({
-              r'$lib$': ['generated/part_decoy.stories.dart'],
+              r'$lib$': [
+                'onboarding/screens/restage.generated/part_decoy.stories.dart'
+              ],
             }),
             {
               'apps_examples|$inputPath': source,
@@ -883,7 +939,9 @@ class PlainCard {}
       packageGraphSource: _screenSourcePackageGraph,
       body: () => testBuilder(
         const WidgetbookStoryBuilder({
-          r'$lib$': ['generated/not_awidget_screen.stories.dart'],
+          r'$lib$': [
+            'onboarding/screens/restage.generated/not_awidget_screen.stories.dart'
+          ],
         }),
         const {
           'apps_examples|lib/onboarding/screens/not_a_widget_screen.dart':
@@ -939,7 +997,8 @@ class PlainCard {}
         contains(
           'lib/onboarding/screens/opaque-screen-v1.dart#OpaqueScreen',
         ),
-        contains('lib/generated/opaque_screen.stories.dart'),
+        contains(
+            'lib/onboarding/screens/restage.generated/opaque_screen.stories.dart'),
         contains('Restart dart run build_runner watch'),
       ),
     );
@@ -975,7 +1034,7 @@ class PlainCard {}
   test('preserves public callback defaults through production story output',
       () async {
     const output =
-        'apps_examples|lib/generated/callback_default_card.stories.dart';
+        'apps_examples|lib/restage.generated/callback_default_card.stories.dart';
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
@@ -983,7 +1042,7 @@ class PlainCard {}
     await testBuilder(
       const WidgetbookStoryBuilder({
         r'$lib$': [
-          'generated/callback_default_card.stories.dart',
+          'restage.generated/callback_default_card.stories.dart',
         ],
       }),
       const {
@@ -1052,7 +1111,7 @@ class PlainCard {}
         'apps_examples|lib/callback_defaults.dart': _publicCallbackDefaults,
         'apps_examples|lib/callback_default_card.dart': _callbackDefaultCard,
         output: generated,
-        'apps_examples|lib/generated/callback_default_card.stories.g.dart':
+        'apps_examples|lib/restage.generated/callback_default_card.stories.g.dart':
             _storyPartStub,
         'widgetbook|lib/widgetbook.dart': _widgetbookStub,
       },
@@ -1060,7 +1119,7 @@ class PlainCard {}
         final library = await resolver.libraryFor(
           AssetId(
             'apps_examples',
-            'lib/generated/callback_default_card.stories.dart',
+            'lib/restage.generated/callback_default_card.stories.dart',
           ),
         );
         final resolved =
@@ -1091,7 +1150,7 @@ class PlainCard {}
     await testBuilder(
       const WidgetbookStoryBuilder({
         r'$lib$': [
-          'generated/private_callback_card.stories.dart',
+          'restage.generated/private_callback_card.stories.dart',
         ],
       }),
       const {
@@ -1147,7 +1206,7 @@ class PlainCard {}
       await testBuilder(
         const WidgetbookStoryBuilder({
           r'$lib$': [
-            'generated/root_card.stories.dart',
+            'restage.generated/root_card.stories.dart',
           ],
         }),
         {
@@ -1157,7 +1216,7 @@ class PlainCard {}
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/generated/root_card.stories.dart':
+          'apps_examples|lib/restage.generated/root_card.stories.dart':
               decodedMatches(fixture.matcher),
         },
       );
@@ -1255,15 +1314,16 @@ final class PartDecoyScreen extends StatelessWidget {
 ''';
 
 const _partDirectiveDecoys = <String, String>{
-  'comment': "// part 'part_decoy.rsscreen.g.dart';",
-  'string': "const partDirectiveText = \"part 'part_decoy.rsscreen.g.dart';\";",
+  'comment': "// part 'restage.generated/part_decoy.restage.g.dart';",
+  'string':
+      "const partDirectiveText = \"part 'restage.generated/part_decoy.restage.g.dart';\";",
 };
 
 const _dispatcherNamedScreenSource = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
-part 'dispatcher_named_screen.rsscreen.g.dart';
+part 'restage.generated/dispatcher_named_screen.restage.g.dart';
 
 @restage.ScreenSource(id: 'dispatcher_named_screen')
 final class RestageSurfaceEventDispatcher extends StatelessWidget {
@@ -1277,7 +1337,7 @@ final class RestageSurfaceEventDispatcher extends StatelessWidget {
 const _nonWidgetScreenSource = '''
 import 'package:restage/restage.dart' as restage;
 
-part 'not_a_widget_screen.rsscreen.g.dart';
+part 'restage.generated/not_a_widget_screen.restage.g.dart';
 
 @restage.ScreenSource(id: 'not_a_widget_screen')
 final class NotAWidgetScreen {
@@ -1290,7 +1350,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/widgetbook.dart' as wb;
 
-part 'opaque-screen-v1.rsscreen.g.dart';
+part 'restage.generated/opaque-screen-v1.restage.g.dart';
 
 enum ScreenTone { calm, urgent }
 
@@ -1330,12 +1390,42 @@ class OpaqueScreen extends StatelessWidget {
 }
 ''';
 
+const _firstCanonicalCollisionScreen = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/first_collision.restage.g.dart';
+
+@Screen(id: 'first-collision', surface: Surface.general)
+final class CollisionScreen extends StatelessWidget {
+  const CollisionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+const _secondCanonicalCollisionScreen = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/second_collision.restage.g.dart';
+
+@Screen(id: 'second-collision', surface: Surface.general)
+final class CollisionScreen extends StatelessWidget {
+  const CollisionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
 const _orderMigrationScreenSource = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-part 'order_screen.rsscreen.g.dart';
+part 'restage.generated/order_screen.restage.g.dart';
 
 @ScreenSource(id: 'order_screen')
 class OrderScreen extends StatelessWidget {
@@ -1712,7 +1802,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-part 'shared.rsscreen.g.dart';
+part 'restage.generated/shared.restage.g.dart';
 
 /// A customer widget under its ordinary Widgetbook path.
 @RestageWidget(

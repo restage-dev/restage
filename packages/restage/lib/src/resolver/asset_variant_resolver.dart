@@ -1,11 +1,12 @@
 import 'dart:ui' show Locale;
 
 import 'package:flutter/foundation.dart' show FlutterError;
-import 'package:flutter/services.dart' show AssetBundle, rootBundle;
+import 'package:flutter/services.dart' show AssetBundle;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
     show kPaywallScreensAssetDir;
 
+import '../assets/bundled_asset_source.dart';
 import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_resolver.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
@@ -44,7 +45,7 @@ final class AssetVariantResolver
 
   final AssetBundle? _bundle;
 
-  AssetBundle get _effectiveBundle => _bundle ?? rootBundle;
+  AssetBundle get _effectiveBundle => restageAssetSource(_bundle);
 
   @override
   Future<ResolvedVariant> resolve(

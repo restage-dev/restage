@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'starter_welcome.rsscreen.g.dart';
+part 'restage.generated/starter_welcome.restage.g.dart';
 
 /// Starter onboarding — the welcome screen.
 ///
-/// A `@ScreenSource` is one screen of a flow, authored in ordinary Flutter.
-/// Each thing the user can do is an [OnboardingEvent]; `onboardingEvent(...)`
+/// A `@Screen` is one screen of a flow, authored in ordinary Flutter.
+/// Each thing the user can do is a [SurfaceEvent]; `surfaceEvent(...)`
 /// wires it to a tap. The flow decides where `next` goes — here, to the
 /// question screen.
-@ScreenSource(id: 'starter_welcome')
+@Screen()
 class StarterWelcomeScreen extends StatelessWidget {
   /// Advances to the first question.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   /// Const constructor.
   const StarterWelcomeScreen({super.key});
@@ -48,7 +48,7 @@ class StarterWelcomeScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(next),
+                onPressed: surfaceEvent(next),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

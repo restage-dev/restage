@@ -23,6 +23,8 @@ void main() {
       [
         onboardingScreenBuilder(BuilderOptions.empty),
         onboardingFlowBuilder(BuilderOptions.empty),
+        restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+        restageGeneratedDartBuilder(BuilderOptions.empty),
       ],
       sources,
       rootPackage: 'apps_examples',
@@ -36,7 +38,7 @@ void main() {
       final metadata = _screenMetadata[screen]!;
       final generatedScreen = _readString(
         result,
-        'lib/onboarding/screens/$screen.rsscreen.g.dart',
+        'lib/onboarding/screens/restage.generated/$screen.restage.g.dart',
       );
       expect(
         generatedScreen,
@@ -78,7 +80,7 @@ void main() {
 
     final generatedFlow = _readString(
       result,
-      'lib/onboarding/flows/first_run.rsflow.g.dart',
+      'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
     );
     expect(
       generatedFlow,
@@ -246,11 +248,19 @@ Future<void> _assertGeneratedFixtureAnalyzes(
 ) async {
   final resolvedSources = {
     ...sources,
+    // The generated parts belong to the resolved fixture: the consumer below
+    // is what proves they compile against the authored libraries.
     for (final screen in _screens)
-      'apps_examples|lib/onboarding/screens/$screen.rsscreen.g.dart':
-          _readString(result, 'lib/onboarding/screens/$screen.rsscreen.g.dart'),
-    'apps_examples|lib/onboarding/flows/first_run.rsflow.g.dart':
-        _readString(result, 'lib/onboarding/flows/first_run.rsflow.g.dart'),
+      'apps_examples|lib/onboarding/screens/restage.generated/'
+          '$screen.restage.g.dart': _readString(
+        result,
+        'lib/onboarding/screens/restage.generated/$screen.restage.g.dart',
+      ),
+    'apps_examples|lib/onboarding/flows/restage.generated/'
+        'first_run.restage.g.dart': _readString(
+      result,
+      'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
+    ),
     'apps_examples|lib/generated_consumer.dart': '''
 import 'package:restage/restage.dart';
 
@@ -313,7 +323,7 @@ import '../screens/permissions.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -383,7 +393,7 @@ String _welcomeScreenSource() => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -419,7 +429,7 @@ String _screenSource(String id, String className, String eventName) => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @OnboardingSource(id: '$id')
 final class $className extends StatelessWidget {

@@ -11,11 +11,14 @@ import 'dart:typed_data';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:build/build.dart' show AssetId;
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
@@ -174,9 +177,13 @@ final class PackageSurfaceCompilationBundle {
     required Map<String, List<int>> outputFiles,
     required Map<String, String> generatedParts,
     required Set<String> aggregateOwnedOutputPaths,
+    required Map<String, String> artifactLibraryPaths,
   })  : _outputFiles = _freezeFileMap(outputFiles),
         _aggregateOwnedOutputPaths = Set.unmodifiable(
           aggregateOwnedOutputPaths,
+        ),
+        _artifactLibraryPaths = Map.unmodifiable(
+          Map.of(artifactLibraryPaths),
         ),
         generatedParts = Map.unmodifiable(Map.of(generatedParts)),
         manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
@@ -191,6 +198,7 @@ final class PackageSurfaceCompilationBundle {
 
   final Map<String, Uint8List> _outputFiles;
   final Set<String> _aggregateOwnedOutputPaths;
+  final Map<String, String> _artifactLibraryPaths;
 
   /// Roster-owned binary/text artifact families, excluding the fixed manifest
   /// output that the aggregate owner owns.
@@ -205,7 +213,8 @@ final class PackageSurfaceCompilationBundle {
 
   /// The exact strict closure selected by [manifest].
   ///
-  /// This is the safe handoff to C2a's dynamic publication owner. Screen text
+  /// This is the safe handoff to the outputs builder, which owns dynamic
+  /// publication. Screen text
   /// remains available through [outputFiles], but cannot accidentally enter a
   /// manifest closure because it is not a delivery artifact role.
   Map<String, Uint8List> get manifestFiles {
@@ -235,6 +244,31 @@ final class PackageSurfaceCompilationBundle {
           if (!_aggregateOwnedOutputPaths.contains(entry.key))
             entry.key: Uint8List.fromList(entry.value),
       });
+
+  /// The authored Dart library path that produced each output file this
+  /// compiler wrote, sorted by logical path.
+  ///
+  /// Covers every path in [outputFiles] — manifest-closure artifacts and
+  /// ancillary output (`.rfwtxt`, `.navplan.json`) alike — because
+  /// [_putFile] records the owning library at the same choke point it writes
+  /// the bytes, for every write, regardless of manifest-closure membership.
+  /// Never re-inferred from filenames or from a sibling path's own
+  /// attribution. Every output file must resolve to exactly one owning
+  /// library, or this throws rather than defaulting silently.
+  Map<String, String> get artifactLibraryPaths {
+    final paths = _outputFiles.keys.toList()..sort();
+    final result = <String, String>{};
+    for (final path in paths) {
+      final libraryPath = _artifactLibraryPaths[path];
+      if (libraryPath == null) {
+        throw StateError(
+          'Output file $path has no authored-library attribution.',
+        );
+      }
+      result[path] = libraryPath;
+    }
+    return Map.unmodifiable(result);
+  }
 
   /// Roster-owned Dart parts, grouped so multiple declarations in one library
   /// become exactly one generated part.
@@ -430,9 +464,20 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
         issues: issues,
       );
     }
+    final partPath = _requiredOutputPathAny(
+      source,
+      roles: kGeneratedPartRoles,
+      issues: issues,
+    );
+    if (partPath == null) {
+      return CanonicalFlowArtifactCompilationResult(
+        compilation: null,
+        issues: issues,
+      );
+    }
     final generatedPart = formatGeneratedDart(
-      'part of ${_dartString(_fileName(source.libraryPath))};\n\n'
-      '$reference\n',
+      '${_partOfHeader(partPath: partPath, libraryPath: source.libraryPath)}'
+      '\n\n$reference\n',
     );
     return CanonicalFlowArtifactCompilationResult(
       compilation: CanonicalFlowArtifactCompilation(
@@ -684,6 +729,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
 
   final outputFiles = <String, Uint8List>{};
   final aggregateOwnedOutputPaths = <String>{};
+  final artifactLibraryPaths = <String, String>{};
   final artifactsByIdentity = <String, List<_ResolvedArtifact>>{};
   final paywallsByIdentity = <String, PaywallArtifactFacts>{};
   final partFragments = <String, _PartAccumulator>{};
@@ -815,6 +861,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         bytes: rendered.blob,
         source: source,
         issues: issues,
+        libraryPaths: artifactLibraryPaths,
       );
       _putOutputFile(
         outputFiles,
@@ -822,6 +869,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         bytes: rendered.capabilitySidecar,
         source: source,
         issues: issues,
+        libraryPaths: artifactLibraryPaths,
       );
       if (source.isCanonical) {
         aggregateOwnedOutputPaths
@@ -847,8 +895,14 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           bytes: text,
           source: source,
           issues: issues,
+          libraryPaths: artifactLibraryPaths,
         );
-        if (source.isCanonical) aggregateOwnedOutputPaths.add(textPath);
+        // Inspection text is carried for every frontend, not only the
+        // canonical one. It is not a delivery artifact — it never enters a
+        // manifest closure — so carrying it changes no producer and no
+        // delivered byte; it only means a deprecated library's bundle holds
+        // its rfw text like every other library's does.
+        aggregateOwnedOutputPaths.add(textPath);
       }
     }
     artifactsByIdentity[identity] = List.unmodifiable(artifacts);
@@ -866,6 +920,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
             bytes: paywallText,
             source: source,
             issues: issues,
+            libraryPaths: artifactLibraryPaths,
           );
           if (source.isCanonical) aggregateOwnedOutputPaths.add(path);
         }
@@ -882,6 +937,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
             bytes: navigationPlan,
             source: source,
             issues: issues,
+            libraryPaths: artifactLibraryPaths,
           );
           if (source.isCanonical) aggregateOwnedOutputPaths.add(path);
         }
@@ -948,6 +1004,27 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final manifestInputs = <SurfacePublicationAssemblyInput>[];
 
   for (final entry in paywallsByIdentity.entries) {
+    if (entry.value.isEmbeddedOnly) {
+      final source = sourcesByIdentity[entry.key]!;
+      if (!_isReferencedByAnotherPaywallFlow(
+        entry.key,
+        entry.value,
+        paywallsByIdentity,
+      )) {
+        _addIssue(
+          issues,
+          code: IssueCode.missingScreenDescriptor,
+          message: 'Adapter-only paywall ${source.effectiveId} is not '
+              'referenced by a generated paywall flow closure.',
+          location: source.span.location,
+        );
+      }
+      // A pushed paywall with in-flow back navigation contributes its adapter
+      // only. Its owning entry flow closure publishes those exact bytes;
+      // synthesizing a standalone publication would invent a payload the
+      // source deliberately suppressed.
+      continue;
+    }
     final source = sourcesByIdentity[entry.key]!;
     final publication = _assemblePaywallPublication(
       source: source,
@@ -955,6 +1032,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       outputFiles: outputFiles,
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
       issues: issues,
+      artifactLibraryPaths: artifactLibraryPaths,
     );
     if (publication != null) manifestInputs.add(publication);
   }
@@ -1038,9 +1116,9 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     );
     if (publication != null) manifestInputs.add(publication);
 
-    final partPath = _requiredOutputPath(
+    final partPath = _requiredOutputPathAny(
       source,
-      role: 'screen-descriptor',
+      roles: kGeneratedPartRoles,
       issues: issues,
     );
     if (partPath != null) {
@@ -1113,6 +1191,48 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       issues: issues,
     );
     if (publication != null) manifestInputs.add(publication);
+
+    // The deprecated frontend's screens are referenced from flows by their
+    // generated descriptor. It is emitted here because a library's part has
+    // one owner; the emitter itself is the same one the canonical path uses
+    // for its compatibility descriptor, so both frontends produce the same
+    // reference shape. (This descriptor originated in the per-surface screen
+    // builder, which no longer writes generated Dart.)
+    final screenName = contract.screen.name;
+    if (screenName == null || screenName.isEmpty) continue;
+    final descriptor =
+        '${_pascalIdentifier(screenName, fallback: 'SurfaceScreen')}Descriptor';
+    _claimGeneratedSymbol(
+      claimedSymbols,
+      source: source,
+      library: contract.screen.library,
+      symbol: descriptor,
+      issues: issues,
+    );
+    final partPath = _requiredOutputPathAny(
+      source,
+      roles: kGeneratedPartRoles,
+      issues: issues,
+    );
+    if (partPath == null) continue;
+    _addPartFragment(
+      partFragments,
+      path: partPath,
+      source: source,
+      fragment: _emitCompatibilityScreenDescriptor(
+        descriptor: descriptor,
+        id: source.effectiveId,
+        artifactPath: artifact.rendered.flowArtifactPath,
+        version: source.version,
+        minClient: source.minClient,
+        sdkPrefix: _sdkPrefixFor(
+          contract.screen.library,
+          const {'NeutralFlowScreenRef'},
+        ),
+        source: source,
+        issues: issues,
+      ),
+    );
   }
 
   final precompiledFlowsByIdentity = <String, CompiledFlowArtifact>{};
@@ -1222,16 +1342,19 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         bytes: assembly.flowDocumentBytes,
         source: source,
         issues: issues,
+        libraryPaths: artifactLibraryPaths,
       );
-      if (source.isCanonical) {
-        aggregateOwnedOutputPaths.add(flowDocumentPath);
+      if (source.isCanonical) aggregateOwnedOutputPaths.add(flowDocumentPath);
+      // The generated part is library-owned for canonical and deprecated
+      // sources alike; only artifact ownership differs between them.
+      final generatedPart = precompiled.generatedPart;
+      if (generatedPart != null) {
         final partPath = _requiredOutputPathAny(
           source,
-          roles: const {'flow-descriptor'},
+          roles: kGeneratedPartRoles,
           issues: issues,
         );
-        final generatedPart = precompiled.generatedPart;
-        if (partPath != null && generatedPart != null) {
+        if (partPath != null) {
           _addPartFragment(
             partFragments,
             path: partPath,
@@ -1245,7 +1368,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
 
     final flowPartPath = _requiredOutputPathAny(
       source,
-      roles: const {'flow-descriptor'},
+      roles: kGeneratedPartRoles,
       issues: issues,
     );
     if (flowPartPath == null) continue;
@@ -1267,6 +1390,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       bytes: assembly.flowDocumentBytes,
       source: source,
       issues: issues,
+      libraryPaths: artifactLibraryPaths,
     );
     if (source.isCanonical) aggregateOwnedOutputPaths.add(flowDocumentPath);
 
@@ -1424,9 +1548,28 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       outputFiles: outputFiles,
       generatedParts: generatedParts,
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
+      artifactLibraryPaths: artifactLibraryPaths,
     ),
     issues: const [],
   );
+}
+
+bool _isReferencedByAnotherPaywallFlow(
+  String identity,
+  PaywallArtifactFacts embedded,
+  Map<String, PaywallArtifactFacts> paywallsByIdentity,
+) {
+  for (final owner in paywallsByIdentity.entries) {
+    if (owner.key == identity || !owner.value.hasFlow) continue;
+    final screen = owner.value.flowScreens[embedded.adapter.id];
+    if (screen != null &&
+        screen.blob.contentHash == embedded.adapter.blob.contentHash &&
+        screen.capabilitySidecar.contentHash ==
+            embedded.adapter.capabilitySidecar.contentHash) {
+      return true;
+    }
+  }
+  return false;
 }
 
 SurfacePublicationAssemblyInput? _assemblePaywallPublication({
@@ -1435,11 +1578,37 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
   required Map<String, Uint8List> outputFiles,
   required Set<String> aggregateOwnedOutputPaths,
   required List<Issue> issues,
+  required Map<String, String> artifactLibraryPaths,
 }) {
   try {
+    final files = facts.filesByPath;
+    if (facts.hasFlow) {
+      // A navigation paywall remains independently renderable through its
+      // specialized blob even though the publication manifest selects the
+      // flow payload. Preserve that roster-owned sibling family as generated
+      // output without adding it to the strict flow artifact closure.
+      for (final declaration in facts.standaloneArtifacts) {
+        final bytes = files[declaration.path];
+        if (bytes == null) {
+          throw FormatException(
+            'Paywall artifact ${declaration.path} has no exact bytes.',
+          );
+        }
+        _putOutputFile(
+          outputFiles,
+          path: declaration.path,
+          bytes: bytes,
+          source: source,
+          issues: issues,
+          libraryPaths: artifactLibraryPaths,
+        );
+        if (source.isCanonical) {
+          aggregateOwnedOutputPaths.add(declaration.path);
+        }
+      }
+    }
     final declarations =
         facts.hasFlow ? facts.flowArtifacts : facts.standaloneArtifacts;
-    final files = facts.filesByPath;
     if (declarations.isEmpty) {
       throw const FormatException(
         'Paywall adapter did not expose a publishable artifact closure.',
@@ -1459,6 +1628,7 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
         bytes: bytes,
         source: source,
         issues: issues,
+        libraryPaths: artifactLibraryPaths,
       );
       if (source.isCanonical) {
         aggregateOwnedOutputPaths.add(declaration.path);
@@ -2091,7 +2261,7 @@ SurfacePublicationAssemblyResult? _buildManifest(
       issues,
       code: IssueCode.annotationEvaluationFailed,
       message: 'Surface publication manifest assembly failed: $error',
-      location: 'assets/restage/surface-publication-manifest.json',
+      location: 'the package surface publication manifest',
     );
     return null;
   }
@@ -2125,13 +2295,6 @@ abstract final class $descriptor {
     artifactPath: ${_dartSingleString('$id.rfw')},
     version: $version,
     minClient: ${capabilities.builtInFloor},
-  );
-
-  static final ${sdkPrefix}NeutralFlowScreenRef generated =
-      ${sdkPrefix}NeutralFlowScreenRef.generated(
-    slug: ${_dartString(id)},
-    contractVersion: $version,
-    capabilities: ${_capabilitySource(capabilities, sdkPrefix)},
   );
 }
 ''';
@@ -2183,9 +2346,7 @@ String? _emitFlowReference({
   required RestageSourceDeclaration source,
   required List<Issue> issues,
 }) {
-  final support = '''
-${_emitFlowClosureMetadata(flow, graph)}
-${_emitCanonicalActions(resultName, graph.actions, sdkPrefix)}''';
+  final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
   if (flow.delivery == FlowDeliveryMode.general) {
     return '''
 const $refName = ${sdkPrefix}SurfaceFlowRef<Map<String, Object?>>(
@@ -2237,20 +2398,6 @@ $decoder
 $result
 ${_emitSeedClass(seedName, graph.flowState, sdkPrefix)}
 $support''';
-}
-
-String _emitFlowClosureMetadata(
-  NormalizedFlowSource flow,
-  NormalizedFlowGraph graph,
-) {
-  final ids = graph.screens.keys.toList()..sort();
-  if (ids.isEmpty) return '';
-  final stem = _lowerCamelIdentifier(
-    flow.declaration.name ?? flow.id,
-    fallback: 'flow',
-  );
-  final name = '_${stem}ScreenIds';
-  return 'const $name = <String>{${ids.map(_dartSingleString).join(', ')}};';
 }
 
 String _emitCanonicalActions(
@@ -2690,6 +2837,7 @@ void _putOutputFile(
   required List<int> bytes,
   required RestageSourceDeclaration source,
   required List<Issue> issues,
+  required Map<String, String> libraryPaths,
 }) =>
     _putFile(
       files,
@@ -2698,6 +2846,7 @@ void _putOutputFile(
       source: source,
       issues: issues,
       label: 'output',
+      libraryPaths: libraryPaths,
     );
 
 void _putFile(
@@ -2707,6 +2856,7 @@ void _putFile(
   required RestageSourceDeclaration source,
   required List<Issue> issues,
   required String label,
+  required Map<String, String> libraryPaths,
 }) {
   final frozen = Uint8List.fromList(bytes);
   final existing = files[path];
@@ -2720,6 +2870,7 @@ void _putFile(
     return;
   }
   files[path] = frozen;
+  libraryPaths[path] = source.libraryPath;
 }
 
 void _addPartFragment(
@@ -2729,7 +2880,10 @@ void _addPartFragment(
   required String? fragment,
 }) {
   if (fragment == null || fragment.trim().isEmpty) return;
-  final header = 'part of ${_dartString(_fileName(source.libraryPath))};';
+  final header = _partOfHeader(
+    partPath: path,
+    libraryPath: source.libraryPath,
+  );
   final accumulator = fragments[path];
   if (accumulator == null) {
     fragments[path] = _PartAccumulator(header: header, fragments: [fragment]);
@@ -2772,7 +2926,8 @@ void _claimGeneratedSymbol(
   required String symbol,
   required List<Issue> issues,
 }) {
-  if (library != null && _topLevelNames(library).contains(symbol)) {
+  if (library != null &&
+      _topLevelNames(library, source: source).contains(symbol)) {
     _addIssue(
       issues,
       code: IssueCode.generatedSymbolCollision,
@@ -2797,8 +2952,28 @@ void _claimGeneratedSymbol(
   claimedSymbols[key] = source.declarationIdentity;
 }
 
-Set<String> _topLevelNames(LibraryElement library) {
+/// Returns the analyzer-resolved top-level declarations that can collide with
+/// a generated symbol for [source].
+///
+/// The generated descriptor part is already visible to the analyzer during a
+/// warm or incremental build. It is safe to exclude declarations from that
+/// part only when its exact package-relative path is claimed by [source]. A
+/// filename suffix or a general `.g.dart` check would also hide user
+/// declarations in lookalike/foreign generated parts.
+@visibleForTesting
+Set<String> topLevelNamesForGeneratedSymbolCollision(
+  LibraryElement library,
+  RestageSourceDeclaration source,
+) =>
+    _topLevelNames(library, source: source);
+
+Set<String> _topLevelNames(
+  LibraryElement library, {
+  RestageSourceDeclaration? source,
+}) {
   final names = <String>{};
+  final ownedGeneratedPart =
+      source == null ? null : _ownedGeneratedPartAsset(library, source);
   for (final elements in <Iterable<Element>>[
     library.classes,
     library.enums,
@@ -2812,9 +2987,10 @@ Set<String> _topLevelNames(LibraryElement library) {
     library.setters,
   ]) {
     for (final element in elements) {
-      final sourcePath =
-          element.firstFragment.libraryFragment?.source.uri.path ?? '';
-      if (sourcePath.endsWith('.g.dart')) continue;
+      if (ownedGeneratedPart != null &&
+          _elementAssetId(element) == ownedGeneratedPart) {
+        continue;
+      }
       final name = element.name;
       if (name != null && name.isNotEmpty) names.add(name);
       final lookup = element.lookupName;
@@ -2822,6 +2998,39 @@ Set<String> _topLevelNames(LibraryElement library) {
     }
   }
   return names;
+}
+
+AssetId? _ownedGeneratedPartAsset(
+  LibraryElement library,
+  RestageSourceDeclaration source,
+) {
+  final paths = source.outputs
+      .where(
+        (output) =>
+            kGeneratedPartRoles.contains(output.role) &&
+            output.path.endsWith(kNeutralGeneratedPartSuffix),
+      )
+      .map((output) => output.path)
+      .toSet();
+  if (paths.length != 1) return null;
+
+  final libraryAsset = _elementAssetId(library);
+  if (libraryAsset == null) return null;
+  return AssetId(libraryAsset.package, paths.single);
+}
+
+AssetId? _elementAssetId(Element element) {
+  final uri = element is LibraryElement
+      ? element.uri
+      : element.firstFragment.libraryFragment?.source.uri;
+  if (uri == null) return null;
+  try {
+    return AssetId.resolve(uri);
+  } on Object {
+    // File URIs occur in a few analyzer-only callers. They have no stable
+    // package-relative identity, so fail closed and retain the declaration.
+    return null;
+  }
 }
 
 String? _sdkPrefixFor(
@@ -2851,24 +3060,6 @@ String? _sdkPrefixFor(
   return candidates.first;
 }
 
-String _capabilitySource(CapabilityManifest capabilities, String sdkPrefix) {
-  final buffer = StringBuffer()
-    ..writeln('${sdkPrefix}CapabilityManifest(')
-    ..writeln('  builtInFloor: ${capabilities.builtInFloor},')
-    ..writeln('  requiredLibraries: const [');
-  for (final requirement in capabilities.requiredLibraries) {
-    buffer
-      ..writeln('${sdkPrefix}LibraryRequirement(')
-      ..writeln('  namespace: ${_dartString(requirement.namespace)},')
-      ..writeln('  minVersion: ${requirement.minVersion},')
-      ..writeln('),');
-  }
-  buffer
-    ..writeln('  ],')
-    ..write(')');
-  return buffer.toString();
-}
-
 String _withoutPartHeader(String source) {
   final trimmed = source.trim();
   if (!trimmed.startsWith('part of ')) return trimmed;
@@ -2880,10 +3071,18 @@ String _withoutPartHeader(String source) {
 String _classIdentity(ClassElement element) =>
     '${element.library.identifier}#${element.name ?? '<unnamed>'}';
 
-String _fileName(String path) {
-  final slash = path.lastIndexOf('/');
-  return slash == -1 ? path : path.substring(slash + 1);
-}
+/// The `part of` directive a generated part at [partPath] must declare to
+/// reach the authored library at [libraryPath].
+///
+/// The URI is resolved relative to the part's own directory, so it follows
+/// the part wherever the placement plan put it.
+String _partOfHeader({
+  required String partPath,
+  required String libraryPath,
+}) =>
+    'part of ${_dartSingleString(
+      p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
+    )};';
 
 String _pascalIdentifier(String value, {required String fallback}) {
   final words = value

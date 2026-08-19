@@ -55,12 +55,16 @@ restage logout
 # Bootstrap a Flutter project for Restage.
 restage init
 
-# List and publish paywalls.
-restage paywall list
-restage paywall publish <name>
+# List and publish generated surfaces. `--all` includes every Surface category.
+restage surface list --all
+restage surface publish <slug>
 
-# Publish an engagement surface (onboarding / message / survey).
-restage surface publish <name>
+# Inspect and manage one generated surface family.
+restage surface status <slug>
+restage surface history <slug>
+restage surface rollback <slug> --to-version <version> --reason "<reason>"
+restage surface freeze <slug> --reason "<reason>"
+restage surface unfreeze <slug> --reason "<reason>"
 
 # Launch the desktop preview against a compiled .rfw.
 restage preview path/to/paywall.rfw
@@ -75,6 +79,27 @@ commands talk to a Restage backend; hosted access is in private beta.
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts; missing required values without a default exit non-zero with a
 clear `required: --foo <value>` message.
+
+## Generated publication metadata
+
+The normal publication workflow is manifest-driven. After
+`dart run build_runner build`, the CLI reads the fixed
+`lib/generated/restage.publication.json` and assembles the exact
+generated artifact closure for the selected slug. `restage surface publish`
+supports `--type` as optional validation or disambiguation. It does not accept
+`--path` as an artifact selector, and source or asset directories do not define
+surface identity.
+
+The same generated identity drives the generic lifecycle commands. Surface
+categories are the closed values `paywall`, `onboarding`, `message`, `survey`,
+and `general`.
+
+### Compatibility command
+
+`restage paywall publish <name>` remains available for a specialized `@Paywall`
+publication. It still reads the generated manifest and is not a raw path-based
+publisher. New workflows should use `restage surface publish <slug>` for every
+surface category.
 
 ## Isolated render bundles
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
-import 'package:restage_widgetbook_example/generated/opaque_screen_proof.stories.dart'
+import 'package:restage_widgetbook_example/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart'
     as story;
 import 'package:restage_widgetbook_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart';

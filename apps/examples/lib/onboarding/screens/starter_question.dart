@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'starter_question.rsscreen.g.dart';
+part 'restage.generated/starter_question.restage.g.dart';
 
 /// Starter onboarding — the branching question.
 ///
@@ -9,13 +9,13 @@ part 'starter_question.rsscreen.g.dart';
 /// the chosen answer into flow-state and a later `decision` routes the ending
 /// on it (see `flows/minimal_onboarding.dart`). This is answer-driven
 /// branching — the user's choice changes where they go.
-@ScreenSource(id: 'starter_question')
+@Screen()
 class StarterQuestionScreen extends StatelessWidget {
   /// The user wants a guided setup.
-  static const guided = OnboardingEvent<void>('guided');
+  static const guided = SurfaceEvent<void>('guided');
 
   /// The user wants to explore on their own.
-  static const explore = OnboardingEvent<void>('explore');
+  static const explore = SurfaceEvent<void>('explore');
 
   /// Const constructor.
   const StarterQuestionScreen({super.key});
@@ -43,7 +43,7 @@ class StarterQuestionScreen extends StatelessWidget {
               const SizedBox(height: 28),
               // Option A — fires `guided`.
               GestureDetector(
-                onTap: onboardingEvent(guided),
+                onTap: surfaceEvent(guided),
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -75,7 +75,7 @@ class StarterQuestionScreen extends StatelessWidget {
               const SizedBox(height: 14),
               // Option B — fires `explore`.
               GestureDetector(
-                onTap: onboardingEvent(explore),
+                onTap: surfaceEvent(explore),
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(

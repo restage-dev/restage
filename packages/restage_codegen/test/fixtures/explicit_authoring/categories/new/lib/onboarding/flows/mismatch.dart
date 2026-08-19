@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../../message/screens/maintenance.dart';
 
-part 'mismatch.rsflow.g.dart';
+part 'restage.generated/mismatch.restage.g.dart';
 
 @FlowGraph(surface: Surface.onboarding)
 const categorizedMismatch = FlowDefinition(

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'reel_frequency.rsscreen.g.dart';
+part 'restage.generated/reel_frequency.restage.g.dart';
 
 /// Survey — the second cancellation question ("How often did you watch?").
 ///
 /// A linear multiple-choice question, like the first: every option fires the
 /// same [next] event and advances to the save-offer. Written out in full
 /// because the transpiler lowers literal widget trees, not method calls.
-@ScreenSource(id: 'reel_frequency')
+@Screen()
 class ReelFrequencyScreen extends StatelessWidget {
   /// Advances to the save-offer.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const ReelFrequencyScreen({super.key});
 
@@ -55,7 +55,7 @@ class ReelFrequencyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 26),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -87,7 +87,7 @@ class ReelFrequencyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
@@ -119,7 +119,7 @@ class ReelFrequencyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               GestureDetector(
-                onTap: onboardingEvent(next),
+                onTap: surfaceEvent(next),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 18),

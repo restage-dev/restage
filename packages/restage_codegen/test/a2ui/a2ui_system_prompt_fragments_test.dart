@@ -89,12 +89,46 @@ void main() {
 
     final standalone =
         registration.toJson()['a2uiCatalog']! as Map<String, Object?>;
+    final capability =
+        registration.toJson()['restageCapability']! as Map<String, Object?>;
     expect(standalone[r'$id'], registration.documentId);
     expect(standalone['catalogId'], registration.documentId);
     expect(
       standalone['systemPromptFragments'],
       registration.systemPromptFragments,
     );
+    expect(dart, contains('const RestageA2uiCapability restageA2uiCapability'));
+    expect(
+      dart,
+      contains("schemaDialect: '${standalone[r'$schema']}'"),
+    );
+    expect(
+      dart,
+      contains(
+        "a2uiProtocolVersion: '${standalone['a2uiProtocolVersion']}'",
+      ),
+    );
+    expect(
+      dart,
+      contains(registration.fingerprint),
+    );
+    expect(
+      dart,
+      contains(
+        'catalogContentVersion: ${capability['catalogContentVersion']}',
+      ),
+    );
+    for (final library in capability['availableLibraries']! as List) {
+      final entry = library as Map;
+      expect(
+        dart,
+        contains("namespace: '${entry['namespace']}'"),
+      );
+      expect(dart, contains('version: ${entry['version']}'));
+    }
+    for (final entry in (capability['perItemSinceVersion']! as Map).entries) {
+      expect(dart, contains("'${entry.key}': ${entry.value}"));
+    }
   });
 
   test('documents the generated identity and integration boundaries', () {

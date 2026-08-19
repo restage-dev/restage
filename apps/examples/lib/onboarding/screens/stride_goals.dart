@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'stride_goals.rsscreen.g.dart';
+part 'restage.generated/stride_goals.restage.g.dart';
 
 /// Stride onboarding — the goal-setting screen.
 ///
@@ -11,10 +11,10 @@ part 'stride_goals.rsscreen.g.dart';
 /// would break the delivery contract, but this flow is general-delivery, so the
 /// server can add this screen over the air and roll it back without an app
 /// release. See `stride_welcome.dart` for the shared screen-authoring notes.
-@ScreenSource(id: 'stride_goals')
+@Screen()
 class StrideGoalsScreen extends StatelessWidget {
   /// Leaves the goals screen; the flow graph decides where it leads.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const StrideGoalsScreen({super.key});
 
@@ -84,7 +84,7 @@ class StrideGoalsScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(next),
+                      onPressed: surfaceEvent(next),
                       child: const Text(
                         'Continue',
                         style: TextStyle(

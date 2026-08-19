@@ -79,7 +79,7 @@ void main() {
     });
 
     test(
-      '--non-interactive with all flags writes the three artifacts',
+      '--non-interactive with all flags writes the four artifacts',
       () async {
         await _writePubspec(tempDir);
 
@@ -115,10 +115,11 @@ void main() {
           p.join(tempDir.path, 'lib', 'paywalls', 'starter.dart'),
         );
         expect(starter.existsSync(), isTrue);
-        expect(
-          await starter.readAsString(),
-          contains("@PaywallSource(id: 'starter')"),
-        );
+        final starterSource = await starter.readAsString();
+        expect(starterSource, contains('@Paywall()'));
+        expect(starterSource, isNot(contains('@Paywall(id:')));
+        expect(stdout.toString(), contains('restage surface publish starter'));
+        expect(stdout.toString(), isNot(contains('restage paywall publish')));
 
         // Pubspec edits applied.
         final pubspecContent = await File(
@@ -127,6 +128,18 @@ void main() {
         expect(pubspecContent, contains('restage'));
         expect(pubspecContent, contains('restage_codegen'));
         expect(pubspecContent, contains('build_runner'));
+        expect(pubspecContent, isNot(contains('assets/restage/bundles')));
+
+        final gitignoreContent = await File(
+          p.join(tempDir.path, '.gitignore'),
+        ).readAsString();
+        expect(gitignoreContent, contains('*.rsbundle'));
+        expect(gitignoreContent, contains('*.restage.md'));
+        expect(gitignoreContent, contains('restage.outputs.json'));
+        expect(gitignoreContent, contains('restage.publication.json'));
+        expect(gitignoreContent, contains('restage_a2ui_catalog.a2ui.json'));
+        expect(gitignoreContent, isNot(contains('*.generated/')));
+        expect(gitignoreContent, isNot(contains('generated/')));
       },
     );
 
@@ -206,6 +219,7 @@ void main() {
         File(p.join(tempDir.path, 'restage_config.yaml')).existsSync(),
         isFalse,
       );
+      expect(File(p.join(tempDir.path, '.gitignore')).existsSync(), isFalse);
       expect(
         File(
           p.join(tempDir.path, 'lib', 'paywalls', 'starter.dart'),
@@ -294,6 +308,8 @@ void main() {
         credentialStore: store,
       ).run(args);
       expect(exitCode, 0);
+      final gitignore = File(p.join(tempDir.path, '.gitignore'));
+      final firstGitignore = await gitignore.readAsString();
       stdout.clear();
       stderr.clear();
 
@@ -308,7 +324,54 @@ void main() {
       // second run does not blow up on existing artifacts.
       final config = await loadRestageConfig(from: tempDir);
       expect(config, isNotNull);
+      expect(await gitignore.readAsString(), firstGitignore);
     });
+
+    test(
+      'updates a partial existing .gitignore while preserving user and negated rules',
+      () async {
+        await _writePubspec(tempDir);
+        const existingGitignore =
+            '# Project rules\r\ncustom-cache/\r\n*.rsbundle\r\n'
+            '!restage.publication.json\r\n';
+        final gitignore = File(p.join(tempDir.path, '.gitignore'))
+          ..writeAsStringSync(existingGitignore);
+
+        final exitCode =
+            await RestageCli(
+              stdout: stdout,
+              stderr: stderr,
+              credentialStore: store,
+            ).run([
+              '--non-interactive',
+              'init',
+              '--directory',
+              tempDir.path,
+              '--project',
+              'p',
+              '--app',
+              'a',
+              '--env',
+              'dev',
+              '--no-starter',
+              '--no-wire-deps',
+            ]);
+
+        expect(exitCode, 0);
+        final updated = await gitignore.readAsString();
+        expect(updated.startsWith(existingGitignore), isTrue);
+        expect(updated, contains('custom-cache/'));
+        expect(updated, contains('*.rsbundle'));
+        expect(updated, contains('*.restage.md'));
+        expect(updated, contains('restage.outputs.json'));
+        expect(updated, isNot(contains('\r\nrestage.publication.json')));
+        expect(updated, contains('!restage.publication.json'));
+        expect(updated, contains('restage_a2ui_catalog.a2ui.json'));
+        expect(updated.replaceAll('\r\n', ''), isNot(contains('\n')));
+        expect(updated, isNot(contains('*.generated/')));
+        expect(updated, isNot(contains('assets/restage/bundles')));
+      },
+    );
 
     test('skips the starter paywall when --no-starter is passed', () async {
       await _writePubspec(tempDir);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'notify.rsscreen.g.dart';
+part 'restage.generated/notify.restage.g.dart';
 
 /// First-run onboarding — the notification pre-permission priming screen.
 ///
@@ -21,13 +21,13 @@ part 'notify.rsscreen.g.dart';
 /// Pairing a graph transition (enable) with a host-handled custom event (skip)
 /// on one screen is the supported way to give a permission ask two forward
 /// paths under the flow runtime.
-@ScreenSource(id: 'notify')
+@Screen()
 class NotifyScreen extends StatelessWidget {
   /// Requests the notification permission via the host action, then advances.
-  static const enable = OnboardingEvent<void>('enable');
+  static const enable = SurfaceEvent<void>('enable');
 
   /// Skips the permission; the host advances to the paywall.
-  static const skip = OnboardingEvent<void>('skip');
+  static const skip = SurfaceEvent<void>('skip');
 
   const NotifyScreen({super.key});
 
@@ -97,7 +97,7 @@ class NotifyScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(enable),
+                      onPressed: surfaceEvent(enable),
                       child: const Text(
                         'Enable reminders',
                         style: TextStyle(
@@ -111,7 +111,7 @@ class NotifyScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               TextButton(
-                onPressed: onboardingEvent(skip),
+                onPressed: surfaceEvent(skip),
                 child: const Text(
                   'Not now',
                   style: TextStyle(

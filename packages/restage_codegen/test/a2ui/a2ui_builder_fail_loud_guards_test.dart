@@ -31,7 +31,7 @@ Future<(bool succeeded, String logs)> _runBuilder(
   }
   final logs = <String>[];
   final result = await testBuilder(
-    const UserA2uiCatalogBuilder(BuilderOptions.empty),
+    UserA2uiCatalogBuilder(BuilderOptions.empty),
     {for (final e in sources.entries) 'apps_examples|${e.key}': e.value},
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,

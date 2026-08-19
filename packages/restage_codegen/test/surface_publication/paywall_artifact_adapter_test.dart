@@ -92,6 +92,31 @@ void main() {
       expect(facts.filesByPath.keys, containsAll(files.keys));
     });
 
+    test('retains an adapter-only pushed paywall for flow composition', () {
+      final adapter = <int>[4, 5, 6];
+      final facts = PaywallArtifactAdapter.fromFiles(
+        slug: 'published_offer',
+        standaloneBlobPath: 'assets/paywalls/published_offer.rfw',
+        standaloneCapabilityPath:
+            'assets/paywalls/published_offer.capability.json',
+        adapterBlobPath: 'assets/paywalls/screens/paywall_published_offer.rfw',
+        adapterCapabilityPath:
+            'assets/paywalls/screens/paywall_published_offer.capability.json',
+        flowDocumentPath: 'assets/paywalls/published_offer.flow.json',
+        files: {
+          'assets/paywalls/screens/paywall_published_offer.rfw': adapter,
+          'assets/paywalls/screens/paywall_published_offer.capability.json':
+              _sidecar(adapter),
+        },
+      );
+
+      expect(facts.standalone, isNull);
+      expect(facts.hasFlow, isFalse);
+      expect(facts.isEmbeddedOnly, isTrue);
+      expect(facts.adapter.id, 'paywall_published_offer');
+      expect(facts.filesByPath.keys, hasLength(2));
+    });
+
     test('rejects a partial standalone family', () {
       expect(
         () => PaywallArtifactAdapter.fromFiles(

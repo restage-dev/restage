@@ -12,8 +12,11 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/restage_source_roster.dart';
+import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
@@ -61,7 +64,7 @@ final class NativeScreenEventSource {
   final DartType payloadType;
 }
 
-/// Target-neutral native facts for one exact `@ScreenSource` class.
+/// Target-neutral native facts for one roster-admitted screen class.
 ///
 /// This adapter intentionally does not retain or reinterpret the RFW build
 /// blueprint. The existing onboarding visitor remains the sole owner of that
@@ -73,6 +76,7 @@ final class NativeScreenSource {
     required this.id,
     required this.version,
     required this.minClient,
+    required this.isCanonical,
     required this.classIdentity,
     required this.element,
     required this.sourceAsset,
@@ -95,6 +99,12 @@ final class NativeScreenSource {
 
   /// Minimum compatible client catalog version.
   final int minClient;
+
+  /// Whether this source uses the canonical `@Screen` frontend.
+  final bool isCanonical;
+
+  /// Source spelling retained for target-specific diagnostics.
+  String get sourceAnnotation => isCanonical ? '@Screen' : '@ScreenSource';
 
   /// Exact analyzer identity, `<owning library URI>#<class name>`.
   final String classIdentity;
@@ -159,17 +169,20 @@ enum NativeScreenSourceConsumer {
   widgetbook,
 }
 
-/// Loads all authored `@ScreenSource` declarations in the current package.
+/// Loads all roster-admitted screen declarations in the current package.
 ///
 /// Parts are indexed through their importable owning library. Annotation,
 /// class, constructor-type, and optional A2UI namespace recognition all use
-/// resolved analyzer identity. Pub's generated package graph is consulted only
-/// for direct-dependency metadata after identity has already been established;
-/// it is never a Dart source-recognition fallback.
+/// resolved analyzer identity. Canonical `@Screen` identity, IDs, and contract
+/// versions come from the package-wide source roster; deprecated frontends keep
+/// their existing legacy admission path. Pub's generated package graph is
+/// consulted only for direct-dependency metadata after identity has already
+/// been established; it is never a Dart source-recognition fallback.
 Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
   BuildStep buildStep, {
   required NativeScreenSourceConsumer consumer,
   bool validateA2uiNamespace = false,
+  RestageOutputPlacementPlan? plan,
 }) async {
   final sourceAssets = await buildStep
       .findAssets(Glob('lib/**.dart'))
@@ -190,36 +203,41 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
     sources.add((assetId: assetId, library: library));
   }
 
-  final issues = <Issue>[];
+  // The roster is the production ownership authority. It is also exercised
+  // directly by tests while its public frontend settles.
+  // ignore: invalid_use_of_visible_for_testing_member
+  final roster = await collectRestageSourceRoster(buildStep, plan: plan);
+  final canonicalScreenDeclarations = roster.declarations
+      .where(
+        (source) =>
+            source.isCanonical && source.kind == RestageRosterSourceKind.screen,
+      )
+      .toList()
+    ..sort((left, right) {
+      final byId = left.effectiveId.compareTo(right.effectiveId);
+      return byId != 0
+          ? byId
+          : left.declarationIdentity.compareTo(right.declarationIdentity);
+    });
+  final sourcesByLibraryIdentity = <String, ResolvedPackageLibrary>{
+    for (final source in sources) source.library.identifier: source,
+  };
+
+  final issues = <Issue>[...roster.issues];
   final screens = <NativeScreenSource>[];
   _PackageGraphFacts? packageGraphFacts;
 
-  for (final source in sources) {
-    final hasAnnotatedClass = source.library.classes.any(
-      (cls) =>
-          firstAnnotationFromOriginAny(
-            cls,
-            const {'ScreenSource', 'OnboardingSource'},
-            _restageOrigin,
-          ) !=
-          null,
-    );
-    if (!hasAnnotatedClass && !isRfwScreenSourceInput(source.assetId)) {
-      continue;
-    }
-
-    final admission = await inspectScreenSourceAdmission(
-      buildStep,
-      assetId: source.assetId,
-      library: source.library,
-    );
-    issues.addAll(admission.issues);
-    final cls = admission.admittedClass;
-    final admittedSource = admission.admittedSource;
-    if (cls == null || admittedSource == null) continue;
-
+  Future<void> addNativeScreen({
+    required ResolvedPackageLibrary source,
+    required ClassElement cls,
+    required String id,
+    required int version,
+    required int minClient,
+    required bool isCanonical,
+  }) async {
     packageGraphFacts ??= await _readPackageGraphFacts(buildStep, issues);
 
+    final sourceAnnotation = isCanonical ? '@Screen' : '@ScreenSource';
     final className = cls.name ?? '<unnamed>';
     final declarationPath = _elementSourcePath(cls, source.assetId);
     final location = '$declarationPath#$className';
@@ -229,36 +247,36 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
         Issue(
           code: IssueCode.invalidWidgetClass,
           message: 'Native sibling generators cannot name private '
-              'annotated screen class $identity. Make the @ScreenSource '
+              'annotated screen class $identity. Make the $sourceAnnotation '
               'class public.',
           location: location,
         ),
       );
-      continue;
+      return;
     }
     if (cls.isAbstract) {
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetClass,
           message: 'Native sibling generators cannot construct abstract '
-              '@ScreenSource class $identity. Make the screen class '
+              '$sourceAnnotation class $identity. Make the screen class '
               'concrete.',
           location: location,
         ),
       );
-      continue;
+      return;
     }
     if (!_extendsSupportedFlutterWidget(cls)) {
       issues.add(
         Issue(
           code: IssueCode.unsupportedBaseClass,
-          message: '@ScreenSource class $identity must extend Flutter '
+          message: '$sourceAnnotation class $identity must extend Flutter '
               'StatelessWidget or StatefulWidget so native sibling '
               'generators can construct it.',
           location: location,
         ),
       );
-      continue;
+      return;
     }
     final widgetAnnotation = firstAnnotationFromOriginAny(
       cls,
@@ -269,15 +287,13 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       issues.add(
         Issue(
           code: IssueCode.invalidWidgetClass,
-          message: '@ScreenSource and @RestageWidget cannot annotate the '
+          message: '$sourceAnnotation and @RestageWidget cannot annotate the '
               'same exact class $identity; the native screen and customer '
               'widget source contracts are disjoint.',
           location: location,
         ),
       );
     }
-
-    final id = admittedSource.id;
 
     final constructorFacts = projectWidgetConstructorFacts(
       cls,
@@ -348,7 +364,7 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
           sourceLibrary: source.library,
           sourceImportUri: importUri,
           rootPackage: buildStep.inputId.package,
-          declaredDependencies: packageGraphFacts.dependencies,
+          declaredDependencies: packageGraphFacts!.dependencies,
           issues: issues,
         );
         if (resolved != null) importUris.add(resolved);
@@ -359,8 +375,9 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
     screens.add(
       NativeScreenSource(
         id: id,
-        version: admittedSource.version,
-        minClient: admittedSource.minClient,
+        version: version,
+        minClient: minClient,
+        isCanonical: isCanonical,
         classIdentity: identity,
         element: cls,
         sourceAsset: source.assetId,
@@ -373,6 +390,83 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
         widgetbookTargetConfig: widgetbookTargetConfig,
         events: events,
       ),
+    );
+  }
+
+  for (final source in sources) {
+    final hasLegacyAnnotatedClass = source.library.classes.any(
+      (cls) =>
+          firstAnnotationFromOriginAny(
+            cls,
+            const {'ScreenSource', 'OnboardingSource'},
+            _restageOrigin,
+          ) !=
+          null,
+    );
+    final hasCanonicalScreen = source.library.classes.any(
+      (cls) =>
+          firstAnnotationFromOriginAny(
+            cls,
+            const {'Screen'},
+            _restageOrigin,
+          ) !=
+          null,
+    );
+    if (!hasLegacyAnnotatedClass &&
+        (!isRfwScreenSourceInput(source.assetId) || hasCanonicalScreen)) {
+      continue;
+    }
+
+    final admission = await inspectScreenSourceAdmission(
+      buildStep,
+      assetId: source.assetId,
+      library: source.library,
+      plan: plan,
+    );
+    issues.addAll(admission.issues);
+    final cls = admission.admittedClass;
+    final admittedSource = admission.admittedSource;
+    if (cls == null || admittedSource == null) continue;
+
+    await addNativeScreen(
+      source: source,
+      cls: cls,
+      id: admittedSource.id,
+      version: admittedSource.version,
+      minClient: admittedSource.minClient,
+      isCanonical: false,
+    );
+  }
+
+  for (final declaration in canonicalScreenDeclarations) {
+    final source = sourcesByLibraryIdentity[declaration.libraryIdentity];
+    final candidates = source?.library.classes
+            .where(
+              (cls) =>
+                  '${source.library.identifier}#${cls.name ?? '<unnamed>'}' ==
+                  declaration.declarationIdentity,
+            )
+            .toList(growable: false) ??
+        const <ClassElement>[];
+    if (source == null || candidates.length != 1) {
+      issues.add(
+        Issue(
+          code: IssueCode.analyzerResolutionFailed,
+          message: 'The canonical @Screen roster declaration '
+              '${declaration.declarationIdentity} could not be resolved to '
+              'exactly one analyzer class for native sibling generation.',
+          location: declaration.span.location,
+        ),
+      );
+      continue;
+    }
+    await addNativeScreen(
+      source: source,
+      cls: candidates.single,
+      id: declaration.effectiveId,
+      version: declaration.version,
+      minClient: declaration.minClient,
+      isCanonical: true,
     );
   }
 
@@ -393,7 +487,7 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
       log.severe(issue.toString());
     }
     throw StateError(
-      '${failures.length} native ScreenSource issue(s); see log above.',
+      '${failures.length} native screen source issue(s); see log above.',
     );
   }
 
@@ -482,10 +576,15 @@ void _validateDuplicateScreenIds(
               '${screen.classIdentity} (${screen.declarationSourcePath})',
         )
         .join(', ');
+    final sourceAnnotations =
+        declarations.map((screen) => screen.sourceAnnotation).toSet();
+    final sourceLabel = sourceAnnotations.length == 1
+        ? sourceAnnotations.single
+        : 'Native screen';
     issues.add(
       Issue(
         code: IssueCode.duplicateId,
-        message: '@ScreenSource id "${duplicate.key}" is declared by '
+        message: '$sourceLabel id "${duplicate.key}" is declared by '
             '$declarationList.',
         location: declarations.first.declarationSourcePath,
       ),
@@ -536,7 +635,7 @@ void _validateA2uiComponentNamespace(
         Issue(
           code: IssueCode.duplicateWidgetName,
           message: 'A2UI component name "${screen.id}" is declared by both '
-              '@ScreenSource ${screen.classIdentity} '
+              '${screen.sourceAnnotation} ${screen.classIdentity} '
               '(${screen.declarationSourcePath}) and @RestageWidget '
               '${widget.classIdentity} (${widget.declarationSourcePath}).',
           location: screen.declarationSourcePath,

@@ -17,8 +17,10 @@ import 'package:restage_shared/restage_shared.dart';
 /// bundled asset.
 ///
 /// Usable two ways via [fixedSurfaceType]:
-///   - null → generic `surface kill` group (requires `--type`).
-///   - non-null → typed-group convenience (e.g. `paywall kill`; no `--type`).
+///   - null → generic `surface kill` group, normally resolved from the
+///     generated manifest.
+///   - non-null → typed-group compatibility convenience (e.g. `paywall kill`;
+///     no `--type`).
 ///
 /// Requires a non-empty `--reason` for the audit trail. A destructive-op
 /// confirmation step guards the live runtime plane: `--yes` is accepted for
@@ -30,7 +32,7 @@ class SurfaceKillCommand extends Command<int> {
   ///
   /// Pass [fixedSurfaceType] to pin the surface type (e.g. for the `paywall`
   /// convenience group); omit it for the generic `surface` group, which
-  /// requires the operator to pass `--type`.
+  /// normally resolves identity from the generated manifest.
   SurfaceKillCommand({
     required StringSink stdout,
     required StringSink stderr,

@@ -13,6 +13,9 @@ import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
+import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -65,6 +68,7 @@ const _corpora = <_CorpusCase>[
     name: 'examples_onboarding',
     sourcePackageName: 'restage_example',
     kind: _CorpusKind.onboardingWithPaywall,
+    frozenSurfaceScreenRefIsNeutral: true,
     inputPaths: <String>[
       'lib/onboarding/flows/first_run.dart',
       'lib/onboarding/flows/bare_surface.dart',
@@ -111,6 +115,7 @@ const _corpora = <_CorpusCase>[
     name: 'showcase_onboarding',
     sourcePackageName: 'restage_showcase',
     kind: _CorpusKind.onboardingWithPaywall,
+    frozenSurfaceScreenRefIsNeutral: true,
     inputPaths: <String>[
       'lib/onboarding/flows/hs_onboarding.dart',
       'lib/onboarding/screens/hs_experience.dart',
@@ -140,6 +145,10 @@ const _corpora = <_CorpusCase>[
       'assets/paywalls/fluent_pro_choose_plan.capability.json',
       'assets/paywalls/fluent_pro_choose_plan.navplan.json',
     ],
+    unshippedBuildOutputPaths: <String>[
+      'assets/paywalls/fluent_pro.capability.json',
+      'assets/paywalls/fluent_pro.rfw',
+    ],
   ),
   _CorpusCase(
     name: 'showcase_paywall_navigation',
@@ -151,6 +160,11 @@ const _corpora = <_CorpusCase>[
     ],
     retainedTransientShippingOutputPaths: <String>[
       'assets/paywalls/duolingo_super.navplan.json',
+    ],
+    unshippedBuildOutputPaths: <String>[
+      'assets/paywalls/duolingo_super.capability.json',
+      'assets/paywalls/duolingo_super.navplan.json',
+      'assets/paywalls/duolingo_super.rfw',
     ],
     absentOutputPaths: <String>[
       'assets/paywalls/duolingo_choose_plan.rfwtxt',
@@ -169,13 +183,13 @@ void main() {
   test('descriptor token identity ignores trivia but preserves wire strings',
       () {
     final canonical = utf8.encode('''
-final screenType = OnboardingScreenRef;
+final screenType = NeutralFlowScreenRef;
 final surface = Surface.onboarding;
 const identities = <String>['next', 'welcome', 'welcome.rfw'];
 ''');
     final reformatted = utf8.encode('''
 // Formatting, comments, and the approved source-compatible alias are trivia.
-final screenType=SurfaceScreenRef;
+final screenType=OnboardingScreenRef;
 final surface=SurfaceType.onboarding;
 const identities=<String>[
   'next', // event
@@ -201,6 +215,25 @@ const identities=<String>[
     expect(
       _descriptorHash(legacyAlias),
       _descriptorHash(canonicalSpelling),
+    );
+
+    final oldNeutralScreen =
+        utf8.encode('const ref = SurfaceScreenRef(id: \'welcome\');');
+    final canonicalNeutralScreen =
+        utf8.encode('const ref = NeutralFlowScreenRef(id: \'welcome\');');
+    expect(
+      _normalizedDescriptor(oldNeutralScreen),
+      isNot(_normalizedDescriptor(canonicalNeutralScreen)),
+      reason: 'SurfaceScreenRef must not be globally treated as neutral.',
+    );
+    expect(
+      _normalizedDescriptor(
+        oldNeutralScreen,
+        legacySurfaceScreenRefIsNeutral: true,
+      ),
+      _normalizedDescriptor(canonicalNeutralScreen),
+      reason: 'The frozen pre-category onboarding corpus used '
+          'SurfaceScreenRef for neutral flow screens.',
     );
 
     final changedSurface = utf8.encode('const surface = Surface.message;');
@@ -253,8 +286,7 @@ const identities=<String>[
     );
   });
 
-  test('production entrypoints preserve frozen bytes and ownership',
-      () async {
+  test('production entrypoints preserve frozen bytes and ownership', () async {
     final snapshots = <_CorpusSnapshot>[];
     for (final corpus in _corpora) {
       snapshots.add(await _buildCorpus(corpus));
@@ -355,7 +387,11 @@ Future<_CorpusSnapshot> _buildCorpus(
   }
   final bytesByPath = <String, List<int>>{
     for (final entry in allBytesByPath.entries)
-      if (!corpus.virtualOnlyTransientBuildOutputPaths.contains(entry.key))
+      if (!corpus.virtualOnlyTransientBuildOutputPaths.contains(entry.key) &&
+          // The compiler handoff is a builder-to-builder intermediate, not an
+          // artifact under test. It is only present because the generated-Dart
+          // owner reads it, and it is neither shipped nor frozen.
+          entry.key != kRestageSurfacePublicationCompilerBundlePath)
         entry.key: entry.value,
   };
   final snapshot = _CorpusSnapshot(corpus, bytesByPath);
@@ -382,19 +418,33 @@ Future<_CorpusSnapshot> _buildCorpus(
   return snapshot;
 }
 
+// The harness runs the owner of
+// generated Dart. Since the unified-builder work it is `generated_dart`, not
+// the surface builders, that writes a library's neutral part — without it this
+// harness produces no descriptor at all and the frozen roster can never match.
+// `restage_package_surface_compiler` comes with it because the generated-Dart
+// builder reads its handoff and returns silently when it is absent.
+List<Builder> _generatedDartOwners() => <Builder>[
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
+    ];
+
 List<Builder> _buildersFor(_CorpusKind kind) => switch (kind) {
       _CorpusKind.onboarding => <Builder>[
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          ..._generatedDartOwners(),
         ],
       _CorpusKind.onboardingWithPaywall => <Builder>[
           onboardingScreenBuilder(BuilderOptions.empty),
           restageCodegenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          ..._generatedDartOwners(),
         ],
       _CorpusKind.paywallNavigation => <Builder>[
           restageCodegenBuilder(BuilderOptions.empty),
           paywallFlowBuilder(BuilderOptions.empty),
+          ..._generatedDartOwners(),
         ],
     };
 
@@ -466,30 +516,52 @@ Iterable<AssetId> _importDependencies(AssetId from, String source) sync* {
 
 Future<void> _assertShippingParity(_CorpusSnapshot snapshot) async {
   final root = await _packageRoot(snapshot.corpus.sourcePackageName);
+  // Delivery artifacts no longer ship as loose files: they are entries inside
+  // the deterministic bundles the package packages. Parity is therefore
+  // asserted against the bytes actually shipped, extracted from those
+  // containers, rather than against a file tree that no longer exists.
+  // Generated Dart is still an ordinary source file and is read as one.
+  final shipped = _shippedBundleEntries(root);
+  final unshipped = <String>[];
+
   for (final entry in snapshot.bytesByPath.entries) {
-    final file = File.fromUri(root.resolve(entry.key));
-    expect(
-      file.existsSync(),
-      isTrue,
-      reason: '${snapshot.corpus.name} generated ${entry.key}, but the '
-          'tracked shipping artifact is absent at ${file.path}.',
-    );
-    if (_isDescriptor(entry.key)) {
+    if (_isGeneratedDart(entry.key)) {
+      final file = File.fromUri(root.resolve(entry.key));
+      expect(
+        file.existsSync(),
+        isTrue,
+        reason: '${snapshot.corpus.name} generated ${entry.key}, but the '
+            'tracked shipping source is absent at ${file.path}.',
+      );
       expect(
         _normalizedDescriptor(entry.value),
         _normalizedDescriptor(file.readAsBytesSync()),
         reason: '${snapshot.corpus.name} production descriptor identity '
             'diverged from shipping output for ${entry.key}.',
       );
-    } else {
-      expect(
-        entry.value,
-        orderedEquals(file.readAsBytesSync()),
-        reason: '${snapshot.corpus.name} production builder diverged from '
-            'shipping bytes for ${entry.key}.',
-      );
+      continue;
     }
+    final packaged = shipped[entry.key];
+    if (packaged == null) {
+      unshipped.add(entry.key);
+      continue;
+    }
+    expect(
+      entry.value,
+      orderedEquals(packaged),
+      reason: '${snapshot.corpus.name} production builder diverged from '
+          'shipped bytes for ${entry.key}.',
+    );
   }
+
+  expect(
+    unshipped..sort(),
+    orderedEquals(snapshot.corpus.unshippedBuildOutputPaths),
+    reason: '${snapshot.corpus.name} the set of artifacts this builder subset '
+        'emits without a shipped counterpart moved. Every shipped artifact is '
+        'byte-compared above; this guards the boundary itself.',
+  );
+
   for (final path in <String>[
     ...snapshot.corpus.virtualOnlyTransientBuildOutputPaths,
     ...snapshot.corpus.absentOutputPaths,
@@ -499,10 +571,39 @@ Future<void> _assertShippingParity(_CorpusSnapshot snapshot) async {
     expect(
       file.existsSync(),
       isFalse,
-      reason: '${snapshot.corpus.name} stale or suppressed artifact exists: '
-          '${file.path}.',
+      reason: '${snapshot.corpus.name} stale or suppressed artifact exists as '
+          'a loose file: ${file.path}.',
+    );
+    expect(
+      shipped,
+      isNot(contains(path)),
+      reason: '${snapshot.corpus.name} stale or suppressed artifact $path is '
+          'packaged in a shipped bundle.',
     );
   }
+}
+
+/// Every logical delivery artifact the package actually ships, keyed by
+/// logical path and read out of the deterministic bundle containers.
+Map<String, List<int>> _shippedBundleEntries(Uri packageRoot) {
+  final bundles =
+      Directory.fromUri(packageRoot.resolve('assets/restage/bundles'));
+  final shipped = <String, List<int>>{};
+  if (!bundles.existsSync()) return shipped;
+  for (final file in bundles.listSync(recursive: true).whereType<File>()) {
+    if (!file.path.endsWith('.rsbundle')) continue;
+    for (final entry
+        in RestageBundleCodec.decode(file.readAsBytesSync()).entries) {
+      final previous = shipped[entry.logicalPath];
+      expect(
+        previous == null || _sha256(previous) == _sha256(entry.bytes),
+        isTrue,
+        reason: 'Two shipped bundles disagree on ${entry.logicalPath}.',
+      );
+      shipped[entry.logicalPath] = entry.bytes;
+    }
+  }
+  return shipped;
 }
 
 void _assertCanonicalFlowJson(_CorpusSnapshot snapshot) {
@@ -531,7 +632,7 @@ void _freezeCorpus(List<_CorpusSnapshot> snapshots) {
   for (final snapshot in snapshots) {
     final caseDirectory = Directory(p.join(root.path, snapshot.corpus.name));
     for (final entry in snapshot.bytesByPath.entries) {
-      if (_isDescriptor(entry.key)) continue;
+      if (_isSupersededDescriptor(entry.key)) continue;
       final file = File(p.join(caseDirectory.path, 'artifacts', entry.key));
       file.parent.createSync(recursive: true);
       file.writeAsBytesSync(entry.value, flush: true);
@@ -542,7 +643,7 @@ void _freezeCorpus(List<_CorpusSnapshot> snapshots) {
       'package': snapshot.corpus.sourcePackageName,
       'entries': <Map<String, Object?>>[
         for (final entry in snapshot.bytesByPath.entries)
-          _isDescriptor(entry.key)
+          _isSupersededDescriptor(entry.key)
               ? _descriptorManifestEntry(entry.key, entry.value)
               : <String, Object?>{
                   'path': entry.key,
@@ -595,28 +696,67 @@ void _assertFrozenCorpus(_CorpusSnapshot snapshot) {
       .toList(growable: false);
   final frozenPaths =
       entries.map((entry) => entry['path']! as String).toList(growable: false);
+
+  // The roster comparison translates a
+  // frozen per-kind descriptor path to the canonical neutral part that
+  // replaced it. This recalibrates the instrument to the approved
+  // architecture; it never adapts to whatever the builders happen to emit,
+  // because only this path mapping is permitted and every other entry is
+  // still compared exactly.
+  //
+  // The 1:1 property is a loud assertion rather than an assumption: two frozen
+  // descriptors collapsing onto one neutral part would
+  // silently shrink the roster — that is the one way this translation could
+  // hide a real regression, so it fails here instead.
+  final canonicalOwners = <String, String>{};
+  final expectedPaths = <String>[];
+  for (final frozen in frozenPaths) {
+    if (!_isSupersededDescriptor(frozen)) {
+      expectedPaths.add(frozen);
+      continue;
+    }
+    final canonical = _canonicalDescriptorPath(frozen);
+    final previous = canonicalOwners[canonical];
+    expect(
+      previous,
+      isNull,
+      reason: '${snapshot.corpus.name} frozen descriptors "$previous" and '
+          '"$frozen" both map to "$canonical". The roster translation is only '
+          'sound while it stays 1:1; a collapse hides a lost descriptor.',
+    );
+    canonicalOwners[canonical] = frozen;
+    expectedPaths.add(canonical);
+  }
+  expectedPaths.sort();
   expect(
     snapshot.bytesByPath.keys,
-    orderedEquals(frozenPaths),
+    orderedEquals(expectedPaths),
     reason: '${snapshot.corpus.name} output ownership/path roster moved.',
   );
 
   for (final entry in entries) {
     final path = entry['path']! as String;
-    final actual = snapshot.bytesFor(path);
     expect(entry['kind'], _artifactKind(path));
-    if (_isDescriptor(path)) {
+    if (_isSupersededDescriptor(path)) {
+      // Generated Dart is EXEMPT from frozen-byte and frozen-identity
+      // equality. Merging a library's per-kind descriptors into one neutral
+      // part is a deliberate change, so pinning the old shape here would
+      // assert the thing being replaced. The emitter and placement suites
+      // guard the new shape; this oracle guards that the part still EXISTS at
+      // its canonical location, which the roster comparison above proves.
+      //
+      // The frozen record is still checked for internal consistency, so a
+      // corrupted golden is caught rather than silently skipped.
       final storedDescriptor = entry['descriptor']! as String;
       final storedDescriptorBytes = utf8.encode(storedDescriptor);
       expect(entry['contractByteLength'], storedDescriptorBytes.length);
       expect(entry['sha256'], _sha256(storedDescriptorBytes));
-      expect(
-        _normalizedDescriptor(actual),
-        _normalizedDescriptor(storedDescriptorBytes),
-        reason: '${snapshot.corpus.name} frozen descriptor identity moved for '
-            '$path.',
-      );
-    } else {
+      continue;
+    }
+
+    // Every delivery artifact keeps full byte equality.
+    {
+      final actual = snapshot.bytesFor(path);
       final frozen = _readFrozenArtifact(snapshot.corpus, path);
       expect(entry['byteLength'], frozen.length);
       expect(entry['sha256'], _sha256(frozen));
@@ -668,15 +808,46 @@ String _artifactKind(String path) {
   if (path.endsWith('.capability.json')) return 'capability-sidecar';
   if (path.endsWith('.rsscreen.g.dart')) return 'screen-descriptor';
   if (path.endsWith('.rsflow.g.dart')) return 'flow-descriptor';
+  // The neutral part carries every declaration kind in one file, so it has no
+  // per-kind role. Only produced paths reach this branch; frozen entries keep
+  // the per-kind roles recorded above.
+  if (path.endsWith(kNeutralGeneratedPartSuffix)) return 'descriptor';
   throw StateError('Unexpected production artifact path: $path');
 }
 
 String _sha256(List<int> bytes) => 'sha256:${sha256.convert(bytes)}';
 
-bool _isDescriptor(String path) =>
-    path.endsWith('.rsscreen.g.dart') || path.endsWith('.rsflow.g.dart');
+/// Whether [path] is Restage-generated Dart in any placement.
+bool _isGeneratedDart(String path) =>
+    _isSupersededDescriptor(path) || path.endsWith(kNeutralGeneratedPartSuffix);
 
-String _normalizedDescriptor(List<int> bytes) {
+/// Whether [path] is a frozen per-kind descriptor path.
+///
+/// Only the frozen roster still speaks these suffixes; the builders emit one
+/// neutral part per library instead. Kept so a frozen entry can still be
+/// recognized and translated.
+bool _isSupersededDescriptor(String path) =>
+    kSupersededGeneratedPartSuffixes.any(path.endsWith);
+
+/// The canonical neutral part that replaced the frozen descriptor at [path].
+///
+/// `lib/onboarding/screens/welcome.rsscreen.g.dart` becomes
+/// `lib/onboarding/screens/restage.generated/welcome.restage.g.dart`.
+String _canonicalDescriptorPath(String path) {
+  final suffix = kSupersededGeneratedPartSuffixes.firstWhere(path.endsWith);
+  final base = p.posix.basename(path);
+  final stem = base.substring(0, base.length - suffix.length);
+  return p.posix.join(
+    p.posix.dirname(path),
+    kRestageGeneratedDirectoryName,
+    '$stem$kNeutralGeneratedPartSuffix',
+  );
+}
+
+String _normalizedDescriptor(
+  List<int> bytes, {
+  bool legacySurfaceScreenRefIsNeutral = false,
+}) {
   final parsed = parseString(
     content: utf8.decode(bytes),
     path: '<generated descriptor>',
@@ -686,7 +857,10 @@ String _normalizedDescriptor(List<int> bytes) {
   for (var token = parsed.unit.beginToken; !token.isEof; token = token.next!) {
     final lexeme = token.type == TokenType.IDENTIFIER
         ? switch (token.lexeme) {
-            'OnboardingScreenRef' => 'SurfaceScreenRef',
+            'OnboardingScreenRef' => 'NeutralFlowScreenRef',
+            'SurfaceScreenRef' => legacySurfaceScreenRefIsNeutral
+                ? 'NeutralFlowScreenRef'
+                : token.lexeme,
             'OnboardingFlowRef' => 'SurfaceFlowRef',
             'SurfaceType' => 'Surface',
             final lexeme => lexeme,
@@ -726,8 +900,10 @@ final class _CorpusCase {
     required this.sourcePackageName,
     required this.kind,
     required this.inputPaths,
+    this.frozenSurfaceScreenRefIsNeutral = false,
     this.virtualOnlyTransientBuildOutputPaths = const <String>[],
     this.retainedTransientShippingOutputPaths = const <String>[],
+    this.unshippedBuildOutputPaths = const <String>[],
     this.absentOutputPaths = const <String>[],
     this.staleOutputPaths = const <String>[],
   });
@@ -736,8 +912,19 @@ final class _CorpusCase {
   final String sourcePackageName;
   final _CorpusKind kind;
   final List<String> inputPaths;
+  final bool frozenSurfaceScreenRefIsNeutral;
   final List<String> virtualOnlyTransientBuildOutputPaths;
   final List<String> retainedTransientShippingOutputPaths;
+
+  /// Artifacts this builder subset still emits that the package no longer
+  /// ships.
+  ///
+  /// A navigation paywall publishes its per-screen blobs, not its root blob,
+  /// so the root blob has no shipped counterpart to compare against. The set
+  /// is declared rather than inferred: shipping parity asserts it exactly, so
+  /// an artifact quietly dropping out of the shipped closure fails here
+  /// instead of being waved through as "expected to be missing".
+  final List<String> unshippedBuildOutputPaths;
   final List<String> absentOutputPaths;
   final List<String> staleOutputPaths;
 }

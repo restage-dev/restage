@@ -16,7 +16,7 @@ const _rfwBuilders = <Builder>[
   UserCatalogJsonBuilder(BuilderOptions.empty),
   UserFactoryBuilder(BuilderOptions.empty),
 ];
-const _a2uiBuilder = UserA2uiCatalogBuilder(BuilderOptions.empty);
+final _a2uiBuilder = UserA2uiCatalogBuilder(BuilderOptions.empty);
 const _widgetbookSentinel = 'generated/.restage_widgetbook_story_builder';
 
 void main() {
@@ -24,7 +24,7 @@ void main() {
     final widgetbookOutputs = <String>[
       _widgetbookSentinel,
       for (final name in _matrixNames)
-        'generated/${_snakeCase(name)}.stories.dart',
+        'widgets/restage.generated/${_snakeCase(name)}.stories.dart',
     ];
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
@@ -81,7 +81,7 @@ void main() {
       final source = readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/generated/${_snakeCase(name)}.stories.dart',
+          'lib/widgets/restage.generated/${_snakeCase(name)}.stories.dart',
         ),
       );
       expect(
@@ -379,7 +379,7 @@ const _a2uiArtifactPaths = <String>{
   'lib/generated/restage_a2ui_catalog.a2ui.json',
 };
 const _widgetbookArtifactPaths = <String>{
-  'lib/generated/routed_card.stories.dart',
+  'lib/widgets/restage.generated/routed_card.stories.dart',
 };
 const _rfwAndA2ui = <String>{..._rfwArtifactPaths, ..._a2uiArtifactPaths};
 const _rfwAndWidgetbook = <String>{
@@ -408,7 +408,7 @@ Future<Map<String, String>> _buildSiblingBytes(String source) async {
       const WidgetbookStoryBuilder({
         r'$lib$': [
           _widgetbookSentinel,
-          'generated/routed_card.stories.dart',
+          'widgets/restage.generated/routed_card.stories.dart',
         ],
       }),
     ],
@@ -484,7 +484,7 @@ class IgnoreProbe extends StatelessWidget {
       const WidgetbookStoryBuilder({
         r'$lib$': [
           _widgetbookSentinel,
-          'generated/ignore_probe.stories.dart',
+          'widgets/restage.generated/ignore_probe.stories.dart',
         ],
       }),
     ],
@@ -503,7 +503,7 @@ class IgnoreProbe extends StatelessWidget {
     'lib/user_factories.g.dart',
     'lib/generated/restage_a2ui_catalog.g.dart',
     'lib/generated/restage_a2ui_catalog.a2ui.json',
-    'lib/generated/ignore_probe.stories.dart',
+    'lib/widgets/restage.generated/ignore_probe.stories.dart',
   ];
   return {
     for (final output in outputs)
@@ -596,7 +596,7 @@ Future<String> _runWidgetbook(
     const WidgetbookStoryBuilder({
       r'$lib$': [
         _widgetbookSentinel,
-        'generated/routed_card.stories.dart',
+        'widgets/restage.generated/routed_card.stories.dart',
       ],
     }),
     {'apps_examples|lib/widgets/routed_card.dart': source},
@@ -608,7 +608,7 @@ Future<String> _runWidgetbook(
   return readerWriter.testing.readString(
     AssetId(
       'apps_examples',
-      'lib/generated/routed_card.stories.dart',
+      'lib/widgets/restage.generated/routed_card.stories.dart',
     ),
   );
 }

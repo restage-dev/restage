@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'profile.rsscreen.g.dart';
+part 'restage.generated/profile.restage.g.dart';
 
 @Screen()
 final class ProfileScreen extends StatelessWidget {

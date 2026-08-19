@@ -91,6 +91,75 @@ void main() {
       expect(stdout.toString(), contains('Usage:'));
     });
 
+    test('top-level help makes surface the manifest-driven path', () async {
+      final stdout = StringBuffer();
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: StringBuffer(),
+      ).run(const ['--help']);
+
+      expect(exitCode, 0);
+      expect(
+        stdout.toString(),
+        contains('Manifest-driven publication and lifecycle'),
+      );
+      expect(
+        stdout.toString(),
+        contains('Compatibility commands for specialized paywalls'),
+      );
+    });
+
+    test(
+      'surface publication help marks compatibility selectors clearly',
+      () async {
+        final stdout = StringBuffer();
+        final exitCode = await RestageCli(
+          stdout: stdout,
+          stderr: StringBuffer(),
+        ).run(const ['surface', 'publish', '--help']);
+
+        expect(exitCode, 0);
+        expect(
+          stdout.toString(),
+          contains('Deprecated validation/disambiguation selector only'),
+        );
+        expect(
+          stdout.toString(),
+          contains('generated manifest is authoritative'),
+        );
+        expect(stdout.toString(), isNot(contains('--path')));
+      },
+    );
+
+    test('lifecycle help defaults to generated identity', () async {
+      final stdout = StringBuffer();
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: StringBuffer(),
+      ).run(const ['surface', 'status', '--help']);
+
+      expect(exitCode, 0);
+      expect(
+        stdout.toString(),
+        contains('Deprecated validation/disambiguation selector only'),
+      );
+      expect(
+        stdout.toString(),
+        contains('generated manifest, which is authoritative'),
+      );
+    });
+
+    test('init help identifies the canonical starter annotation', () async {
+      final stdout = StringBuffer();
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: StringBuffer(),
+      ).run(const ['init', '--help']);
+
+      expect(exitCode, 0);
+      expect(stdout.toString(), contains('canonical `@Paywall` starter'));
+    });
+
     test('unknown command exits 1 with the command name in stderr', () async {
       final stdout = StringBuffer();
       final stderr = StringBuffer();

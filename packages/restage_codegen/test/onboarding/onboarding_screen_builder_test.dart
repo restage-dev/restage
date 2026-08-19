@@ -16,7 +16,7 @@ void main() {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatefulWidget {
@@ -51,7 +51,7 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -85,17 +85,6 @@ final class WelcomeScreen extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/onboarding/screens/welcome.rsscreen.g.dart':
-              decodedMatches(
-            allOf(
-              contains("part of 'welcome.dart';"),
-              contains('abstract final class WelcomeScreenDescriptor'),
-              contains('static const SurfaceScreenRef ref'),
-              contains('SurfaceScreenRef('),
-              contains("id: 'welcome'"),
-              contains("artifactPath: 'welcome.rfw'"),
-            ),
-          ),
           'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
               decodedMatches(
             allOf(
@@ -119,7 +108,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'notice.rsscreen.g.dart';
+part 'restage.generated/notice.restage.g.dart';
 
 @ScreenSource(id: 'notice')
 final class NoticeScreen extends StatelessWidget {
@@ -153,13 +142,6 @@ final class NoticeScreen extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/onboarding/screens/notice.rsscreen.g.dart':
-              decodedMatches(
-            allOf(
-              contains('abstract final class NoticeScreenDescriptor'),
-              contains('static const SurfaceScreenRef ref'),
-            ),
-          ),
           'apps_examples|assets/onboarding/screens/notice.rfwtxt':
               decodedMatches(contains('event "dismiss" {}')),
           'apps_examples|assets/onboarding/screens/notice.rfw':
@@ -176,7 +158,7 @@ final class NoticeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'notice.rsscreen.g.dart';
+part 'restage.generated/notice.restage.g.dart';
 
 @ScreenSource(id: 'notice')
 final class NoticeScreen extends StatelessWidget {
@@ -221,7 +203,7 @@ final class NoticeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatefulWidget {
@@ -262,8 +244,6 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/onboarding/screens/welcome.rsscreen.g.dart':
-              decodedMatches(contains('WelcomeScreenDescriptor')),
           'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
               decodedMatches(
             allOf(
@@ -293,7 +273,7 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatefulWidget {
@@ -343,7 +323,7 @@ final class _WelcomeScreenState extends State<WelcomeScreen> {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -381,8 +361,6 @@ final class WelcomeScreen extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/onboarding/screens/welcome.rsscreen.g.dart':
-              decodedMatches(contains('WelcomeScreenDescriptor')),
           'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
               decodedMatches(
             contains(
@@ -406,7 +384,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -440,8 +418,6 @@ final class WelcomeScreen extends StatelessWidget {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         outputs: {
-          'apps_examples|lib/onboarding/screens/welcome.rsscreen.g.dart':
-              anything,
           'apps_examples|assets/onboarding/screens/welcome.rfwtxt':
               decodedMatches(contains('event "rating" { value: 42 }')),
           'apps_examples|assets/onboarding/screens/welcome.rfw':
@@ -457,7 +433,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'wrong.rsscreen.g.dart';
+part 'restage.generated/wrong.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -554,7 +530,7 @@ final class WelcomeScreen extends StatelessWidget {
             contains('missingPartDirective'),
           );
           for (final path in const <String>[
-            'lib/onboarding/screens/part_decoy.rsscreen.g.dart',
+            'lib/onboarding/screens/restage.generated/part_decoy.restage.g.dart',
             'assets/onboarding/screens/part_decoy.rfwtxt',
             'assets/onboarding/screens/part_decoy.rfw',
             'assets/onboarding/screens/part_decoy.capability.json',
@@ -577,7 +553,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @ScreenSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -625,7 +601,7 @@ final class AdditionalWelcomeScreen extends StatelessWidget {
       const source = '''
 import 'package:flutter/widgets.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -726,7 +702,7 @@ Text(paywallPriceFor(slot: 'primary'))
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 ${entry.value}
 
@@ -770,7 +746,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -822,7 +798,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -885,7 +861,7 @@ final class OnboardingEvent<T> {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {
@@ -932,7 +908,7 @@ final class WelcomeScreen extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class extends StatelessWidget {
@@ -986,15 +962,16 @@ final class PartDecoyScreen extends StatelessWidget {
 ''';
 
 const _partDirectiveDecoys = <String, String>{
-  'comment': "// part 'part_decoy.rsscreen.g.dart';",
-  'string': "const partDirectiveText = \"part 'part_decoy.rsscreen.g.dart';\";",
+  'comment': "// part 'restage.generated/part_decoy.restage.g.dart';",
+  'string':
+      "const partDirectiveText = \"part 'restage.generated/part_decoy.restage.g.dart';\";",
 };
 
 String _screenWithBody(String body) => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @OnboardingSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {

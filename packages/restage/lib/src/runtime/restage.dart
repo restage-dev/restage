@@ -715,7 +715,7 @@ abstract final class Restage {
   /// back to a bundled asset when the fetch is unavailable).
   static VariantResolver get defaultResolver => _defaultResolver;
 
-  /// Resolver used when `RestageOnboarding` is constructed without an explicit
+  /// Resolver used when `RestageSurfaceFlow` is constructed without an explicit
   /// `resolver:` parameter.
   ///
   /// The default is [AssetFlowResolver]; hosted flow delivery is not installed
