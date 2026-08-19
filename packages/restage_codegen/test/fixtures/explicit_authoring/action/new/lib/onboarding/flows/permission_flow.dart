@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 import '../screens/permission.dart';
 import '../screens/ready.dart';
 
-part 'permission_flow.rsflow.g.dart';
+part 'restage.generated/permission_flow.restage.g.dart';
 
 const requestNotifications = FlowActionRef<void, bool>(
   'requestNotifications',

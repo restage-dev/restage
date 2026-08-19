@@ -4,7 +4,7 @@ import '../screens/explore.dart';
 import '../screens/guided.dart';
 import '../screens/question.dart';
 
-part 'setup_survey.rsflow.g.dart';
+part 'restage.generated/setup_survey.restage.g.dart';
 
 @FlowSource(id: 'setup_survey', version: 1, minClient: 1)
 final class SetupSurveyFlow extends RestageFlow {

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
-import 'package:restage/src/surface_screen/surface_screen_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import 'surface_screen_test_support.dart';
@@ -19,7 +18,6 @@ void main() {
       text: 'Paywall-category screen',
     );
     final events = <String>[];
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(
@@ -38,69 +36,26 @@ void main() {
     expect(find.textContaining('fallback:'), findsNothing);
   });
 
-  testWidgets('resolves the generated manifest before a custom resolver',
-      (tester) async {
-    final requested = stringScreenFixture(slug: 'requested');
-    final different = stringScreenFixture(slug: 'different');
-    final resolver = FixedScreenResolver(requested.bundled());
-    installManifestBundle(different.bundle);
-
-    await tester.pumpWidget(
-      _host(fixture: requested, resolver: resolver),
-    );
-    await tester.pumpAndSettle();
-
-    expect(resolver.calls, 0);
-    expect(find.text('fallback:missing'), findsOneWidget);
-  });
-
-  test('revalidates each generated contract on an exact-identity cache hit',
-      () async {
+  test('refuses a reference whose event decoder disagrees with its schema', () {
     final fixture = stringScreenFixture();
-    installManifestBundle(fixture.bundle);
-    await SurfaceScreenManifestRegistry.resolve(fixture.ref);
     final differentSchema = SurfaceScreenEventSchemaV1(
       events: const <SurfaceScreenEventV1>[],
     );
-    final mismatched = SurfaceScreenRef<String>.generated(
-      slug: fixture.ref.slug,
-      contractVersion: fixture.ref.contractVersion,
-      capabilities: fixture.capabilities,
-      surface: fixture.ref.surface,
-      contractFingerprint: fixture.ref.contractFingerprint,
-      eventContract: SurfaceScreenEventContract<String>.generated(
-        hash: SurfaceScreenEventContractHashV1.hash(differentSchema),
-        decodeValidated: (_, __) => 'unexpected',
-      ),
-    );
 
-    await expectLater(
-      SurfaceScreenManifestRegistry.resolve(mismatched),
-      throwsA(
-        isA<SurfaceScreenUnavailableError>().having(
-          (error) => error.reason,
-          'reason',
-          SurfaceScreenUnavailableReason.contractMismatch,
+    // Provenance and the typed decoder are generated separately, so their
+    // agreement is the one cross-check a reference can still get wrong. Every
+    // other way for a reference to disagree with its contract is now
+    // unconstructible: identity and capabilities come from the provenance.
+    expect(
+      () => SurfaceScreenRef<String>.generated(
+        provenance: fixture.provenance,
+        eventContract: SurfaceScreenEventContract<String>.generated(
+          hash: SurfaceScreenEventContractHashV1.hash(differentSchema),
+          decodeValidated: (_, __) => 'unexpected',
         ),
       ),
+      throwsA(isA<ArgumentError>()),
     );
-  });
-
-  testWidgets('rejects a paywall-source manifest before resolver content',
-      (tester) async {
-    final fixture = stringScreenFixture(surface: Surface.paywall);
-    final resolver = FixedScreenResolver(fixture.bundled());
-    installManifestBundle(
-      paywallSourceManifestBundle(reference: fixture.ref, blob: fixture.blob),
-    );
-
-    await tester.pumpWidget(
-      _host(fixture: fixture, resolver: resolver),
-    );
-    await tester.pumpAndSettle();
-
-    expect(resolver.calls, 0);
-    expect(find.text('fallback:contractMismatch'), findsOneWidget);
   });
 
   testWidgets('rejects a custom resolver result with a different identity',
@@ -119,7 +74,6 @@ void main() {
       contentHash: fixture.contentHash,
     );
     final resolver = FixedScreenResolver(mismatched);
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(_host(fixture: fixture, resolver: resolver));
     await tester.pumpAndSettle();
@@ -144,7 +98,6 @@ void main() {
       text: 'Unknown event',
     );
     final events = <String>[];
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(
@@ -181,7 +134,6 @@ void main() {
       decoder: (name, arguments) => '${arguments['value']}',
     );
     final events = <String>[];
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(
@@ -201,7 +153,6 @@ void main() {
   testWidgets('rejects absent and throwing typed event consumers',
       (tester) async {
     final noCallback = stringScreenFixture(text: 'No callback');
-    installManifestBundle(noCallback.bundle);
     await tester.pumpWidget(
       _host(
         fixture: noCallback,
@@ -214,10 +165,10 @@ void main() {
     expect(find.text('fallback:eventRejected'), findsOneWidget);
 
     final decoderThrows = stringScreenFixture(
+      slug: 'throwing_decoder',
       text: 'Throwing decoder',
       decoder: (_, __) => throw StateError('decoder rejected'),
     );
-    installManifestBundle(decoderThrows.bundle);
     await tester.pumpWidget(
       _host(
         key: const ValueKey<String>('throwing-decoder'),
@@ -236,7 +187,6 @@ void main() {
   testWidgets('rejects every event for an event-free Never reference',
       (tester) async {
     final fixture = neverScreenFixture(text: 'Never event');
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(
@@ -254,7 +204,6 @@ void main() {
   testWidgets('uses explicit hide behavior when resolution is unavailable',
       (tester) async {
     final fixture = stringScreenFixture(text: 'Unavailable content');
-    installManifestBundle(fixture.bundle);
     final errors = <SurfaceScreenUnavailableError>[];
 
     await tester.pumpWidget(
@@ -304,7 +253,6 @@ import example.throwing;
 widget OnboardingScreen = Throwing();
 '''),
     );
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(
@@ -326,7 +274,6 @@ widget OnboardingScreen = Throwing();
       identity: AnalyticsIdentity(newId: () => 'id-${nextId++}'),
       onSurfacePresented: contexts.add,
     );
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(
@@ -365,7 +312,6 @@ widget OnboardingScreen = Throwing();
       identity: AnalyticsIdentity(newId: () => 'id'),
       onSurfacePresented: contexts.add,
     );
-    installManifestBundle(fixture.bundle);
 
     await tester.pumpWidget(
       _host(

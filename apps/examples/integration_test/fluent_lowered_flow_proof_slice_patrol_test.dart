@@ -5,7 +5,7 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/stub_products.dart';
 
 /// Proof slice for the **screen-navigation lowering** — drives the load-bearing
-/// walk of a paywall whose `Navigator.push` to a second `@PaywallSource` screen
+/// walk of a paywall whose `Navigator.push` to a second `@Paywall` screen
 /// is lowered to a bundled flow, and holds each state long enough for the visual
 /// gate to capture it as a distinct frame.
 ///

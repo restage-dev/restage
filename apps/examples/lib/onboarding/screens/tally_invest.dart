@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_invest.rsscreen.g.dart';
+part 'restage.generated/tally_invest.restage.g.dart';
 
 /// Onboarding — the investing setup (the "Start investing" fork destination).
 ///
 /// A genuinely goal-specific screen: a diversified-allocation bar + a
 /// risk-profile card + a projected-growth stat. Reached only when the user
 /// picked the investing goal; [next] continues to the routing decision.
-@ScreenSource(id: 'tally_invest')
+@Screen()
 class TallyInvestScreen extends StatelessWidget {
   /// Continues to the plan recap.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const TallyInvestScreen({super.key});
 
@@ -211,7 +211,7 @@ class TallyInvestScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(next),
+                onPressed: surfaceEvent(next),
                 child: const Text(
                   'Continue',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

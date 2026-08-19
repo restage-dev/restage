@@ -16,14 +16,16 @@ import 'package:restage_shared/restage_shared.dart';
 /// a surface in one environment.
 ///
 /// Usable two ways via [fixedSurfaceType]:
-///   - null → generic `surface status` group (requires `--type`).
-///   - non-null → typed-group convenience (e.g. `paywall status`; no `--type`).
+///   - null → generic `surface status` group, normally resolved from the
+///     generated manifest.
+///   - non-null → typed-group compatibility convenience (e.g. `paywall
+///     status`; no `--type`).
 class SurfaceStatusCommand extends Command<int> {
   /// Construct a status command.
   ///
   /// Pass [fixedSurfaceType] to pin the surface type (e.g. for the `paywall`
   /// convenience group); omit it for the generic `surface` group, which
-  /// requires the operator to pass `--type`.
+  /// normally resolves identity from the generated manifest.
   SurfaceStatusCommand({
     required StringSink stdout,
     required StringSink stderr,

@@ -5,7 +5,7 @@ import 'package:restage_example/stub_products.dart';
 
 /// End-to-end proof that the Fluent Pro paywall, authored with a
 /// `Navigator.push` from its "VIEW ALL PLANS" control to the second
-/// `@PaywallSource` "Choose a plan" screen, lowers to a flow at build time and
+/// `@Paywall` "Choose a plan" screen, lowers to a flow at build time and
 /// hosts through the bundled delivery path.
 ///
 /// This drives the REAL committed bundled assets

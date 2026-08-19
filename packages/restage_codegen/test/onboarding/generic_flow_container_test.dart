@@ -22,6 +22,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -32,13 +34,13 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       expect(
         generated,
         allOf(
-          contains("part of 'first_run.dart';"),
+          contains("part of '../first_run.dart';"),
           contains('abstract final class FirstRunFlowDescriptor'),
           contains('SurfaceFlowRef<FirstRunResult>'),
         ),
@@ -46,10 +48,13 @@ void main() {
       final screenGenerated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/screens/welcome.rsscreen.g.dart',
+          'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
         ),
       );
-      expect(screenGenerated, contains('SurfaceScreenRef'));
+      // A deprecated screen's descriptor is now emitted by the same
+      // compatibility emitter the canonical path uses, so both frontends
+      // produce a NeutralFlowScreenRef rather than two shapes.
+      expect(screenGenerated, contains('NeutralFlowScreenRef'));
 
       final jsonBytes = result.readerWriter.testing.readBytes(
         AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
@@ -77,6 +82,8 @@ Future<Uint8List> _flowJsonFor({required bool useGenericNames}) async {
     [
       onboardingScreenBuilder(BuilderOptions.empty),
       onboardingFlowBuilder(BuilderOptions.empty),
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,
     rootPackage: 'apps_examples',
@@ -118,7 +125,7 @@ import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @$flowAnnotation(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -156,7 +163,7 @@ String _screenSource(
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @$annotation(id: '$id')
 final class $className extends StatelessWidget {

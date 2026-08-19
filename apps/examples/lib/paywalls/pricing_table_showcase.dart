@@ -15,7 +15,7 @@ import 'package:restage_example/widgets/pricing_table.dart';
 ///
 /// This is the developer-facing proof that a custom widget with a
 /// list-of-data-class property works in a remote paywall.
-@PaywallSource(id: 'pricing_table_showcase')
+@Paywall()
 class PricingTableShowcase extends StatelessWidget {
   /// Const constructor.
   const PricingTableShowcase({super.key});

@@ -4,7 +4,7 @@ import '../screens/accepted.dart';
 import '../screens/declined.dart';
 import '../screens/start.dart';
 
-part 'completion_paths.rsflow.g.dart';
+part 'restage.generated/completion_paths.restage.g.dart';
 
 @FlowSource(id: 'completion_paths', version: 1, minClient: 1)
 final class CompletionPathsFlow extends RestageFlow {

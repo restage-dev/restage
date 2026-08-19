@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'crave_ready.rsscreen.g.dart';
+part 'restage.generated/crave_ready.restage.g.dart';
 
 /// Permission-priming — the confirmation shown once location is granted.
 ///
 /// The granted path of the gate lands here; [start] completes the flow and the
 /// host drops the user into the app.
-@ScreenSource(id: 'crave_ready')
+@Screen()
 class CraveReadyScreen extends StatelessWidget {
   /// Completes the flow and enters the app.
-  static const start = OnboardingEvent<void>('start');
+  static const start = SurfaceEvent<void>('start');
 
   const CraveReadyScreen({super.key});
 
@@ -77,7 +77,7 @@ class CraveReadyScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: onboardingEvent(start),
+                      onPressed: surfaceEvent(start),
                       child: const Text(
                         'Start browsing',
                         style: TextStyle(

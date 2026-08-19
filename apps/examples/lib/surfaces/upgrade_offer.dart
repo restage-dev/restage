@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@Paywall(id: 'upgrade_offer')
+@Paywall()
 final class UpgradeOffer extends StatelessWidget {
   const UpgradeOffer({super.key});
 

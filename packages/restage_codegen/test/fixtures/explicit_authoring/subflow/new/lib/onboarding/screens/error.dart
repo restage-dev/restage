@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'error.rsscreen.g.dart';
+part 'restage.generated/error.restage.g.dart';
 
 @Screen()
 final class ErrorScreen extends StatelessWidget {

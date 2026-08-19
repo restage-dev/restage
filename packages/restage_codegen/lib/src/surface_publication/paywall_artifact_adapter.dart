@@ -138,6 +138,15 @@ final class PaywallArtifactFacts {
   /// Whether this source has a complete generated navigation-flow payload.
   bool get hasFlow => navigationFlow != null;
 
+  /// Whether this paywall emitted only its adapter, with no own publication
+  /// payload.
+  ///
+  /// A pushed paywall that lowers `Navigator.pop(context)` has no standalone
+  /// payload and does not own its own navigation document. The aggregate must
+  /// prove the adapter appears in a different generated flow closure before it
+  /// may treat this source as embedded.
+  bool get isEmbeddedOnly => standalone == null && navigationFlow == null;
+
   /// Exact manifest facts for the standalone specialized paywall payload.
   /// Returns an empty list when the translator deliberately suppressed that
   /// payload for a flow-only navigation source.
@@ -349,11 +358,6 @@ abstract final class PaywallArtifactAdapter {
           'for "${adapter.id}".',
         );
       }
-    } else if (standalone == null) {
-      throw const FormatException(
-        'Paywall artifact family is incomplete: neither a standalone '
-        'payload nor a navigation flow was emitted.',
-      );
     }
 
     return PaywallArtifactFacts._(

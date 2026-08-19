@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 /// The smallest real plan-select paywall — a copy-me starter.
 ///
-/// A `@PaywallSource` is just a `StatefulWidget` written in ordinary Flutter.
+/// A `@Paywall` is just a `StatefulWidget` written in ordinary Flutter.
 /// The selected plan lives in plain `State` (`annualSelected`); tapping a row
 /// calls `setState`; the CTA buys whatever is selected via
 /// `paywallPurchase(slot:)`. Prices come from the host app's configured
@@ -19,7 +19,7 @@ import 'package:restage/restage.dart';
 ///
 /// To tailor it: rename it, restyle the rows, and point the two slots
 /// (`annual` / `monthly`) at your own products in `Restage.configure(products:)`.
-@PaywallSource(id: 'minimal_paywall')
+@Paywall()
 class MinimalPaywall extends StatefulWidget {
   /// Const constructor.
   const MinimalPaywall({super.key});

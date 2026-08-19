@@ -1,5 +1,0 @@
-import restage.core;
-import restage.material;
-import restage.cupertino;
-
-widget OnboardingScreen = Scaffold(body: SafeArea(child: Padding(padding: [28.0, 24.0, 28.0, 32.0], child: Column(crossAxisAlignment: "stretch", children: [Spacer(), Icon(iconCodepoint: 61783, size: 56.0, color: data.theme.colorScheme.primary), SizedBox(height: 20.0), Text(text: "Bare surface", textAlign: "center", color: data.theme.colorScheme.onSurface, fontSize: 30.0, fontWeight: "w800"), SizedBox(height: 12.0), Text(text: "A delivered screen can simply render and stay put. The host owns the route, escape button, and theme controls around it.", textAlign: "center", color: data.theme.colorScheme.onSurfaceVariant, fontSize: 16.0, height: 1.45), Spacer()]))));

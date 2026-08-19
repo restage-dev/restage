@@ -7,11 +7,26 @@ import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
 
 const _fixtureRoot = 'test/fixtures/explicit_authoring';
+
+const _nonDefaultLegacyFlowSource = '''
+import 'package:restage/restage.dart';
+
+part 'restage.generated/upgraded.restage.g.dart';
+
+@FlowSource(
+  id: 'upgraded',
+  version: 4,
+  minClient: 7,
+  delivery: FlowDeliveryMode.general,
+)
+class UpgradedFlow {}
+''';
 
 void main() {
   group('explicit-authoring compiler diagnostics', () {
@@ -41,6 +56,54 @@ void main() {
     });
   });
 
+  test('emits precise migration warnings for deprecated source frontends',
+      () async {
+    final sources = <String, String>{
+      ..._loadScenario('paywall/old'),
+      'apps_examples|lib/onboarding/flows/upgraded.dart':
+          _nonDefaultLegacyFlowSource,
+    };
+    final writer = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final logs = <LogRecord>[];
+    final result = await testBuilder(
+      restageSourceRosterBuilder(BuilderOptions.empty),
+      sources,
+      rootPackage: 'apps_examples',
+      readerWriter: writer,
+      onLog: logs.add,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    _expectMigrationWarning(
+      logs,
+      sourcePath: 'lib/onboarding/screens/offer_intro.dart',
+      deprecated: '@ScreenSource',
+      replacement: '@Screen(id: "offer_intro", surface: Surface.onboarding)',
+    );
+    _expectMigrationWarning(
+      logs,
+      sourcePath: 'lib/onboarding/flows/first_run_flow.dart',
+      deprecated: '@FlowSource',
+      replacement:
+          '@FlowGraph(id: "first_run_flow", surface: Surface.onboarding)',
+    );
+    _expectMigrationWarning(
+      logs,
+      sourcePath: 'lib/paywalls/premium.dart',
+      deprecated: '@PaywallSource',
+      replacement: '@Paywall(id: "premium")',
+    );
+    _expectMigrationWarning(
+      logs,
+      sourcePath: 'lib/onboarding/flows/upgraded.dart',
+      deprecated: '@FlowSource',
+      replacement: '@FlowGraph(id: "upgraded", surface: Surface.onboarding, '
+          'version: 4, minClient: 7, delivery: FlowDeliveryMode.general)',
+    );
+  });
+
   test(
       'compiles general screens, general flows, explicit IDs, and '
       'colocated sources', () async {
@@ -54,9 +117,7 @@ void main() {
     final outputs = await _outputs(result);
     final descriptors = outputs.entries
         .where(
-          (entry) =>
-              entry.key.endsWith('.rsscreen.g.dart') ||
-              entry.key.endsWith('.rsflow.g.dart'),
+          (entry) => entry.key.endsWith(kNeutralGeneratedPartSuffix),
         )
         .map(_decodeOutput)
         .join('\n');
@@ -83,19 +144,29 @@ void main() {
     );
 
     final outputs = await _outputs(result);
-    final descriptors = outputs.entries
-        .where(
-          (entry) =>
-              entry.key.endsWith('.rsscreen.g.dart') ||
-              entry.key.endsWith('.rsflow.g.dart'),
-        )
-        .map(_decodeOutput)
-        .join('\n');
-    expect(descriptors, contains('general_premium'));
     expect(
       outputs.keys.any((path) => path.endsWith('.flow.json')),
       isTrue,
       reason: 'paywall_cross_category emitted no canonical flow artifact',
+    );
+
+    // A surface-typed paywall owns no generated part of its own — composing it
+    // into a flow is the FLOW's business, so that is where the composition has
+    // to be visible. Asserting it on the paywall's own descriptor would be
+    // asserting a file the approved design does not produce.
+    final flowArtifacts = outputs.entries
+        .where(
+          (entry) =>
+              entry.key.endsWith('.flow.json') ||
+              entry.key.endsWith(kNeutralGeneratedPartSuffix),
+        )
+        .map(_decodeOutput)
+        .join('\n');
+    expect(
+      flowArtifacts,
+      contains('general_premium'),
+      reason: 'the general flow must embed the paywall across the category '
+          'boundary; emitted flow artifacts were:\n$flowArtifacts',
     );
   });
 }
@@ -119,6 +190,13 @@ Future<TestBuilderResult> _compileScenario(String scenario) async {
       messageFlowBuilder(BuilderOptions.empty),
       surveyScreenBuilder(BuilderOptions.empty),
       surveyFlowBuilder(BuilderOptions.empty),
+      // The one owner of per-library generated Dart. Without it the
+      // scenario emits no `.restage.g.dart` at all and every descriptor
+      // assertion below passes vacuously over an empty set.
+      // Produces the compiler handoff the generated-Dart builder reads;
+      // without it that builder silently emits nothing.
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,
     rootPackage: 'apps_examples',
@@ -165,6 +243,32 @@ void _expectDiagnostic(TestBuilderResult result, String fragment) {
     reason: 'unexpected successful build:\n$log',
   );
   expect(log.toLowerCase(), contains(fragment.toLowerCase()));
+}
+
+void _expectMigrationWarning(
+  Iterable<LogRecord> logs, {
+  required String sourcePath,
+  required String deprecated,
+  required String replacement,
+}) {
+  final warnings = logs
+      .where(
+        (record) =>
+            record.level == Level.WARNING &&
+            record.message.contains(sourcePath) &&
+            record.message.contains(deprecated),
+      )
+      .toList(growable: false);
+  expect(
+    warnings,
+    hasLength(1),
+    reason: 'expected one migration warning for $deprecated; logs: '
+        '${logs.map((record) => '${record.level}: ${record.message}').join('\n')}',
+  );
+  expect(
+    warnings.single.message,
+    allOf(contains(sourcePath), contains(replacement)),
+  );
 }
 
 Future<Map<String, String>> _outputs(TestBuilderResult result) async {

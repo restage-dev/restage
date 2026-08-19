@@ -16,6 +16,8 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
@@ -23,14 +25,14 @@ import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// The generated A2UI catalog file. Declares
+/// The generated A2UI catalog Dart file. Declares
 /// `List<CatalogItem> buildRestageCatalogItems()` — the function the consumer
 /// passes to genui's `Catalog(...)`.
-const _catalogAssetName = 'generated/restage_a2ui_catalog.g.dart';
-
-/// The companion capability-stamp document — the
-/// `{restageCapability, a2uiCatalog}` JSON the app-side check reads.
-const _stampAssetName = 'generated/restage_a2ui_catalog.a2ui.json';
+///
+/// Generated Dart, so the placement plan resolves it beneath the package's
+/// generated-Dart root; the companion producer JSON's own filename and
+/// purpose directory belong to the plan.
+const _catalogDartFileName = 'restage_a2ui_catalog.g.dart';
 
 /// Placeholder pub version for a customer library's catalog envelope. The A2UI
 /// stamp reads only `capabilityVersion`; the pub `version` is not part of the
@@ -38,16 +40,40 @@ const _stampAssetName = 'generated/restage_a2ui_catalog.a2ui.json';
 /// byte-stable (matching the customer-catalog emitter's convention).
 const _customerLibraryVersion = '0.0.0';
 
+/// Resolves this builder's placement, rejecting any option it does not
+/// recognize.
+///
+/// The A2UI catalog has no authoring options of its own — the whole package's
+/// annotated source is the input — so the recognized set is exactly the shared
+/// placement set every placement-affected builder key accepts, with identical
+/// defaults. A typo would otherwise be silently ignored and the output would
+/// land somewhere the developer did not ask for.
+RestageOutputPlacementPlan _resolvePlan(BuilderOptions options) {
+  requireOnlyRestagePlacementOptions(
+    options,
+    featureLabel: 'A2UI catalog generation',
+  );
+  return RestageOutputPlacementPlan.fromBuilderOptions(options);
+}
+
 /// Aggregates the consuming package's `@RestageWidget` source into a genui
 /// **A2UI** catalog (the autonomous-codegen emit target), emitting
 /// `lib/generated/restage_a2ui_catalog.g.dart`
-/// (`buildRestageCatalogItems()`) plus the colocated
+/// (`buildRestageCatalogItems()`) plus the
 /// `lib/generated/restage_a2ui_catalog.a2ui.json` capability stamp.
 ///
-/// Customer widgets and native `@ScreenSource` components are read from the
-/// consuming package's own source. Widgets retain the customer-catalog walk;
-/// screens enter through the shared exact-identity package index and reuse the
-/// same constructor-input projection and analyzer-fed A2UI seams.
+/// Both paths are the DEFAULT resolution of the shared output placement plan,
+/// which this builder resolves once from its own options. The Dart catalog is
+/// package-wide generated Dart, so a configured generated-Dart root moves it
+/// and nothing else does; the producer JSON is portable tooling data, so a
+/// configured portable-output root moves it into that root's `a2ui/` purpose
+/// directory. The producer JSON is never a bundle entry, a publication
+/// artifact, a delivery capability sidecar, or over-the-air payload.
+///
+/// Customer widgets and native screen components are read from the consuming
+/// package's own source. Widgets retain the customer-catalog walk; screens
+/// enter through the shared exact-identity package index and reuse the same
+/// constructor-input projection and analyzer-fed A2UI seams.
 ///
 /// The emitted catalog is **customer-authored only**: one combined genui
 /// `Catalog` contains the package's customer widgets and opaque native screens.
@@ -68,19 +94,33 @@ const _customerLibraryVersion = '0.0.0';
 /// and that compiles in the consumer's package (which declares the genui
 /// dependency).
 final class UserA2uiCatalogBuilder implements Builder {
-  /// Const constructor used by the `userA2uiCatalogBuilder` factory.
-  const UserA2uiCatalogBuilder(this.options);
+  /// Creates the builder, resolving and validating placement options once.
+  UserA2uiCatalogBuilder(BuilderOptions options) : plan = _resolvePlan(options);
 
-  /// `BuilderOptions` injected by the build system; currently unused.
-  final BuilderOptions options;
+  /// The resolved placement authority for this builder invocation.
+  final RestageOutputPlacementPlan plan;
 
+  /// The package-relative path of the generated A2UI catalog Dart.
+  String get _catalogDartPath =>
+      plan.packageGeneratedDartPath(_catalogDartFileName);
+
+  /// Both outputs hang off the package step: the catalog describes the whole
+  /// package, and a configured portable-output root may sit outside `lib/`,
+  /// which a lib-rooted extension cannot express.
   @override
-  Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': [_catalogAssetName, _stampAssetName],
+  Map<String, List<String>> get buildExtensions => {
+        r'$package$': [_catalogDartPath, plan.a2uiCatalogPath],
       };
 
   @override
   Future<void> build(BuildStep buildStep) async {
+    // Join the package's one placement record before emitting anything. This
+    // builder reads a placement plan but compiles no surfaces, so without this
+    // it would be the one placement-affected key that never meets the others,
+    // and a package configuring a different root here than on the outputs key
+    // would get a quietly split layout instead of a diagnostic.
+    await registerRestagePlacementSignature(buildStep, plan);
+
     final walk = await _walkCustomerWidgets(buildStep);
     final nativeScreens = await _projectNativeScreens(buildStep);
     if (walk.widgets.isEmpty &&
@@ -125,7 +165,7 @@ final class UserA2uiCatalogBuilder implements Builder {
     // required field the classifier scopes out would otherwise vanish from
     // both outputs (or emit uncompilable code) under a green build. Enforce it
     // as loud as the walk / seam gates above.
-    final plan = classifyA2uiCatalogDart(
+    final dartPlan = classifyA2uiCatalogDart(
       catalog,
       nativeScreens: nativeScreens.components,
       richShapes: seams.richShapes,
@@ -133,11 +173,9 @@ final class UserA2uiCatalogBuilder implements Builder {
       pairingSeam: seams.pairingSeam,
     );
     _enforceLoudCoverage(
-      plan,
+      dartPlan,
       allComponents,
-      nativeScreenNames: {
-        for (final component in nativeScreens.components) component.entry.name,
-      },
+      nativeScreenAnnotations: nativeScreens.sourceAnnotationsByComponent,
     );
 
     // Build the complete stamped registration contract once. Its content
@@ -167,13 +205,13 @@ final class UserA2uiCatalogBuilder implements Builder {
     );
     final dart = formatGeneratedDart(emitted.toString());
     await buildStep.writeAsString(
-      AssetId(buildStep.inputId.package, 'lib/$_catalogAssetName'),
+      AssetId(buildStep.inputId.package, _catalogDartPath),
       dart,
     );
 
     final stamp = registration.toJson();
     await buildStep.writeAsString(
-      AssetId(buildStep.inputId.package, 'lib/$_stampAssetName'),
+      AssetId(buildStep.inputId.package, plan.a2uiCatalogPath),
       const JsonEncoder.withIndent('  ').convert(stamp),
     );
   }
@@ -181,12 +219,14 @@ final class UserA2uiCatalogBuilder implements Builder {
   Future<_NativeScreenWalk> _projectNativeScreens(BuildStep buildStep) async {
     final index = await loadNativeScreenSourceIndex(
       buildStep,
+      plan: plan,
       consumer: NativeScreenSourceConsumer.a2ui,
       validateA2uiNamespace: true,
     );
     final components = <A2uiNativeScreen>[];
     final widgetElements = <A2uiWidgetElement>[];
     final usageByComponent = <String, String>{};
+    final sourceAnnotationsByComponent = <String, String>{};
     final writeBackValuesByComponent = <String, Map<String, String>>{};
     final exclusions = <PropertyExclusion>[];
     final issues = <Issue>[];
@@ -214,6 +254,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       );
       components.add(component);
       widgetElements.add((entry: projection.entry, element: source.element));
+      sourceAnnotationsByComponent[source.id] = source.sourceAnnotation;
       final usage = source.a2uiTargetConfig.usage;
       if (usage != null && usage.isNotEmpty) {
         usageByComponent[source.id] = usage;
@@ -242,6 +283,7 @@ final class UserA2uiCatalogBuilder implements Builder {
       components: components,
       widgetElements: widgetElements,
       usageByComponent: usageByComponent,
+      sourceAnnotationsByComponent: sourceAnnotationsByComponent,
       writeBackValuesByComponent: writeBackValuesByComponent,
       exclusions: exclusions,
     );
@@ -468,7 +510,8 @@ final class UserA2uiCatalogBuilder implements Builder {
   /// Enforces the fail-loud contract over the classifier's coverage record —
   /// the classify-level analogue of the walk / seam gates above. In this
   /// customer-only catalog every component is an authored `@RestageWidget` or
-  /// `@ScreenSource` (there are no built-ins to legitimately scope out), so:
+  /// a native screen source (there are no built-ins to legitimately scope out),
+  /// so:
   ///
   ///  * a DROPPED component is a silent loss of a declared source — fatal;
   ///  * an OMITTED field whose default-constructor parameter is REQUIRED would
@@ -490,15 +533,13 @@ final class UserA2uiCatalogBuilder implements Builder {
   void _enforceLoudCoverage(
     A2uiDartCatalogPlan plan,
     List<A2uiWidgetElement> widgets, {
-    required Set<String> nativeScreenNames,
+    required Map<String, String> nativeScreenAnnotations,
   }) {
     final elementByComponent = <String, ClassElement>{
       for (final source in widgets) source.entry.name: source.element,
     };
     String sourceAnnotation(String componentName) =>
-        nativeScreenNames.contains(componentName)
-            ? '@ScreenSource'
-            : '@RestageWidget';
+        nativeScreenAnnotations[componentName] ?? '@RestageWidget';
     final fatal = <String>[];
 
     for (final drop in plan.coverage.droppedWidgets) {
@@ -634,6 +675,7 @@ typedef _NativeScreenWalk = ({
   List<A2uiNativeScreen> components,
   List<A2uiWidgetElement> widgetElements,
   Map<String, String> usageByComponent,
+  Map<String, String> sourceAnnotationsByComponent,
   Map<String, Map<String, String>> writeBackValuesByComponent,
   List<PropertyExclusion> exclusions,
 });

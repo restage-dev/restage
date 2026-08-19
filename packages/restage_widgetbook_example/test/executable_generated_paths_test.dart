@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:genui/genui.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_widgetbook_example/generated/bare_catalog_card.stories.dart'
+import 'package:restage_widgetbook_example/widgets/restage.generated/bare_catalog_card.stories.dart'
     as bare_story;
-import 'package:restage_widgetbook_example/generated/catalog_showcase.stories.dart'
+import 'package:restage_widgetbook_example/widgets/restage.generated/catalog_showcase.stories.dart'
     as showcase_story;
-import 'package:restage_widgetbook_example/generated/constructor_fidelity_corpus.stories.dart'
+import 'package:restage_widgetbook_example/widgets/restage.generated/constructor_fidelity_corpus.stories.dart'
     as corpus_story;
-import 'package:restage_widgetbook_example/generated/constructor_fidelity_proof.stories.dart'
+import 'package:restage_widgetbook_example/widgets/restage.generated/constructor_fidelity_proof.stories.dart'
     as widgetbook_story;
 import 'package:restage_widgetbook_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_widgetbook_example/user_factories.g.dart';

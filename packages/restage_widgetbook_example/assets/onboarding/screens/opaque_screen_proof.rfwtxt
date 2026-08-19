@@ -1,5 +1,0 @@
-import restage.core;
-import restage.material;
-import restage.cupertino;
-
-widget OnboardingScreen = Center(child: ElevatedButton(onPressed: event "continue" { value: "preview" }, child: Text(text: "Opaque screen proof")));

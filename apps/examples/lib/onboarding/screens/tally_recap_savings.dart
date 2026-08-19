@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_recap_savings.rsscreen.g.dart';
+part 'restage.generated/tally_recap_savings.restage.g.dart';
 
 /// Onboarding — the savings recap (the decision's savings branch).
 ///
 /// The routing decision sends the user here when the captured goal is
 /// `savings`. A goal-specific ending: the auto-save schedule + a
 /// savings-specific CTA.
-@ScreenSource(id: 'tally_recap_savings')
+@Screen()
 class TallyRecapSavingsScreen extends StatelessWidget {
   /// Completes onboarding.
-  static const finish = OnboardingEvent<void>('finish');
+  static const finish = SurfaceEvent<void>('finish');
 
   const TallyRecapSavingsScreen({super.key});
 
@@ -115,7 +115,7 @@ class TallyRecapSavingsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(finish),
+                onPressed: surfaceEvent(finish),
                 child: const Text(
                   'Turn on auto-save',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

@@ -1,0 +1,16 @@
+
+# Restage generated build metadata.
+#
+# Portable build metadata and build-time intermediates are ignored by artifact
+# name: they are reproducible from the authored sources by
+# `dart run build_runner build`, and tracking them adds churn to every
+# generation. This registry-driven library declares no surfaces, so these are
+# empty or near-empty by construction. Generated Dart is NOT ignored — it is
+# ordinary source the analyzer and the compiler read.
+restage.outputs.json
+restage.publication.json
+restage_a2ui_catalog.a2ui.json
+surface_publication.compiler.json
+assets/restage/source-index.json
+assets/restage/output-roster.json
+*.restage.md

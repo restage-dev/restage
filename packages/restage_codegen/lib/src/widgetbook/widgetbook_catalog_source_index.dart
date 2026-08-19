@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
@@ -12,7 +11,9 @@ import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
@@ -63,7 +64,7 @@ final class WidgetbookWidgetSource {
   /// Widgetbook-only finite-state authoring configuration.
   final WidgetbookTargetConfigFacts targetConfig;
 
-  /// Exact native screen source when this is a `ScreenSource` story.
+  /// Exact native screen source when this is an automatically generated story.
   final NativeScreenSource? nativeScreen;
 
   /// Constructor-normalized inputs keyed by public property name.
@@ -133,8 +134,9 @@ final class WidgetbookCatalogSourceIndex {
     required Map<String, ReconstructionPlan> reconstructionPlans,
     required Map<String, String> unrenderableByWidget,
     required List<PropertyExclusion> exclusions,
-    required Set<String> restageWidgetClassNames,
-  })  : widgets = List.unmodifiable(widgets),
+    required Set<String> restageWidgetDeclarations,
+  })  : restageWidgetDeclarations = Set.unmodifiable(restageWidgetDeclarations),
+        widgets = List.unmodifiable(widgets),
         nativeScreens = List.unmodifiable(nativeScreens),
         structuredTypes = List.unmodifiable(structuredTypes),
         structuredSources = Map.unmodifiable(structuredSources),
@@ -143,7 +145,6 @@ final class WidgetbookCatalogSourceIndex {
         reconstructionPlans = Map.unmodifiable(reconstructionPlans),
         unrenderableByWidget = Map.unmodifiable(unrenderableByWidget),
         exclusions = List.unmodifiable(exclusions),
-        restageWidgetClassNames = Set.unmodifiable(restageWidgetClassNames),
         widgetsByFlutterType = Map.unmodifiable({
           for (final widget in [...widgets, ...nativeScreens])
             widget.entry.flutterType: widget,
@@ -185,8 +186,17 @@ final class WidgetbookCatalogSourceIndex {
   /// Constructor inputs omitted because Widgetbook cannot decode their type.
   final List<PropertyExclusion> exclusions;
 
+  /// Genuine customer-widget analyzer identities, including target-disabled
+  /// classes. Each is `<library uri>#<class name>`, so story placement can be
+  /// resolved from the declaring library rather than from the class name
+  /// alone.
+  final Set<String> restageWidgetDeclarations;
+
   /// Genuine customer-widget class names, including target-disabled classes.
-  final Set<String> restageWidgetClassNames;
+  Set<String> get restageWidgetClassNames => {
+        for (final identity in restageWidgetDeclarations)
+          identity.substring(identity.lastIndexOf('#') + 1),
+      };
 
   /// Story-source identity lookup.
   final Map<String, WidgetbookWidgetSource> widgetsByFlutterType;
@@ -205,11 +215,22 @@ final class WidgetbookCatalogIndexCache {
       String,
       ({
         String fingerprint,
+        String placement,
         Future<WidgetbookCatalogSourceIndex> index,
       })> _byPackage = {};
 
   /// Returns the current package index, resolving it once in this build pass.
-  Future<WidgetbookCatalogSourceIndex> getOrLoad(BuildStep buildStep) async {
+  ///
+  /// The index carries placement-derived diagnostics, so it is only reusable
+  /// across builders that resolved the same placement. Every
+  /// placement-affected builder key in a package is required to resolve an
+  /// identical plan, so sharing is the normal case — but a disagreement is
+  /// reported rather than silently served from whichever builder happened to
+  /// populate the cache first.
+  Future<WidgetbookCatalogSourceIndex> getOrLoad(
+    BuildStep buildStep,
+    RestageOutputPlacementPlan plan,
+  ) async {
     final assets = await buildStep
         .findAssets(Glob('lib/**.dart'))
         .where(_isAuthoredDartAsset)
@@ -228,13 +249,28 @@ final class WidgetbookCatalogIndexCache {
         )
         .toString();
     final packageName = buildStep.inputId.package;
+    final placement = restagePlacementSignature(plan);
     final cached = _byPackage[packageName];
-    if (cached?.fingerprint == fingerprint) return cached!.index;
+    if (cached != null && cached.placement != placement) {
+      throw StateError(
+        'Placement options divergence between Restage builder targets for '
+        'package $packageName: the source index was resolved under '
+        '[${cached.placement}] and is now requested under [$placement]. '
+        'Every placement-affected Restage builder key must be configured '
+        'with the same options — set them once under global_options, or '
+        'repeat them identically on each target.',
+      );
+    }
+    if (cached != null && cached.fingerprint == fingerprint) {
+      return cached.index;
+    }
     final index = loadWidgetbookCatalogSourceIndex(
       buildStep,
       assets: assets,
+      plan: plan,
     );
-    _byPackage[packageName] = (fingerprint: fingerprint, index: index);
+    _byPackage[packageName] =
+        (fingerprint: fingerprint, placement: placement, index: index);
     return index;
   }
 }
@@ -244,6 +280,7 @@ final class WidgetbookCatalogIndexCache {
 Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   BuildStep buildStep, {
   Iterable<AssetId>? assets,
+  RestageOutputPlacementPlan? plan,
 }) async {
   final sourceAssets = (assets == null
       ? await buildStep
@@ -431,6 +468,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
 
   final nativeIndex = await loadNativeScreenSourceIndex(
     buildStep,
+    plan: plan,
     consumer: NativeScreenSourceConsumer.widgetbook,
   );
   const screenPlanningLibrary = WidgetLibrary.custom(
@@ -514,7 +552,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
 
     _recordAutomaticSourceObstructions(
       source: nativeScreens.last,
-      sourceLabel: '@ScreenSource',
+      sourceLabel: screen.sourceAnnotation,
       unrenderable: widgetUnrenderable,
     );
   }
@@ -636,10 +674,7 @@ Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
     reconstructionPlans: reconstructionPlans,
     unrenderableByWidget: widgetUnrenderable,
     exclusions: exclusions,
-    restageWidgetClassNames: {
-      for (final identity in packageFacts.widgetDeclarations)
-        identity.substring(identity.lastIndexOf('#') + 1),
-    },
+    restageWidgetDeclarations: packageFacts.widgetDeclarations,
   );
 }
 

@@ -97,13 +97,33 @@ void main() {
     );
 
     final result = await testBuilder(
-      const UserA2uiCatalogBuilder(BuilderOptions.empty),
+      UserA2uiCatalogBuilder(BuilderOptions.empty),
       const {'apps_examples|lib/gauge.dart': customerSource},
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
       flattenOutput: true,
     );
     expect(result.succeeded, isTrue);
+
+    final generatedPaths = result.outputs
+        .where((asset) => asset.package == 'apps_examples')
+        .map((asset) => asset.path)
+        .where((path) => path.startsWith('lib/generated/'))
+        .toSet();
+    expect(generatedPaths, {
+      'lib/generated/restage_a2ui_catalog.g.dart',
+      'lib/generated/restage_a2ui_catalog.a2ui.json',
+    });
+    expect(
+      generatedPaths.where((path) => path.contains('stories')),
+      isEmpty,
+      reason: 'A2UI output must not claim Widgetbook story output',
+    );
+    expect(
+      generatedPaths,
+      isNot(contains('lib/components.g.dart')),
+      reason: 'Widgetbook owns the fixed package aggregate',
+    );
 
     final dart = String.fromCharCodes(
       result.readerWriter.testing.readBytes(
@@ -183,7 +203,7 @@ void main() {
     );
 
     final result = await testBuilder(
-      const UserA2uiCatalogBuilder(BuilderOptions.empty),
+      UserA2uiCatalogBuilder(BuilderOptions.empty),
       const {'apps_examples|lib/gauge.dart': customerSource},
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,

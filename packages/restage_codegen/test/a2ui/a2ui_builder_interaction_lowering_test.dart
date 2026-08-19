@@ -21,7 +21,7 @@ Future<(bool succeeded, String dart)> _runBuilder(
     );
   }
   final result = await testBuilder(
-    const UserA2uiCatalogBuilder(BuilderOptions.empty),
+    UserA2uiCatalogBuilder(BuilderOptions.empty),
     {
       for (final entry in sources.entries)
         'apps_examples|${entry.key}': entry.value,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'duplicate_implicit_flow.rsflow.g.dart';
+part 'restage.generated/duplicate_implicit_flow.restage.g.dart';
 
 @Screen()
 final class DuplicateFlowStart extends StatelessWidget {

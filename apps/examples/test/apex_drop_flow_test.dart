@@ -17,7 +17,7 @@ void _useTallSurface(WidgetTester tester) {
 class _FailingFlowResolver implements FlowResolver {
   const _FailingFlowResolver();
   @override
-  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async =>
+  Future<ResolvedFlow> resolve<R>(SurfaceFlowRef<R> flow) async =>
       throw FlowUnavailableError(
         flowId: flow.id,
         flowVersion: flow.version,

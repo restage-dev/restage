@@ -9,7 +9,7 @@ import 'flows/stride_first_run.dart';
 ///
 /// The host side is the same shape as any engagement surface: supply the host
 /// action, act on the outcomes, and fail closed. What differs from a typed flow
-/// is the result type — `RestageOnboarding<Map<String, Object?>>`. The flow is
+/// is the result type — `RestageSurfaceFlow<Map<String, Object?>>`. The flow is
 /// authored in general mode (`delivery: FlowDeliveryMode.general`), so there is
 /// no generated result class; `onComplete` receives a plain `Map` — the
 /// outbound-declared fields, already filtered by the runtime — and the host
@@ -85,7 +85,7 @@ class _StrideFirstRunDemoState extends State<StrideFirstRunDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return _EnteredAppScreen(completed: _completed);
-    return RestageOnboarding<Map<String, Object?>>(
+    return RestageSurfaceFlow<Map<String, Object?>>(
       flow: StrideFirstRunFlowDescriptor.ref,
       actions: _actions,
       // The untyped result: the host reads the fields the flow declared, with

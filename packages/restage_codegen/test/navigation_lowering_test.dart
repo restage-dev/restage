@@ -137,6 +137,48 @@ Column(
       }
     });
 
+    test('canonical pushed paywalls lower identically to legacy sources',
+        () async {
+      const root = '''
+Column(
+  children: [
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Skip'),
+    ),
+  ],
+)
+''';
+      final legacy = await _translateEntry(_paywallSourceWithRoot(root));
+      final canonical = await _translateEntry(
+        _paywallSourceWithRoot(root, annotation: '@Paywall()'),
+        canonicalPaywallIdFor: (declaration) =>
+            declaration.name == 'ChoosePlan' ? 'choose_plan' : null,
+      );
+
+      expect(canonical.issues, legacy.issues);
+      expect(canonical.suppressed, legacy.suppressed);
+      expect(canonical.dsl, legacy.dsl);
+      expect(canonical.navigation?.entryId, legacy.navigation?.entryId);
+      expect(
+        [
+          for (final transition in canonical.navigation!.transitions)
+            (transition.event, transition.pushedId),
+        ],
+        [
+          for (final transition in legacy.navigation!.transitions)
+            (transition.event, transition.pushedId),
+        ],
+      );
+    });
+
     test('Navigator.pop is back in the adapter and suppresses standalone',
         () async {
       final source = _paywallSourceWithRoot('''
@@ -678,11 +720,13 @@ class NavButton extends StatelessWidget {
 Future<TranslationResult> _translateEntry(
   String source, {
   bool flowScreenContext = false,
+  String? Function(ClassElement declaration)? canonicalPaywallIdFor,
 }) async {
   final parsed = await _parseEntryRoot(source);
   return ExpressionTranslator(
     catalog: _navigationCatalog,
     helpers: productionPaywallHelperRegistry(),
+    canonicalPaywallIdFor: canonicalPaywallIdFor,
   ).translate(
     parsed.rootExpression,
     entryId: 'entry',
@@ -713,11 +757,15 @@ Future<({Expression rootExpression, Element? buildContextParameter})>
   );
 }
 
-String _paywallSourceWithRoot(String rootExpression) => '''
+String _paywallSourceWithRoot(
+  String rootExpression, {
+  String annotation = "@PaywallSource(id: 'choose_plan')",
+}) =>
+    '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@PaywallSource(id: 'choose_plan')
+$annotation
 class ChoosePlan extends StatelessWidget {
   const ChoosePlan();
   Widget build(BuildContext context) => const SizedBox();

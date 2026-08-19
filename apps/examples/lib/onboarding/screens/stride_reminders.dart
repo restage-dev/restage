@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'stride_reminders.rsscreen.g.dart';
+part 'restage.generated/stride_reminders.restage.g.dart';
 
 /// Stride onboarding — the reminder-priming screen.
 ///
@@ -22,13 +22,13 @@ part 'stride_reminders.rsscreen.g.dart';
 /// capability is a new app release — never an over-the-air change.
 ///
 /// See `stride_welcome.dart` for the screen-authoring notes that apply here.
-@ScreenSource(id: 'stride_reminders')
+@Screen()
 class StrideRemindersScreen extends StatelessWidget {
   /// Requests the notification permission (bound to a host action by the flow).
-  static const enable = OnboardingEvent<void>('enable');
+  static const enable = SurfaceEvent<void>('enable');
 
   /// "Maybe later" — a host-handled custom event; the flow does not route it.
-  static const skip = OnboardingEvent<void>('skip');
+  static const skip = SurfaceEvent<void>('skip');
 
   const StrideRemindersScreen({super.key});
 
@@ -98,7 +98,7 @@ class StrideRemindersScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(enable),
+                      onPressed: surfaceEvent(enable),
                       child: const Text(
                         'Turn on reminders',
                         style: TextStyle(
@@ -112,7 +112,7 @@ class StrideRemindersScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               TextButton(
-                onPressed: onboardingEvent(skip),
+                onPressed: surfaceEvent(skip),
                 child: const Text(
                   'Maybe later',
                   style: TextStyle(

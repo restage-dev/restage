@@ -2,13 +2,13 @@ import 'package:restage/restage.dart';
 
 import '../screens/starter_stats.dart';
 
-part 'minimal_stats.rsflow.g.dart';
+part 'restage.generated/minimal_stats.restage.g.dart';
 
 /// A single-screen flow that delivers the custom-widget showcase surface.
 ///
 /// One screen, one terminal state — the smallest wrapper needed to render a
-/// `@ScreenSource` through the delivery path. `done` completes the surface.
-@FlowSource(id: 'minimal_stats', version: 1)
+/// `@Screen` through the delivery path. `done` completes the surface.
+@FlowGraph(surface: Surface.onboarding)
 final class MinimalStatsFlow extends RestageFlow {
   /// Const constructor.
   const MinimalStatsFlow();

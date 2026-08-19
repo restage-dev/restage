@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'announcement.rsscreen.g.dart';
+part 'restage.generated/announcement.restage.g.dart';
 
 @Screen(surface: Surface.general)
 final class FeatureAnnouncement extends StatelessWidget {

@@ -16,7 +16,7 @@ import 'package:restage/restage.dart';
 /// flat (no extracted helper widgets), write each theme read as the full inline
 /// `Theme.of(context).colorScheme.<role>` chain, and trigger the sheet from a
 /// catalog button's `onPressed`.
-@PaywallSource(id: 'modal_sheet_lowering')
+@Paywall()
 class ModalSheetLoweringPaywall extends StatelessWidget {
   const ModalSheetLoweringPaywall({super.key});
 

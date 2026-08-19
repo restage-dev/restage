@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'starter_bare_surface.rsscreen.g.dart';
+part 'restage.generated/starter_bare_surface.restage.g.dart';
 
 /// A bare delivered surface: one authored screen, no required event, no forced
 /// result.
-@ScreenSource(id: 'starter_bare_surface')
+@Screen()
 class StarterBareSurfaceScreen extends StatelessWidget {
   /// Const constructor.
   const StarterBareSurfaceScreen({super.key});

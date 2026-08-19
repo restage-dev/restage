@@ -37,7 +37,7 @@ import 'package:restage/restage.dart';
 /// brand surface); the down-arrow is pushed to the rail's bottom with
 /// `mainAxisAlignment.end`. Prices bind live via `paywallPriceFor(slot:)`; the
 /// "Save 44%" flash is a literal marketing flag.
-@PaywallSource(id: 'ascend_premium')
+@Paywall()
 class AscendPremiumPaywall extends StatefulWidget {
   const AscendPremiumPaywall({super.key});
 

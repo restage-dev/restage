@@ -7,6 +7,7 @@ import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -80,6 +81,13 @@ Future<TestBuilderResult> _compileScenario(String scenario) async {
       messageFlowBuilder(BuilderOptions.empty),
       surveyScreenBuilder(BuilderOptions.empty),
       surveyFlowBuilder(BuilderOptions.empty),
+      // The one owner of per-library generated Dart. Without it the
+      // scenario emits no `.restage.g.dart` at all and every descriptor
+      // assertion below passes vacuously over an empty set.
+      // Produces the compiler handoff the generated-Dart builder reads;
+      // without it that builder silently emits nothing.
+      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,
     rootPackage: 'apps_examples',
@@ -172,9 +180,7 @@ Map<String, String> _canonicalArtifacts(Map<String, String> outputs) =>
 Map<String, String> _descriptorArtifacts(Map<String, String> outputs) =>
     outputs.entries
         .where(
-      (entry) =>
-          entry.key.endsWith('.rsscreen.g.dart') ||
-          entry.key.endsWith('.rsflow.g.dart'),
+      (entry) => entry.key.endsWith(kNeutralGeneratedPartSuffix),
     )
         .fold(<String, String>{}, (result, entry) {
       result[entry.key] = entry.value;

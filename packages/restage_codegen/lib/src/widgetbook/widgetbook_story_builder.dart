@@ -5,6 +5,8 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_plan.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_story_source_renderer.dart';
@@ -19,6 +21,20 @@ const _widgetbookStoryBuilderSentinelOutput =
 Builder createWidgetbookStoryBuilder(BuilderOptions options) =>
     createWidgetbookStoryBuilderForLib(options, Directory('lib'));
 
+/// The package-relative story path a class-derived story library occupies
+/// under [plan], for a component declared in [declarationSourcePath].
+///
+/// Story source is generated Dart, so it is placed exactly like the neutral
+/// part of the library that declares the component.
+String widgetbookStoryPath(
+  RestageOutputPlacementPlan plan, {
+  required String declarationSourcePath,
+  required String className,
+}) =>
+    plan.forLibrary(declarationSourcePath).generatedDartPath(
+          '${_snakeCase(className)}.stories.dart',
+        );
+
 /// Creates the Widgetbook story builder against an explicit package lib root.
 ///
 /// Production builds use [createWidgetbookStoryBuilder]. This seam lets tests
@@ -29,27 +45,38 @@ Builder createWidgetbookStoryBuilderForLib(
   BuilderOptions options,
   Directory lib,
 ) {
-  if (options.config.isNotEmpty) {
-    throw ArgumentError(
-      'Widgetbook story generation has no per-widget authoring options; remove '
-      'unsupported option(s): ${options.config.keys.join(', ')}.',
-    );
-  }
-  return WidgetbookStoryBuilder(_discoverOutputs(lib));
+  requireOnlyRestagePlacementOptions(
+    options,
+    featureLabel: 'Widgetbook story generation',
+  );
+  final plan = RestageOutputPlacementPlan.fromBuilderOptions(options);
+  return WidgetbookStoryBuilder(_discoverOutputs(lib, plan), plan: plan);
 }
 
 /// Emits every package story from one analyzer-authoritative package step.
 final class WidgetbookStoryBuilder implements Builder {
   /// Creates a builder with startup-discovered outputs.
-  const WidgetbookStoryBuilder(this.buildExtensions);
+  ///
+  /// [plan] is omitted only by callers that exercise the default placement;
+  /// production always passes the factory-resolved plan.
+  const WidgetbookStoryBuilder(this.buildExtensions, {this.plan});
 
   @override
   final Map<String, List<String>> buildExtensions;
 
+  /// The resolved placement authority for story source, or `null` for the
+  /// default layout.
+  final RestageOutputPlacementPlan? plan;
+
+  RestageOutputPlacementPlan get _placement =>
+      plan ?? RestageOutputPlacementPlan.defaults;
+
   @override
   Future<void> build(BuildStep buildStep) async {
+    await registerRestagePlacementSignature(buildStep, _placement);
+
     final cache = await buildStep.fetchResource(_widgetbookCatalogResource);
-    final index = await cache.getOrLoad(buildStep);
+    final index = await cache.getOrLoad(buildStep, _placement);
     final packageName = buildStep.inputId.package;
     final declaredOutputs =
         buildExtensions[r'$lib$']?.toSet() ?? const <String>{};
@@ -57,8 +84,14 @@ final class WidgetbookStoryBuilder implements Builder {
     for (final widget in index.storySources) {
       final className = widget.className;
       final sourceLabel =
-          widget.isNativeScreen ? '@ScreenSource' : '@RestageWidget';
-      final output = 'generated/${_snakeCase(className)}.stories.dart';
+          widget.nativeScreen?.sourceAnnotation ?? '@RestageWidget';
+      final output = _libRelative(
+        widgetbookStoryPath(
+          _placement,
+          declarationSourcePath: widget.sourceAsset.path,
+          className: className,
+        ),
+      );
       if (!declaredOutputs.contains(output)) {
         final outputId = AssetId(packageName, 'lib/$output');
         if (await buildStep.canRead(outputId)) {
@@ -127,8 +160,14 @@ final class WidgetbookStoryBuilder implements Builder {
     }
 
     final disabledWidgetOutputs = {
-      for (final className in index.restageWidgetClassNames)
-        'generated/${_snakeCase(className)}.stories.dart',
+      for (final identity in index.restageWidgetDeclarations)
+        _libRelative(
+          widgetbookStoryPath(
+            _placement,
+            declarationSourcePath: _declaringLibraryPath(identity),
+            className: identity.substring(identity.lastIndexOf('#') + 1),
+          ),
+        ),
     };
     final inactiveOutputs = <String>{};
     for (final output in declaredOutputs.difference(outputs.toSet())) {
@@ -162,18 +201,46 @@ String _sourceDeclarationsLabel(List<WidgetbookWidgetSource> owners) {
     return '@RestageWidget declarations';
   }
   if (owners.every((owner) => owner.isNativeScreen)) {
-    return '@ScreenSource declarations';
+    final nativeSourceAnnotations =
+        owners.map((owner) => owner.nativeScreen!.sourceAnnotation).toSet();
+    if (nativeSourceAnnotations.length == 1) {
+      return '${nativeSourceAnnotations.single} declarations';
+    }
+    return 'native screen declarations';
   }
   return 'Restage source declarations';
 }
 
-Map<String, List<String>> _discoverOutputs(Directory lib) {
+/// The `lib/`-relative form of a package-relative generated path.
+String _libRelative(String packageRelativePath) =>
+    p.posix.relative(packageRelativePath, from: 'lib');
+
+/// The package-relative path of the library in a `<uri>#<class>` identity.
+String _declaringLibraryPath(String declarationIdentity) => AssetId.resolve(
+      Uri.parse(
+        declarationIdentity.substring(
+          0,
+          declarationIdentity.lastIndexOf('#'),
+        ),
+      ),
+    ).path;
+
+Map<String, List<String>> _discoverOutputs(
+  Directory lib,
+  RestageOutputPlacementPlan plan,
+) {
   final outputs = <String>{_widgetbookStoryBuilderSentinelOutput};
   if (!lib.existsSync()) return _buildExtensions(outputs);
   outputs.addAll(_existingRestageStoryOutputs(lib));
-  for (final unit in _readAuthoredUnits(lib)) {
-    for (final name in _annotatedClassNames(unit)) {
-      final output = 'generated/${_snakeCase(name)}.stories.dart';
+  for (final authored in _readAuthoredUnits(lib)) {
+    for (final name in _annotatedClassNames(authored.unit)) {
+      final output = _libRelative(
+        widgetbookStoryPath(
+          plan,
+          declarationSourcePath: authored.libraryPath,
+          className: name,
+        ),
+      );
       if (_canReserveOutput(lib, output)) outputs.add(output);
     }
   }
@@ -205,11 +272,16 @@ bool _canReserveOutput(Directory lib, String output) {
   }
 }
 
+/// Every already-present story file beneath `lib/`, wherever a placement
+/// mode put it.
+///
+/// The scan is placement-agnostic on purpose: a story generated under one
+/// layout must still be recognized — and retired — after the package changes
+/// its layout.
 Iterable<String> _existingRestageStoryOutputs(Directory lib) sync* {
-  final generated = Directory(p.join(lib.path, 'generated'));
-  if (!generated.existsSync()) return;
-  final stories = generated
-      .listSync(followLinks: false)
+  if (!lib.existsSync()) return;
+  final stories = lib
+      .listSync(recursive: true, followLinks: false)
       .whereType<File>()
       .where((file) => file.path.endsWith('.stories.dart'))
       .toList()
@@ -222,7 +294,17 @@ Iterable<String> _existingRestageStoryOutputs(Directory lib) sync* {
   }
 }
 
-List<CompilationUnit> _readAuthoredUnits(Directory lib) {
+/// One authored library, with the package-relative path story placement is
+/// resolved against.
+@immutable
+final class _AuthoredUnit {
+  const _AuthoredUnit({required this.libraryPath, required this.unit});
+
+  final String libraryPath;
+  final CompilationUnit unit;
+}
+
+List<_AuthoredUnit> _readAuthoredUnits(Directory lib) {
   final files = lib
       .listSync(recursive: true, followLinks: false)
       .whereType<File>()
@@ -230,19 +312,50 @@ List<CompilationUnit> _readAuthoredUnits(Directory lib) {
       .toList()
     ..sort((left, right) => left.path.compareTo(right.path));
   return [
-    for (final file in files)
-      parseString(
-        content: file.readAsStringSync(),
-        path: file.path,
-        throwIfDiagnostics: false,
-      ).unit,
+    for (final file in files) _authoredUnit(lib, file),
   ];
+}
+
+/// One parsed authored file, attributed to the library that owns its
+/// declarations.
+///
+/// A class declared in a `part` belongs to the owning library, and that is
+/// the library whose placement decides where its story is written.
+_AuthoredUnit _authoredUnit(Directory lib, File file) {
+  final unit = parseString(
+    content: file.readAsStringSync(),
+    path: file.path,
+    throwIfDiagnostics: false,
+  ).unit;
+  final own = p.posix.join(
+    'lib',
+    p.posix.joinAll(p.split(p.relative(file.path, from: lib.path))),
+  );
+  final partOf = unit.directives.whereType<PartOfDirective>().firstOrNull;
+  final ownerUri = partOf?.uri?.stringValue;
+  return _AuthoredUnit(
+    libraryPath: ownerUri == null ? own : _resolveOwnerPath(own, ownerUri),
+    unit: unit,
+  );
+}
+
+/// The package-relative path a `part of` URI names, from a part at [own].
+///
+/// A package URI resolves against `lib/` because startup discovery only ever
+/// walks the owning package's own sources.
+String _resolveOwnerPath(String own, String ownerUri) {
+  final uri = Uri.tryParse(ownerUri);
+  if (uri != null && uri.scheme == 'package' && uri.pathSegments.length > 1) {
+    return p.posix.join('lib', p.posix.joinAll(uri.pathSegments.skip(1)));
+  }
+  return p.posix.normalize(p.posix.join(p.posix.dirname(own), ownerUri));
 }
 
 bool _isAuthoredDartFile(String path) =>
     path.endsWith('.dart') &&
     !path.endsWith('.stories.dart') &&
-    !path.endsWith('.g.dart');
+    !path.endsWith('.g.dart') &&
+    !p.split(path).contains(kRestageGeneratedDirectoryName);
 
 Iterable<String> _annotatedClassNames(
   CompilationUnit unit,

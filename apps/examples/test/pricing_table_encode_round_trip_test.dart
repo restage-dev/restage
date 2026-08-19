@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,6 +6,8 @@ import 'package:restage/restage.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage_example/widgets/pricing_card.dart';
 import 'package:restage_example/widgets/pricing_table.dart';
+
+import '_support/bundled_artifacts.dart';
 
 /// The LIST ENCODE-SIDE SOUND NET (source → encode → wire → decode → pixels).
 ///
@@ -43,7 +44,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
 
       final bytes =
-          File('assets/paywalls/pricing_table_showcase.rfw').readAsBytesSync();
+          readDeliveryArtifact('assets/paywalls/pricing_table_showcase.rfw');
 
       await tester.pumpWidget(
         MaterialApp(

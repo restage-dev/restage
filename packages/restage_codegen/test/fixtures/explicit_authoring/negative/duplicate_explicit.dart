@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'duplicate_explicit.rsscreen.g.dart';
+part 'restage.generated/duplicate_explicit.restage.g.dart';
 
 @Screen(id: 'same_notice', surface: Surface.general)
 final class FirstExplicitScreen extends StatelessWidget {

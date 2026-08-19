@@ -17,8 +17,25 @@ class PublicationManifestException extends PublicationException {
   const PublicationManifestException(super.message);
 }
 
+/// No generated publication output exists for the package at all.
+///
+/// Distinguished from other manifest failures so a read-only surface can
+/// report "nothing generated yet" without treating it as stale or ambiguous
+/// output.
+class PublicationGenerationRequiredException
+    extends PublicationManifestException {
+  /// Construct a missing-generation failure.
+  const PublicationGenerationRequiredException(super.message);
+}
+
 /// A declared generated artifact cannot be assembled into its payload.
 class PublicationAssemblyException extends PublicationException {
   /// Construct an artifact assembly failure.
   const PublicationAssemblyException(super.message);
+}
+
+/// A generated bundle cannot be read or does not match its locator metadata.
+class PublicationBundleException extends PublicationException {
+  /// Construct a bundle-reader failure.
+  const PublicationBundleException(super.message);
 }

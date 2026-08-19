@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'reel_kept.rsscreen.g.dart';
+part 'restage.generated/reel_kept.restage.g.dart';
 
 /// Survey — the retained confirmation (the redeemed path of the save-offer).
 ///
 /// The gate advances here only when the retention offer was redeemed; [finish]
 /// completes the flow with a `retained` outcome the host collects.
-@ScreenSource(id: 'reel_kept')
+@Screen()
 class ReelKeptScreen extends StatelessWidget {
   /// Completes the flow (the user kept their membership).
-  static const finish = OnboardingEvent<void>('finish');
+  static const finish = SurfaceEvent<void>('finish');
 
   const ReelKeptScreen({super.key});
 
@@ -74,7 +74,7 @@ class ReelKeptScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: onboardingEvent(finish),
+                onPressed: surfaceEvent(finish),
                 child: const Text(
                   'Continue watching',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

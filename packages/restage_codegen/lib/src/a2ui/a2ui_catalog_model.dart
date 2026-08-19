@@ -228,6 +228,21 @@ final class RestageStampedA2uiCatalog {
   late final String documentId = 'restage:catalog/sha256/'
       '${sha256.convert(utf8.encode(canonicalDigestPreimage))}';
 
+  /// The A2UI schema dialect shared by the producer document and generated
+  /// catalog metadata.
+  String get schemaDialect => kA2uiSchemaDialect;
+
+  /// The pinned A2UI protocol/schema version shared by the producer document
+  /// and generated catalog metadata.
+  String get a2uiProtocolVersion => kA2uiProtocolVersion;
+
+  /// The content fingerprint carried by [documentId].
+  ///
+  /// Keeping the algorithm prefix in this value preserves the exact identity
+  /// vocabulary (`sha256/<digest>`) without introducing a second hash or a
+  /// second canonicalization pass for generated Dart.
+  String get fingerprint => documentId.substring('restage:catalog/'.length);
+
   /// Prompt fragments exactly as the producer receives them: the finalized
   /// identity instruction followed by deterministic non-identity guidance.
   late final List<String> systemPromptFragments = List.unmodifiable([

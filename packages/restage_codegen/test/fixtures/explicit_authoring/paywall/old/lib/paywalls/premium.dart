@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'premium.rsscreen.g.dart';
+part 'restage.generated/premium.restage.g.dart';
 
 @PaywallSource(id: 'premium')
 final class PremiumPaywall extends StatelessWidget {

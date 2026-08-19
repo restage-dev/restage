@@ -70,10 +70,17 @@ void main() {
         (artifact) =>
             artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
       );
-      final blob = File(p.join(tempDir.path, blobArtifact.path));
-      await blob.writeAsBytes(const <int>[9, 8, 7]);
       final loaded = await SurfacePublicationManifestLoader().load(
         projectRoot: tempDir,
+      );
+      // Re-encode the bundle around different screen bytes. The bundle stays
+      // internally consistent, so only the cross-layer comparison against the
+      // index and manifest can catch it.
+      await rewriteBundleEntryBytes(
+        tempDir,
+        bundlePath: loaded.outputIndex.locatorFor(blobArtifact.path).bundle,
+        entryPath: blobArtifact.path,
+        bytes: ordinaryRfwBlob().reversed.toList(),
       );
 
       await expectLater(
@@ -82,7 +89,109 @@ void main() {
           isA<PublicationAssemblyException>().having(
             (error) => error.message,
             'message',
-            contains('stale or incomplete'),
+            contains('bundle entry hash mismatch'),
+          ),
+        ),
+      );
+    },
+  );
+
+  test('reads only the bundle entries the closure declares', () async {
+    final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
+    await addUnrelatedBundleEntry(
+      tempDir,
+      bundlePath: GeneratedOutputLayout.generatedDirectory.bundlePathFor(
+        fixtureLibraryPath,
+      ),
+      entryPath: 'assets/restage/generated/unrelated/screen.rfw',
+    );
+    final loaded = await SurfacePublicationManifestLoader().load(
+      projectRoot: tempDir,
+    );
+
+    final assembled = await SurfacePublicationAssembler().assemble(
+      loaded: loaded,
+      entry: entry,
+    );
+
+    expect(
+      assembled.artifactBytes.keys,
+      entry.artifacts.map((artifact) => artifact.path),
+    );
+  });
+
+  test(
+    'assembles successfully when the bundle carries an rfw-text sibling',
+    () async {
+      // Every real bundle now carries a .rfwtxt entry alongside its
+      // manifest-closure artifacts. The manifest closure never declares one
+      // (rfw-text has no manifest-role counterpart), so this proves the
+      // reader only converts the role of the entry it was asked for — never
+      // eagerly over every entry in the bundle, which would throw on this
+      // bundle before assembly ever got this far.
+      final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
+      await addUnrelatedBundleEntry(
+        tempDir,
+        bundlePath: GeneratedOutputLayout.generatedDirectory.bundlePathFor(
+          fixtureLibraryPath,
+        ),
+        entryPath: 'assets/restage/generated/checkout/screen.rfwtxt',
+        role: RestageBundleEntryRoleV1.rfwText,
+      );
+      final loaded = await SurfacePublicationManifestLoader().load(
+        projectRoot: tempDir,
+      );
+
+      final assembled = await SurfacePublicationAssembler().assemble(
+        loaded: loaded,
+        entry: entry,
+      );
+
+      expect(
+        assembled.artifactBytes.keys,
+        entry.artifacts.map((artifact) => artifact.path),
+      );
+    },
+  );
+
+  test(
+    'rejects a closure artifact whose bundle entry is recorded as rfw-text',
+    () async {
+      // A crafted/corrupted bundle could record a manifest-closure path
+      // under the bundle-only rfw-text role, which has no manifest-role
+      // counterpart. This must surface as the CLI's own drift diagnostic
+      // (naming the artifact and the bundle it came from), never as an
+      // unhandled StateError from the role conversion itself.
+      final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
+      final loaded = await SurfacePublicationManifestLoader().load(
+        projectRoot: tempDir,
+      );
+      final artifact = entry.artifacts.singleWhere(
+        (candidate) =>
+            candidate.role == SurfacePublicationArtifactRoleV1.screenBlob,
+      );
+      await rewriteBundleEntryRole(
+        tempDir,
+        bundlePath: loaded.outputIndex.locatorFor(artifact.path).bundle,
+        entryPath: artifact.path,
+        role: RestageBundleEntryRoleV1.rfwText,
+      );
+
+      await expectLater(
+        SurfacePublicationAssembler().assemble(loaded: loaded, entry: entry),
+        throwsA(
+          isA<PublicationAssemblyException>().having(
+            (error) => error.message,
+            'message',
+            allOf(
+              contains(artifact.path),
+              contains(
+                GeneratedOutputLayout.generatedDirectory.bundlePathFor(
+                  fixtureLibraryPath,
+                ),
+              ),
+              contains('rfw-text'),
+            ),
           ),
         ),
       );
@@ -188,6 +297,6 @@ Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
     artifacts: artifacts,
     publication: publication,
   );
-  await writeGeneratedManifest(root, [entry]);
+  await writeGeneratedOutput(root, [entry]);
   return entry;
 }

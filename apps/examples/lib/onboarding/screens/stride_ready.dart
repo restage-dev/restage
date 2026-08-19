@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'stride_ready.rsscreen.g.dart';
+part 'restage.generated/stride_ready.restage.g.dart';
 
 /// Stride onboarding — the confirmation screen.
 ///
@@ -10,10 +10,10 @@ part 'stride_ready.rsscreen.g.dart';
 /// general mode that result is an untyped `Map` — the host reads the fields it
 /// declared in the flow's outbound contract, with no generated result class in
 /// between. See `stride_welcome.dart` for the shared screen-authoring notes.
-@ScreenSource(id: 'stride_ready')
+@Screen()
 class StrideReadyScreen extends StatelessWidget {
   /// Completes the flow.
-  static const begin = OnboardingEvent<void>('begin');
+  static const begin = SurfaceEvent<void>('begin');
 
   const StrideReadyScreen({super.key});
 
@@ -83,7 +83,7 @@ class StrideReadyScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(begin),
+                      onPressed: surfaceEvent(begin),
                       child: const Text(
                         'Start running',
                         style: TextStyle(

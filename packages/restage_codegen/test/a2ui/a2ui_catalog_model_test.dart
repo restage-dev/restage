@@ -121,6 +121,12 @@ void main() {
         catalog.documentId,
         matches(RegExp(r'^restage:catalog/sha256/[0-9a-f]{64}$')),
       );
+      expect(catalog.schemaDialect, kA2uiSchemaDialect);
+      expect(catalog.a2uiProtocolVersion, kA2uiProtocolVersion);
+      expect(
+        catalog.fingerprint,
+        catalog.documentId.substring('restage:catalog/'.length),
+      );
       final a2ui = catalog.toJson()['a2uiCatalog']! as Map<String, Object?>;
       expect(a2ui[r'$id'], catalog.documentId);
       expect(a2ui['catalogId'], catalog.documentId);

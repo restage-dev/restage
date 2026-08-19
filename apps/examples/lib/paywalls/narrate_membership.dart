@@ -28,7 +28,7 @@ import 'package:restage/restage.dart';
 /// widget and does not lower. The Standard auto-renew line binds its price to
 /// the live monthly slot; the Premium price is literal. The purchase is
 /// live-bound per plan via `paywallPurchase(slot:)`.
-@PaywallSource(id: 'narrate_membership')
+@Paywall()
 class NarrateMembershipPaywall extends StatefulWidget {
   const NarrateMembershipPaywall({super.key});
 

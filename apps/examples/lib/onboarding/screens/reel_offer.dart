@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'reel_offer.rsscreen.g.dart';
+part 'restage.generated/reel_offer.restage.g.dart';
 
 /// Survey — the save-offer (the retention host-action gate).
 ///
@@ -12,13 +12,13 @@ part 'reel_offer.rsscreen.g.dart';
 /// event (not a graph transition): the host confirms the cancellation. The
 /// decline is host-owned, not a second graph transition — a retention save-offer
 /// retains (a discount redemption), it does not re-sell.
-@ScreenSource(id: 'reel_offer')
+@Screen()
 class ReelOfferScreen extends StatelessWidget {
   /// Redeems the retention offer via the host action, then advances on success.
-  static const keep = OnboardingEvent<void>('keep');
+  static const keep = SurfaceEvent<void>('keep');
 
   /// Declines the offer; the host confirms the cancellation.
-  static const cancel = OnboardingEvent<void>('cancel');
+  static const cancel = SurfaceEvent<void>('cancel');
 
   const ReelOfferScreen({super.key});
 
@@ -89,7 +89,7 @@ class ReelOfferScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: onboardingEvent(keep),
+                onPressed: surfaceEvent(keep),
                 child: const Text(
                   'Keep my discount',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
@@ -97,7 +97,7 @@ class ReelOfferScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               TextButton(
-                onPressed: onboardingEvent(cancel),
+                onPressed: surfaceEvent(cancel),
                 child: const Text(
                   'No thanks, cancel my membership',
                   style: TextStyle(

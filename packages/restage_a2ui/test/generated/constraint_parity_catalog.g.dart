@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'constraint_parity_fixture.dart' as p0;
 import 'package:flutter/widgets.dart';
+import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
@@ -749,6 +750,41 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273';
+
+/// Compact identity and capability metadata for the generated catalog.
+/// The producer-facing `.a2ui.json` remains a separate portable artifact.
+const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
+  schemaDialect: 'https://json-schema.org/draft/2020-12/schema',
+  a2uiProtocolVersion: '0.9.1',
+  catalogId: restageA2uiCatalogId,
+  fingerprint:
+      'sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273',
+  catalogContentVersion: 1,
+  availableLibraries: <A2uiAvailableLibrary>[],
+  perItemSinceVersion: <String, int>{
+    'ConstraintParity': 1,
+    'PatternCorpus00': 1,
+    'PatternCorpus01': 1,
+    'PatternCorpus02': 1,
+    'PatternCorpus03': 1,
+    'PatternCorpus04': 1,
+    'PatternCorpus05': 1,
+    'PatternCorpus06': 1,
+    'PatternCorpus07': 1,
+    'PatternCorpus08': 1,
+    'PatternCorpus09': 1,
+    'PatternCorpus10': 1,
+    'PatternCorpus11': 1,
+    'PatternCorpus12': 1,
+    'PatternCorpus13': 1,
+    'PatternCorpus14': 1,
+    'PatternCorpus15': 1,
+    'PatternCorpus16': 1,
+    'PatternCorpus17': 1,
+    'PatternCorpus18': 1,
+    'PatternCorpus19': 1,
+  },
+);
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
   'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/882e52465ef472f60b9e760400748de15fea50025d3ac630a643816319deb273".',

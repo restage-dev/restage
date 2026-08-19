@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
 
-part 'two_terminals.rsflow.g.dart';
+part 'restage.generated/two_terminals.restage.g.dart';
 
 @FlowGraph(surface: Surface.onboarding)
 const twoTerminals = FlowDefinition(

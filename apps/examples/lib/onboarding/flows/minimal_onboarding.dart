@@ -5,7 +5,7 @@ import '../screens/starter_done_guided.dart';
 import '../screens/starter_question.dart';
 import '../screens/starter_welcome.dart';
 
-part 'minimal_onboarding.rsflow.g.dart';
+part 'restage.generated/minimal_onboarding.restage.g.dart';
 
 /// A minimal onboarding flow that navigates, captures an answer, branches on
 /// it, and completes — the smallest honest answer-driven onboarding.
@@ -18,7 +18,7 @@ part 'minimal_onboarding.rsflow.g.dart';
 ///   the matching ending screen, so the answer still drives the path.
 ///
 /// Same runtime as any flow; only the authoring (this DSL) changes per surface.
-@FlowSource(id: 'minimal_onboarding', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class MinimalOnboardingFlow extends RestageFlow {
   /// Const constructor.
   const MinimalOnboardingFlow();

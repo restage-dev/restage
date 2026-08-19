@@ -12,7 +12,7 @@ import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Parent of the paywall subcommands.
+/// Parent of the deprecated paywall compatibility subcommands.
 ///
 /// `package:args`'s [CommandRunner] dispatches to a [Command] which can
 /// itself host subcommands — the conventional shape for a noun-verb CLI
@@ -123,5 +123,6 @@ class PaywallCommand extends Command<int> {
 
   @override
   String get description =>
-      'Inspect and publish paywalls in the current project and app.';
+      'Compatibility commands for specialized paywalls; prefer the '
+      'manifest-driven `surface` commands.';
 }

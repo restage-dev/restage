@@ -26,15 +26,18 @@ screen flow:
    under required `props`. RFW callback events remain automatic from supported
    constructor callback signatures; `rfw.Config` is currently an empty marker,
    so the example does not present it as behavior configuration.
-5. `OpaqueScreenProof` proves the complete `ScreenSource` path. One build keeps
-   the established RFW descriptor/text/binary/capability artifacts, adds an
-   exact-ID opaque A2UI item, and adds a native Widgetbook story at
-   `Screens/opaque_screen_proof`.
+5. `OpaqueScreenProof` uses the canonical `@Screen` declaration. One build keeps
+   the RFW descriptor/text/binary/capability artifacts, adds an exact-ID opaque
+   A2UI item, and adds a native Widgetbook story. The generated story is grouped
+   at `Screens/opaque_screen_proof` in this fixture; that output path is not a
+   source-authoring selector.
 
 The full sources live under `lib/widgets/` and
-`lib/onboarding/screens/opaque_screen_proof.dart`. Documentation snippets are
-extracted from those compiled files, so a snippet cannot drift from code that
-builds.
+`lib/onboarding/screens/opaque_screen_proof.dart`. They carry `#docregion`
+markers so documentation can quote them from source rather than copy them.
+
+Those paths describe this example's layout only. The canonical annotation and
+generated metadata own surface category and identity.
 
 ## What one build produces
 
@@ -61,10 +64,10 @@ No customer `Config.appBuilder` is required.
 
 A2UI output is customer-only. It does not register Flutter, Material,
 Cupertino, or Restage built-ins, and it treats a screen as an opaque native
-component rather than lowering its Flutter tree. `FlowSource` and
-`PaywallSource` do not receive native sibling projections. RFW continues to use
-only its existing blueprint/state/event source surface and gains no constructor
-binding from this integration.
+component rather than lowering its Flutter tree. Flow graphs and specialized
+paywalls do not receive native sibling projections from this target. RFW
+continues to use only its existing blueprint/state/event source surface and
+gains no constructor binding from this integration.
 
 ## Build the workbench
 
@@ -83,10 +86,11 @@ and Widgetbook outputs live in `build_runner watch`. Adding, removing, or
 renaming an annotated class changes native generated output-file membership;
 restart the watcher after that change. The next cold run cleans orphaned story
 source, generated plumbing, and component registration. Multiple
-`@RestageWidget` classes may share a file. `ScreenSource` additionally follows
-RFW's existing surface-kind screen directory, ID/file-stem, generated-part, and
-exactly-one-source-per-input-library boundaries; invalid topology emits no
-native sibling. Changing that topology is a separate compiler follow-up.
+`@RestageWidget` classes and canonical `@Screen` declarations may share a Dart
+file. Widgetbook story discovery does not use a source directory, file stem,
+generated `part`, or one-source-per-library rule as identity or admission
+authority. A generated Restage descriptor part, when present, is build plumbing
+for the Restage output and not a Widgetbook restriction.
 
 ## Version
 

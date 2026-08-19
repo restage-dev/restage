@@ -5,9 +5,10 @@ how flow navigation and back behave, how to choose between the high-level and
 low-level rendering surfaces, and the compliance boundary that holds however you
 compose them.
 
-This covers `RestageOnboarding` / `RestageFlowView` (the full surfaces) and
-`RestageScreenView` (the lower-level per-screen surface). All of them render the
-same flow document driven by the same `RestageFlowController`.
+This covers `RestageSurfaceFlow` (the normal full flow surface),
+`RestageFlowView` (the lower-level compositor), and `RestageScreenView` (the
+current-screen rendering surface). All of them render the same flow document
+driven by the same `RestageFlowController`.
 
 ## The chrome customization ladder
 
@@ -45,7 +46,7 @@ layout. Every token is optional; an omitted token keeps the platform-appropriate
 default.
 
 ```dart
-RestageOnboarding<FirstRunResult>(
+RestageSurfaceFlow<FirstRunResult>(
   flow: FirstRunFlowDescriptor.ref,
   unavailable: FlowUnavailablePolicy.hide(),
   chromeTheme: const FlowChromeTheme(
@@ -68,7 +69,7 @@ affordance widget; the SDK still positions it and supplies the persistent
 framing. `onAction` performs the affordance's intent (a back pop, or a skip).
 
 ```dart
-RestageOnboarding<FirstRunResult>(
+RestageSurfaceFlow<FirstRunResult>(
   flow: FirstRunFlowDescriptor.ref,
   unavailable: FlowUnavailablePolicy.hide(),
   backBuilder: (context, onAction) => IconButton(
@@ -98,7 +99,7 @@ Two builder layers let you own the layout entirely. Both receive a
 Both may be set together (the frame composes around the per-screen result).
 
 ```dart
-RestageOnboarding<FirstRunResult>(
+RestageSurfaceFlow<FirstRunResult>(
   flow: FirstRunFlowDescriptor.ref,
   unavailable: FlowUnavailablePolicy.hide(),
   persistentChromeBuilder: (context, state, flowBody) => Column(
@@ -134,7 +135,7 @@ content (the most robust default); `false` rides inside the animated slot.
 Supplying `chromeBuilder` / `persistentChromeBuilder` chooses the layer
 explicitly and supersedes the bool.
 
-`persistentChrome` is a parameter on `RestageOnboarding` / `RestageFlowView`
+`persistentChrome` is a parameter on `RestageSurfaceFlow` / `RestageFlowView`
 (not on `FlowChromeTheme`, which stays purely visual). For an app-wide setting,
 pass the same value (or wrap the surface).
 
@@ -205,7 +206,7 @@ poppable again according to the `systemBack` policy. With the default
 `SystemBackPolicy.popHost`, the host route's own iOS edge-swipe dismisses the
 flow route.
 
-## Two onboarding→paywall navigation patterns
+## Two flow→paywall navigation patterns
 
 There are two ways to structure "onboarding, then a paywall." Pick by whether the
 two are distinct phases or one continuous flow.
@@ -218,7 +219,7 @@ cannot back into onboarding from the paywall. Use this when onboarding and the
 paywall are distinct phases.
 
 ```dart
-RestageOnboarding<FirstRunResult>(
+RestageSurfaceFlow<FirstRunResult>(
   flow: FirstRunFlowDescriptor.ref,
   actions: FirstRunActions(/* ... */),
   unavailable: FlowUnavailablePolicy.hide(),
@@ -230,42 +231,62 @@ RestageOnboarding<FirstRunResult>(
 
 ### Pattern B — paywall as a flow step (in-flow back into the paywall)
 
-Author the paywall as the flow's last *screen* (no end state at the paywall, so
-the flow stays active). Because a flow screen renders any flow render-blob and a
-paywall is a render-blob, the runtime renders it directly; in-flow back then lets
-the user return from the paywall to an earlier screen to fix a choice. Use this
-when the paywall is part of one continuous flow.
+Author the paywall as the flow's last *screen*. Because a flow screen renders
+any flow render-blob and a paywall is a render-blob, the runtime renders it
+directly; in-flow back then lets the user return from the paywall to an earlier
+screen to fix a choice. Add a completion transition when the paywall should end
+the flow, as in the example below. Use this when the paywall is part of one
+continuous flow.
 
 ```dart
-return flow(
-  initial: WelcomeScreenDescriptor.ref,
-  states: [
-    screen(WelcomeScreenDescriptor.ref)
-        .on(WelcomeScreen.next)
-        .goTo(paywallScreen('serene')),
-    screen(paywallScreen('serene'))
-        .on(PaywallFlowEvents.purchase)
-        .goTo(done),
-    end(done, result: {'purchased': true}),
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+import 'screens/welcome.dart';
+
+part 'restage.generated/welcome_with_paywall.restage.g.dart';
+
+@Paywall(id: 'serene')
+final class SerenePaywall extends StatelessWidget {
+  const SerenePaywall({super.key});
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: paywallPurchase(slot: 'primary'),
+        child: const Text('Continue'),
+      );
+}
+
+@FlowGraph(id: 'welcome_with_paywall', surface: Surface.onboarding)
+const welcomeWithPaywall = FlowDefinition(
+  start: WelcomeScreen,
+  transitions: [
+    Transition(WelcomeScreen.next, to: SerenePaywall),
+    Transition.complete(
+      PaywallEvents.purchase,
+      from: SerenePaywall,
+    ),
   ],
 );
 ```
 
-For a Dart-authored `@PaywallSource(id: 'serene')`, codegen emits the normal
-paywall artifacts and a flow-screen adapter at
-`assets/paywalls/screens/paywall_serene.rfw`. If the embedded paywall reads
-live prices, pass the same `priceQueries` map to `RestageOnboarding` /
-`RestageFlowView` / `RestageScreenView` that you would pass to
-`RestagePaywall`.
+The `@Paywall` source remains a specialized paywall even when it is a step in an
+onboarding flow. Codegen emits the generated flow descriptor and the exact
+screen-artifact closure recorded in
+`lib/generated/restage.publication.json`. At runtime, consume the
+generated `SurfaceFlowRef<R>` with `RestageSurfaceFlow<R>`. If the embedded
+paywall reads live prices, pass the same `priceQueries` map to the flow host
+that you would pass to `RestagePaywall`.
 
 ## Choosing a rendering surface
 
-`RestageOnboarding` / `RestageFlowView` and `RestageScreenView` differ in how
-much of the presentation the SDK owns.
+`RestageSurfaceFlow` and `RestageScreenView` differ in how much of the
+presentation the SDK owns. `RestageFlowView` is the lower-level compositor used
+when the host needs to control the flow's stack transition visuals.
 
 ### `RestageFlowView` — the SDK owns the stack + transitions
 
-`RestageFlowView` (and the `RestageOnboarding` convenience wrapper) own a
+`RestageSurfaceFlow` owns the normal flow host, while `RestageFlowView` owns the
 kept-mounted screen stack, the back-stack, the chrome ladder above, and a
 platform-adaptive transition. To fully customize the transition — including a
 **two-screens-visible** (opposing-slide) cross-transition where the outgoing and
@@ -291,7 +312,7 @@ incoming transition + an own back affordance.
 
 | You want… | Use |
 |---|---|
-| the full surface, default or themed chrome | `RestageOnboarding` / `RestageFlowView` |
+| the full surface, default or themed chrome | `RestageSurfaceFlow` |
 | a fully custom two-screens-visible (opposing-slide) transition over the SDK stack | `RestageFlowView(transition:)` |
 | to own the whole driver — your own switcher timing, back, and incoming-style transitions | `RestageScreenView` |
 

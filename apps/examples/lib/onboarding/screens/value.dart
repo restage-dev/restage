@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'value.rsscreen.g.dart';
+part 'restage.generated/value.restage.g.dart';
 
 /// First-run onboarding — the value screen.
 ///
@@ -10,10 +10,10 @@ part 'value.rsscreen.g.dart';
 /// understood its value (rather than cold, up front) is the pattern that earns
 /// the grant. See `welcome.dart` for the screen-authoring notes that apply to
 /// every screen in this flow.
-@ScreenSource(id: 'value')
+@Screen()
 class ValueScreen extends StatelessWidget {
   /// Advances to the notification-priming screen.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const ValueScreen({super.key});
 
@@ -83,7 +83,7 @@ class ValueScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(next),
+                      onPressed: surfaceEvent(next),
                       child: const Text(
                         'Continue',
                         style: TextStyle(

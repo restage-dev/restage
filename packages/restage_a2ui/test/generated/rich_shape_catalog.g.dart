@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'rich_shape_fixture.dart' as p0;
 import 'package:flutter/widgets.dart';
+import 'package:restage_a2ui/restage_a2ui.dart';
 import 'package:genui/genui.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 
@@ -190,6 +191,26 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
     'restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31';
+
+/// Compact identity and capability metadata for the generated catalog.
+/// The producer-facing `.a2ui.json` remains a separate portable artifact.
+const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
+  schemaDialect: 'https://json-schema.org/draft/2020-12/schema',
+  a2uiProtocolVersion: '0.9.1',
+  catalogId: restageA2uiCatalogId,
+  fingerprint:
+      'sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31',
+  catalogContentVersion: 1,
+  availableLibraries: <A2uiAvailableLibrary>[],
+  perItemSinceVersion: <String, int>{
+    'CommentThread': 1,
+    'FeatureGrid': 1,
+    'Glossary': 1,
+    'LinkCard': 1,
+    'MetaBar': 1,
+    'PlanCard': 1,
+  },
+);
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
   'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/f999eaa59ed1e8bbb278a44c401904b6d7bd06732820929d8c22195e525f2c31".',

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'moved_notice.rsscreen.g.dart';
+part 'restage.generated/moved_notice.restage.g.dart';
 
 @Screen(id: 'stable_notice', surface: Surface.message)
 final class MovedNotice extends StatelessWidget {

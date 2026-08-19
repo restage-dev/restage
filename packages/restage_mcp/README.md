@@ -117,14 +117,33 @@ to sign in against a self-hosted or staging backend instead.
 | `restage_whoami` | Report the signed-in account. |
 | `restage_logout` | Sign out and remove the local session. |
 
-**Paywalls**
+**Surface-family lifecycle (normal path)**
 
 | Tool | What it does |
 | --- | --- |
-| `restage_list_paywalls` | List paywalls under a project + app. |
-| `restage_get_paywall` | Download a paywall's compiled draft blob as base64 (backup / inspection). |
-| `restage_publish_paywall` | Publish a paywall's draft to an environment (admin). |
-| `restage_get_published_version` | The latest published version of a paywall in an environment. |
+| `restage_list_surfaces` | List surfaces for a `surfaceType` under a project + app. Use the closed values `onboarding`, `message`, `survey`, `paywall`, or `general`. |
+| `restage_surface_status` | Show the live version, lock state, delivery shape, and lifecycle state for one surface. |
+| `restage_surface_history` | Show the audit timeline for one surface. |
+| `restage_publish_surface` | Publish one surface's current draft to an environment (admin). |
+| `restage_rollback_preflight` | Preview the expected client-impact classification for a rollback without changing state. |
+| `restage_rollback_surface` | Roll a surface back to a published version, with an audit reason (admin). |
+
+Use these surface-family tools for normal discovery, publication, status, and
+lifecycle operations. Pass `surfaceType` and `surfaceSlug` explicitly; the
+surface family is part of the identity, so paywalls and non-paywall surfaces use
+the same lifecycle path.
+
+**Paywall-specific compatibility tools**
+
+These tools remain for specialized paywall draft and blob workflows. They are
+not the normal publication path for Restage surfaces:
+
+| Tool | What it does |
+| --- | --- |
+| `restage_list_paywalls` | List specialized paywalls under a project + app. |
+| `restage_get_paywall` | Download a specialized paywall's compiled draft blob as base64 for backup or inspection. |
+| `restage_publish_paywall` | Publish a specialized paywall draft to an environment (admin). Prefer `restage_publish_surface` for normal lifecycle publication. |
+| `restage_get_published_version` | Read the latest published version of a specialized paywall in an environment. |
 
 **Discovery**
 

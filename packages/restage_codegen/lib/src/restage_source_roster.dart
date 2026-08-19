@@ -1,5 +1,6 @@
-// Internal package ownership model; public API documentation is intentionally
-// not part of this pre-frontend lane.
+// Internal package ownership model. Every member here is reached through the
+// documented builders rather than directly, so the public-API doc lint does
+// not apply.
 // ignore_for_file: public_member_api_docs, prefer_asserts_with_message
 
 import 'dart:convert';
@@ -577,7 +578,14 @@ RestageSourceRoster assembleRestageSourceRoster(
     byOutput.putIfAbsent(output.path, () => []).add(output);
   }
   for (final entry in byOutput.entries) {
-    if (entry.value.length < 2) continue;
+    // One library's declarations contribute several roles to the single
+    // generated part they share. That is one physical output with one owner
+    // and one writing builder, so only a genuinely distinct owner/builder
+    // pair at the same path is a collision.
+    final claimants = entry.value
+        .map((output) => '${output.owner} ${output.builder}')
+        .toSet();
+    if (claimants.length < 2) continue;
     final owners = entry.value
         .map((output) => '${output.owner} (${output.span.location})')
         .join(', ');

@@ -21,10 +21,10 @@ void main() {
       'lib/generated/restage_a2ui_catalog.g.dart',
     ).readAsString();
     widgetbookStory = await File(
-      'lib/generated/constructor_fidelity_corpus.stories.dart',
+      'lib/widgets/restage.generated/constructor_fidelity_corpus.stories.dart',
     ).readAsString();
     positionalStory = await File(
-      'lib/generated/constructor_positional_corpus.stories.dart',
+      'lib/widgets/restage.generated/constructor_positional_corpus.stories.dart',
     ).readAsString();
   });
 

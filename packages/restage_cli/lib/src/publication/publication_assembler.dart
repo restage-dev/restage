@@ -7,7 +7,9 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../commands/surface_payload.dart';
 import 'publication_errors.dart';
+import 'publication_bundle_reader.dart';
 import 'publication_manifest.dart';
+import 'publication_outputs.dart';
 
 /// The exact payload and typed upload assembled from one generated manifest
 /// entry.
@@ -43,6 +45,12 @@ final class AssembledSurfacePublication {
 /// Reads and assembles the exact artifact closure declared by a generated
 /// publication manifest entry.
 final class SurfacePublicationAssembler {
+  /// Construct an assembler with an injected deterministic bundle reader.
+  SurfacePublicationAssembler({PublicationBundleReader? bundleReader})
+    : _bundleReader = bundleReader ?? PublicationBundleReaderProvider.current;
+
+  final PublicationBundleReader _bundleReader;
+
   /// Assemble [entry] from the fixed project root in [loaded].
   Future<AssembledSurfacePublication> assemble({
     required LoadedSurfacePublicationManifest loaded,
@@ -50,23 +58,39 @@ final class SurfacePublicationAssembler {
   }) async {
     final bytesByPath = <String, Uint8List>{};
     for (final artifact in entry.artifacts) {
-      final file = _resolveArtifactFile(loaded.projectRoot, artifact.path);
-      if (!file.existsSync()) {
+      final locator = loaded.outputIndex.locatorFor(artifact.path);
+      final bundleFile = _resolveArtifactFile(
+        loaded.projectRoot,
+        locator.bundle,
+      );
+      final PublicationBundleEntry bundleEntry;
+      try {
+        bundleEntry = await _bundleReader.readEntry(
+          bundleFile: bundleFile,
+          entryPath: locator.entry,
+        );
+      } on PublicationBundleException catch (error) {
         throw PublicationAssemblyException(
           'Generated publication ${entry.publication.surface.wireName}/'
-          '${entry.publication.slug} is missing declared artifact '
-          '"${artifact.path}". Re-run `dart run build_runner build` and '
+          '${entry.publication.slug} could not read bundle entry '
+          '"${locator.entry}" from "${locator.bundle}": '
+          '${error.message} Re-run `dart run build_runner build` and retry.',
+        );
+      } on FileSystemException {
+        throw PublicationAssemblyException(
+          'Generated publication ${entry.publication.surface.wireName}/'
+          '${entry.publication.slug} could not read bundle '
+          '"${locator.bundle}". Re-run `dart run build_runner build` and '
           'retry.',
         );
       }
-      try {
-        bytesByPath[artifact.path] = await file.readAsBytes();
-      } on FileSystemException {
-        throw PublicationAssemblyException(
-          'Generated artifact "${artifact.path}" could not be read. '
-          'Re-run `dart run build_runner build` and retry.',
-        );
-      }
+      _validateBundleEntry(
+        artifact: artifact,
+        locator: locator,
+        bundleEntry: bundleEntry,
+        publication: entry.publication,
+      );
+      bytesByPath[artifact.path] = Uint8List.fromList(bundleEntry.bytes);
     }
 
     final selectedManifest = SurfacePublicationManifestV1(
@@ -210,6 +234,45 @@ File _resolveArtifactFile(Directory projectRoot, String packagePath) {
     );
   }
   return File(artifactPath);
+}
+
+void _validateBundleEntry({
+  required SurfacePublicationArtifactV1 artifact,
+  required RestageOutputIndexEntry locator,
+  required PublicationBundleEntry bundleEntry,
+  required SurfacePublicationV1 publication,
+}) {
+  if (bundleEntry.path != locator.entry || bundleEntry.path != artifact.path) {
+    throw PublicationAssemblyException(
+      'Generated publication ${publication.surface.wireName}/'
+      '${publication.slug} has a bundle entry path mismatch for '
+      '"${artifact.path}". Re-run `dart run build_runner build` and retry.',
+    );
+  }
+  if (bundleEntry.role != artifact.role) {
+    throw PublicationAssemblyException(
+      'Generated publication ${publication.surface.wireName}/'
+      '${publication.slug} has a bundle entry role mismatch for '
+      '"${artifact.path}". Re-run `dart run build_runner build` and retry.',
+    );
+  }
+  if (bundleEntry.size != bundleEntry.bytes.length) {
+    throw PublicationAssemblyException(
+      'Generated publication ${publication.surface.wireName}/'
+      '${publication.slug} has a bundle entry size mismatch for '
+      '"${artifact.path}". Re-run `dart run build_runner build` and retry.',
+    );
+  }
+  final actualHash = CapabilitySidecar.hashBlob(bundleEntry.bytes);
+  if (bundleEntry.sha256 != locator.sha256 ||
+      bundleEntry.sha256 != artifact.contentHash ||
+      actualHash != bundleEntry.sha256) {
+    throw PublicationAssemblyException(
+      'Generated publication ${publication.surface.wireName}/'
+      '${publication.slug} has a bundle entry hash mismatch for '
+      '"${artifact.path}". Re-run `dart run build_runner build` and retry.',
+    );
+  }
 }
 
 SurfacePublicationArtifactV1 _findArtifact(

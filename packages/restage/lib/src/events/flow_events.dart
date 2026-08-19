@@ -1,9 +1,9 @@
 part of 'restage_event.dart';
 
-/// Fired when an onboarding flow cannot be resolved or rendered.
+/// Fired when a flow cannot be resolved or rendered.
 ///
 /// Flow events identify the flow, not a paywall. This event mirrors the
-/// fail-closed unavailable path used by `RestageOnboarding`.
+/// fail-closed unavailable path used by `RestageSurfaceFlow`.
 @immutable
 final class FlowUnavailable extends RestageEvent {
   /// Creates a flow-unavailable event.

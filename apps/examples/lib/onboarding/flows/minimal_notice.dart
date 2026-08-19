@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/starter_notice.dart';
 
-part 'minimal_notice.rsflow.g.dart';
+part 'restage.generated/minimal_notice.restage.g.dart';
 
 /// A single-state flow — the smallest the runtime supports, and all a one-screen
 /// surface needs.
@@ -12,7 +12,7 @@ part 'minimal_notice.rsflow.g.dart';
 /// event (no transition) the host listens for to close the surface. There is no
 /// separate "message"/"notice" API — any one-screen surface is just a flow with
 /// a single screen.
-@FlowSource(id: 'minimal_notice', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class MinimalNoticeFlow extends RestageFlow {
   /// Const constructor.
   const MinimalNoticeFlow();

@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:flutter/services.dart' show AssetBundle, rootBundle;
+import 'package:flutter/services.dart' show AssetBundle;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -19,6 +19,7 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocumentCodec,
         Surface;
 
+import '../assets/bundled_asset_source.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
@@ -106,7 +107,7 @@ final class ServerFlowResolver
   final Map<String, _CachedServerFlow> _activeCache = {};
   final Map<String, _ExperimentHostedFlow> _experimentActiveCache = {};
 
-  AssetBundle get _effectiveBundle => _bundle ?? rootBundle;
+  AssetBundle get _effectiveBundle => restageAssetSource(_bundle);
 
   @internal
   @override

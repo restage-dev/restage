@@ -173,6 +173,62 @@ void main() {
       expect(collision.message, contains('lib/second.dart@8:1'));
     });
 
+    test('one library sharing its generated part is not a collision', () {
+      // A screen and a flow in one library contribute different roles to the
+      // one part they share. That is a single physical output with one owner
+      // and one writing builder, so it must not read as two claimants.
+      const part = 'lib/features/restage.generated/welcome.restage.g.dart';
+      final roster = assembleRestageSourceRoster([
+        _sharedPartDeclaration(
+          declarationName: 'WelcomeScreen',
+          explicitId: 'welcome',
+          kind: RestageRosterSourceKind.screen,
+          role: 'screen-descriptor',
+          partPath: part,
+        ),
+        _sharedPartDeclaration(
+          declarationName: 'welcomeFlow',
+          explicitId: 'welcome-flow',
+          kind: RestageRosterSourceKind.flow,
+          role: 'flow-descriptor',
+          partPath: part,
+        ),
+      ]);
+
+      expect(roster.issues, isEmpty);
+      expect(roster.isValid, isTrue);
+    });
+
+    test('a second builder claiming one path is still a collision', () {
+      // The relaxation above must not blunt the guard: same path, same
+      // library-owned key, but a different writing builder is exactly the
+      // two-owner case the check exists to catch.
+      const part = 'lib/features/restage.generated/welcome.restage.g.dart';
+      final roster = assembleRestageSourceRoster([
+        _sharedPartDeclaration(
+          declarationName: 'WelcomeScreen',
+          explicitId: 'welcome',
+          kind: RestageRosterSourceKind.screen,
+          role: 'screen-descriptor',
+          partPath: part,
+        ),
+        _sharedPartDeclaration(
+          declarationName: 'welcomeFlow',
+          explicitId: 'welcome-flow',
+          kind: RestageRosterSourceKind.flow,
+          role: 'flow-descriptor',
+          partPath: part,
+          builder: 'restage_codegen:some_other_builder',
+        ),
+      ]);
+
+      expect(roster.isValid, isFalse);
+      final collision = roster.issues.singleWhere(
+        (issue) => issue.code == IssueCode.generatedSymbolCollision,
+      );
+      expect(collision.message, contains(part));
+    });
+
     test('keeps const declarations valid and freezes runtime output lists', () {
       const declaration = RestageSourceDeclaration(
         kind: RestageRosterSourceKind.screen,
@@ -398,7 +454,7 @@ void main() {
       expect(
         outputPaths,
         containsAll(<String>[
-          'lib/onboarding/screens/welcome.rsscreen.g.dart',
+          'lib/onboarding/screens/restage.generated/welcome.restage.g.dart',
           'assets/onboarding/screens/welcome.rfw',
           'assets/message/flows/receipt.flow.json',
           'assets/paywalls/pro.rfw',
@@ -635,7 +691,7 @@ void main() {
       ];
       expect(
         outputPaths.where(
-          (path) => path == 'lib/feature.rsscreen.g.dart',
+          (path) => path == 'lib/restage.generated/feature.restage.g.dart',
         ),
         hasLength(1),
       );
@@ -644,7 +700,8 @@ void main() {
         containsAll(<String>[
           'assets/general/screens/first.rfw',
           'assets/general/screens/second.rfw',
-          'assets/restage/surface-publication-manifest.json',
+          'lib/generated/restage.publication.json',
+          'lib/generated/restage.outputs.json',
         ]),
       );
     });
@@ -670,7 +727,9 @@ void main() {
           (output! as Map<String, Object?>)['path']! as String,
       ];
       expect(
-        outputPaths.where((path) => path == 'lib/offers.rsscreen.g.dart'),
+        outputPaths.where(
+          (path) => path == 'lib/restage.generated/offers.restage.g.dart',
+        ),
         hasLength(1),
       );
       expect(
@@ -882,6 +941,48 @@ void main() {
   });
 }
 
+/// A declaration claiming one library's shared generated part.
+RestageSourceDeclaration _sharedPartDeclaration({
+  required String declarationName,
+  required String explicitId,
+  required RestageRosterSourceKind kind,
+  required String role,
+  required String partPath,
+  String builder = 'restage_codegen:generated_dart',
+}) {
+  const libraryPath = 'lib/features/welcome.dart';
+  const libraryIdentity = 'package:fixture/lib/features/welcome.dart';
+  return RestageSourceDeclaration.frozen(
+    kind: kind,
+    libraryIdentity: libraryIdentity,
+    libraryPath: libraryPath,
+    declarationIdentity: '$libraryIdentity#$declarationName',
+    sourcePath: libraryPath,
+    explicitId: explicitId,
+    span: const RestageSourceSpan(
+      path: libraryPath,
+      startLine: 1,
+      startColumn: 1,
+      endLine: 1,
+      endColumn: 2,
+    ),
+    identityClaims: [
+      RestageIdentityClaim(
+        namespace: 'test/${kind.wireName}',
+        key: explicitId,
+      ),
+    ],
+    outputs: [
+      RestageOutputClaim(
+        path: partPath,
+        role: role,
+        builder: builder,
+        ownershipKey: 'canonical-library:$libraryIdentity',
+      ),
+    ],
+  );
+}
+
 RestageSourceDeclaration _declaration({
   required String libraryPath,
   required String declarationName,
@@ -954,7 +1055,7 @@ String _screenSource({required String id, required String className}) => '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @ScreenSource(id: '$id')
 class $className extends StatelessWidget {
@@ -968,7 +1069,7 @@ class $className extends StatelessWidget {
 String _flowSource(String id) => '''
 import 'package:restage/restage.dart';
 
-part '$id.rsflow.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @FlowSource(id: '$id')
 class ${id}Flow {}
@@ -985,7 +1086,7 @@ String _canonicalColocatedScreensSource() => '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'feature.rsscreen.g.dart';
+part 'restage.generated/feature.restage.g.dart';
 
 @Screen(id: 'first', surface: Surface.general)
 final class FirstScreen extends StatelessWidget {
@@ -1014,7 +1115,7 @@ String _canonicalExplicitScreenSource({
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part '$partStem.rsscreen.g.dart';
+part 'restage.generated/$partStem.restage.g.dart';
 
 @Screen(id: '$id', surface: Surface.$surface)
 final class $className extends StatelessWidget {
@@ -1029,7 +1130,7 @@ String _canonicalColocatedScreenAndPaywallSource() => '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'offers.rsscreen.g.dart';
+part 'restage.generated/offers.restage.g.dart';
 
 @Screen(id: 'announcement', surface: Surface.general)
 final class AnnouncementScreen extends StatelessWidget {
@@ -1052,8 +1153,7 @@ String _canonicalFlowSource() => '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'feature.rsscreen.g.dart';
-part 'feature.rsflow.g.dart';
+part 'restage.generated/feature.restage.g.dart';
 
 @Screen(id: 'feature-screen')
 final class FeatureScreen extends StatelessWidget {
@@ -1078,7 +1178,7 @@ String _canonicalPaywallSource() => '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-part 'offer.rsscreen.g.dart';
+part 'restage.generated/offer.restage.g.dart';
 
 @Paywall()
 final class OfferPaywall extends StatelessWidget {
@@ -1092,7 +1192,7 @@ final class OfferPaywall extends StatelessWidget {
 String _canonicalAdvancedFlowSource() => '''
 import 'package:restage/restage.dart';
 
-part 'advanced.rsflow.g.dart';
+part 'restage.generated/advanced.restage.g.dart';
 
 @FlowGraph(surface: Surface.general)
 final class AdvancedFlow extends RestageFlow {

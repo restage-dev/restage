@@ -31,7 +31,9 @@ class SurfaceListCommand extends Command<int> {
     argParser
       ..addOption(
         'type',
-        help: 'Surface type: paywall, onboarding, message, survey, general.',
+        help:
+            'Filter by surface category: paywall, onboarding, message, '
+            'survey, general.',
       )
       ..addFlag(
         'all',

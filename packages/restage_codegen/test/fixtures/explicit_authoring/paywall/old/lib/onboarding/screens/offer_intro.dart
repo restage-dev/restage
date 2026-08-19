@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'offer_intro.rsscreen.g.dart';
+part 'restage.generated/offer_intro.restage.g.dart';
 
 @ScreenSource(id: 'offer_intro')
 final class OfferIntroScreen extends StatelessWidget {

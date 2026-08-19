@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'stride_welcome.rsscreen.g.dart';
+part 'restage.generated/stride_welcome.restage.g.dart';
 
 /// Stride onboarding — the welcome screen.
 ///
-/// A screen is a `StatelessWidget` annotated `@ScreenSource`, authored in the
+/// A screen is a `StatelessWidget` annotated `@Screen`, authored in the
 /// same standard Flutter syntax as any other surface. Build-time codegen lowers
 /// it to a render blob and emits a screen descriptor the flow references by
 /// name. Each screen declares the events it can fire as static
-/// `OnboardingEvent` fields; a button wires one with `onboardingEvent(...)`,
+/// `SurfaceEvent` fields; a button wires one with `surfaceEvent(...)`,
 /// which codegen replaces with a flow-event reference (it never runs at
 /// runtime). The flow graph (see `lib/onboarding/flows/stride_first_run.dart`)
 /// decides where each event leads — and, because that flow is delivered in
@@ -25,11 +25,11 @@ part 'stride_welcome.rsscreen.g.dart';
 /// theme into the render namespace, and a first-run flow is a single deliberate
 /// brand moment. The full-width CTA uses an `Expanded` child in a `Row` (not
 /// `SizedBox(width: double.infinity)`, which does not survive lowering).
-@ScreenSource(id: 'stride_welcome')
+@Screen()
 class StrideWelcomeScreen extends StatelessWidget {
   /// Leaves the welcome screen; the flow graph — recomposable over the air on
   /// a general flow — decides where it leads.
-  static const start = OnboardingEvent<void>('start');
+  static const start = SurfaceEvent<void>('start');
 
   const StrideWelcomeScreen({super.key});
 
@@ -100,7 +100,7 @@ class StrideWelcomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(start),
+                      onPressed: surfaceEvent(start),
                       child: const Text(
                         'Get started',
                         style: TextStyle(

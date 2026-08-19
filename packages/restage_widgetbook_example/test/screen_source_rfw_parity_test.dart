@@ -1,16 +1,34 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart';
 
 void main() {
   test(
-    'native sibling authoring leaves the ScreenSource RFW baseline exact',
+    'native sibling authoring leaves the canonical Screen RFW baseline exact',
     () {
-      const expected = <String, String>{
-        'lib/onboarding/screens/opaque_screen_proof.rsscreen.g.dart':
-            'ffd6d68ec5bc27c072d0bba996e8fd4f97f0abb8b752c3fabf3686f1a6741c9a',
+      // The generated descriptor is ordinary source and is read as a file.
+      // Its bytes moved with the generated-Dart changes
+      // (collection-directory part URI, the category-neutral ref, and the
+      // additive runtime provenance); the DELIVERY bytes below did not move at
+      // all, which is the property this baseline exists to hold.
+      expect(
+        sha256
+            .convert(
+              File(
+                'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
+              ).readAsBytesSync(),
+            )
+            .toString(),
+        '7a957c6f48b7af23359c9c9cd2d503e45ba345556bd7830f78b3b7676c6ab8c5',
+        reason:
+            'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
+      );
+
+      const delivery = <String, String>{
         'assets/onboarding/screens/opaque_screen_proof.rfwtxt':
             '5c173d7ce6d0a76ae96ed06113f1c22e76b311460788358d4a5f9fc68c722198',
         'assets/onboarding/screens/opaque_screen_proof.rfw':
@@ -19,9 +37,12 @@ void main() {
             'f470665b7fa83785910bb6a81165146ef3f65ffbb88d3f1cbd0698b74304a969',
       };
 
-      for (final entry in expected.entries) {
+      final packaged = _packagedArtifacts();
+      for (final entry in delivery.entries) {
+        final bytes = packaged[entry.key];
+        expect(bytes, isNotNull, reason: entry.key);
         expect(
-          sha256.convert(File(entry.key).readAsBytesSync()).toString(),
+          sha256.convert(bytes!).toString(),
           entry.value,
           reason: entry.key,
         );
@@ -31,9 +52,10 @@ void main() {
 
   test('RFW text, capability, and flow-facing descriptor stay exact', () {
     expect(
-      File(
-        'assets/onboarding/screens/opaque_screen_proof.rfwtxt',
-      ).readAsStringSync(),
+      utf8.decode(
+        _packagedArtifacts()['assets/onboarding/screens/'
+            'opaque_screen_proof.rfwtxt']!,
+      ),
       'import restage.core;\n'
       'import restage.material;\n'
       'import restage.cupertino;\n'
@@ -50,9 +72,10 @@ void main() {
     expect(OpaqueScreenProofDescriptor.ref.version, 1);
     expect(OpaqueScreenProofDescriptor.ref.minClient, 1);
     expect(
-      File(
-        'assets/onboarding/screens/opaque_screen_proof.capability.json',
-      ).readAsStringSync(),
+      utf8.decode(
+        _packagedArtifacts()['assets/onboarding/screens/'
+            'opaque_screen_proof.capability.json']!,
+      ),
       '{\n'
       '  "blobSha256": '
       '"sha256:52a780c74fe59fd5f8d61b8e8e9039ad031fe99529416ed4c4d5746bb3a074bd",\n'
@@ -63,4 +86,21 @@ void main() {
       '}',
     );
   });
+}
+
+/// Every logical delivery artifact this package ships, read out of the
+/// deterministic containers it packages them into.
+Map<String, List<int>> _packagedArtifacts() {
+  final entries = <String, List<int>>{};
+  final bundles = Directory('assets/restage/bundles');
+  if (!bundles.existsSync()) return entries;
+  for (final file in bundles.listSync(recursive: true).whereType<File>()) {
+    if (!file.path.endsWith('.rsbundle')) continue;
+    for (final entry in RestageBundleCodec.decode(
+      file.readAsBytesSync(),
+    ).entries) {
+      entries[entry.logicalPath] = entry.bytes;
+    }
+  }
+  return entries;
 }

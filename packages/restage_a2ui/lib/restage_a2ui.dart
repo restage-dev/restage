@@ -8,6 +8,7 @@
 /// render. It is not a general validator for every inner A2UI payload shape.
 library;
 
+export 'src/catalog_capability.dart';
 export 'src/installed_capability.dart';
 export 'src/pre_render_check.dart';
 export 'src/restage_a2ui_sidecar.dart';

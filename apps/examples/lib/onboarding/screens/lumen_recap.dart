@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'lumen_recap.rsscreen.g.dart';
+part 'restage.generated/lumen_recap.restage.g.dart';
 
 /// Onboarding — the "you're all set" recap before the paywall step.
 ///
 /// A short confirmation that the routine is ready, then the [next] event hands
 /// off to the embedded paywall screen (the subscription climax).
-@ScreenSource(id: 'lumen_recap')
+@Screen()
 class LumenRecapScreen extends StatelessWidget {
   /// Advances to the embedded paywall step.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const LumenRecapScreen({super.key});
 
@@ -81,7 +81,7 @@ class LumenRecapScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: onboardingEvent(next),
+                      onPressed: surfaceEvent(next),
                       child: const Text(
                         'See your plan',
                         style: TextStyle(

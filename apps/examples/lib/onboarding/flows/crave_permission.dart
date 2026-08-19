@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 import '../screens/crave_location.dart';
 import '../screens/crave_ready.dart';
 
-part 'crave_permission.rsflow.g.dart';
+part 'restage.generated/crave_permission.restage.g.dart';
 
 /// A location permission-priming flow: a value-first primer whose grant is a
 /// host-action **gate**, then a confirmation.
@@ -13,7 +13,7 @@ part 'crave_permission.rsflow.g.dart';
 /// conditional the flow runtime offers — advance-or-stay). The primer's
 /// "Not now" is a host-handled custom event (continue without the grant); the
 /// flow itself never proceeds on permission it did not get.
-@FlowSource(id: 'crave_permission', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class CravePermissionFlow extends RestageFlow {
   /// Host action that requests the OS location permission and reports the grant.
   /// The flow advances to the confirmation only on a granted result.

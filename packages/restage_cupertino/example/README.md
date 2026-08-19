@@ -14,8 +14,8 @@ step lowers it against the catalog into an inert render blob.
 import 'package:flutter/cupertino.dart';
 import 'package:restage/restage.dart';
 
-@PaywallSource(id: 'pro')
-class ProSurface extends StatelessWidget {
+@Paywall(id: 'pro')
+final class ProSurface extends StatelessWidget {
   const ProSurface({super.key});
 
   @override
@@ -38,6 +38,14 @@ A build step lowers this standard Flutter tree to a render blob:
 
 ```sh
 dart run build_runner build
+```
+
+The generated manifest at
+`lib/generated/restage.publication.json` records the surface identity
+and exact artifact closure. Publish by generated slug:
+
+```sh
+restage surface publish pro
 ```
 
 The same widgets compose any surface — paywalls, onboarding, messages, or

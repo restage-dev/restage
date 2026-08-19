@@ -22,6 +22,13 @@ lowers a broad set faithfully (`Text.rich`, `Theme.of(context)`, `Navigator.push
 and pure-composition custom widgets) and fails loudly at build time on anything it can't represent,
 never a silent partial render.
 
+Ordinary surface authoring uses `@Screen`, `@Paywall`, and
+`@FlowGraph(surface: Surface.<category>)`. A neutral `@Screen()` is reusable
+inside a flow; a categorized `@Screen` is independently published. The source
+annotation supplies source semantics and category. Generated metadata records the
+resolved identity and publication artifact closure, not a source or asset
+directory.
+
 > **Emitting a genui A2UI catalog from your widgets?**
 > The same generator projects a [genui](https://pub.dev/packages/genui) **A2UI**
 > catalog from your `@RestageWidget` source. Follow the **[step-by-step A2UI
@@ -34,22 +41,25 @@ never a silent partial render.
 You don't import this package's library API in app code. It is a set of
 `build_runner` builders, declared in `build.yaml` and applied automatically to
 dependents (`auto_apply: dependents`). You add it as a `dev_dependency` and run
-`dart run build_runner build`; the builders pick up the right inputs by file
-location and write their outputs alongside them.
+`dart run build_runner build`; the builders pick up supported inputs and write
+their generated outputs alongside them. Source location is not publication
+identity.
 
 The builders are:
 
-- **`restageCodegenBuilder`** translates a surface authored as Flutter source
-  (an annotated class) or as a hand-authored `.rfwtxt` under `lib/paywalls/`
-  into the `.rfwtxt` + `.rfw` blob, a capability manifest, and a navigation
-  plan.
+- **`restageCodegenBuilder`** translates canonical annotated Flutter sources
+  (`@Screen`, `@Paywall`, and `@FlowGraph`) into the `.rfwtxt` + `.rfw` blob,
+  capability metadata, and a navigation plan. It also supports the
+  hand-authored `.rfwtxt` input for low-level workflows that need it. That
+  input is a builder convention, not a replacement for annotation-declared
+  identity or generated publication metadata.
 - **`paywallFlowBuilder`** emits the declarative flow document for a
   surface whose source navigates across more than one screen.
 - **`onboardingScreenBuilder`** translates an onboarding screen source into
-  a typed screen descriptor (`.rsscreen.g.dart`) plus its `.rfwtxt` / `.rfw`
-  blob and capability manifest.
+  a typed screen descriptor (`restage.generated/<name>.restage.g.dart`) plus its
+  `.rfwtxt` / `.rfw` blob and capability manifest.
 - **`onboardingFlowBuilder`** emits the typed flow descriptor
-  (`.rsflow.g.dart`) and flow document for a multi-screen flow.
+  (same generated file) and flow document for a multi-screen flow.
 - **`userCatalogBuilder`** walks a package for `@RestageWidget`-annotated
   classes and emits a single aggregated customer catalog.
 - **`userA2uiCatalogBuilder`** is the opt-in A2UI target. It emits generated
@@ -73,8 +83,12 @@ From a single surface source, the generator emits:
   blob declares, so an older reader fails closed rather than misrendering.
 - **A flow document / navigation plan**: the declarative multi-screen
   topology, for surfaces that move between screens.
-- **Generated Dart descriptors**: typed screen/flow accessors for
-  onboarding-style flows.
+- **Generated Dart descriptors**: typed `SurfaceScreenRef<E>` and
+  `SurfaceFlowRef<R>` accessors carrying category, compatibility, and event or
+  result contracts.
+- **A publication manifest** at
+  `lib/generated/restage.publication.json`: the exact generated
+  artifact closure for each surface slug.
 
 The OTA/runtime wire artifacts it emits contain only inert data: references
 and literal values, never executable code. Generated Dart descriptors and
@@ -114,6 +128,19 @@ already contains one may require restarting `dart run build_runner watch` so
 the package-wide story output is rescanned. The initial release does not claim
 complete asset-graph invalidation for that annotation-set change. A normal
 `dart run build_runner build` performs the complete scan.
+
+## Publish generated metadata
+
+After generation, publish a surface by its generated slug:
+
+```sh
+dart run build_runner build
+restage surface publish <slug>
+```
+
+The CLI reads the fixed publication manifest. `--type` is optional validation or
+disambiguation only. A guessed artifact path or source directory does not choose
+what is published.
 
 ## License
 

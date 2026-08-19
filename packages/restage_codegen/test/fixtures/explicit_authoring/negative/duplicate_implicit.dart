@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'duplicate_implicit.rsscreen.g.dart';
+part 'restage.generated/duplicate_implicit.restage.g.dart';
 
 // The file name can derive only one ID. Both declarations intentionally omit
 // id so the package roster rejects the library before partial output.

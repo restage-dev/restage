@@ -10,6 +10,7 @@ import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/discovery/context_discovery.dart';
+import 'package:restage_cli/src/init/gitignore_editor.dart';
 import 'package:restage_cli/src/init/pubspec_editor.dart'
     show
         AddDependenciesPlan,
@@ -34,16 +35,18 @@ const Map<String, String> _defaultDevDeps = {
 /// Bootstrap a Flutter project for Restage.
 ///
 /// The wizard prompts for project, app, and (default) environment
-/// slugs, then writes three artifacts:
+/// slugs, then writes four artifacts:
 ///
 ///   1. `restage_config.yaml` at the project root.
-///   2. A starter paywall under `lib/paywalls/`.
+///   2. A canonical `@Paywall` starter under `lib/paywalls/`.
 ///   3. Edits to `pubspec.yaml` adding the SDK + codegen dependencies.
+///   4. Portable generated-output rules in the project's `.gitignore`.
 ///
-/// Each artifact has an opt-out flag (`--no-starter`, `--no-wire-deps`)
-/// and the wizard can be skipped end-to-end with `--non-interactive` +
-/// the per-value flags. `--dry-run` prints the planned changes without
-/// writing.
+/// The starter and dependency edits have opt-out flags
+/// (`--no-starter`, `--no-wire-deps`); portable-output rules are additive,
+/// idempotent, and can be removed or negated in `.gitignore`. The wizard can
+/// be skipped end-to-end with `--non-interactive` + the per-value flags.
+/// `--dry-run` prints the planned changes without writing.
 ///
 /// Re-running is idempotent: existing artifacts are preserved (the
 /// wizard prompts before overwriting; non-interactive mode keeps the
@@ -77,7 +80,7 @@ class InitCommand extends Command<int> {
       )
       ..addFlag(
         'starter',
-        help: 'Write a starter paywall to `lib/paywalls/`.',
+        help: 'Write a canonical `@Paywall` starter to `lib/paywalls/`.',
         defaultsTo: true,
       )
       ..addFlag(
@@ -105,8 +108,8 @@ class InitCommand extends Command<int> {
 
   @override
   String get description =>
-      'Bootstrap a Flutter project for Restage — writes config, a '
-      'starter paywall, and pubspec wiring.';
+      'Bootstrap a Flutter project for Restage — writes config, a canonical '
+      'starter paywall, pubspec wiring, and portable-output ignores.';
 
   @override
   Future<int> run() async {
@@ -153,17 +156,36 @@ class InitCommand extends Command<int> {
     final starterFile = File(
       p.join(root.path, 'lib', 'paywalls', 'starter.dart'),
     );
+    final gitignoreFile = File(p.join(root.path, '.gitignore'));
+    final gitignoreExists = gitignoreFile.existsSync();
+    final gitignoreSource = gitignoreExists
+        ? await gitignoreFile.readAsString()
+        : '';
+    final gitignorePlan = planPortableOutputIgnores(gitignoreSource);
 
     _printPlan(
       configFile: configFile,
       wantsStarter: wantsStarter,
       starterFile: starterFile,
       pubspecPlan: pubspecPlan,
+      gitignoreFile: gitignoreFile,
+      gitignoreExists: gitignoreExists,
+      gitignorePlan: gitignorePlan,
     );
 
     if (dryRun) return 0;
 
     // Apply.
+    if (gitignorePlan.isNoOp) {
+      _stdout.writeln('Kept existing .gitignore portable-output rules.');
+    } else {
+      await gitignoreFile.writeAsString(gitignorePlan.source);
+      _stdout.writeln(
+        '${gitignoreExists ? 'Updated' : 'Wrote'} .gitignore with '
+        'portable-output rules.',
+      );
+    }
+
     if (configFile.existsSync()) {
       _stdout.writeln(
         'Kept existing restage_config.yaml (delete it to regenerate).',
@@ -208,7 +230,7 @@ class InitCommand extends Command<int> {
       ..writeln()
       ..writeln(
         'Next: run `dart pub get && dart run build_runner build`, then '
-        '`restage paywall publish starter` to push the starter to the '
+        '`restage surface publish starter` to push the starter to the '
         '`${context.environment ?? '<environment>'}` environment.',
       );
     return 0;
@@ -393,6 +415,9 @@ class InitCommand extends Command<int> {
     required bool wantsStarter,
     required File starterFile,
     required AddDependenciesPlan? pubspecPlan,
+    required File gitignoreFile,
+    required bool gitignoreExists,
+    required PortableOutputIgnorePlan gitignorePlan,
   }) {
     _stdout.writeln('Planned changes:');
     _stdout.writeln(
@@ -427,6 +452,13 @@ class InitCommand extends Command<int> {
     } else if (pubspecPlan != null) {
       _stdout.writeln('  pubspec.yaml: already wired (no-op)');
     }
+    _stdout.writeln(
+      '  ${gitignorePlan.isNoOp
+          ? 'keep'
+          : gitignoreExists
+          ? 'update'
+          : 'create'} ${gitignoreFile.path} (.gitignore portable-output rules)',
+    );
     _stdout.writeln();
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'start.rsscreen.g.dart';
+part 'restage.generated/start.restage.g.dart';
 
 @ScreenSource(id: 'start')
 final class StartScreen extends StatelessWidget {

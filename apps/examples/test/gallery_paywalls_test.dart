@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +12,8 @@ import 'package:restage_example/stub_products.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+
+import '_support/bundled_artifacts.dart';
 
 class _StaticResolver implements VariantResolver {
   _StaticResolver(this.bytes);
@@ -84,7 +84,7 @@ Uint8List _encodePaywall(String paywallId) => _blobCache.putIfAbsent(
       () => Uint8List.fromList(
         encodeLibraryBlob(
           parseLibraryFile(
-            File('assets/paywalls/$paywallId.rfwtxt').readAsStringSync(),
+            readDeliveryText('assets/paywalls/$paywallId.rfwtxt'),
           ),
         ),
       ),

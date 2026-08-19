@@ -4,10 +4,14 @@ import 'package:path/path.dart' as p;
 import 'package:restage_shared/restage_shared.dart';
 
 import 'publication_errors.dart';
+import 'publication_outputs.dart';
 
-/// The fixed generated manifest location within a project package.
+/// The default generated publication manifest location within a package.
+///
+/// Configured `output_root` values and transient Build Runner overrides are
+/// resolved from the generated output index instead of this default path.
 const String surfacePublicationManifestRelativePath =
-    'assets/restage/surface-publication-manifest.json';
+    'lib/generated/restage.publication.json';
 
 /// The fixed code-generation failure marker consumed by the freshness gate.
 const String surfacePublicationInvalidRelativePath =
@@ -22,6 +26,7 @@ final class LoadedSurfacePublicationManifest {
     required this.manifestFile,
     required this.invalidMarkerFile,
     required this.manifest,
+    required this.outputIndex,
   });
 
   /// The project package root used for fixed generated asset paths.
@@ -35,6 +40,9 @@ final class LoadedSurfacePublicationManifest {
 
   /// The strict generated manifest.
   final SurfacePublicationManifestV1 manifest;
+
+  /// The physical locators paired with [manifest].
+  final RestageOutputIndex outputIndex;
 
   /// Select one generated identity for publication.
   ///
@@ -52,7 +60,7 @@ final class LoadedSurfacePublicationManifest {
     if (bySlug.isEmpty) {
       throw PublicationManifestException(
         'No generated publication named "$slug" was found in '
-        '$surfacePublicationManifestRelativePath. Re-run '
+        '${outputIndex.publicationManifestPath}. Re-run '
         '`dart run build_runner build` and retry.',
       );
     }
@@ -129,9 +137,6 @@ final class SurfacePublicationManifestLoader {
     required Directory projectRoot,
   }) async {
     final root = projectRoot.absolute;
-    final manifestFile = File(
-      p.join(root.path, surfacePublicationManifestRelativePath),
-    );
     final invalidMarkerFile = File(
       p.join(root.path, surfacePublicationInvalidRelativePath),
     );
@@ -142,23 +147,12 @@ final class SurfacePublicationManifestLoader {
         'state by re-running `dart run build_runner build`, then retry.',
       );
     }
-    if (!manifestFile.existsSync()) {
-      throw const PublicationManifestException(
-        'No generated publication manifest was found at '
-        '`assets/restage/surface-publication-manifest.json`. Run '
-        '`dart run build_runner build` and retry.',
-      );
-    }
 
-    final String source;
-    try {
-      source = await manifestFile.readAsString();
-    } on FileSystemException {
-      throw const PublicationManifestException(
-        'The generated publication manifest could not be read. Re-run '
-        '`dart run build_runner build` and retry.',
-      );
-    }
+    final located = await RestagePublicationOutputsLoader().load(
+      projectRoot: root,
+    );
+    final manifestFile = located.publicationFile;
+    final source = located.publicationManifestSource;
 
     final SurfacePublicationManifestV1 manifest;
     try {
@@ -177,12 +171,22 @@ final class SurfacePublicationManifestLoader {
         '`dart run build_runner build` and retry.',
       );
     }
+    try {
+      located.index.validateAgainstManifest(manifest);
+    } on FormatException catch (error) {
+      throw PublicationManifestException(
+        'The generated output index does not match the canonical publication '
+        'manifest: ${error.message} Re-run `dart run build_runner build` and '
+        'retry.',
+      );
+    }
 
     return LoadedSurfacePublicationManifest(
       projectRoot: root,
       manifestFile: manifestFile,
       invalidMarkerFile: invalidMarkerFile,
       manifest: manifest,
+      outputIndex: located.index,
     );
   }
 }

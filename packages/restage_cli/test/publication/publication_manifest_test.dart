@@ -20,7 +20,7 @@ void main() {
     if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
-  test('loads the fixed canonical generated manifest', () async {
+  test('loads the canonical generated publication metadata pair', () async {
     final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
 
     final loaded = await SurfacePublicationManifestLoader().load(
@@ -59,31 +59,44 @@ void main() {
     );
   });
 
-  test('missing manifest fails closed without directory fallback', () async {
-    final artifact = File(p.join(tempDir.path, 'assets/paywalls/checkout.rfw'));
-    await artifact.parent.create(recursive: true);
-    await artifact.writeAsBytes(const <int>[1, 2, 3]);
+  test(
+    'missing generated metadata fails closed without directory fallback',
+    () async {
+      final artifact = File(
+        p.join(tempDir.path, 'assets/paywalls/checkout.rfw'),
+      );
+      await artifact.parent.create(recursive: true);
+      await artifact.writeAsBytes(const <int>[1, 2, 3]);
 
-    await expectLater(
-      SurfacePublicationManifestLoader().load(projectRoot: tempDir),
-      throwsA(
-        isA<PublicationManifestException>().having(
-          (error) => error.message,
-          'message',
-          contains('No generated publication manifest'),
+      await expectLater(
+        SurfacePublicationManifestLoader().load(projectRoot: tempDir),
+        throwsA(
+          isA<PublicationManifestException>().having(
+            (error) => error.message,
+            'message',
+            contains('No generated publication output index'),
+          ),
         ),
-      ),
-    );
-  });
+      );
+    },
+  );
 
   test('rejects a noncanonical manifest as stale generated output', () async {
     await seedGeneratedPaywall(tempDir);
     final manifestFile = File(
       p.join(tempDir.path, surfacePublicationManifestRelativePath),
     );
-    final value = jsonDecode(await manifestFile.readAsString());
-    await manifestFile.writeAsString(
-      const JsonEncoder.withIndent('  ').convert(value),
+    final reformatted = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(jsonDecode(await manifestFile.readAsString()));
+    await manifestFile.writeAsString(reformatted);
+    // Re-stamp the fingerprint so the index still vouches for these exact
+    // bytes; the manifest's own canonical form is what must fail here.
+    await mutateGeneratedIndex(
+      tempDir,
+      (index) => index['generationFingerprint'] = CapabilitySidecar.hashBlob(
+        utf8.encode(reformatted),
+      ),
     );
 
     await expectLater(

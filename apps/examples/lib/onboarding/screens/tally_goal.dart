@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_goal.rsscreen.g.dart';
+part 'restage.generated/tally_goal.restage.g.dart';
 
 /// Onboarding — the goal fork (the headline answer-driven branch).
 ///
@@ -9,16 +9,16 @@ part 'tally_goal.rsscreen.g.dart';
 /// written into flow-state and the user is routed to a goal-specific plan
 /// screen (a genuinely different next screen per answer — not a tailored
 /// variant of one screen).
-@ScreenSource(id: 'tally_goal')
+@Screen()
 class TallyGoalScreen extends StatelessWidget {
   /// The user wants to pay off debt.
-  static const debt = OnboardingEvent<void>('debt');
+  static const debt = SurfaceEvent<void>('debt');
 
   /// The user wants to build savings.
-  static const savings = OnboardingEvent<void>('savings');
+  static const savings = SurfaceEvent<void>('savings');
 
   /// The user wants to start investing.
-  static const invest = OnboardingEvent<void>('invest');
+  static const invest = SurfaceEvent<void>('invest');
 
   const TallyGoalScreen({super.key});
 
@@ -54,7 +54,7 @@ class TallyGoalScreen extends StatelessWidget {
               ),
               const SizedBox(height: 28),
               GestureDetector(
-                onTap: onboardingEvent(debt),
+                onTap: surfaceEvent(debt),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -112,7 +112,7 @@ class TallyGoalScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               GestureDetector(
-                onTap: onboardingEvent(savings),
+                onTap: surfaceEvent(savings),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -170,7 +170,7 @@ class TallyGoalScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               GestureDetector(
-                onTap: onboardingEvent(invest),
+                onTap: surfaceEvent(invest),
                 child: Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(

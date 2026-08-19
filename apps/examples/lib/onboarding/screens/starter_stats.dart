@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 import '../../widgets/minimal_custom_widget.dart';
 
-part 'starter_stats.rsscreen.g.dart';
+part 'restage.generated/starter_stats.restage.g.dart';
 
 /// A delivered surface that renders your own custom widget.
 ///
@@ -13,10 +13,10 @@ part 'starter_stats.rsscreen.g.dart';
 /// resolves it through the factory you registered and renders the real widget.
 /// So your widget travels inside the server-delivered blob — proof a custom
 /// widget is a first-class catalog citizen, not just local Flutter.
-@ScreenSource(id: 'starter_stats')
+@Screen()
 class StarterStatsScreen extends StatelessWidget {
   /// Completes the surface.
-  static const done = OnboardingEvent<void>('done');
+  static const done = SurfaceEvent<void>('done');
 
   /// Const constructor.
   const StarterStatsScreen({super.key});
@@ -58,7 +58,7 @@ class StarterStatsScreen extends StatelessWidget {
               const Center(child: StatBadge(label: 'Rank', value: 'Top 5%')),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(done),
+                onPressed: surfaceEvent(done),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

@@ -5,7 +5,7 @@ import '../screens/reel_kept.dart';
 import '../screens/reel_offer.dart';
 import '../screens/reel_reason.dart';
 
-part 'reel_cancel.rsflow.g.dart';
+part 'restage.generated/reel_cancel.restage.g.dart';
 
 /// A "before you cancel" retention survey: two linear questions → a save-offer
 /// **host-action gate** → a retained confirmation.
@@ -18,7 +18,7 @@ part 'reel_cancel.rsflow.g.dart';
 /// (confirm the cancellation); the decline is host-owned, not a second graph
 /// transition. The terminal result is a data-minimization-filtered `retained`
 /// outcome the host collects.
-@FlowSource(id: 'reel_cancel', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class ReelCancelFlow extends RestageFlow {
   /// Host action that applies the retention discount and reports the redemption.
   /// The flow advances to the confirmation only on a redeemed result.

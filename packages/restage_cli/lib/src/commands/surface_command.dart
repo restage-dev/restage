@@ -13,11 +13,12 @@ import 'package:restage_cli/src/io/interactive.dart';
 
 /// Parent of the surface subcommands.
 ///
-/// An engagement surface (onboarding, message, survey, or general) is authored
-/// in Dart,
-/// compiled to a flow document plus per-screen blobs by the build step, and
-/// published to the backend through the shared delivery substrate. Adding a
-/// new surface-scoped command is a single `addSubcommand` call here.
+/// Generated publication metadata is the authority for surface identity and
+/// artifact assembly. An engagement surface (onboarding, message, survey,
+/// paywall, or general) is authored in Dart, compiled to a flow document plus
+/// per-screen blobs by the build step, and published to the backend through the
+/// shared delivery substrate. Adding a new surface-scoped command is a single
+/// `addSubcommand` call here.
 class SurfaceCommand extends Command<int> {
   /// Construct a surface command group.
   SurfaceCommand({
@@ -116,6 +117,6 @@ class SurfaceCommand extends Command<int> {
 
   @override
   String get description =>
-      'Assemble and publish engagement surfaces (onboarding, message, survey, '
-      'general) in the current project and app.';
+      'Manifest-driven publication and lifecycle for generated Flutter '
+      'surfaces (including paywalls) in the current project and app.';
 }

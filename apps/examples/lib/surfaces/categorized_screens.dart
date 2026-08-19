@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'categorized_screens.rsscreen.g.dart';
+part 'restage.generated/categorized_screens.restage.g.dart';
 
 @Screen(id: 'onboarding_welcome', surface: Surface.onboarding)
 final class OnboardingWelcome extends StatelessWidget {

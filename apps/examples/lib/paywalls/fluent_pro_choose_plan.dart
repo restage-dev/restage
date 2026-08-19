@@ -4,7 +4,7 @@ import 'package:restage/restage.dart';
 /// "Choose a plan" all-tiers screen — the pushed screen of the lowered
 /// [FluentProPaywall] flow.
 ///
-/// Authored as a standard [PaywallSource]; the entry paywall's "VIEW ALL PLANS"
+/// Authored as a standard [Paywall]; the entry paywall's "VIEW ALL PLANS"
 /// control (`Navigator.push(context, MaterialPageRoute(builder: (_) => const
 /// FluentProChoosePlanScreen()))`) lowers to a flow transition into this screen,
 /// and the `() => Navigator.pop(context)` back chevron lowers to the runtime's
@@ -42,7 +42,7 @@ import 'package:restage/restage.dart';
 /// Fixed-brand, single-brightness surface authored with explicit colour
 /// literals, so it never reads the ambient theme. Transpilable-authoring rules:
 /// flat tree, no extracted helper widgets, inline values.
-@PaywallSource(id: 'fluent_pro_choose_plan')
+@Paywall()
 class FluentProChoosePlanScreen extends StatefulWidget {
   const FluentProChoosePlanScreen({super.key});
 

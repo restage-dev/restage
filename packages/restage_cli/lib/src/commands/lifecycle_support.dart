@@ -75,8 +75,9 @@ void addLifecycleOptions(
     parser.addOption(
       'type',
       help:
-          'Surface type (optional with a generated manifest): onboarding, '
-          'message, survey, paywall, general.',
+          'Deprecated validation/disambiguation selector only; omit it when '
+          'using a generated manifest, which is authoritative. Values: '
+          'onboarding, message, survey, paywall, general.',
     );
   }
   if (withSourceKind) {

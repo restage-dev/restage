@@ -1,5 +1,0 @@
-import restage.core;
-import restage.material;
-import restage.cupertino;
-
-widget Paywall = FilledButton(onPressed: event "restage.purchase" { slot: "primary" }, child: Text(text: "Upgrade"));

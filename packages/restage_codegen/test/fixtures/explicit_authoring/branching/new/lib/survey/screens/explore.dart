@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'explore.rsscreen.g.dart';
+part 'restage.generated/explore.restage.g.dart';
 
 @Screen()
 final class ExploreScreen extends StatelessWidget {

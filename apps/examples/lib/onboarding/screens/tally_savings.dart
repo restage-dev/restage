@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_savings.rsscreen.g.dart';
+part 'restage.generated/tally_savings.restage.g.dart';
 
 /// Onboarding — the savings setup (the "Build savings" fork destination).
 ///
 /// A genuinely goal-specific screen: a savings-target hero + an auto-save card +
 /// an on-track stat. Reached only when the user picked the savings goal; [next]
 /// continues to the routing decision.
-@ScreenSource(id: 'tally_savings')
+@Screen()
 class TallySavingsScreen extends StatelessWidget {
   /// Continues to the plan recap.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const TallySavingsScreen({super.key});
 
@@ -156,7 +156,7 @@ class TallySavingsScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(next),
+                onPressed: surfaceEvent(next),
                 child: const Text(
                   'Continue',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

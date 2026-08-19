@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'complex_flow.rsflow.g.dart';
+part 'restage.generated/complex_flow.restage.g.dart';
 
 @FlowGraph(surface: Surface.onboarding)
 final class ComplexFlow extends RestageFlow {

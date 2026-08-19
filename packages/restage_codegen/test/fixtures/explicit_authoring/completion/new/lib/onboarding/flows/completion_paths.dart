@@ -4,7 +4,7 @@ import '../screens/accepted.dart';
 import '../screens/declined.dart';
 import '../screens/start.dart';
 
-part 'completion_paths.rsflow.g.dart';
+part 'restage.generated/completion_paths.restage.g.dart';
 
 @FlowGraph(surface: Surface.onboarding)
 const completionPaths = FlowDefinition(

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 /// First-run onboarding — the welcome screen.
 ///
 /// ## Authoring an onboarding screen
 ///
-/// An onboarding screen is a `StatelessWidget` annotated `@ScreenSource`,
+/// An onboarding screen is a `StatelessWidget` annotated `@Screen`,
 /// authored in the same standard Flutter syntax as a paywall. The build-time
 /// codegen lowers it to a render blob and emits a screen descriptor the flow
 /// references by name. Each screen declares the events it can fire as static
-/// `OnboardingEvent` fields; a button wires one with `onboardingEvent(...)`,
+/// `SurfaceEvent` fields; a button wires one with `surfaceEvent(...)`,
 /// which codegen replaces with a flow-event reference (it never runs at
 /// runtime). The flow graph (see `lib/onboarding/flows/first_run.dart`) decides
 /// where each event leads.
@@ -31,10 +31,10 @@ part 'welcome.rsscreen.g.dart';
 /// The full-width CTA uses an `Expanded` child in a `Row` (not
 /// `SizedBox(width: double.infinity)`, which does not survive lowering — see
 /// the paywall templates).
-@ScreenSource(id: 'welcome')
+@Screen()
 class WelcomeScreen extends StatelessWidget {
   /// Advances to the value screen.
-  static const next = OnboardingEvent<void>('next');
+  static const next = SurfaceEvent<void>('next');
 
   const WelcomeScreen({super.key});
 
@@ -104,7 +104,7 @@ class WelcomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: onboardingEvent(next),
+                      onPressed: surfaceEvent(next),
                       child: const Text(
                         'Get started',
                         style: TextStyle(

@@ -28,7 +28,7 @@ import 'fluent_pro_choose_plan.dart';
 /// ## "View all plans" is a real navigation
 ///
 /// The "VIEW ALL PLANS" control is a real `Navigator.push` to a second
-/// [PaywallSource] ([FluentProChoosePlanScreen]); the build-time codegen lowers
+/// [Paywall] ([FluentProChoosePlanScreen]); the build-time codegen lowers
 /// it to a 2-screen flow (entry → choose-a-plan), and the entry's back
 /// affordance fires `paywallEvent('skip')` — the flow's required terminator.
 /// RestagePaywall hosts the lowered flow transparently (no host-code change).
@@ -36,7 +36,7 @@ import 'fluent_pro_choose_plan.dart';
 /// The mascot hero is a glowing gradient capsule with sparkle accents — a
 /// lightweight stand-in for a real mascot illustration, composed from catalog
 /// primitives so the whole surface travels in the render blob.
-@PaywallSource(id: 'fluent_pro')
+@Paywall()
 class FluentProPaywall extends StatefulWidget {
   const FluentProPaywall({super.key});
 

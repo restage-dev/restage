@@ -2,14 +2,14 @@
 // ignore_for_file: public_member_api_docs
 
 import 'package:analyzer/dart/analysis/results.dart';
-import 'package:analyzer/dart/analysis/utilities.dart';
-import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/target_routing_reader.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' show EmitTarget;
@@ -65,13 +65,9 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
   BuildStep buildStep, {
   required AssetId assetId,
   required LibraryElement library,
+  RestageOutputPlacementPlan? plan,
 }) async {
   final sourceText = await buildStep.readAsString(assetId);
-  final sourceUnit = parseString(
-    content: sourceText,
-    path: assetId.path,
-    throwIfDiagnostics: false,
-  ).unit;
   final annotatedClasses = library.classes
       .where(
         (cls) =>
@@ -120,16 +116,13 @@ Future<ScreenSourceAdmission> inspectScreenSourceAdmission(
     );
   }
 
-  final expectedPart = '$stem.rsscreen.g.dart';
-  if (!_hasPartDirective(sourceUnit, expectedPart)) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingPartDirective,
-        message: "Missing `part '$expectedPart';` directive.",
-        location: assetId.path,
-      ),
-    );
-  }
+  issues.addAll(
+    neutralPartDirectiveIssuesForSource(
+      sourceText: sourceText,
+      libraryPath: assetId.path,
+      plan: plan ?? RestageOutputPlacementPlan.defaults,
+    ),
+  );
 
   if (annotatedClasses.length != 1) {
     issues.add(
@@ -187,8 +180,3 @@ String _fileStem(String path) {
       ? filename.substring(0, filename.length - '.dart'.length)
       : filename;
 }
-
-bool _hasPartDirective(CompilationUnit unit, String expectedPart) =>
-    unit.directives
-        .whereType<PartDirective>()
-        .any((directive) => directive.uri.stringValue == expectedPart);

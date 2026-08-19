@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'starter_notice.rsscreen.g.dart';
+part 'restage.generated/starter_notice.restage.g.dart';
 
 /// A minimal general surface — one screen, framed as "any screen you render."
 ///
@@ -16,13 +16,13 @@ part 'starter_notice.rsscreen.g.dart';
 ///   away.
 ///
 /// Theme-adaptive, so it repaints with the app theme.
-@ScreenSource(id: 'starter_notice')
+@Screen()
 class StarterNoticeScreen extends StatelessWidget {
   /// The primary action — completes the flow so the host can act.
-  static const act = OnboardingEvent<void>('act');
+  static const act = SurfaceEvent<void>('act');
 
   /// Dismisses the surface (host-handled custom event).
-  static const dismiss = OnboardingEvent<void>('dismiss');
+  static const dismiss = SurfaceEvent<void>('dismiss');
 
   /// Const constructor.
   const StarterNoticeScreen({super.key});
@@ -41,7 +41,7 @@ class StarterNoticeScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed: onboardingEvent(dismiss),
+                    onPressed: surfaceEvent(dismiss),
                     icon: Icon(
                       Icons.close_rounded,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -78,7 +78,7 @@ class StarterNoticeScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(act),
+                onPressed: surfaceEvent(act),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

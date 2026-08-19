@@ -21,6 +21,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -30,13 +32,13 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       expect(
         generated,
         allOf(
-          contains("part of 'first_run.dart';"),
+          contains("part of '../first_run.dart';"),
           contains('abstract final class FirstRunFlowDescriptor'),
           contains('SurfaceFlowRef<FirstRunResult>'),
           contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
@@ -65,6 +67,41 @@ void main() {
       final document = FlowDocumentCodec.decodeJson(utf8.decode(jsonBytes));
       expect(document.legacyTerminalResultPassthrough, isFalse);
       expect(utf8.decode(jsonBytes), contains('"outbound":{}'));
+    });
+
+    test(
+        'resolves imported legacy screen descriptors from the screen source, '
+        'not from generated Dart', () async {
+      // The four descriptor fields a legacy flow needs from an imported
+      // screen — id, artifact path, version and minClient — used to be
+      // scraped out of the screen builder's generated Dart. That builder no
+      // longer writes one, and the part that does exist is written later in
+      // the chain by the generated-Dart owner, so the fields must come from
+      // the screen's own declaration.
+      //
+      // The pin is the frozen flow document. Those four values are exactly
+      // what the lowered screen references carry, so any drift in how they
+      // resolve moves these bytes.
+      final sources = _firstRunSources();
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+
+      expect(result.succeeded, isTrue);
+      final jsonBytes = result.readerWriter.testing.readBytes(
+        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
+      );
+      expect(utf8.decode(jsonBytes), _firstRunFlowJsonBytes);
+      expect(jsonBytes, _canonicalFirstRunFlowJson());
     });
 
     test('accepts neutral SurfaceEvent transition fields', () async {
@@ -100,6 +137,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -111,7 +150,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/bare_surface.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/bare_surface.restage.g.dart',
         ),
       );
       expect(generated, contains('SurfaceFlowRef<BareSurfaceResult>'));
@@ -155,6 +194,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -166,7 +207,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/bare_surface.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/bare_surface.restage.g.dart',
         ),
       );
       expect(generated, contains('final bool completed;'));
@@ -181,6 +222,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -190,7 +233,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
 
@@ -237,6 +280,8 @@ void main() {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -326,6 +371,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -335,7 +382,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
 
@@ -359,6 +406,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -368,7 +417,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
 
@@ -424,6 +473,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -461,7 +512,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       expect(
@@ -527,6 +578,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -578,7 +631,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       expect(
@@ -617,6 +670,8 @@ void main() {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -694,6 +749,8 @@ void main() {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -724,6 +781,8 @@ void main() {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -735,7 +794,7 @@ void main() {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       expect(generated, contains('final bool completed;'));
@@ -894,7 +953,7 @@ import '../screens/permissions.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class extends RestageFlow {
@@ -920,6 +979,8 @@ final class extends RestageFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -936,7 +997,7 @@ final class extends RestageFlow {
 
     test('local OnboardingFlow annotation lookalikes are ignored', () async {
       const source = '''
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow {
@@ -1010,6 +1071,8 @@ final class OnboardingFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -1023,7 +1086,7 @@ final class OnboardingFlow {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
@@ -1079,6 +1142,8 @@ final class OnboardingFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -1089,7 +1154,7 @@ final class OnboardingFlow {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
 
@@ -1118,6 +1183,8 @@ final class OnboardingFlow {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         sources,
         rootPackage: 'apps_examples',
@@ -1131,7 +1198,7 @@ final class OnboardingFlow {
       final generated = result.readerWriter.testing.readString(
         AssetId(
           'apps_examples',
-          'lib/onboarding/flows/first_run.rsflow.g.dart',
+          'lib/onboarding/flows/restage.generated/first_run.restage.g.dart',
         ),
       );
       final json = jsonDecode(utf8.decode(flowBytes)) as Map<String, Object?>;
@@ -1175,6 +1242,8 @@ final class OnboardingFlow {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1220,6 +1289,8 @@ final class PermissionResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1286,6 +1357,8 @@ final class ActionArgs {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1508,6 +1581,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1550,6 +1625,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1584,6 +1661,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1616,6 +1695,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1722,6 +1803,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           entry.value,
           rootPackage: 'apps_examples',
@@ -1881,6 +1964,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -1928,6 +2013,8 @@ final class NotificationResult {
           [
             onboardingScreenBuilder(BuilderOptions.empty),
             onboardingFlowBuilder(BuilderOptions.empty),
+            restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+            restageGeneratedDartBuilder(BuilderOptions.empty),
           ],
           sources,
           rootPackage: 'apps_examples',
@@ -2398,6 +2485,8 @@ final class NotificationResult {
         [
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
         _decisionRouteSources(),
         rootPackage: 'apps_examples',
@@ -2525,7 +2614,7 @@ Future<void> _assertGeneratedResultDecoderRuns(String generated) async {
   final dir = Directory('.dart_tool/onboarding_flow_builder_test')
     ..createSync(recursive: true);
   final script = File('${dir.path}/generated_decoder_check.dart');
-  final source = generated.replaceFirst("part of 'first_run.dart';", '''
+  final source = generated.replaceFirst("part of '../first_run.dart';", '''
 import 'package:restage/src/flow/flow_descriptors.dart';
 import 'package:restage_shared/restage_shared.dart'
     show FlowDeliveryMode, Surface;
@@ -2579,7 +2668,7 @@ import '../screens/permissions.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -2624,7 +2713,7 @@ import 'package:restage/restage.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -2682,7 +2771,7 @@ import '../screens/permissions.dart';
 import '../screens/ready.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -2754,7 +2843,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -2807,7 +2896,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -2844,7 +2933,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3041,7 +3130,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3110,7 +3199,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3156,7 +3245,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3189,7 +3278,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3224,7 +3313,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3257,7 +3346,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3289,7 +3378,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3332,7 +3421,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3366,7 +3455,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 @OnboardingFlow(id: 'first_run', version: 1, minClient: 3)
 final class FirstRunFlow extends RestageFlow {
@@ -3391,7 +3480,7 @@ String _screenSource(String id, String className, String eventName) => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @OnboardingSource(id: '$id')
 final class $className extends StatelessWidget {
@@ -3425,7 +3514,7 @@ String _eventsScreenSource(
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$id.rsscreen.g.dart';
+part 'restage.generated/$id.restage.g.dart';
 
 @OnboardingSource(id: '$id')
 final class $className extends StatelessWidget {
@@ -3461,7 +3550,7 @@ import 'package:restage/restage.dart';
 import '../screens/goal.dart';
 import '../screens/rating.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -3520,7 +3609,7 @@ import 'package:restage/restage.dart';
 import '../screens/goal.dart';
 import '../screens/sleep.dart';
 
-part 'decision_route.rsflow.g.dart';
+part 'restage.generated/decision_route.restage.g.dart';
 
 @FlowSource(id: 'decision_route', version: 1)
 final class DecisionRouteFlow extends RestageFlow {
@@ -3574,7 +3663,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
 
-part 'decision_route.rsflow.g.dart';
+part 'restage.generated/decision_route.restage.g.dart';
 
 @FlowSource(id: 'decision_route', version: 1)
 final class DecisionRouteFlow extends RestageFlow {
@@ -3655,7 +3744,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
 
-part 'decision_route.rsflow.g.dart';
+part 'restage.generated/decision_route.restage.g.dart';
 
 @FlowSource(id: 'decision_route', version: 1)
 final class DecisionRouteFlow extends RestageFlow {
@@ -3708,7 +3797,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/start.dart';
 
-part 'decision_route.rsflow.g.dart';
+part 'restage.generated/decision_route.restage.g.dart';
 
 @FlowSource(id: 'decision_route', version: 1)
 final class DecisionRouteFlow extends RestageFlow {
@@ -3755,7 +3844,7 @@ import 'package:restage/restage.dart' hide state;
 
 import '../screens/start.dart';
 
-part 'decision_route.rsflow.g.dart';
+part 'restage.generated/decision_route.restage.g.dart';
 
 // A customer construct that happens to spell `state(...).equals(...)` but is
 // NOT the Restage SDK sugar.
@@ -3809,7 +3898,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -3862,7 +3951,7 @@ import 'package:restage/restage.dart';
 import '../screens/goal.dart';
 import '../screens/rating.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -3902,7 +3991,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/rating.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -3935,7 +4024,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -3977,7 +4066,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/goal.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -4020,7 +4109,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/rating.dart';
 
-part 'branching.rsflow.g.dart';
+part 'restage.generated/branching.restage.g.dart';
 
 @FlowSource(id: 'branching', version: 1)
 final class BranchingFlow extends RestageFlow {
@@ -4057,7 +4146,7 @@ Map<String, String> _surfaceEventFlowSources() => {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'notice.rsscreen.g.dart';
+part 'restage.generated/notice.restage.g.dart';
 
 @ScreenSource(id: 'notice')
 final class NoticeScreen extends StatelessWidget {
@@ -4079,7 +4168,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/notice.dart';
 
-part 'notice.rsflow.g.dart';
+part 'restage.generated/notice.restage.g.dart';
 
 @FlowSource(id: 'notice', version: 1)
 final class NoticeFlow extends RestageFlow {
@@ -4108,7 +4197,7 @@ Map<String, String> _bareSurfaceFlowSources() => {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'bare.rsscreen.g.dart';
+part 'restage.generated/bare.restage.g.dart';
 
 @ScreenSource(id: 'bare')
 final class BareScreen extends StatelessWidget {
@@ -4125,7 +4214,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/bare.dart';
 
-part 'bare_surface.rsflow.g.dart';
+part 'restage.generated/bare_surface.restage.g.dart';
 
 @FlowSource(id: 'bare_surface', version: 1)
 final class BareSurfaceFlow extends RestageFlow {

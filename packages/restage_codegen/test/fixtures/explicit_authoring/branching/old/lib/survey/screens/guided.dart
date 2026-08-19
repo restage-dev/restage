@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'guided.rsscreen.g.dart';
+part 'restage.generated/guided.restage.g.dart';
 
 @ScreenSource(id: 'guided')
 final class GuidedScreen extends StatelessWidget {

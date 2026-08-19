@@ -2,12 +2,13 @@ import 'package:build/build.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
 import 'package:restage_codegen/src/factory_function_builder.dart';
+import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/onboarding/flow_builder.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_codegen/src/paywall_flow_builder.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
-import 'package:restage_codegen/src/surface_publication/dynamic_output_owner.dart';
+import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';
@@ -73,15 +74,19 @@ Builder restageSourceRosterBuilder(BuilderOptions options) =>
 Builder restagePackageSurfaceCompilerBuilder(BuilderOptions options) =>
     PackageSurfaceCompilerBuilder(options);
 
-/// build_runner factory entry point for the fixed surface-publication bundle.
-Builder restageSurfacePublicationBundleBuilder(BuilderOptions options) =>
-    RestageSurfacePublicationBundleBuilder(options);
+/// build_runner factory entry point for the unified generated-output
+/// builder: one deterministic bundle per authored library, its optional
+/// inspection report, and the package-wide output index/publication
+/// manifest, all resolved once from [RestageOutputsBuilder]'s placement plan.
+Builder restageOutputsBuilder(BuilderOptions options) =>
+    RestageOutputsBuilder(options);
 
-/// build_runner factory entry point for dynamic surface-publication outputs.
-PostProcessBuilder restageSurfacePublicationOutputOwner(
-  BuilderOptions options,
-) =>
-    RestageSurfacePublicationOutputOwner(options);
+/// build_runner factory entry point for the one builder that materializes
+/// per-library generated Dart. It owns the whole `<stem>.restage.g.dart`
+/// family, so a library declaring both a screen and a flow still has exactly
+/// one generated part with one claimant.
+Builder restageGeneratedDartBuilder(BuilderOptions options) =>
+    RestageGeneratedDartBuilder(options);
 
 /// build_runner factory entry point for the package-wide customer-catalog
 /// emitter. Walks every `lib/**.dart` for `@RestageWidget`-annotated

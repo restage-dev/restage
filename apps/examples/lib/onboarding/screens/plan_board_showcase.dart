@@ -4,7 +4,7 @@ import 'package:restage/restage.dart';
 import '../../widgets/pricing_card.dart' show Plan, PlanTier, Price;
 import '../../widgets/plan_board.dart';
 
-part 'plan_board_showcase.rsscreen.g.dart';
+part 'restage.generated/plan_board_showcase.restage.g.dart';
 
 /// A general screen that showcases map-backed plan properties.
 ///
@@ -16,13 +16,13 @@ part 'plan_board_showcase.rsscreen.g.dart';
 /// out of declaration order, deliberately: each map travels as an ordered entry
 /// list, so authoring in a canonical order would let an ordering regression
 /// pass by coincidence.
-@ScreenSource(id: 'plan_board_showcase')
+@Screen()
 class PlanBoardShowcaseScreen extends StatelessWidget {
   /// Continues from the showcased plans.
-  static const act = OnboardingEvent<void>('act');
+  static const act = SurfaceEvent<void>('act');
 
   /// Dismisses the surface (host-handled custom event).
-  static const dismiss = OnboardingEvent<void>('dismiss');
+  static const dismiss = SurfaceEvent<void>('dismiss');
 
   /// Const constructor.
   const PlanBoardShowcaseScreen({super.key});
@@ -40,7 +40,7 @@ class PlanBoardShowcaseScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   IconButton(
-                    onPressed: onboardingEvent(dismiss),
+                    onPressed: surfaceEvent(dismiss),
                     icon: Icon(
                       Icons.close_rounded,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -99,7 +99,7 @@ class PlanBoardShowcaseScreen extends StatelessWidget {
               ),
               const Spacer(),
               FilledButton(
-                onPressed: onboardingEvent(act),
+                onPressed: surfaceEvent(act),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

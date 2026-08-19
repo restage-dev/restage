@@ -46,7 +46,7 @@ class LegacyGauge extends StatelessWidget {
     );
 
     final result = await testBuilder(
-      const UserA2uiCatalogBuilder(BuilderOptions.empty),
+      UserA2uiCatalogBuilder(BuilderOptions.empty),
       const <String, String>{
         'apps_examples|lib/legacy_gauge.dart': source,
       },
@@ -70,8 +70,8 @@ class LegacyGauge extends StatelessWidget {
     );
     expect(
       sha256.convert(dartBytes).toString(),
-      'ada54b28d4d9cbf07a53a2255caddf16eac1726195aa89aa0473debbc4e38c8a',
-      reason: 'the customer props Dart artifact must remain byte-identical',
+      'dd907d669936317a09240ef4e1f494f894f51d9df0beae4e7356b1bdb3147d0a',
+      reason: 'the customer props Dart artifact must match the emitter',
     );
     expect(
       sha256.convert(jsonBytes).toString(),
@@ -88,7 +88,7 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/widgetbook.dart' as wb;
 
-part 'opaque_screen.rsscreen.g.dart';
+part 'restage.generated/opaque_screen.restage.g.dart';
 
 @ScreenSource(id: 'opaque_screen', version: 2)
 @wb.Config.values([true])
@@ -143,7 +143,7 @@ dependencies:
       final result = await runWithNativeScreenPackageGraphForTesting(
         packageGraphSource: _screenSourcePackageGraph,
         body: () => testBuilder(
-          const UserA2uiCatalogBuilder(BuilderOptions.empty),
+          UserA2uiCatalogBuilder(BuilderOptions.empty),
           const <String, String>{
             'apps_examples|lib/onboarding/screens/opaque_screen.dart': source,
             'apps_examples|pubspec.yaml': pubspec,
@@ -238,13 +238,79 @@ dependencies:
     },
   );
 
+  test(
+    'A2UI catalogs package-wide canonical screens with implicit and '
+    'colocated explicit IDs alongside a legacy screen',
+    () async {
+      const sources = <String, String>{
+        'apps_examples|lib/features/implicit_notice.dart':
+            _canonicalImplicitNotice,
+        'apps_examples|lib/features/message_bundle.dart':
+            _canonicalMessageBundle,
+        'apps_examples|lib/onboarding/screens/legacy_notice.dart':
+            _legacyNotice,
+        'apps_examples|pubspec.yaml': _screenSourcePubspec,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      for (final source in sources.entries) {
+        readerWriter.testing.writeString(
+          AssetId.parse(source.key),
+          source.value,
+        );
+      }
+      final logs = <String>[];
+
+      final result = await runWithNativeScreenPackageGraphForTesting(
+        packageGraphSource: _screenSourcePackageGraph,
+        body: () => testBuilder(
+          UserA2uiCatalogBuilder(BuilderOptions.empty),
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+          onLog: (record) => logs.add(record.message),
+        ),
+      );
+
+      expect(result.succeeded, isTrue, reason: logs.join('\n'));
+      final stamp = jsonDecode(
+        utf8.decode(
+          result.readerWriter.testing.readBytes(
+            AssetId(
+              'apps_examples',
+              'lib/generated/restage_a2ui_catalog.a2ui.json',
+            ),
+          ),
+        ),
+      ) as Map<String, Object?>;
+      final catalog = stamp['a2uiCatalog']! as Map<String, Object?>;
+      final components = catalog['components']! as Map<String, Object?>;
+      expect(
+        components.keys,
+        containsAll(<String>[
+          'implicit_notice',
+          'stable-first',
+          'stable-second',
+          'legacy_notice',
+        ]),
+      );
+      final capability = stamp['restageCapability']! as Map<String, Object?>;
+      expect(
+        capability['perItemSinceVersion'],
+        containsPair('implicit_notice', 2),
+      );
+    },
+  );
+
   test('ScreenSource order migration is logged exactly once', () async {
     const source = '''
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-part 'order_screen.rsscreen.g.dart';
+part 'restage.generated/order_screen.restage.g.dart';
 
 @ScreenSource(id: 'order_screen')
 class OrderScreen extends StatelessWidget {
@@ -287,7 +353,7 @@ class OrderScreen extends StatelessWidget {
     final result = await runWithNativeScreenPackageGraphForTesting(
       packageGraphSource: _screenSourcePackageGraph,
       body: () => testBuilder(
-        const UserA2uiCatalogBuilder(BuilderOptions.empty),
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
         const <String, String>{
           'apps_examples|lib/onboarding/screens/order_screen.dart': source,
           'apps_examples|pubspec.yaml': _screenSourcePubspec,
@@ -334,7 +400,7 @@ class OrderScreen extends StatelessWidget {
         final result = await runWithNativeScreenPackageGraphForTesting(
           packageGraphSource: _screenSourcePackageGraph,
           body: () => testBuilder(
-            const UserA2uiCatalogBuilder(BuilderOptions.empty),
+            UserA2uiCatalogBuilder(BuilderOptions.empty),
             {
               'apps_examples|${input.path}': source,
               'apps_examples|pubspec.yaml': _screenSourcePubspec,
@@ -371,7 +437,7 @@ class OrderScreen extends StatelessWidget {
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart' as restage;
 
-part 'abstract_screen.rsscreen.g.dart';
+part 'restage.generated/abstract_screen.restage.g.dart';
 
 @restage.ScreenSource(id: 'abstract_screen')
 abstract class AbstractScreen extends StatelessWidget {
@@ -402,7 +468,7 @@ abstract class AbstractScreen extends StatelessWidget {
     final result = await runWithNativeScreenPackageGraphForTesting(
       packageGraphSource: _screenSourcePackageGraph,
       body: () => testBuilder(
-        const UserA2uiCatalogBuilder(BuilderOptions.empty),
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
         const <String, String>{
           'apps_examples|lib/onboarding/screens/abstract_screen.dart': source,
           'apps_examples|pubspec.yaml': _screenSourcePubspec,
@@ -450,9 +516,65 @@ final class PartDecoyScreen extends StatelessWidget {
 ''';
 
 const _partDirectiveDecoys = <String, String>{
-  'comment': "// part 'part_decoy.rsscreen.g.dart';",
-  'string': "const partDirectiveText = \"part 'part_decoy.rsscreen.g.dart';\";",
+  'comment': "// part 'restage.generated/part_decoy.restage.g.dart';",
+  'string':
+      "const partDirectiveText = \"part 'restage.generated/part_decoy.restage.g.dart';\";",
 };
+
+const _canonicalImplicitNotice = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/implicit_notice.restage.g.dart';
+
+@Screen(surface: Surface.general, version: 2)
+final class ImplicitNotice extends StatelessWidget {
+  const ImplicitNotice({super.key});
+
+  static const continued = SurfaceEvent<String>('continue');
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+const _canonicalMessageBundle = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/message_bundle.restage.g.dart';
+
+@Screen(id: 'stable-first', surface: Surface.message)
+final class StableFirst extends StatelessWidget {
+  const StableFirst({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+@Screen(id: 'stable-second', surface: Surface.message)
+final class StableSecond extends StatelessWidget {
+  const StableSecond({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+const _legacyNotice = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/legacy_notice.restage.g.dart';
+
+@ScreenSource(id: 'legacy_notice')
+final class LegacyNotice extends StatelessWidget {
+  const LegacyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
 
 const _screenSourcePubspec = '''
 name: apps_examples

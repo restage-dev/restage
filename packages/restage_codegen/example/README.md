@@ -21,17 +21,20 @@ dev_dependencies:
 
 ## 2. Author a surface in vanilla Flutter
 
-A surface is an ordinary widget annotated with its surface type — `@ScreenSource`
-for an onboarding screen here (`@PaywallSource`, `@FlowSource`, and the other
-authoring annotations cover the remaining surfaces). It uses your own widgets and
-your app's theme; there are no shim classes to learn.
+A surface is an ordinary widget annotated with its surface type. This example is
+an independently published message screen. Use `@Paywall` for a specialized
+paywall, `@Screen()` for a reusable flow screen, or
+`@FlowGraph(surface: Surface.<category>)` for a typed flow. The source uses your
+own widgets and your app's theme; there are no shim classes to learn.
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@ScreenSource(id: 'welcome')
-class WelcomeScreen extends StatelessWidget {
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.message)
+final class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   @override
@@ -57,17 +60,34 @@ dart run build_runner build
 `restage_codegen` runs as a `build_runner` builder (wired through `build.yaml`):
 it analyzes the annotated source, decomposes structured Flutter types — text
 styles, paddings, gradients, borders — against the widget catalog, and writes a
-small `.rfw` blob next to your source. Commit the blob: it carries no executable
-code, only inert references and literal values.
+small `.rfw` blob as generated output. Commit the generated output your app
+bundles: it carries no executable code, only inert references and literal values.
 
 ## What it produces
 
 - A per-surface `.rfw` render blob the Restage runtime decodes into real Flutter
   widgets, in your own widget tree.
+- A generated `SurfaceScreenRef<E>` and publication entry in
+  `lib/generated/restage.publication.json`.
 - Catalog entries for any custom widgets you registered with `@RestageWidget`
   (see [`rfw_catalog_compiler`](https://pub.dev/packages/rfw_catalog_compiler)).
+
+Publish the generated entry by slug:
+
+```sh
+restage surface publish welcome
+```
+
+The manifest is the publication authority. Generated asset paths and source
+directories are outputs or layout conventions, not publication selectors.
 
 The runtime half of the loop — rendering the blob in your app — lives in the
 [`restage`](https://pub.dev/packages/restage) package. A complete, runnable
 gallery is in
 [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples).
+
+## Migration from legacy source annotations
+
+Older source may use `@ScreenSource`, `@PaywallSource`, or `@FlowSource`.
+Those spellings are deprecated compatibility frontends. New source should use
+`@Screen`, `@Paywall`, and `@FlowGraph(surface: ...)`.

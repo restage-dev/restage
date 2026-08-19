@@ -3,81 +3,86 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage_shared/restage_shared.dart';
 
 void main() {
-  test(
-    'one normal build owns every screen target artifact and registration',
-    () async {
-      const requiredPaths = <String>[
-        'lib/onboarding/screens/opaque_screen_proof.rsscreen.g.dart',
-        'assets/onboarding/screens/opaque_screen_proof.rfwtxt',
-        'assets/onboarding/screens/opaque_screen_proof.rfw',
-        'assets/onboarding/screens/opaque_screen_proof.capability.json',
-        'lib/generated/restage_a2ui_catalog.g.dart',
-        'lib/generated/restage_a2ui_catalog.a2ui.json',
-        'lib/generated/opaque_screen_proof.stories.dart',
-        'lib/generated/opaque_screen_proof.stories.g.dart',
-        'lib/components.g.dart',
-      ];
-      for (final path in requiredPaths) {
-        expect(File(path).existsSync(), isTrue, reason: path);
-      }
+  test('one normal build owns every screen target artifact and registration', () async {
+    // Generated source stays on disk as ordinary files.
+    const requiredSources = <String>[
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
+      'lib/generated/restage_a2ui_catalog.g.dart',
+      'lib/generated/restage_a2ui_catalog.a2ui.json',
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart',
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart',
+      'lib/components.g.dart',
+    ];
+    for (final path in requiredSources) {
+      expect(File(path).existsSync(), isTrue, reason: path);
+    }
 
-      final a2uiDart = await File(
-        'lib/generated/restage_a2ui_catalog.g.dart',
-      ).readAsString();
-      final a2uiDocument =
-          jsonDecode(
-                await File(
-                  'lib/generated/restage_a2ui_catalog.a2ui.json',
-                ).readAsString(),
-              )
-              as Map<String, Object?>;
-      final a2uiCatalog = a2uiDocument['a2uiCatalog']! as Map<String, Object?>;
-      final components = a2uiCatalog['components']! as Map<String, Object?>;
-      const expectedCustomerComponents = <String>{
-        'BareCatalogCard',
-        'CatalogShowcase',
-        'ConstructorFidelityCorpus',
-        'ConstructorFidelityProof',
-        'ConstructorPositionalCorpus',
-        'FeaturePanel',
-        'FeatureRow',
-        'PriceBadge',
-        'RequiredNullableWidgetProof',
-        'StatTile',
-        'opaque_screen_proof',
-      };
-      expect(components.keys.toSet(), expectedCustomerComponents);
-      expect(a2uiDart, contains("name: 'opaque_screen_proof'"));
-      expect(a2uiDart, contains(RegExp(r'\bp\d+\.OpaqueScreenProof\(')));
+    // Delivery artifacts ship inside the package's containers rather than as
+    // loose files, so ownership is checked where they actually are.
+    const requiredArtifacts = <String>[
+      'assets/onboarding/screens/opaque_screen_proof.rfwtxt',
+      'assets/onboarding/screens/opaque_screen_proof.rfw',
+      'assets/onboarding/screens/opaque_screen_proof.capability.json',
+    ];
+    final packaged = _packagedArtifacts();
+    for (final path in requiredArtifacts) {
+      expect(packaged, contains(path), reason: path);
+    }
 
-      final story = await File(
-        'lib/generated/opaque_screen_proof.stories.dart',
-      ).readAsString();
-      final plumbing = await File(
-        'lib/generated/opaque_screen_proof.stories.g.dart',
-      ).readAsString();
-      final registry = await File('lib/components.g.dart').readAsString();
-      expect(story, contains("path: 'Screens'"));
-      expect(story, contains('restage_runtime.RestageSurfaceEventDispatcher('));
-      expect(story, contains('final String restageMetadataDescription;'));
-      expect(story, contains('final String restageMetadataUsage;'));
-      expect(story, contains('final String description;'));
-      expect(story, contains('final String usage;'));
-      expect(story, contains("name: 'Restage description'"));
-      expect(story, contains("name: 'Restage usage'"));
-      expect(
-        story,
-        contains('restageMetadataDescription: _RestageMetadataArg('),
-      );
-      expect(story, contains('restageMetadataUsage: _RestageMetadataArg('));
-      expect(plumbing, contains('Arg<String>? restageMetadataDescription'));
-      expect(plumbing, contains('Arg<String>? description'));
-      expect(plumbing, contains('setup: setup ?? defaults.setup!'));
-      expect(registry, contains('OpaqueScreenProofComponent'));
-    },
-  );
+    final a2uiDart = await File(
+      'lib/generated/restage_a2ui_catalog.g.dart',
+    ).readAsString();
+    final a2uiDocument =
+        jsonDecode(
+              await File(
+                'lib/generated/restage_a2ui_catalog.a2ui.json',
+              ).readAsString(),
+            )
+            as Map<String, Object?>;
+    final a2uiCatalog = a2uiDocument['a2uiCatalog']! as Map<String, Object?>;
+    final components = a2uiCatalog['components']! as Map<String, Object?>;
+    const expectedCustomerComponents = <String>{
+      'BareCatalogCard',
+      'CatalogShowcase',
+      'ConstructorFidelityCorpus',
+      'ConstructorFidelityProof',
+      'ConstructorPositionalCorpus',
+      'FeaturePanel',
+      'FeatureRow',
+      'PriceBadge',
+      'RequiredNullableWidgetProof',
+      'StatTile',
+      'opaque_screen_proof',
+    };
+    expect(components.keys.toSet(), expectedCustomerComponents);
+    expect(a2uiDart, contains("name: 'opaque_screen_proof'"));
+    expect(a2uiDart, contains(RegExp(r'\bp\d+\.OpaqueScreenProof\(')));
+
+    final story = await File(
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart',
+    ).readAsString();
+    final plumbing = await File(
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart',
+    ).readAsString();
+    final registry = await File('lib/components.g.dart').readAsString();
+    expect(story, contains("path: 'Screens'"));
+    expect(story, contains('restage_runtime.RestageSurfaceEventDispatcher('));
+    expect(story, contains('final String restageMetadataDescription;'));
+    expect(story, contains('final String restageMetadataUsage;'));
+    expect(story, contains('final String description;'));
+    expect(story, contains('final String usage;'));
+    expect(story, contains("name: 'Restage description'"));
+    expect(story, contains("name: 'Restage usage'"));
+    expect(story, contains('restageMetadataDescription: _RestageMetadataArg('));
+    expect(story, contains('restageMetadataUsage: _RestageMetadataArg('));
+    expect(plumbing, contains('Arg<String>? restageMetadataDescription'));
+    expect(plumbing, contains('Arg<String>? description'));
+    expect(plumbing, contains('setup: setup ?? defaults.setup!'));
+    expect(registry, contains('OpaqueScreenProofComponent'));
+  });
 
   test('a documented bare marker reaches every generated target', () async {
     final rfwCatalog = await File('lib/user_catalog.g.dart').readAsString();
@@ -86,10 +91,10 @@ void main() {
       'lib/generated/restage_a2ui_catalog.g.dart',
     ).readAsString();
     final widgetbookStory = await File(
-      'lib/generated/bare_catalog_card.stories.dart',
+      'lib/widgets/restage.generated/bare_catalog_card.stories.dart',
     ).readAsString();
     final widgetbookPlumbing = await File(
-      'lib/generated/bare_catalog_card.stories.g.dart',
+      'lib/widgets/restage.generated/bare_catalog_card.stories.g.dart',
     ).readAsString();
 
     expect(rfwCatalog, contains("name: 'BareCatalogCard'"));
@@ -104,7 +109,10 @@ void main() {
     );
     expect(widgetbookStory, contains("path: ''"));
     expect(widgetbookPlumbing, contains('BareCatalogCardComponent'));
-    expect(widgetbookPlumbing, contains("path: component.path ?? 'generated'"));
+    expect(
+      widgetbookPlumbing,
+      contains("path: component.path ?? 'widgets/restage.generated'"),
+    );
   });
 
   test('one customer source reaches RFW, A2UI, and Widgetbook', () async {
@@ -114,10 +122,10 @@ void main() {
       'lib/generated/restage_a2ui_catalog.g.dart',
     ).readAsString();
     final widgetbookStory = await File(
-      'lib/generated/catalog_showcase.stories.dart',
+      'lib/widgets/restage.generated/catalog_showcase.stories.dart',
     ).readAsString();
     final widgetbookPlumbing = await File(
-      'lib/generated/catalog_showcase.stories.g.dart',
+      'lib/widgets/restage.generated/catalog_showcase.stories.g.dart',
     ).readAsString();
     final normalizedRfwFactories = rfwFactories.replaceAll(RegExp(r'\s+'), ' ');
     final showcaseEntryStart = rfwCatalog.indexOf("name: 'CatalogShowcase'");
@@ -185,55 +193,55 @@ void main() {
   test('reviewed multi-target artifacts remain byte-identical', () async {
     const expected = <String, String>{
       'lib/components.g.dart':
-          'f9440584e67aa2874501f953f3609beb0576233642c8829b69c54fbca8155c93',
-      'lib/generated/bare_catalog_card.stories.dart':
+          '8cfc10269daf1ddfd00aeffb5ef23f3c2f223dbcfec550a301b7231ea87c0d1d',
+      'lib/widgets/restage.generated/bare_catalog_card.stories.dart':
           'd3455d3c5b04b717da01974ae98c092771feef7adbf3f46339651980faba489f',
-      'lib/generated/bare_catalog_card.stories.g.dart':
-          '9d1d0279d72c86bf074ee4ff532e3ec50ea545106b18a252de0cdc9adc096ee5',
-      'lib/generated/catalog_showcase.stories.dart':
+      'lib/widgets/restage.generated/bare_catalog_card.stories.g.dart':
+          '3bc80fb337b376b90cc191372f75ef425a2121aacf91ee0dd6f10bef305534e7',
+      'lib/widgets/restage.generated/catalog_showcase.stories.dart':
           'c36aaf102f313b3c81927eae8dd698f3c85a66624814b3389fdb33c21a2f0c7f',
-      'lib/generated/catalog_showcase.stories.g.dart':
-          '5fb8391fb085a49e2e9a5ee6aff5c5e04eba7907b91afd23e0139ad2531817c8',
-      'lib/generated/constructor_fidelity_corpus.stories.dart':
+      'lib/widgets/restage.generated/catalog_showcase.stories.g.dart':
+          '17ac4625262b5a3aeab1d7daf0db5d9728dc9eb466ebc48d3ec595c010009f74',
+      'lib/widgets/restage.generated/constructor_fidelity_corpus.stories.dart':
           'e8794adced2b139eee44e4b0581e4b6c9e2026392c2cea9d5cb717e70a19c966',
-      'lib/generated/constructor_fidelity_corpus.stories.g.dart':
-          '5054c7b54ab2909d7fb1f3577455ff8015962fd23643a7bf3f0818734782c975',
-      'lib/generated/constructor_fidelity_proof.stories.dart':
+      'lib/widgets/restage.generated/constructor_fidelity_corpus.stories.g.dart':
+          '186091254117d671a8173a03e5f9c7797728f19b45ba34d03b0fac5d36bfc464',
+      'lib/widgets/restage.generated/constructor_fidelity_proof.stories.dart':
           'd4c7bf6d8356da191058488124c23d17d71240004f6eddd35362c09d1aed3635',
-      'lib/generated/constructor_fidelity_proof.stories.g.dart':
-          'a4f73f6fda7b89d44aab07cb4d1b7c8809db216d11f5c6e9ef9341326b38cfd2',
-      'lib/generated/constructor_positional_corpus.stories.dart':
+      'lib/widgets/restage.generated/constructor_fidelity_proof.stories.g.dart':
+          '264d02cc8c639a2b70486d05e8e6fe7e8116ac1fe00c77efba9c12cc08a34139',
+      'lib/widgets/restage.generated/constructor_positional_corpus.stories.dart':
           '228c83de986adc18ed0b016255d2bb9a85b02bc30abec70eef229ad7f2ef1391',
-      'lib/generated/constructor_positional_corpus.stories.g.dart':
-          'b79c6aa3ae8b4590fef866354805abc97e56ee5266670afc5c88ebebbad63bdc',
-      'lib/generated/feature_panel.stories.dart':
+      'lib/widgets/restage.generated/constructor_positional_corpus.stories.g.dart':
+          '34343c1866427f784a3f0c42a75d1299ac91c5b39024f1c26968426a4b9a9ff9',
+      'lib/widgets/restage.generated/feature_panel.stories.dart':
           '55d41541f0294f730e9e9ee5ebc601c8adc536fc07dce91d204a8c73ecc69c7d',
-      'lib/generated/feature_panel.stories.g.dart':
-          '1965620a8f92484dfa2ab3576471b276e34fd8edd0fca9048ce5b1e60f32fc00',
-      'lib/generated/feature_row.stories.dart':
+      'lib/widgets/restage.generated/feature_panel.stories.g.dart':
+          '50dc279b1a544b647ac3bab4dcb89f90b0c323052a6d5a1e97dc1e46010726e4',
+      'lib/widgets/restage.generated/feature_row.stories.dart':
           'cb21c23ccf7b8a90392092fb724916c0ca4f6d9e06e1b1a811f14450d9644ba9',
-      'lib/generated/feature_row.stories.g.dart':
-          '11f50884baf6d849801e7ad8e2f0f98e8f1eeb19d9c222a4dfddf15f45effbab',
-      'lib/generated/price_badge.stories.dart':
+      'lib/widgets/restage.generated/feature_row.stories.g.dart':
+          '2896334f552cd9f8dd48503064cd4bafc823aaeed48a2c1158e737bb8578beb6',
+      'lib/widgets/restage.generated/price_badge.stories.dart':
           '9a8bebbd5e950b3ec6c28a22c37806e540f3e5358748d2ac0f71eea475123e53',
-      'lib/generated/price_badge.stories.g.dart':
-          '770e32a0044e272ce252ff1180a8c8a01ddf5fe58748bf9561a50a728ca46e7a',
-      'lib/generated/required_nullable_widget_proof.stories.dart':
+      'lib/widgets/restage.generated/price_badge.stories.g.dart':
+          '4857e21e3c3b9e9ad47e19d803fdb99d4fe122182f4a1cfa8e71306a899e1dfa',
+      'lib/widgets/restage.generated/required_nullable_widget_proof.stories.dart':
           'bcec9c78205f8dfa558cc7a001d5d7e497bd7ee55ff593edeedd6c9f79b11bd9',
-      'lib/generated/required_nullable_widget_proof.stories.g.dart':
-          '7991b8a28677fb22cdc3eca4cb476e32f8594cd7f921f6afca1b53ecebe74eb0',
-      'lib/generated/opaque_screen_proof.stories.dart':
+      'lib/widgets/restage.generated/required_nullable_widget_proof.stories.g.dart':
+          'eba61dcb87d9bd63b0f2473c88b1c060b876e09822c2ced78957d2b537f2def6',
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart':
           'f21ef76e20a1c53ed0ca4aeaa7e1fe8e656791a52b635eab14da9614beade805',
-      'lib/generated/opaque_screen_proof.stories.g.dart':
-          '4eb3ac7232788f2e2289ba2e4509f90b97d410b6cd97aac16fd65373db728156',
-      'lib/generated/stat_tile.stories.dart':
+      'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart':
+          '752764a1a6f72d5ea40a54ed7e88a3cfdeaba2b6587566fb313e701c92504521',
+      'lib/widgets/restage.generated/stat_tile.stories.dart':
           '5396ace7194246c9fe74d7296b1b625d1ec0537d46679c12b9fab9ecc4abfffa',
-      'lib/generated/stat_tile.stories.g.dart':
-          'de665a7375935c82dcc010b79228552eb5e62f2e5f79df52f6cde108d68f0357',
+      'lib/widgets/restage.generated/stat_tile.stories.g.dart':
+          'bd04dc3cc60131c8136be332505be46b36875455d8f125c8ff5de57c258dbb72',
       'lib/generated/restage_a2ui_catalog.a2ui.json':
           'd87ed0601571f76401fce3d530a60eda52df2a70100945c8fafcd1abdeea77b4',
       'lib/generated/restage_a2ui_catalog.g.dart':
-          'b10bf858b9d5e86e2a0d4b9b49598b4ac8dbcd319784e35ad4236d2e6a6da4a5',
+          '19c99024642e1d602769998670e4f75918756f32cf8acd42abf98c1c1eea03f6',
       'lib/src/widget_catalog/catalog.json':
           '5c4aca8207e886e4016c3e77e18ee52244a2b09985ea936ed6e557272e2b77d3',
       'lib/user_catalog.g.dart':
@@ -254,4 +262,18 @@ void main() {
       );
     }
   });
+}
+
+/// Every logical delivery artifact this package ships, read out of the
+/// deterministic containers it packages them into.
+Set<String> _packagedArtifacts() {
+  final bundles = Directory('assets/restage/bundles');
+  if (!bundles.existsSync()) return const <String>{};
+  return <String>{
+    for (final file in bundles.listSync(recursive: true).whereType<File>())
+      if (file.path.endsWith('.rsbundle'))
+        ...RestageBundleCodec.decode(
+          file.readAsBytesSync(),
+        ).entries.map((entry) => entry.logicalPath),
+  };
 }

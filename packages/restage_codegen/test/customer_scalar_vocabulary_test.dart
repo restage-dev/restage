@@ -122,7 +122,7 @@ void main() {
     test('the A2UI customer catalog still builds green (parity, no regression)',
         () async {
       final result = await runBuilder(
-        const UserA2uiCatalogBuilder(BuilderOptions.empty),
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
         enumSource,
       );
       expect(result.succeeded, isTrue);

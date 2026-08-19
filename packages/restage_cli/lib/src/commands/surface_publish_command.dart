@@ -12,6 +12,7 @@ import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
+import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -25,11 +26,13 @@ class SurfacePublishCommand extends Command<int> {
     required Interactive interactive,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
+    PublicationBundleReader? bundleReader,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
        _credentialStore = credentialStore,
-       _httpClient = httpClient {
+       _httpClient = httpClient,
+       _bundleReader = bundleReader {
     argParser
       ..addOption(
         'organization',
@@ -38,8 +41,8 @@ class SurfacePublishCommand extends Command<int> {
       ..addOption(
         'type',
         help:
-            'Optional generated surface type validation or disambiguation: '
-            '${_validSurfaceTypeList()}.',
+            'Deprecated validation/disambiguation selector only; the generated '
+            'manifest is authoritative. Values: ${_validSurfaceTypeList()}.',
       )
       ..addOption(
         'project',
@@ -57,8 +60,8 @@ class SurfacePublishCommand extends Command<int> {
         abbr: 'C',
         defaultsTo: '.',
         help:
-            'Directory to locate restage_config.yaml and the fixed generated '
-            'publication manifest. It does not select artifacts.',
+            'Directory to locate restage_config.yaml and generated publication '
+            'metadata. It does not select artifacts.',
       );
     addRuntimePlaneOption(argParser);
   }
@@ -68,6 +71,7 @@ class SurfacePublishCommand extends Command<int> {
   final Interactive _interactive;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
+  final PublicationBundleReader? _bundleReader;
 
   @override
   String get name => 'publish';
@@ -117,10 +121,9 @@ class SurfacePublishCommand extends Command<int> {
         projectRoot: projectRoot,
       );
       final entry = manifest.select(slug: slug, type: type);
-      assembled = await SurfacePublicationAssembler().assemble(
-        loaded: manifest,
-        entry: entry,
-      );
+      assembled = await SurfacePublicationAssembler(
+        bundleReader: _bundleReader,
+      ).assemble(loaded: manifest, entry: entry);
     } on PublicationException catch (error) {
       _stderr.writeln(error.message);
       return 1;

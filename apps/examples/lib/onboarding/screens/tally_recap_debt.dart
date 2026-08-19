@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'tally_recap_debt.rsscreen.g.dart';
+part 'restage.generated/tally_recap_debt.restage.g.dart';
 
 /// Onboarding — the debt recap (the decision's debt branch).
 ///
 /// The routing decision sends the user here when the captured goal is `debt`.
 /// A goal-specific ending: the first target to attack + a debt-specific CTA.
-@ScreenSource(id: 'tally_recap_debt')
+@Screen()
 class TallyRecapDebtScreen extends StatelessWidget {
   /// Completes onboarding.
-  static const finish = OnboardingEvent<void>('finish');
+  static const finish = SurfaceEvent<void>('finish');
 
   const TallyRecapDebtScreen({super.key});
 
@@ -114,7 +114,7 @@ class TallyRecapDebtScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed: onboardingEvent(finish),
+                onPressed: surfaceEvent(finish),
                 child: const Text(
                   'Make my first payment',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

@@ -135,7 +135,7 @@ Future<String> _buildFlowDescriptor(
   return result.readerWriter.testing.readString(
     AssetId(
       'apps_examples',
-      'lib/$name/flows/$_flowSlug.rsflow.g.dart',
+      'lib/$name/flows/restage.generated/$_flowSlug.restage.g.dart',
     ),
   );
 }
@@ -159,10 +159,14 @@ List<Builder> _buildersFor(Surface surface) => switch (surface) {
       Surface.message => [
           messageScreenBuilder(BuilderOptions.empty),
           messageFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
       Surface.survey => [
           surveyScreenBuilder(BuilderOptions.empty),
           surveyFlowBuilder(BuilderOptions.empty),
+          restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+          restageGeneratedDartBuilder(BuilderOptions.empty),
         ],
       _ => throw ArgumentError('unexpected surface $surface'),
     };
@@ -214,7 +218,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/$_screenStem.dart';
 
-part '$_flowSlug.rsflow.g.dart';
+part 'restage.generated/$_flowSlug.restage.g.dart';
 
 $annotation
 final class $className extends RestageFlow {
@@ -242,7 +246,7 @@ String _screenSource() => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part '$_screenStem.rsscreen.g.dart';
+part 'restage.generated/$_screenStem.restage.g.dart';
 
 @ScreenSource(id: '$_screenStem')
 final class $_screenClass extends StatelessWidget {
@@ -283,7 +287,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/$_screenStem.dart';
 
-part 'parent.rsflow.g.dart';
+part 'restage.generated/parent.restage.g.dart';
 
 @FlowSource(id: 'parent', version: 1, minClient: 3)
 final class ParentFlow extends RestageFlow {

@@ -40,7 +40,7 @@ void main() {
 
       final logs = <String>[];
       final result = await testBuilder(
-        const UserA2uiCatalogBuilder(BuilderOptions.empty),
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
         const {'apps_examples|lib/spoof.dart': source},
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
@@ -85,7 +85,7 @@ void main() {
 
       final logs = <String>[];
       final result = await testBuilder(
-        const UserA2uiCatalogBuilder(BuilderOptions.empty),
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
         const {
           'apps_examples|lib/a.dart': fileA,
           'apps_examples|lib/b.dart': fileB,
@@ -143,7 +143,7 @@ void main() {
 
       final logs = <String>[];
       final result = await testBuilder(
-        const UserA2uiCatalogBuilder(BuilderOptions.empty),
+        UserA2uiCatalogBuilder(BuilderOptions.empty),
         const {'apps_examples|lib/bad_card.dart': source},
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,

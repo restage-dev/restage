@@ -9,7 +9,7 @@ import '../screens/tally_recap_savings.dart';
 import '../screens/tally_savings.dart';
 import '../screens/tally_welcome.dart';
 
-part 'tally_onboarding.rsflow.g.dart';
+part 'restage.generated/tally_onboarding.restage.g.dart';
 
 /// A personal-finance onboarding that **forks on the user's money goal**.
 ///
@@ -25,7 +25,7 @@ part 'tally_onboarding.rsflow.g.dart';
 ///
 /// This is the authorable counterpart to the linear meditation onboarding: same
 /// runtime, but the answer forks the path rather than just tailoring copy.
-@FlowSource(id: 'tally_onboarding', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class TallyOnboardingFlow extends RestageFlow {
   const TallyOnboardingFlow();
 

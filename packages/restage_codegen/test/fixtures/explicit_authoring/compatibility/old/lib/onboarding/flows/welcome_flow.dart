@@ -2,7 +2,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/welcome.dart';
 
-part 'welcome_flow.rsflow.g.dart';
+part 'restage.generated/welcome_flow.restage.g.dart';
 
 @FlowSource(id: 'welcome_flow', version: 1, minClient: 1)
 final class CompatibilityWelcomeFlow extends RestageFlow {

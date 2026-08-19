@@ -13,9 +13,40 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 const String _restageSdkOrigin = 'package:restage';
+
+/// Hash and length of the exact bytes a screen's compiled blob and capability
+/// sidecar contribute to its authored library's `.rsbundle`.
+///
+/// Populated only by the caller that already holds those exact bytes in
+/// memory (the same objects that become the bundle entries), so the sha256
+/// values here are guaranteed byte-identical to what `RestageBundleCodec`
+/// records — never a second, independent serialization of the same content.
+@immutable
+final class ResolvedScreenBundleEntryMetadata {
+  /// Creates the bundle-entry metadata pair for one screen.
+  const ResolvedScreenBundleEntryMetadata({
+    required this.blobSha256,
+    required this.blobByteLength,
+    required this.sidecarSha256,
+    required this.sidecarByteLength,
+  });
+
+  /// `sha256:<hex>` of the exact compiled screen blob bytes.
+  final String blobSha256;
+
+  /// Byte length of the exact compiled screen blob.
+  final int blobByteLength;
+
+  /// `sha256:<hex>` of the exact capability sidecar bytes.
+  final String sidecarSha256;
+
+  /// Byte length of the exact capability sidecar.
+  final int sidecarByteLength;
+}
 
 /// Analyzer-resolved inputs for one independently published `@Screen`.
 ///
@@ -32,6 +63,8 @@ final class ResolvedStandaloneScreenContractInput {
     required this.slug,
     required this.contractVersion,
     required this.capabilities,
+    this.plan,
+    this.bundleEntryMetadata,
   });
 
   /// Owning library asset, retained only for diagnostics and generated part
@@ -49,6 +82,23 @@ final class ResolvedStandaloneScreenContractInput {
 
   /// Positive app-pinned standalone contract version.
   final int contractVersion;
+
+  /// Placement authority for this library's generated part, or `null` for
+  /// the default layout.
+  final RestageOutputPlacementPlan? plan;
+
+  /// This screen's exact compiled blob/sidecar bundle-entry hashes and
+  /// lengths, or `null` when the caller has none to offer.
+  ///
+  /// Required only when [plan] resolves `bundled_runtime: true` — see
+  /// [_emitReferenceDart], which fails loudly rather than silently omitting
+  /// the bundle locator a bundled-runtime package must always carry.
+  final ResolvedScreenBundleEntryMetadata? bundleEntryMetadata;
+
+  /// The package-relative path of this library's one generated Dart part.
+  String get generatedPartPath => (plan ?? RestageOutputPlacementPlan.defaults)
+      .forLibrary(assetId.path)
+      .neutralPartPath;
 
   /// Render capabilities pinned into the generated reference and fingerprint.
   final CapabilityManifest capabilities;
@@ -582,7 +632,10 @@ void _reportGeneratedSymbolCollisions(
     );
   }
 
-  final existing = _topLevelNames(input.screen.library);
+  final existing = _topLevelNames(
+    input.screen.library,
+    generatedPart: _declaredGeneratedPart(input),
+  );
   for (final symbol in symbols.toSet().toList()..sort()) {
     if (!existing.contains(symbol)) continue;
     issues.add(
@@ -602,6 +655,7 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
   final refStem = _lowerCamelIdentifier(screenName, fallback: 'surfaceScreen');
   final eventBase = '${screenStem}Event';
   final eventContractName = '_${refStem}Events';
+  final provenanceName = '_${refStem}Provenance';
   final decoderName = '_decodeValidated$eventBase';
   final refName = '${refStem}Ref';
   final sdk = contract._sdkPrefix;
@@ -652,19 +706,42 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
   }
 
   final referenceEventType = contract._events.isEmpty ? 'Never' : eventBase;
+
+  // The event schema is emitted in its canonical encoded form rather than as a
+  // Dart literal tree, so the value the runtime hashes is byte-identical to
+  // the one this build hashed. The runtime derives the contract fingerprint
+  // and event hash from it, which is why neither is emitted here: a divergence
+  // between the two encoders must fail closed, and it cannot do that if the
+  // generated code simply restates what the build computed.
+  final bundleLocatorSource = _resolveBundleLocatorSource(contract, sdk);
   buffer
     ..writeln(
-      'final $refName = ${sdk}SurfaceScreenRef<$referenceEventType>.generated(',
+      'final $provenanceName = '
+      '${sdk}SurfaceScreenRuntimeProvenance.generated(',
     )
+    ..writeln('  surface: ${sdk}Surface.${contract.surface.name},')
     ..writeln('  slug: ${_dartString(contract.slug)},')
     ..writeln('  contractVersion: ${contract.contractVersion},')
     ..writeln(
       '  capabilities: ${_capabilitySource(contract.capabilities, sdk)},',
     )
-    ..writeln('  surface: ${sdk}Surface.${contract.surface.name},')
     ..writeln(
-      '  contractFingerprint: ${_dartString(contract.contractFingerprint)},',
+      '  eventSchemaJson: ${_dartString(
+        SurfaceScreenEventSchemaV1Codec.encodeCanonicalJson(
+          contract.eventSchema,
+        ),
+      )},',
+    );
+  if (bundleLocatorSource != null) {
+    buffer.writeln('  bundle: $bundleLocatorSource,');
+  }
+  buffer
+    ..writeln(');')
+    ..writeln()
+    ..writeln(
+      'final $refName = ${sdk}SurfaceScreenRef<$referenceEventType>.generated(',
     )
+    ..writeln('  provenance: $provenanceName,')
     ..writeln('  eventContract: $eventContractName,')
     ..writeln(');');
 
@@ -710,6 +787,66 @@ Iterable<_ResolvedScreenEvent> _eventsInSchemaOrder(
   }
 }
 
+/// The `bundle: ...` argument source for [contract]'s generated reference, or
+/// `null` when this package's resolved placement does not route `.rsbundle`
+/// files into Flutter assets.
+///
+/// The asset key and logical entry paths are deterministic functions of data
+/// [contract] already carries (its resolved [RestageOutputPlacementPlan] and
+/// its own `surface`/`slug`), computed here rather than duplicated from the
+/// roster's canonical-publication claim formula. The entry hashes and lengths
+/// come only from [ResolvedStandaloneScreenContractInput.bundleEntryMetadata]
+/// — never recomputed here — because those must be byte-identical to what the
+/// outputs builder records for the same bytes, and the only way to guarantee
+/// that is for both to trace back to one hash of one set of bytes.
+///
+/// A `bundled_runtime: true` package must never emit a reference with a
+/// silently omitted locator: throws if the resolved placement calls for one
+/// and [ResolvedStandaloneScreenContractInput.bundleEntryMetadata] is absent.
+String? _resolveBundleLocatorSource(
+  ResolvedStandaloneScreenContract contract,
+  String sdk,
+) {
+  final plan = contract.input.plan ?? RestageOutputPlacementPlan.defaults;
+  if (!plan.bundledRuntime) return null;
+  final metadata = contract.input.bundleEntryMetadata;
+  if (metadata == null) {
+    throw StateError(
+      'Screen ${contract.slug} (${contract.input.location}) has no bundle '
+      'entry metadata, but this package resolves bundled_runtime: true. A '
+      'bundled-runtime package must never emit a generated reference with a '
+      'silently omitted bundle locator.',
+    );
+  }
+  final assetId = contract.input.assetId;
+  final assetKey = plan.forLibrary(assetId.path).bundlePath;
+  final surfaceKey = contract.surface.wireName;
+  final blobPath = 'assets/$surfaceKey/screens/${contract.slug}.rfw';
+  final sidecarPath =
+      'assets/$surfaceKey/screens/${contract.slug}.capability.json';
+  final buffer = StringBuffer()
+    ..writeln('${sdk}SurfaceScreenBundleLocator(')
+    ..writeln('  assetKey: ${_dartString(assetKey)},')
+    ..writeln('  packageName: ${_dartString(assetId.package)},')
+    ..writeln('  authoredLibraryPath: ${_dartString(assetId.path)},')
+    ..writeln('  entries: [')
+    ..writeln('    ${sdk}SurfaceScreenBundleEntryReference(')
+    ..writeln('      logicalPath: ${_dartString(blobPath)},')
+    ..writeln('      role: ${sdk}RestageBundleEntryRoleV1.screenBlob,')
+    ..writeln('      byteLength: ${metadata.blobByteLength},')
+    ..writeln('      sha256: ${_dartString(metadata.blobSha256)},')
+    ..writeln('    ),')
+    ..writeln('    ${sdk}SurfaceScreenBundleEntryReference(')
+    ..writeln('      logicalPath: ${_dartString(sidecarPath)},')
+    ..writeln('      role: ${sdk}RestageBundleEntryRoleV1.capabilitySidecar,')
+    ..writeln('      byteLength: ${metadata.sidecarByteLength},')
+    ..writeln('      sha256: ${_dartString(metadata.sidecarSha256)},')
+    ..writeln('    ),')
+    ..writeln('  ],')
+    ..write(')');
+  return buffer.toString();
+}
+
 String _capabilitySource(CapabilityManifest capabilities, String sdk) {
   final buffer = StringBuffer()
     ..writeln('${sdk}CapabilityManifest(')
@@ -737,6 +874,7 @@ List<String> _generatedSymbols(
   return <String>[
     '${screenStem}Event',
     '_${refStem}Events',
+    '_${refStem}Provenance',
     '_decodeValidated${screenStem}Event',
     '${refStem}Ref',
     for (final event in events) _eventClassName(screenStem, event.field.name),
@@ -746,7 +884,10 @@ List<String> _generatedSymbols(
 String _eventClassName(String screenStem, String? fieldName) =>
     '$screenStem${_pascalIdentifier(fieldName ?? '', fallback: 'Event')}Event';
 
-Set<String> _topLevelNames(LibraryElement library) {
+Set<String> _topLevelNames(
+  LibraryElement library, {
+  AssetId? generatedPart,
+}) {
   final names = <String>{};
   for (final element in <Iterable<Element>>[
     library.classes,
@@ -761,6 +902,9 @@ Set<String> _topLevelNames(LibraryElement library) {
     library.setters,
   ]) {
     for (final item in element) {
+      if (generatedPart != null && _elementAssetId(item) == generatedPart) {
+        continue;
+      }
       final name = item.name;
       if (name != null && name.isNotEmpty) names.add(name);
       final lookup = item.lookupName;
@@ -768,6 +912,39 @@ Set<String> _topLevelNames(LibraryElement library) {
     }
   }
   return names;
+}
+
+/// Returns the one generated screen part that this library actually declares.
+///
+/// The part path comes from the resolved placement plan, then is matched back
+/// against the library's analyzer fragments. This keeps the warm-build escape
+/// hatch exact: another `.g.dart` sibling, or a generated-looking file from a
+/// different package/path, remains a real collision.
+AssetId? _declaredGeneratedPart(
+  ResolvedStandaloneScreenContractInput input,
+) {
+  if (!input.assetId.path.endsWith('.dart')) return null;
+  final expected = AssetId(
+    input.assetId.package,
+    input.generatedPartPath,
+  );
+  for (final fragment in input.screen.library.fragments) {
+    if (_assetIdForUri(fragment.source.uri) == expected) return expected;
+  }
+  return null;
+}
+
+AssetId? _elementAssetId(Element element) =>
+    _assetIdForUri(element.firstFragment.libraryFragment?.source.uri);
+
+AssetId? _assetIdForUri(Uri? uri) {
+  if (uri == null) return null;
+  try {
+    return AssetId.resolve(uri);
+  } on Object {
+    // Analyzer-only file URIs do not carry a stable package-relative identity.
+    return null;
+  }
 }
 
 String? _sdkPrefixFor(LibraryElement library) {

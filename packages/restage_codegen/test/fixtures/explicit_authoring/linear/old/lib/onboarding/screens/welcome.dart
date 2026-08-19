@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @ScreenSource(id: 'welcome')
 final class WelcomeScreen extends StatelessWidget {

@@ -700,6 +700,9 @@ String _emitA2uiCatalogDart(
     pairingSeam: pairingSeam,
   );
   final importUris = _importUris(plan);
+  if (registration != null) {
+    importUris.add('package:restage_a2ui/restage_a2ui.dart');
+  }
   final emitsNativeScreens = plan.widgets.any(
     (widget) => widget.nativeScreen != null,
   );
@@ -714,6 +717,7 @@ String _emitA2uiCatalogDart(
     unprefixedLibraryUris: <String>{
       'dart:async',
       'package:flutter/widgets.dart',
+      if (registration != null) 'package:restage_a2ui/restage_a2ui.dart',
       if (emitsNativeScreens) 'package:restage/restage.dart',
     },
   );
@@ -799,6 +803,7 @@ String _emitA2uiCatalogDart(
         '${_dartStringLiteral(registration.documentId)};',
       )
       ..writeln();
+    _writeRestageA2uiCapabilityStamp(buf, registration);
   }
   buf.writeln(
     'const List<String> _restageA2uiSystemPromptFragments = <String>[',
@@ -978,6 +983,58 @@ String _emitA2uiCatalogDart(
   }
 
   return formatGeneratedDart(buf.toString()).trimRight();
+}
+
+void _writeRestageA2uiCapabilityStamp(
+  StringBuffer buf,
+  RestageStampedA2uiCatalog registration,
+) {
+  buf
+    ..writeln(
+      '/// Compact identity and capability metadata for the generated '
+      'catalog.',
+    )
+    ..writeln(
+      '/// The producer-facing `.a2ui.json` remains a separate portable '
+      'artifact.',
+    )
+    ..writeln('const RestageA2uiCapability restageA2uiCapability =')
+    ..writeln('    RestageA2uiCapability(')
+    ..writeln(
+      '      schemaDialect: ${_dartStringLiteral(registration.schemaDialect)},',
+    )
+    ..writeln(
+      '      a2uiProtocolVersion: '
+      '${_dartStringLiteral(registration.a2uiProtocolVersion)},',
+    )
+    ..writeln('      catalogId: restageA2uiCatalogId,')
+    ..writeln(
+      '      fingerprint: ${_dartStringLiteral(registration.fingerprint)},',
+    )
+    ..writeln(
+      '      catalogContentVersion: '
+      '${registration.stamp.catalogContentVersion},',
+    )
+    ..writeln('      availableLibraries: <A2uiAvailableLibrary>[');
+  for (final library in registration.stamp.availableLibraries) {
+    buf.writeln(
+      '        A2uiAvailableLibrary(namespace: '
+      '${_dartStringLiteral(library.namespace)}, '
+      'version: ${library.version}),',
+    );
+  }
+  buf
+    ..writeln('      ],')
+    ..writeln('      perItemSinceVersion: <String, int>{');
+  for (final entry in registration.stamp.perItemSinceVersion.entries) {
+    buf.writeln(
+      '        ${_dartStringLiteral(entry.key)}: ${entry.value},',
+    );
+  }
+  buf
+    ..writeln('      },')
+    ..writeln('    );')
+    ..writeln();
 }
 
 void _verifyRegistrationContract(

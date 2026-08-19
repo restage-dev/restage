@@ -9,7 +9,7 @@ import '../widgets/streak_badge.dart';
 /// a Dart-authored surface and rendered from the delivered blob: the codegen
 /// resolves `StreakBadge` against the package's generated catalog and emits a
 /// reference, which the SDK resolves at runtime through the registered factory.
-@PaywallSource(id: 'custom_badge')
+@Paywall()
 class CustomBadgePaywall extends StatefulWidget {
   /// Const constructor.
   const CustomBadgePaywall({super.key});

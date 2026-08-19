@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../assets/bundled_asset_source.dart';
 import 'bundled_flow_loader.dart';
 import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
@@ -461,7 +462,7 @@ final class AssetFlowResolver
 
   final AssetBundle? _bundle;
 
-  AssetBundle get _effectiveBundle => _bundle ?? rootBundle;
+  AssetBundle get _effectiveBundle => restageAssetSource(_bundle);
 
   Map<String, ResolvedFlow> get _cache => _caches[this] ??= {};
 

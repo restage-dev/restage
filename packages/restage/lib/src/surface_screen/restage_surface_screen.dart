@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
@@ -19,14 +18,17 @@ import '../runtime/error_boundary.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart' show PriceInfo;
-import 'surface_screen_manifest.dart';
+import 'surface_screen_runtime_provenance.dart';
+import 'surface_screen_unavailable_policy.dart';
 import 'surface_screen_types.dart';
 
 /// Category-neutral host for one independently published screen.
 ///
-/// The host accepts only a generated [SurfaceScreenRef]. It always validates the
-/// exact generated manifest entry before consulting its resolver, so a resolver
-/// cannot introduce an arbitrary artifact or event contract.
+/// The host accepts only a generated [SurfaceScreenRef]. It validates that
+/// reference against its compiled-in generated provenance before consulting a
+/// resolver, and validates whatever the resolver returns against the same
+/// provenance, so a resolver cannot introduce an arbitrary artifact or event
+/// contract.
 final class RestageSurfaceScreen<E> extends StatefulWidget {
   /// Creates a standalone generated-screen host.
   const RestageSurfaceScreen({
@@ -109,24 +111,7 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
 
   Future<void> _resolve(int epoch) async {
     final screen = widget.screen;
-    final SurfaceScreenManifestEntry manifest;
-    try {
-      manifest = await SurfaceScreenManifestRegistry.resolve(screen);
-    } on SurfaceScreenUnavailableError catch (error) {
-      _fail(epoch, error);
-      return;
-    } on Object catch (error) {
-      _fail(
-        epoch,
-        SurfaceScreenUnavailableError(
-          reason: SurfaceScreenUnavailableReason.invalidPayload,
-          message: 'The generated screen contract could not be validated.',
-          cause: error,
-        ),
-      );
-      return;
-    }
-    if (!_isCurrent(epoch)) return;
+    final provenance = screen.provenance;
 
     final resolver = widget.resolver ?? Restage.defaultSurfaceScreenResolver;
     final ResolvedSurfaceScreen resolved;
@@ -149,7 +134,7 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
     if (!_isCurrent(epoch)) return;
 
     try {
-      final stage = _validateAndBuildStage(manifest, resolved);
+      final stage = _validateAndBuildStage(provenance, resolved);
       if (!_isCurrent(epoch)) {
         stage.dispose();
         return;
@@ -171,54 +156,16 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
   }
 
   _ScreenStage _validateAndBuildStage(
-    SurfaceScreenManifestEntry manifest,
+    SurfaceScreenRuntimeProvenance provenance,
     ResolvedSurfaceScreen resolved,
   ) {
-    if (resolved.surface != manifest.surface ||
-        resolved.slug != manifest.slug ||
-        resolved.contractVersion != manifest.contractVersion) {
-      throw const SurfaceScreenUnavailableError(
-        reason: SurfaceScreenUnavailableReason.identityMismatch,
-        message:
-            'The resolved screen identity does not match the generated reference.',
-      );
-    }
-    if (resolved.sourceKind != SurfaceSourceKind.screen ||
-        resolved.payloadKind != SurfacePayloadKind.blob ||
-        resolved.sourceKind != manifest.sourceKind ||
-        resolved.payloadKind != manifest.payloadKind ||
-        resolved.capabilities != manifest.capabilities ||
-        resolved.contractFingerprint != manifest.contractFingerprint ||
-        resolved.eventContractHash != manifest.eventContractHash) {
-      throw const SurfaceScreenUnavailableError(
-        reason: SurfaceScreenUnavailableReason.contractMismatch,
-        message:
-            'The resolved screen contract does not match the generated contract.',
-      );
-    }
+    // The host re-runs the same validation the resolver ran. A resolver is a
+    // replaceable seam, so the host never takes its word for identity,
+    // contract, content hash, or bundled provenance.
+    provenance.validateResolved(resolved);
 
-    if (resolved.origin == SurfaceScreenOrigin.bundled &&
-        (!listEquals(resolved.blob, manifest.bundledBlob) ||
-            resolved.contentHash != manifest.contentHash)) {
-      throw const SurfaceScreenUnavailableError(
-        reason: SurfaceScreenUnavailableReason.contractMismatch,
-        message: 'Bundled screen content does not match the generated closure.',
-      );
-    }
-
-    final payload = BlobSurfacePayload(
-      minClient: manifest.capabilities.builtInFloor,
-      blob: resolved.blob,
-      requiredLibraries: manifest.capabilities.requiredLibraries,
-    );
-    if (payload.contentHash != resolved.contentHash) {
-      throw const SurfaceScreenUnavailableError(
-        reason: SurfaceScreenUnavailableReason.invalidPayload,
-        message: 'The resolved screen content hash is invalid.',
-      );
-    }
     final capabilityVerdict = BlobRenderCapabilityGate.evaluate(
-      required: manifest.capabilities,
+      required: provenance.capabilities,
       installed: InstalledCapability(
         builtInCatalogVersion: RestageBuiltInCatalogCapabilities.currentVersion,
         installedLibraries: LibraryRuntimeRegistry.installedSnapshot(),
@@ -245,21 +192,21 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
 
     final runtime = _libraries.runtimeFor(library);
     final presentation = RootAnalyticsRuntime.createPresentation(
-      surface: manifest.surface.wireName,
-      surfaceId: manifest.slug,
-      sourceKind: manifest.sourceKind,
-      payloadKind: manifest.payloadKind,
+      surface: provenance.surface.wireName,
+      surfaceId: provenance.slug,
+      sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
+      payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
     );
     final assignment = resolved.assignment;
     presentation.stage(
       surfaceVersion:
-          (resolved.publishedRevision ?? manifest.contractVersion).toString(),
+          (resolved.publishedRevision ?? provenance.contractVersion).toString(),
       experimentId: assignment?.experimentId,
       variantId: assignment?.variantId,
       experimentEpoch: assignment?.experimentEpoch,
     );
     return _ScreenStage(
-      manifest: manifest,
+      provenance: provenance,
       resolved: resolved,
       runtime: runtime,
       data: DynamicContent(),
@@ -282,7 +229,7 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
     if (!identical(_stage, stage)) return;
     try {
       final arguments = normalizeEventArgs(value);
-      stage.manifest.eventSchema.validateEvent(name, arguments);
+      stage.provenance.eventSchema.validateEvent(name, arguments);
       final callback = widget.onEvent;
       if (callback == null) {
         throw const FormatException('No typed event callback is installed.');
@@ -361,14 +308,14 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
 
 final class _ScreenStage {
   const _ScreenStage({
-    required this.manifest,
+    required this.provenance,
     required this.resolved,
     required this.runtime,
     required this.data,
     required this.presentation,
   });
 
-  final SurfaceScreenManifestEntry manifest;
+  final SurfaceScreenRuntimeProvenance provenance;
   final ResolvedSurfaceScreen resolved;
   final Runtime runtime;
   final DynamicContent data;

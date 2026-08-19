@@ -17,9 +17,10 @@ import 'package:restage_shared/restage_shared.dart';
 /// pointer.
 ///
 /// Usable two ways via [fixedSurfaceType]:
-///   - null → generic `surface rollback` group (requires `--type`).
-///   - non-null → typed-group convenience (e.g. `paywall rollback`; no
-///     `--type`).
+///   - null → generic `surface rollback` group, normally resolved from the
+///     generated manifest.
+///   - non-null → typed-group compatibility convenience (e.g. `paywall
+///     rollback`; no `--type`).
 ///
 /// Works for paywalls AND flow surfaces (onboarding / message / survey /
 /// general) — the re-point reaches the selected family's active-arm clients.
@@ -36,7 +37,7 @@ class SurfaceRollbackCommand extends Command<int> {
   ///
   /// Pass [fixedSurfaceType] to pin the surface type (e.g. for the
   /// `paywall` convenience group); omit it for the generic `surface`
-  /// group, which requires the operator to pass `--type`.
+  /// group, which normally resolves identity from the generated manifest.
   SurfaceRollbackCommand({
     required StringSink stdout,
     required StringSink stderr,

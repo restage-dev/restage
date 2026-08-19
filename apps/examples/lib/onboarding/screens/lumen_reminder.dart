@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'lumen_reminder.rsscreen.g.dart';
+part 'restage.generated/lumen_reminder.restage.g.dart';
 
 /// Onboarding — the daily-reminder priming screen (the host-action gate).
 ///
@@ -12,11 +12,11 @@ part 'lumen_reminder.rsscreen.g.dart';
 /// design — there is no in-graph "skip" affordance, because a second forward
 /// transition from one screen is not authorable; the host action simply
 /// reports the user's decision.
-@ScreenSource(id: 'lumen_reminder')
+@Screen()
 class LumenReminderScreen extends StatelessWidget {
   /// Requests the reminder permission via the host action, then advances on a
   /// granted result.
-  static const enable = OnboardingEvent<void>('enable');
+  static const enable = SurfaceEvent<void>('enable');
 
   const LumenReminderScreen({super.key});
 
@@ -87,7 +87,7 @@ class LumenReminderScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(30),
                         ),
                       ),
-                      onPressed: onboardingEvent(enable),
+                      onPressed: surfaceEvent(enable),
                       child: const Text(
                         'Enable daily reminders',
                         style: TextStyle(

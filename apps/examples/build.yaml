@@ -1,0 +1,24 @@
+# The example app ships its generated surfaces inside the app bundle so the demos run
+# standalone, with no hosted delivery configured. `bundled_runtime` routes only
+# the deterministic `.rsbundle` containers into the Flutter asset directory
+# declared in pubspec.yaml; every other generated artifact stays where it is.
+#
+# Build Runner has no cross-builder options channel, so the option is repeated
+# identically on every placement-affected Restage builder key. Configuring one
+# and not another is a loud placement-divergence error, not a silent partial
+# application.
+targets:
+  $default:
+    builders:
+      restage_codegen:restage_source_roster:
+        options:
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options:
+          bundled_runtime: true
+      restage_codegen:generated_dart:
+        options:
+          bundled_runtime: true
+      restage_codegen:outputs:
+        options:
+          bundled_runtime: true

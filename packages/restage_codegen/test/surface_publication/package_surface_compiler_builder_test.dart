@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
-import 'package:restage_codegen/src/surface_publication/dynamic_output_owner.dart';
+import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
@@ -17,7 +17,7 @@ void main() {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'announcement.rsscreen.g.dart';
+part 'restage.generated/announcement.restage.g.dart';
 
 @Screen(surface: Surface.general)
 final class FeatureAnnouncement extends StatelessWidget {
@@ -34,7 +34,7 @@ import 'package:restage/restage.dart';
 
 import '../features/announcement.dart';
 
-part 'launch.rsflow.g.dart';
+part 'restage.generated/launch.restage.g.dart';
 
 @FlowGraph(surface: Surface.general)
 const launch = FlowDefinition(
@@ -88,8 +88,8 @@ const launch = FlowDefinition(
       bundle.ownedOutputs.keys,
       containsAll(<String>[
         'assets/general/screens/announcement.rfwtxt',
-        'lib/features/announcement.rsscreen.g.dart',
-        'lib/journeys/launch.rsflow.g.dart',
+        'lib/features/restage.generated/announcement.restage.g.dart',
+        'lib/journeys/restage.generated/launch.restage.g.dart',
       ]),
     );
     expect(
@@ -100,13 +100,15 @@ const launch = FlowDefinition(
     );
     expect(
       utf8.decode(
-        bundle.ownedOutputs['lib/features/announcement.rsscreen.g.dart']!,
+        bundle.ownedOutputs[
+            'lib/features/restage.generated/announcement.restage.g.dart']!,
       ),
       contains('SurfaceScreenRef<FeatureAnnouncementEvent>'),
     );
     expect(
       utf8.decode(
-        bundle.ownedOutputs['lib/journeys/launch.rsflow.g.dart']!,
+        bundle.ownedOutputs[
+            'lib/journeys/restage.generated/launch.restage.g.dart']!,
       ),
       contains('SurfaceFlowRef<LaunchResult>'),
     );
@@ -118,7 +120,7 @@ const launch = FlowDefinition(
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @Screen()
 final class Welcome extends StatelessWidget {
@@ -132,7 +134,7 @@ final class Welcome extends StatelessWidget {
     const onboardingFlow = '''
 import 'package:restage/restage.dart';
 import '../shared/welcome.dart';
-part 'onboarding.rsflow.g.dart';
+part 'restage.generated/onboarding.restage.g.dart';
 
 @FlowGraph(surface: Surface.onboarding)
 const onboarding = FlowDefinition(
@@ -143,7 +145,7 @@ const onboarding = FlowDefinition(
     const messageFlow = '''
 import 'package:restage/restage.dart';
 import '../shared/welcome.dart';
-part 'message.rsflow.g.dart';
+part 'restage.generated/message.restage.g.dart';
 
 @FlowGraph(surface: Surface.message)
 const message = FlowDefinition(
@@ -240,11 +242,154 @@ final class SecondOffer extends StatelessWidget {
     );
   });
 
+  test('lowers canonical paywall navigation through roster-owned identities',
+      () async {
+    const entry = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+import '../relocated/offer.dart';
+
+@Paywall()
+final class EntryPaywall extends StatelessWidget {
+  const EntryPaywall({super.key});
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      ElevatedButton(
+        onPressed: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => const PublishedOffer(),
+          ),
+        ),
+        child: const Text('Choose'),
+      ),
+      ElevatedButton(
+        onPressed: paywallEvent('skip'),
+        child: const Text('Skip'),
+      ),
+    ],
+  );
+}
+''';
+    const relocated = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall(id: 'published_offer')
+final class PublishedOffer extends StatelessWidget {
+  const PublishedOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) => ElevatedButton(
+    onPressed: () => Navigator.pop(context),
+    child: const Text('Back'),
+  );
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const <String, String>{
+        'apps_examples|lib/paywalls/entry.dart': entry,
+        'apps_examples|lib/relocated/offer.dart': relocated,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(
+      bundle.manifest!.publications
+          .map((entry) => entry.publication.slug)
+          .toList(),
+      ['entry'],
+      reason: 'the pushed adapter is part of the entry flow closure only',
+    );
+    expect(
+      bundle.ownedOutputs.keys,
+      containsAll(<String>{
+        'assets/paywalls/entry.rfw',
+        'assets/paywalls/entry.capability.json',
+      }),
+      reason: 'a navigation paywall retains its specialized standalone pair',
+    );
+    expect(
+      bundle.artifacts.keys,
+      isNot(
+        contains(
+          'assets/paywalls/entry.rfw',
+        ),
+      ),
+      reason: 'the standalone pair is not part of the selected flow closure',
+    );
+    final navigationPlan = jsonDecode(
+      utf8.decode(bundle.ownedOutputs['assets/paywalls/entry.navplan.json']!),
+    ) as Map<String, Object?>;
+    expect(navigationPlan['entryId'], 'entry');
+    expect(
+      (navigationPlan['transitions']! as List<Object?>).single,
+      <String, Object?>{
+        'event': 'restageNav0',
+        'pushedId': 'published_offer',
+      },
+    );
+    final document = FlowDocumentCodec.decodeJson(
+      utf8.decode(bundle.artifacts['assets/paywalls/entry.flow.json']!),
+    );
+    expect(document.screenArtifacts, contains('paywall_published_offer'));
+  });
+
+  test('rejects an orphan adapter-only canonical paywall', () async {
+    const orphan = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall()
+final class OrphanPaywall extends StatelessWidget {
+  const OrphanPaywall({super.key});
+
+  @override
+  Widget build(BuildContext context) => ElevatedButton(
+    onPressed: () => Navigator.pop(context),
+    child: const Text('Back'),
+  );
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const <String, String>{
+        'apps_examples|lib/paywalls/orphan.dart': orphan,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isFalse);
+    expect(
+      result.errors.join('\n'),
+      contains(
+        'Adapter-only paywall orphan is not referenced by a generated '
+        'paywall flow closure.',
+      ),
+    );
+  });
+
   test('publishes a canonical class-shaped advanced flow', () async {
     const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @Screen()
 final class Welcome extends StatelessWidget {
@@ -258,7 +403,7 @@ final class Welcome extends StatelessWidget {
     const flow = '''
 import 'package:restage/restage.dart';
 import '../shared/welcome.dart';
-part 'complex.rsflow.g.dart';
+part 'restage.generated/complex.restage.g.dart';
 
 @FlowGraph(surface: Surface.general)
 final class Complex extends RestageFlow {
@@ -303,7 +448,10 @@ final class Complex extends RestageFlow {
       contains('"flow":"complex"'),
     );
     expect(
-      utf8.decode(bundle.ownedOutputs['lib/journeys/complex.rsflow.g.dart']!),
+      utf8.decode(
+        bundle.ownedOutputs[
+            'lib/journeys/restage.generated/complex.restage.g.dart']!,
+      ),
       contains('SurfaceFlowRef<ComplexResult>'),
     );
   });
@@ -312,7 +460,7 @@ final class Complex extends RestageFlow {
     const screen = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
-part 'welcome.rsscreen.g.dart';
+part 'restage.generated/welcome.restage.g.dart';
 
 @ScreenSource(id: 'welcome', version: 1, minClient: 1)
 final class Welcome extends StatelessWidget {
@@ -326,7 +474,7 @@ final class Welcome extends StatelessWidget {
     const flow = '''
 import 'package:restage/restage.dart';
 import '../screens/welcome.dart';
-part 'welcome_flow.rsflow.g.dart';
+part 'restage.generated/welcome_flow.restage.g.dart';
 
 @FlowSource(id: 'welcome_flow', version: 1, minClient: 1)
 final class WelcomeFlow extends RestageFlow {
@@ -408,7 +556,7 @@ final class WelcomeFlow extends RestageFlow {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'onboarding_welcome.rsscreen.g.dart';
+part 'restage.generated/onboarding_welcome.restage.g.dart';
 
 @Screen(id: 'welcome', surface: Surface.onboarding)
 final class Welcome extends StatelessWidget {
@@ -424,7 +572,7 @@ final class Welcome extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'message_welcome.rsscreen.g.dart';
+part 'restage.generated/message_welcome.restage.g.dart';
 
 @Screen(id: 'welcome', surface: Surface.message)
 final class Welcome extends StatelessWidget {
@@ -441,7 +589,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/onboarding_welcome.dart' as onboarding;
 
-part 'onboarding_advanced.rsflow.g.dart';
+part 'restage.generated/onboarding_advanced.restage.g.dart';
 
 @FlowGraph(id: 'onboarding_advanced', surface: Surface.onboarding)
 final class OnboardingAdvanced extends RestageFlow {
@@ -467,7 +615,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/message_welcome.dart' as message;
 
-part 'message_advanced.rsflow.g.dart';
+part 'restage.generated/message_advanced.restage.g.dart';
 
 @FlowGraph(id: 'message_advanced', surface: Surface.message)
 final class MessageAdvanced extends RestageFlow {
@@ -538,7 +686,7 @@ final class MessageAdvanced extends RestageFlow {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'notice.rsscreen.g.dart';
+part 'restage.generated/notice.restage.g.dart';
 
 @Screen(id: 'generated_notice', surface: Surface.general)
 final class GeneratedNotice extends StatelessWidget {
@@ -599,7 +747,7 @@ final class Ignored extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'minimum_notice.rsscreen.g.dart';
+part 'restage.generated/minimum_notice.restage.g.dart';
 
 @Screen(id: 'minimum_notice', surface: Surface.general, minClient: 3)
 final class MinimumNotice extends StatelessWidget {
@@ -634,7 +782,8 @@ final class MinimumNotice extends StatelessWidget {
     ) as Map<String, Object?>;
     expect((sidecar['manifest']! as Map<Object?, Object?>)['builtInFloor'], 3);
     final generatedPart = utf8.decode(
-      bundle.ownedOutputs['lib/features/minimum_notice.rsscreen.g.dart']!,
+      bundle.ownedOutputs[
+          'lib/features/restage.generated/minimum_notice.restage.g.dart']!,
     );
     expect(generatedPart, contains('builtInFloor: 3'));
     expect(generatedPart, contains('minClient: 3'));
@@ -646,7 +795,7 @@ final class MinimumNotice extends StatelessWidget {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'minimum_notice.rsscreen.g.dart';
+part 'restage.generated/minimum_notice.restage.g.dart';
 
 @Screen(id: 'minimum_notice', minClient: 3)
 final class MinimumNotice extends StatelessWidget {
@@ -663,7 +812,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/minimum_notice.dart' as notice;
 
-part 'minimum_flow.rsflow.g.dart';
+part 'restage.generated/minimum_flow.restage.g.dart';
 
 @FlowGraph(id: 'minimum_flow', surface: Surface.general, minClient: 3)
 final class MinimumFlow extends RestageFlow {
@@ -723,7 +872,7 @@ final class MinimumFlow extends RestageFlow {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'derived_floor.rsscreen.g.dart';
+part 'restage.generated/derived_floor.restage.g.dart';
 
 @Screen(id: 'derived_floor', minClient: 1)
 final class DerivedFloor extends StatelessWidget {
@@ -741,7 +890,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/derived_floor.dart';
 
-part 'flat_floor.rsflow.g.dart';
+part 'restage.generated/flat_floor.restage.g.dart';
 
 @FlowGraph(id: 'flat_floor', surface: Surface.general, minClient: 1)
 const flatFloor = FlowDefinition(
@@ -754,7 +903,7 @@ import 'package:restage/restage.dart';
 
 import '../screens/derived_floor.dart';
 
-part 'advanced_trigger.rsflow.g.dart';
+part 'restage.generated/advanced_trigger.restage.g.dart';
 
 @FlowGraph(id: 'advanced_trigger', surface: Surface.general, minClient: 5)
 final class AdvancedTrigger extends RestageFlow {
@@ -830,7 +979,7 @@ final class AdvancedTrigger extends RestageFlow {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'shared_entry.rsscreen.g.dart';
+part 'restage.generated/shared_entry.restage.g.dart';
 
 @Screen(id: 'shared_entry')
 final class SharedEntry extends StatelessWidget {
@@ -847,7 +996,7 @@ import 'package:restage/restage.dart';
 
 import '../ui/shared_entry.dart';
 
-part 'flat_leaf.rsflow.g.dart';
+part 'restage.generated/flat_leaf.restage.g.dart';
 
 @FlowGraph(id: 'flat_leaf', surface: Surface.general)
 const flatLeaf = FlowDefinition(
@@ -860,7 +1009,7 @@ import 'package:restage/restage.dart';
 
 import '../ui/shared_entry.dart';
 
-part 'flat_parent.rsflow.g.dart';
+part 'restage.generated/flat_parent.restage.g.dart';
 
 Map<String, Object?> _decodeFlatLeaf(Map<String, Object?> result) => result;
 
@@ -938,7 +1087,7 @@ final class FlatParent extends RestageFlow {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'advanced_entry.rsscreen.g.dart';
+part 'restage.generated/advanced_entry.restage.g.dart';
 
 @Screen(id: 'advanced_entry')
 final class AdvancedEntry extends StatelessWidget {
@@ -955,7 +1104,7 @@ import 'package:restage/restage.dart';
 
 import '../ui/advanced_entry.dart';
 
-part 'advanced_leaf.rsflow.g.dart';
+part 'restage.generated/advanced_leaf.restage.g.dart';
 
 @FlowGraph(id: 'advanced_leaf', surface: Surface.general)
 final class AdvancedLeaf extends RestageFlow {
@@ -981,7 +1130,7 @@ import 'package:restage/restage.dart';
 
 import '../ui/advanced_entry.dart';
 
-part 'advanced_parent.rsflow.g.dart';
+part 'restage.generated/advanced_parent.restage.g.dart';
 
 Map<String, Object?> _decodeAdvancedLeaf(Map<String, Object?> result) => result;
 
@@ -1058,7 +1207,7 @@ final class AdvancedParent extends RestageFlow {
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-part 'cross_surface_entry.rsscreen.g.dart';
+part 'restage.generated/cross_surface_entry.restage.g.dart';
 
 @Screen(id: 'cross_surface_entry')
 final class CrossSurfaceEntry extends StatelessWidget {
@@ -1073,7 +1222,7 @@ final class CrossSurfaceEntry extends StatelessWidget {
     const onboardingChild = '''
 import 'package:restage/restage.dart';
 import 'shared/cross_surface_entry.dart';
-part 'onboarding_child.rsflow.g.dart';
+part 'restage.generated/onboarding_child.restage.g.dart';
 
 @FlowGraph(id: 'shared_child', surface: Surface.onboarding)
 const onboardingChild = FlowDefinition(
@@ -1084,7 +1233,7 @@ const onboardingChild = FlowDefinition(
     const messageChild = '''
 import 'package:restage/restage.dart';
 import 'shared/cross_surface_entry.dart';
-part 'message_child.rsflow.g.dart';
+part 'restage.generated/message_child.restage.g.dart';
 
 @FlowGraph(id: 'shared_child', surface: Surface.message)
 const messageChild = FlowDefinition(
@@ -1095,7 +1244,7 @@ const messageChild = FlowDefinition(
     const parent = '''
 import 'package:restage/restage.dart';
 import 'shared/cross_surface_entry.dart';
-part 'cross_surface_parent.rsflow.g.dart';
+part 'restage.generated/cross_surface_parent.restage.g.dart';
 
 Map<String, Object?> _decodeChild(Map<String, Object?> result) => result;
 
@@ -1183,7 +1332,7 @@ final class PremiumOffer extends StatelessWidget {
     const flow = '''
 import 'package:restage/restage.dart';
 
-part 'offer_gate.rsflow.g.dart';
+part 'restage.generated/offer_gate.restage.g.dart';
 
 @FlowGraph(id: 'offer_gate', surface: Surface.general)
 final class OfferGate extends RestageFlow {

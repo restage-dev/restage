@@ -21,10 +21,10 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
-import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
 import 'package:restage_codegen/src/source_state.dart';
+import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -351,7 +351,6 @@ final class OnboardingScreenBuilder implements Builder {
   Map<String, List<String>> get buildExtensions {
     final extensions = <String, List<String>>{
       '$_sourceDir/{{name}}.dart': [
-        '$_sourceDir/{{name}}.rsscreen.g.dart',
         '$_outputDir/{{name}}.rfwtxt',
         '$_outputDir/{{name}}.rfw',
         '$_outputDir/{{name}}.capability.json',
@@ -359,7 +358,6 @@ final class OnboardingScreenBuilder implements Builder {
     };
     if (surface == Surface.onboarding) {
       extensions['lib/general/screens/{{name}}.dart'] = const [
-        'lib/general/screens/{{name}}.rsscreen.g.dart',
         'assets/general/screens/{{name}}.rfwtxt',
         'assets/general/screens/{{name}}.rfw',
         'assets/general/screens/{{name}}.capability.json',
@@ -479,10 +477,6 @@ final class OnboardingScreenBuilder implements Builder {
         final bytes = fmt.encodeLibraryBlob(rfwLibrary);
         await Future.wait<void>([
           buildStep.writeAsString(
-            AssetId(assetId.package, '$_sourceDir/$stem.rsscreen.g.dart'),
-            _emitDescriptor(stem, src),
-          ),
-          buildStep.writeAsString(
             AssetId(assetId.package, '$_outputDir/$stem.rfwtxt'),
             text,
           ),
@@ -520,7 +514,10 @@ final class OnboardingScreenBuilder implements Builder {
     BuildStep buildStep,
     List<ResolvedScreenCompilationInput> screens,
   ) async {
-    final compilation = await compileTrackedPackageSurfaces(buildStep);
+    final compilation = await compileTrackedPackageSurfaces(
+      buildStep,
+      plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+    );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
     final publication = compilation.publicationBundle;
     final stem = p.basenameWithoutExtension(buildStep.inputId.path);
@@ -529,16 +526,10 @@ final class OnboardingScreenBuilder implements Builder {
     final selected = screens.first;
     final effectiveSurface = selected.surface?.wireName ?? inputSurface;
     final canonicalRoot = 'assets/$effectiveSurface/screens/${selected.id}';
-    final partPath = '${p.posix.dirname(buildStep.inputId.path)}/'
-        '$stem.rsscreen.g.dart';
-    final generatedPart = compilation.generatedParts[partPath];
     final text = publication.ownedOutputs['$canonicalRoot.rfwtxt'];
     final blob = publication.artifacts['$canonicalRoot.rfw'];
     final sidecar = publication.artifacts['$canonicalRoot.capability.json'];
-    if (generatedPart == null ||
-        text == null ||
-        blob == null ||
-        sidecar == null) {
+    if (text == null || blob == null || sidecar == null) {
       _surfaceIssues([
         Issue(
           code: IssueCode.missingScreenDescriptor,
@@ -549,10 +540,6 @@ final class OnboardingScreenBuilder implements Builder {
       ]);
     }
     await Future.wait<void>([
-      buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, partPath),
-        generatedPart,
-      ),
       buildStep.writeAsBytes(
         AssetId(buildStep.inputId.package, '$outputRoot.rfwtxt'),
         text,
@@ -596,21 +583,6 @@ bool _elementHasName(Element element, String name) {
       element.lookupName == name ||
       element.lookupName == '$name=';
 }
-
-String _emitDescriptor(String stem, OnboardingScreenSourceFound src) => '''
-part of '$stem.dart';
-
-abstract final class ${src.className}Descriptor {
-  const ${src.className}Descriptor._();
-
-  static const SurfaceScreenRef ref = SurfaceScreenRef(
-    id: '${src.id}',
-    artifactPath: '${src.id}.rfw',
-    version: ${src.version},
-    minClient: ${src.minClient},
-  );
-}
-''';
 
 Surface? _surfaceFromValue(DartObject value) {
   final type = value.type;

@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 import 'categorized_screens.dart';
 import 'upgrade_offer.dart';
 
-part 'message_offer_flow.rsflow.g.dart';
+part 'restage.generated/message_offer_flow.restage.g.dart';
 
 @FlowGraph(id: 'message_offer', surface: Surface.message)
 const messageOffer = FlowDefinition(

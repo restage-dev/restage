@@ -322,7 +322,7 @@ void main() {
       import 'package:restage/restage.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-      part 'shared.rsscreen.g.dart';
+      part 'restage.generated/shared.restage.g.dart';
 
       @RestageWidget(
         name: 'shared',
@@ -378,12 +378,50 @@ dependencies:
     );
   });
 
+  test(
+    'Widgetbook indexes package-wide canonical screens with implicit and '
+    'colocated explicit IDs alongside legacy compatibility sources',
+    () async {
+      const expectedScreens =
+          'screens=implicit_notice,legacy_notice,stable-first,stable-second';
+      const sources = <String, String>{
+        'apps_examples|lib/features/implicit_notice.dart':
+            _canonicalImplicitNotice,
+        'apps_examples|lib/features/message_bundle.dart':
+            _canonicalMessageBundle,
+        'apps_examples|lib/onboarding/screens/legacy_notice.dart':
+            _legacyNotice,
+        'apps_examples|pubspec.yaml': _screenSourcePubspec,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+
+      await runWithNativeScreenPackageGraphForTesting(
+        packageGraphSource: _screenSourcePackageGraph,
+        body: () => testBuilder(
+          const _IndexProbeBuilder(),
+          sources,
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          outputs: {
+            'apps_examples|lib/widgetbook_index.txt': decodedMatches(
+              contains(
+                expectedScreens,
+              ),
+            ),
+          },
+        ),
+      );
+    },
+  );
+
   test('ScreenSource passes through the Widgetbook capability wall', () async {
     const source = '''
       import 'package:flutter/widgets.dart';
       import 'package:restage/restage.dart';
 
-      part 'unsupported_screen.rsscreen.g.dart';
+      part 'restage.generated/unsupported_screen.restage.g.dart';
 
       class ScreenData {
         const ScreenData({required this.decoration});
@@ -475,6 +513,67 @@ dependencies:
 
 const _screenSourcePackageGraph = '''
 {"roots":["apps_examples"],"packages":[{"name":"apps_examples","version":"0.0.0","dependencies":["flutter","restage","rfw_catalog_schema"],"devDependencies":[]}]}
+''';
+
+const _screenSourcePubspec = '''
+name: apps_examples
+dependencies:
+  flutter: any
+  restage: any
+  rfw_catalog_schema: any
+''';
+
+const _canonicalImplicitNotice = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/implicit_notice.restage.g.dart';
+
+@Screen(surface: Surface.general, version: 2)
+final class ImplicitNotice extends StatelessWidget {
+  const ImplicitNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+const _canonicalMessageBundle = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/message_bundle.restage.g.dart';
+
+@Screen(id: 'stable-first', surface: Surface.message)
+final class StableFirst extends StatelessWidget {
+  const StableFirst({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+@Screen(id: 'stable-second', surface: Surface.message)
+final class StableSecond extends StatelessWidget {
+  const StableSecond({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+const _legacyNotice = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/legacy_notice.restage.g.dart';
+
+@ScreenSource(id: 'legacy_notice')
+final class LegacyNotice extends StatelessWidget {
+  const LegacyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
 ''';
 
 final class _IndexProbeBuilder implements Builder {

@@ -1,4 +1,11 @@
 builders:
+  # Placement options are accepted identically on every placement-affected
+  # builder key, with identical defaults. Build Runner has no cross-builder
+  # options channel, so "configure it once" is honest only through root
+  # global_options or through repeating the same target options on each key.
+  # A package that configures one key and not another gets a loud "placement
+  # options divergence between Restage builder targets" error rather than a
+  # silently missing output.
   restage_source_roster:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['restageSourceRosterBuilder']
@@ -18,7 +25,8 @@ builders:
       - 'restage_codegen:survey_screen_codegen'
       - 'restage_codegen:survey_flow_codegen'
       - 'restage_codegen:restage_package_surface_compiler'
-      - 'restage_codegen:restage_surface_publication_bundle'
+      - 'restage_codegen:outputs'
+      - 'restage_codegen:generated_dart'
       - 'restage_codegen:user_catalog'
       - 'restage_codegen:user_catalog_json'
       - 'restage_codegen:factory_functions'
@@ -33,18 +41,44 @@ builders:
     auto_apply: dependents
     build_to: source
     runs_before:
-      - 'restage_codegen:restage_surface_publication_bundle'
+      - 'restage_codegen:outputs'
+      - 'restage_codegen:generated_dart'
 
-  restage_surface_publication_bundle:
+  # The single owner of per-library generated Dart. One builder declares and
+  # writes the whole `<stem>.restage.g.dart` family, so a library declaring a
+  # screen, a flow, or both still has exactly one generated part with one
+  # claimant. build_extensions below is the default-options resolution; a
+  # package configuring `source_output_layout` or `dart_output_root` gets a
+  # runtime buildExtensions resolved from the same placement plan.
+  generated_dart:
     import: 'package:restage_codegen/builder.dart'
-    builder_factories: ['restageSurfacePublicationBundleBuilder']
+    builder_factories: ['restageGeneratedDartBuilder']
     build_extensions:
-      $package$:
-        - "assets/restage/surface-publication.bundle.json"
+      "{{dir}}/{{file}}.dart":
+        - "{{dir}}/restage.generated/{{file}}.restage.g.dart"
     auto_apply: dependents
     build_to: source
-    applies_builders:
-      - 'restage_codegen:restage_surface_publication_owner'
+    runs_before: []
+
+  # The single static materialization boundary for portable output: one
+  # deterministic bundle per authored library, its optional inspection
+  # report, and the package-wide output index plus publication manifest.
+  # buildExtensions below is the default-options resolution (no
+  # inspection_report, no dart_output_root/output_root/bundled_runtime);
+  # a package configuring those options gets a runtime buildExtensions that
+  # differs from this static default, per the placement plan's own
+  # precedence rules.
+  outputs:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageOutputsBuilder']
+    build_extensions:
+      "{{dir}}/{{file}}.dart":
+        - "{{dir}}/restage.generated/{{file}}.rsbundle"
+      $package$:
+        - "lib/generated/restage.outputs.json"
+        - "lib/generated/restage.publication.json"
+    auto_apply: dependents
+    build_to: source
     runs_before: []
 
   paywall_codegen:
@@ -85,12 +119,10 @@ builders:
     builder_factories: ['onboardingScreenBuilder']
     build_extensions:
       "lib/onboarding/screens/{{name}}.dart":
-        - "lib/onboarding/screens/{{name}}.rsscreen.g.dart"
         - "assets/onboarding/screens/{{name}}.rfwtxt"
         - "assets/onboarding/screens/{{name}}.rfw"
         - "assets/onboarding/screens/{{name}}.capability.json"
       "lib/general/screens/{{name}}.dart":
-        - "lib/general/screens/{{name}}.rsscreen.g.dart"
         - "assets/general/screens/{{name}}.rfwtxt"
         - "assets/general/screens/{{name}}.rfw"
         - "assets/general/screens/{{name}}.capability.json"
@@ -107,10 +139,8 @@ builders:
     builder_factories: ['onboardingFlowBuilder']
     build_extensions:
       "lib/onboarding/flows/{{name}}.dart":
-        - "lib/onboarding/flows/{{name}}.rsflow.g.dart"
         - "assets/onboarding/flows/{{name}}.flow.json"
       "lib/general/flows/{{name}}.dart":
-        - "lib/general/flows/{{name}}.rsflow.g.dart"
         - "assets/general/flows/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
@@ -124,7 +154,6 @@ builders:
     builder_factories: ['messageScreenBuilder']
     build_extensions:
       "lib/message/screens/{{name}}.dart":
-        - "lib/message/screens/{{name}}.rsscreen.g.dart"
         - "assets/message/screens/{{name}}.rfwtxt"
         - "assets/message/screens/{{name}}.rfw"
         - "assets/message/screens/{{name}}.capability.json"
@@ -141,7 +170,6 @@ builders:
     builder_factories: ['messageFlowBuilder']
     build_extensions:
       "lib/message/flows/{{name}}.dart":
-        - "lib/message/flows/{{name}}.rsflow.g.dart"
         - "assets/message/flows/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
@@ -155,7 +183,6 @@ builders:
     builder_factories: ['surveyScreenBuilder']
     build_extensions:
       "lib/survey/screens/{{name}}.dart":
-        - "lib/survey/screens/{{name}}.rsscreen.g.dart"
         - "assets/survey/screens/{{name}}.rfwtxt"
         - "assets/survey/screens/{{name}}.rfw"
         - "assets/survey/screens/{{name}}.capability.json"
@@ -172,7 +199,6 @@ builders:
     builder_factories: ['surveyFlowBuilder']
     build_extensions:
       "lib/survey/flows/{{name}}.dart":
-        - "lib/survey/flows/{{name}}.rsflow.g.dart"
         - "assets/survey/flows/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
@@ -225,13 +251,19 @@ builders:
     auto_apply: dependents
     build_to: source
     runs_before: []
+  # The importable A2UI catalog Dart plus its producer-facing capability
+  # document. build_extensions below is the default-options resolution; a
+  # package configuring `dart_output_root` moves the Dart catalog, and one
+  # configuring `output_root` moves the producer document into that root's
+  # `a2ui/` purpose directory, which may sit outside lib/ — hence the package
+  # step rather than a lib-rooted one.
   user_a2ui_catalog:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userA2uiCatalogBuilder']
     build_extensions:
-      $lib$:
-        - "generated/restage_a2ui_catalog.g.dart"
-        - "generated/restage_a2ui_catalog.a2ui.json"
+      $package$:
+        - "lib/generated/restage_a2ui_catalog.g.dart"
+        - "lib/generated/restage_a2ui_catalog.a2ui.json"
     # Opt-in only: the generated code imports the genui runtime, so this builder
     # must not apply to dependents who don't want an A2UI catalog. A consumer
     # enables it explicitly in their own build.yaml.
@@ -241,17 +273,14 @@ builders:
   widgetbook_stories:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['widgetbookStoryBuilder']
+    # The second entry is a required static placeholder: Build Runner wants a
+    # declared output here, but the real story filenames are one per annotated
+    # class and are only known once the sources are read. `promo_banner` names
+    # no widget in this repository; it stands in for that shape.
     build_extensions:
       $lib$:
         - "generated/.restage_widgetbook_story_builder"
-        - "generated/promo_banner.stories.dart"
+        - "restage.generated/promo_banner.stories.dart"
     auto_apply: none
     build_to: source
     runs_before: ['widgetbook:story_builder']
-
-post_process_builders:
-  restage_surface_publication_owner:
-    import: 'package:restage_codegen/builder.dart'
-    builder_factory: 'restageSurfacePublicationOutputOwner'
-    input_extensions: [".bundle.json"]
-    build_to: source

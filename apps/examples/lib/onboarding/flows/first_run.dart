@@ -5,7 +5,7 @@ import '../screens/ready.dart';
 import '../screens/value.dart';
 import '../screens/welcome.dart';
 
-part 'first_run.rsflow.g.dart';
+part 'restage.generated/first_run.restage.g.dart';
 
 /// First-run onboarding flow: welcome → value → notification priming → paywall.
 ///
@@ -36,7 +36,7 @@ part 'first_run.rsflow.g.dart';
 /// for the `skip` custom event to do the same when the user opts out. Keeping
 /// navigation in the host is the honest contract: the flow describes intent,
 /// the app acts on it.
-@FlowSource(id: 'first_run', version: 1)
+@FlowGraph(surface: Surface.onboarding)
 final class FirstRunFlow extends RestageFlow {
   /// Host action that shows the OS notification dialog and reports the grant.
   static const requestNotifications =

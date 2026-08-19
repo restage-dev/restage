@@ -82,7 +82,7 @@ Future<Uint8List> buildPaywallSurfaceEnvelope(String id) async {
   const minClient = 3;
   return SurfaceDocumentCodec.encode(
     SurfaceDocument(
-      surfaceType: SurfaceType.paywall,
+      surfaceType: Surface.paywall,
       surfaceSlug: id,
       version: 1,
       minClient: minClient,
@@ -167,6 +167,21 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
       child: FutureBuilder<RestageVariantResolver>(
         future: _resolver,
         builder: (context, snapshot) {
+          // `hasData` is false for a failed future too, so spinning on it alone
+          // turns any error on this path into a screen that never settles.
+          if (snapshot.hasError) {
+            debugPrint('hosted demo resolver failed: ${snapshot.error}');
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  'This paywall is unavailable right now.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFFB9B9C6)),
+                ),
+              ),
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
