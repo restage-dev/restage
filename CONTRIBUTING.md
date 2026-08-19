@@ -1,19 +1,19 @@
 # Contributing to Restage
 
-Thanks for your interest in Restage — the open-source SDK for server-driven
+Thanks for your interest in Restage, the open-source SDK for server-driven
 Flutter UI: the runtime that renders surfaces, the widget catalog, the build-time
 toolchain, the CLI, and the examples. Contributions are welcome.
 
 ## Before you start: one gated area
 
-Most of the SDK is open for pull requests right now — the widget catalog
+Most of the SDK is open for pull requests right now: the widget catalog
 (`restage_core` / `restage_material` / `restage_cupertino`), the runtime SDK
 (`restage`), the RevenueCat adapter, the CLI, and the examples.
 
 **The two exceptions are the build-time toolchain packages, `restage_codegen` and
 `rfw_catalog_compiler`.** They're licensed FSL-1.1-ALv2 (with a scheduled
 conversion to Apache-2.0), which means contributions to them require a Contributor
-License Agreement — and we're still putting the CLA signing flow (and the bot that
+License Agreement, and we're still putting the CLA signing flow (and the bot that
 checks it) in place. **A pull request that changes either of those packages will be
 closed automatically until that's live.** If you have a toolchain idea in the
 meantime, please [open an issue](https://github.com/restage-dev/restage/issues);
@@ -42,13 +42,20 @@ cd packages/restage_core
 flutter test
 ```
 
-Before opening a pull request, run the analyzer and the formatter — the same two
-checks the project runs:
+Before opening a pull request, run what CI runs:
 
 ```sh
 dart analyze
-dart format .
+melos run format
+dart tool/publish_closeout_test.dart
+melos run test:dart --scope="rfw_catalog_schema,restage_shared,restage_mcp,restage_cli"
+melos run test:flutter --no-select
 ```
+
+`melos run format` only reports; it does not rewrite. It also skips generated
+Dart, which the emitter owns, so do not reach for a bare `dart format .` when it
+fails: that reformats files CI deliberately leaves alone. Format the specific
+files it names instead.
 
 ## Where to contribute
 
@@ -86,7 +93,7 @@ Other good areas:
   and focused improvements. For anything larger, open an issue first so we can
   talk through the shape before you build it.
 - **The build-time toolchain** (`packages/restage_codegen`,
-  `packages/rfw_catalog_compiler`): gated for now (see above) — open an issue
+  `packages/rfw_catalog_compiler`): gated for now (see above). Open an issue
   rather than a pull request until the CLA flow is live.
 
 A note on the SDK's dependencies: `packages/restage` is intentionally
@@ -98,14 +105,14 @@ come through configuration.
 
 - Keep changes focused. One widget, one fix, or one example per pull request is
   ideal.
-- Make sure `dart analyze`, `dart format .`, and the relevant tests pass.
+- Make sure `dart analyze`, `melos run format`, and the relevant tests pass.
 - Describe what you changed and why. If it changes behavior, say how you verified
   it.
 
 ## Contributor License Agreement
 
 You only need to think about this if you're contributing to the **FSL-licensed
-build toolchain** (`restage_codegen` / `rfw_catalog_compiler`) — and that's gated
+build toolchain** (`restage_codegen` / `rfw_catalog_compiler`), and that's gated
 until the signing flow is live anyway. The rest of the SDK is BSD-3-Clause and
 requires no CLA.
 
