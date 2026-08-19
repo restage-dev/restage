@@ -1,30 +1,29 @@
 import 'package:meta/meta.dart';
 
-/// Marks a class as a paywall source for `restage_codegen` to consume.
+/// Marks a Flutter widget class as a specialized paywall source.
 ///
-/// Authored classes extend `StatelessWidget` and use `paywallEvent` /
-/// `paywallPurchase` / `paywallPriceFor` helpers in their `build()` method.
-/// The codegen walks annotated classes at build time and emits matching
-/// `.rfwtxt` + `.rfw` artifacts.
+/// A paywall is independently published under [Surface.paywall] and may also
+/// appear inside a flow of any supported category. Its specialized runtime
+/// behavior is selected by source kind, not by the containing flow's category.
+@immutable
+final class Paywall {
+  /// Creates a paywall annotation.
+  const Paywall({this.id});
+
+  /// Optional stable source identity.
+  final String? id;
+}
+
+/// Legacy source annotation for a specialized paywall.
 ///
-/// Example:
-/// ```dart
-/// @PaywallSource(id: 'pro_upgrade')
-/// class ProUpgradePaywall extends StatelessWidget {
-///   @override
-///   Widget build(BuildContext context) => Scaffold(
-///     body: Center(child: ElevatedButton(
-///       onPressed: paywallPurchase(slot: 'primary'),
-///       child: Text('Subscribe'),
-///     )),
-///   );
-/// }
-/// ```
+/// New source should use [Paywall]. This annotation retains its legacy
+/// required-ID shape while the generator continues to support it.
+@Deprecated('Use @Paywall(...) instead.')
 @immutable
 final class PaywallSource {
-  /// Marks the annotated class as a paywall source authored in Dart.
+  /// Creates a legacy paywall source annotation.
   const PaywallSource({required this.id});
 
-  /// Server-side paywall identifier. Matches `RestagePaywall(id:)`.
+  /// Stable paywall identifier.
   final String id;
 }

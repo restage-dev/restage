@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:restage_shared/restage_shared.dart' show SurfaceType;
+import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../refresh/surface_refresh_trigger.dart';
 import '../runtime/state_variables.dart';
@@ -114,7 +114,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   String? _reportedUnsupportedIdentity;
   int _unavailableCallbackGeneration = 0;
 
-  bool get _acceptsFlow => widget.flow.surfaceType == SurfaceType.onboarding;
+  bool get _acceptsFlow => widget.flow.surfaceType == Surface.onboarding;
 
   FlowUnavailableError? get _unsupportedError {
     if (_acceptsFlow) return null;

@@ -1,41 +1,54 @@
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show FlowDeliveryMode, kBaselineCatalogVersion;
+    show FlowDeliveryMode, Surface, kBaselineCatalogVersion;
 
-/// Marks a class as a flow screen source for `restage_codegen`.
+/// Marks a top-level [FlowDefinition] or [RestageFlow] class as a flow graph.
 ///
-/// A flow screen is a single screen in a multi-screen flow — onboarding,
-/// surveys, in-app messages, or a paywall flow. Authored classes extend
-/// `StatelessWidget` (or a supported `StatefulWidget`) and declare their
-/// graph transitions with static event markers. The codegen walks annotated
-/// classes at build time and emits a matching screen descriptor + `.rfw`
-/// artifact.
+/// A flow always declares its product category in source. The generator derives
+/// an omitted [id] from the library filename when that declaration is
+/// unambiguous.
+@immutable
+final class FlowGraph {
+  /// Creates a flow graph annotation.
+  const FlowGraph({
+    this.id,
+    required this.surface,
+    this.version = 1,
+    this.minClient = kBaselineCatalogVersion,
+    this.delivery = FlowDeliveryMode.typed,
+  });
+
+  /// Optional stable flow identity.
+  final String? id;
+
+  /// Product category of the complete flow.
+  final Surface surface;
+
+  /// App-pinned flow contract version.
+  final int version;
+
+  /// Minimum catalog version required to render the flow.
+  final int minClient;
+
+  /// Delivery discipline for the generated flow payload.
+  final FlowDeliveryMode delivery;
+}
+
+/// Legacy source annotation for a reusable flow screen.
 ///
-/// Example:
-/// ```dart
-/// @ScreenSource(id: 'welcome')
-/// class WelcomeScreen extends StatelessWidget {
-///   static const next = OnboardingEvent<void>('next');
-///
-///   @override
-///   Widget build(BuildContext context) => Center(
-///     child: ElevatedButton(
-///       onPressed: onboardingEvent(next),
-///       child: const Text('Continue'),
-///     ),
-///   );
-/// }
-/// ```
+/// New source should use [Screen]. This annotation retains its legacy required
+/// ID shape while the generator continues to support directory-routed input.
+@Deprecated('Use @Screen(...) instead.')
 @immutable
 final class ScreenSource {
-  /// Creates a flow screen source annotation.
+  /// Creates a legacy flow-screen source annotation.
   const ScreenSource({
     required this.id,
     this.version = 1,
     this.minClient = kBaselineCatalogVersion,
   });
 
-  /// Stable flow screen identifier.
+  /// Stable flow-screen identifier.
   final String id;
 
   /// Descriptor version emitted for this screen.
@@ -45,38 +58,15 @@ final class ScreenSource {
   final int minClient;
 }
 
-/// Marks a class as a flow graph source for `restage_codegen`.
+/// Legacy source annotation for a class-shaped flow graph.
 ///
-/// A flow graph composes flow screens into a multi-screen experience —
-/// onboarding, surveys, in-app messages, or a paywall flow. Authored classes
-/// extend `RestageFlow` and describe their states and transitions in
-/// `buildFlow()`. The codegen walks annotated classes at build time and emits a
-/// typed flow descriptor + a canonical flow document.
-///
-/// Example:
-/// ```dart
-/// @FlowSource(id: 'first_run')
-/// final class FirstRunFlow extends RestageFlow {
-///   const FirstRunFlow();
-///
-///   @override
-///   FlowDef buildFlow() {
-///     final done = endState('done');
-///     return flow(
-///       initial: WelcomeScreenDescriptor.ref,
-///       states: [
-///         screen(WelcomeScreenDescriptor.ref)
-///             .on(WelcomeScreen.next)
-///             .goTo(done),
-///         end(done, result: {'completed': true}),
-///       ],
-///     );
-///   }
-/// }
-/// ```
+/// New source should use [FlowGraph]. This annotation retains its legacy
+/// required ID shape while the generator continues to support directory-routed
+/// input.
+@Deprecated('Use @FlowGraph(surface: Surface.<category>) instead.')
 @immutable
 final class FlowSource {
-  /// Creates a flow graph source annotation.
+  /// Creates a legacy flow graph source annotation.
   const FlowSource({
     required this.id,
     this.version = 1,
@@ -93,15 +83,6 @@ final class FlowSource {
   /// Minimum client descriptor version that can load this flow.
   final int minClient;
 
-  /// Delivery mode stamped on the emitted flow document.
-  ///
-  /// `typed` (the default) preserves today's behavior exactly. `general`
-  /// emits a document whose structure may change over-the-air within the
-  /// installed action/signal vocabulary; the host receives the
-  /// outbound-filtered result as an untyped `Map<String, Object?>`.
-  ///
-  /// Switching a published flow from `typed` to `general` (or back) is a
-  /// contract change: installed clients fail closed to their bundled copy
-  /// until an app update ships the new mode.
+  /// Delivery discipline for the emitted flow document.
   final FlowDeliveryMode delivery;
 }

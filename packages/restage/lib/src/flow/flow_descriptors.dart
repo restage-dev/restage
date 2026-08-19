@@ -1,41 +1,161 @@
 import 'dart:async';
 
+import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Base type for valid onboarding flow transition targets.
+/// Base type for valid flow transition targets.
 sealed class FlowTargetRef {
   const FlowTargetRef();
 }
 
-/// Reference to a generated onboarding screen artifact.
-///
-/// The runtime resolves this to a pinned bundled RFW asset. Missing or
-/// incompatible artifacts make the owning flow unavailable instead of
-/// rendering a partial flow.
-final class OnboardingScreenRef extends FlowTargetRef {
-  /// Creates a descriptor reference for an onboarding screen.
-  const OnboardingScreenRef({
-    required this.id,
-    required this.artifactPath,
-    required this.version,
-    required this.minClient,
+/// Base type for generated screen references that may occur in a flow.
+sealed class FlowScreenRef extends FlowTargetRef {
+  const FlowScreenRef({
+    required this.slug,
+    required this.contractVersion,
   });
 
-  /// Stable onboarding screen identifier.
-  final String id;
+  /// Stable screen identity.
+  final String slug;
 
-  /// Asset path for the generated screen artifact.
-  final String artifactPath;
+  /// App-pinned contract version for the screen.
+  final int contractVersion;
 
-  /// Descriptor version emitted for this screen.
-  final int version;
+  /// Rendering capabilities pinned by the generated reference.
+  CapabilityManifest get capabilities;
 
-  /// Minimum client descriptor version that can load this screen.
-  final int minClient;
+  /// Deprecated compatibility spelling for [slug].
+  String get id => slug;
+
+  /// Deprecated compatibility spelling for [contractVersion].
+  int get version => contractVersion;
+
+  /// Capability floor retained for the advanced graph DSL.
+  int get minClient => capabilities.builtInFloor;
 }
 
-/// Neutral alias for a generated flow screen artifact reference.
-typedef SurfaceScreenRef = OnboardingScreenRef;
+/// A generated reference for a category-neutral screen used inside a flow.
+///
+/// The unnamed constructor retains the legacy descriptor shape for the
+/// advanced graph DSL. New generated references use [generated], which does
+/// not carry an authoritative asset path.
+final class NeutralFlowScreenRef extends FlowScreenRef {
+  /// Creates a legacy descriptor reference for the advanced graph DSL.
+  const NeutralFlowScreenRef({
+    required String id,
+    required this.artifactPath,
+    required int version,
+    required int minClient,
+  })  : _capabilities = null,
+        _legacyMinClient = minClient,
+        super(slug: id, contractVersion: version);
+
+  /// Creates a generated category-neutral screen reference.
+  const NeutralFlowScreenRef.generated({
+    required super.slug,
+    required super.contractVersion,
+    required CapabilityManifest capabilities,
+  })  : artifactPath = '',
+        _capabilities = capabilities,
+        _legacyMinClient = null;
+
+  /// Legacy generated asset path used only by the advanced graph DSL.
+  ///
+  /// The canonical generated constructor deliberately leaves this empty; its
+  /// artifact is selected by generated metadata rather than this reference.
+  final String artifactPath;
+
+  final CapabilityManifest? _capabilities;
+  final int? _legacyMinClient;
+
+  /// Legacy compatibility floor.
+  @override
+  int get minClient => _legacyMinClient ?? _capabilities!.builtInFloor;
+
+  @override
+  CapabilityManifest get capabilities =>
+      _capabilities ??
+      CapabilityManifest(
+        builtInFloor: minClient,
+        requiredLibraries: const [],
+      );
+}
+
+/// Deprecated compatibility spelling for [NeutralFlowScreenRef].
+@Deprecated('Use NeutralFlowScreenRef instead.')
+typedef OnboardingScreenRef = NeutralFlowScreenRef;
+
+/// Converts validated standalone-screen wire events into their generated type.
+typedef GeneratedSurfaceScreenEventDecoder<E> = E Function(
+  String name,
+  Map<String, Object?> arguments,
+);
+
+Never _rejectUnexpectedSurfaceScreenEvent(
+  String name,
+  Map<String, Object?> arguments,
+) {
+  throw FormatException('Unexpected standalone-screen event "$name".');
+}
+
+/// Typed conversion contract for a generated standalone screen.
+///
+/// The generated decoder is conversion-only. Runtime accepted-set validation
+/// remains owned by the generated event schema.
+@immutable
+final class SurfaceScreenEventContract<E> {
+  /// Creates a generated event conversion contract.
+  const SurfaceScreenEventContract.generated({
+    required this.hash,
+    required this.decodeValidated,
+  });
+
+  /// Creates an event-free reject-all conversion contract.
+  const SurfaceScreenEventContract.none({required this.hash})
+      : decodeValidated = _rejectUnexpectedSurfaceScreenEvent;
+
+  /// Stable hash of the independently validated event schema.
+  final String hash;
+
+  /// Converts values only after schema validation has accepted them.
+  @internal
+  final GeneratedSurfaceScreenEventDecoder<E> decodeValidated;
+}
+
+/// A generated reference for an independently published ordinary screen.
+///
+/// It is deliberately generic in its generated event type and contains no
+/// authoritative artifact path.
+@immutable
+final class SurfaceScreenRef<E> extends FlowScreenRef {
+  /// Creates a generated standalone screen reference.
+  const SurfaceScreenRef.generated({
+    required super.slug,
+    required super.contractVersion,
+    required this.capabilities,
+    required this.surface,
+    required this.contractFingerprint,
+    required this.eventContract,
+  });
+
+  @override
+  final CapabilityManifest capabilities;
+
+  /// Product category declared by the independently published screen.
+  final Surface surface;
+
+  /// Immutable hash binding the generated contract fields.
+  final String contractFingerprint;
+
+  /// Typed generated event conversion contract.
+  final SurfaceScreenEventContract<E> eventContract;
+
+  /// Source semantics selected by this reference.
+  SurfaceSourceKind get sourceKind => SurfaceSourceKind.screen;
+
+  /// Artifact shape selected by this reference.
+  SurfacePayloadKind get payloadKind => SurfacePayloadKind.blob;
+}
 
 /// Reference to a terminal flow state.
 final class EndStateRef extends FlowTargetRef {
@@ -65,23 +185,22 @@ FlowNodeRef flowNode(String id) => FlowNodeRef(id);
 /// generated result DTO.
 typedef FlowResultDecoder<R> = R Function(Map<String, Object?> result);
 
-/// Reference to a generated onboarding flow artifact.
+/// Reference to a generated flow artifact.
 ///
-/// Generated descriptors carry the flow identity, compatibility floor, and
-/// typed terminal-result decoder that `RestageOnboarding` uses for
-/// fail-closed completion.
-final class OnboardingFlowRef<R> {
-  /// Creates a descriptor reference for an onboarding flow.
-  const OnboardingFlowRef({
+/// Generated descriptors carry the flow identity, category, compatibility
+/// floor, and typed terminal-result decoder.
+final class SurfaceFlowRef<R> {
+  /// Creates a generated flow reference.
+  const SurfaceFlowRef({
     required this.id,
     required this.version,
     required this.minClient,
+    required this.surface,
     required this.decodeResult,
-    this.surfaceType = SurfaceType.onboarding,
     this.deliveryMode = FlowDeliveryMode.typed,
   });
 
-  /// Stable onboarding flow identifier.
+  /// Stable flow identifier.
   final String id;
 
   /// Descriptor version emitted for this flow.
@@ -91,11 +210,17 @@ final class OnboardingFlowRef<R> {
   final int minClient;
 
   /// Authored surface family that owns this flow.
-  ///
-  /// Defaults to onboarding so descriptors generated before surface-general
-  /// flow support retain their existing onboarding behavior and request/cache
-  /// identity.
-  final SurfaceType surfaceType;
+  final Surface surface;
+
+  /// Deprecated compatibility spelling for [surface].
+  @Deprecated('Use surface instead.')
+  Surface get surfaceType => surface;
+
+  /// Source semantics selected by this reference.
+  SurfaceSourceKind get sourceKind => SurfaceSourceKind.flowGraph;
+
+  /// Artifact shape selected by this reference.
+  SurfacePayloadKind get payloadKind => SurfacePayloadKind.flow;
 
   /// Authored delivery discipline for this flow.
   ///
@@ -108,29 +233,41 @@ final class OnboardingFlowRef<R> {
   final FlowResultDecoder<R> decodeResult;
 }
 
-/// Neutral alias for a generated flow artifact reference.
-typedef SurfaceFlowRef<R> = OnboardingFlowRef<R>;
+/// Deprecated compatibility spelling for [SurfaceFlowRef].
+@Deprecated('Use SurfaceFlowRef instead.')
+typedef OnboardingFlowRef<R> = SurfaceFlowRef<R>;
 
-/// Descriptor for an event authored by an onboarding screen.
-final class OnboardingEvent<T> {
-  /// Creates an onboarding event descriptor.
-  const OnboardingEvent(this.id);
+/// Descriptor for an event authored by a flow screen.
+final class SurfaceEvent<T> {
+  /// Creates a flow-screen event descriptor.
+  const SurfaceEvent(this.id);
 
   /// Stable event identifier.
   final String id;
 }
 
-/// Neutral alias for a flow screen event descriptor.
-typedef SurfaceEvent<T> = OnboardingEvent<T>;
+/// Deprecated compatibility spelling for [SurfaceEvent].
+@Deprecated('Use SurfaceEvent instead.')
+typedef OnboardingEvent<T> = SurfaceEvent<T>;
 
 /// Flow event names commonly emitted by paywall blobs when they are rendered
 /// as flow screens.
-abstract final class PaywallFlowEvents {
+abstract final class PaywallEvents {
   /// A paywall purchase CTA was tapped.
-  static const purchase = OnboardingEvent<Map<String, Object?>>('purchase');
+  static const purchase = SurfaceEvent<Map<String, Object?>>('purchase');
 
   /// A paywall skipped or dismissed itself through an authored `skip` event.
-  static const skip = OnboardingEvent<Map<String, Object?>>('skip');
+  static const skip = SurfaceEvent<Map<String, Object?>>('skip');
+}
+
+/// Deprecated compatibility spelling for [PaywallEvents].
+@Deprecated('Use PaywallEvents instead.')
+abstract final class PaywallFlowEvents {
+  /// A paywall purchase CTA was tapped.
+  static const purchase = PaywallEvents.purchase;
+
+  /// A paywall skipped or dismissed itself through an authored `skip` event.
+  static const skip = PaywallEvents.skip;
 }
 
 /// Descriptor for a host action that a flow may request.
@@ -343,8 +480,8 @@ final class FlowDef {
     this.outbound = const FlowOutboundDeclarations(),
   });
 
-  /// Initial onboarding screen.
-  final OnboardingScreenRef initial;
+  /// Initial flow screen.
+  final FlowScreenRef initial;
 
   /// Nodes in the authored flow graph.
   final List<FlowNodeDef> states;
@@ -358,7 +495,7 @@ final class FlowDef {
 
 /// Creates a flow graph descriptor.
 FlowDef flow({
-  required OnboardingScreenRef initial,
+  required FlowScreenRef initial,
   required List<FlowNodeDef> states,
   Map<String, FlowStateDeclaration> flowState = const {},
   FlowOutboundDeclarations outbound = const FlowOutboundDeclarations(),
@@ -386,7 +523,7 @@ final class ScreenNodeDef extends FlowNodeDef {
   });
 
   /// Screen rendered by this node.
-  final OnboardingScreenRef ref;
+  final FlowScreenRef ref;
 
   /// Event transitions out of this screen.
   final List<FlowTransitionDef<dynamic>> transitions;
@@ -397,7 +534,7 @@ final class ScreenNodeDef extends FlowNodeDef {
   /// `screen(r).on(a)…goTo(x).on(b)…goTo(y)` builds one screen node with two
   /// transitions. The first `.on()` on a fresh `screen(...)` carries no prior
   /// transitions, so single-transition authoring is unchanged.
-  ScreenEventTransitionBuilder<T> on<T>(OnboardingEvent<T> event) {
+  ScreenEventTransitionBuilder<T> on<T>(SurfaceEvent<T> event) {
     return ScreenEventTransitionBuilder<T>._(
       ref: ref,
       event: event,
@@ -407,7 +544,7 @@ final class ScreenNodeDef extends FlowNodeDef {
 }
 
 /// Creates a screen node descriptor.
-ScreenNodeDef screen(OnboardingScreenRef ref) {
+ScreenNodeDef screen(FlowScreenRef ref) {
   return ScreenNodeDef(ref: ref);
 }
 
@@ -419,12 +556,12 @@ ScreenNodeDef screen(OnboardingScreenRef ref) {
 /// Use this reference in `buildFlow()` when the paywall should stay inside the
 /// flow's back stack instead of being opened by host navigation after
 /// completion.
-OnboardingScreenRef paywallScreen(
+NeutralFlowScreenRef paywallScreen(
   String id, {
   int version = 1,
   int minClient = kBaselineCatalogVersion,
 }) {
-  return OnboardingScreenRef(
+  return NeutralFlowScreenRef(
     id: 'paywall_$id',
     artifactPath: 'paywall_$id.rfw',
     version: version,
@@ -480,7 +617,7 @@ final class SubFlowNodeDef extends FlowNodeDef {
   final FlowNodeRef ref;
 
   /// Child flow descriptor.
-  final OnboardingFlowRef<dynamic> flow;
+  final SurfaceFlowRef<dynamic> flow;
 
   /// Explicit parent-to-child input.
   final Map<String, FlowValueSource> input;
@@ -498,7 +635,7 @@ final class SubFlowNodeDef extends FlowNodeDef {
 /// Creates a sub-flow node descriptor.
 SubFlowNodeDef subFlow(
   FlowNodeRef ref, {
-  required OnboardingFlowRef<dynamic> flow,
+  required SurfaceFlowRef<dynamic> flow,
   Map<String, FlowValueSource> input = const {},
   required List<AuthoredFlowBranch> onComplete,
   required AuthoredFlowBranchTarget defaultBranch,
@@ -583,7 +720,7 @@ final class FlowTransitionDef<T> {
   });
 
   /// Event that triggers this transition.
-  final OnboardingEvent<T> event;
+  final SurfaceEvent<T> event;
 
   /// Target screen or terminal-state reference.
   final FlowTargetRef target;
@@ -629,10 +766,10 @@ base class ScreenEventWriteBuilder<T> {
   });
 
   /// Screen this transition starts from.
-  final OnboardingScreenRef ref;
+  final FlowScreenRef ref;
 
   /// Event that triggers this transition.
-  final OnboardingEvent<T> event;
+  final SurfaceEvent<T> event;
 
   /// Resolved action descriptor attached to the transition, when one was
   /// configured via `run(...).result(...)`.
@@ -649,8 +786,8 @@ base class ScreenEventWriteBuilder<T> {
   ///
   /// Use this for a single event carrying a runtime/dynamic scalar — a rating,
   /// a slider value, an entered number. The event must be a scalar
-  /// `OnboardingEvent<T>` (`T` is `String`, `bool`, or `int`) fired with a
-  /// value (`onboardingEvent(event, value)`); the SDK carries that value under
+  /// `SurfaceEvent<T>` (`T` is `String`, `bool`, or `int`) fired with a value
+  /// (`surfaceEvent(event, value)`); the SDK carries that value under
   /// a reserved field, so capture reads it without the screen and flow having
   /// to agree on a payload key — [key] names only the flow-state slot written.
   /// If the event fires without a value the flow fails closed (it does not
@@ -750,8 +887,8 @@ FlowDataType _scalarFlowDataType<T>() {
   if (T == bool) return FlowDataType.bool;
   if (T == int) return FlowDataType.int;
   throw ArgumentError(
-    'capture() requires an OnboardingEvent<String|bool|int>; the event is '
-    'OnboardingEvent<$T>, whose value is not a capturable scalar.',
+    'capture() requires a SurfaceEvent<String|bool|int>; the event is '
+    'SurfaceEvent<$T>, whose value is not a capturable scalar.',
   );
 }
 
@@ -779,10 +916,10 @@ final class FlowActionResultBuilder<T, I, O> {
   });
 
   /// Screen this transition starts from.
-  final OnboardingScreenRef ref;
+  final FlowScreenRef ref;
 
   /// Event that triggers this transition.
-  final OnboardingEvent<T> event;
+  final SurfaceEvent<T> event;
 
   /// Host action whose result predicate this builder configures.
   final FlowActionRef<I, O> action;

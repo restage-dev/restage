@@ -1,0 +1,5 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget OnboardingScreen = Scaffold(body: SafeArea(child: Padding(padding: [28.0, 28.0, 28.0, 28.0], child: Column(crossAxisAlignment: "stretch", children: [Spacer(), Icon(iconCodepoint: 63268, size: 56.0, color: data.theme.colorScheme.primary), SizedBox(height: 20.0), Text(text: "All set — dive in whenever you like.", textAlign: "center", color: data.theme.colorScheme.onSurface, fontSize: 24.0, fontWeight: "w800"), Spacer(), FilledButton(onPressed: event "finish" {}, padding: [0.0, 16.0, 0.0, 16.0], child: Text(text: "Take me in"))]))));

@@ -46,7 +46,7 @@ final class AssetPaywallFlowBaseline extends AssetPaywallFlowPreflightOutcome
 
   @override
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async {
-    final resolved = flow.surfaceType == SurfaceType.paywall
+    final resolved = flow.surfaceType == Surface.paywall
         ? _flows[_assetFlowIdentity(flow.id, flow.version)]
         : null;
     if (resolved == null) {
@@ -211,4 +211,4 @@ final class _AssetPaywallFlowPreflightError implements Exception {
 }
 
 String _assetFlowIdentity(String flowId, int version) =>
-    '${SurfaceType.paywall.wireName}\u0000$flowId\u0000$version';
+    '${Surface.paywall.wireName}\u0000$flowId\u0000$version';

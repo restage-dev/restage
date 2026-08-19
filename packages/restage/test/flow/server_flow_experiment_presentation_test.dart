@@ -30,6 +30,7 @@ const _flowRef = OnboardingFlowRef<Map<String, Object?>>(
   id: 'first_run',
   version: 1,
   minClient: _refFloor,
+  surface: Surface.onboarding,
   decodeResult: _decodeMapResult,
 );
 
@@ -375,7 +376,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [baselineRoot, baselineChild],
         screenAssets: {
           'root.rfw': baselineRootBytes,
@@ -465,6 +466,7 @@ void main() {
       id: child.flow,
       version: child.version,
       minClient: child.minClient,
+      surface: Surface.onboarding,
       decodeResult: _decodeMapResult,
     );
     final baselineRoot = _screenThenChildDocument(
@@ -482,7 +484,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [baselineRoot, child],
         screenAssets: {
           'root.rfw': bundledBytes,
@@ -589,6 +591,7 @@ void main() {
       id: child.flow,
       version: child.version,
       minClient: child.minClient,
+      surface: Surface.onboarding,
       decodeResult: _decodeMapResult,
     );
     final baselineRoot = _screenThenChildDocument(
@@ -606,7 +609,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [baselineRoot, child],
         screenAssets: {
           'root.rfw': bundledBytes,
@@ -697,6 +700,7 @@ void main() {
       id: child.flow,
       version: child.version,
       minClient: child.minClient,
+      surface: Surface.onboarding,
       decodeResult: _decodeMapResult,
     );
     final baselineRoot = _screenThenChildDocument(
@@ -714,7 +718,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [baselineRoot, child],
         screenAssets: {
           'root.rfw': bundledBytes,
@@ -817,7 +821,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [baselineRoot, baselineChild],
         screenAssets: {'child.rfw': baselineChildBytes},
       ),
@@ -982,7 +986,7 @@ void main() {
     final bundledBBytes = screenBlob('Bundled B', 'next');
     final candidateBytes = screenBlob('Contract A candidate', 'next');
     final bundleAssets = _bundleAssets(
-      surfaceType: SurfaceType.onboarding,
+      surfaceType: Surface.onboarding,
       documents: [_screenDocument(screenBytes: bundledABytes)],
       screenAssets: {'welcome.rfw': bundledABytes},
     );
@@ -1014,7 +1018,7 @@ void main() {
     bundleAssets
       ..clear()
       ..addAll(_bundleAssets(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [_screenDocument(screenBytes: bundledBBytes)],
         screenAssets: {'welcome.rfw': bundledBBytes},
       ));
@@ -1044,12 +1048,14 @@ void main() {
       id: 'first_run',
       version: 1,
       minClient: _refFloor,
+      surface: Surface.onboarding,
       decodeResult: _decodeMapResult,
     );
     const childRef = OnboardingFlowRef<Object?>(
       id: 'child',
       version: 1,
       minClient: _refFloor,
+      surface: Surface.onboarding,
       decodeResult: _decodeMapResult,
     );
     final baselineRootBytes = screenBlob('Bundled root', 'next');
@@ -1076,7 +1082,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [baselineRoot, child],
         screenAssets: {
           'root.rfw': baselineRootBytes,
@@ -1485,14 +1491,14 @@ void main() {
       id: 'first_run',
       version: 1,
       minClient: _refFloor,
-      surfaceType: SurfaceType.message,
+      surface: Surface.message,
       decodeResult: _decodeMapResult,
     );
     const surveyRef = OnboardingFlowRef<Map<String, Object?>>(
       id: 'first_run',
       version: 1,
       minClient: _refFloor,
-      surfaceType: SurfaceType.survey,
+      surface: Surface.survey,
       decodeResult: _decodeMapResult,
     );
     final messageBundled = screenBlob('Message bundled', 'next');
@@ -1501,12 +1507,12 @@ void main() {
     final surveyCandidate = screenBlob('Survey candidate', 'next');
     final bundle = _TestBundle({
       ..._bundleAssets(
-        surfaceType: SurfaceType.message,
+        surfaceType: Surface.message,
         documents: [_screenDocument(screenBytes: messageBundled)],
         screenAssets: {'welcome.rfw': messageBundled},
       ),
       ..._bundleAssets(
-        surfaceType: SurfaceType.survey,
+        surfaceType: Surface.survey,
         documents: [_screenDocument(screenBytes: surveyBundled)],
         screenAssets: {'welcome.rfw': surveyBundled},
       ),
@@ -1557,7 +1563,7 @@ void main() {
       _assignedBody(_envelope(
         _screenDocument(version: 2, screenBytes: surveyCandidate),
         {'welcome': surveyCandidate},
-        surfaceType: SurfaceType.survey,
+        surfaceType: Surface.survey,
       )),
     );
     await tester.pumpAndSettle();
@@ -1571,7 +1577,7 @@ void main() {
       _assignedBody(_envelope(
         _screenDocument(version: 2, screenBytes: messageCandidate),
         {'welcome': messageCandidate},
-        surfaceType: SurfaceType.message,
+        surfaceType: Surface.message,
       )),
     );
     await tester.pumpAndSettle();
@@ -1740,7 +1746,7 @@ void main() {
       apiKey: _apiKey,
       active: true,
       bundle: _bundleForClosure(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         documents: [bundledRoot, child],
         screenAssets: {
           'root.rfw': bundledRootBytes,
@@ -1985,7 +1991,7 @@ FlowDocument _screenThenChildDocument({
 Uint8List _envelope(
   FlowDocument document,
   Map<String, Uint8List> screenBlobs, {
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
 }) {
   return SurfaceDocumentCodec.encode(SurfaceDocument(
     surfaceType: surfaceType,
@@ -2046,7 +2052,7 @@ List<Map<String, Object?>> _canonicalEvents(
 AssetBundle _bundleFor(
   FlowDocument document,
   Uint8List screenBytes, {
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
 }) {
   return _bundleForClosure(
     surfaceType: surfaceType,
@@ -2056,7 +2062,7 @@ AssetBundle _bundleFor(
 }
 
 AssetBundle _bundleForClosure({
-  required SurfaceType surfaceType,
+  required Surface surfaceType,
   required List<FlowDocument> documents,
   required Map<String, Uint8List> screenAssets,
 }) =>
@@ -2067,7 +2073,7 @@ AssetBundle _bundleForClosure({
     ));
 
 Map<String, Uint8List> _bundleAssets({
-  required SurfaceType surfaceType,
+  required Surface surfaceType,
   required List<FlowDocument> documents,
   required Map<String, Uint8List> screenAssets,
 }) {

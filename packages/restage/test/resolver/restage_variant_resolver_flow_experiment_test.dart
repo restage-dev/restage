@@ -437,7 +437,7 @@ void main() {
         id: 'child',
         version: 1,
         minClient: 3,
-        surfaceType: SurfaceType.paywall,
+        surface: Surface.paywall,
         decodeResult: _identityResult,
       ),
     );
@@ -653,7 +653,7 @@ Uint8List _flowEnvelopeFor(
   required int publishedVersion,
 }) {
   return SurfaceDocumentCodec.encode(SurfaceDocument(
-    surfaceType: SurfaceType.paywall,
+    surfaceType: Surface.paywall,
     surfaceSlug: document.flow,
     version: publishedVersion,
     minClient: document.minClient,

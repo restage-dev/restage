@@ -1,63 +1,56 @@
 import 'package:flutter/widgets.dart';
 
-/// Signature for authored flow-surface event callbacks.
-///
-/// The onboarding-named spelling is retained for compatibility.
-typedef OnboardingEventHandler = void Function(
+/// Signature for authored flow-screen event callbacks.
+typedef SurfaceEventHandler = void Function(
   String eventId,
   Object? value,
 );
 
-/// Surface-neutral spelling for [OnboardingEventHandler].
-typedef SurfaceEventHandler = OnboardingEventHandler;
+/// Deprecated compatibility spelling for [SurfaceEventHandler].
+@Deprecated('Use SurfaceEventHandler instead.')
+typedef OnboardingEventHandler = SurfaceEventHandler;
 
-final List<OnboardingEventHandler> _dispatcherStack =
-    <OnboardingEventHandler>[];
+final List<SurfaceEventHandler> _dispatcherStack = <SurfaceEventHandler>[];
 
 /// Returns the active authored flow-event dispatcher, if any.
-///
-/// The onboarding-named function is retained for compatibility.
-OnboardingEventHandler? activeOnboardingEventDispatcher() =>
+SurfaceEventHandler? activeSurfaceEventDispatcher() =>
     _dispatcherStack.isEmpty ? null : _dispatcherStack.last;
+
+/// Deprecated compatibility spelling for [activeSurfaceEventDispatcher].
+@Deprecated('Use activeSurfaceEventDispatcher instead.')
+OnboardingEventHandler? activeOnboardingEventDispatcher() =>
+    activeSurfaceEventDispatcher();
 
 /// Provides an authored flow-event dispatch handler to its subtree.
 ///
-/// Authored events fired in the subtree route to the flow controller's
-/// **current** screen — this is a single per-flow channel, not a per-screen
-/// one. In the shipping flow runtime, screens are RFW blobs whose events the
-/// rendering surface entry-gates to the current screen, and the
-/// `onboardingEvent` helper is replaced at build time; so this dispatcher fires
-/// only for local-Dart-widget compositions, where an authored event always
-/// targets whichever screen is current when it fires. (A context-scoped,
-/// per-screen authored-event channel is a tracked follow-up; it would change the
-/// `onboardingEvent` authoring signature.)
-///
-/// The onboarding-named class is retained for compatibility; new
-/// surface-neutral integrations can use [RestageSurfaceEventDispatcher].
-class RestageOnboardingEventDispatcher extends StatefulWidget {
+/// Authored events fired in the subtree route to the flow controller's current
+/// screen. Generated screen event references replace the helper at build time;
+/// this dispatcher serves local-Dart widget compositions.
+class RestageSurfaceEventDispatcher extends StatefulWidget {
   /// Wraps [child] and routes authored flow events fired in its subtree.
-  const RestageOnboardingEventDispatcher({
+  const RestageSurfaceEventDispatcher({
     super.key,
     required this.onEvent,
     required this.child,
   });
 
   /// Called when an authored flow-event helper fires.
-  final OnboardingEventHandler onEvent;
+  final SurfaceEventHandler onEvent;
 
   /// The subtree under which authored flow-event helpers resolve to [onEvent].
   final Widget child;
 
   @override
-  State<RestageOnboardingEventDispatcher> createState() =>
-      _RestageOnboardingEventDispatcherState();
+  State<RestageSurfaceEventDispatcher> createState() =>
+      _RestageSurfaceEventDispatcherState();
 }
 
-/// Surface-neutral spelling for [RestageOnboardingEventDispatcher].
-typedef RestageSurfaceEventDispatcher = RestageOnboardingEventDispatcher;
+/// Deprecated compatibility spelling for [RestageSurfaceEventDispatcher].
+@Deprecated('Use RestageSurfaceEventDispatcher instead.')
+typedef RestageOnboardingEventDispatcher = RestageSurfaceEventDispatcher;
 
-class _RestageOnboardingEventDispatcherState
-    extends State<RestageOnboardingEventDispatcher> {
+class _RestageSurfaceEventDispatcherState
+    extends State<RestageSurfaceEventDispatcher> {
   @override
   void initState() {
     super.initState();
@@ -65,7 +58,7 @@ class _RestageOnboardingEventDispatcherState
   }
 
   @override
-  void didUpdateWidget(RestageOnboardingEventDispatcher oldWidget) {
+  void didUpdateWidget(RestageSurfaceEventDispatcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.onEvent, widget.onEvent)) {
       final index = _dispatcherStack.lastIndexOf(oldWidget.onEvent);

@@ -35,6 +35,7 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: _refFloor,
+    surface: Surface.onboarding,
     decodeResult: _decodeMapResult,
   );
 
@@ -284,8 +285,8 @@ void main() {
   });
 
   for (final surfaceType in const [
-    SurfaceType.message,
-    SurfaceType.survey,
+    Surface.message,
+    Surface.survey,
   ]) {
     test('active arm resolves a ${surfaceType.wireName} flow', () async {
       final bundledBytes = Uint8List.fromList([1, 2, 3]);
@@ -295,7 +296,7 @@ void main() {
         id: 'first_run',
         version: 1,
         minClient: _refFloor,
-        surfaceType: surfaceType,
+        surface: surfaceType,
         decodeResult: _decodeMapResult,
       );
       final resolver = ServerFlowResolver(
@@ -501,7 +502,7 @@ FlowDocument _doc({
 Uint8List _envelope(
   FlowDocument document,
   Uint8List screenBytes, {
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
 }) {
   final payload = FlowSurfacePayload(
     flowDocument: document,
@@ -523,7 +524,7 @@ Uint8List _envelope(
 AssetBundle _bundleFor(
   FlowDocument document,
   Uint8List screenBytes, {
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
 }) {
   final surface = surfaceType.wireName;
   return _TestBundle({

@@ -8,7 +8,7 @@ abstract final class FirstRunFlowDescriptor {
     id: 'first_run',
     version: 1,
     minClient: 1,
-    surfaceType: SurfaceType.onboarding,
+    surface: Surface.onboarding,
     deliveryMode: FlowDeliveryMode.typed,
     decodeResult: FirstRunFlowDescriptor._decodeResult,
   );

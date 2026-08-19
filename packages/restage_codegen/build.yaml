@@ -1,4 +1,52 @@
 builders:
+  restage_source_roster:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageSourceRosterBuilder']
+    build_extensions:
+      $package$:
+        - "assets/restage/source-index.json"
+        - "assets/restage/output-roster.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before:
+      - 'restage_codegen:paywall_codegen'
+      - 'restage_codegen:paywall_flow_codegen'
+      - 'restage_codegen:onboarding_screen_codegen'
+      - 'restage_codegen:onboarding_flow_codegen'
+      - 'restage_codegen:message_screen_codegen'
+      - 'restage_codegen:message_flow_codegen'
+      - 'restage_codegen:survey_screen_codegen'
+      - 'restage_codegen:survey_flow_codegen'
+      - 'restage_codegen:restage_package_surface_compiler'
+      - 'restage_codegen:restage_surface_publication_bundle'
+      - 'restage_codegen:user_catalog'
+      - 'restage_codegen:user_catalog_json'
+      - 'restage_codegen:factory_functions'
+      - 'restage_codegen:user_factories'
+
+  restage_package_surface_compiler:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restagePackageSurfaceCompilerBuilder']
+    build_extensions:
+      $package$:
+        - "lib/src/surface_publication/surface_publication.compiler.json"
+    auto_apply: dependents
+    build_to: source
+    runs_before:
+      - 'restage_codegen:restage_surface_publication_bundle'
+
+  restage_surface_publication_bundle:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factories: ['restageSurfacePublicationBundleBuilder']
+    build_extensions:
+      $package$:
+        - "assets/restage/surface-publication.bundle.json"
+    auto_apply: dependents
+    build_to: source
+    applies_builders:
+      - 'restage_codegen:restage_surface_publication_owner'
+    runs_before: []
+
   paywall_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['restageCodegenBuilder']
@@ -15,6 +63,9 @@ builders:
         - "assets/paywalls/{{name}}.capability.json"
     auto_apply: dependents
     build_to: source
+    defaults:
+      options:
+        aggregate_canonical_owner: true
     runs_before: ['restage_codegen:paywall_flow_codegen']
   paywall_flow_codegen:
     import: 'package:restage_codegen/builder.dart'
@@ -24,7 +75,11 @@ builders:
         - "assets/paywalls/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:restage_package_surface_compiler'
   onboarding_screen_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['onboardingScreenBuilder']
@@ -34,9 +89,19 @@ builders:
         - "assets/onboarding/screens/{{name}}.rfwtxt"
         - "assets/onboarding/screens/{{name}}.rfw"
         - "assets/onboarding/screens/{{name}}.capability.json"
+      "lib/general/screens/{{name}}.dart":
+        - "lib/general/screens/{{name}}.rsscreen.g.dart"
+        - "assets/general/screens/{{name}}.rfwtxt"
+        - "assets/general/screens/{{name}}.rfw"
+        - "assets/general/screens/{{name}}.capability.json"
     auto_apply: dependents
     build_to: source
-    runs_before: ['restage_codegen:onboarding_flow_codegen']
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:onboarding_flow_codegen'
+      - 'restage_codegen:restage_package_surface_compiler'
   onboarding_flow_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['onboardingFlowBuilder']
@@ -44,9 +109,16 @@ builders:
       "lib/onboarding/flows/{{name}}.dart":
         - "lib/onboarding/flows/{{name}}.rsflow.g.dart"
         - "assets/onboarding/flows/{{name}}.flow.json"
+      "lib/general/flows/{{name}}.dart":
+        - "lib/general/flows/{{name}}.rsflow.g.dart"
+        - "assets/general/flows/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:restage_package_surface_compiler'
   message_screen_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['messageScreenBuilder']
@@ -58,7 +130,12 @@ builders:
         - "assets/message/screens/{{name}}.capability.json"
     auto_apply: dependents
     build_to: source
-    runs_before: ['restage_codegen:message_flow_codegen']
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:message_flow_codegen'
+      - 'restage_codegen:restage_package_surface_compiler'
   message_flow_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['messageFlowBuilder']
@@ -68,7 +145,11 @@ builders:
         - "assets/message/flows/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:restage_package_surface_compiler'
   survey_screen_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['surveyScreenBuilder']
@@ -80,7 +161,12 @@ builders:
         - "assets/survey/screens/{{name}}.capability.json"
     auto_apply: dependents
     build_to: source
-    runs_before: ['restage_codegen:survey_flow_codegen']
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:survey_flow_codegen'
+      - 'restage_codegen:restage_package_surface_compiler'
   survey_flow_codegen:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['surveyFlowBuilder']
@@ -90,7 +176,11 @@ builders:
         - "assets/survey/flows/{{name}}.flow.json"
     auto_apply: dependents
     build_to: source
-    runs_before: []
+    defaults:
+      options:
+        aggregate_canonical_owner: true
+    runs_before:
+      - 'restage_codegen:restage_package_surface_compiler'
   user_catalog:
     import: 'package:restage_codegen/builder.dart'
     builder_factories: ['userCatalogBuilder']
@@ -115,6 +205,7 @@ builders:
       - 'restage_codegen:onboarding_screen_codegen'
       - 'restage_codegen:message_screen_codegen'
       - 'restage_codegen:survey_screen_codegen'
+      - 'restage_codegen:restage_package_surface_compiler'
       - 'restage_codegen:factory_functions'
   factory_functions:
     import: 'package:restage_codegen/builder.dart'
@@ -157,3 +248,10 @@ builders:
     auto_apply: none
     build_to: source
     runs_before: ['widgetbook:story_builder']
+
+post_process_builders:
+  restage_surface_publication_owner:
+    import: 'package:restage_codegen/builder.dart'
+    builder_factory: 'restageSurfacePublicationOutputOwner'
+    input_extensions: [".bundle.json"]
+    build_to: source

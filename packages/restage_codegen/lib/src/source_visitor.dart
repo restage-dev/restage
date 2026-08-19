@@ -3,9 +3,12 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
+import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_state.dart';
+
+const String _kSdkLibraryOrigin = 'package:restage';
 
 /// One paywall source class discovered by the visitor.
 @immutable
@@ -19,16 +22,31 @@ final class PaywallSourceFound {
     required this.className,
     required this.assetId,
     required this.build,
+    this.isCanonical = false,
+    this.hasExplicitId = true,
   })  : assert(id.length > 0, 'PaywallSourceFound.id must not be empty'),
         assert(
           className.length > 0,
           'PaywallSourceFound.className must not be empty',
         );
 
-  /// `@PaywallSource(id:)` value.
+  /// Effective canonical paywall identity from `@Paywall(id:)` or the
+  /// deprecated `@PaywallSource(id:)` spelling.
   final String id;
 
-  /// `@PaywallSource(slot:)` value, or null if not provided.
+  /// Whether this finding came from the resolved canonical `@Paywall`
+  /// annotation rather than the deprecated `@PaywallSource` spelling.
+  ///
+  /// Keeping this bit on the normalized finding lets the old per-file builder
+  /// preserve its legacy filename guard while canonical sources own their
+  /// explicit identity.
+  final bool isCanonical;
+
+  /// Whether the source authored an id. Canonical `@Paywall()` declarations
+  /// derive [id] from the owning Dart library's filename.
+  final bool hasExplicitId;
+
+  /// Legacy `@PaywallSource(slot:)` value, or null for canonical paywalls.
   final String? slot;
 
   /// Class name (for diagnostics).
@@ -62,7 +80,8 @@ final class VisitorResult {
   final List<Issue> issues;
 }
 
-/// Walks [library] for classes annotated with `@PaywallSource`. For each:
+/// Walks [library] for classes annotated with canonical `@Paywall` or the
+/// deprecated `@PaywallSource`. For each:
 /// - Validates it extends `StatelessWidget` or a supported `StatefulWidget`.
 /// - Locates the effective `build()` method.
 /// - Validates the body is a single returned `Expression`.
@@ -73,17 +92,46 @@ final class VisitorResult {
 /// populated and the expression translator can resolve static const
 /// references to their underlying values at codegen time.
 ///
-/// Detects within-library duplicate ids at the end and drops duplicate
-/// occurrences from `sources` while emitting `duplicateId` issues.
+/// Detects within-library duplicate effective ids at the end and drops
+/// duplicate occurrences from `sources` while emitting `duplicateId` issues.
 Future<VisitorResult> visitPaywallSources(
   LibraryElement library,
   AssetId assetId,
 ) async {
   final sources = <PaywallSourceFound>[];
   final issues = <Issue>[];
+  final implicitCanonicalClasses = <String>[];
 
   for (final cls in library.classes) {
-    final annotation = firstAnnotation(cls, 'PaywallSource');
+    final canonicalCandidate = firstAnnotationFromOriginAny(
+      cls,
+      const {'Paywall'},
+      _kSdkLibraryOrigin,
+    );
+    final canonical = canonicalCandidate != null &&
+        annotationHasOrigin(canonicalCandidate, _kSdkLibraryOrigin);
+    final unresolvedCanonical = canonicalCandidate != null &&
+        resolvedAnnotationClass(canonicalCandidate) == null;
+
+    // A resolved annotation from another package is intentionally ignored by
+    // firstAnnotationFromOriginAny. An unresolved canonical spelling is not
+    // safe to ignore: it could be the real SDK annotation behind an analyzer
+    // resolution failure, so fail closed with a useful diagnostic.
+    if (unresolvedCanonical) {
+      final className = cls.name ?? '<unnamed>';
+      issues.add(
+        Issue(
+          code: IssueCode.unresolvedIdentifier,
+          message: '@Paywall on $className could not be resolved to the '
+              'package:restage SDK annotation.',
+          location: '${assetId.path}#$className',
+        ),
+      );
+      continue;
+    }
+
+    final annotation =
+        canonical ? canonicalCandidate : firstAnnotation(cls, 'PaywallSource');
     if (annotation == null) continue;
 
     final className = cls.name ?? '<unnamed>';
@@ -93,26 +141,36 @@ Future<VisitorResult> visitPaywallSources(
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message: '@PaywallSource on $className could not be const-evaluated.',
+          message: '@${canonical ? 'Paywall' : 'PaywallSource'} on '
+              '$className could not be const-evaluated.',
           location: location,
         ),
       );
       continue;
     }
 
-    final id = value.getField('id')?.toStringValue();
-    if (id == null) {
+    final idValue = value.getField('id');
+    final hasExplicitId = !canonical || (idValue != null && !idValue.isNull);
+    final id = canonical && !hasExplicitId
+        ? p.basenameWithoutExtension(assetId.path)
+        : idValue?.toStringValue();
+    if (id == null || id.isEmpty || id.contains('\u0000')) {
       issues.add(
         Issue(
           code: IssueCode.annotationEvaluationFailed,
-          message:
-              '@PaywallSource.id is required and must be a String literal.',
+          message: canonical
+              ? '@Paywall.id, when supplied, must be a non-empty String '
+                  'literal.'
+              : '@PaywallSource.id is required and must be a String literal.',
           location: location,
         ),
       );
       continue;
     }
-    final slot = value.getField('slot')?.toStringValue();
+    if (canonical && !hasExplicitId) {
+      implicitCanonicalClasses.add(className);
+    }
+    final slot = canonical ? null : value.getField('slot')?.toStringValue();
 
     if (!_extendsSupportedSourceWidget(cls)) {
       final supertypeName = cls.supertype?.element.name ?? 'Object';
@@ -145,6 +203,20 @@ Future<VisitorResult> visitPaywallSources(
         className: className,
         assetId: assetId,
         build: build,
+        isCanonical: canonical,
+        hasExplicitId: hasExplicitId,
+      ),
+    );
+  }
+
+  if (implicitCanonicalClasses.length > 1) {
+    issues.add(
+      Issue(
+        code: IssueCode.duplicateId,
+        message: 'At most one @Paywall declaration in a Dart library may '
+            'omit id; found ${implicitCanonicalClasses.join(', ')}. '
+            'Give every additional declaration an explicit unique id.',
+        location: assetId.path,
       ),
     );
   }
@@ -167,7 +239,8 @@ Future<VisitorResult> visitPaywallSources(
       issues.add(
         Issue(
           code: IssueCode.duplicateId,
-          message: 'Multiple @PaywallSource classes share id "$id": $classes.',
+          message: 'Multiple Restage paywall declarations share id "$id": '
+              '$classes.',
           location: assetId.path,
         ),
       );

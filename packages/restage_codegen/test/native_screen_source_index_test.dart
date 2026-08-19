@@ -290,6 +290,56 @@ class ProofScreen extends StatelessWidget {
     );
   });
 
+  test('indexes a prefixed canonical SurfaceEvent through its concrete type',
+      () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart' as restage;
+
+@restage.ScreenSource(id: 'prefixed_surface_event')
+class PrefixedSurfaceEventScreen extends StatelessWidget {
+  const PrefixedSurfaceEventScreen({super.key});
+
+  static const continueEvent = restage.SurfaceEvent<String>('continue');
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+    final probe = await _runIndexProbe({
+      'lib/onboarding/screens/prefixed_surface_event.dart': source,
+    });
+
+    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+    expect(probe.output, contains('events=continueEvent:continue:String'));
+  });
+
+  test('indexes a prefixed deprecated OnboardingEvent alias through type.alias',
+      () async {
+    const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart' as restage;
+
+@restage.ScreenSource(id: 'prefixed_onboarding_event')
+class PrefixedOnboardingEventScreen extends StatelessWidget {
+  const PrefixedOnboardingEventScreen({super.key});
+
+  static const continueEvent = restage.OnboardingEvent<String>('continue');
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+
+    final probe = await _runIndexProbe({
+      'lib/onboarding/screens/prefixed_onboarding_event.dart': source,
+    });
+
+    expect(probe.result.succeeded, isTrue, reason: probe.logs.join('\n'));
+    expect(probe.output, contains('events=continueEvent:continue:String'));
+  });
+
   test('A2UI consumption is not gated by Widgetbook-only config', () async {
     const source = '''
 import 'package:flutter/widgets.dart';

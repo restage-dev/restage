@@ -104,3 +104,27 @@ InterfaceElement? _annotationClass(ElementAnnotation annotation) {
   if (constElement is InterfaceElement) return constElement;
   return null;
 }
+
+/// Returns the resolved declaration of an annotation class.
+///
+/// Frontends that accept public annotations must use this element, together
+/// with its library URI, as the provenance boundary.  The source spelling of
+/// an unresolved annotation is useful for diagnostics, but it is never enough
+/// to admit a customer declaration.
+InterfaceElement? resolvedAnnotationClass(ElementAnnotation annotation) {
+  return _annotationClass(annotation);
+}
+
+/// Whether [annotation] resolves to one of the SDK declarations in
+/// [libraryOrigin].
+bool annotationHasOrigin(
+  ElementAnnotation annotation,
+  String libraryOrigin,
+) {
+  final declaration = resolvedAnnotationClass(annotation);
+  return declaration != null &&
+      libraryUriMatchesOrigin(
+        declaration.library.identifier,
+        libraryOrigin,
+      );
+}

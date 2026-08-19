@@ -1,4 +1,8 @@
+import 'package:analyzer/dart/element/element.dart';
+import 'package:build/build.dart';
+import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -285,5 +289,170 @@ void main() {
       expect(result.sources[1].className, 'SecondPaywall');
       expect(result.sources[1].rootExpression, isNotNull);
     });
+
+    test('recognizes resolved canonical @Paywall and derives the file id',
+        () async {
+      final result = await _runCanonicalVisitorOn({
+        'lib/feature_notice.dart': '''
+          import 'package:flutter/widgets.dart';
+          import 'package:restage/restage.dart';
+
+          @Paywall()
+          class FeatureNotice extends StatelessWidget {
+            const FeatureNotice({super.key});
+
+            @override
+            Widget build(BuildContext context) => const SizedBox();
+          }
+        ''',
+      });
+
+      expect(result.issues, isEmpty);
+      final source = result.sources.single;
+      expect(source.id, 'feature_notice');
+      expect(source.isCanonical, isTrue);
+      expect(source.hasExplicitId, isFalse);
+      expect(source.slot, isNull);
+    });
+
+    test('canonical explicit id is authoritative when it differs from file',
+        () async {
+      final result = await _runCanonicalVisitorOn({
+        'lib/moved_paywall.dart': '''
+          import 'package:flutter/widgets.dart';
+          import 'package:restage/restage.dart';
+
+          @Paywall(id: 'stable_paywall')
+          class MovedPaywall extends StatelessWidget {
+            const MovedPaywall({super.key});
+
+            @override
+            Widget build(BuildContext context) => const SizedBox();
+          }
+        ''',
+      });
+
+      expect(result.issues, isEmpty);
+      expect(result.sources.single.id, 'stable_paywall');
+      expect(result.sources.single.isCanonical, isTrue);
+      expect(result.sources.single.hasExplicitId, isTrue);
+    });
+
+    test('two canonical implicit ids fail as ambiguous declarations', () async {
+      final result = await _runCanonicalVisitorOn({
+        'lib/ambiguous.dart': '''
+          import 'package:flutter/widgets.dart';
+          import 'package:restage/restage.dart';
+
+          @Paywall()
+          class FirstPaywall extends StatelessWidget {
+            const FirstPaywall({super.key});
+
+            @override
+            Widget build(BuildContext context) => const SizedBox();
+          }
+
+          @Paywall()
+          class SecondPaywall extends StatelessWidget {
+            const SecondPaywall({super.key});
+
+            @override
+            Widget build(BuildContext context) => const SizedBox();
+          }
+        ''',
+      });
+
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.duplicateId),
+      );
+    });
+
+    test('resolved lookalike @Paywall annotations are ignored', () async {
+      final result = await runVisitorOn({
+        'lib/lookalike.dart': '''
+          class Paywall {
+            const Paywall();
+          }
+
+          class StatelessWidget {
+            const StatelessWidget();
+          }
+
+          class Widget {}
+          class BuildContext {}
+
+          @Paywall()
+          class Lookalike extends StatelessWidget {
+            const Lookalike();
+            Widget build(BuildContext context) => 1;
+          }
+        ''',
+      });
+
+      expect(result.issues, isEmpty);
+      expect(result.sources, isEmpty);
+    });
   });
+}
+
+/// The workspace package config used by build_test points at the checked-out
+/// package sources, while this phase may be testing a worktree whose SDK
+/// annotation files have not been merged into that checkout yet. Replace only
+/// the imported annotation source so the test still exercises analyzer
+/// provenance rather than a local lookalike.
+Future<VisitorResult> _runCanonicalVisitorOn(
+  Map<String, String> sources,
+) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+    includeFlutter: true,
+  );
+  readerWriter.testing.writeString(
+    AssetId('restage', 'lib/src/authoring/paywall_source.dart'),
+    '''
+import 'package:meta/meta.dart';
+
+@immutable
+final class Paywall {
+  const Paywall({this.id});
+  final String? id;
+}
+''',
+  );
+  final assetMap = <String, String>{
+    for (final entry in sources.entries)
+      'apps_examples|${entry.key}': entry.value,
+  };
+  for (final entry in assetMap.entries) {
+    readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
+  }
+
+  VisitorResult? result;
+  await testBuilder(
+    _VisitorProbeBuilder((library, assetId) async {
+      result = await visitPaywallSources(library, assetId);
+    }),
+    assetMap,
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+  );
+  return result!;
+}
+
+final class _VisitorProbeBuilder implements Builder {
+  _VisitorProbeBuilder(this.onLibrary);
+
+  final Future<void> Function(LibraryElement library, AssetId assetId)
+      onLibrary;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+        '.dart': ['.paywall_probe'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    await onLibrary(await buildStep.inputLibrary, buildStep.inputId);
+  }
 }

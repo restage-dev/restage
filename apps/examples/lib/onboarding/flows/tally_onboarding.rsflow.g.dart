@@ -8,7 +8,7 @@ abstract final class TallyOnboardingFlowDescriptor {
     id: 'tally_onboarding',
     version: 1,
     minClient: 1,
-    surfaceType: SurfaceType.onboarding,
+    surface: Surface.onboarding,
     deliveryMode: FlowDeliveryMode.typed,
     decodeResult: TallyOnboardingFlowDescriptor._decodeResult,
   );

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "case": "examples_paywall_navigation",
+  "package": "restage_example",
+  "entries": [
+    {
+      "path": "assets/paywalls/fluent_pro.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:75205cce5d87b4081dcd0c3ca1ebaac717cd864f1a308baedd9734bebcc66f16"
+    },
+    {
+      "path": "assets/paywalls/fluent_pro.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 861,
+      "sha256": "sha256:596e21031fc5a7b072a07ebfe58eedeebc8e47b36c5941b6bd0fcea1d3fcf1b9"
+    },
+    {
+      "path": "assets/paywalls/fluent_pro.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8688,
+      "sha256": "sha256:b4e8ee40be5246609a483ef5f19bdde72e4a08525f5f150a3646efd944713158"
+    },
+    {
+      "path": "assets/paywalls/fluent_pro.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 5240,
+      "sha256": "sha256:d746dcad89201d8147574f611e92743e82c8ffd263b3aa379c8de108ff825025"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_fluent_pro.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:bee63b48dba33151eadaa85ea83ebdb885ce833da284356c7c53b396c37050ee"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_fluent_pro.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8697,
+      "sha256": "sha256:6280c312af6de1567e5b5f5f9e0febb4aa0c829a5c91c44d5c361ffb7b19b96c"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_fluent_pro_choose_plan.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:0e2ecc7720b1325ff2abbed72fad178b57ebf165a1818aab339f4cd9a9a349df"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_fluent_pro_choose_plan.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 10691,
+      "sha256": "sha256:8e947813093002fc03e18ce58ee54ccca76c4e5e5bd81fddd99b5d6a5556d716"
+    }
+  ],
+  "absentOutputPaths": [
+    "assets/paywalls/fluent_pro_choose_plan.rfwtxt",
+    "assets/paywalls/fluent_pro_choose_plan.rfw"
+  ],
+  "staleOutputPaths": [
+    "assets/paywalls/fluent_pro_choose_plan.capability.json",
+    "assets/paywalls/fluent_pro_choose_plan.navplan.json"
+  ],
+  "virtualOnlyTransientBuildOutputPaths": [
+    "assets/paywalls/fluent_pro.navplan.json"
+  ],
+  "retainedTransientShippingOutputPaths": []
+}

@@ -19,6 +19,7 @@ const flowRef = OnboardingFlowRef<Map<String, Object?>>(
   id: 'first_run',
   version: 1,
   minClient: _installed,
+  surface: Surface.general,
   decodeResult: _identity,
 );
 

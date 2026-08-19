@@ -579,7 +579,7 @@ void main() {
 
     test('producer and consumer canonicalization agree for every surface/mode',
         () {
-      for (final surface in SurfaceType.values) {
+      for (final surface in Surface.values) {
         for (final mode in FlowDeliveryMode.values) {
           final firstDocument = experimentDocument(
             deliveryMode: mode,

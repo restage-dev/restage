@@ -16,7 +16,7 @@ import '../helpers.dart';
 /// Artifact-level proof only: neutral host behavior is covered by SDK widget
 /// tests, so no separate message/survey example app is needed here.
 void main() {
-  for (final surface in const [SurfaceType.message, SurfaceType.survey]) {
+  for (final surface in const [Surface.message, Surface.survey]) {
     final name = surface.wireName;
     group('surface parameterization — $name', () {
       test('typed flow codegens a valid document to assets/$name/flows',
@@ -54,7 +54,7 @@ void main() {
           final generated = await _buildFlowDescriptor(surface, delivery);
           expect(
             generated,
-            contains('surfaceType: SurfaceType.$name'),
+            contains('surface: Surface.$name'),
           );
           expect(
             generated,
@@ -75,10 +75,10 @@ void main() {
     // One non-onboarding surface suffices — the derivation is the same
     // expression for every surface.
     final childJson = _childFlowJson();
-    final sources = _subFlowSources(SurfaceType.message, childJson);
+    final sources = _subFlowSources(Surface.message, childJson);
     final readerWriter = await _readerWriterWith(sources);
     final result = await testBuilders(
-      _buildersFor(SurfaceType.message),
+      _buildersFor(Surface.message),
       sources,
       rootPackage: 'apps_examples',
       readerWriter: readerWriter,
@@ -105,7 +105,7 @@ const _screenEvent = 'next';
 /// emitted `assets/<surface>/flows/first.flow.json`, and runs the shared
 /// validator on it (the real proof the artifact is a well-formed document).
 Future<FlowDocument> _buildAndValidate(
-  SurfaceType surface, {
+  Surface surface, {
   required FlowDeliveryMode? delivery,
 }) async {
   final json = await _buildFlowJson(surface, delivery);
@@ -115,7 +115,7 @@ Future<FlowDocument> _buildAndValidate(
 }
 
 Future<String> _buildFlowJson(
-  SurfaceType surface,
+  Surface surface,
   FlowDeliveryMode? delivery,
 ) async {
   final name = surface.wireName;
@@ -127,7 +127,7 @@ Future<String> _buildFlowJson(
 }
 
 Future<String> _buildFlowDescriptor(
-  SurfaceType surface,
+  Surface surface,
   FlowDeliveryMode? delivery,
 ) async {
   final name = surface.wireName;
@@ -141,7 +141,7 @@ Future<String> _buildFlowDescriptor(
 }
 
 Future<TestBuilderResult> _run(
-  SurfaceType surface,
+  Surface surface,
   FlowDeliveryMode? delivery,
 ) async {
   final sources = _sources(surface, delivery);
@@ -155,19 +155,19 @@ Future<TestBuilderResult> _run(
   );
 }
 
-List<Builder> _buildersFor(SurfaceType surface) => switch (surface) {
-      SurfaceType.message => [
+List<Builder> _buildersFor(Surface surface) => switch (surface) {
+      Surface.message => [
           messageScreenBuilder(BuilderOptions.empty),
           messageFlowBuilder(BuilderOptions.empty),
         ],
-      SurfaceType.survey => [
+      Surface.survey => [
           surveyScreenBuilder(BuilderOptions.empty),
           surveyFlowBuilder(BuilderOptions.empty),
         ],
       _ => throw ArgumentError('unexpected surface $surface'),
     };
 
-Map<String, String> _sources(SurfaceType surface, FlowDeliveryMode? delivery) {
+Map<String, String> _sources(Surface surface, FlowDeliveryMode? delivery) {
   final name = surface.wireName;
   return {
     'apps_examples|lib/$name/screens/$_screenStem.dart': _screenSource(),
@@ -273,7 +273,7 @@ Future<TestReaderWriter> _readerWriterWith(Map<String, String> sources) async {
 /// A parent flow with a `subFlow(...)` node whose child artifact is seeded
 /// under the SAME surface's asset root — the child read is the one
 /// surface-derived site the single-flow fixtures never reach.
-Map<String, String> _subFlowSources(SurfaceType surface, String childJson) {
+Map<String, String> _subFlowSources(Surface surface, String childJson) {
   final name = surface.wireName;
   return {
     'apps_examples|lib/$name/screens/$_screenStem.dart': _screenSource(),

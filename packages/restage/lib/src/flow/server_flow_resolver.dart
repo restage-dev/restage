@@ -17,7 +17,7 @@ import 'package:restage_shared/restage_shared.dart'
         LibraryRequirement,
         SurfaceDocument,
         SurfaceDocumentCodec,
-        SurfaceType;
+        Surface;
 
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../resolver/surface_assignment_key_provider.dart';
@@ -38,14 +38,14 @@ import 'flow_resolver.dart';
 SurfaceFlowRef<R> hostedSurfaceFlowRef<R>({
   required String id,
   required int version,
-  required SurfaceType surfaceType,
+  required Surface surfaceType,
   required FlowResultDecoder<R> decodeResult,
 }) {
   return SurfaceFlowRef<R>(
     id: id,
     version: version,
     minClient: RestageBuiltInCatalogCapabilities.currentVersion,
-    surfaceType: surfaceType,
+    surface: surfaceType,
     decodeResult: decodeResult,
   );
 }

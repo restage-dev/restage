@@ -8,7 +8,7 @@ abstract final class PlanBoardShowcaseFlowDescriptor {
     id: 'plan_board_showcase',
     version: 1,
     minClient: 1,
-    surfaceType: SurfaceType.onboarding,
+    surface: Surface.onboarding,
     deliveryMode: FlowDeliveryMode.typed,
     decodeResult: PlanBoardShowcaseFlowDescriptor._decodeResult,
   );

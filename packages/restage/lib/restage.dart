@@ -6,6 +6,7 @@
 library;
 
 export 'src/authoring/event_dispatcher.dart';
+export 'src/authoring/flow_definition.dart';
 export 'src/authoring/flow_source.dart';
 export 'src/authoring/onboarding_event.dart';
 export 'src/authoring/onboarding_event_dispatcher.dart';
@@ -14,6 +15,7 @@ export 'src/authoring/paywall_event.dart';
 export 'src/authoring/paywall_price_for.dart';
 export 'src/authoring/paywall_purchase.dart';
 export 'src/authoring/paywall_source.dart';
+export 'src/authoring/screen.dart';
 export 'src/billing/billing_gateway.dart';
 export 'src/billing/in_app_purchase_gateway.dart'
     hide PurchaseCoordinator, PurchaseProcessingContext;
@@ -41,6 +43,7 @@ export 'src/flow/system_back_policy.dart';
 export 'package:restage_shared/restage_shared.dart'
     show
         ChildrenSlot,
+        CapabilityManifest,
         EmitTarget,
         EntitlementSource,
         Ignore,
@@ -49,7 +52,11 @@ export 'package:restage_shared/restage_shared.dart'
         RestageProduct,
         RestageProperty,
         RestageWidget,
+        Surface,
+        // ignore: deprecated_member_use
         SurfaceType,
+        SurfacePayloadKind,
+        SurfaceSourceKind,
         FlowActionSchema,
         FlowActionSchemaField,
         FlowBranchPredicate,

@@ -19,6 +19,7 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: 5,
+    surface: Surface.onboarding,
     decodeResult: _decodeMapResult,
   );
 

@@ -358,7 +358,7 @@ void main() {
       final envelope = _blobEnvelope(
         slug: 'pro_upgrade',
         version: 9,
-        surfaceType: SurfaceType.message,
+        surfaceType: Surface.message,
         blob: blob,
       );
       final resolver = RestageVariantResolver(
@@ -707,7 +707,7 @@ void main() {
       // rewired *charge control* is NOT a rejection cause — that's blob-OTA
       // parity, served ungated; only structural/floor checks fail closed here.)
       final hostedFlowEnvelope = _flowEnvelope(
-        surfaceType: SurfaceType.paywall,
+        surfaceType: Surface.paywall,
         slug: 'pro_upgrade',
         version: 9,
         minClient: _supportedVersion + 1,
@@ -915,7 +915,7 @@ Uint8List _blobEnvelope({
   String slug = 'pro_upgrade',
   int version = 1,
   int minClient = _supportedVersion,
-  SurfaceType surfaceType = SurfaceType.paywall,
+  Surface surfaceType = Surface.paywall,
   List<LibraryRequirement> requiredLibraries = const [],
 }) {
   final payload = BlobSurfacePayload(
@@ -938,7 +938,7 @@ Uint8List _blobEnvelope({
 /// Builds a flow (onboarding) surface envelope — a non-blob payload that the
 /// paywall resolver must reject.
 Uint8List _flowEnvelope({
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
   String slug = 'pro_upgrade',
   int version = 1,
   int minClient = 3,
@@ -1040,7 +1040,7 @@ Uint8List _paywallFlowEnvelope({
     screenBlobs: {'welcome': screenBytes},
   );
   final surface = SurfaceDocument(
-    surfaceType: SurfaceType.paywall,
+    surfaceType: Surface.paywall,
     surfaceSlug: slug,
     version: version,
     minClient: document.minClient,

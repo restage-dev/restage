@@ -31,6 +31,7 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: _FirstRunResult.decode,
   );
   const createProfile = FlowActionRef<void, bool>('create_profile');
@@ -557,6 +558,7 @@ final class _Result {
       id: 'second_run',
       version: 1,
       minClient: 3,
+      surface: Surface.onboarding,
       decodeResult: _FirstRunResult.decode,
     );
     final firstWelcomeBlob = _screenBlob('First', 'next');

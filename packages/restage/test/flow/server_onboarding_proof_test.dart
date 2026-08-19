@@ -129,6 +129,7 @@ const _proofRef = OnboardingFlowRef<ProofResult>(
   id: 'proof',
   version: 1,
   minClient: _refFloorMinClient,
+  surface: Surface.onboarding,
   decodeResult: _decodeProofResult,
 );
 
@@ -204,7 +205,7 @@ Uint8List _proofEnvelope(
   );
   return SurfaceDocumentCodec.encode(
     SurfaceDocument(
-      surfaceType: SurfaceType.onboarding,
+      surfaceType: Surface.onboarding,
       surfaceSlug: document.flow,
       version: document.version,
       minClient: document.minClient,

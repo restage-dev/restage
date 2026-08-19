@@ -2,7 +2,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 
-/// [LibraryVisitor] that walks `@PaywallSource`-annotated classes via
+/// [LibraryVisitor] that walks resolved canonical `@Paywall` classes and
+/// deprecated `@PaywallSource` classes via
 /// the free [visitPaywallSources] helper. The walk stays a pure
 /// function for direct unit testing; this adapter pipes its results
 /// onto the shared [CodegenBuildState].

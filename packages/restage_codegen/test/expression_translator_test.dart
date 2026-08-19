@@ -7,6 +7,7 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
@@ -3663,6 +3664,52 @@ Object x() => Column(
       // registry → should translate without issues.
       expect(r.issues, isEmpty);
       expect(r.dsl, 'event "hello" {}');
+    });
+
+    test('deprecated OnboardingEvent typedef resolves as SurfaceEvent',
+        () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:restage/restage.dart';
+
+abstract final class Probe {
+  static const next = OnboardingEvent<void>('next');
+}
+
+Object x() => onboardingEvent(Probe.next);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry()..registerAll(onboardingHelpers),
+      ).translate(expression);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'event "next" {}');
+    });
+
+    test('canonical SurfaceEvent resolves through the same event predicate',
+        () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:restage/restage.dart';
+
+abstract final class Probe {
+  static const next = SurfaceEvent<void>('next');
+}
+
+Object x() => surfaceEvent(Probe.next);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry()..registerAll(onboardingHelpers),
+      ).translate(expression);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'event "next" {}');
     });
   });
 

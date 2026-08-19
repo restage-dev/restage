@@ -175,7 +175,7 @@ final class FlowMountLeaseSeed {
   })  : actionBindings = List.unmodifiable(actionBindings),
         installedSignals = List.unmodifiable(installedSignals);
 
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
   final String flowId;
   final int flowVersion;
   final int minimumClient;
@@ -488,7 +488,7 @@ final class _PinnedFlowResolver implements FlowResolver {
     required Map<String, ResolvedFlow> flows,
   }) : _flows = Map.unmodifiable(flows);
 
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
   final Map<String, ResolvedFlow> _flows;
 
   _PinnedFlowResolver asCacheHit() {
@@ -549,7 +549,7 @@ final class _FlowExperimentClosureLoader {
       id: seed.flowId,
       version: seed.flowVersion,
       minClient: seed.minimumClient,
-      surfaceType: seed.surfaceType,
+      surface: seed.surfaceType,
       decodeResult: _identityResult,
     ));
     _checkSeed();
@@ -661,7 +661,7 @@ final class _FlowExperimentClosureLoader {
           id: state.flow,
           version: state.version,
           minClient: state.minClient,
-          surfaceType: seed.surfaceType,
+          surface: seed.surfaceType,
           decodeResult: _identityResult,
         ));
         _checkSeed();

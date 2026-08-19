@@ -19,7 +19,7 @@ const _messageFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.message,
+  surface: Surface.message,
   decodeResult: FirstRunResult.decode,
 );
 
@@ -27,7 +27,7 @@ const _surveyFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.survey,
+  surface: Surface.survey,
   decodeResult: FirstRunResult.decode,
 );
 
@@ -35,7 +35,7 @@ const _paywallFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.paywall,
+  surface: Surface.paywall,
   decodeResult: FirstRunResult.decode,
 );
 

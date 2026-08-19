@@ -71,7 +71,7 @@ FlowActionBindingFingerprintV1 experimentBinding({
 
 FlowExperimentDocumentContractV1 experimentDocumentContract({
   FlowDocument? document,
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
   List<LibraryRequirement> requiredLibraries = const [],
 }) {
   final resolved = document ?? experimentDocument();
@@ -99,7 +99,7 @@ FlowExperimentClientContractV1 experimentClientContract({
   InstalledCapability? installedCapability,
   List<FlowActionBindingFingerprintV1> actionBindings = const [],
   List<String> installedSignals = const [],
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
   FlowDeliveryMode deliveryMode = FlowDeliveryMode.typed,
 }) {
   return FlowExperimentClientContractV1(

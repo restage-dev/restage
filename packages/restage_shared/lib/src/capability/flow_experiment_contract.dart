@@ -107,7 +107,7 @@ final class FlowActionBindingFingerprintV1 {
 final class FlowExperimentDocumentContractV1 {
   /// Creates and independently validates a document wrapper.
   factory FlowExperimentDocumentContractV1({
-    required SurfaceType surfaceType,
+    required Surface surfaceType,
     required String flowId,
     required int version,
     required int schemaVersion,
@@ -180,7 +180,7 @@ final class FlowExperimentDocumentContractV1 {
             Uint8List.fromList(canonicalFlowDocumentBytes);
 
   /// Surface category of this closure node.
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
 
   /// Exact flow identifier.
   final String flowId;
@@ -218,7 +218,7 @@ final class FlowExperimentDocumentContractV1 {
 final class FlowExperimentClientContractV1 {
   /// Creates and validates a complete baseline closure and capability snapshot.
   factory FlowExperimentClientContractV1({
-    required SurfaceType surfaceType,
+    required Surface surfaceType,
     required FlowDeliveryMode deliveryMode,
     required FlowExperimentDescriptorV1 descriptor,
     required List<FlowExperimentDocumentContractV1> documents,
@@ -290,7 +290,7 @@ final class FlowExperimentClientContractV1 {
   }
 
   /// Surface category of this snapshot.
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
 
   /// Typed or general flow delivery mode.
   final FlowDeliveryMode deliveryMode;
@@ -409,7 +409,7 @@ FlowExperimentClientContractV1 _decodeClientContract(
   ];
 
   return FlowExperimentClientContractV1(
-    surfaceType: SurfaceType.fromWireName(
+    surfaceType: Surface.fromWireName(
       _requiredString(json, 'surfaceType', r'$'),
     ),
     deliveryMode: FlowDeliveryMode.fromWireName(
@@ -454,7 +454,7 @@ FlowExperimentDocumentContractV1 _decodeDocumentContract(
   final flowDocument = FlowDocumentCodec.decodeJson(jsonEncode(flowJson));
 
   return FlowExperimentDocumentContractV1(
-    surfaceType: SurfaceType.fromWireName(
+    surfaceType: Surface.fromWireName(
       _requiredString(json, 'surfaceType', path),
     ),
     flowId: _requiredString(json, 'flowId', path),
@@ -739,7 +739,7 @@ List<LibraryRequirement> _canonicalRequiredLibraries(
 }
 
 void _checkCompleteBaselineClosure({
-  required SurfaceType surfaceType,
+  required Surface surfaceType,
   required FlowDeliveryMode deliveryMode,
   required FlowExperimentDescriptorV1 descriptor,
   required List<FlowExperimentDocumentContractV1> documents,
@@ -786,7 +786,7 @@ void _checkCompleteBaselineClosure({
 void _walkExactClosure({
   required FlowExperimentDocumentContractV1 node,
   required int availableCapability,
-  required SurfaceType expectedSurface,
+  required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
   required Map<String, FlowExperimentDocumentContractV1> byIdentity,
   required Set<String> reached,
@@ -878,7 +878,7 @@ String _documentIdentity(FlowExperimentDocumentContractV1 document) {
 }
 
 String _documentIdentityParts(
-  SurfaceType surface,
+  Surface surface,
   String flowId,
   int version,
 ) {

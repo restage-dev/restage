@@ -9,7 +9,10 @@ import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
 import 'package:restage_shared/src/flow_document/flow_document_hash.dart';
 
 /// Product surface category carried by a delivered document envelope.
-enum SurfaceType {
+///
+/// The wire vocabulary is deliberately closed. Adding a product category is a
+/// coordinated contract change rather than an application-defined string.
+enum Surface {
   /// A surface used for onboarding flows.
   onboarding('onboarding'),
 
@@ -21,19 +24,73 @@ enum SurfaceType {
 
   /// A surface used for a paywall (a single rendered screen, or a lowered
   /// multi-screen flow for a navigation paywall).
-  paywall('paywall');
+  paywall('paywall'),
 
-  const SurfaceType(this.wireName);
+  /// A surface with no specialized product semantics.
+  general('general');
+
+  const Surface(this.wireName);
 
   /// Stable wire discriminator for this surface type.
   final String wireName;
 
   /// Parses a surface type wire discriminator.
-  static SurfaceType fromWireName(String name) {
-    for (final type in SurfaceType.values) {
+  static Surface fromWireName(String name) {
+    for (final type in Surface.values) {
       if (type.wireName == name) return type;
     }
-    throw FormatException('Unsupported surface type "$name".');
+    throw FormatException('Unsupported surface "$name".');
+  }
+}
+
+/// Deprecated compatibility spelling for [Surface].
+@Deprecated('Use Surface instead.')
+typedef SurfaceType = Surface;
+
+/// The authored source shape for a publication.
+enum SurfaceSourceKind {
+  /// A standalone ordinary screen.
+  screen('screen'),
+
+  /// A specialized paywall source.
+  paywall('paywall'),
+
+  /// A flow declaration.
+  flowGraph('flowGraph');
+
+  const SurfaceSourceKind(this.wireName);
+
+  /// Stable wire discriminator.
+  final String wireName;
+
+  /// Parses a strict source-kind discriminator.
+  static SurfaceSourceKind fromWireName(String name) {
+    for (final kind in values) {
+      if (kind.wireName == name) return kind;
+    }
+    throw FormatException('Unsupported surface source kind "$name".');
+  }
+}
+
+/// The artifact shape carried by a publication.
+enum SurfacePayloadKind {
+  /// One rendered RFW blob.
+  blob('blob'),
+
+  /// A flow document and its screen closure.
+  flow('flow');
+
+  const SurfacePayloadKind(this.wireName);
+
+  /// Stable wire discriminator.
+  final String wireName;
+
+  /// Parses a strict payload-kind discriminator.
+  static SurfacePayloadKind fromWireName(String name) {
+    for (final kind in values) {
+      if (kind.wireName == name) return kind;
+    }
+    throw FormatException('Unsupported surface payload kind "$name".');
   }
 }
 
@@ -266,7 +323,7 @@ final class BlobSurfacePayload extends SurfacePayload {
 final class SurfaceDocument {
   /// Creates a surface document envelope.
   factory SurfaceDocument({
-    required SurfaceType surfaceType,
+    required Surface surfaceType,
     required String surfaceSlug,
     required int version,
     required int minClient,
@@ -320,7 +377,7 @@ final class SurfaceDocument {
   });
 
   /// Surface category carried by this document.
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
 
   /// Stable surface identifier within its [surfaceType].
   final String surfaceSlug;
