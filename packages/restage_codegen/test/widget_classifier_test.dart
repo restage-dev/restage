@@ -1281,8 +1281,9 @@ class AcmeListed extends StatelessWidget {
         ]),
       );
 
-      // `data` is widget instance state, not a constructor argument — Phase 3
-      // cannot emit it, so the widget must not be a plain-composition verdict.
+      // `data` is widget instance state, not a constructor argument, so the
+      // emitter cannot produce it and the widget must not classify as
+      // plain composition.
       expect(result, isA<UnclassifiableWidget>());
     });
 

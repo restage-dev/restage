@@ -10,8 +10,8 @@
 // inlinable-candidate idioms compose against (a non-Flutter name so it does
 // not collide with Flutter's own widgets); declared in the harness catalog.
 //
-// Classifier-bucketed only this phase (per the coordinator's lock-in #5);
-// emit-confirmation against the real catalog converges post-L12. The silent-
+// Bucketed by the classifier only; emit-confirmation against the real catalog
+// is a separate concern. The silent-
 // loss idioms (non-finite width, EdgeInsets.zero) classify inlinable here —
 // their loss is at EMIT (a documented, known emit-time gap), not at classify.
 //

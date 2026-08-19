@@ -5,7 +5,7 @@
 A curated [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog of cross-platform widget
 primitives for server-driven Flutter UI: the `restage.core` library (layout,
 structure, and decoration: Container, Column, Row, Stack, SizedBox, Padding,
-Center, Text, Image, and more; 54 widgets in all).
+Center, Text, Image, and more; 57 widgets in all).
 
 Part of [Restage](https://restage.dev), server-driven UI for Flutter. Extend this
 catalog with your own design-system widgets via `@RestageWidget`.

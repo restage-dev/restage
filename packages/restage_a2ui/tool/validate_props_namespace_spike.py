@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Validate the required-props spike against pinned A2UI schemas."""
+"""Check the generated required-props layout against the upstream A2UI schemas.
+
+Takes a local checkout of the A2UI specification (https://github.com/google/genui)
+as its one argument, and refuses to run unless that checkout sits at the commit
+pinned below, so a schema change upstream is a loud failure rather than a silent
+re-baseline.
+
+    python3 tool/validate_props_namespace_spike.py /path/to/genui
+
+Not part of the published package; see .pubignore.
+"""
 
 from __future__ import annotations
 
