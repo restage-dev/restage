@@ -41,13 +41,14 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: _refFloorMinClient,
+    surface: Surface.onboarding,
     decodeResult: _decodeMapResult,
   );
 
   setUp(Restage.debugReset);
 
-  test('legacy flow descriptors default to onboarding', () {
-    expect(flowRef.surfaceType, SurfaceType.onboarding);
+  test('flow descriptors carry their explicit surface', () {
+    expect(flowRef.surfaceType, Surface.onboarding);
   });
 
   test(
@@ -103,13 +104,13 @@ void main() {
     final ref = hostedSurfaceFlowRef<Map<String, Object?>>(
       id: 'first_run',
       version: 1,
-      surfaceType: SurfaceType.message,
+      surfaceType: Surface.message,
       decodeResult: _decodeMapResult,
     );
     expect(ref.id, 'first_run');
     expect(ref.version, 1);
     expect(ref.minClient, _renderableMinClient);
-    expect(ref.surfaceType, SurfaceType.message);
+    expect(ref.surfaceType, Surface.message);
     expect(ref.decodeResult({'complete': true}), {'complete': true});
 
     final screenBytes = Uint8List.fromList([1, 2, 3]);
@@ -120,7 +121,7 @@ void main() {
         screenBytes: screenBytes,
       ),
       screenBytes,
-      surfaceType: SurfaceType.message,
+      surfaceType: Surface.message,
     );
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
@@ -134,15 +135,15 @@ void main() {
   });
 
   for (final testCase in const <({
-    SurfaceType surfaceType,
+    Surface surfaceType,
     String wireName,
   })>[
     (
-      surfaceType: SurfaceType.message,
+      surfaceType: Surface.message,
       wireName: 'message',
     ),
     (
-      surfaceType: SurfaceType.survey,
+      surfaceType: Surface.survey,
       wireName: 'survey',
     ),
   ]) {
@@ -164,7 +165,7 @@ void main() {
         id: flowRef.id,
         version: flowRef.version,
         minClient: flowRef.minClient,
-        surfaceType: testCase.surfaceType,
+        surface: testCase.surfaceType,
         decodeResult: flowRef.decodeResult,
       );
 
@@ -186,7 +187,7 @@ void main() {
     final envelope = _envelope(
       _validDocument(screenBytes: screenBytes),
       screenBytes,
-      surfaceType: SurfaceType.survey,
+      surfaceType: Surface.survey,
     );
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
@@ -197,7 +198,7 @@ void main() {
       id: 'first_run',
       version: 1,
       minClient: _refFloorMinClient,
-      surfaceType: SurfaceType.message,
+      surface: Surface.message,
       decodeResult: _decodeMapResult,
     );
 
@@ -217,7 +218,7 @@ void main() {
       httpClient: MockClient((request) async {
         requests.add(request);
         final body = jsonDecode(request.body) as Map<String, Object?>;
-        final surfaceType = SurfaceType.values.byName(
+        final surfaceType = Surface.values.byName(
           body['surfaceType']! as String,
         );
         return http.Response(
@@ -234,19 +235,19 @@ void main() {
         );
       }),
     );
-    OnboardingFlowRef<Map<String, Object?>> ref(SurfaceType surfaceType) =>
+    OnboardingFlowRef<Map<String, Object?>> ref(Surface surfaceType) =>
         OnboardingFlowRef<Map<String, Object?>>(
           id: flowRef.id,
           version: flowRef.version,
           minClient: flowRef.minClient,
-          surfaceType: surfaceType,
+          surface: surfaceType,
           decodeResult: flowRef.decodeResult,
         );
 
-    final messageFirst = await resolver.resolve(ref(SurfaceType.message));
-    final surveyFirst = await resolver.resolve(ref(SurfaceType.survey));
-    final messageSecond = await resolver.resolve(ref(SurfaceType.message));
-    final surveySecond = await resolver.resolve(ref(SurfaceType.survey));
+    final messageFirst = await resolver.resolve(ref(Surface.message));
+    final surveyFirst = await resolver.resolve(ref(Surface.survey));
+    final messageSecond = await resolver.resolve(ref(Surface.message));
+    final surveySecond = await resolver.resolve(ref(Surface.survey));
 
     expect(messageFirst.cacheHit, isFalse);
     expect(surveyFirst.cacheHit, isFalse);
@@ -799,7 +800,7 @@ Uint8List _envelope(
   FlowDocument document,
   Uint8List screenBytes, {
   List<LibraryRequirement> requiredLibraries = const [],
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
 }) {
   final payload = FlowSurfacePayload(
     flowDocument: document,
@@ -825,7 +826,7 @@ Uint8List _envelope(
 Uint8List _envelopeWithIdentity(
   FlowDocument document,
   Uint8List screenBytes, {
-  SurfaceType surfaceType = SurfaceType.onboarding,
+  Surface surfaceType = Surface.onboarding,
   String? surfaceSlug,
   int? version,
 }) {

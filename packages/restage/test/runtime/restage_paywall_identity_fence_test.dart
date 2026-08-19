@@ -1843,7 +1843,7 @@ Uint8List _strictFlowEnvelope({
 }) {
   final document = _strictFlowDocument(screen: screen);
   return SurfaceDocumentCodec.encode(SurfaceDocument(
-    surfaceType: SurfaceType.paywall,
+    surfaceType: Surface.paywall,
     surfaceSlug: 'pro_upgrade',
     version: version,
     minClient: document.minClient,
@@ -1934,7 +1934,7 @@ Uint8List _rawBlobEnvelope(Uint8List blob, {required int version}) {
   const minClient = RestageBuiltInCatalogCapabilities.currentVersion;
   return SurfaceDocumentCodec.encode(
     SurfaceDocument(
-      surfaceType: SurfaceType.paywall,
+      surfaceType: Surface.paywall,
       surfaceSlug: 'pro_upgrade',
       version: version,
       minClient: minClient,

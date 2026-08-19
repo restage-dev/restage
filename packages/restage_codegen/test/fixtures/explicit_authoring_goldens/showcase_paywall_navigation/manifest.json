@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "case": "showcase_paywall_navigation",
+  "package": "restage_showcase",
+  "entries": [
+    {
+      "path": "assets/paywalls/duolingo_super.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:95ce94b5c33b573404a0a22a84f81b747c331099e46d42f2ece7ef98fda9f4db"
+    },
+    {
+      "path": "assets/paywalls/duolingo_super.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 875,
+      "sha256": "sha256:79b4223cac6cc0a7778a6350c980e011b36d03b10447e5b510c6fe6ef492ac63"
+    },
+    {
+      "path": "assets/paywalls/duolingo_super.navplan.json",
+      "kind": "navigation-build-plan",
+      "byteLength": 170,
+      "sha256": "sha256:4328446c9204f4bfe948547bdea22861b17170166aae60f94a8bc8ea239d9df6"
+    },
+    {
+      "path": "assets/paywalls/duolingo_super.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8713,
+      "sha256": "sha256:b1854228a2d9cdf38ec81df94ea683fd11d5c4174a1c763dce5d543399e7ea70"
+    },
+    {
+      "path": "assets/paywalls/duolingo_super.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 5265,
+      "sha256": "sha256:1976a33b8da51bf103846c417762aeac65c50ae25de31ee4b72c04863617db3c"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_duolingo_choose_plan.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:2903c1bb65af7c301982bf7011ab219647b87646b7f473c78833a87d8a0e9bdb"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_duolingo_choose_plan.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 10695,
+      "sha256": "sha256:3c2d13e6fdbcab8d55833c6f62e20dc861adb2248a89d598708885c52c78131a"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_duolingo_super.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:75a35202fe19d7d70048c31a31c15da2d704c7585a0e7cc6eb0e510f639102e9"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_duolingo_super.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8722,
+      "sha256": "sha256:1cf57f7d24a1efe806a655a4a03ac4556c648fdae8db9b7f6d5c5b376e0373bf"
+    }
+  ],
+  "absentOutputPaths": [
+    "assets/paywalls/duolingo_choose_plan.rfwtxt",
+    "assets/paywalls/duolingo_choose_plan.rfw"
+  ],
+  "staleOutputPaths": [
+    "assets/paywalls/duolingo_choose_plan.capability.json",
+    "assets/paywalls/duolingo_choose_plan.navplan.json"
+  ],
+  "virtualOnlyTransientBuildOutputPaths": [],
+  "retainedTransientShippingOutputPaths": [
+    "assets/paywalls/duolingo_super.navplan.json"
+  ]
+}

@@ -143,7 +143,7 @@ final class _SeedSource {
           id: 'pro_upgrade',
           version: 1,
           minClient: 3,
-          surfaceType: SurfaceType.paywall,
+          surface: Surface.paywall,
           decodeResult: _decodeVoid,
         ),
         deliveryMode: FlowDeliveryMode.typed,

@@ -14,6 +14,7 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: _decodeMapResult,
   );
 
@@ -100,8 +101,8 @@ void main() {
   });
 
   for (final surfaceType in const [
-    SurfaceType.message,
-    SurfaceType.survey,
+    Surface.message,
+    Surface.survey,
   ]) {
     test('loads ${surfaceType.wireName} flow assets from its surface directory',
         () async {
@@ -110,7 +111,7 @@ void main() {
         id: 'first_run',
         version: 1,
         minClient: 3,
-        surfaceType: surfaceType,
+        surface: surfaceType,
         decodeResult: _decodeMapResult,
       );
       final bundle = _FlowAssetBundle.withFlow(
@@ -134,14 +135,14 @@ void main() {
       id: 'first_run',
       version: 1,
       minClient: 3,
-      surfaceType: SurfaceType.message,
+      surface: Surface.message,
       decodeResult: _decodeMapResult,
     );
     const surveyRef = OnboardingFlowRef<Map<String, Object?>>(
       id: 'first_run',
       version: 1,
       minClient: 3,
-      surfaceType: SurfaceType.survey,
+      surface: Surface.survey,
       decodeResult: _decodeMapResult,
     );
     final document = _validDocument(screenBytes: screenBytes);

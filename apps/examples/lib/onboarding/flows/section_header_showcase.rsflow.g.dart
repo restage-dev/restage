@@ -8,7 +8,7 @@ abstract final class SectionHeaderShowcaseFlowDescriptor {
     id: 'section_header_showcase',
     version: 1,
     minClient: 1,
-    surfaceType: SurfaceType.onboarding,
+    surface: Surface.onboarding,
     deliveryMode: FlowDeliveryMode.typed,
     decodeResult: SectionHeaderShowcaseFlowDescriptor._decodeResult,
   );

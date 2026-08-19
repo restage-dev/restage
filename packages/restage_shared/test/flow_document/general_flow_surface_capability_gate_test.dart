@@ -17,7 +17,7 @@ void main() {
         screenBlobs: {'start': screenBytes},
       );
       final surface = SurfaceDocument(
-        surfaceType: SurfaceType.onboarding,
+        surfaceType: Surface.onboarding,
         surfaceSlug: 'welcome',
         version: 1,
         minClient: payload.minClient,

@@ -82,7 +82,7 @@ final class FlowExperimentVerdictInputV1 {
     required InstalledCapability installedCapability,
     required List<FlowActionBindingFingerprintV1> actionBindings,
     required List<String> installedSignals,
-    required SurfaceType surfaceType,
+    required Surface surfaceType,
     required FlowDeliveryMode deliveryMode,
     required int flowGateRevision,
   }) {
@@ -125,7 +125,7 @@ final class FlowExperimentVerdictInputV1 {
   final List<String> installedSignals;
 
   /// Surface category anchored by the mount.
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
 
   /// Delivery mode anchored by the mount.
   final FlowDeliveryMode deliveryMode;
@@ -303,7 +303,7 @@ _ValidatedClosure _validateEligibilityClosure({
   required InstalledCapability installed,
   required Map<String, FlowActionBindingFingerprintV1> actions,
   required Set<String> signals,
-  required SurfaceType expectedSurface,
+  required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
 }) {
   if (closure.rootCapability < 1) {
@@ -499,7 +499,7 @@ void _checkEveryGeneralNode(
 void _walkEligibilityClosure({
   required FlowExperimentDocumentContractV1 node,
   required int availableCapability,
-  required SurfaceType expectedSurface,
+  required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
   required InstalledCapability installed,
   required Map<String, FlowActionBindingFingerprintV1> actions,
@@ -587,7 +587,7 @@ void _walkEligibilityClosure({
 void _validateDocumentAdmission({
   required FlowExperimentDocumentContractV1 node,
   required int availableCapability,
-  required SurfaceType expectedSurface,
+  required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
   required InstalledCapability installed,
   required Map<String, FlowActionBindingFingerprintV1> actions,

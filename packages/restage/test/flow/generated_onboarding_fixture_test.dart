@@ -250,6 +250,7 @@ abstract final class FirstRunFlowDescriptor {
     id: 'first_run',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: _decodeResult,
   );
 
@@ -480,6 +481,7 @@ widget OnboardingScreen = Center(
     id: 'cap_flow',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: (result) => result['captured']! as int,
   );
 

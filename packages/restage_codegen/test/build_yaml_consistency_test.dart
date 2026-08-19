@@ -29,6 +29,10 @@ void main() {
       'message_flow_codegen': messageFlowBuilder,
       'survey_screen_codegen': surveyScreenBuilder,
       'survey_flow_codegen': surveyFlowBuilder,
+      'restage_source_roster': restageSourceRosterBuilder,
+      'restage_package_surface_compiler': restagePackageSurfaceCompilerBuilder,
+      'restage_surface_publication_bundle':
+          restageSurfacePublicationBundleBuilder,
       'user_catalog': userCatalogBuilder,
       'user_catalog_json': userCatalogJsonBuilder,
       'factory_functions': factoryFunctionBuilder,
@@ -51,6 +55,11 @@ void main() {
       'message_flow_codegen': 'messageFlowBuilder',
       'survey_screen_codegen': 'surveyScreenBuilder',
       'survey_flow_codegen': 'surveyFlowBuilder',
+      'restage_source_roster': 'restageSourceRosterBuilder',
+      'restage_package_surface_compiler':
+          'restagePackageSurfaceCompilerBuilder',
+      'restage_surface_publication_bundle':
+          'restageSurfacePublicationBundleBuilder',
       'user_catalog': 'userCatalogBuilder',
       'user_catalog_json': 'userCatalogJsonBuilder',
       'factory_functions': 'factoryFunctionBuilder',
@@ -61,6 +70,8 @@ void main() {
 
     late Map<String, Map<String, List<String>>> declared;
     late Map<String, List<String>> factoryNames;
+    late Map<String, List<String>> appliesBuilders;
+    late YamlMap postProcessBuilders;
 
     setUpAll(() {
       final root = loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
@@ -84,6 +95,16 @@ void main() {
               name as String,
           ],
       };
+      appliesBuilders = {
+        for (final builder in builders.entries)
+          builder.key as String: [
+            for (final name in ((builder.value as YamlMap)['applies_builders']
+                    as YamlList? ??
+                YamlList()))
+              name as String,
+          ],
+      };
+      postProcessBuilders = root['post_process_builders'] as YamlMap;
     });
 
     test('build.yaml declares exactly the builders the package exposes', () {
@@ -146,6 +167,40 @@ void main() {
         );
       }
     });
+
+    test('the surface publication post-process owner is wired strictly', () {
+      final definition =
+          postProcessBuilders['restage_surface_publication_owner'] as YamlMap;
+      expect(definition['import'], 'package:restage_codegen/builder.dart');
+      expect(
+        definition['builder_factory'],
+        'restageSurfacePublicationOutputOwner',
+      );
+      expect(definition['input_extensions'], ['.bundle.json']);
+      expect(definition['build_to'], 'source');
+      expect(
+        restageSurfacePublicationOutputOwner(BuilderOptions.empty)
+            .inputExtensions,
+        ['.bundle.json'],
+      );
+      expect(
+        appliesBuilders['restage_surface_publication_bundle'],
+        contains('restage_codegen:restage_surface_publication_owner'),
+      );
+      final compilerOutputs = restagePackageSurfaceCompilerBuilder(
+        BuilderOptions.empty,
+      ).buildExtensions[r'$package$']!;
+      expect(
+        compilerOutputs,
+        ['lib/src/surface_publication/surface_publication.compiler.json'],
+      );
+      expect(
+        compilerOutputs,
+        everyElement(isNot(endsWith('.bundle.json'))),
+        reason: 'The internal compiler handoff must not trigger the '
+            'post-process owner; only the normalized aggregate may do so.',
+      );
+    });
   });
 
   group('build.yaml runs_before graph', () {
@@ -196,6 +251,49 @@ void main() {
       expect(
         runsBefore['paywall_codegen'],
         contains('restage_codegen:paywall_flow_codegen'),
+      );
+    });
+
+    test('the package roster is ordered before every roster consumer', () {
+      const consumers = <String>{
+        'paywall_codegen',
+        'paywall_flow_codegen',
+        'onboarding_screen_codegen',
+        'onboarding_flow_codegen',
+        'message_screen_codegen',
+        'message_flow_codegen',
+        'survey_screen_codegen',
+        'survey_flow_codegen',
+        'restage_package_surface_compiler',
+        'user_catalog',
+        'user_catalog_json',
+        'factory_functions',
+        'user_factories',
+        'restage_surface_publication_bundle',
+      };
+      for (final consumer in consumers) {
+        expect(
+          runsBefore['restage_source_roster'],
+          contains('restage_codegen:$consumer'),
+          reason: 'the package roster must be complete before "$consumer" '
+              'can consume or publish a Restage-owned source family.',
+        );
+      }
+    });
+
+    test('the fixed publication chain is compiler then aggregate then owner',
+        () {
+      expect(
+        runsBefore['restage_package_surface_compiler'],
+        contains('restage_codegen:restage_surface_publication_bundle'),
+      );
+      expect(
+        runsBefore['paywall_flow_codegen'],
+        contains('restage_codegen:restage_package_surface_compiler'),
+      );
+      expect(
+        runsBefore['user_catalog_json'],
+        contains('restage_codegen:restage_package_surface_compiler'),
       );
     });
 

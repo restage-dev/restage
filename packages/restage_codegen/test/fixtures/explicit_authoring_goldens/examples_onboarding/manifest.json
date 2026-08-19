@@ -1,0 +1,773 @@
+{
+  "schemaVersion": 1,
+  "case": "examples_onboarding",
+  "package": "restage_example",
+  "entries": [
+    {
+      "path": "assets/onboarding/flows/bare_surface.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 417,
+      "sha256": "sha256:49af35ced9391ec71cd20ba9ada3100efc6e3bdaf664ff6afe22194836c26209"
+    },
+    {
+      "path": "assets/onboarding/flows/first_run.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 1959,
+      "sha256": "sha256:17229aae809d5031cbd62f51f0bf8f7e09cc2b47cc82fe3f07640c9879c764c9"
+    },
+    {
+      "path": "assets/onboarding/flows/lumen_onboarding.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 2609,
+      "sha256": "sha256:a2026d76be81e547abeded479ca1e45f08ff5ce0be3ab33f9249a8e82e9eaa4f"
+    },
+    {
+      "path": "assets/onboarding/flows/minimal_onboarding.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 1826,
+      "sha256": "sha256:baa978408e85ed6bb1da7671a12e41e1140c14e52783c868283e08f7c3f21d2f"
+    },
+    {
+      "path": "assets/onboarding/flows/stride_first_run.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 2147,
+      "sha256": "sha256:f2b9a702681cf222859fb7eafd02d69936c367971324cd6b0933bd1f8a2b0539"
+    },
+    {
+      "path": "assets/onboarding/flows/tally_onboarding.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 3127,
+      "sha256": "sha256:c946bf91fff4415c30ef1527ad1193fb724f5a348855097d8745e86ab65e2b69"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_experience.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:4b0680bee6edd1d0d89c3947fbac66c1f2520da36c669cfabcf936240c094042"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_experience.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 3396,
+      "sha256": "sha256:7aa567a965fe88eee3256c643774ab0f967e4872d90e97b18b4aa424ca9f51ee"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_experience.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1996,
+      "sha256": "sha256:816fdeaaa0df871f4fb3cd8aaef87cf24adcf5f4af2d7a251c79fdfa89b9adcb"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_goal.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:4495be44d45674abbf6c10807fd8dd7c9ba0532d77979010b7846eb14c5b45c3"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_goal.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 4177,
+      "sha256": "sha256:b46aeed1f71dbbfca36db549f4f5111a3c47889c9824b9ee759ff717f92392cd"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_goal.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 2438,
+      "sha256": "sha256:5d7019ec3f43e06efe9df7f2af66393d56b3c19fb41bd29120f908853ec73fce"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_recap.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:1e5b7a196dcd1f3382e7c2017982e04412a8e58ed2dea963e2915258ca32904f"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_recap.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1940,
+      "sha256": "sha256:827d04612955aab21f74db2502ef0a457287666a42d85ae5702dca356ce87b33"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_recap.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1148,
+      "sha256": "sha256:902f9e3739b18a715294af4364582528ebb89e7219e68c77527fd04ddf8e4702"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_reminder.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:2efe0c840efebe78511cdef672c193db4527d1c89baf082915cf27890b21f51f"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_reminder.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1953,
+      "sha256": "sha256:22700c033723ad89c8d0a6563209c3b36eb469e49dd925c2dc0f12f1a0f3bb8d"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_reminder.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1162,
+      "sha256": "sha256:5d6c209f5e06466d526578c5e8a0980639307e7b03ed0ef2da3897d32aae52ec"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_welcome.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:f7d3af9ea93edc8f1f9f6f8342482034adf1f73ef00ec5bc3e659ac86b7e0d47"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_welcome.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1942,
+      "sha256": "sha256:3636ccc10261d54ac427e81c3fd66a28e525953b1ec76467efa03a08486d10e5"
+    },
+    {
+      "path": "assets/onboarding/screens/lumen_welcome.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1151,
+      "sha256": "sha256:786b193ecc4a92700cdaca3d7d03c9ab0bf72fc6064f4d070d5a711d708c6bd9"
+    },
+    {
+      "path": "assets/onboarding/screens/notify.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:3d87e7e58f2c1c78c90c1a54a1afa80c26bd9c0c96b6734ee295cc4e3a1ed46d"
+    },
+    {
+      "path": "assets/onboarding/screens/notify.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2180,
+      "sha256": "sha256:7867cdb27ef0377f78fe7e50cfc22a2dec0fd7be9e7b70b950d9f3e3149209c0"
+    },
+    {
+      "path": "assets/onboarding/screens/notify.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1293,
+      "sha256": "sha256:ea14063b83d8a5e49df262130d13bcf509ee1e445bbe295defa6a1bb43a02305"
+    },
+    {
+      "path": "assets/onboarding/screens/ready.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:eff8ea78860c0358079ed8e2ea04a4c56ad1049bcc7f6109e6daecb6b2d0b058"
+    },
+    {
+      "path": "assets/onboarding/screens/ready.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1921,
+      "sha256": "sha256:f9f1bdb2979e8ad091801cda9e8853af6775a7c75892d73b633ca75d03b1e947"
+    },
+    {
+      "path": "assets/onboarding/screens/ready.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1127,
+      "sha256": "sha256:2f187f4de8095f0a53f81e1a3ae0ad019cd1033063858ce71b28e8620e861ca5"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_bare_surface.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:0bce39a28cbc6252f45f002036db3a8acb3ac0f49404e729d8bd76b64e74df79"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_bare_surface.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1253,
+      "sha256": "sha256:7bc917fd33871a23a26a5104101c9511d21f79108071295fc902c32beb5f60e6"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_bare_surface.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 742,
+      "sha256": "sha256:57597c1cbd168f746bda9b82acc18fd25f6fb542618359f38d99f734de29d03d"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_done_explore.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:8ed7ddf68c174e3092dca914939bda64c708fb4caba413da5e6bbf73b3b5c0fd"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_done_explore.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1102,
+      "sha256": "sha256:3b099690ffd1f574a0139c8681e0ddf7828a5cde5deb30e808b10c3eb308f2b7"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_done_explore.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 619,
+      "sha256": "sha256:4d94f48d32f4b656a5868d94a357770de8d2ee29a7ca5211d77cd32740b337f2"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_done_guided.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:29c84d5ff3d7fc96f81215f951bff55d4be5e0a1fc7db1b0e97cb7185dab07ed"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_done_guided.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1104,
+      "sha256": "sha256:3873d992dac0f9b1898c132af6fb29525566752c399f0b030c1997f78eb6bb49"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_done_guided.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 622,
+      "sha256": "sha256:72c39f6fbd22652d547cc06a73cc85633ea0e1c1aae2e198ed0a3eba0fc1d82c"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_question.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:47ed1a7d82431141d14b66499f56b18f67d0015d315c25793508b85960cc387f"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_question.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2248,
+      "sha256": "sha256:adaf111089c5e7ff5aacebe32209f71670dc056209c9f75e806849ade2748443"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_question.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1244,
+      "sha256": "sha256:2245a71fa4ffd70084d74a5d41ecd9d6cee9e76deef0f759626a0bda3b1fdc00"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_welcome.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:4c920e0a089bad38d8ae3a6deec38383df817d6ee1473f52fe4093c2d68651f8"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_welcome.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1180,
+      "sha256": "sha256:82356216237392d9bace9eab74e4ed9aea32f695a57963fe472d13bdf086c734"
+    },
+    {
+      "path": "assets/onboarding/screens/starter_welcome.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 673,
+      "sha256": "sha256:3bd0b3196ce96ac0a6504439b6c415983350d1a4441757a30b652bd4b1c5e723"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_goals.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:6bd9407e1d30160ab0c2d22b32b6c2adf12637f45f707f3a2de0e3ea03b4423a"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_goals.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1920,
+      "sha256": "sha256:eb10849f6628234384411205dd38bda866fe6f1272a21bb5691ad47560d9abb5"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_goals.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1126,
+      "sha256": "sha256:874799d4e24992d21c9686bc30ee1b257566a0e01003be645fb60c64cc4f08c8"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_ready.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:af952e6dbba057215f10ed9793443831476113949b11630968862687357cc2c1"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_ready.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1909,
+      "sha256": "sha256:4cc39f73df225448b066a3b59699ccc49be63f159c080408b08bcce8a4179517"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_ready.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1115,
+      "sha256": "sha256:1bc5ff7bd136d51fca9b853e5e5bebc31eedbda6e76dec54fa66a2b3e777ab83"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_reminders.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:7c9fa3c79a8881530cdba31b85dfdaf71e2102291574fcefbd89ab00ad4c4ad0"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_reminders.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2159,
+      "sha256": "sha256:240bd79c10d32817125b74ec9d85ec666fd6c272d5bff00069c32614d8d3b8c7"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_reminders.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1272,
+      "sha256": "sha256:181dd34fa82ff023ba19ab337afc8b9c520f7582297bfcdb6544361257c8033c"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_welcome.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:a613e160dd42094e768c4fdfd707e913b36047feb164723d68a0fe863f10bb1d"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_welcome.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1934,
+      "sha256": "sha256:5d4b98b311275a903048a351c061d2b8b1b2de9a7a55ea996a92d1c3f142d185"
+    },
+    {
+      "path": "assets/onboarding/screens/stride_welcome.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1140,
+      "sha256": "sha256:484fc927689795ba4afaaa1f52174db530f5caa3c6b6187084261e0489636292"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_debt.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:20c2c699120ee20a5f08d4899725632965ad23a8d5a69dbe6f1045c4502c2d34"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_debt.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 3541,
+      "sha256": "sha256:0b7044939232695466ea495135a1fb2f0631a7563a8f6c90822f58481ae5c8e9"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_debt.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 2130,
+      "sha256": "sha256:6a9b6ab3d8f77683acd83a727f9dd2a52eb4ef2e5e55637ec31857af7c4e573c"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_goal.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:095452a65b35e5154237c2ade8e0300b24ba2f1158de9ee147860ebc4ee25cea"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_goal.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 4490,
+      "sha256": "sha256:fe933e340510619e92c9c381cbeb8fa1fd0380be066a70f68e29666e4ac128e7"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_goal.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 2676,
+      "sha256": "sha256:4baacef6c44c7e352ceefa53f57432637c30310bb57467a3fd932620bfc33e8d"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_invest.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:66abd2f0875675644466d9d7552033b2756f3277a677c41181675f1290533637"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_invest.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 4439,
+      "sha256": "sha256:e3332b4f148439fa6adc9e1bcfc7434ae7edc27f7768bba4aec206a84f7464ef"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_invest.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 2622,
+      "sha256": "sha256:6cab4bdf669ad04ddb08fba2394257064468e78ac527d1a6c4ddf6437f20f129"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_debt.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:ef22061169985d2667c6bd083d91217bd77c7dc8964296fa598c34696924c548"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_debt.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2524,
+      "sha256": "sha256:b0a64c9e84db2b2e9ff465a9ea756b41b0806bd22eac9b3689363780fdbced5c"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_debt.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1524,
+      "sha256": "sha256:8e80a5ef517c64c46609058164a3a0d02979e9a63d852883ab3c16c0373e8943"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_invest.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:8403ff2b58bd4824f8fe7ee7b1d6019e06756deb358057fd1bf4cfae1cda4843"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_invest.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2516,
+      "sha256": "sha256:afca3cf383795539c21dad7661282f5d8140369f0a1c90fb956aedc76f6f58d8"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_invest.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1517,
+      "sha256": "sha256:bcf8523b0957bf59caf3deb16627143d6db9b31c726ec6ea7b009a779b2e9c26"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_savings.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:62b07b6e5052b1da933baa11adbfb261262e17788532d23bbf6c76d52753f8c0"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_savings.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2526,
+      "sha256": "sha256:40da3c3d6e16a09722decbe67dce0e9ba05df47bc82416203124e1936bd8a929"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_recap_savings.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1527,
+      "sha256": "sha256:fc631d6efb5e0f984b2439d11de53d1197de8c3718740d5c36ce13c7b1e66a4f"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_savings.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:7faf7f96f31369601e9ef37287fc322e5441a4f4159e60c1bb8c22421fd7c5d6"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_savings.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 3536,
+      "sha256": "sha256:228ec9e00d6d7177799cf446463ad9cf5ad8fee7bd8d45ff12334c8f069c4553"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_savings.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 2125,
+      "sha256": "sha256:b9ce40613fc480be32bd1ce0f6578eead28827040b90727dbb006199c1f66ad8"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_welcome.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:cd8ecb0122b46147f47ddbac485bbb22b687811c88cca9bf9d2627d89cf24d93"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_welcome.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 2805,
+      "sha256": "sha256:217fce26e9f8a4a7b7d205edf51e1dd3a313f942b91384523a75f49eaac03106"
+    },
+    {
+      "path": "assets/onboarding/screens/tally_welcome.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1713,
+      "sha256": "sha256:601ae83e27407f9cb3f538992c3b51e5d64cc851fa63259f12a6b1f8995f124a"
+    },
+    {
+      "path": "assets/onboarding/screens/value.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:e3b524a67b960c7867c940fa880f8a8d0134bbbfa0e25b87327312cbe565c104"
+    },
+    {
+      "path": "assets/onboarding/screens/value.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1930,
+      "sha256": "sha256:85258adfba9164dcbbb39f2d377076a5ab360aed288adc41b0640a496385e0d6"
+    },
+    {
+      "path": "assets/onboarding/screens/value.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1136,
+      "sha256": "sha256:bb1170483f76568d204127b75754b5039547bb33717310f7702dcdb7122e19aa"
+    },
+    {
+      "path": "assets/onboarding/screens/welcome.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:a7c2aaa5d0d43b635818778e0bbe46ad3a18de6f762c21a54f5353a57c476e8b"
+    },
+    {
+      "path": "assets/onboarding/screens/welcome.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1924,
+      "sha256": "sha256:0bad9be52d78ad6216dde68122b8ecf0dc8b2909b9c45cf1a9d9e8ee25f561b2"
+    },
+    {
+      "path": "assets/onboarding/screens/welcome.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1131,
+      "sha256": "sha256:111eed747bca49ae5599729311b8a62d76713ea1bee0a3839430e5ebcead2788"
+    },
+    {
+      "path": "assets/paywalls/lumen_premium.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:566a78c1a6b9bbe174f9c47cbf04d2c79190eb8e2f439ed4a1c9d029508e9e2c"
+    },
+    {
+      "path": "assets/paywalls/lumen_premium.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8261,
+      "sha256": "sha256:d18545295a0af8d38fa6f4009a260b2d170047c77f0494d2e1b4728ba6a12dca"
+    },
+    {
+      "path": "assets/paywalls/lumen_premium.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 5042,
+      "sha256": "sha256:13f5ceba8893873c9abacc004835212f6158e79cd23d05e7615d675bea54e93e"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_lumen_premium.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:ae1496f57feafd80564a8c549d02b71657ea23b9800f03d6483a325ba47c27f6"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_lumen_premium.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8270,
+      "sha256": "sha256:d84d53a14ede7682dd6613e75aa9cb0bd3e8ca33dca96deeb6f64e8dcdf348c0"
+    },
+    {
+      "path": "lib/onboarding/flows/bare_surface.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'bare_surface.dart'; abstract final class BareSurfaceFlowDescriptor { const BareSurfaceFlowDescriptor._(); static const SurfaceFlowRef<BareSurfaceResult> ref = SurfaceFlowRef<BareSurfaceResult>( id: 'bare_surface', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: BareSurfaceFlowDescriptor._decodeResult, ); static BareSurfaceResult _decodeResult(Map<String, Object?> result) { if (result.isNotEmpty) { throw const FormatException('Unexpected flow result keys.'); } return const BareSurfaceResult(); } } final class BareSurfaceResult { const BareSurfaceResult(); } final class BareSurfaceActions { const BareSurfaceActions(); }",
+      "contractByteLength": 693,
+      "sha256": "sha256:bb0925cabfb6c3086f065da029740240ea8f43ad624eb9cbd33ce35285aed3d7"
+    },
+    {
+      "path": "lib/onboarding/flows/first_run.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'first_run.dart'; abstract final class FirstRunFlowDescriptor { const FirstRunFlowDescriptor._(); static const SurfaceFlowRef<FirstRunResult> ref = SurfaceFlowRef<FirstRunResult>( id: 'first_run', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: FirstRunFlowDescriptor._decodeResult, ); static FirstRunResult _decodeResult(Map<String, Object?> result) { if (result.length != 1 || !result.containsKey('completed')) { throw const FormatException('Unexpected flow result keys.'); } final completed = result['completed']; if (completed is! bool) { throw const FormatException( 'Expected result field completed to be bool.'); } return FirstRunResult(completed: completed); } } final class FirstRunResult { const FirstRunResult({required this.completed}); final bool completed; } final class FirstRunActions implements FlowActionRegistry { FirstRunActions({ required FlowActionHandler<void, NotificationDecision> requestNotifications, }) : flowActionBindings = Map<String, FlowActionBinding<dynamic, dynamic>>.unmodifiable({ 'requestNotifications': FlowActionBinding<void, NotificationDecision>( descriptor: requestNotificationsDescriptor, actionName: requestNotificationsDescriptor.actionName, contractVersion: requestNotificationsDescriptor.contractVersion, argsSchema: requestNotificationsDescriptor.argsSchema, resultSchema: requestNotificationsDescriptor.resultSchema, minClient: requestNotificationsDescriptor.minClient, idempotent: requestNotificationsDescriptor.idempotent, handler: requestNotifications, decodeArgs: (_) {}, encodeResult: (value) => {'granted': value.granted}, ), }); @override final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings; static final FlowActionDescriptor<void, NotificationDecision> requestNotificationsDescriptor = FlowActionDescriptor<void, NotificationDecision>( actionName: 'requestNotifications', contractVersion: 1, argsSchema: const FlowActionSchema.object({}), resultSchema: const FlowActionSchema.object({ 'granted': FlowActionSchemaField( required: true, schema: FlowActionSchema.bool(), ) }), minClient: 1, idempotent: false, ); }",
+      "contractByteLength": 2158,
+      "sha256": "sha256:9e30b11d5d7410ffda90c7e6315aee9ab49030d681e3c148a9d6719d809f2a3f"
+    },
+    {
+      "path": "lib/onboarding/flows/lumen_onboarding.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'lumen_onboarding.dart'; abstract final class LumenOnboardingFlowDescriptor { const LumenOnboardingFlowDescriptor._(); static const SurfaceFlowRef<LumenOnboardingResult> ref = SurfaceFlowRef<LumenOnboardingResult>( id: 'lumen_onboarding', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: LumenOnboardingFlowDescriptor._decodeResult, ); static LumenOnboardingResult _decodeResult(Map<String, Object?> result) { if (result.length != 1 || !result.containsKey('subscribed')) { throw const FormatException('Unexpected flow result keys.'); } final subscribed = result['subscribed']; if (subscribed is! bool) { throw const FormatException( 'Expected result field subscribed to be bool.'); } return LumenOnboardingResult(subscribed: subscribed); } } final class LumenOnboardingResult { const LumenOnboardingResult({required this.subscribed}); final bool subscribed; } final class LumenOnboardingActions implements FlowActionRegistry { LumenOnboardingActions({ required FlowActionHandler<void, ReminderDecision> enableReminders, }) : flowActionBindings = Map<String, FlowActionBinding<dynamic, dynamic>>.unmodifiable({ 'enableReminders': FlowActionBinding<void, ReminderDecision>( descriptor: enableRemindersDescriptor, actionName: enableRemindersDescriptor.actionName, contractVersion: enableRemindersDescriptor.contractVersion, argsSchema: enableRemindersDescriptor.argsSchema, resultSchema: enableRemindersDescriptor.resultSchema, minClient: enableRemindersDescriptor.minClient, idempotent: enableRemindersDescriptor.idempotent, handler: enableReminders, decodeArgs: (_) {}, encodeResult: (value) => {'granted': value.granted}, ), }); @override final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings; static final FlowActionDescriptor<void, ReminderDecision> enableRemindersDescriptor = FlowActionDescriptor<void, ReminderDecision>( actionName: 'enableReminders', contractVersion: 1, argsSchema: const FlowActionSchema.object({}), resultSchema: const FlowActionSchema.object({ 'granted': FlowActionSchemaField( required: true, schema: FlowActionSchema.bool(), ) }), minClient: 1, idempotent: false, ); }",
+      "contractByteLength": 2182,
+      "sha256": "sha256:cafdac80cdb493463b5e077881cdbc9460ec67402dfa0d2e9684da83c5513d92"
+    },
+    {
+      "path": "lib/onboarding/flows/minimal_onboarding.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'minimal_onboarding.dart'; abstract final class MinimalOnboardingFlowDescriptor { const MinimalOnboardingFlowDescriptor._(); static const SurfaceFlowRef<MinimalOnboardingResult> ref = SurfaceFlowRef<MinimalOnboardingResult>( id: 'minimal_onboarding', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: MinimalOnboardingFlowDescriptor._decodeResult, ); static MinimalOnboardingResult _decodeResult(Map<String, Object?> result) { if (result.isNotEmpty) { throw const FormatException('Unexpected flow result keys.'); } return const MinimalOnboardingResult(); } } final class MinimalOnboardingResult { const MinimalOnboardingResult(); } final class MinimalOnboardingActions { const MinimalOnboardingActions(); }",
+      "contractByteLength": 771,
+      "sha256": "sha256:632122aa3495460376a7b049536922ad88a53f6d9f04dd39622020b56e00a85f"
+    },
+    {
+      "path": "lib/onboarding/flows/stride_first_run.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'stride_first_run.dart'; abstract final class StrideFirstRunFlowDescriptor { const StrideFirstRunFlowDescriptor._(); static const SurfaceFlowRef<Map<String, Object?>> ref = SurfaceFlowRef<Map<String, Object?>>( id: 'stride_first_run', version: 2, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.general, decodeResult: StrideFirstRunFlowDescriptor._decodeResult, ); static Map<String, Object?> _decodeResult(Map<String, Object?> result) => result; } class StrideFirstRunActions implements FlowActionRegistry, FlowSignalRegistry { StrideFirstRunActions({ required FlowActionHandler<void, ReminderDecision> requestNotifications, }) : flowActionBindings = Map<String, FlowActionBinding<dynamic, dynamic>>.unmodifiable({ 'requestNotifications': FlowActionBinding<void, ReminderDecision>( descriptor: requestNotificationsDescriptor, actionName: requestNotificationsDescriptor.actionName, contractVersion: requestNotificationsDescriptor.contractVersion, argsSchema: requestNotificationsDescriptor.argsSchema, resultSchema: requestNotificationsDescriptor.resultSchema, minClient: requestNotificationsDescriptor.minClient, idempotent: requestNotificationsDescriptor.idempotent, handler: requestNotifications, decodeArgs: (_) {}, encodeResult: (value) => {'granted': value.granted}, ), }); @override final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings; static final FlowActionDescriptor<void, ReminderDecision> requestNotificationsDescriptor = FlowActionDescriptor<void, ReminderDecision>( actionName: 'requestNotifications', contractVersion: 1, argsSchema: const FlowActionSchema.object({}), resultSchema: const FlowActionSchema.object({ 'granted': FlowActionSchemaField( required: true, schema: FlowActionSchema.bool(), ) }), minClient: 1, idempotent: false, ); @override Set<String> get installedSignalNames => const {'skip'}; }",
+      "contractByteLength": 1877,
+      "sha256": "sha256:16a6edc92272612e07650d5052c321b498022f62b8f474a914964706ca2844fc"
+    },
+    {
+      "path": "lib/onboarding/flows/tally_onboarding.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'tally_onboarding.dart'; abstract final class TallyOnboardingFlowDescriptor { const TallyOnboardingFlowDescriptor._(); static const SurfaceFlowRef<TallyOnboardingResult> ref = SurfaceFlowRef<TallyOnboardingResult>( id: 'tally_onboarding', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: TallyOnboardingFlowDescriptor._decodeResult, ); static TallyOnboardingResult _decodeResult(Map<String, Object?> result) { if (result.isNotEmpty) { throw const FormatException('Unexpected flow result keys.'); } return const TallyOnboardingResult(); } } final class TallyOnboardingResult { const TallyOnboardingResult(); } final class TallyOnboardingActions { const TallyOnboardingActions(); }",
+      "contractByteLength": 745,
+      "sha256": "sha256:620c0906b317d47c65b1923767cbb628c3cf099e47e71fe94dcc49ebddef63f1"
+    },
+    {
+      "path": "lib/onboarding/screens/lumen_experience.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'lumen_experience.dart'; abstract final class LumenExperienceScreenDescriptor { const LumenExperienceScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'lumen_experience', artifactPath: 'lumen_experience.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 277,
+      "sha256": "sha256:b37f4caaeee314a031618c7a75eaffe2800eaa8060de8481ef315cc6f9c5745e"
+    },
+    {
+      "path": "lib/onboarding/screens/lumen_goal.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'lumen_goal.dart'; abstract final class LumenGoalScreenDescriptor { const LumenGoalScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'lumen_goal', artifactPath: 'lumen_goal.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 247,
+      "sha256": "sha256:b0839a13a4723312ea111ac97c43d35bf3a56d8c0b8f038b79738ec2eff6a7ce"
+    },
+    {
+      "path": "lib/onboarding/screens/lumen_recap.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'lumen_recap.dart'; abstract final class LumenRecapScreenDescriptor { const LumenRecapScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'lumen_recap', artifactPath: 'lumen_recap.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 252,
+      "sha256": "sha256:b244e2901afaf2bc1843e5d64d34e5a22c1bac29942a83439e6053c938738f2f"
+    },
+    {
+      "path": "lib/onboarding/screens/lumen_reminder.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'lumen_reminder.dart'; abstract final class LumenReminderScreenDescriptor { const LumenReminderScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'lumen_reminder', artifactPath: 'lumen_reminder.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 267,
+      "sha256": "sha256:ca356cd392797dcb18f5aa60bac805176d43418ebe62491fe083d5f30b8c32c6"
+    },
+    {
+      "path": "lib/onboarding/screens/lumen_welcome.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'lumen_welcome.dart'; abstract final class LumenWelcomeScreenDescriptor { const LumenWelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'lumen_welcome', artifactPath: 'lumen_welcome.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 262,
+      "sha256": "sha256:5a355971bc658ffb81b200deacb6254505ef08d764b2b9b88bdb06dde70e423c"
+    },
+    {
+      "path": "lib/onboarding/screens/notify.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'notify.dart'; abstract final class NotifyScreenDescriptor { const NotifyScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'notify', artifactPath: 'notify.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 229,
+      "sha256": "sha256:afe773344dc60b74c7a496794a0a06c42c99875bf984223ac6906de286e282e8"
+    },
+    {
+      "path": "lib/onboarding/screens/ready.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'ready.dart'; abstract final class ReadyScreenDescriptor { const ReadyScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'ready', artifactPath: 'ready.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 224,
+      "sha256": "sha256:f9064b0acb69693ca8199dd4ae93266164d790c674bb6c355a8c718d6d060099"
+    },
+    {
+      "path": "lib/onboarding/screens/starter_bare_surface.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'starter_bare_surface.dart'; abstract final class StarterBareSurfaceScreenDescriptor { const StarterBareSurfaceScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'starter_bare_surface', artifactPath: 'starter_bare_surface.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 295,
+      "sha256": "sha256:9844fcd0199565f5ae8189d4cf071a3a6e67b3687ecfb941c91356f1058f616b"
+    },
+    {
+      "path": "lib/onboarding/screens/starter_done_explore.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'starter_done_explore.dart'; abstract final class StarterDoneExploreScreenDescriptor { const StarterDoneExploreScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'starter_done_explore', artifactPath: 'starter_done_explore.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 295,
+      "sha256": "sha256:3a7e65d1411c60cfc87f3f169ac57c52544c444b8275a28f6a837ca060e194a9"
+    },
+    {
+      "path": "lib/onboarding/screens/starter_done_guided.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'starter_done_guided.dart'; abstract final class StarterDoneGuidedScreenDescriptor { const StarterDoneGuidedScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'starter_done_guided', artifactPath: 'starter_done_guided.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 290,
+      "sha256": "sha256:36a43dcd29a59b04cb337e2e34b92e4cb7b0cdc394444c8a33d54042118334cf"
+    },
+    {
+      "path": "lib/onboarding/screens/starter_question.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'starter_question.dart'; abstract final class StarterQuestionScreenDescriptor { const StarterQuestionScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'starter_question', artifactPath: 'starter_question.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 277,
+      "sha256": "sha256:d7c85a7492fd7026f6a7b006f2c0e54d93b816adf9dab8fe5e0b95a4d4c1ed31"
+    },
+    {
+      "path": "lib/onboarding/screens/starter_welcome.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'starter_welcome.dart'; abstract final class StarterWelcomeScreenDescriptor { const StarterWelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'starter_welcome', artifactPath: 'starter_welcome.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 272,
+      "sha256": "sha256:2d12dfc8d92717164a066d238845b696a8a8742eea8b19e5010206d887c468a4"
+    },
+    {
+      "path": "lib/onboarding/screens/stride_goals.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'stride_goals.dart'; abstract final class StrideGoalsScreenDescriptor { const StrideGoalsScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'stride_goals', artifactPath: 'stride_goals.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 257,
+      "sha256": "sha256:ceb1813bd7394eaf4bbf8248cdc962e1ac72560eabb93d19cf64e61a05c88a02"
+    },
+    {
+      "path": "lib/onboarding/screens/stride_ready.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'stride_ready.dart'; abstract final class StrideReadyScreenDescriptor { const StrideReadyScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'stride_ready', artifactPath: 'stride_ready.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 257,
+      "sha256": "sha256:865e809bea01244b5db4e1dc3eefd8c58827e241b17156e375591f8ab10dd8a4"
+    },
+    {
+      "path": "lib/onboarding/screens/stride_reminders.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'stride_reminders.dart'; abstract final class StrideRemindersScreenDescriptor { const StrideRemindersScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'stride_reminders', artifactPath: 'stride_reminders.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 277,
+      "sha256": "sha256:191b7085694aa670c978879608d3d0654c07d8cf595d45bd1bdf2ab2a05ef0a9"
+    },
+    {
+      "path": "lib/onboarding/screens/stride_welcome.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'stride_welcome.dart'; abstract final class StrideWelcomeScreenDescriptor { const StrideWelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'stride_welcome', artifactPath: 'stride_welcome.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 267,
+      "sha256": "sha256:6c2e65207dbd5f18fa75d8a63cfbd9058aae0a0e4220bc01efabed583daaee8c"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_debt.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_debt.dart'; abstract final class TallyDebtScreenDescriptor { const TallyDebtScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_debt', artifactPath: 'tally_debt.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 247,
+      "sha256": "sha256:e2fb9b3fc4e77d0d4a9987b258b9a52caafd48806370bd662f6001e47b262a56"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_goal.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_goal.dart'; abstract final class TallyGoalScreenDescriptor { const TallyGoalScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_goal', artifactPath: 'tally_goal.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 247,
+      "sha256": "sha256:4693a53d584d1ee4c8ce641fcd86f7b5436a8fdc88de0630b05294f2339fc1a7"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_invest.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_invest.dart'; abstract final class TallyInvestScreenDescriptor { const TallyInvestScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_invest', artifactPath: 'tally_invest.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 257,
+      "sha256": "sha256:4d38401a01a5e6d509728c873682efe636eabeac46b6d0a63a33df2a89daceae"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_recap_debt.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_recap_debt.dart'; abstract final class TallyRecapDebtScreenDescriptor { const TallyRecapDebtScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_recap_debt', artifactPath: 'tally_recap_debt.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 275,
+      "sha256": "sha256:0cb69c5c08dfbbee4708eec6c70425f72e469f88cb41f2e1f81e9dfe39008a82"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_recap_invest.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_recap_invest.dart'; abstract final class TallyRecapInvestScreenDescriptor { const TallyRecapInvestScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_recap_invest', artifactPath: 'tally_recap_invest.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 285,
+      "sha256": "sha256:383f1377d6fe07880320a6928b05d3233f70b8a8d435b43a9671cdde43c3c26b"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_recap_savings.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_recap_savings.dart'; abstract final class TallyRecapSavingsScreenDescriptor { const TallyRecapSavingsScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_recap_savings', artifactPath: 'tally_recap_savings.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 290,
+      "sha256": "sha256:07fd9961805572b5de053ec3df7b40f7d8ccd551ffe1b1cf23aacee0c9048806"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_savings.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_savings.dart'; abstract final class TallySavingsScreenDescriptor { const TallySavingsScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_savings', artifactPath: 'tally_savings.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 262,
+      "sha256": "sha256:175c4d6fd07b6e3572c7fd0fe3f1cab5ae6814d624394e4019bea27f4aa17776"
+    },
+    {
+      "path": "lib/onboarding/screens/tally_welcome.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'tally_welcome.dart'; abstract final class TallyWelcomeScreenDescriptor { const TallyWelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'tally_welcome', artifactPath: 'tally_welcome.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 262,
+      "sha256": "sha256:abf39e580c58158c9b7f5ffd820a3f8e9dc6d2b47d35a0cad5307338426de43f"
+    },
+    {
+      "path": "lib/onboarding/screens/value.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'value.dart'; abstract final class ValueScreenDescriptor { const ValueScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'value', artifactPath: 'value.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 224,
+      "sha256": "sha256:360beb85866064bdcafeaf120b4c827161bb32583e93b67dea5d3aa77f4c114a"
+    },
+    {
+      "path": "lib/onboarding/screens/welcome.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'welcome.dart'; abstract final class WelcomeScreenDescriptor { const WelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'welcome', artifactPath: 'welcome.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 234,
+      "sha256": "sha256:f7497e7ce45e0061fd91228d6fb604eb244576327d17e58f785751f764bc1c1b"
+    }
+  ],
+  "absentOutputPaths": [
+    "assets/onboarding/flows/first_run.rfw"
+  ],
+  "staleOutputPaths": [
+    "assets/onboarding/flows/first_run.capability.json"
+  ],
+  "virtualOnlyTransientBuildOutputPaths": [],
+  "retainedTransientShippingOutputPaths": []
+}

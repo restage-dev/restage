@@ -2,6 +2,7 @@
 // ignore_for_file: public_member_api_docs
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
@@ -9,12 +10,15 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
+import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -131,7 +135,7 @@ const Set<String> _objectInstanceMemberNames = {
 };
 
 final class OnboardingFlowBuilder implements Builder {
-  OnboardingFlowBuilder(this.options, {this.surface = SurfaceType.onboarding}) {
+  OnboardingFlowBuilder(this.options, {this.surface = Surface.onboarding}) {
     if (!_flowSurfaces.contains(surface)) {
       throw ArgumentError.value(
         surface,
@@ -144,73 +148,368 @@ final class OnboardingFlowBuilder implements Builder {
 
   /// The surfaces this builder may codegen for. Paywalls have dedicated
   /// builders; a new surface type must be added here deliberately.
-  static const Set<SurfaceType> _flowSurfaces = {
-    SurfaceType.onboarding,
-    SurfaceType.message,
-    SurfaceType.survey,
+  static const Set<Surface> _flowSurfaces = {
+    Surface.onboarding,
+    Surface.message,
+    Surface.survey,
   };
 
   final BuilderOptions options;
 
+  bool get _aggregateOwnsCanonical =>
+      options.config['aggregate_canonical_owner'] == true;
+
   /// The flow surface (`onboarding` / `message` / `survey`) this builder
-  /// instance codegens for. Defaults to [SurfaceType.onboarding], the surface
+  /// instance codegens for. Defaults to [Surface.onboarding], the surface
   /// this builder originally served.
-  final SurfaceType surface;
+  final Surface surface;
 
   @override
   Map<String, List<String>> get buildExtensions {
     final flowSource = _flowSourceDir(surface.wireName);
     final flowOutput = _flowOutputDir(surface.wireName);
-    return {
+    final extensions = <String, List<String>>{
       '$flowSource/{{name}}.dart': [
         '$flowSource/{{name}}.rsflow.g.dart',
         '$flowOutput/{{name}}.flow.json',
       ],
     };
+    if (surface == Surface.onboarding) {
+      extensions['lib/general/flows/{{name}}.dart'] = const [
+        'lib/general/flows/{{name}}.rsflow.g.dart',
+        'assets/general/flows/{{name}}.flow.json',
+      ];
+    }
+    return extensions;
   }
 
   @override
   Future<void> build(BuildStep buildStep) async {
     final assetId = buildStep.inputId;
     if (!await buildStep.resolver.isLibrary(assetId)) return;
-
-    final sourceText = await buildStep.readAsString(assetId);
     final library = await buildStep.resolver.libraryFor(
       assetId,
       allowSyntaxErrors: true,
     );
-
-    // The source resolved with `allowSyntaxErrors: true`, so a malformed token
-    // can derail flow discovery (`_findFlow` returns null) and hit the
-    // early-return below — silently producing no flow document for a flow the
-    // author intended. Collect genuine syntactic errors before that
-    // early-return so a malformed flow source always fails the build rather
-    // than vanishing.
-    final issues = <Issue>[];
-    final resolvedForSyntax =
-        await library.session.getResolvedLibraryByElement(library);
-    if (resolvedForSyntax is ResolvedLibraryResult &&
-        resolvedForSyntax.units.isNotEmpty) {
-      issues.addAll(
-        syntacticErrorIssues(resolvedForSyntax, sourcePath: assetId.path),
-      );
+    final frontend = await inspectFlowDefinitions(
+      library,
+      assetId,
+      legacySurface: surface,
+    );
+    if (frontend.issues.isNotEmpty) _surfaceIssues(frontend.issues);
+    final canonical = frontend.flows
+        .where((flow) => flow.isCanonical)
+        .toList(growable: false);
+    if (canonical.isNotEmpty) {
+      if (_aggregateOwnsCanonical) return;
+      await _writeCanonicalFallback(buildStep, canonical);
+      return;
     }
-    if (issues.isNotEmpty) _surfaceIssues(issues);
-
-    final flow = _findFlow(library, assetId);
-    if (flow == null) return;
-
-    final stem = p.basenameWithoutExtension(assetId.path);
-    final expectedPart = '$stem.rsflow.g.dart';
-    if (!_hasPartDirective(sourceText, expectedPart)) {
-      issues.add(
+    final result = await compileResolvedClassFlows(
+      buildStep,
+      library: library,
+      assetId: assetId,
+      legacySurface: surface,
+      includeCanonical: false,
+    );
+    if (result.issues.isNotEmpty) _surfaceIssues(result.issues);
+    if (result.flows.isEmpty) return;
+    if (result.flows.length != 1) {
+      _surfaceIssues([
         Issue(
-          code: IssueCode.missingPartDirective,
-          message: "Missing `part '$expectedPart';` directive.",
+          code: IssueCode.invalidScreenSourceCount,
+          message: 'A conventional legacy flow library must compile exactly '
+              'one flow; found ${result.flows.length}.',
           location: assetId.path,
         ),
-      );
+      ]);
     }
+    final compiled = result.flows.single;
+    final stem = p.basenameWithoutExtension(assetId.path);
+    final surfaceSeg = compiled.surface.wireName;
+    await Future.wait<void>([
+      buildStep.writeAsString(
+        AssetId(
+          assetId.package,
+          '${_flowSourceDir(surfaceSeg)}/$stem.rsflow.g.dart',
+        ),
+        compiled.generatedPart,
+      ),
+      buildStep.writeAsBytes(
+        AssetId(
+          assetId.package,
+          '${_flowOutputDir(surfaceSeg)}/$stem.flow.json',
+        ),
+        compiled.flowDocumentBytes,
+      ),
+    ]);
+  }
+
+  Future<void> _writeCanonicalFallback(
+    BuildStep buildStep,
+    List<NormalizedFlowSource> flows,
+  ) async {
+    final compilation = await compileTrackedPackageSurfaces(buildStep);
+    if (!compilation.isValid) _surfaceIssues(compilation.issues);
+    final publication = compilation.publicationBundle;
+    final selected = flows.first;
+    final stem = p.basenameWithoutExtension(buildStep.inputId.path);
+    final inputSurface = p.posix.split(buildStep.inputId.path)[1];
+    final canonicalPath =
+        'assets/${selected.surface.wireName}/flows/${selected.id}.flow.json';
+    final destinationPath = 'assets/$inputSurface/flows/$stem.flow.json';
+    final partPath = '${p.posix.dirname(buildStep.inputId.path)}/'
+        '$stem.rsflow.g.dart';
+    final document = publication.artifacts[canonicalPath];
+    final generatedPart = compilation.generatedParts[partPath];
+    if (document == null || generatedPart == null) {
+      _surfaceIssues([
+        Issue(
+          code: IssueCode.missingScreenDescriptor,
+          message: 'Standalone canonical flow fallback could not find the '
+              'aggregate artifact family for ${selected.id}.',
+          location: buildStep.inputId.path,
+        ),
+      ]);
+    }
+    await Future.wait<void>([
+      buildStep.writeAsBytes(
+        AssetId(buildStep.inputId.package, destinationPath),
+        document,
+      ),
+      buildStep.writeAsString(
+        AssetId(buildStep.inputId.package, partPath),
+        generatedPart,
+      ),
+    ]);
+  }
+}
+
+@immutable
+final class CompiledClassFlow {
+  CompiledClassFlow({
+    required this.declaration,
+    required this.id,
+    required this.surface,
+    required this.isCanonical,
+    required List<int> flowDocumentBytes,
+    required this.generatedPart,
+  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes);
+
+  final ClassElement declaration;
+  final String id;
+  final Surface surface;
+  final bool isCanonical;
+  final Uint8List flowDocumentBytes;
+  final String generatedPart;
+
+  String get declarationIdentity =>
+      '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
+}
+
+@immutable
+final class CompiledClassFlowResult {
+  CompiledClassFlowResult({
+    required List<CompiledClassFlow> flows,
+    required List<Issue> issues,
+  })  : flows = List.unmodifiable(flows),
+        issues = List.unmodifiable(issues);
+
+  final List<CompiledClassFlow> flows;
+  final List<Issue> issues;
+}
+
+@immutable
+final class ResolvedClassFlowDependency {
+  ResolvedClassFlowDependency({
+    required this.declaration,
+    required this.identity,
+    required Iterable<NormalizedFlowIdentity> childIdentities,
+  }) : childIdentities = Set.unmodifiable(childIdentities);
+
+  final ClassElement declaration;
+  final NormalizedFlowIdentity identity;
+  final Set<NormalizedFlowIdentity> childIdentities;
+
+  String get declarationIdentity =>
+      '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
+}
+
+@immutable
+final class ResolvedClassFlowDependencyResult {
+  ResolvedClassFlowDependencyResult({
+    required Iterable<ResolvedClassFlowDependency> flows,
+    required Iterable<Issue> issues,
+  })  : flows = List.unmodifiable(flows),
+        issues = List.unmodifiable(issues);
+
+  final List<ResolvedClassFlowDependency> flows;
+  final List<Issue> issues;
+}
+
+@immutable
+final class ResolvedClassFlowScreen {
+  ResolvedClassFlowScreen({
+    required this.declaration,
+    required this.surface,
+    required this.id,
+    required this.artifactPath,
+    required this.version,
+    required this.minClient,
+    required List<int> blob,
+    this.canonicalPaywallId,
+  }) : blob = Uint8List.fromList(blob);
+
+  /// Resolved authored declaration. The generated descriptor spelling is only
+  /// a syntax bridge; this element remains the screen's authority.
+  final ClassElement declaration;
+
+  /// The authored category, if this screen is categorized rather than neutral.
+  final Surface? surface;
+  final String id;
+  final String artifactPath;
+  final int version;
+  final int minClient;
+  final Uint8List blob;
+
+  /// The roster-owned authored paywall ID when this is a canonical paywall
+  /// adapter. Ordinary screens and legacy paywalls leave this unset.
+  final String? canonicalPaywallId;
+
+  String get declarationIdentity =>
+      '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
+
+  String? get descriptorName {
+    final className = declaration.name;
+    return className == null ? null : '${className}Descriptor';
+  }
+}
+
+/// Resolves the complete surface-aware child-flow dependency set used by a
+/// class-shaped flow before aggregate compilation schedules document lowering.
+Future<ResolvedClassFlowDependencyResult> inspectResolvedClassFlowDependencies({
+  required LibraryElement library,
+  required AssetId assetId,
+  required Surface legacySurface,
+  bool includeCanonical = true,
+  bool includeLegacy = true,
+}) async {
+  final issues = <Issue>[];
+  final dependencies = <ResolvedClassFlowDependency>[];
+  final candidates = _findFlows(library, assetId)
+      .where(
+        (flow) => flow.isCanonical ? includeCanonical : includeLegacy,
+      )
+      .toList(growable: false);
+  for (final flow in candidates) {
+    final method = await _resolvedBuildFlow(library, flow, issues, assetId);
+    if (method == null || issues.isNotEmpty) continue;
+    final visitor = _SubFlowInvocationVisitor();
+    method.accept(visitor);
+    final children = <NormalizedFlowIdentity>{};
+    final parentSurface = flow.surface ?? legacySurface;
+    for (final invocation in visitor.invocations) {
+      final child = _flowRefForExpression(
+        _namedArg(invocation, 'flow'),
+        issues,
+        assetId,
+        legacySurfaceFallback: flow.isCanonical ? null : parentSurface,
+      );
+      if (child == null) continue;
+      if (child.surface != parentSurface) {
+        issues.add(
+          Issue(
+            code: IssueCode.buildMethodTooComplex,
+            message: 'Subflow child ${child.surface.wireName}/${child.id} '
+                'cannot be included in a ${parentSurface.wireName} flow.',
+            location: assetId.path,
+          ),
+        );
+        continue;
+      }
+      children.add(child.identity);
+    }
+    dependencies.add(
+      ResolvedClassFlowDependency(
+        declaration: flow.element,
+        identity: NormalizedFlowIdentity(
+          surface: parentSurface,
+          id: flow.id,
+        ),
+        childIdentities: children,
+      ),
+    );
+  }
+  return ResolvedClassFlowDependencyResult(
+    flows: issues.isEmpty ? dependencies : const [],
+    issues: issues,
+  );
+}
+
+/// Invokes the proven class-shaped flow lowerer without claiming an output
+/// path. The package owner uses this for canonical advanced flows; legacy
+/// per-source builders use the same bytes while retaining their old paths.
+Future<CompiledClassFlowResult> compileResolvedClassFlows(
+  BuildStep buildStep, {
+  required LibraryElement library,
+  required AssetId assetId,
+  required Surface legacySurface,
+  bool includeCanonical = true,
+  bool includeLegacy = true,
+  Iterable<ResolvedClassFlowScreen> resolvedScreens = const [],
+  Map<NormalizedFlowIdentity, List<int>> childFlowDocuments = const {},
+  Set<String>? declarationIdentities,
+}) async {
+  final issues = <Issue>[];
+  final sourceText = await buildStep.readAsString(assetId);
+  final resolvedForSyntax =
+      await library.session.getResolvedLibraryByElement(library);
+  if (resolvedForSyntax is ResolvedLibraryResult &&
+      resolvedForSyntax.units.isNotEmpty) {
+    issues.addAll(
+      syntacticErrorIssues(resolvedForSyntax, sourcePath: assetId.path),
+    );
+  }
+
+  final candidates = _findFlows(library, assetId)
+      .where(
+        (flow) => flow.isCanonical ? includeCanonical : includeLegacy,
+      )
+      .where(
+        (flow) =>
+            declarationIdentities == null ||
+            declarationIdentities.contains(
+              '${flow.element.library.identifier}#'
+              '${flow.element.name ?? '<unnamed>'}',
+            ),
+      )
+      .toList(growable: false);
+  if (candidates.isEmpty || issues.isNotEmpty) {
+    return CompiledClassFlowResult(flows: const [], issues: issues);
+  }
+
+  final stem = p.basenameWithoutExtension(assetId.path);
+  final expectedPart = '$stem.rsflow.g.dart';
+  if (!_hasPartDirective(sourceText, expectedPart)) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingPartDirective,
+        message: "Missing `part '$expectedPart';` directive.",
+        location: assetId.path,
+      ),
+    );
+  }
+  final resolvedScreenList = resolvedScreens.toList(growable: false);
+  final legacyScreenDescriptors = resolvedScreenList.isEmpty
+      ? await _loadImportedScreenDescriptors(buildStep, assetId, issues)
+      : <String, _ScreenDescriptor>{};
+  final screenBlobsByDeclarationIdentity = <String, Uint8List>{};
+  for (final screen in resolvedScreenList) {
+    screenBlobsByDeclarationIdentity[screen.declarationIdentity] =
+        Uint8List.fromList(screen.blob);
+  }
+  final compiled = <CompiledClassFlow>[];
+  for (final flow in candidates) {
     for (final generated in flow.generatedNames) {
       if (_hasTopLevelDeclaration(library, generated)) {
         issues.add(
@@ -223,7 +522,7 @@ final class OnboardingFlowBuilder implements Builder {
         );
       }
     }
-    if (flow.id != stem) {
+    if (!flow.isCanonical && flow.id != stem) {
       issues.add(
         Issue(
           code: IssueCode.filenameMismatch,
@@ -234,87 +533,103 @@ final class OnboardingFlowBuilder implements Builder {
       );
     }
     for (final action in flow.actions) {
-      if (_isWireIdentifier(action.actionName)) continue;
-      issues.add(
-        Issue(
-          code: IssueCode.buildMethodTooComplex,
-          message: 'invalid action id "${action.actionName}": action ids '
-              'must be valid flow wire identifiers.',
-          location: '${assetId.path}#${flow.className}.${action.fieldName}',
-        ),
-      );
-    }
-    for (final action in flow.actions) {
+      if (!_isWireIdentifier(action.actionName)) {
+        issues.add(
+          Issue(
+            code: IssueCode.buildMethodTooComplex,
+            message: 'invalid action id "${action.actionName}": action ids '
+                'must be valid flow wire identifiers.',
+            location: '${assetId.path}#${flow.className}.${action.fieldName}',
+          ),
+        );
+      }
       final duplicateOf = action.duplicateOf;
-      if (duplicateOf == null) continue;
-      issues.add(
-        Issue(
-          code: IssueCode.buildMethodTooComplex,
-          message: 'duplicate action id "${action.actionName}" on '
-              '${action.fieldName}; already declared by $duplicateOf.',
-          location: '${assetId.path}#${flow.className}.${action.fieldName}',
-        ),
-      );
+      if (duplicateOf != null) {
+        issues.add(
+          Issue(
+            code: IssueCode.buildMethodTooComplex,
+            message: 'duplicate action id "${action.actionName}" on '
+                '${action.fieldName}; already declared by $duplicateOf.',
+            location: '${assetId.path}#${flow.className}.${action.fieldName}',
+          ),
+        );
+      }
     }
+    if (issues.isNotEmpty) continue;
 
     final method = await _resolvedBuildFlow(library, flow, issues, assetId);
-    final screenDescriptors =
-        await _loadImportedScreenDescriptors(buildStep, assetId, issues);
-    if (issues.isNotEmpty) _surfaceIssues(issues);
-    if (method == null) return;
-
+    if (method == null || issues.isNotEmpty) continue;
+    final effectiveSurface = flow.surface ?? legacySurface;
     final lowered = await _lowerFlow(
       buildStep,
       flow,
       method,
-      screenDescriptors,
+      _ScreenDescriptorResolver(
+        flowLibrary: library,
+        flowSurface: effectiveSurface,
+        legacyDescriptors: legacyScreenDescriptors,
+        resolvedScreens: resolvedScreenList,
+      ),
       issues,
       assetId,
+      screenBlobsByDeclarationIdentity,
+      childFlowDocuments,
     );
-    if (issues.isNotEmpty) _surfaceIssues(issues);
-    if (lowered == null) return;
-
-    final surfaceSeg = surface.wireName;
-    await Future.wait<void>([
-      buildStep.writeAsString(
-        AssetId(
-          assetId.package,
-          '${_flowSourceDir(surfaceSeg)}/$stem.rsflow.g.dart',
+    if (lowered == null || issues.isNotEmpty) continue;
+    compiled.add(
+      CompiledClassFlow(
+        declaration: flow.element,
+        id: flow.id,
+        surface: effectiveSurface,
+        isCanonical: flow.isCanonical,
+        flowDocumentBytes: FlowDocumentCodec.encodeCanonicalJson(
+          lowered.document,
         ),
-        // Format the emitted descriptor so a committed `.rsflow.g.dart` is both
-        // format-clean AND build_runner-byte-stable (the screen builder's
-        // simpler template is already format-clean; the flow builder's richer
-        // template needs the explicit pass).
-        formatGeneratedDart(
-          _emitFlowDescriptor(stem, flow, lowered, surface),
+        generatedPart: formatGeneratedDart(
+          _emitFlowDescriptor(stem, flow, lowered, effectiveSurface),
         ),
       ),
-      buildStep.writeAsBytes(
-        AssetId(
-          assetId.package,
-          '${_flowOutputDir(surfaceSeg)}/$stem.flow.json',
-        ),
-        FlowDocumentCodec.encodeCanonicalJson(lowered.document),
-      ),
-    ]);
+    );
   }
+  return CompiledClassFlowResult(
+    flows: issues.isEmpty ? compiled : const [],
+    issues: issues,
+  );
 }
 
-_FlowSource? _findFlow(LibraryElement library, AssetId assetId) {
+List<_FlowSource> _findFlows(LibraryElement library, AssetId assetId) {
+  final flows = <_FlowSource>[];
   for (final cls in library.classes) {
     final annotation = firstAnnotationFromOriginAny(
       cls,
-      const {'FlowSource', 'OnboardingFlow'},
+      const {'FlowGraph', 'FlowSource', 'OnboardingFlow'},
       _kSdkLibraryOrigin,
     );
     if (annotation == null) continue;
     final value = annotation.computeConstantValue();
     if (value == null) {
-      return _FlowSource.invalid(cls);
+      flows.add(_FlowSource.invalid(cls));
+      continue;
     }
-    final id = value.getField('id')?.toStringValue();
+    final isCanonical =
+        resolvedAnnotationClass(annotation)?.name == 'FlowGraph';
+    final id = value.getField('id')?.toStringValue() ??
+        (isCanonical ? p.basenameWithoutExtension(assetId.path) : null);
     if (id == null) {
-      return _FlowSource.invalid(cls);
+      flows.add(_FlowSource.invalid(cls));
+      continue;
+    }
+    Surface? declaredSurface;
+    if (isCanonical) {
+      final surfaceName =
+          value.getField('surface')?.getField('wireName')?.toStringValue();
+      declaredSurface = Surface.values
+          .where((candidate) => candidate.wireName == surfaceName)
+          .firstOrNull;
+      if (declaredSurface == null) {
+        flows.add(_FlowSource.invalid(cls));
+        continue;
+      }
     }
     final deliveryName =
         value.getField('delivery')?.getField('_name')?.toStringValue();
@@ -326,22 +641,30 @@ _FlowSource? _findFlow(LibraryElement library, AssetId assetId) {
       }
     }
     if (delivery == null) {
-      return _FlowSource.invalid(cls);
+      flows.add(_FlowSource.invalid(cls));
+      continue;
     }
     final className = cls.name ?? '<unnamed>';
-    return _FlowSource(
-      id: id,
-      version: value.getField('version')?.toIntValue() ?? 1,
-      minClient: value.getField('minClient')?.toIntValue() ?? 3,
-      delivery: delivery,
-      className: className,
-      element: cls,
-      actions: _collectActions(cls),
-      invalidAnnotation: false,
+    flows.add(
+      _FlowSource(
+        id: id,
+        version: value.getField('version')?.toIntValue() ?? 1,
+        minClient: value.getField('minClient')?.toIntValue() ?? 3,
+        delivery: delivery,
+        className: className,
+        element: cls,
+        actions: _collectActions(cls),
+        invalidAnnotation: false,
+        isCanonical: isCanonical,
+        surface: declaredSurface,
+      ),
     );
   }
-  return null;
+  return flows;
 }
+
+_FlowSource? _findFlow(LibraryElement library, AssetId assetId) =>
+    _findFlows(library, assetId).firstOrNull;
 
 List<_FlowAction> _collectActions(ClassElement cls) {
   final actions = <_FlowAction>[];
@@ -516,9 +839,11 @@ Future<_LoweredFlow?> _lowerFlow(
   BuildStep buildStep,
   _FlowSource flow,
   MethodDeclaration method,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   List<Issue> issues,
   AssetId assetId,
+  Map<String, Uint8List> resolvedScreenBlobsByDeclarationIdentity,
+  Map<NormalizedFlowIdentity, List<int>> childFlowDocuments,
 ) async {
   final unsupported = _UnsupportedFlowRuntimeFeatureVisitor();
   method.accept(unsupported);
@@ -619,6 +944,21 @@ Future<_LoweredFlow?> _lowerFlow(
 
   final screenArtifacts = <String, ScreenArtifact>{};
   final states = <String, FlowState>{};
+  bool addState(String id, FlowState state) {
+    if (states.containsKey(id)) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "duplicate state '$id' in flow.",
+          location: assetId.path,
+        ),
+      );
+      return false;
+    }
+    states[id] = state;
+    return true;
+  }
+
   final actionsByName = {
     for (final action in flow.actions) action.actionName: action,
   };
@@ -673,31 +1013,23 @@ Future<_LoweredFlow?> _lowerFlow(
           !_validateResultValues(result, issues, assetId)) {
         continue;
       }
-      states[endState] = EndFlowState(result: result);
+      addState(endState, EndFlowState(result: result));
       continue;
     }
 
     final graphNode = await _parseGraphNode(
       buildStep,
       assetId,
+      flow,
       element,
       descriptors,
       endLocals,
       nodeLocals,
       issues,
+      childFlowDocuments,
     );
     if (graphNode != null) {
-      if (states.containsKey(graphNode.id)) {
-        issues.add(
-          Issue(
-            code: IssueCode.buildMethodTooComplex,
-            message: "duplicate graph state '${graphNode.id}' in flow.",
-            location: assetId.path,
-          ),
-        );
-        continue;
-      }
-      states[graphNode.id] = graphNode.state;
+      addState(graphNode.id, graphNode.state);
       continue;
     }
     if (_isGraphNodeExpression(element)) continue;
@@ -721,26 +1053,22 @@ Future<_LoweredFlow?> _lowerFlow(
         usedActionContracts[actionContract.actionName] = actionContract;
       }
     }
-    if (states.containsKey(screenNode.screen.id)) {
-      issues.add(
-        Issue(
-          code: IssueCode.buildMethodTooComplex,
-          message: "duplicate screen state '${screenNode.screen.id}' in flow.",
-          location: assetId.path,
-        ),
-      );
-      continue;
-    }
-    states[screenNode.screen.id] = ScreenFlowState(
+    final state = ScreenFlowState(
       screen: screenNode.screen.id,
       on: {
         for (final transition in screenNode.transitions)
           transition.eventId: transition.transition,
       },
     );
+    if (!addState(screenNode.screen.id, state)) continue;
     final descriptor = screenNode.screen;
-    screenArtifacts[descriptor.id] =
-        await _artifactFor(buildStep, assetId, descriptor, issues);
+    screenArtifacts[descriptor.id] = await _artifactFor(
+      buildStep,
+      assetId,
+      descriptor,
+      issues,
+      resolvedScreenBlobsByDeclarationIdentity,
+    );
   }
   final hasTerminalScreenState = states.values.any(
     (state) => state is ScreenFlowState && state.on.isEmpty,
@@ -755,8 +1083,39 @@ Future<_LoweredFlow?> _lowerFlow(
       ),
     );
   }
-  screenArtifacts[initial.id] =
-      await _artifactFor(buildStep, assetId, initial, issues);
+  if (endCount <= 1) {
+    _validateTypedTerminalResultShape(
+      delivery: flow.delivery,
+      initialStateId: initial.id,
+      states: states,
+      flowState: flowState,
+      outbound: outbound,
+      issues: issues,
+      assetId: assetId,
+      flowClassName: flow.className,
+    );
+  }
+  screenArtifacts[initial.id] = await _artifactFor(
+    buildStep,
+    assetId,
+    initial,
+    issues,
+    resolvedScreenBlobsByDeclarationIdentity,
+  );
+
+  final orderedScreenArtifacts = screenArtifacts.entries.toList()
+    ..sort((left, right) => left.key.compareTo(right.key));
+  for (final entry in orderedScreenArtifacts) {
+    if (flow.minClient >= entry.value.minClient) continue;
+    issues.add(
+      Issue(
+        code: IssueCode.annotationEvaluationFailed,
+        message: 'Flow ${flow.id} minClient ${flow.minClient} does not cover '
+            'screen ${entry.key} minClient ${entry.value.minClient}.',
+        location: assetId.path,
+      ),
+    );
+  }
 
   if (issues.isNotEmpty) return null;
   final document = FlowDocument(
@@ -795,7 +1154,38 @@ Future<ScreenArtifact> _artifactFor(
   AssetId flowAssetId,
   _ScreenDescriptor descriptor,
   List<Issue> issues,
+  Map<String, Uint8List> resolvedScreenBlobsByDeclarationIdentity,
 ) async {
+  final declarationIdentity = descriptor.declarationIdentity;
+  final resolvedBlob = declarationIdentity == null
+      ? null
+      : resolvedScreenBlobsByDeclarationIdentity[declarationIdentity];
+  if (resolvedBlob != null) {
+    return ScreenArtifact(
+      path: descriptor.artifactPath,
+      version: descriptor.version,
+      schemaVersion: 1,
+      minClient: descriptor.minClient,
+      contentHash: FlowContentHash.compute(resolvedBlob),
+    );
+  }
+  if (declarationIdentity != null) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingScreenDescriptor,
+        message: 'Resolved screen $declarationIdentity is missing its exact '
+            'aggregate-owned artifact bytes.',
+        location: flowAssetId.path,
+      ),
+    );
+    return ScreenArtifact(
+      path: descriptor.artifactPath,
+      version: descriptor.version,
+      schemaVersion: 1,
+      minClient: descriptor.minClient,
+      contentHash: FlowContentHash.parse(_zeroHash),
+    );
+  }
   final AssetId rfwId;
   if (isPaywallScreenArtifact(descriptor.artifactPath)) {
     final canonicalId = AssetId(
@@ -848,7 +1238,7 @@ Future<ScreenArtifact> _artifactFor(
 
 _ScreenNode? _parseScreenNode(
   Expression expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   Map<String, _FlowAction> actionsByName,
@@ -1176,11 +1566,13 @@ bool _isGraphNodeExpression(Expression expression) {
 Future<_GraphNode?> _parseGraphNode(
   BuildStep buildStep,
   AssetId flowAssetId,
+  _FlowSource flow,
   Expression expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
+  Map<NormalizedFlowIdentity, List<int>> childFlowDocuments,
 ) async {
   if (expression is! MethodInvocation) return null;
   return switch (expression.methodName.name) {
@@ -1195,11 +1587,13 @@ Future<_GraphNode?> _parseGraphNode(
     'subFlow' => _parseSubFlowNode(
         buildStep,
         flowAssetId,
+        flow,
         expression,
         descriptors,
         endLocals,
         nodeLocals,
         issues,
+        childFlowDocuments,
       ),
     _ => null,
   };
@@ -1207,7 +1601,7 @@ Future<_GraphNode?> _parseGraphNode(
 
 _GraphNode? _parseDecisionNode(
   MethodInvocation invocation,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
@@ -1253,11 +1647,13 @@ _GraphNode? _parseDecisionNode(
 Future<_GraphNode?> _parseSubFlowNode(
   BuildStep buildStep,
   AssetId flowAssetId,
+  _FlowSource flow,
   MethodInvocation invocation,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
+  Map<NormalizedFlowIdentity, List<int>> childFlowDocuments,
 ) async {
   final id = _flowNodeId(
     invocation.argumentList.arguments.firstOrNull,
@@ -1267,6 +1663,9 @@ Future<_GraphNode?> _parseSubFlowNode(
     _namedArg(invocation, 'flow'),
     issues,
     flowAssetId,
+    legacySurfaceFallback: flow.isCanonical
+        ? null
+        : flow.surface ?? _flowSurfaceForAsset(flowAssetId),
   );
   final childArtifact = childRef == null
       ? null
@@ -1275,6 +1674,9 @@ Future<_GraphNode?> _parseSubFlowNode(
           flowAssetId,
           childRef,
           issues,
+          childFlowDocuments,
+          parentSurface: flow.surface ?? _flowSurfaceForAsset(flowAssetId),
+          canonicalParent: flow.isCanonical,
         );
   final input = _flowValueSourceMap(
     _namedArg(invocation, 'input'),
@@ -1343,7 +1745,7 @@ Future<_GraphNode?> _parseSubFlowNode(
 
 List<FlowBranch>? _authoredBranches(
   Expression? expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
@@ -1383,7 +1785,7 @@ List<FlowBranch>? _authoredBranches(
 
 FlowBranch? _authoredBranch(
   Expression expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
@@ -1426,7 +1828,7 @@ FlowBranch? _authoredBranch(
 
 FlowBranchTarget? _authoredBranchTarget(
   Expression? expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
@@ -1508,47 +1910,26 @@ _ParsedActionTransition? _parseActionTransition(
 
 _ScreenDescriptor? _screenForRef(
   Expression? expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   List<Issue> issues,
   AssetId assetId,
 ) {
-  final paywall = _paywallScreenForRef(expression, issues, assetId);
-  if (paywall != null) return paywall;
+  if (expression is MethodInvocation &&
+      expression.methodName.name == 'paywallScreen') {
+    final id = _paywallIdForRef(expression, issues, assetId);
+    return id == null
+        ? null
+        : descriptors.resolvePaywall(id, issues: issues, assetId: assetId);
+  }
 
-  final descriptorName = _descriptorName(expression);
-  if (descriptorName == null) {
-    issues.add(
-      Issue(
-        code: IssueCode.buildMethodTooComplex,
-        message: 'Expected a generated screen descriptor .ref.',
-        location: assetId.path,
-      ),
-    );
-    return null;
-  }
-  final descriptor = descriptors[descriptorName];
-  if (descriptor == null) {
-    issues.add(
-      Issue(
-        code: IssueCode.missingScreenDescriptor,
-        message: 'Missing imported generated screen descriptor '
-            '$descriptorName.',
-        location: assetId.path,
-      ),
-    );
-  }
-  return descriptor;
+  return descriptors.resolve(expression, issues: issues, assetId: assetId);
 }
 
-_ScreenDescriptor? _paywallScreenForRef(
-  Expression? expression,
+String? _paywallIdForRef(
+  MethodInvocation expression,
   List<Issue> issues,
   AssetId assetId,
 ) {
-  if (expression is! MethodInvocation ||
-      expression.methodName.name != 'paywallScreen') {
-    return null;
-  }
   final id = _singleStringArg(expression);
   if (id == null || !_isWireIdentifier(id)) {
     issues.add(
@@ -1560,19 +1941,12 @@ _ScreenDescriptor? _paywallScreenForRef(
     );
     return null;
   }
-  final screenId = 'paywall_$id';
-  return _ScreenDescriptor(
-    name: 'paywallScreen($id)',
-    id: screenId,
-    artifactPath: '$screenId.rfw',
-    version: 1,
-    minClient: kBaselineCatalogVersion,
-  );
+  return id;
 }
 
 String? _targetId(
   Expression? expression,
-  Map<String, _ScreenDescriptor> descriptors,
+  _ScreenDescriptorResolver descriptors,
   Map<String, String> endLocals,
   Map<String, String> nodeLocals,
   List<Issue> issues,
@@ -1603,20 +1977,250 @@ String? _flowNodeId(
   return null;
 }
 
-String? _descriptorName(Expression? expression) {
-  if (expression is PrefixedIdentifier &&
-      expression.identifier.name == 'ref' &&
-      expression.prefix.name.endsWith('Descriptor')) {
-    return expression.prefix.name;
+/// Resolves a class-shaped flow's descriptor expression to the authored screen
+/// declaration that owns it.
+///
+/// Canonical aggregate compilation may run before a descriptor part exists on
+/// disk. In that case the descriptor class itself is unresolved, but its import
+/// prefix remains analyzer-resolved. We use that prefix (or the resolved
+/// descriptor class when it is available) to select the authored declaration;
+/// the descriptor spelling alone is never a lookup key.
+final class _ScreenDescriptorResolver {
+  _ScreenDescriptorResolver({
+    required this.flowLibrary,
+    required this.flowSurface,
+    required this.legacyDescriptors,
+    required Iterable<ResolvedClassFlowScreen> resolvedScreens,
+  }) : _resolvedScreens = List.unmodifiable(resolvedScreens);
+
+  final LibraryElement flowLibrary;
+  final Surface flowSurface;
+  final Map<String, _ScreenDescriptor> legacyDescriptors;
+  final List<ResolvedClassFlowScreen> _resolvedScreens;
+
+  _ScreenDescriptor? resolve(
+    Expression? expression, {
+    required List<Issue> issues,
+    required AssetId assetId,
+  }) {
+    final reference = _descriptorReference(expression);
+    if (reference == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: 'Expected a generated screen descriptor .ref.',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+
+    if (_resolvedScreens.isEmpty) {
+      final descriptor = legacyDescriptors[reference.name];
+      if (descriptor == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.missingScreenDescriptor,
+            message: 'Missing imported generated screen descriptor '
+                '${reference.name}.',
+            location: assetId.path,
+          ),
+        );
+      }
+      return descriptor;
+    }
+
+    final candidates = _resolvedScreens.where((screen) {
+      if (screen.canonicalPaywallId != null) return false;
+      if (screen.descriptorName != reference.name) return false;
+      final descriptorElement = reference.descriptorElement;
+      if (descriptorElement != null) {
+        return screen.declaration.library.identifier ==
+            descriptorElement.library.identifier;
+      }
+      return _isImportedScreen(screen, reference.importPrefix);
+    }).toList(growable: false);
+    if (candidates.length != 1) {
+      final identities = candidates
+          .map((candidate) => candidate.declarationIdentity)
+          .toList()
+        ..sort();
+      issues.add(
+        Issue(
+          code: IssueCode.analyzerResolutionFailed,
+          message: 'Generated screen descriptor ${reference.name} must '
+              'resolve through one analyzer-authored library declaration; '
+              'found ${candidates.length}'
+              '${identities.isEmpty ? '' : ' (${identities.join(', ')})'}.',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+
+    final screen = candidates.single;
+    if (screen.surface != null && screen.surface != flowSurface) {
+      issues.add(
+        Issue(
+          code: IssueCode.annotationEvaluationFailed,
+          message: 'Screen ${screen.declarationIdentity} is authored for '
+              '${screen.surface!.wireName}, but this flow is '
+              '${flowSurface.wireName}.',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+    return _ScreenDescriptor(
+      name: reference.name,
+      id: screen.id,
+      artifactPath: screen.artifactPath,
+      version: screen.version,
+      minClient: screen.minClient,
+      declarationIdentity: screen.declarationIdentity,
+    );
   }
-  if (expression is PropertyAccess &&
-      expression.propertyName.name == 'ref' &&
-      expression.target is SimpleIdentifier) {
-    final target = expression.target! as SimpleIdentifier;
-    if (target.name.endsWith('Descriptor')) return target.name;
+
+  _ScreenDescriptor? resolvePaywall(
+    String authoredId, {
+    required List<Issue> issues,
+    required AssetId assetId,
+  }) {
+    final screenId = 'paywall_$authoredId';
+    if (_resolvedScreens.isEmpty) {
+      return _ScreenDescriptor(
+        name: 'paywallScreen($authoredId)',
+        id: screenId,
+        artifactPath: '$screenId.rfw',
+        version: 1,
+        minClient: kBaselineCatalogVersion,
+      );
+    }
+
+    final candidates = _resolvedScreens
+        .where((screen) => screen.canonicalPaywallId == authoredId)
+        .toList(growable: false);
+    if (candidates.length != 1) {
+      final identities = candidates
+          .map((candidate) => candidate.declarationIdentity)
+          .toList()
+        ..sort();
+      issues.add(
+        Issue(
+          code: IssueCode.analyzerResolutionFailed,
+          message: 'paywallScreen($authoredId) must resolve to exactly one '
+              'roster-owned canonical paywall declaration; found '
+              '${candidates.length}'
+              '${identities.isEmpty ? '' : ' (${identities.join(', ')})'}.',
+          location: assetId.path,
+        ),
+      );
+      return null;
+    }
+
+    final screen = candidates.single;
+    return _ScreenDescriptor(
+      name: 'paywallScreen($authoredId)',
+      id: screen.id,
+      artifactPath: screen.artifactPath,
+      version: screen.version,
+      minClient: screen.minClient,
+      declarationIdentity: screen.declarationIdentity,
+    );
+  }
+
+  bool _isImportedScreen(
+    ResolvedClassFlowScreen screen,
+    PrefixElement? prefix,
+  ) {
+    if (prefix == null &&
+        screen.declaration.library.identifier == flowLibrary.identifier) {
+      return true;
+    }
+    final screenName = screen.declaration.name;
+    if (screenName == null) return false;
+    for (final import in flowLibrary.firstFragment.libraryImports) {
+      final imported = import.importedLibrary;
+      if (imported?.identifier != screen.declaration.library.identifier) {
+        continue;
+      }
+      if (prefix != null) {
+        if (import.prefix?.element == prefix) return true;
+        continue;
+      }
+      if (import.prefix == null &&
+          import.namespace.get2(screenName) == screen.declaration) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+final class _DescriptorReference {
+  const _DescriptorReference({
+    required this.name,
+    required this.descriptorElement,
+    required this.importPrefix,
+  });
+
+  final String name;
+  final ClassElement? descriptorElement;
+  final PrefixElement? importPrefix;
+}
+
+_DescriptorReference? _descriptorReference(Expression? expression) {
+  if (expression is PrefixedIdentifier && expression.identifier.name == 'ref') {
+    return _descriptorReferenceForTarget(expression.prefix);
+  }
+  if (expression is PropertyAccess && expression.propertyName.name == 'ref') {
+    final target = expression.target;
+    return target == null ? null : _descriptorReferenceForTarget(target);
   }
   return null;
 }
+
+_DescriptorReference? _descriptorReferenceForTarget(Expression target) {
+  if (target is SimpleIdentifier) {
+    return _descriptorReferenceFromName(
+      target.name,
+      descriptorElement: _classElement(target.element),
+    );
+  }
+  if (target is PrefixedIdentifier) {
+    return _descriptorReferenceFromName(
+      target.identifier.name,
+      descriptorElement: _classElement(target.identifier.element),
+      importPrefix: _prefixElement(target.prefix.element),
+    );
+  }
+  if (target is PropertyAccess) {
+    return _descriptorReferenceFromName(
+      target.propertyName.name,
+      descriptorElement: _classElement(target.propertyName.element),
+    );
+  }
+  return null;
+}
+
+_DescriptorReference? _descriptorReferenceFromName(
+  String name, {
+  ClassElement? descriptorElement,
+  PrefixElement? importPrefix,
+}) {
+  if (!name.endsWith('Descriptor')) return null;
+  return _DescriptorReference(
+    name: name,
+    descriptorElement: descriptorElement,
+    importPrefix: importPrefix,
+  );
+}
+
+ClassElement? _classElement(Element? element) =>
+    element is ClassElement ? element : null;
+
+PrefixElement? _prefixElement(Element? element) =>
+    element is PrefixElement ? element : null;
 
 String? _eventId(
   Expression? expression,
@@ -1652,7 +2256,8 @@ FieldElement? _staticConstOnboardingEventField(Element? element) {
   }
   final type = element.type;
   if (type is! InterfaceType ||
-      type.element.name != 'OnboardingEvent' ||
+      (type.element.name != 'SurfaceEvent' &&
+          type.element.name != 'OnboardingEvent') ||
       !libraryUriMatchesOrigin(
         type.element.library.identifier,
         _kSdkLibraryOrigin,
@@ -2866,10 +3471,11 @@ VariableElement? _referencedVariableElement(Expression? expression) {
 _SubFlowRef? _flowRefForExpression(
   Expression? expression,
   List<Issue> issues,
-  AssetId assetId,
-) {
+  AssetId assetId, {
+  Surface? legacySurfaceFallback,
+}) {
   final element = _referencedVariableElement(expression);
-  if (element == null || !element.isConst) {
+  if (element == null) {
     _unsupportedGraphDeclaration(
       issues,
       assetId,
@@ -2879,7 +3485,8 @@ _SubFlowRef? _flowRefForExpression(
   }
   final type = element.type;
   if (type is! InterfaceType ||
-      type.element.name != 'OnboardingFlowRef' ||
+      (type.element.name != 'SurfaceFlowRef' &&
+          type.element.name != 'OnboardingFlowRef') ||
       !libraryUriMatchesOrigin(
         type.element.library.identifier,
         _kSdkLibraryOrigin,
@@ -2895,15 +3502,27 @@ _SubFlowRef? _flowRefForExpression(
   final id = value?.getField('id')?.toStringValue();
   final version = value?.getField('version')?.toIntValue();
   final minClient = value?.getField('minClient')?.toIntValue();
-  if (id == null || version == null || minClient == null) {
+  final surfaceName =
+      value?.getField('surface')?.getField('wireName')?.toStringValue();
+  final resolvedSurface = Surface.values
+      .where((candidate) => candidate.wireName == surfaceName)
+      .firstOrNull;
+  final surface = resolvedSurface ?? legacySurfaceFallback;
+  if (id == null || version == null || minClient == null || surface == null) {
     _unsupportedGraphDeclaration(
       issues,
       assetId,
-      'subFlow flow: OnboardingFlowRef could not be const-evaluated.',
+      'subFlow flow: SurfaceFlowRef could not be const-evaluated with an '
+      'explicit Surface.',
     );
     return null;
   }
-  return _SubFlowRef(id: id, version: version, minClient: minClient);
+  return _SubFlowRef(
+    id: id,
+    version: version,
+    minClient: minClient,
+    surface: surface,
+  );
 }
 
 Future<_ChildFlowArtifact?> _childFlowArtifact(
@@ -2911,20 +3530,52 @@ Future<_ChildFlowArtifact?> _childFlowArtifact(
   AssetId flowAssetId,
   _SubFlowRef ref,
   List<Issue> issues,
-) async {
-  final asset = AssetId(
-    flowAssetId.package,
-    '${_flowOutputDir(_surfaceSegmentOf(flowAssetId))}/${ref.id}.flow.json',
-  );
-  if (!await buildStep.canRead(asset)) {
+  Map<NormalizedFlowIdentity, List<int>> childFlowDocuments, {
+  required Surface parentSurface,
+  required bool canonicalParent,
+}) async {
+  if (ref.surface != parentSurface) {
     _unsupportedGraphDeclaration(
       issues,
       flowAssetId,
-      'missing child flow artifact ${asset.path}.',
+      'subflow child ${ref.surface.wireName}/${ref.id} cannot be included '
+      'in a ${parentSurface.wireName} flow.',
     );
     return null;
   }
-  final bytes = await buildStep.readAsBytes(asset);
+
+  List<int>? bytes;
+  late final String artifactDescription;
+  if (canonicalParent) {
+    bytes = childFlowDocuments[ref.identity];
+    artifactDescription =
+        'aggregate child flow ${ref.surface.wireName}/${ref.id}';
+  } else {
+    final asset = AssetId(
+      flowAssetId.package,
+      '${_flowOutputDir(_surfaceSegmentOf(flowAssetId))}/'
+      '${ref.id}.flow.json',
+    );
+    artifactDescription = 'child flow artifact ${asset.path}';
+    if (await buildStep.canRead(asset)) {
+      bytes = await buildStep.readAsBytes(asset);
+    } else {
+      bytes = await _compileLegacyChildFlowBytes(
+        buildStep,
+        parentAssetId: flowAssetId,
+        ref: ref,
+        issues: issues,
+      );
+    }
+  }
+  if (bytes == null) {
+    _unsupportedGraphDeclaration(
+      issues,
+      flowAssetId,
+      'missing $artifactDescription.',
+    );
+    return null;
+  }
   late final FlowDocument document;
   try {
     document = FlowDocumentCodec.decodeJson(utf8.decode(bytes));
@@ -2932,7 +3583,7 @@ Future<_ChildFlowArtifact?> _childFlowArtifact(
     _unsupportedGraphDeclaration(
       issues,
       flowAssetId,
-      'could not decode child flow artifact ${asset.path}: $e.',
+      'could not decode $artifactDescription: $e.',
     );
     return null;
   }
@@ -2942,7 +3593,7 @@ Future<_ChildFlowArtifact?> _childFlowArtifact(
     _unsupportedGraphDeclaration(
       issues,
       flowAssetId,
-      'child flow artifact ${asset.path} does not match '
+      '$artifactDescription does not match '
       '${ref.id}@${ref.version}/minClient ${ref.minClient}.',
     );
     return null;
@@ -2952,6 +3603,76 @@ Future<_ChildFlowArtifact?> _childFlowArtifact(
     contentHash: FlowContentHash.compute(bytes),
   );
 }
+
+Future<List<int>?> _compileLegacyChildFlowBytes(
+  BuildStep buildStep, {
+  required AssetId parentAssetId,
+  required _SubFlowRef ref,
+  required List<Issue> issues,
+}) async {
+  final childAsset = AssetId(
+    parentAssetId.package,
+    '${_flowSourceDir(_surfaceSegmentOf(parentAssetId))}/${ref.id}.dart',
+  );
+  if (!await buildStep.canRead(childAsset) ||
+      !await buildStep.resolver.isLibrary(childAsset)) {
+    return null;
+  }
+  final library = await buildStep.resolver.libraryFor(
+    childAsset,
+    allowSyntaxErrors: true,
+  );
+  final flow = _findFlow(library, childAsset);
+  if (flow == null || flow.invalidAnnotation || flow.id != ref.id) return null;
+  final localIssues = <Issue>[];
+  final method = await _resolvedBuildFlow(
+    library,
+    flow,
+    localIssues,
+    childAsset,
+  );
+  final descriptors = await _loadImportedScreenDescriptors(
+    buildStep,
+    childAsset,
+    localIssues,
+  );
+  if (method == null || localIssues.isNotEmpty) {
+    issues.addAll(localIssues);
+    return null;
+  }
+  final lowered = await _lowerFlow(
+    buildStep,
+    flow,
+    method,
+    _ScreenDescriptorResolver(
+      flowLibrary: library,
+      flowSurface: _flowSurfaceForAsset(childAsset),
+      legacyDescriptors: descriptors,
+      resolvedScreens: const [],
+    ),
+    localIssues,
+    childAsset,
+    const {},
+    const {},
+  );
+  if (lowered == null || localIssues.isNotEmpty) {
+    issues.addAll(localIssues);
+    return null;
+  }
+  return FlowDocumentCodec.encodeCanonicalJson(lowered.document);
+}
+
+Surface _flowSurfaceForAsset(AssetId assetId) =>
+    switch (_surfaceSegmentOf(assetId)) {
+      'onboarding' => Surface.onboarding,
+      'message' => Surface.message,
+      'survey' => Surface.survey,
+      'general' => Surface.general,
+      final other => throw StateError(
+          'Expected a flow-surface source asset, got ${assetId.path} '
+          '(surface "$other").',
+        ),
+    };
 
 void _unsupportedGraphDeclaration(
   List<Issue> issues,
@@ -3317,6 +4038,260 @@ bool _validateResultValues(
   return isValid;
 }
 
+/// Typed descriptors decode the runtime-filtered terminal payload, so their
+/// generated field names must be valid Dart identifiers. Every declared field
+/// must also be provably available with its declared scalar type whenever the
+/// runtime can reach terminal decoding.
+void _validateTypedTerminalResultShape({
+  required FlowDeliveryMode delivery,
+  required String initialStateId,
+  required Map<String, FlowState> states,
+  required Map<String, FlowStateDeclaration> flowState,
+  required FlowOutboundDeclarations outbound,
+  required List<Issue> issues,
+  required AssetId assetId,
+  required String flowClassName,
+}) {
+  if (delivery != FlowDeliveryMode.typed) return;
+  final terminals = states.values.whereType<EndFlowState>().toList();
+  // The caller separately rejects more than one declared terminal. Avoid
+  // adding a derivative shape error to that primary structural failure.
+  if (terminals.length > 1) return;
+
+  final terminalResult = terminals.firstOrNull?.result;
+  final usesGraphRuntime = _usesGraphRuntimeForStates(states.values);
+  for (final entry in outbound.terminalResult.fields.entries) {
+    final outputKey = entry.key;
+    final field = entry.value;
+    if (!_isSafeDartIdentifier(outputKey) ||
+        _objectInstanceMemberNames.contains(outputKey)) {
+      issues.add(
+        Issue(
+          code: IssueCode.buildMethodTooComplex,
+          message: "unsupported typed terminal output key '$outputKey': "
+              'outbound.terminalResult field names must be non-reserved '
+              'Dart identifiers.',
+          location: '${assetId.path}#$flowClassName.buildFlow',
+        ),
+      );
+    }
+
+    final ref = field.ref;
+    switch (ref) {
+      case EventFlowOutboundRef(:final key, :final path):
+        if (path.isNotEmpty) {
+          issues.add(
+            Issue(
+              code: IssueCode.buildMethodTooComplex,
+              message: "typed terminal output key '$outputKey' cannot use "
+                  'EventFlowOutboundRef.path: end(..., result:) only supports '
+                  'scalar top-level result values.',
+              location: '${assetId.path}#$flowClassName.buildFlow',
+            ),
+          );
+          continue;
+        }
+        // A holding flow never reaches terminal decoding. Its outbound
+        // declaration is inert metadata, not a claim about an invented empty
+        // terminal result.
+        if (terminalResult == null) continue;
+        _validateTerminalResultFallback(
+          outputKey: outputKey,
+          sourceKey: key,
+          expectedType: field.type,
+          terminalResult: terminalResult,
+          issues: issues,
+          assetId: assetId,
+          flowClassName: flowClassName,
+        );
+        continue;
+      case StateFlowOutboundRef(:final key, :final path):
+        if (path.isNotEmpty) {
+          issues.add(
+            Issue(
+              code: IssueCode.buildMethodTooComplex,
+              message: "typed terminal output key '$outputKey' cannot use "
+                  'StateFlowOutboundRef.path: flow state declarations are '
+                  'scalar.',
+              location: '${assetId.path}#$flowClassName.buildFlow',
+            ),
+          );
+          continue;
+        }
+        if (terminalResult == null) continue;
+
+        // FlowDocumentValidation owns missing-declaration and type-mismatch
+        // diagnostics. Availability proof only applies once that contract is
+        // coherent.
+        final declaration = flowState[key];
+        if (declaration == null || declaration.type != field.type) continue;
+        if (declaration.defaultValue != null) continue;
+
+        if (!usesGraphRuntime) {
+          // The runtime's legacy state-ref fallback is enabled only for the
+          // non-graph lane, so the terminal literal must make the generated
+          // non-null field safe when a host seed is absent.
+          _validateTerminalResultFallback(
+            outputKey: outputKey,
+            sourceKey: key,
+            expectedType: field.type,
+            terminalResult: terminalResult,
+            issues: issues,
+            assetId: assetId,
+            flowClassName: flowClassName,
+          );
+          continue;
+        }
+
+        if (!_isStateAssignedOnEveryCompletionPath(
+          stateKey: key,
+          initialStateId: initialStateId,
+          states: states,
+        )) {
+          issues.add(
+            Issue(
+              code: IssueCode.buildMethodTooComplex,
+              message: "typed terminal output key '$outputKey' reads state "
+                  "'$key', but that scalar is not assigned on every "
+                  'completion path. Add a non-null declaration default or '
+                  'write it before every reachable terminal.',
+              location: '${assetId.path}#$flowClassName.buildFlow',
+            ),
+          );
+        }
+    }
+  }
+}
+
+void _validateTerminalResultFallback({
+  required String outputKey,
+  required String sourceKey,
+  required FlowDataType expectedType,
+  required Map<String, Object?> terminalResult,
+  required List<Issue> issues,
+  required AssetId assetId,
+  required String flowClassName,
+}) {
+  final value = terminalResult[sourceKey];
+  final actualType = _resultLiteralFlowDataType(value);
+  if (terminalResult.containsKey(sourceKey) && actualType == expectedType) {
+    return;
+  }
+  issues.add(
+    Issue(
+      code: IssueCode.buildMethodTooComplex,
+      message: "typed terminal output key '$outputKey' must read a "
+          '${expectedType.wireName} end result field "$sourceKey"; '
+          'found ${actualType?.wireName ?? 'missing'}.',
+      location: '${assetId.path}#$flowClassName.buildFlow',
+    ),
+  );
+}
+
+bool _usesGraphRuntimeForStates(Iterable<FlowState> states) {
+  for (final state in states) {
+    switch (state) {
+      case DecisionFlowState() || SubFlowState():
+        return true;
+      case ScreenFlowState(:final on):
+        for (final transition in on.values) {
+          switch (transition) {
+            case GotoFlowTransition(:final stateWrites) ||
+                  ActionFlowTransition(:final stateWrites):
+              if (stateWrites.isNotEmpty) return true;
+          }
+        }
+        continue;
+      case EndFlowState() || UnsupportedFlowState():
+        continue;
+    }
+  }
+  return false;
+}
+
+bool _isStateAssignedOnEveryCompletionPath({
+  required String stateKey,
+  required String initialStateId,
+  required Map<String, FlowState> states,
+}) {
+  final pending = <({String stateId, bool assigned})>[
+    (stateId: initialStateId, assigned: false),
+  ];
+  final visited = <({String stateId, bool assigned})>{};
+
+  while (pending.isNotEmpty) {
+    final current = pending.removeLast();
+    if (!visited.add(current)) continue;
+    final state = states[current.stateId];
+    if (state == null) return false;
+    if (state is EndFlowState) {
+      if (!current.assigned) return false;
+      continue;
+    }
+
+    for (final edge in _outgoingStateEdges(state)) {
+      final next = (
+        stateId: edge.target,
+        assigned: current.assigned || edge.stateWrites.containsKey(stateKey),
+      );
+      pending.add(next);
+    }
+  }
+  return true;
+}
+
+Iterable<({String target, Map<String, FlowStateWrite> stateWrites})>
+    _outgoingStateEdges(FlowState state) sync* {
+  switch (state) {
+    case ScreenFlowState(:final on):
+      for (final transition in on.values) {
+        switch (transition) {
+          case GotoFlowTransition(:final target, :final stateWrites) ||
+                ActionFlowTransition(:final target, :final stateWrites):
+            yield (target: target, stateWrites: stateWrites);
+        }
+      }
+      return;
+    case DecisionFlowState(:final branches, :final defaultBranch):
+      for (final branch in branches) {
+        yield (target: branch.target, stateWrites: branch.stateWrites);
+      }
+      yield (
+        target: defaultBranch.target,
+        stateWrites: defaultBranch.stateWrites,
+      );
+      return;
+    case SubFlowState(
+        :final onComplete,
+        :final defaultBranch,
+        :final subFlowUnavailable,
+      ):
+      for (final branch in onComplete) {
+        yield (target: branch.target, stateWrites: branch.stateWrites);
+      }
+      yield (
+        target: defaultBranch.target,
+        stateWrites: defaultBranch.stateWrites,
+      );
+      if (subFlowUnavailable != null) {
+        yield (
+          target: subFlowUnavailable.target,
+          stateWrites: subFlowUnavailable.stateWrites,
+        );
+      }
+      return;
+    case EndFlowState() || UnsupportedFlowState():
+      return;
+  }
+}
+
+FlowDataType? _resultLiteralFlowDataType(Object? value) {
+  if (value is bool) return FlowDataType.bool;
+  if (value is int) return FlowDataType.int;
+  if (value is String) return FlowDataType.string;
+  return null;
+}
+
 bool _isSafeDartIdentifier(String value) {
   if (!_identifierPattern.hasMatch(value)) return false;
   return !_dartReservedWords.contains(value);
@@ -3363,7 +4338,7 @@ String _emitFlowDescriptor(
   String stem,
   _FlowSource flow,
   _LoweredFlow lowered,
-  SurfaceType surface,
+  Surface surface,
 ) {
   final baseName = _flowBaseName(flow.className);
   final descriptorClass = '${flow.className}Descriptor';
@@ -3400,7 +4375,7 @@ abstract final class $descriptorClass {
     id: '${flow.id}',
     version: ${flow.version},
     minClient: ${flow.minClient},
-    surfaceType: SurfaceType.${surface.wireName},
+    surface: Surface.${surface.wireName},
     deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
     decodeResult: $descriptorClass._decodeResult,
   );
@@ -3417,7 +4392,7 @@ $generalActionsBody
 $seedClass''';
   }
   final resultClass = '${baseName}Result';
-  final result = _firstEndResult(lowered.document);
+  final result = _typedTerminalResultShape(lowered.document);
   return '''
 part of '$stem.dart';
 
@@ -3429,7 +4404,7 @@ abstract final class $descriptorClass {
     id: '${flow.id}',
     version: ${flow.version},
     minClient: ${flow.minClient},
-    surfaceType: SurfaceType.${surface.wireName},
+    surface: Surface.${surface.wireName},
     deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
     decodeResult: $descriptorClass._decodeResult,
   );
@@ -3492,14 +4467,45 @@ String _seedDartType(FlowDataType type) => switch (type) {
       FlowDataType.string => 'String',
     };
 
-Map<String, Object?> _firstEndResult(FlowDocument document) {
-  for (final state in document.states.values) {
-    if (state is EndFlowState) return state.result;
+/// Mirrors the exact result map the runtime gives to a typed decoder.
+///
+/// Legacy documents preserve their one terminal literal. Every current
+/// document instead filters through `outbound.terminalResult`, whose declared
+/// key/type map is the generated result contract.
+Map<String, FlowDataType> _typedTerminalResultShape(FlowDocument document) {
+  if (document.legacyTerminalResultPassthrough) {
+    final result = _soleTypedTerminalResult(document);
+    return {
+      for (final entry in result.entries)
+        entry.key: _resultLiteralFlowDataType(entry.value) ??
+            (throw StateError(
+              'Validated legacy terminal result has unsupported field '
+              "'${entry.key}'.",
+            )),
+    };
   }
-  return const {};
+  return {
+    for (final entry in document.outbound.terminalResult.fields.entries)
+      entry.key: entry.value.type,
+  };
 }
 
-String _emitResultDecoder(String className, Map<String, Object?> result) {
+Map<String, Object?> _soleTypedTerminalResult(FlowDocument document) {
+  final terminals = document.states.values.whereType<EndFlowState>().toList();
+  switch (terminals.length) {
+    case 0:
+      return const {};
+    case 1:
+      return terminals.single.result;
+    default:
+      throw StateError(
+        'Typed flow descriptors require at most one terminal state; '
+        'validation should have rejected this document before emission.',
+      );
+  }
+}
+
+String _emitResultDecoder(String className, Map<String, FlowDataType> result) {
   if (result.isEmpty) {
     return '''
   static $className _decodeResult(Map<String, Object?> result) {
@@ -3528,15 +4534,8 @@ $valueReads
 ''';
 }
 
-String _emitResultValueRead(String key, Object? value) {
+String _emitResultValueRead(String key, FlowDataType value) {
   final type = _dartType(value);
-  if (type == 'Object') {
-    return '''
-    final $key = result['$key'];
-    if ($key == null) {
-      throw const FormatException('Expected non-null result field $key.');
-    }''';
-  }
   return '''
     final $key = result['$key'];
     if ($key is! $type) {
@@ -3544,7 +4543,7 @@ String _emitResultValueRead(String key, Object? value) {
     }''';
 }
 
-String _emitResultClass(String className, Map<String, Object?> result) {
+String _emitResultClass(String className, Map<String, FlowDataType> result) {
   if (result.isEmpty) {
     return '''
 final class $className {
@@ -3564,11 +4563,12 @@ $fields
 ''';
 }
 
-String _dartType(Object? value) {
-  if (value is bool) return 'bool';
-  if (value is int) return 'int';
-  if (value is String) return 'String';
-  return 'Object';
+String _dartType(FlowDataType value) {
+  return switch (value) {
+    FlowDataType.bool => 'bool',
+    FlowDataType.int => 'int',
+    FlowDataType.string => 'String',
+  };
 }
 
 String _emitActionsConstructor(
@@ -3859,6 +4859,16 @@ final class _UnsupportedFlowRuntimeFeatureVisitor
   }
 }
 
+final class _SubFlowInvocationVisitor extends RecursiveAstVisitor<void> {
+  final List<MethodInvocation> invocations = [];
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    if (node.methodName.name == 'subFlow') invocations.add(node);
+    super.visitMethodInvocation(node);
+  }
+}
+
 final class _FlowSource {
   _FlowSource({
     required this.id,
@@ -3869,6 +4879,8 @@ final class _FlowSource {
     required this.element,
     required this.actions,
     required this.invalidAnnotation,
+    this.isCanonical = false,
+    this.surface,
   });
 
   _FlowSource.invalid(ClassElement element)
@@ -3881,6 +4893,7 @@ final class _FlowSource {
           element: element,
           actions: const [],
           invalidAnnotation: true,
+          isCanonical: false,
         );
 
   final String id;
@@ -3891,6 +4904,8 @@ final class _FlowSource {
   final ClassElement element;
   final List<_FlowAction> actions;
   final bool invalidAnnotation;
+  final bool isCanonical;
+  final Surface? surface;
 
   List<String> get generatedNames {
     final baseName = _flowBaseName(className);
@@ -3963,6 +4978,7 @@ final class _ScreenDescriptor {
     required this.artifactPath,
     required this.version,
     required this.minClient,
+    this.declarationIdentity,
   });
 
   final String name;
@@ -3970,6 +4986,7 @@ final class _ScreenDescriptor {
   final String artifactPath;
   final int version;
   final int minClient;
+  final String? declarationIdentity;
 }
 
 final class _ScreenNode {
@@ -4041,11 +5058,16 @@ final class _SubFlowRef {
     required this.id,
     required this.version,
     required this.minClient,
+    required this.surface,
   });
 
   final String id;
   final int version;
   final int minClient;
+  final Surface surface;
+
+  NormalizedFlowIdentity get identity =>
+      NormalizedFlowIdentity(surface: surface, id: id);
 }
 
 final class _ChildFlowArtifact {

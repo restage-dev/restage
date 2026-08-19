@@ -133,8 +133,9 @@ void main() {
       expect(result.logs, isNot(contains('[generalHostSeededResultRef]')));
     });
 
-    test('an IDENTICAL host-seeded result ref builds clean when TYPED',
-        () async {
+    test(
+        'a host-seeded result ref remains accepted in TYPED mode with a '
+        'declared fallback', () async {
       final result = await _build(
         _sources(
           delivery: 'typed',
@@ -143,6 +144,10 @@ void main() {
           type: FlowDataType.string,
           classification: FlowStateClassification.internal,
           hostSeedable: true,
+          // Typed decoding must have a value even when the host supplies no
+          // seed; this keeps the test focused on the general-only provenance
+          // rule rather than an unavailable typed result field.
+          defaultValue: '',
         ),
 ''',
           outboundBlock: '''

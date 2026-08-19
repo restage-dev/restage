@@ -1178,7 +1178,7 @@ void main() {
         _screenBlob({'See plans': 'restageNav0', 'No thanks': 'skip'});
     final plans = _screenBlob({'Buy': 'restage.purchase'});
     final hostedFlowEnvelope = SurfaceDocumentCodec.encode(SurfaceDocument(
-      surfaceType: SurfaceType.paywall,
+      surfaceType: Surface.paywall,
       surfaceSlug: 'pro_upgrade',
       version: 9,
       minClient: _renderableMinClient,

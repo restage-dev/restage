@@ -564,7 +564,7 @@ List<NativeScreenEventSource> _readEvents(
         Issue(
           code: IssueCode.invalidEventConfiguration,
           message: 'Static event $className.$fieldName must const-evaluate '
-              'to an OnboardingEvent with a non-empty String id.',
+              'to a SurfaceEvent with a non-empty String id.',
           location: '$declarationPath#$className.$fieldName',
         ),
       );
@@ -585,7 +585,7 @@ List<NativeScreenEventSource> _readEvents(
 DartType? _eventPayloadType(DartType type) {
   final alias = type.alias;
   if (alias != null &&
-      alias.element.name == 'SurfaceEvent' &&
+      alias.element.name == 'OnboardingEvent' &&
       libraryUriMatchesOrigin(
         alias.element.library.identifier,
         _restageOrigin,
@@ -593,7 +593,7 @@ DartType? _eventPayloadType(DartType type) {
     return alias.typeArguments.singleOrNull;
   }
   if (type is! InterfaceType ||
-      type.element.name != 'OnboardingEvent' ||
+      type.element.name != 'SurfaceEvent' ||
       !libraryUriMatchesOrigin(
         type.element.library.identifier,
         _restageOrigin,

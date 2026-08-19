@@ -256,7 +256,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   void initState() {
     super.initState();
     _anonymousAnalyticsOwner = RootAnalyticsAnonymousContext(
-      surface: SurfaceType.paywall.wireName,
+      surface: Surface.paywall.wireName,
       surfaceId: widget.id,
     );
     _mountedAt = DateTime.now();
@@ -275,7 +275,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // nothing calls reload — it just carries the gate + refresh callback.
     final handle = SurfaceRefreshHandle(
       surface: SurfaceRef(
-        surfaceType: SurfaceType.paywall.wireName,
+        surfaceType: Surface.paywall.wireName,
         slug: widget.id,
       ),
       triggers: Restage.effectiveLiveRefreshTriggers(
@@ -638,7 +638,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onUnavailable: (error) => _handleRefreshFlowUnavailable(pending, error),
     );
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
-      surface: SurfaceType.paywall.wireName,
+      surface: Surface.paywall.wireName,
       surfaceId: widget.id,
     );
     _flowPresentations[pending] = analyticsPresentation;
@@ -1067,7 +1067,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       },
     );
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
-      surface: SurfaceType.paywall.wireName,
+      surface: Surface.paywall.wireName,
       surfaceId: widget.id,
     );
     _flowPresentations[controller] = analyticsPresentation;
@@ -1426,7 +1426,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         id: document.flow,
         version: document.version,
         minClient: document.minClient,
-        surfaceType: SurfaceType.paywall,
+        surface: Surface.paywall,
         deliveryMode: document.deliveryMode,
         decodeResult: (_) {},
       ),
@@ -1671,7 +1671,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     final runtime = _createBlobRuntime()..update(_paywallLibrary, library);
     final data = DynamicContent();
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
-      surface: SurfaceType.paywall.wireName,
+      surface: Surface.paywall.wireName,
       surfaceId: widget.id,
     );
     late final _BlobStage stage;
@@ -2508,7 +2508,7 @@ final class _PreResolvedFlowResolver implements FlowResolver {
       id: flow.id,
       version: flow.version,
       minClient: flow.minClient,
-      surfaceType: SurfaceType.paywall,
+      surface: Surface.paywall,
       deliveryMode: flow.deliveryMode,
       decodeResult: flow.decodeResult,
     ));

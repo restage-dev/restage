@@ -20,7 +20,7 @@ import 'package:restage_shared/restage_shared.dart'
         LibraryRequirement,
         SurfaceDocument,
         SurfaceDocumentCodec,
-        SurfaceType;
+        Surface;
 
 import '../flow/flow_assignment.dart';
 import '../flow/flow_descriptors.dart';
@@ -219,7 +219,7 @@ final class RestageVariantResolver
           id: document.flow,
           version: document.version,
           minClient: document.minClient,
-          surfaceType: SurfaceType.paywall,
+          surface: Surface.paywall,
           deliveryMode: document.deliveryMode,
           decodeResult: _identityPaywallFlowResult,
         );
@@ -391,7 +391,7 @@ final class RestageVariantResolver
     _requireCurrent(assignmentLease);
 
     var result = await client.fetchSurface(
-      surfaceType: SurfaceType.paywall.wireName,
+      surfaceType: Surface.paywall.wireName,
       surfaceSlug: id,
       assignmentKey: assignmentLease.assignmentKey,
       contractHash: installed.contentHash,
@@ -406,7 +406,7 @@ final class RestageVariantResolver
       // ONCE with the full contract attached. A second consecutive
       // contractRequired is treated as a fetch failure — never loop.
       result = await client.fetchSurface(
-        surfaceType: SurfaceType.paywall.wireName,
+        surfaceType: Surface.paywall.wireName,
         surfaceSlug: id,
         assignmentKey: assignmentLease.assignmentKey,
         contractHash: installed.contentHash,
@@ -431,8 +431,7 @@ final class RestageVariantResolver
     // but a server bug / routing error / substituted response must fall through
     // rather than render-or-cache the wrong surface. Mirrors the flow resolver's
     // flow-id cross-check; rejects via the same ladder, never a throw.
-    if (document.surfaceType != SurfaceType.paywall ||
-        document.surfaceSlug != id) {
+    if (document.surfaceType != Surface.paywall || document.surfaceSlug != id) {
       debugPrint(
         '[restage] hosted paywall "$id" served a mismatched surface '
         '(${document.surfaceType.wireName} "${document.surfaceSlug}")',
@@ -748,7 +747,7 @@ final class _RestagePaywallExperimentPresentation
         installedCapability: snapshot.seed.installedCapability,
         actionBindings: snapshot.seed.actionBindings,
         installedSignals: snapshot.seed.installedSignals,
-        surfaceType: SurfaceType.paywall,
+        surfaceType: Surface.paywall,
         deliveryMode: snapshot.seed.deliveryMode,
         flowGateRevision: kFlowExperimentGateLogicRevisionV1,
       ),
@@ -825,7 +824,7 @@ final class _RestagePaywallExperimentPresentation
   }) async {
     try {
       return await owner._client!.fetchSurface(
-        surfaceType: SurfaceType.paywall.wireName,
+        surfaceType: Surface.paywall.wireName,
         surfaceSlug: paywallId,
         assignmentKey: snapshot.assignmentKey,
         flowContract: flowContract,
@@ -854,7 +853,7 @@ final class _RestagePaywallExperimentPresentation
     final SurfaceFetchResult? result;
     try {
       result = await owner._client!.fetchSurface(
-        surfaceType: SurfaceType.paywall.wireName,
+        surfaceType: Surface.paywall.wireName,
         surfaceSlug: requestedFlow.id,
         version: requestedFlow.version,
         publicationGuard: () => _snapshotIsCurrent(
@@ -918,7 +917,7 @@ final class _RestagePaywallExperimentPresentation
     } on FormatException {
       return null;
     }
-    if (surface.surfaceType != SurfaceType.paywall ||
+    if (surface.surfaceType != Surface.paywall ||
         surface.surfaceSlug != requestedFlow.id ||
         (exactVersion && surface.version != requestedFlow.version)) {
       return null;

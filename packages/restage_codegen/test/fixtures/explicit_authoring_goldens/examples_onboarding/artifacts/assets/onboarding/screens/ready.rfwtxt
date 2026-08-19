@@ -1,0 +1,5 @@
+import restage.core;
+import restage.material;
+import restage.cupertino;
+
+widget OnboardingScreen = Scaffold(backgroundColor: 0xFF0E1B33, body: SafeArea(child: Padding(padding: [28.0, 24.0, 28.0, 28.0], child: Column(children: [Expanded(child: Column(mainAxisAlignment: "center", children: [Container(width: 96.0, height: 96.0, gradient: {type: "linear", begin: {x: -1.0, y: -1.0}, end: {x: 1.0, y: 1.0}, colors: [0xFF6FD6C6, 0xFF8FA2F2]}, shape: "circle", child: Icon(iconCodepoint: 63030, size: 48.0, color: 0xFF0E1B33)), SizedBox(height: 32.0), Text(text: "You're all set", textAlign: "center", color: 0xFFF5F7FB, fontSize: 30.0, fontWeight: "w600", letterSpacing: -0.3), SizedBox(height: 14.0), Text(text: "Reminders are on. Explore everything Aura has to offer.", textAlign: "center", color: 0xFFAEB9D4, fontSize: 16.0, height: 1.5)])), Row(children: [Expanded(child: FilledButton(backgroundColor: 0xFF6FD6C6, foregroundColor: 0xFF0E1B33, padding: [0.0, 18.0, 0.0, 18.0], shape: {type: "rounded", borderRadius: 28.0}, onPressed: event "start" {}, child: Text(text: "Continue", fontSize: 17.0, fontWeight: "w600")))])]))));

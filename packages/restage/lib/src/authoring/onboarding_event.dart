@@ -4,12 +4,13 @@ import 'package:flutter/widgets.dart';
 import '../flow/flow_descriptors.dart';
 import 'onboarding_event_dispatcher.dart';
 
-/// Returns a callback that fires an onboarding flow event.
+/// Returns a callback that fires a flow event.
 ///
-/// In a codegen-built onboarding screen, this call is replaced at build time
+/// In a codegen-built flow screen, this call is replaced at build time
 /// with a descriptor event reference and never executes at runtime.
+@Deprecated('Use surfaceEvent instead.')
 VoidCallback onboardingEvent<T, V extends T>(
-  OnboardingEvent<T> event, [
+  SurfaceEvent<T> event, [
   V? value,
 ]) {
   return _flowEvent('onboardingEvent', event, value);
@@ -28,10 +29,10 @@ VoidCallback surfaceEvent<T, V extends T>(
 
 VoidCallback _flowEvent<T, V extends T>(
   String helperName,
-  OnboardingEvent<T> event,
+  SurfaceEvent<T> event,
   V? value,
 ) {
-  final dispatcher = activeOnboardingEventDispatcher();
+  final dispatcher = activeSurfaceEventDispatcher();
   return () {
     if (dispatcher != null) {
       dispatcher(event.id, value);
@@ -48,18 +49,18 @@ void _reportNoDispatcher(String helperName, Map<String, Object?> details) {
   assert(
     false,
     '[restage] $helperName invoked without a '
-    'RestageOnboardingEventDispatcher in scope. Either run this widget under '
-    'RestageOnboarding(...) or use restage_codegen so the helper is replaced '
+    'RestageSurfaceEventDispatcher in scope. Either run this widget under '
+    'a Restage surface runtime or use restage_codegen so the helper is replaced '
     'with a flow event reference at build time. details=$details',
   );
   FlutterError.reportError(
     FlutterErrorDetails(
       exception: StateError(
         '[restage] $helperName invoked without a '
-        'RestageOnboardingEventDispatcher: $details',
+        'RestageSurfaceEventDispatcher: $details',
       ),
       library: 'restage',
-      context: ErrorDescription('handling an onboarding authoring helper tap'),
+      context: ErrorDescription('handling a surface authoring helper tap'),
     ),
   );
 }

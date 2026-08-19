@@ -1,7 +1,12 @@
+// Internal aggregate compiler seams are reached through documented builders.
+// ignore_for_file: public_member_api_docs
+
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
@@ -15,6 +20,7 @@ import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
+import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
@@ -82,15 +88,281 @@ const String _kOutputDir = 'assets/paywalls';
 const String _kPaywallScreenOutputDir = kPaywallScreensAssetDir;
 const JsonEncoder _jsonEncoder = JsonEncoder.withIndent('  ');
 
+/// Exact aggregate-owned outputs for one resolved canonical paywall.
+@immutable
+final class CompiledPaywallArtifacts {
+  CompiledPaywallArtifacts({
+    required this.source,
+    required this.standaloneText,
+    required List<int>? standaloneBlob,
+    required List<int>? standaloneCapabilitySidecar,
+    required List<int> adapterBlob,
+    required List<int> adapterCapabilitySidecar,
+    required List<int>? navigationPlan,
+  })  : standaloneBlob =
+            standaloneBlob == null ? null : Uint8List.fromList(standaloneBlob),
+        standaloneCapabilitySidecar = standaloneCapabilitySidecar == null
+            ? null
+            : Uint8List.fromList(standaloneCapabilitySidecar),
+        adapterBlob = Uint8List.fromList(adapterBlob),
+        adapterCapabilitySidecar = Uint8List.fromList(
+          adapterCapabilitySidecar,
+        ),
+        navigationPlan =
+            navigationPlan == null ? null : Uint8List.fromList(navigationPlan);
+
+  final PaywallSourceFound source;
+  final String? standaloneText;
+  final Uint8List? standaloneBlob;
+  final Uint8List? standaloneCapabilitySidecar;
+  final Uint8List adapterBlob;
+  final Uint8List adapterCapabilitySidecar;
+  final Uint8List? navigationPlan;
+}
+
+@immutable
+final class ResolvedPaywallCompilationResult {
+  ResolvedPaywallCompilationResult({
+    required List<CompiledPaywallArtifacts> paywalls,
+    required List<Issue> issues,
+  })  : paywalls = List.unmodifiable(paywalls),
+        issues = List.unmodifiable(issues);
+
+  final List<CompiledPaywallArtifacts> paywalls;
+  final List<Issue> issues;
+}
+
+/// Compiles every supplied analyzer-resolved paywall without choosing an
+/// output path. The package roster remains the sole path/identity authority.
+Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
+  BuildStep buildStep, {
+  required LibraryElement library,
+  required AssetId assetId,
+  required List<PaywallSourceFound> sources,
+}) async {
+  if (sources.isEmpty) {
+    return ResolvedPaywallCompilationResult(
+      paywalls: const [],
+      issues: const [],
+    );
+  }
+
+  final issues = <Issue>[];
+  LineInfo? lineInfo;
+  final resolved = await library.session.getResolvedLibraryByElement(library);
+  if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
+    lineInfo = resolved.units.first.lineInfo;
+    issues.addAll(
+      syntacticErrorIssues(resolved, sourcePath: assetId.path),
+    );
+  } else {
+    issues.add(
+      Issue(
+        code: IssueCode.analyzerResolutionFailed,
+        message: 'Could not resolve ${assetId.path} for canonical paywall '
+            'compilation.',
+        location: assetId.path,
+      ),
+    );
+  }
+  if (issues.isNotEmpty) {
+    return ResolvedPaywallCompilationResult(paywalls: const [], issues: issues);
+  }
+
+  final catalogCache = await buildStep.fetchResource(_catalogResource);
+  final catalog = await catalogCache.getOrLoad(buildStep);
+  final helpers = productionPaywallHelperRegistry();
+  final classification = await classifyReferencedCustomWidgets(
+    rootExpressions: sources.map((source) => source.rootExpression),
+    catalog: catalog,
+    helpers: helpers,
+    astNodeFor: (fragment) =>
+        buildStep.resolver.astNodeFor(fragment, resolve: true),
+  );
+  final translator = ExpressionTranslator(
+    catalog: catalog,
+    helpers: helpers,
+    customWidgetClassifications: classification.classifications,
+    customWidgetBlueprints: classification.blueprints,
+  );
+  final compiled = <CompiledPaywallArtifacts>[];
+  for (final source in sources) {
+    final standalone = translator.translate(
+      source.rootExpression,
+      entryId: source.id,
+      sourcePath: assetId.path,
+      lineInfo: lineInfo,
+      rootState: source.build.state,
+      rootEventHandlers: source.build.eventHandlers,
+      buildContextParameter: source.build.buildContextParameter,
+    );
+    final adapter = (standalone.navigation != null || standalone.suppressed)
+        ? translator.translate(
+            source.rootExpression,
+            entryId: source.id,
+            sourcePath: assetId.path,
+            lineInfo: lineInfo,
+            rootState: source.build.state,
+            rootEventHandlers: source.build.eventHandlers,
+            buildContextParameter: source.build.buildContextParameter,
+            flowScreenContext: true,
+          )
+        : standalone;
+    _addFatalTranslationIssues(issues, standalone.issues);
+    _addFatalTranslationIssues(issues, adapter.issues);
+    if (issues.isNotEmpty) continue;
+
+    _CompiledPaywallForm? standaloneForm;
+    if (!standalone.suppressed) {
+      standaloneForm = _compilePaywallForm(
+        translation: standalone,
+        rootWidgetName: paywallRootWidgetName,
+        sourceIdentifier: source.id,
+        source: source,
+        catalog: catalog,
+        issues: issues,
+      );
+    }
+    final adapterForm = _compilePaywallForm(
+      translation: adapter,
+      rootWidgetName: onboardingScreenRootWidgetName,
+      sourceIdentifier: 'paywall_${source.id}',
+      source: source,
+      catalog: catalog,
+      issues: issues,
+    );
+    if (adapterForm == null || issues.isNotEmpty) continue;
+    compiled.add(
+      CompiledPaywallArtifacts(
+        source: source,
+        standaloneText: standaloneForm?.text,
+        standaloneBlob: standaloneForm?.blob,
+        standaloneCapabilitySidecar: standaloneForm?.capabilitySidecar,
+        adapterBlob: adapterForm.blob,
+        adapterCapabilitySidecar: adapterForm.capabilitySidecar,
+        navigationPlan: standalone.navigation == null
+            ? null
+            : utf8.encode(
+                _jsonEncoder.convert(standalone.navigation!.toJson()),
+              ),
+      ),
+    );
+  }
+  return ResolvedPaywallCompilationResult(
+    paywalls: issues.isEmpty ? compiled : const [],
+    issues: issues,
+  );
+}
+
+_CompiledPaywallForm? _compilePaywallForm({
+  required TranslationResult translation,
+  required String rootWidgetName,
+  required String sourceIdentifier,
+  required PaywallSourceFound source,
+  required Catalog catalog,
+  required List<Issue> issues,
+}) {
+  final text = rootWidgetName == paywallRootWidgetName
+      ? emitPaywallLibrary(
+          translation.dsl,
+          widgetDefinitions: translation.widgetDefinitions,
+          widgetDefinitionStates: translation.widgetDefinitionStates,
+          rootWidgetState: translation.rootWidgetState,
+          customLibraryImports: translation.referencedCustomLibraries,
+        )
+      : emitRemoteWidgetLibrary(
+          translation.dsl,
+          rootWidgetName: rootWidgetName,
+          widgetDefinitions: translation.widgetDefinitions,
+          widgetDefinitionStates: translation.widgetDefinitionStates,
+          rootWidgetState: translation.rootWidgetState,
+          customLibraryImports: translation.referencedCustomLibraries,
+        );
+  final fmt.RemoteWidgetLibrary library;
+  try {
+    library = fmt.parseLibraryFile(
+      text,
+      sourceIdentifier: sourceIdentifier,
+    );
+  } on fmt.ParserException catch (error) {
+    issues.add(
+      Issue(
+        code: IssueCode.malformedTranslatorOutput,
+        message: 'Translator emitted DSL that failed to parse for '
+            '"${source.id}" ($sourceIdentifier): $error. This is a '
+            'codegen bug.',
+        location: '${source.assetId.path}#${source.className}',
+      ),
+    );
+    return null;
+  }
+  final validationIssues = validateModelAgainstCatalog(library, catalog);
+  if (validationIssues.isNotEmpty) {
+    issues.addAll(validationIssues);
+    return null;
+  }
+  final derivation = deriveCapabilityManifest(library, catalog);
+  if (derivation.issues.isNotEmpty) {
+    issues.addAll(derivation.issues);
+    return null;
+  }
+  final blob = fmt.encodeLibraryBlob(library);
+  final sidecar = utf8.encode(
+    _jsonEncoder.convert(
+      CapabilitySidecar(
+        blobSha256: CapabilitySidecar.hashBlob(blob),
+        manifest: derivation.manifest!,
+      ).toJson(),
+    ),
+  );
+  return _CompiledPaywallForm(
+    text: text,
+    blob: blob,
+    capabilitySidecar: sidecar,
+  );
+}
+
+void _addFatalTranslationIssues(
+  List<Issue> target,
+  Iterable<Issue> additions,
+) {
+  final seen = {
+    for (final issue in target)
+      '${issue.code.name}\u0000${issue.message}\u0000${issue.location}',
+  };
+  for (final issue in additions) {
+    if (issue.code.isBuildNotice) {
+      log.info(issue.toLogString());
+      continue;
+    }
+    final key =
+        '${issue.code.name}\u0000${issue.message}\u0000${issue.location}';
+    if (seen.add(key)) target.add(issue);
+  }
+}
+
+final class _CompiledPaywallForm {
+  const _CompiledPaywallForm({
+    required this.text,
+    required this.blob,
+    required this.capabilitySidecar,
+  });
+
+  final String text;
+  final Uint8List blob;
+  final List<int> capabilitySidecar;
+}
+
 /// Orchestrates the codegen build pass.
 ///
 /// Two parallel input shapes are declared in `build.yaml`:
 ///
 /// * `lib/paywalls/{{name}}.dart` — Dart authoring path. Resolves the
 ///   library, dispatches it to every registered [LibraryVisitor] (which
-///   collect `@PaywallSource` findings on the shared [CodegenBuildState]),
-///   then for each discovered paywall: validates the file stem matches
-///   the annotation `id`, translates the `build()` body via
+///   collect canonical `@Paywall` and deprecated `@PaywallSource` findings on
+///   the shared [CodegenBuildState]), then for each discovered paywall:
+///   validates the legacy file-stem convention where applicable, translates
+///   the `build()` body via
 ///   [ExpressionTranslator], wraps the fragment in the canonical RFW
 ///   library envelope, parses + encodes via the shared `rfw_formats`,
 ///   and writes `assets/paywalls/{{name}}.rfwtxt` + `.rfw`.
@@ -111,6 +383,9 @@ final class RestageCodegenBuilder implements Builder {
 
   /// `BuilderOptions` injected by build_runner.
   final BuilderOptions options;
+
+  bool get _aggregateOwnsCanonical =>
+      options.config['aggregate_canonical_owner'] == true;
 
   final List<LibraryVisitor> _visitors;
 
@@ -195,13 +470,12 @@ final class RestageCodegenBuilder implements Builder {
 
     final stem = p.basenameWithoutExtension(assetId.path);
 
-    // Filename-vs-id alignment. The runtime loads paywalls by id; the
-    // generator names artifacts after the input file stem. Forcing the
-    // two to match makes the convention explicit instead of letting an
-    // author write @PaywallSource(id: 'foo') in bar.dart and get bar.rfw
-    // that RestagePaywall(id: 'foo') will never find.
+    // Filename-vs-id alignment remains a compatibility rule for the
+    // deprecated source spelling. Canonical @Paywall IDs are authoritative:
+    // an explicit id may survive a file move, while an omitted id has already
+    // been normalized by the visitor from this file's stem.
     for (final src in state.paywallSources) {
-      if (src.id != stem) {
+      if (!src.isCanonical && src.id != stem) {
         state.issues.add(
           Issue(
             code: IssueCode.filenameMismatch,
@@ -213,6 +487,23 @@ final class RestageCodegenBuilder implements Builder {
         );
       }
     }
+
+    final canonicalSources = state.paywallSources
+        .where((source) => source.isCanonical)
+        .toList(growable: false);
+    if (canonicalSources.isNotEmpty && !_aggregateOwnsCanonical) {
+      await _writeCanonicalFallback(
+        buildStep,
+        canonicalSources.first,
+      );
+    }
+
+    // Canonical paywalls are compiled only by the tracked package owner. This
+    // conventional stem-shaped builder remains the deprecated
+    // @PaywallSource compatibility path and must never claim canonical output
+    // paths from the source filename.
+    state.paywallSources.removeWhere((source) => source.isCanonical);
+    if (state.paywallSources.isEmpty && state.issues.isEmpty) return;
 
     // Bail before any output writes if validation already rejected the
     // input — skipping the translation loop prevents .rfwtxt / .rfw from
@@ -418,16 +709,73 @@ final class RestageCodegenBuilder implements Builder {
         await Future.wait<void>(writes);
       }
 
-      // Per-input-file output model: only the first valid @PaywallSource
+      // Per-input-file output model: only the first valid source
       // contributes outputs. The visitor already deduplicates within-file
       // by id, so this break only matters when multiple distinct ids
-      // coexist in one source file (unsupported on purpose).
+      // coexist in one source file. Package-wide canonical aggregation owns
+      // colocated explicit declarations; this legacy per-file builder keeps
+      // its one-output-family contract and never overwrites a sibling family.
       break;
     }
 
     if (state.issues.isNotEmpty) {
       _surfaceIssues(state.issues);
     }
+  }
+
+  Future<void> _writeCanonicalFallback(
+    BuildStep buildStep,
+    PaywallSourceFound source,
+  ) async {
+    final compilation = await compileTrackedPackageSurfaces(buildStep);
+    if (!compilation.isValid) _surfaceIssues(compilation.issues);
+    final publication = compilation.publicationBundle;
+    final stem = p.basenameWithoutExtension(buildStep.inputId.path);
+    final id = source.id;
+    List<int>? bytesAt(String path) =>
+        publication.artifacts[path] ?? publication.ownedOutputs[path];
+
+    final writes = <Future<void>>[];
+    void add(String sourcePath, String destinationPath) {
+      final bytes = bytesAt(sourcePath);
+      if (bytes == null) return;
+      writes.add(
+        buildStep.writeAsBytes(
+          AssetId(buildStep.inputId.package, destinationPath),
+          bytes,
+        ),
+      );
+    }
+
+    add('assets/paywalls/$id.rfwtxt', 'assets/paywalls/$stem.rfwtxt');
+    add('assets/paywalls/$id.rfw', 'assets/paywalls/$stem.rfw');
+    add(
+      'assets/paywalls/$id.capability.json',
+      'assets/paywalls/$stem.capability.json',
+    );
+    add(
+      'assets/paywalls/$id.navplan.json',
+      'assets/paywalls/$stem.navplan.json',
+    );
+    add(
+      'assets/paywalls/screens/paywall_$id.rfw',
+      'assets/paywalls/screens/paywall_$stem.rfw',
+    );
+    add(
+      'assets/paywalls/screens/paywall_$id.capability.json',
+      'assets/paywalls/screens/paywall_$stem.capability.json',
+    );
+    if (writes.isEmpty) {
+      _surfaceIssues([
+        Issue(
+          code: IssueCode.missingScreenDescriptor,
+          message: 'Standalone canonical paywall fallback could not find the '
+              'aggregate artifact family for $id.',
+          location: buildStep.inputId.path,
+        ),
+      ]);
+    }
+    await Future.wait<void>(writes);
   }
 
   fmt.RemoteWidgetLibrary? _parseTranslatedLibrary(

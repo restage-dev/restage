@@ -121,7 +121,7 @@ abstract final class SurfaceDocumentCodec {
       }
 
       return SurfaceDocument(
-        surfaceType: SurfaceType.fromWireName(
+        surfaceType: Surface.fromWireName(
           _requiredString(header, 'surfaceType'),
         ),
         surfaceSlug: _requiredString(header, 'surfaceSlug'),

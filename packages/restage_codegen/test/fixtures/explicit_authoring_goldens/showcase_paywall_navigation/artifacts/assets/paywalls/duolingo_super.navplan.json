@@ -1,0 +1,10 @@
+{
+  "entryId": "duolingo_super",
+  "transitions": [
+    {
+      "event": "restageNav0",
+      "pushedId": "duolingo_choose_plan"
+    }
+  ],
+  "terminatingEvent": "skip"
+}

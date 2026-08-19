@@ -25,6 +25,7 @@ void main() {
     id: 'first_run',
     version: 1,
     minClient: _refFloor,
+    surface: Surface.onboarding,
     decodeResult: _decodeMapResult,
   );
 
@@ -180,7 +181,7 @@ FlowDocument _doc({
 
 Uint8List _envelope(FlowDocument document, Uint8List screenBytes) {
   final surface = SurfaceDocument(
-    surfaceType: SurfaceType.onboarding,
+    surfaceType: Surface.onboarding,
     surfaceSlug: document.flow,
     version: document.version,
     minClient: document.minClient,

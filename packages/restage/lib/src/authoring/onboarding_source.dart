@@ -1,15 +1,9 @@
 import 'flow_source.dart';
 
-/// Deprecated alias for [ScreenSource].
-///
-/// Onboarding screens are flow screens; author them with `@ScreenSource`. This
-/// alias keeps existing `@OnboardingSource(...)` call-sites compiling.
-@Deprecated('Use @ScreenSource instead.')
+/// Deprecated legacy alias for [ScreenSource].
+@Deprecated('Use @Screen(...) instead.')
 typedef OnboardingSource = ScreenSource;
 
-/// Deprecated alias for [FlowSource].
-///
-/// Onboarding flows are flows; author them with `@FlowSource`. This alias keeps
-/// existing `@OnboardingFlow(...)` call-sites compiling.
-@Deprecated('Use @FlowSource instead.')
+/// Deprecated legacy alias for [FlowSource].
+@Deprecated('Use @FlowGraph(surface: Surface.<category>) instead.')
 typedef OnboardingFlow = FlowSource;

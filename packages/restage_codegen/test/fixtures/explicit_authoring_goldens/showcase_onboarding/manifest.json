@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 1,
+  "case": "showcase_onboarding",
+  "package": "restage_showcase",
+  "entries": [
+    {
+      "path": "assets/onboarding/flows/hs_onboarding.flow.json",
+      "kind": "canonical-flow-json",
+      "byteLength": 2551,
+      "sha256": "sha256:ea74aeebc2d4bf5fb6516a2b7c9b8d7b26c6cf1ca54c3689f3e221e2ccd783b7"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_experience.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:cdf8e1894c89f6552281ccb1ac884710a810dc4c780122c777b2d0f5ac49f900"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_experience.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 3396,
+      "sha256": "sha256:9fefe718dc73114a483f26bf85b4d670cd88eab34dd7f7958a6959ddaf983a19"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_experience.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1996,
+      "sha256": "sha256:bd855390c27aedbfab2516880d229cbf1b409f44d836e98db5adf267dc314820"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_goal.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:03f5be960804cacc5453ff372752053eeaed8a233d31f3c922bdc96f357c56e2"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_goal.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 4177,
+      "sha256": "sha256:fe977ab40e8cbe3027758c4a49d1ee99a6f386c6803415bc222d10b115b41830"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_goal.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 2438,
+      "sha256": "sha256:632ef9e60619fe38dd9a0756a49e1312ce35b4a96cec055dfdff9afeb4f26a90"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_recap.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:fd90e4203d61cb852d907779e0dc07e6c4d9a7e060b1ce434bb89fbbbf482e76"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_recap.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1940,
+      "sha256": "sha256:f981b99987ca80360aa8b42d0d912504036252decab7dc1b5f53f1b87ce29300"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_recap.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1148,
+      "sha256": "sha256:77b3ae2d212220fe77b31685a3ddeb3e5f5986ea07408e43a7ef77ac9e858b41"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_reminder.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:37c0333189454e4afc519116789a27838085d046ebf651816ad522ce8272333b"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_reminder.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1953,
+      "sha256": "sha256:ab006239d3088897862d4850b231d73e11a0790d107a1b6b328816f3af8d469e"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_reminder.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1162,
+      "sha256": "sha256:47f100645c5500d39f7a800752a8d43bad4144bd3cfa9200f2b3d0aa79bdd674"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_welcome.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:4a18a7d20c4bc09bb908262649ad70c11e81caaa0fcf8038a84b8bf031eac72d"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_welcome.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 1946,
+      "sha256": "sha256:1b91c79a4eab82087ede555d4d1dbbb2240b8a75354f06039a9d8de5994fdb45"
+    },
+    {
+      "path": "assets/onboarding/screens/hs_welcome.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 1155,
+      "sha256": "sha256:3aeacfccf4f93aa74bb1e6b4a7ea88f5a7a3f462c6a277f99ffb2461c05b9217"
+    },
+    {
+      "path": "assets/paywalls/headspace_premium.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:2c1dcc70e2c94a5d9a19239af08eda81e363a0cede54552131091452f3e711e9"
+    },
+    {
+      "path": "assets/paywalls/headspace_premium.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8266,
+      "sha256": "sha256:fdd12f83bfda99a42a47aa6770ec87a6801550211c740f53cdd372fc5f7e66ea"
+    },
+    {
+      "path": "assets/paywalls/headspace_premium.rfwtxt",
+      "kind": "rfw-text",
+      "byteLength": 5047,
+      "sha256": "sha256:870f5ebf464e74f6f58c063f913f6434c56886761a125e10204592d40a2bfbe1"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_headspace_premium.capability.json",
+      "kind": "capability-sidecar",
+      "byteLength": 165,
+      "sha256": "sha256:d0d7382fdc7ce181b67682c82cb06554aa53bc0624c1e24e1b5e964f2cd76100"
+    },
+    {
+      "path": "assets/paywalls/screens/paywall_headspace_premium.rfw",
+      "kind": "rfw-binary",
+      "byteLength": 8275,
+      "sha256": "sha256:05a29357685cc45c55ddc7bcbf946b786898e896cb9bc7d31289a8fde58576da"
+    },
+    {
+      "path": "lib/onboarding/flows/hs_onboarding.rsflow.g.dart",
+      "kind": "flow-descriptor",
+      "descriptor": "part of 'hs_onboarding.dart'; abstract final class HsOnboardingFlowDescriptor { const HsOnboardingFlowDescriptor._(); static const SurfaceFlowRef<HsOnboardingResult> ref = SurfaceFlowRef<HsOnboardingResult>( id: 'hs_onboarding', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: HsOnboardingFlowDescriptor._decodeResult, ); static HsOnboardingResult _decodeResult(Map<String, Object?> result) { if (result.length != 1 || !result.containsKey('subscribed')) { throw const FormatException('Unexpected flow result keys.'); } final subscribed = result['subscribed']; if (subscribed is! bool) { throw const FormatException( 'Expected result field subscribed to be bool.'); } return HsOnboardingResult(subscribed: subscribed); } } final class HsOnboardingResult { const HsOnboardingResult({required this.subscribed}); final bool subscribed; } final class HsOnboardingActions implements FlowActionRegistry { HsOnboardingActions({ required FlowActionHandler<void, ReminderDecision> enableReminders, }) : flowActionBindings = Map<String, FlowActionBinding<dynamic, dynamic>>.unmodifiable({ 'enableReminders': FlowActionBinding<void, ReminderDecision>( descriptor: enableRemindersDescriptor, actionName: enableRemindersDescriptor.actionName, contractVersion: enableRemindersDescriptor.contractVersion, argsSchema: enableRemindersDescriptor.argsSchema, resultSchema: enableRemindersDescriptor.resultSchema, minClient: enableRemindersDescriptor.minClient, idempotent: enableRemindersDescriptor.idempotent, handler: enableReminders, decodeArgs: (_) {}, encodeResult: (value) => {'granted': value.granted}, ), }); @override final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings; static final FlowActionDescriptor<void, ReminderDecision> enableRemindersDescriptor = FlowActionDescriptor<void, ReminderDecision>( actionName: 'enableReminders', contractVersion: 1, argsSchema: const FlowActionSchema.object({}), resultSchema: const FlowActionSchema.object({ 'granted': FlowActionSchemaField( required: true, schema: FlowActionSchema.bool(), ) }), minClient: 1, idempotent: false, ); }",
+      "contractByteLength": 2143,
+      "sha256": "sha256:2edfdfac5e6adfe32b39dca7d73de583003a4b6c5d76c1aabad8afd104038ba8"
+    },
+    {
+      "path": "lib/onboarding/screens/hs_experience.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'hs_experience.dart'; abstract final class HsExperienceScreenDescriptor { const HsExperienceScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_experience', artifactPath: 'hs_experience.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 262,
+      "sha256": "sha256:69e8a4e61fd561779030b5ac091cbada776a42259a598b420680c6a8894b478d"
+    },
+    {
+      "path": "lib/onboarding/screens/hs_goal.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'hs_goal.dart'; abstract final class HsGoalScreenDescriptor { const HsGoalScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_goal', artifactPath: 'hs_goal.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 232,
+      "sha256": "sha256:d8781b4469bd66abb401f7358b447ddc7e0e5750b10ef26d1c6155840438c20e"
+    },
+    {
+      "path": "lib/onboarding/screens/hs_recap.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'hs_recap.dart'; abstract final class HsRecapScreenDescriptor { const HsRecapScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_recap', artifactPath: 'hs_recap.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 237,
+      "sha256": "sha256:1e6bb05067a829d1f63e693b35c2f80e3e946cc4e7b5bb4c42c3beba78a98b54"
+    },
+    {
+      "path": "lib/onboarding/screens/hs_reminder.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'hs_reminder.dart'; abstract final class HsReminderScreenDescriptor { const HsReminderScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_reminder', artifactPath: 'hs_reminder.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 252,
+      "sha256": "sha256:67a422897eb8416c42eb157e3143a0de32390cb5486dc2511715b24ee9ca535b"
+    },
+    {
+      "path": "lib/onboarding/screens/hs_welcome.rsscreen.g.dart",
+      "kind": "screen-descriptor",
+      "descriptor": "part of 'hs_welcome.dart'; abstract final class HsWelcomeScreenDescriptor { const HsWelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_welcome', artifactPath: 'hs_welcome.rfw', version: 1, minClient: 1, ); }",
+      "contractByteLength": 247,
+      "sha256": "sha256:66a5f40047d451e38463f792e7ceb841b4aa065deac3785061b8fcf9583d8021"
+    }
+  ],
+  "absentOutputPaths": [],
+  "staleOutputPaths": [],
+  "virtualOnlyTransientBuildOutputPaths": [],
+  "retainedTransientShippingOutputPaths": []
+}

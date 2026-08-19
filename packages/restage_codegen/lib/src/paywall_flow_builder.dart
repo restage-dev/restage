@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 
@@ -19,10 +20,203 @@ const String _kDoneState = 'done';
 const String _zeroHash = 'sha256:00000000000000000000000000000000'
     '00000000000000000000000000000000';
 
+final class PaywallNavigationCompilationResult {
+  PaywallNavigationCompilationResult({
+    required Map<String, List<int>> documents,
+    required List<Issue> issues,
+  })  : documents = Map.unmodifiable({
+          for (final entry in documents.entries)
+            entry.key: Uint8List.fromList(entry.value),
+        }),
+        issues = List.unmodifiable(issues);
+
+  final Map<String, Uint8List> documents;
+  final List<Issue> issues;
+}
+
+/// Synthesizes canonical navigation-flow bytes from exact aggregate-compiled
+/// paywall adapters. Paths remain outside this seam; the roster owns them.
+PaywallNavigationCompilationResult compilePaywallNavigationFlows({
+  required String packageName,
+  required Map<String, AssetId> sourceAssets,
+  required Map<String, List<int>> navigationPlans,
+  required Map<String, List<int>> adapterBlobs,
+  required Map<String, List<int>> adapterCapabilitySidecars,
+}) {
+  final issues = <Issue>[];
+  final documents = <String, List<int>>{};
+  final orderedIds = navigationPlans.keys.toList()..sort();
+  for (final id in orderedIds) {
+    final sourceId = sourceAssets[id] ?? AssetId(packageName, 'lib/$id.dart');
+    final navPlanId = AssetId(
+      packageName,
+      '$_kPaywallOutputDir/$id.navplan.json',
+    );
+    final plan = _decodeNavigationPlan(
+      utf8.decode(navigationPlans[id]!),
+      sourceId,
+      navPlanId,
+      issues,
+    );
+    if (plan.entryId != id) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Navigation plan entryId "${plan.entryId}" does not '
+              'match canonical paywall id "$id".',
+          location: sourceId.path,
+        ),
+      );
+      continue;
+    }
+    for (final transition in plan.transitions) {
+      if (navigationPlans.containsKey(transition.pushedId)) {
+        issues.add(
+          Issue(
+            code: IssueCode.navigationFormUnsupported,
+            message: 'Screen navigation deeper than one level is not '
+                'supported: pushed paywall "${transition.pushedId}" also '
+                'navigates.',
+            location: sourceId.path,
+          ),
+        );
+      }
+    }
+    if (issues.isNotEmpty) continue;
+
+    final paywallIds = <String>{
+      id,
+      for (final transition in plan.transitions) transition.pushedId,
+    };
+    final artifacts = <String, ScreenArtifact>{};
+    for (final paywallId in paywallIds) {
+      final screenId = _screenIdFor(paywallId);
+      final blob = adapterBlobs[paywallId];
+      final sidecarBytes = adapterCapabilitySidecars[paywallId];
+      if (blob == null || sidecarBytes == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.missingScreenDescriptor,
+            message: 'Navigation paywall "$id" is missing the aggregate '
+                'adapter family for "$paywallId".',
+            location: sourceId.path,
+          ),
+        );
+        continue;
+      }
+      final sidecar = _decodeCapabilitySidecar(
+        sidecarBytes,
+        AssetId(
+          packageName,
+          '$_kPaywallScreenOutputDir/$screenId.capability.json',
+        ),
+        sourceId,
+        issues,
+      );
+      if (sidecar == null) continue;
+      final blobHash = CapabilitySidecar.hashBlob(blob);
+      if (sidecar.blobSha256 != blobHash) {
+        issues.add(
+          Issue(
+            code: IssueCode.malformedTranslatorOutput,
+            message: 'Aggregate paywall adapter sidecar for "$paywallId" '
+                'does not match its blob.',
+            location: sourceId.path,
+          ),
+        );
+        continue;
+      }
+      artifacts[screenId] = ScreenArtifact(
+        path: '$screenId.rfw',
+        version: 1,
+        schemaVersion: 1,
+        minClient: sidecar.manifest.builtInFloor,
+        contentHash: FlowContentHash.compute(blob),
+      );
+    }
+    if (issues.isNotEmpty) continue;
+
+    final entryScreen = _screenIdFor(id);
+    final transitions = <String, FlowTransition>{};
+    for (final transition in plan.transitions) {
+      if (transitions.containsKey(transition.event)) {
+        issues.add(
+          Issue(
+            code: IssueCode.malformedTranslatorOutput,
+            message: 'Navigation plan contains duplicate event '
+                '"${transition.event}".',
+            location: sourceId.path,
+          ),
+        );
+        continue;
+      }
+      transitions[transition.event] = FlowTransition.goto(
+        _screenIdFor(transition.pushedId),
+      );
+    }
+    if (transitions.containsKey(plan.terminatingEvent)) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Navigation plan terminating event '
+              '"${plan.terminatingEvent}" conflicts with a push event.',
+          location: sourceId.path,
+        ),
+      );
+      continue;
+    }
+    transitions[plan.terminatingEvent] = const FlowTransition.goto(
+      _kDoneState,
+    );
+    final states = <String, FlowState>{
+      entryScreen: ScreenFlowState(screen: entryScreen, on: transitions),
+      for (final screenId in artifacts.keys.where(
+        (candidate) => candidate != entryScreen,
+      ))
+        screenId: ScreenFlowState(screen: screenId, on: const {}),
+      _kDoneState: const EndFlowState(result: {}),
+    };
+    final floor = artifacts.values.fold<int>(
+      kBaselineCatalogVersion,
+      (current, artifact) =>
+          artifact.minClient > current ? artifact.minClient : current,
+    );
+    final document = FlowDocument(
+      flow: id,
+      version: 1,
+      schemaVersion: 1,
+      minClient: floor,
+      initial: entryScreen,
+      screenArtifacts: artifacts,
+      states: states,
+    );
+    try {
+      FlowDocumentValidation.checkValid(document);
+      documents[id] = FlowDocumentCodec.encodeCanonicalJson(document);
+    } on Object catch (error) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Generated paywall flow document failed validation: '
+              '$error',
+          location: sourceId.path,
+        ),
+      );
+    }
+  }
+  return PaywallNavigationCompilationResult(
+    documents: issues.isEmpty ? documents : const {},
+    issues: issues,
+  );
+}
+
 final class PaywallFlowBuilder implements Builder {
   PaywallFlowBuilder(this.options);
 
   final BuilderOptions options;
+
+  bool get _aggregateOwnsCanonical =>
+      options.config['aggregate_canonical_owner'] == true;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -34,6 +228,19 @@ final class PaywallFlowBuilder implements Builder {
   @override
   Future<void> build(BuildStep buildStep) async {
     final assetId = buildStep.inputId;
+    if (_aggregateOwnsCanonical &&
+        await buildStep.resolver.isLibrary(assetId)) {
+      final library = await buildStep.resolver.libraryFor(
+        assetId,
+        allowSyntaxErrors: true,
+      );
+      final inspection = await visitPaywallSources(library, assetId);
+      if (inspection.issues.isNotEmpty) _surfaceIssues(inspection.issues);
+      if (inspection.sources.isNotEmpty &&
+          inspection.sources.every((source) => source.isCanonical)) {
+        return;
+      }
+    }
     final stem = p.basenameWithoutExtension(assetId.path);
     final navPlanId = AssetId(
       assetId.package,
@@ -229,11 +436,62 @@ Future<ScreenArtifact> _artifactFor(
     );
   }
   final bytes = await buildStep.readAsBytes(rfwId);
+  final capabilityPath = '$_kPaywallScreenOutputDir/$screenId.capability.json';
+  final capabilityId = AssetId(sourceId.package, capabilityPath);
+  if (!await buildStep.canRead(capabilityId)) {
+    issues.add(
+      Issue(
+        code: IssueCode.missingScreenDescriptor,
+        message: 'Missing paywall screen capability sidecar '
+            '${capabilityId.path}.',
+        location: sourceId.path,
+      ),
+    );
+  } else {
+    final capability = await buildStep.readAsBytes(capabilityId);
+    final sidecar = _decodeCapabilitySidecar(
+      capability,
+      capabilityId,
+      sourceId,
+      issues,
+    );
+    if (sidecar != null &&
+        sidecar.blobSha256 != CapabilitySidecar.hashBlob(bytes)) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Paywall screen capability sidecar ${capabilityId.path} '
+              'does not match ${rfwId.path}.',
+          location: sourceId.path,
+        ),
+      );
+    }
+    final manifest =
+        _deriveScreenCapabilities(bytes, catalog, sourceId, issues);
+    if (sidecar != null && manifest != null && sidecar.manifest != manifest) {
+      issues.add(
+        Issue(
+          code: IssueCode.malformedTranslatorOutput,
+          message: 'Paywall screen capability sidecar ${capabilityId.path} '
+              'does not match the capabilities derived from ${rfwId.path}.',
+          location: sourceId.path,
+        ),
+      );
+    }
+    return ScreenArtifact(
+      path: artifactPath,
+      version: 1,
+      schemaVersion: 1,
+      minClient: manifest?.builtInFloor ?? kBaselineCatalogVersion,
+      contentHash: FlowContentHash.compute(bytes),
+    );
+  }
+  final manifest = _deriveScreenCapabilities(bytes, catalog, sourceId, issues);
   return ScreenArtifact(
     path: artifactPath,
     version: 1,
     schemaVersion: 1,
-    minClient: _deriveScreenFloor(bytes, catalog, sourceId, issues),
+    minClient: manifest?.builtInFloor ?? kBaselineCatalogVersion,
     contentHash: FlowContentHash.compute(bytes),
   );
 }
@@ -247,7 +505,7 @@ Future<ScreenArtifact> _artifactFor(
 /// fatal diagnostic (e.g. a custom library without a declared capability
 /// version), surfaces the issue — which discards the document — and falls back
 /// to the baseline rather than shipping an under-declared floor.
-int _deriveScreenFloor(
+CapabilityManifest? _deriveScreenCapabilities(
   List<int> bytes,
   Catalog catalog,
   AssetId sourceId,
@@ -267,14 +525,60 @@ int _deriveScreenFloor(
         location: sourceId.path,
       ),
     );
-    return kBaselineCatalogVersion;
+    return null;
   }
   final derivation = deriveCapabilityManifest(library, catalog);
   if (derivation.issues.isNotEmpty) {
     issues.addAll(derivation.issues);
-    return kBaselineCatalogVersion;
+    return null;
   }
-  return derivation.manifest!.builtInFloor;
+  return derivation.manifest;
+}
+
+CapabilitySidecar? _decodeCapabilitySidecar(
+  List<int> bytes,
+  AssetId capabilityId,
+  AssetId sourceId,
+  List<Issue> issues,
+) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(utf8.decode(bytes));
+  } on Object catch (error) {
+    issues.add(
+      Issue(
+        code: IssueCode.malformedTranslatorOutput,
+        message: 'Could not decode paywall screen capability sidecar '
+            '${capabilityId.path}: $error.',
+        location: sourceId.path,
+      ),
+    );
+    return null;
+  }
+  if (decoded is! Map) {
+    issues.add(
+      Issue(
+        code: IssueCode.malformedTranslatorOutput,
+        message: 'Paywall screen capability sidecar ${capabilityId.path} '
+            'must be a JSON object.',
+        location: sourceId.path,
+      ),
+    );
+    return null;
+  }
+  try {
+    return CapabilitySidecar.fromJson(Map<String, dynamic>.from(decoded));
+  } on Object catch (error) {
+    issues.add(
+      Issue(
+        code: IssueCode.malformedTranslatorOutput,
+        message: 'Invalid paywall screen capability sidecar '
+            '${capabilityId.path}: $error.',
+        location: sourceId.path,
+      ),
+    );
+    return null;
+  }
 }
 
 // Returned only when issues were raised, so the caller discards it before any

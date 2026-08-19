@@ -45,8 +45,14 @@ dependencies:
     path: ../rfw_catalog_schema
 
 dev_dependencies:
+  # Directly imported by the persistent build_runner proof; keep the
+  # workspace-resolved version bounded to the currently locked major.
+  build_config: ">=1.3.0 <2.0.0"
   build_runner: ">=2.4.0 <3.0.0"
   build_test: ">=2.2.0 <4.0.0"
+  # Directly imported by the persistent build_runner proof; keep the
+  # workspace-resolved version bounded to the currently locked major.
+  built_collection: ">=5.1.1 <6.0.0"
   # Resolves `package:intl/` in the recognizer tests so NumberFormat
   # constructions parse as resolved InstanceCreationExpressions (the
   # element-gated recognition path); not a runtime dependency of the toolchain.

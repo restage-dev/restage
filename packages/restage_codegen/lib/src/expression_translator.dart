@@ -2181,8 +2181,9 @@ final class ExpressionTranslator {
     }
     final valueExpr = fmtArgs.single;
 
-    // Numeric-substitution gate: the value must render identically through the substitute's
-    // `double` value slot. `NumberFormat.format` accepts `num`, so the original
+    // Numeric-substitution gate: the value must render identically through
+    // the substitute's `double` value slot. `NumberFormat.format` accepts
+    // `num`, so the original
     // idiom formats an `int` fine; the catalog slot decodes with
     // `source.v<double>`, which yields null for a runtime `int` (an empty
     // render). A numeric literal is double-coerced at emit and is safe; a
@@ -3197,15 +3198,19 @@ final class ExpressionTranslator {
       return null;
     }
     final type = element.type;
-    if (type is! InterfaceType ||
-        type.element.name != 'OnboardingEvent' ||
-        !libraryUriMatchesOrigin(
-          type.element.library.identifier,
-          _kRestageFlutterSdkLibraryOrigin,
-        )) {
+    if (type is! InterfaceType || !_isRestageSurfaceEvent(type.element)) {
       return null;
     }
     return element;
+  }
+
+  bool _isRestageSurfaceEvent(InterfaceElement element) {
+    final name = element.name;
+    return (name == 'SurfaceEvent' || name == 'OnboardingEvent') &&
+        libraryUriMatchesOrigin(
+          element.library.identifier,
+          _kRestageFlutterSdkLibraryOrigin,
+        );
   }
 
   String? _constDescriptorId(Expression expr) {

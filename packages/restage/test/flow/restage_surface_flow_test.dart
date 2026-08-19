@@ -10,7 +10,7 @@ const _messageFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.message,
+  surface: Surface.message,
   decodeResult: FirstRunResult.decode,
 );
 
@@ -18,7 +18,7 @@ const _surveyFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.survey,
+  surface: Surface.survey,
   decodeResult: FirstRunResult.decode,
 );
 
@@ -26,7 +26,7 @@ const _messageSecondFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'second_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.message,
+  surface: Surface.message,
   decodeResult: FirstRunResult.decode,
 );
 
@@ -34,7 +34,7 @@ const _surveySecondFlowRef = SurfaceFlowRef<FirstRunResult>(
   id: 'second_run',
   version: 1,
   minClient: 3,
-  surfaceType: SurfaceType.survey,
+  surface: Surface.survey,
   decodeResult: FirstRunResult.decode,
 );
 
@@ -199,8 +199,8 @@ void main() {
   });
 
   for (final testCase in const [
-    (surface: SurfaceType.message, ref: _messageFlowRef),
-    (surface: SurfaceType.survey, ref: _surveyFlowRef),
+    (surface: Surface.message, ref: _messageFlowRef),
+    (surface: Surface.survey, ref: _surveyFlowRef),
   ]) {
     testWidgets(
         'RestageSurfaceFlow renders a ${testCase.surface.wireName} descriptor '

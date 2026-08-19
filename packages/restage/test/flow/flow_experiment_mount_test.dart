@@ -411,6 +411,7 @@ void main() {
           id: 'child',
           version: 1,
           minClient: 3,
+          surface: Surface.onboarding,
           decodeResult: _decodeMap,
         ),
       );
@@ -514,6 +515,7 @@ void main() {
           id: 'first_run',
           version: 2,
           minClient: 3,
+          surface: Surface.onboarding,
           decodeResult: _decodeMap,
         ),
       );
@@ -764,7 +766,7 @@ void main() {
   });
 
   test('surface and delivery-mode matrix uses one shared invariant', () async {
-    for (final surface in SurfaceType.values) {
+    for (final surface in Surface.values) {
       for (final mode in FlowDeliveryMode.values) {
         final source = _MutableSeedSource(
           surfaceType: surface,
@@ -929,11 +931,11 @@ void _expectCandidateSeedDrift(FlowCandidatePrefetchOutcome outcome) {
 
 final class _MutableSeedSource {
   _MutableSeedSource({
-    this.surfaceType = SurfaceType.onboarding,
+    this.surfaceType = Surface.onboarding,
     this.deliveryMode = FlowDeliveryMode.typed,
   });
 
-  final SurfaceType surfaceType;
+  final Surface surfaceType;
   final FlowDeliveryMode deliveryMode;
   int assignmentKeyProviderGeneration = 1;
   int analyticsIdentityGeneration = 1;
@@ -958,7 +960,7 @@ final class _MutableSeedSource {
         id: 'first_run',
         version: 1,
         minClient: 3,
-        surfaceType: surfaceType,
+        surface: surfaceType,
         decodeResult: (value) => value,
       ),
       deliveryMode: deliveryMode,

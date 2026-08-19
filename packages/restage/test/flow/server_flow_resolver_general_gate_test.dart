@@ -18,6 +18,7 @@ const flowRef = OnboardingFlowRef<Map<String, Object?>>(
   id: 'first_run',
   version: 1,
   minClient: _refFloor,
+  surface: Surface.general,
   decodeResult: _decodeMapResult,
 );
 
@@ -202,7 +203,7 @@ Uint8List _envelope(FlowDocument document, Uint8List screenBytes) {
     screenBlobs: {'welcome': screenBytes},
   );
   final surface = SurfaceDocument(
-    surfaceType: SurfaceType.onboarding,
+    surfaceType: Surface.general,
     surfaceSlug: document.flow,
     version: document.version,
     minClient: document.minClient,
@@ -214,9 +215,9 @@ Uint8List _envelope(FlowDocument document, Uint8List screenBytes) {
 
 AssetBundle _bundleFor(FlowDocument document, Uint8List screenBytes) {
   return _TestBundle({
-    'assets/onboarding/flows/first_run.flow.json':
+    'assets/general/flows/first_run.flow.json':
         Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
-    'assets/onboarding/screens/welcome.rfw': screenBytes,
+    'assets/general/screens/welcome.rfw': screenBytes,
   });
 }
 

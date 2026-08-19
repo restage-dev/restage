@@ -87,6 +87,7 @@ abstract final class FirstRunFlowDescriptor {
     id: 'first_run',
     version: 1,
     minClient: 3,
+    surface: Surface.onboarding,
     decodeResult: _decodeResult,
   );
 
@@ -201,7 +202,7 @@ final class PublicSurfaceUsage extends StatelessWidget {
     id: 'first_run_message',
     version: 1,
     minClient: 3,
-    surfaceType: SurfaceType.message,
+    surface: Surface.message,
     decodeResult: FirstRunFlowDescriptor._decodeResult,
   );
 

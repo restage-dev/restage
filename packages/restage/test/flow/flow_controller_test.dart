@@ -2533,7 +2533,7 @@ void main() {
         id: 'first_run',
         version: 1,
         minClient: 3,
-        surfaceType: SurfaceType.message,
+        surface: Surface.message,
         decodeResult: _FirstRunResult.decode,
       );
       final controller = RestageFlowController<_FirstRunResult>(
@@ -2556,7 +2556,7 @@ void main() {
       ]);
       expect(
         resolver.requested.map((flow) => flow.surfaceType),
-        everyElement(SurfaceType.message),
+        everyElement(Surface.message),
       );
     });
 
@@ -4060,6 +4060,7 @@ const _flowRef = OnboardingFlowRef<_FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
+  surface: Surface.onboarding,
   decodeResult: _FirstRunResult.decode,
 );
 

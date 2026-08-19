@@ -35,6 +35,7 @@ const firstRunFlowRef = OnboardingFlowRef<FirstRunResult>(
   id: 'first_run',
   version: 1,
   minClient: 3,
+  surface: Surface.onboarding,
   decodeResult: FirstRunResult.decode,
 );
 

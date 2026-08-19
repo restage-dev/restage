@@ -28,23 +28,24 @@ import 'package:test/test.dart';
 ///   headerJson keys: contentHash, minClient, publishedAtMicros, surfaceSlug,
 ///   surfaceType, version
 void main() {
-  group('SurfaceType', () {
+  group('Surface', () {
     test('wireName round-trips', () {
-      for (final type in SurfaceType.values) {
-        expect(SurfaceType.fromWireName(type.wireName), type);
+      for (final type in Surface.values) {
+        expect(Surface.fromWireName(type.wireName), type);
       }
     });
 
-    test('the four surface kinds have stable wire names', () {
-      expect(SurfaceType.onboarding.wireName, 'onboarding');
-      expect(SurfaceType.message.wireName, 'message');
-      expect(SurfaceType.survey.wireName, 'survey');
-      expect(SurfaceType.paywall.wireName, 'paywall');
+    test('the five surface kinds preserve the original four wire names', () {
+      expect(Surface.onboarding.wireName, 'onboarding');
+      expect(Surface.message.wireName, 'message');
+      expect(Surface.survey.wireName, 'survey');
+      expect(Surface.paywall.wireName, 'paywall');
+      expect(Surface.general.wireName, 'general');
     });
 
     test('an unknown wire name is a FormatException', () {
       expect(
-        () => SurfaceType.fromWireName('not_a_surface'),
+        () => Surface.fromWireName('not_a_surface'),
         throwsFormatException,
       );
     });
@@ -359,7 +360,7 @@ void main() {
       final v1Bytes =
           _readGoldenBytes('v1/paywall.surface_envelope.golden.bin');
       final document = SurfaceDocumentCodec.decode(v1Bytes);
-      expect(document.surfaceType, SurfaceType.paywall);
+      expect(document.surfaceType, Surface.paywall);
       expect(document.requiredLibraries, isEmpty);
       expect(document.payload, isA<BlobSurfacePayload>());
     });
@@ -424,7 +425,7 @@ void main() {
       final payload = _announcementPayload();
       expect(
         () => SurfaceDocument(
-          surfaceType: SurfaceType.onboarding,
+          surfaceType: Surface.onboarding,
           surfaceSlug: 'announcement',
           version: 1,
           minClient: payload.flowDocument.minClient + 1,
@@ -440,7 +441,7 @@ void main() {
       final payload = _paywallBlobPayload();
       expect(
         () => SurfaceDocument(
-          surfaceType: SurfaceType.paywall,
+          surfaceType: Surface.paywall,
           surfaceSlug: 'pro_upgrade',
           version: 1,
           minClient: payload.minClient + 1,
@@ -480,7 +481,7 @@ void main() {
         SurfaceDocumentCodec.encode(original),
       );
       expect(decoded, original);
-      expect(decoded.surfaceType, SurfaceType.paywall);
+      expect(decoded.surfaceType, Surface.paywall);
       expect(decoded.payload, isA<BlobSurfacePayload>());
     });
 
@@ -589,7 +590,7 @@ void main() {
 
   group('SurfaceDocumentCodec — formatVersion 2 (requiredLibraries)', () {
     SurfaceDocument paywallWithLibraries() => SurfaceDocument(
-          surfaceType: SurfaceType.paywall,
+          surfaceType: Surface.paywall,
           surfaceSlug: 'pro_upgrade',
           version: 1,
           minClient: 3,
@@ -800,7 +801,7 @@ void main() {
       );
       expect(
         () => SurfaceDocument(
-          surfaceType: SurfaceType.paywall,
+          surfaceType: Surface.paywall,
           surfaceSlug: 'pro_upgrade',
           version: 1,
           minClient: 3,
@@ -862,7 +863,7 @@ SurfaceDocument _announcementDocument({
 }) {
   final p = payload ?? _announcementPayload();
   return SurfaceDocument(
-    surfaceType: SurfaceType.onboarding,
+    surfaceType: Surface.onboarding,
     surfaceSlug: 'announcement',
     version: version,
     minClient: p.flowDocument.minClient,
@@ -882,7 +883,7 @@ BlobSurfacePayload _paywallBlobPayload() => BlobSurfacePayload(
 SurfaceDocument _paywallDocument({int version = 1}) {
   final p = _paywallBlobPayload();
   return SurfaceDocument(
-    surfaceType: SurfaceType.paywall,
+    surfaceType: Surface.paywall,
     surfaceSlug: 'pro_upgrade',
     version: version,
     minClient: p.minClient,
