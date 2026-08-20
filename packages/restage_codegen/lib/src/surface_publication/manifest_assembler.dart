@@ -1,6 +1,7 @@
 // Pure publication-manifest assembly from compiled artifact facts.
 // ignore_for_file: public_member_api_docs
 
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -73,15 +74,32 @@ final class SurfacePublicationAssemblyInput {
     required this.sourceKind,
     required this.payloadKind,
     required Iterable<SurfacePublicationArtifactInput> artifacts,
+    Iterable<String> sources = const <String>[],
     this.flowFacts,
     this.screenContractFacts,
-  }) : artifacts = List.unmodifiable(artifacts);
+  })  : artifacts = List.unmodifiable(artifacts),
+        // Ordered by the same rule as every other generated-path list in
+        // this manifest family, so `sources` cannot be the one member whose
+        // canonical byte order disagrees with the rest.
+        sources = List.unmodifiable(
+          SplayTreeSet<String>(compareGeneratedOutputPaths)..addAll(sources),
+        );
 
   final Surface surface;
   final String slug;
   final SurfaceSourceKind sourceKind;
   final SurfacePayloadKind payloadKind;
   final List<SurfacePublicationArtifactInput> artifacts;
+
+  /// Package-relative authoring files this publication is compiled from,
+  /// sorted and de-duplicated here so callers may supply them in any order.
+  ///
+  /// Defaults to empty for a caller that has no declaration to attribute.
+  /// Every compiler assembly site supplies them, so an empty list reaching
+  /// the manifest means the entry was built somewhere other than the
+  /// compiler.
+  final List<String> sources;
+
   final SurfacePublicationFlowFacts? flowFacts;
   final SurfacePublicationScreenContractFacts? screenContractFacts;
 }
@@ -169,6 +187,7 @@ abstract final class SurfacePublicationManifestAssembler {
                 artifact.declaration,
             ],
             publication: publication.publication,
+            sources: publication.sources,
           ),
       ],
     );
@@ -406,6 +425,7 @@ abstract final class SurfacePublicationManifestAssembler {
       publication: publication,
       artifacts: List.unmodifiable(artifacts),
       payload: payload,
+      sources: input.sources,
     );
   }
 }
@@ -415,11 +435,13 @@ final class _PreparedPublication {
     required this.publication,
     required this.artifacts,
     required this.payload,
+    required this.sources,
   });
 
   final SurfacePublicationV1 publication;
   final List<_PreparedArtifact> artifacts;
   final SurfacePayload payload;
+  final List<String> sources;
 }
 
 final class _PreparedArtifact {

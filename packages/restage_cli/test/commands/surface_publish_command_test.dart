@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/cli.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
+import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -30,12 +31,25 @@ void main() {
     if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
-  Future<int> runArgs(List<String> args, {http.Client? client}) {
+  Future<int> runArgs(
+    List<String> args, {
+    http.Client? client,
+    List<String>? answers,
+  }) {
+    final scripted = List<String>.from(answers ?? const <String>[]);
     return RestageCli(
       stdout: stdout,
       stderr: stderr,
       credentialStore: store,
       httpClient: client,
+      interactiveFactory: answers == null
+          ? null
+          : (_) => RealInteractive(
+              readLine: () async =>
+                  scripted.isEmpty ? null : scripted.removeAt(0),
+              stdout: stdout,
+              isInteractiveOverride: true,
+            ),
     ).run(args);
   }
 
@@ -47,6 +61,31 @@ void main() {
       'mobile',
       defaultEnvironment: 'dev',
     );
+  }
+
+  /// The slug each scripted publish call carried, in call order.
+  List<String> publishedSlugs(List<http.Request> requests) =>
+      requests.map(publishedSlugOf).toList();
+
+  /// Seed two surfaces declared in one file plus one declared elsewhere, so
+  /// a path match can be wrong by over- or under-selecting.
+  Future<void> seedSharedSourceFile() async {
+    final upsell = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'upsell',
+      sources: const <String>['lib/paywalls/bundle.dart'],
+    );
+    final crossSell = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'cross_sell',
+      sources: const <String>['lib/paywalls/bundle.dart'],
+    );
+    final solo = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'solo',
+      sources: const <String>['lib/paywalls/solo.dart'],
+    );
+    await writeGeneratedOutput(tempDir, [crossSell, solo, upsell]);
   }
 
   test(
@@ -337,4 +376,330 @@ void main() {
       contains('No generated publication output index'),
     );
   });
+
+  test('a .dart path publishes the one surface declared in it', () async {
+    await seedProject();
+    await seedSharedSourceFile();
+    final requests = <http.Request>[];
+    final client = scriptedHttpClient([
+      (request) {
+        requests.add(request);
+        return publishSucceeded('solo');
+      },
+    ]);
+
+    final exitCode = await runArgs([
+      'surface',
+      'publish',
+      'lib/paywalls/solo.dart',
+      '-C',
+      tempDir.path,
+    ], client: client);
+
+    expect(exitCode, 0);
+    expect(publishedSlugs(requests), <String>['solo']);
+  });
+
+  test('an absolute path resolves the same publication', () async {
+    await seedProject();
+    await seedSharedSourceFile();
+    final requests = <http.Request>[];
+    final client = scriptedHttpClient([
+      (request) {
+        requests.add(request);
+        return publishSucceeded('solo');
+      },
+    ]);
+
+    final exitCode = await runArgs([
+      'surface',
+      'publish',
+      p.join(tempDir.path, 'lib', 'paywalls', 'solo.dart'),
+      '-C',
+      tempDir.path,
+    ], client: client);
+
+    expect(exitCode, 0);
+    expect(publishedSlugs(requests), <String>['solo']);
+  });
+
+  test(
+    'an ambiguous path without a terminal fails with exact commands',
+    () async {
+      await seedProject();
+      await seedSharedSourceFile();
+      final client = scriptedHttpClient([]);
+
+      final exitCode = await runArgs([
+        'surface',
+        'publish',
+        'lib/paywalls/bundle.dart',
+        '-C',
+        tempDir.path,
+        '--non-interactive',
+      ], client: client);
+
+      expect(exitCode, 1);
+      final message = stderr.toString();
+      expect(message, contains('restage surface publish cross_sell'));
+      expect(message, contains('restage surface publish upsell'));
+      expect(
+        message,
+        contains('restage surface publish lib/paywalls/bundle.dart --all'),
+      );
+      expect(message, isNot(contains('solo')));
+    },
+  );
+
+  test('the printed commands stay runnable when a slug repeats across '
+      'categories', () async {
+    await seedProject();
+    // The same slug in two categories: manifest identity is surface + slug,
+    // so `publish welcome` alone would come back ambiguous.
+    final paywall = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'welcome',
+      sources: const <String>['lib/shared/welcome.dart'],
+    );
+    final message = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'welcome',
+      sources: const <String>['lib/shared/welcome.dart'],
+      surface: Surface.message,
+    );
+    await writeGeneratedOutput(tempDir, [message, paywall]);
+
+    final exitCode = await runArgs([
+      'surface',
+      'publish',
+      'lib/shared/welcome.dart',
+      '-C',
+      tempDir.path,
+      '--non-interactive',
+    ], client: scriptedHttpClient([]));
+
+    expect(exitCode, 1);
+    final printed = stderr.toString();
+    expect(printed, contains('restage surface publish welcome --type message'));
+    expect(printed, contains('restage surface publish welcome --type paywall'));
+  });
+
+  test('--all publishes every surface the file declares', () async {
+    await seedProject();
+    await seedSharedSourceFile();
+    final requests = <http.Request>[];
+    final client = scriptedHttpClient([
+      for (final slug in <String>['cross_sell', 'upsell'])
+        (request) {
+          requests.add(request);
+          return publishSucceeded(slug);
+        },
+    ]);
+
+    final exitCode = await runArgs([
+      'surface',
+      'publish',
+      'lib/paywalls/bundle.dart',
+      '-C',
+      tempDir.path,
+      '--all',
+    ], client: client);
+
+    expect(exitCode, 0);
+    expect(publishedSlugs(requests), <String>['cross_sell', 'upsell']);
+    expect(stdout.toString(), contains('Published 2 surfaces to dev.'));
+  });
+
+  test('an ambiguous path prompts, and the pick selects one surface', () async {
+    await seedProject();
+    await seedSharedSourceFile();
+    final requests = <http.Request>[];
+    final client = scriptedHttpClient([
+      (request) {
+        requests.add(request);
+        return publishSucceeded('upsell');
+      },
+    ]);
+
+    final exitCode = await runArgs(
+      ['surface', 'publish', 'lib/paywalls/bundle.dart', '-C', tempDir.path],
+      client: client,
+      answers: <String>['2'],
+    );
+
+    expect(exitCode, 0);
+    expect(publishedSlugs(requests), <String>['upsell']);
+    expect(stdout.toString(), contains('paywall/upsell'));
+  });
+
+  test('the prompt also offers publishing every surface in the file', () async {
+    await seedProject();
+    await seedSharedSourceFile();
+    final requests = <http.Request>[];
+    final client = scriptedHttpClient([
+      for (final slug in <String>['cross_sell', 'upsell'])
+        (request) {
+          requests.add(request);
+          return publishSucceeded(slug);
+        },
+    ]);
+
+    final exitCode = await runArgs(
+      ['surface', 'publish', 'lib/paywalls/bundle.dart', '-C', tempDir.path],
+      client: client,
+      answers: <String>['3'],
+    );
+
+    expect(exitCode, 0);
+    expect(publishedSlugs(requests), <String>['cross_sell', 'upsell']);
+    expect(
+      stdout.toString(),
+      contains('all 2 surfaces produced by lib/paywalls/bundle.dart'),
+    );
+  });
+
+  test('--all reports the capability warning for every surface, not just the '
+      'first', () async {
+    await seedProject();
+    // Distinct minClient values, so a warning emitted for the wrong surface
+    // is distinguishable from one emitted for the right surface.
+    final first = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'aaa',
+      minClient: 2,
+      sources: const <String>['lib/paywalls/bundle.dart'],
+    );
+    final second = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'bbb',
+      minClient: 5,
+      sources: const <String>['lib/paywalls/bundle.dart'],
+    );
+    await writeGeneratedOutput(tempDir, [first, second]);
+
+    final client = scriptedHttpClient([
+      for (final slug in <String>['aaa', 'bbb'])
+        (request) => publishSucceeded(slug),
+    ]);
+
+    final exitCode = await runArgs([
+      'surface',
+      'publish',
+      'lib/paywalls/bundle.dart',
+      '-C',
+      tempDir.path,
+      '--all',
+    ], client: client);
+
+    expect(exitCode, 0);
+    final warnings = stderr.toString();
+    expect(warnings, contains('catalog content version 2'));
+    expect(warnings, contains('catalog content version 5'));
+  });
+
+  test(
+    'a transport failure mid-run reports the same partial-run summary',
+    () async {
+      await seedProject();
+      final first = await seedGeneratedPaywall(
+        tempDir,
+        slug: 'aaa',
+        sources: const <String>['lib/paywalls/bundle.dart'],
+      );
+      final second = await seedGeneratedPaywall(
+        tempDir,
+        slug: 'bbb',
+        sources: const <String>['lib/paywalls/bundle.dart'],
+      );
+      await writeGeneratedOutput(tempDir, [first, second]);
+
+      final client = scriptedHttpClient([
+        (request) => publishSucceeded('aaa'),
+        // A malformed body exercises the FormatException arm, which reports
+        // through a different catch than the typed-API arm.
+        (request) => http.Response('not json', 200),
+      ]);
+
+      final exitCode = await runArgs([
+        'surface',
+        'publish',
+        'lib/paywalls/bundle.dart',
+        '-C',
+        tempDir.path,
+        '--all',
+      ], client: client);
+
+      expect(exitCode, isNot(0));
+      expect(stderr.toString(), contains('Published 1 of 2; failed on bbb.'));
+    },
+  );
+
+  test('--all is refused for an id, which already names one surface', () async {
+    await seedProject();
+    await seedSharedSourceFile();
+    final client = scriptedHttpClient([]);
+
+    final exitCode = await runArgs([
+      'surface',
+      'publish',
+      'solo',
+      '-C',
+      tempDir.path,
+      '--all',
+    ], client: client);
+
+    expect(exitCode, 1);
+    expect(stderr.toString(), contains('is a surface id'));
+  });
+
+  test(
+    'a failure mid-run reports what published and what was not attempted',
+    () async {
+      await seedProject();
+      final first = await seedGeneratedPaywall(
+        tempDir,
+        slug: 'aaa',
+        sources: const <String>['lib/paywalls/bundle.dart'],
+      );
+      final second = await seedGeneratedPaywall(
+        tempDir,
+        slug: 'bbb',
+        sources: const <String>['lib/paywalls/bundle.dart'],
+      );
+      final third = await seedGeneratedPaywall(
+        tempDir,
+        slug: 'ccc',
+        sources: const <String>['lib/paywalls/bundle.dart'],
+      );
+      await writeGeneratedOutput(tempDir, [first, second, third]);
+
+      var calls = 0;
+      final client = scriptedHttpClient([
+        (request) {
+          calls++;
+          return publishSucceeded('aaa');
+        },
+        (request) {
+          calls++;
+          return http.Response('{"error":"boom"}', 500);
+        },
+      ]);
+
+      final exitCode = await runArgs([
+        'surface',
+        'publish',
+        'lib/paywalls/bundle.dart',
+        '-C',
+        tempDir.path,
+        '--all',
+      ], client: client);
+
+      expect(exitCode, isNot(0));
+      expect(calls, 2);
+      expect(
+        stderr.toString(),
+        contains('Published 1 of 3; failed on bbb; not attempted: ccc.'),
+      );
+    },
+  );
 }

@@ -1,7 +1,7 @@
 // V1 publication and delivery DTOs mirror their frozen wire fields.
 // ignore_for_file: public_member_api_docs, prefer_constructors_over_static_methods
 // ignore_for_file: prefer_interpolation_to_compose_strings, require_trailing_commas
-// ignore_for_file: lines_longer_than_80_chars, use_raw_strings
+// ignore_for_file: lines_longer_than_80_chars
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -11,6 +11,7 @@ import 'package:restage_shared/src/capability/capability_manifest.dart';
 import 'package:restage_shared/src/capability/capability_sidecar.dart';
 import 'package:restage_shared/src/flow_document/flow_document.dart';
 import 'package:restage_shared/src/flow_document/flow_document_codec.dart';
+import 'package:restage_shared/src/generated_output_path_order.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_contract_fingerprint.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_event_schema.dart';
@@ -403,6 +404,8 @@ final class SurfacePublicationManifestEntryV1 {
   factory SurfacePublicationManifestEntryV1({
     required List<SurfacePublicationArtifactV1> artifacts,
     required SurfacePublicationV1 publication,
+    List<String> sources = const <String>[],
+    String path = 'entry',
   }) {
     if (artifacts.isEmpty) {
       throw const FormatException('A publication entry requires artifacts.');
@@ -414,26 +417,62 @@ final class SurfacePublicationManifestEntryV1 {
             'Duplicate publication artifact path "${artifact.path}".');
       }
     }
+    _validateAuthoringSources(sources, path);
     _validateArtifactShape(artifacts, publication);
     return SurfacePublicationManifestEntryV1._(
       artifacts: List.unmodifiable(artifacts),
       publication: publication,
+      sources: List.unmodifiable(sources),
     );
   }
 
   const SurfacePublicationManifestEntryV1._({
     required this.artifacts,
     required this.publication,
+    required this.sources,
   });
 
   final List<SurfacePublicationArtifactV1> artifacts;
   final SurfacePublicationV1 publication;
+
+  /// Package-relative authoring sources this publication was compiled from,
+  /// in strictly ascending order.
+  ///
+  /// This is local build provenance, not wire state: it never reaches the
+  /// upload request. It exists so a developer can name a publication by the
+  /// file they are looking at and have the manifest, not a source scan,
+  /// resolve which publication that is.
+  ///
+  /// The set is wider than "files that declare this publication". A flow
+  /// lists the file declaring it plus the declaring file of every screen in
+  /// its closure, so pointing at any screen of a flow resolves the flow that
+  /// publishes it, and each declaration contributes both its own file and its
+  /// owning library, which differ when a surface is declared in a part.
+  ///
+  /// Empty when nothing was recorded — in practice, a manifest generated
+  /// before this field existed.
+  final List<String> sources;
+
+  /// This entry with its artifacts in canonical order.
+  ///
+  /// Canonicalization lives on the type, beside the validation that asserts
+  /// it. A caller that rebuilt the entry field by field to sort one list
+  /// would silently drop every field it forgot to transcribe, and an omitted
+  /// optional field produces no decode error and no wire-format error — so
+  /// nothing downstream would catch it.
+  SurfacePublicationManifestEntryV1 canonical() =>
+      SurfacePublicationManifestEntryV1(
+        publication: publication,
+        sources: sources,
+        artifacts: [...artifacts]..sort(_compareArtifactsCanonically),
+      );
 
   Map<String, Object?> toJson() => <String, Object?>{
         'artifacts': <Object?>[
           for (final artifact in artifacts) artifact.toJson(),
         ],
         'publication': publication.toJson(),
+        if (sources.isNotEmpty) 'sources': <Object?>[...sources],
       };
 
   static SurfacePublicationManifestEntryV1 fromJson(
@@ -441,12 +480,15 @@ final class SurfacePublicationManifestEntryV1 {
     required String path,
   }) {
     final json = SurfaceContractJson.requireObject(value, path);
-    SurfaceContractJson.exactKeys(
-        json, const {'artifacts', 'publication'}, path);
+    SurfaceContractJson.allowedKeys(
+        json, const {'artifacts', 'publication', 'sources'}, path);
     final rawArtifacts = SurfaceContractJson.requireList(
       SurfaceContractJson.requiredValue(json, 'artifacts', path),
       '$path.artifacts',
     );
+    final rawSources = json.containsKey('sources')
+        ? SurfaceContractJson.requireList(json['sources'], '$path.sources')
+        : const <Object?>[];
     return SurfacePublicationManifestEntryV1(
       artifacts: <SurfacePublicationArtifactV1>[
         for (var index = 0; index < rawArtifacts.length; index += 1)
@@ -459,7 +501,56 @@ final class SurfacePublicationManifestEntryV1 {
         SurfaceContractJson.requiredValue(json, 'publication', path),
         path: '$path.publication',
       ),
+      sources: <String>[
+        for (var index = 0; index < rawSources.length; index += 1)
+          _requireSourceString(rawSources[index], '$path.sources[$index]'),
+      ],
+      path: path,
     );
+  }
+}
+
+int _compareArtifactsCanonically(
+  SurfacePublicationArtifactV1 left,
+  SurfacePublicationArtifactV1 right,
+) {
+  final path = compareGeneratedOutputPaths(left.path, right.path);
+  if (path != 0) return path;
+  final role = left.role.wireName.compareTo(right.role.wireName);
+  if (role != 0) return role;
+  return (left.id ?? '').compareTo(right.id ?? '');
+}
+
+String _requireSourceString(Object? value, String path) {
+  if (value is! String) {
+    throw FormatException('Expected "$path" to be a string.');
+  }
+  return value;
+}
+
+/// Sources are validated here, never repaired, in line with every other
+/// field on this type. Ordering and uniqueness are the producer's job — the
+/// assembler sorts and de-duplicates on the way in — so a constructor that
+/// silently reordered its input would hide a producer defect rather than
+/// surface it, and would make the canonical bytes depend on which code path
+/// built the entry.
+void _validateAuthoringSources(List<String> sources, String path) {
+  if (sources.isEmpty) return;
+  String? previous;
+  for (var index = 0; index < sources.length; index += 1) {
+    final source = sources[index];
+    _requirePackageRelativePath(source, '$path.sources[$index]');
+    if (!source.endsWith('.dart')) {
+      throw FormatException(
+          'Expected "$path.sources[$index]" to be a Dart source path.');
+    }
+    if (previous != null &&
+        compareGeneratedOutputPaths(previous, source) >= 0) {
+      throw FormatException(
+        'Expected "$path.sources" to be unique and in ascending order.',
+      );
+    }
+    previous = source;
   }
 }
 
@@ -599,6 +690,19 @@ final class SurfacePublicationManifestV1 {
           for (final publication in publications) publication.toJson(),
         ],
       };
+
+  /// This manifest with every entry and the entry list in canonical order.
+  SurfacePublicationManifestV1 canonical() => SurfacePublicationManifestV1(
+        publications: [
+          for (final entry in publications) entry.canonical(),
+        ]..sort((left, right) {
+            final surface = left.publication.surface.wireName.compareTo(
+              right.publication.surface.wireName,
+            );
+            if (surface != 0) return surface;
+            return left.publication.slug.compareTo(right.publication.slug);
+          }),
+      );
 
   List<SurfacePublicationArtifactClosureV1> validateArtifactClosure(
     Map<String, List<int>> files,
@@ -1536,18 +1640,10 @@ bool _sameRequirements(
 
 void _requirePackageRelativePath(String value, String path) {
   _requireIdentity(value, path);
-  if (value.startsWith('/') || value.contains('\\')) {
-    throw FormatException('Expected "$path" to be package-relative.');
-  }
-  final segments = value.split('/');
-  if (segments.first.contains(':')) {
-    throw FormatException('Expected "$path" to be package-relative.');
-  }
-  for (final segment in segments) {
-    if (segment.isEmpty || segment == '.' || segment == '..') {
-      throw FormatException(
-          'Expected "$path" to have canonical path segments.');
-    }
+  if (!isPackageRelativePath(value)) {
+    throw FormatException(
+        'Expected "$path" to be a package-relative path with canonical '
+        'segments.');
   }
 }
 

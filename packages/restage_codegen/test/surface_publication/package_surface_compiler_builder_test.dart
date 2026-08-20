@@ -531,6 +531,23 @@ final class WelcomeFlow extends RestageFlow {
           .toList(),
       orderedEquals(['welcome', 'welcome_flow']),
     );
+    // Legacy standalone screens and precompiled flows are assembled through
+    // their own code paths, so their authoring sources need their own proof:
+    // a canonical-only assertion elsewhere leaves both blind.
+    expect(
+      {
+        for (final entry in bundle.manifest!.publications)
+          entry.publication.slug: entry.sources,
+      },
+      <String, List<String>>{
+        'welcome': ['lib/onboarding/screens/welcome.dart'],
+        'welcome_flow': [
+          'lib/onboarding/flows/welcome_flow.dart',
+          'lib/onboarding/screens/welcome.dart',
+        ],
+      },
+    );
+
     final legacyScreen = bundle.manifest!.publications.singleWhere(
       (entry) => entry.publication.slug == 'welcome',
     );

@@ -321,28 +321,8 @@ List<Map<String, Object?>> _encodeOutputs(Map<String, List<int>> outputs) => [
 
 SurfacePublicationManifestV1 _canonicalizeManifest(
   SurfacePublicationManifestV1 manifest,
-) {
-  final entries = [
-    for (final entry in manifest.publications)
-      SurfacePublicationManifestEntryV1(
-        publication: entry.publication,
-        artifacts: [...entry.artifacts]..sort((left, right) {
-            final path = left.path.compareTo(right.path);
-            if (path != 0) return path;
-            final role = left.role.wireName.compareTo(right.role.wireName);
-            if (role != 0) return role;
-            return (left.id ?? '').compareTo(right.id ?? '');
-          }),
-      ),
-  ]..sort((left, right) {
-      final surface = left.publication.surface.wireName.compareTo(
-        right.publication.surface.wireName,
-      );
-      if (surface != 0) return surface;
-      return left.publication.slug.compareTo(right.publication.slug);
-    });
-  return SurfacePublicationManifestV1(publications: entries);
-}
+) =>
+    manifest.canonical();
 
 Map<String, List<int>> _decodeBundleOutputs(
   List<Object?> values,

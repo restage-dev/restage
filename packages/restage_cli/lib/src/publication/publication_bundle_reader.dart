@@ -60,7 +60,7 @@ final class PublicationBundleReaderProvider {
 
   /// The reader used when a command does not receive an explicit reader.
   static PublicationBundleReader get current =>
-      override ?? const RestageBundlePublicationReader();
+      override ?? RestageBundlePublicationReader();
 }
 
 /// Adapter over the shared deterministic bundle codec.
@@ -70,23 +70,26 @@ final class PublicationBundleReaderProvider {
 /// file itself.
 final class RestageBundlePublicationReader implements PublicationBundleReader {
   /// Construct the shared-codec adapter.
-  const RestageBundlePublicationReader();
+  RestageBundlePublicationReader();
+
+  /// Bundles already decoded by this reader, keyed by absolute path.
+  ///
+  /// One `.rsbundle` holds every artifact of every publication compiled from
+  /// one authored library, and decoding it verifies a CRC-32 and a SHA-256
+  /// over every entry. Decoding per artifact therefore re-reads and re-hashes
+  /// the whole file once per artifact, and publishing several surfaces from
+  /// one file multiplies that again. One reader serves one command, so this
+  /// collapses the work to one read per distinct bundle without widening any
+  /// lifetime.
+  final Map<String, Future<RestageBundle>> _decoded =
+      <String, Future<RestageBundle>>{};
 
   @override
   Future<PublicationBundleEntry> readEntry({
     required File bundleFile,
     required String entryPath,
   }) async {
-    final RestageBundle bundle;
-    try {
-      bundle = RestageBundleCodec.decode(await bundleFile.readAsBytes());
-    } on FileSystemException {
-      rethrow;
-    } on Object catch (error) {
-      throw PublicationBundleException(
-        'The bundle could not be decoded: $error',
-      );
-    }
+    final bundle = await _decode(bundleFile);
     for (final entry in bundle.entries) {
       if (entry.logicalPath == entryPath) {
         final SurfacePublicationArtifactRoleV1 role;
@@ -111,5 +114,29 @@ final class RestageBundlePublicationReader implements PublicationBundleReader {
     throw PublicationBundleException(
       'The bundle does not contain declared entry "$entryPath".',
     );
+  }
+
+  Future<RestageBundle> _decode(File bundleFile) {
+    final key = bundleFile.absolute.path;
+    final existing = _decoded[key];
+    if (existing != null) return existing;
+    // A failed decode evicts itself, so a transient read failure cannot
+    // poison the rest of the run. Eviction happens inside this future rather
+    // than on a derived one, which would surface the error twice.
+    final decoded = () async {
+      try {
+        return RestageBundleCodec.decode(await bundleFile.readAsBytes());
+      } on FileSystemException {
+        _decoded.remove(key);
+        rethrow;
+      } on Object catch (error) {
+        _decoded.remove(key);
+        throw PublicationBundleException(
+          'The bundle could not be decoded: $error',
+        );
+      }
+    }();
+    _decoded[key] = decoded;
+    return decoded;
   }
 }

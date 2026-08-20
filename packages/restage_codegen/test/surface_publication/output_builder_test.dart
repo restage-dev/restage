@@ -146,6 +146,27 @@ const launch = FlowDefinition(
       containsAll(<String>['announcement', 'launch']),
     );
 
+    // The authoring sources must survive the whole write path, not just the
+    // compiler's in-memory bundle: the manifest is canonicalized on the way
+    // into the handoff and again on the way out of it, and this file on disk
+    // is the only thing the CLI ever reads. A `sources`-blind canonicalizer
+    // leaves every entry empty here while every in-memory assertion elsewhere
+    // still passes.
+    final sourcesBySlug = <String, List<String>>{
+      for (final entry in manifest.publications)
+        entry.publication.slug: entry.sources,
+    };
+    expect(
+      sourcesBySlug['announcement'],
+      <String>['lib/features/announcement.dart'],
+    );
+    // The flow names the file declaring it AND the file declaring the screen
+    // in its closure, which lives in a different library.
+    expect(
+      sourcesBySlug['launch'],
+      <String>['lib/features/announcement.dart', 'lib/journeys/launch.dart'],
+    );
+
     final indexJson = jsonDecode(
       readerWriter.testing.readString(
         AssetId('apps_examples', 'lib/generated/restage.outputs.json'),

@@ -4,8 +4,8 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
-import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/publish_selection.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -63,6 +63,7 @@ class SurfacePublishCommand extends Command<int> {
             'Directory to locate restage_config.yaml and generated publication '
             'metadata. It does not select artifacts.',
       );
+    addPublishAllOption(argParser, noun: 'surface');
     addRuntimePlaneOption(argParser);
   }
 
@@ -81,22 +82,26 @@ class SurfacePublishCommand extends Command<int> {
       'Publish a generated surface from its manifest artifact closure.';
 
   @override
+  String get invocation => 'restage surface publish <id|file.dart> [options]';
+
+  @override
   Future<int> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       _stderr.writeln(
-        'Missing positional argument: <slug>. Run `restage surface '
-        'publish <slug>`.',
+        'Missing positional argument: <id|file.dart>. Run `restage surface '
+        'publish <id>`, or name the .dart file the surface is declared in.',
       );
       return 1;
     }
     if (rest.length > 1) {
       _stderr.writeln(
-        'Too many positional arguments. Expected exactly one <slug>.',
+        'Too many positional arguments. Expected exactly one '
+        '<id|file.dart>.',
       );
       return 1;
     }
-    final slug = rest.single;
+    final selector = rest.single;
 
     final type = _parseType(argResults?['type'] as String?);
     if (argResults?['type'] != null && type == null) return 1;
@@ -115,22 +120,39 @@ class SurfacePublishCommand extends Command<int> {
       return 1;
     }
 
-    final AssembledSurfacePublication assembled;
+    final List<AssembledSurfacePublication> assembled;
     try {
       final manifest = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
       );
-      final entry = manifest.select(slug: slug, type: type);
-      assembled = await SurfacePublicationAssembler(
+      final entries = await resolvePublicationEntries(
+        manifest: manifest,
+        argument: selector,
+        all: argResults?['all'] as bool? ?? false,
+        type: type,
+        interactive: _interactive,
+        stderr: _stderr,
+        commandLine: 'restage surface publish',
+      );
+      if (entries == null) return 1;
+      // Everything is assembled before any network work, so a broken
+      // closure fails the whole invocation instead of half-publishing.
+      final assembler = SurfacePublicationAssembler(
         bundleReader: _bundleReader,
-      ).assemble(loaded: manifest, entry: entry);
+      );
+      assembled = <AssembledSurfacePublication>[
+        for (final entry in entries)
+          await assembler.assemble(loaded: manifest, entry: entry),
+      ];
     } on PublicationException catch (error) {
       _stderr.writeln(error.message);
       return 1;
     }
 
-    if (assembled.capabilityWarning != null) {
-      _stderr.writeln(assembled.capabilityWarning);
+    for (final publication in assembled) {
+      if (publication.capabilityWarning != null) {
+        _stderr.writeln(publication.capabilityWarning);
+      }
     }
 
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
@@ -191,7 +213,7 @@ class SurfacePublishCommand extends Command<int> {
     required String environment,
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
-    required AssembledSurfacePublication assembled,
+    required List<AssembledSurfacePublication> assembled,
   }) async {
     final RestageApi api;
     try {
@@ -218,31 +240,21 @@ class SurfacePublishCommand extends Command<int> {
       );
       if (target == null) return 1;
 
-      try {
-        final result = await SurfacePublicationApi(api).publish(
-          project: project,
-          app: app,
-          environment: environment,
-          request: assembled.request,
-          environmentTargetId: target.target.environmentTargetId,
-          runtimePlane: target.target.runtimePlane,
-          organizationId: target.organizationId,
-        );
-        _stdout.writeln(
-          'Published ${assembled.entry.publication.slug} '
-          '(${assembled.entry.publication.surface.wireName}) to $environment; '
-          '${result.stateDescription}',
-        );
-        return 0;
-      } on RestageApiException catch (error) {
-        return _handleApiException(error);
-      } on SocketException {
-        _stderr.writeln('Could not publish the generated surface.');
-        return 2;
-      } on FormatException {
-        _stderr.writeln('Could not decode the publication response.');
-        return 2;
-      }
+      return await runPublishRun(
+        api: api,
+        assembled: assembled,
+        project: project,
+        app: app,
+        environment: environment,
+        target: target,
+        noun: 'surface',
+        describe: (publication) =>
+            'Published ${publication.entry.publication.slug} '
+            '(${publication.entry.publication.surface.wireName})',
+        onApiException: _handleApiException,
+        stdout: _stdout,
+        stderr: _stderr,
+      );
     } finally {
       if (_httpClient == null) api.close();
     }

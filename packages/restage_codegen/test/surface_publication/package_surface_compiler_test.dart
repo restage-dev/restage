@@ -236,6 +236,75 @@ final foreignGeneratedRef = Object();
       },
     );
 
+    test('records the authoring sources every publication compiled from',
+        () async {
+      final scenario = await _loadScenario();
+      final result = compilePackageSurfacePublications(scenario.input);
+
+      expect(result.issues, isEmpty);
+      final sourcesBySlug = <String, List<String>>{
+        for (final entry in result.bundle!.manifest.publications)
+          entry.publication.slug: entry.sources,
+      };
+
+      // A standalone screen names its own declaring file and the library
+      // that owns it; it does not inherit the sources of unrelated
+      // publications compiled in the same build.
+      expect(
+        sourcesBySlug['announcement'],
+        orderedEquals(<String>[
+          'lib/authoring.dart',
+          'lib/screens/announcement.dart',
+        ]),
+      );
+
+      // A flow names the file declaring it AND the file declaring every
+      // screen in its closure, so pointing at a screen inside a flow
+      // resolves the flow that publishes it.
+      expect(
+        sourcesBySlug['general_flow'],
+        orderedEquals(<String>[
+          'lib/authoring.dart',
+          'lib/flows/general_flow.dart',
+          'lib/paywalls/premium.dart',
+          'lib/screens/welcome.dart',
+        ]),
+      );
+      // follow_up is declared in a DIFFERENT library from the screen in its
+      // closure, so this pins that each declaration contributes its OWN
+      // library rather than a shared constant or a neighbour's.
+      expect(
+        sourcesBySlug['follow_up'],
+        orderedEquals(<String>[
+          'lib/authoring.dart',
+          'lib/flows/follow_up.dart',
+          'lib/follow_up_library.dart',
+          'lib/screens/welcome.dart',
+        ]),
+      );
+      expect(
+        sourcesBySlug['premium'],
+        orderedEquals(<String>[
+          'lib/authoring.dart',
+          'lib/paywalls/premium.dart',
+        ]),
+      );
+
+      // The sources survive the canonical encode the CLI re-checks.
+      final encoded = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
+        result.bundle!.manifest,
+      );
+      expect(
+        SurfacePublicationManifestV1Codec.decodeJson(encoded)
+            .publications
+            .map((entry) => entry.sources)
+            .toList(),
+        result.bundle!.manifest.publications
+            .map((entry) => entry.sources)
+            .toList(),
+      );
+    });
+
     test('is deterministic when aggregate inputs arrive in a different order',
         () async {
       final scenario = await _loadScenario();
@@ -521,11 +590,13 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
       declaration: announcement,
       id: 'announcement',
       surface: Surface.general,
+      sourcePath: 'lib/screens/announcement.dart',
     ),
     _screenDeclaration(
       library: library,
       declaration: welcome,
       id: 'welcome',
+      sourcePath: 'lib/screens/welcome.dart',
     ),
     _screenDeclaration(
       library: library,
@@ -533,18 +604,22 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
       id: 'premium',
       surface: Surface.paywall,
       kind: RestageRosterSourceKind.paywall,
+      sourcePath: 'lib/paywalls/premium.dart',
     ),
     _flowDeclaration(
       library: library,
       declaration: generalFlow,
       id: 'general_flow',
       surface: Surface.general,
+      sourcePath: 'lib/flows/general_flow.dart',
     ),
     _flowDeclaration(
       library: library,
       declaration: followUp,
       id: 'follow_up',
       surface: Surface.general,
+      sourcePath: 'lib/flows/follow_up.dart',
+      libraryPath: 'lib/follow_up_library.dart',
     ),
   ];
   final roster = assembleRestageSourceRoster(declarations);
@@ -555,6 +630,7 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
       declaration: mismatch,
       id: 'mismatch_flow',
       surface: Surface.onboarding,
+      sourcePath: 'lib/flows/mismatch_flow.dart',
     ),
   ]);
   expect(
@@ -710,6 +786,7 @@ RestageSourceDeclaration _screenDeclaration({
   required LibraryElement library,
   required ClassElement declaration,
   required String id,
+  required String sourcePath,
   Surface? surface,
   RestageRosterSourceKind kind = RestageRosterSourceKind.screen,
 }) {
@@ -722,7 +799,7 @@ RestageSourceDeclaration _screenDeclaration({
     libraryIdentity: library.identifier,
     libraryPath: 'lib/authoring.dart',
     declarationIdentity: _identity(declaration),
-    sourcePath: 'lib/authoring.dart',
+    sourcePath: sourcePath,
     explicitId: id,
     span: const RestageSourceSpan(
       path: 'lib/authoring.dart',
@@ -778,13 +855,15 @@ RestageSourceDeclaration _flowDeclaration({
   required TopLevelVariableElement declaration,
   required String id,
   required Surface surface,
+  required String sourcePath,
+  String libraryPath = 'lib/authoring.dart',
 }) =>
     RestageSourceDeclaration.frozen(
       kind: RestageRosterSourceKind.flow,
       libraryIdentity: library.identifier,
-      libraryPath: 'lib/authoring.dart',
+      libraryPath: libraryPath,
       declarationIdentity: _identity(declaration),
-      sourcePath: 'lib/authoring.dart',
+      sourcePath: sourcePath,
       explicitId: id,
       span: const RestageSourceSpan(
         path: 'lib/authoring.dart',

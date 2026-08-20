@@ -213,6 +213,105 @@ void main() {
       );
     });
 
+    test('records authoring source paths and keeps their order strict', () {
+      final fixture = _screenFixture();
+      final entry = fixture.manifest.publications.single;
+
+      // Absent sources stay absent on the wire, so an entry generated before
+      // path resolution existed round-trips byte-identically.
+      expect(entry.sources, isEmpty);
+      expect(entry.toJson().containsKey('sources'), isFalse);
+
+      final withSources = SurfacePublicationManifestEntryV1(
+        artifacts: entry.artifacts,
+        publication: entry.publication,
+        sources: const <String>[
+          'lib/screens/feature_announcement.dart',
+          'lib/screens/shared_header.dart',
+        ],
+      );
+      final manifest = SurfacePublicationManifestV1(
+        publications: <SurfacePublicationManifestEntryV1>[withSources],
+      );
+      final encoded =
+          SurfacePublicationManifestV1Codec.encodeCanonicalJson(manifest);
+      expect(
+        encoded,
+        contains(
+          '"sources":["lib/screens/feature_announcement.dart",'
+          '"lib/screens/shared_header.dart"]',
+        ),
+      );
+      expect(
+        SurfacePublicationManifestV1Codec.decodeJson(encoded)
+            .publications
+            .single
+            .sources,
+        withSources.sources,
+      );
+      expect(
+        manifest.validateArtifactClosure(fixture.files),
+        hasLength(1),
+      );
+
+      SurfacePublicationManifestEntryV1 withRawSources(List<String> sources) =>
+          SurfacePublicationManifestEntryV1(
+            artifacts: entry.artifacts,
+            publication: entry.publication,
+            sources: sources,
+          );
+
+      // Unsorted, duplicated, absolute, traversing, non-Dart, and empty
+      // values are all rejected rather than normalized, so the canonical
+      // bytes cannot depend on who assembled the manifest.
+      for (final rejected in <List<String>>[
+        <String>['lib/b.dart', 'lib/a.dart'],
+        <String>['lib/a.dart', 'lib/a.dart'],
+        <String>['/lib/a.dart'],
+        <String>['lib/../a.dart'],
+        <String>['lib/a.txt'],
+        <String>[''],
+      ]) {
+        expect(
+          () => withRawSources(rejected),
+          throwsFormatException,
+          reason: 'sources $rejected must be rejected',
+        );
+      }
+
+      // A decode failure names the entry it came from, not a bare
+      // "entry.sources[0]" that could belong to any of them.
+      expect(
+        () => SurfacePublicationManifestV1Codec.decodeJson(
+          encoded.replaceFirst(
+            '"lib/screens/feature_announcement.dart",',
+            '"lib/screens/zzz.dart",',
+          ),
+        ),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains(r'$.publications[0].sources'),
+          ),
+        ),
+      );
+
+      expect(
+        () => SurfacePublicationManifestEntryV1.fromJson(
+          <String, Object?>{
+            'artifacts': <Object?>[
+              for (final artifact in entry.artifacts) artifact.toJson(),
+            ],
+            'publication': entry.publication.toJson(),
+            'sources': <Object?>[42],
+          },
+          path: r'$',
+        ),
+        throwsFormatException,
+      );
+    });
+
     test('verifies declared artifacts, sidecars, and assembled payload bytes',
         () {
       final fixture = _screenFixture();

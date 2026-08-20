@@ -376,3 +376,37 @@ http.Response? _defaultTargetDiscoveryResponse(http.Request request) {
   }
   return null;
 }
+
+/// The publish response the backend returns for [slug].
+///
+/// One definition of the `SurfaceContractFamilyReference` wire shape, so a
+/// change to it does not have to be chased through every publish test.
+http.Response publishSucceeded(
+  String slug, {
+  String surfaceType = 'paywall',
+  String sourceKind = 'paywall',
+  int storedRevision = 1,
+  int activeRevision = 1,
+  bool identityFrozen = false,
+}) => http.Response(
+  jsonEncode({
+    'family': {
+      '__className__': 'SurfaceContractFamilyReference',
+      'surfaceType': surfaceType,
+      'surfaceSlug': slug,
+      'sourceKind': sourceKind,
+    },
+    'storedPublishedRevision': storedRevision,
+    'activePublishedRevision': activeRevision,
+    'identityFrozen': identityFrozen,
+  }),
+  200,
+);
+
+/// The publication slug one scripted publish request carried.
+String publishedSlugOf(http.Request request) =>
+    SurfacePublicationUploadRequestV1Codec.decodeJson(
+      ((jsonDecode(request.body) as Map<String, dynamic>)['upload']
+              as Map<String, dynamic>)['canonicalJson']
+          as String,
+    ).publication.slug;

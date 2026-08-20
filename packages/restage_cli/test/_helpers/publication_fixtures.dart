@@ -83,11 +83,17 @@ enum GeneratedOutputLayout {
 }
 
 /// Write one generated paywall closure and its generated metadata.
+///
+/// Pass [surface] to seed a non-paywall category. Without it every fixture in
+/// this file is a paywall, which makes a mixed-category file — the shape that
+/// exercises every surface-type filter — inexpressible.
 Future<SurfacePublicationManifestEntryV1> seedGeneratedPaywall(
   Directory projectRoot, {
   String slug = 'pro_upgrade',
   int minClient = 2,
   GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
+  List<String> sources = const <String>[],
+  Surface surface = Surface.paywall,
 }) async {
   final blob = ordinaryRfwBlob();
   final sidecar = CapabilitySidecar(
@@ -98,12 +104,25 @@ Future<SurfacePublicationManifestEntryV1> seedGeneratedPaywall(
     ),
   );
   final payload = BlobSurfacePayload(minClient: minClient, blob: blob);
+  // A non-paywall category is seeded as an independently published ordinary
+  // screen: it reuses the same blob closure, so only the declared identity
+  // differs from the paywall case.
+  final screenContract = surface == Surface.paywall
+      ? null
+      : _screenContractFor(minClient);
   final publication = SurfacePublicationV1(
-    surface: Surface.paywall,
+    surface: surface,
     slug: slug,
-    sourceKind: SurfaceSourceKind.paywall,
+    sourceKind: screenContract == null
+        ? SurfaceSourceKind.paywall
+        : SurfaceSourceKind.screen,
     payloadKind: SurfacePayloadKind.blob,
     payloadContentHash: payload.contentHash,
+    contractVersion: screenContract?.version,
+    capabilities: screenContract?.capabilities,
+    eventContract: screenContract?.events,
+    eventContractHash: screenContract?.eventsHash,
+    contractFingerprint: screenContract?.fingerprint,
   );
   final blobPath = 'assets/restage/generated/$slug/screen.rfw';
   final sidecarPath = 'assets/restage/generated/$slug/screen.capability.json';
@@ -111,6 +130,7 @@ Future<SurfacePublicationManifestEntryV1> seedGeneratedPaywall(
   await _writeText(projectRoot, sidecarPath, jsonEncode(sidecar.toJson()));
   final entry = SurfacePublicationManifestEntryV1(
     publication: publication,
+    sources: sources,
     artifacts: [
       SurfacePublicationArtifactV1(
         contentHash: CapabilitySidecar.hashBlob(blob),
@@ -411,3 +431,34 @@ Future<void> _writeText(
 /// The package-relative publication manifest path of the default layout.
 const String defaultGeneratedManifestPath =
     surfacePublicationManifestRelativePath;
+
+/// The contract quartet an independently published screen declares.
+///
+/// Derived once so the fingerprint recipe lives in exactly one place.
+({
+  int version,
+  CapabilityManifest capabilities,
+  SurfaceScreenEventSchemaV1 events,
+  String eventsHash,
+  String fingerprint,
+})
+_screenContractFor(int minClient) {
+  final events = SurfaceScreenEventSchemaV1(events: const []);
+  final eventsHash = SurfaceScreenEventContractHashV1.hash(events);
+  final capabilities = CapabilityManifest(
+    builtInFloor: minClient,
+    requiredLibraries: const [],
+  );
+  return (
+    version: 1,
+    capabilities: capabilities,
+    events: events,
+    eventsHash: eventsHash,
+    fingerprint: SurfaceScreenContractFingerprintV1.hash(
+      sourceKind: SurfaceSourceKind.screen,
+      payloadKind: SurfacePayloadKind.blob,
+      capabilities: capabilities,
+      eventContractHash: eventsHash,
+    ),
+  );
+}

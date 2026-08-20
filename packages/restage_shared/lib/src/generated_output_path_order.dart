@@ -23,3 +23,25 @@ import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 /// surrogate, since that cannot be encoded as well-formed UTF-8.
 int compareGeneratedOutputPaths(String left, String right) =>
     SurfaceContractJson.compareUtf8(left, right);
+
+/// Whether [value] is a well-formed package-relative generated path.
+///
+/// The one definition of the shape the publication manifest can represent:
+/// no leading separator, no backslash, no scheme in the first segment, and
+/// no empty, `.` or `..` segment. It deliberately does NOT check that the
+/// string is trimmed, NUL-free, or made of well-formed Unicode scalars —
+/// that is identity validation, which the manifest applies separately.
+///
+/// Producers filter with this so a value they cannot represent is dropped
+/// where it originates rather than failing a whole manifest; the manifest
+/// itself validates with the same rule, so the two cannot drift.
+bool isPackageRelativePath(String value) {
+  if (value.isEmpty || value.startsWith('/') || value.contains(r'\')) {
+    return false;
+  }
+  final segments = value.split('/');
+  if (segments.first.contains(':')) return false;
+  return segments.every(
+    (segment) => segment.isNotEmpty && segment != '.' && segment != '..',
+  );
+}

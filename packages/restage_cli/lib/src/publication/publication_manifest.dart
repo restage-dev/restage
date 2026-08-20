@@ -44,6 +44,144 @@ final class LoadedSurfacePublicationManifest {
   /// The physical locators paired with [manifest].
   final RestageOutputIndex outputIndex;
 
+  /// Every generated publication compiled from the Dart file at [path].
+  ///
+  /// The id stays the canonical key. This is a convenience for the developer
+  /// who is looking at a file rather than at the manifest, and it resolves
+  /// strictly through the generated manifest: no source is parsed and no
+  /// directory is scanned, so what publishes is exactly what was generated.
+  ///
+  /// Matching is on the sources the manifest ATTRIBUTES to the file, which is
+  /// wider than what the file declares. A flow records the declaring file of
+  /// every screen in its closure, so naming a screen selects the flow that
+  /// publishes it.
+  ///
+  /// Returns every match in manifest order. Callers disambiguate; this
+  /// never guesses. Throws when [path] cannot name generated output, when the
+  /// manifest predates recorded sources, or when nothing was compiled from
+  /// that file.
+  List<SurfacePublicationManifestEntryV1> selectByPath({
+    required String path,
+    Surface? type,
+    SurfaceSourceKind? sourceKind,
+  }) {
+    // Candidates are tried in order, not unioned: two readings can name two
+    // different real files, and returning both would offer — and under
+    // `--all` publish — a surface the developer never named.
+    final candidates = _packageRelativeSourceCandidates(path);
+    final attributed = <SurfacePublicationManifestEntryV1>[];
+    var resolved = candidates.first;
+    for (final candidate in candidates) {
+      final matches = manifest.publications
+          .where((entry) => entry.sources.contains(candidate))
+          .toList(growable: false);
+      if (matches.isNotEmpty) {
+        attributed.addAll(matches);
+        resolved = candidate;
+        break;
+      }
+    }
+
+    if (attributed.isEmpty) {
+      throw PublicationManifestException(_nothingAttributed(resolved));
+    }
+
+    final matches = attributed
+        .where((entry) => type == null || entry.publication.surface == type)
+        .where(
+          (entry) =>
+              sourceKind == null || entry.publication.sourceKind == sourceKind,
+        )
+        .toList(growable: false);
+    if (matches.isNotEmpty) return matches;
+
+    // The file DID compile. Reporting "nothing was compiled from it" and
+    // pointing at a rebuild would send the developer somewhere that can
+    // never change the answer.
+    final actual = attributed
+        .map((entry) => entry.publication.surface.wireName)
+        .toSet()
+        .join(', ');
+    throw PublicationManifestException(
+      'Nothing compiled from "$resolved" is a '
+      '${type?.wireName ?? sourceKind!.wireName} surface; it produced '
+      '$actual. The generated manifest is authoritative; retry with the '
+      'matching command.',
+    );
+  }
+
+  /// The message for a path the manifest attributes nothing to.
+  ///
+  /// A `.dart` suffix always selects file resolution, so an id that happens
+  /// to end in `.dart` lands here. Naming it is the difference between an
+  /// answer and a rebuild that cannot help.
+  String _nothingAttributed(String resolved) {
+    if (manifest.publications.every((entry) => entry.sources.isEmpty)) {
+      return '${outputIndex.publicationManifestPath} does not record '
+          'authoring sources, so a file cannot select a publication. Re-run '
+          '`dart run build_runner build` and retry, or publish by id.';
+    }
+    final collidingId = manifest.publications
+        .where((entry) => entry.publication.slug == resolved)
+        .map((entry) => entry.publication.slug)
+        .firstOrNull;
+    if (collidingId != null) {
+      return 'No generated publication was compiled from "$resolved". A '
+          'surface with the id "$collidingId" exists, but an argument ending '
+          'in `.dart` always names a file; rename the surface to publish it.';
+    }
+    return 'No generated publication was compiled from "$resolved" according '
+        'to ${outputIndex.publicationManifestPath}. Re-run '
+        '`dart run build_runner build` and retry, or publish by id.';
+  }
+
+  /// The package-relative forms [raw] could name, most likely first.
+  ///
+  /// The caller tries them in order and stops at the first that the manifest
+  /// attributes anything to.
+  ///
+  /// Two readings are plausible and neither is safe to prefer blindly. A path
+  /// is normally resolved against the working directory, which is what the
+  /// developer's shell completed it against. But the form the manifest
+  /// records, every error message prints, and every doc example shows is
+  /// package-relative, and pasting that from a subdirectory would otherwise
+  /// resolve to a doubled prefix (`lib/lib/screen.dart`) rather than to the
+  /// file the developer meant.
+  ///
+  /// So both readings are offered and the manifest decides between them. That
+  /// keeps resolution a pure lookup: nothing is read from disk, so a path that
+  /// happens to exist has no advantage over one that does not.
+  List<String> _packageRelativeSourceCandidates(String raw) {
+    final normalized = p.normalize(raw);
+    final candidates = <String>[];
+
+    final fromCurrentDirectory = p
+        .split(p.relative(p.absolute(normalized), from: projectRoot.path))
+        .join('/');
+    if (!_escapesPackage(fromCurrentDirectory)) {
+      candidates.add(fromCurrentDirectory);
+    }
+
+    if (!p.isAbsolute(normalized)) {
+      final asPackageRelative = p.split(normalized).join('/');
+      if (!_escapesPackage(asPackageRelative) &&
+          !candidates.contains(asPackageRelative)) {
+        candidates.add(asPackageRelative);
+      }
+    }
+
+    if (candidates.isEmpty) {
+      throw PublicationManifestException(
+        'The path "$raw" is outside the package at ${projectRoot.path}, so it '
+        'cannot name generated output.',
+      );
+    }
+    return candidates;
+  }
+
+  static bool _escapesPackage(String posixPath) =>
+      posixPath == '..' || posixPath.startsWith('../');
+
   /// Select one generated identity for publication.
   ///
   /// [type] is a validation or disambiguation selector only. It never chooses
