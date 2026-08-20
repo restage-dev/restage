@@ -27,7 +27,7 @@ server-driven UI surface, independent of which surface is being rendered.
   decomposition recipes, provenance, policy decisions, and diagnostics.
 - **Lowering.** `lowerStructured` and `lowerUnion` (and the catalog-level
   lowering they compose into) translate compiler IR to the canonical
-  `rfw_catalog_schema` types — `Catalog`, `WidgetEntry`, `StructuredEntry`,
+  `rfw_catalog_schema` types: `Catalog`, `WidgetEntry`, `StructuredEntry`,
   `UnionEntry`, and the rest.
 - **Wire-ID allocation.** An append-only event log, replay, and current-state
   materialization that mints stable, monotonic `WireId`s and re-uses the

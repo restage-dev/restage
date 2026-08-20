@@ -135,8 +135,8 @@ the same lifecycle path.
 
 **Paywall-specific compatibility tools**
 
-These tools remain for specialized paywall draft and blob workflows. They are
-not the normal publication path for Restage surfaces:
+These tools remain for specialized paywall draft and blob workflows. For normal
+publication, use the surface-family tools above:
 
 | Tool | What it does |
 | --- | --- |
@@ -161,7 +161,7 @@ not the normal publication path for Restage surfaces:
 | `restage_list_products` | Store products (SKUs) for an app, optionally filtered by store. |
 | `restage_import_products` | Re-fetch a store's catalog and upsert products (admin). |
 | `restage_list_product_slots` | Product slots (the surface-facing entitlement handles). |
-| `restage_upsert_product_slot` | Create/update a slot **and its complete product mapping** (admin). Full replace — see note below. |
+| `restage_upsert_product_slot` | Create/update a slot **and its complete product mapping** (admin). Full replace. See the note below. |
 | `restage_list_store_connections` | Store connections (non-secret metadata only). |
 
 **App configuration**

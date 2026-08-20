@@ -16,6 +16,15 @@ the parameter widened, so existing calls still type-check.
 
 Other changes:
 
+- Reading a generated artifact no longer asks the platform for a logical path
+  the asset manifest proves is not packaged. Resolving a paywall is flow-first,
+  so a paywall with a single screen used to request a flow document that was
+  never generated — free where assets are read from disk, a failed request and
+  a logged 404 on every load where they are read over the network. As a result
+  the asset manifest is now read before the first artifact, where it used to be
+  read only after one failed to load; if you pass your own `bundle:` to a
+  resolver, that bundle's manifest must describe it, and a bundle with no
+  manifest keeps its previous behavior exactly.
 - Add `package:restage/a2ui.dart` and `package:restage/rfw.dart` convenience
   entrypoints for target-specific customer catalog configuration.
 - Add the Widgetbook configuration entrypoint and typed per-widget/per-input

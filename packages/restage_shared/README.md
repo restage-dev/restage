@@ -5,12 +5,11 @@
 Pure-Dart shared types, format schemas, validation, and the catalog that the
 Restage SDK and the build-time toolchain both depend on. Everything here is
 plain Dart with no Flutter dependency, so the same types compile in the Flutter
-app, in command-line tools, and in pure-Dart server environments. That shared
-spine is what lets a surface authored on one side decode byte-for-byte on the
-other.
+app, in command-line tools, and in pure-Dart server environments. A surface
+authored on one side decodes byte-for-byte on the other.
 
 It contains no networking, persistence, or credentials. It is a library of data
-shapes, codecs, and validators.
+shapes with their codecs and validators.
 
 ## What's here
 

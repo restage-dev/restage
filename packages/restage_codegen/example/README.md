@@ -1,10 +1,10 @@
 # restage_codegen example
 
 `restage_codegen` is the build-time code generator behind the Restage SDK. You
-don't call it directly — you add it as a dev dependency and run `build_runner`.
-It reads an ordinary Flutter widget annotated with its surface type and compiles
+don't call it directly. You add it as a dev dependency and run `build_runner`.
+It reads a plain Flutter widget annotated with its surface type and compiles
 it into the small, inert Remote Flutter Widget (`.rfw`) render blob the Restage
-runtime renders. The same pipeline serves every surface — onboarding screens,
+runtime renders. The same pipeline serves every surface: onboarding screens,
 in-app messages, surveys, paywalls, and any full screen you author.
 
 ## 1. Add the toolchain
@@ -19,9 +19,9 @@ dev_dependencies:
   restage_codegen: ^1.3.0  # the build-time compiler (this package)
 ```
 
-## 2. Author a surface in vanilla Flutter
+## 2. Author a surface in plain Flutter
 
-A surface is an ordinary widget annotated with its surface type. This example is
+A surface is a plain widget annotated with its surface type. This example is
 an independently published message screen. Use `@Paywall` for a specialized
 paywall, `@Screen()` for a reusable flow screen, or
 `@FlowGraph(surface: Surface.<category>)` for a typed flow. The source uses your
@@ -58,10 +58,10 @@ dart run build_runner build
 ```
 
 `restage_codegen` runs as a `build_runner` builder (wired through `build.yaml`):
-it analyzes the annotated source, decomposes structured Flutter types — text
-styles, paddings, gradients, borders — against the widget catalog, and writes a
+it analyzes the annotated source, decomposes structured Flutter types (text
+styles, paddings, gradients, borders) against the widget catalog, and writes a
 small `.rfw` blob as generated output. Commit the generated output your app
-bundles: it carries no executable code, only inert references and literal values.
+bundles: it carries only inert references and literal values.
 
 ## What it produces
 
@@ -72,16 +72,15 @@ bundles: it carries no executable code, only inert references and literal values
 - Catalog entries for any custom widgets you registered with `@RestageWidget`
   (see [`rfw_catalog_compiler`](https://pub.dev/packages/rfw_catalog_compiler)).
 
-Publish the generated entry by slug:
+Publish the generated entry by id:
 
 ```sh
 restage surface publish welcome
 ```
 
-The manifest is the publication authority. Generated asset paths and source
-directories are outputs or layout conventions, not publication selectors.
+The manifest is the publication authority.
 
-The runtime half of the loop — rendering the blob in your app — lives in the
+The runtime half of the loop, rendering the blob in your app, lives in the
 [`restage`](https://pub.dev/packages/restage) package. A complete, runnable
 gallery is in
 [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples).

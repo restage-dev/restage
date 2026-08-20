@@ -22,7 +22,7 @@ catalog widgets it ships as real classes:
 - **Domain widgets:** `Package` (a product/plan card) and
   `ExpressCheckoutButton`.
 
-Standard Material widgets are mapped through the catalog, not re-declared here.
+Standard Material widgets are mapped through the catalog.
 The catalog is surface-general: the same widgets compose any server-driven UI
 surface.
 

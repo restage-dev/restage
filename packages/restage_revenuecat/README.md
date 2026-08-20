@@ -11,8 +11,8 @@ Keep **RevenueCat** underneath your **Restage** paywalls.
 implementation that delegates a Restage paywall's Buy / Restore taps to the host
 app's existing RevenueCat configuration. Restage renders the surface and owns its
 own analytics; RevenueCat stays the subscription substrate. You adopt Restage's
-renderer without ripping RevenueCat out first, and migrate the substrate later,
-or never.
+renderer without ripping RevenueCat out first, and migrate the substrate
+whenever you want to.
 
 ## How it works
 
@@ -24,16 +24,16 @@ A Restage paywall fires a purchase event; the SDK routes it through the injected
   (`Purchases.purchase(PurchaseParams.package(...))`)
 - `restore()` → `Purchases.restorePurchases`
 
-Purchasing the **package** (rather than the raw store product) is what lets
-RevenueCat apply the package's configured **offer / free trial / intro price /
-Google base-plan**. RevenueCat resolves the concrete offer at its own SDK
+Buying the **package** rather than the raw store product lets RevenueCat apply
+the package's configured **offer / free trial / intro price / Google
+base-plan**. RevenueCat resolves the concrete offer at its own SDK
 runtime, always reflecting your current RevenueCat offering config. The package
 is matched by store product id, searching your current offering first, then any
 offering. If the product isn't in any offering (so there's no RevenueCat offer
 to apply), the gateway falls back to purchasing the raw store product.
 
 RevenueCat performs the actual StoreKit / Google Play purchase and keeps its own
-receipt. Restage never touches RevenueCat's state, never writes StoreKit, and
+receipt. Restage leaves RevenueCat's state and StoreKit alone, and
 optimistically grants the entitlement locally so the UI unlocks immediately.
 
 Because RevenueCat keeps the raw receipt, the gateway returns a **receipt-less**

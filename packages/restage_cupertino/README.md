@@ -15,7 +15,7 @@ The package provides catalog metadata (`lib/registry.dart` `kRegistry`, mirrored
 to `lib/src/widget_catalog/catalog.json`) and an RFW `LocalWidgetBuilder`
 registration map (`lib/src/registration.g.dart`); the standard Cupertino widgets
 are mapped through the catalog. A surface that uses `CupertinoButton` renders
-through the `restage.cupertino` library; it's registered and works.
+through the `restage.cupertino` library.
 
 The catalog is surface-general: the same widgets compose any server-driven UI
 surface.
