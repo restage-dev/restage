@@ -4,8 +4,8 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
-import 'package:restage_cli/src/api/surface_publication_api.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
+import 'package:restage_cli/src/commands/publish_selection.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/config/restage_config.dart';
 import 'package:restage_cli/src/credentials/credential.dart';
@@ -61,6 +61,7 @@ class PaywallPublishCommand extends Command<int> {
             'Directory to locate restage_config.yaml and generated publication '
             'metadata. It does not select artifacts.',
       );
+    addPublishAllOption(argParser, noun: 'paywall');
     addRuntimePlaneOption(argParser);
   }
 
@@ -80,22 +81,26 @@ class PaywallPublishCommand extends Command<int> {
       '`surface publish`.';
 
   @override
+  String get invocation => 'restage paywall publish <name|file.dart> [options]';
+
+  @override
   Future<int> run() async {
     final rest = argResults?.rest ?? const <String>[];
     if (rest.isEmpty) {
       _stderr.writeln(
-        'Missing positional argument: <name>. Run `restage paywall '
-        'publish <name>`.',
+        'Missing positional argument: <name|file.dart>. Run `restage paywall '
+        'publish <name>`, or name the .dart file the paywall is declared in.',
       );
       return 1;
     }
     if (rest.length > 1) {
       _stderr.writeln(
-        'Too many positional arguments. Expected exactly one <name>.',
+        'Too many positional arguments. Expected exactly one '
+        '<name|file.dart>.',
       );
       return 1;
     }
-    final paywallName = rest.single;
+    final selector = rest.single;
 
     final directory = Directory(argResults?['directory'] as String? ?? '.');
     final loadedConfig = await loadRestageConfig(from: directory);
@@ -111,29 +116,52 @@ class PaywallPublishCommand extends Command<int> {
       return 1;
     }
 
-    final AssembledSurfacePublication assembled;
+    final List<AssembledSurfacePublication> assembled;
     try {
       final manifest = await SurfacePublicationManifestLoader().load(
         projectRoot: projectRoot,
       );
-      final entry = manifest.select(slug: paywallName, type: Surface.paywall);
-      if (entry.publication.sourceKind != SurfaceSourceKind.paywall) {
-        throw const PublicationManifestException(
-          'The generated paywall identity is not a specialized paywall '
-          'source. Use `restage surface publish` for a categorized ordinary '
-          'screen.',
-        );
+      final entries = await resolvePublicationEntries(
+        manifest: manifest,
+        argument: selector,
+        all: argResults?['all'] as bool? ?? false,
+        type: Surface.paywall,
+        // Narrow rather than abort: a file that produced a specialized
+        // paywall alongside an ordinary categorized screen should still
+        // publish its paywalls.
+        pathSourceKind: SurfaceSourceKind.paywall,
+        interactive: _interactive,
+        stderr: _stderr,
+        commandLine: 'restage paywall publish',
+      );
+      if (entries == null) return 1;
+      for (final entry in entries) {
+        if (entry.publication.sourceKind != SurfaceSourceKind.paywall) {
+          throw const PublicationManifestException(
+            'The generated paywall identity is not a specialized paywall '
+            'source. Use `restage surface publish` for a categorized ordinary '
+            'screen.',
+          );
+        }
       }
-      assembled = await SurfacePublicationAssembler(
+      // Everything is assembled before any network work, so a broken
+      // closure fails the whole invocation instead of half-publishing.
+      final assembler = SurfacePublicationAssembler(
         bundleReader: _bundleReader,
-      ).assemble(loaded: manifest, entry: entry);
+      );
+      assembled = <AssembledSurfacePublication>[
+        for (final entry in entries)
+          await assembler.assemble(loaded: manifest, entry: entry),
+      ];
     } on PublicationException catch (error) {
       _stderr.writeln(error.message);
       return 1;
     }
 
-    if (assembled.capabilityWarning != null) {
-      _stderr.writeln(assembled.capabilityWarning);
+    for (final publication in assembled) {
+      if (publication.capabilityWarning != null) {
+        _stderr.writeln(publication.capabilityWarning);
+      }
     }
 
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
@@ -182,7 +210,7 @@ class PaywallPublishCommand extends Command<int> {
     required String environment,
     required String? preferredOrganizationSlug,
     required RuntimePlane? runtimePlane,
-    required AssembledSurfacePublication assembled,
+    required List<AssembledSurfacePublication> assembled,
   }) async {
     final RestageApi api;
     try {
@@ -209,30 +237,20 @@ class PaywallPublishCommand extends Command<int> {
       );
       if (target == null) return 1;
 
-      try {
-        final result = await SurfacePublicationApi(api).publish(
-          project: project,
-          app: app,
-          environment: environment,
-          request: assembled.request,
-          environmentTargetId: target.target.environmentTargetId,
-          runtimePlane: target.target.runtimePlane,
-          organizationId: target.organizationId,
-        );
-        _stdout.writeln(
-          'Published paywall ${assembled.entry.publication.slug} to '
-          '$environment; ${result.stateDescription}',
-        );
-        return 0;
-      } on RestageApiException catch (error) {
-        return _handleApiException(error);
-      } on SocketException {
-        _stderr.writeln('Could not publish the generated paywall.');
-        return 2;
-      } on FormatException {
-        _stderr.writeln('Could not decode the publication response.');
-        return 2;
-      }
+      return await runPublishRun(
+        api: api,
+        assembled: assembled,
+        project: project,
+        app: app,
+        environment: environment,
+        target: target,
+        noun: 'paywall',
+        describe: (publication) =>
+            'Published paywall ${publication.entry.publication.slug}',
+        onApiException: _handleApiException,
+        stdout: _stdout,
+        stderr: _stderr,
+      );
     } finally {
       if (_httpClient == null) api.close();
     }

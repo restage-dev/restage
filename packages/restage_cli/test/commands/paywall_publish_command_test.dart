@@ -270,6 +270,115 @@ void main() {
       expect(stderr.toString(), contains('not a specialized paywall source'));
     },
   );
+  test('the deprecated paywall command accepts a .dart path too', () async {
+    await seedProject();
+    final premium = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'premium',
+      sources: const <String>['lib/paywalls/premium.dart'],
+    );
+    final trial = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'trial',
+      sources: const <String>['lib/paywalls/trial.dart'],
+    );
+    await writeGeneratedOutput(tempDir, [premium, trial]);
+
+    final slugs = <String>[];
+    final client = scriptedHttpClient([
+      (request) {
+        final upload =
+            (jsonDecode(request.body) as Map<String, dynamic>)['upload']
+                as Map<String, dynamic>;
+        slugs.add(
+          SurfacePublicationUploadRequestV1Codec.decodeJson(
+            upload['canonicalJson'] as String,
+          ).publication.slug,
+        );
+        return http.Response(
+          jsonEncode({
+            'family': {
+              '__className__': 'SurfaceContractFamilyReference',
+              'surfaceType': 'paywall',
+              'surfaceSlug': 'trial',
+              'sourceKind': 'paywall',
+            },
+            'storedPublishedRevision': 1,
+            'activePublishedRevision': 1,
+            'identityFrozen': false,
+          }),
+          200,
+        );
+      },
+    ]);
+
+    final exitCode = await runArgs([
+      'paywall',
+      'publish',
+      'lib/paywalls/trial.dart',
+      '-C',
+      tempDir.path,
+    ], client: client);
+
+    expect(exitCode, 0);
+    expect(slugs, <String>['trial']);
+  });
+  test('the paywall command publishes every paywall in a file under --all, '
+      'and still refuses a non-paywall surface', () async {
+    await seedProject();
+    final monthly = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'monthly',
+      sources: const <String>['lib/paywalls/plans.dart'],
+    );
+    final annual = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'annual',
+      sources: const <String>['lib/paywalls/plans.dart'],
+    );
+    // Declared in the same file but not a paywall. The per-entry guard has to
+    // hold across a multi-entry set, not just the single-entry one.
+    final banner = await seedGeneratedPaywall(
+      tempDir,
+      slug: 'banner',
+      sources: const <String>['lib/messages/banner.dart'],
+      surface: Surface.message,
+    );
+    await writeGeneratedOutput(tempDir, [annual, banner, monthly]);
+
+    final slugs = <String>[];
+    http.Response record(http.Request request) {
+      slugs.add(publishedSlugOf(request));
+      return publishSucceeded(slugs.last);
+    }
+
+    final exitCode = await runArgs([
+      'paywall',
+      'publish',
+      'lib/paywalls/plans.dart',
+      '-C',
+      tempDir.path,
+      '--all',
+    ], client: scriptedHttpClient([record, record]));
+
+    expect(exitCode, 0);
+    expect(slugs, <String>['annual', 'monthly']);
+    expect(stdout.toString(), contains('Published 2 paywalls to dev.'));
+
+    // A message surface never enters the paywall command, by path or by name.
+    stderr.clear();
+    final refused = await runArgs([
+      'paywall',
+      'publish',
+      'lib/messages/banner.dart',
+      '-C',
+      tempDir.path,
+      '--all',
+    ], client: scriptedHttpClient([]));
+
+    expect(refused, 1);
+    expect(stderr.toString(), contains('is a paywall surface'));
+  });
 }
 
 Future<void> _write(Directory root, String packagePath, List<int> bytes) async {

@@ -1649,6 +1649,7 @@ SurfacePublicationAssemblyInput? _assemblePaywallPublication({
       payloadKind:
           facts.hasFlow ? SurfacePayloadKind.flow : SurfacePayloadKind.blob,
       artifacts: inputs,
+      sources: _authoringSources([source]),
       flowFacts: facts.hasFlow
           ? SurfacePublicationFlowFacts(
               deliveryMode: facts.navigationFlow!.deliveryMode,
@@ -1689,6 +1690,7 @@ SurfacePublicationAssemblyInput? _assembleStandalonePublication({
       sourceKind: SurfaceSourceKind.screen,
       payloadKind: SurfacePayloadKind.blob,
       artifacts: _screenClosureInputs(artifact),
+      sources: _authoringSources([source]),
       screenContractFacts: SurfacePublicationScreenContractFacts(
         contractVersion: contract.contractVersion,
         capabilities: contract.capabilities,
@@ -1729,6 +1731,7 @@ SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
       sourceKind: SurfaceSourceKind.screen,
       payloadKind: SurfacePayloadKind.blob,
       artifacts: _screenClosureInputs(artifact),
+      sources: _authoringSources([source]),
       screenContractFacts: SurfacePublicationScreenContractFacts(
         contractVersion: contract.contractVersion,
         capabilities: contract.capabilities,
@@ -1746,6 +1749,38 @@ SurfacePublicationAssemblyInput? _assembleLegacyStandalonePublication({
     return null;
   }
 }
+
+/// The package-relative authoring files behind one publication.
+///
+/// Both the declaration's own file and its owning library are recorded: they
+/// differ when a surface is declared in a part, and a developer naming a file
+/// may reasonably name either one. The assembler sorts and de-duplicates.
+///
+/// A roster path that is not package-relative is dropped rather than passed
+/// on. The roster resolves a path best-effort and can fall back to a
+/// `package:` URI or an absolute path for a source it cannot place; those are
+/// fine in a diagnostic span but the manifest cannot represent them, and
+/// letting one through would fail the whole package's manifest over a single
+/// unplaceable declaration. Dropping it costs that one file as a publish
+/// selector and nothing else.
+///
+/// The filter delegates to the shared predicate the manifest validates with,
+/// so the producer's rule and the constructor's gate cannot drift apart.
+List<String> _authoringSources(
+  Iterable<RestageSourceDeclaration> declarations,
+) =>
+    <String>[
+      for (final declaration in declarations) ...<String>[
+        declaration.sourcePath,
+        declaration.libraryPath,
+      ],
+    ].where(_isRepresentableDartPath).toList();
+
+bool _isRepresentableDartPath(String value) =>
+    value.endsWith('.dart') &&
+    value.trim() == value &&
+    !value.contains('\u0000') &&
+    isPackageRelativePath(value);
 
 Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
   Iterable<NormalizedFlowSource> flows, {
@@ -2068,6 +2103,10 @@ _FlowAssembly? _assembleFlowPublication({
         for (final artifact in closureArtifacts)
           ..._screenClosureInputs(artifact.artifact, id: artifact.id),
       ],
+      sources: _authoringSources([
+        source,
+        for (final artifact in closureArtifacts) artifact.artifact.source,
+      ]),
       flowFacts: SurfacePublicationFlowFacts(deliveryMode: flow.delivery),
     );
     return _FlowAssembly(
@@ -2151,6 +2190,10 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
           for (final artifact in closure)
             ..._screenClosureInputs(artifact.artifact, id: artifact.id),
         ],
+        sources: _authoringSources([
+          source,
+          for (final artifact in closure) artifact.artifact.source,
+        ]),
         flowFacts: SurfacePublicationFlowFacts(
           deliveryMode: flow.delivery,
         ),
