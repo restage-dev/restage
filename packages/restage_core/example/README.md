@@ -1,10 +1,10 @@
 # restage_core example
 
-`restage_core` is the curated cross-platform RFW widget catalog — layout,
+`restage_core` is the curated cross-platform RFW widget catalog: layout,
 structure, and decoration primitives (Container, Column, Row, Stack, Text,
 Image, and more) for server-driven Flutter UI.
 
-You author a surface in ordinary Flutter using these primitives, then a build
+You author a surface in plain Flutter using these primitives, then a build
 step lowers it against the catalog into an inert render blob.
 
 ## Author with core primitives
@@ -42,13 +42,13 @@ dart run build_runner build
 
 The generated manifest at
 `lib/generated/restage.publication.json` records the surface identity
-and exact artifact closure. Publish by generated slug:
+and exact artifact closure. Publish by surface id:
 
 ```sh
 restage surface publish pro
 ```
 
-The same primitives compose any surface — paywalls, onboarding, messages, or
+The same primitives compose any surface: paywalls, onboarding, messages, or
 surveys. See the [package README](../README.md) for the full widget set, and
 [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples)
 for complete, runnable surfaces.

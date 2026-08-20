@@ -1,11 +1,11 @@
 # restage_cupertino example
 
-`restage_cupertino` is the curated Cupertino (Apple HIG) RFW widget catalog —
-`CupertinoButton`, navigation/page scaffolding, switches, sliders, pickers,
-text fields, and more — for server-driven Flutter UI. Sibling to `restage_core`
+`restage_cupertino` is the curated Cupertino (Apple HIG) RFW widget catalog for
+server-driven Flutter UI: `CupertinoButton`, navigation/page scaffolding,
+switches, sliders, pickers, text fields, and more. Sibling to `restage_core`
 and `restage_material`.
 
-You author a surface in ordinary Flutter using Cupertino widgets, then a build
+You author a surface in plain Flutter using Cupertino widgets, then a build
 step lowers it against the catalog into an inert render blob.
 
 ## Author with Cupertino widgets
@@ -42,13 +42,13 @@ dart run build_runner build
 
 The generated manifest at
 `lib/generated/restage.publication.json` records the surface identity
-and exact artifact closure. Publish by generated slug:
+and exact artifact closure. Publish by surface id:
 
 ```sh
 restage surface publish pro
 ```
 
-The same widgets compose any surface — paywalls, onboarding, messages, or
+The same widgets compose any surface: paywalls, onboarding, messages, or
 surveys. See the [package README](../README.md) for the full widget set, and
 [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples)
 for complete, runnable surfaces.

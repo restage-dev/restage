@@ -1,7 +1,7 @@
 # rfw_catalog_compiler example
 
 `rfw_catalog_compiler` is the analyzer-backed compiler pipeline that turns a
-Flutter widget library into a **catalog** — the versioned description of the
+Flutter widget library into a **catalog**: the versioned description of the
 widgets and properties the Restage renderer understands. It walks the annotated
 source, resolves each property's value shape, allocates stable wire IDs, and
 lowers the result to the public catalog schema. It is the stage `restage_codegen`
@@ -36,7 +36,7 @@ const restageCatalog = 0;
 
 ## Mark the widget
 
-The widget itself keeps ordinary Flutter constructor syntax. Constructor-bound
+The widget itself keeps plain Flutter constructor syntax. Constructor-bound
 inputs and Dart documentation are inferred. `@RestageProperty` is optional
 metadata or an override for catalog facts that Dart cannot express:
 
@@ -83,12 +83,12 @@ From that source, `rfw_catalog_compiler` emits a catalog entry that records:
 - class and property descriptions inferred from Dart documentation, plus the
   optional color metadata.
 
-The compiled catalog is what lets a `.rfw` blob refer to `AcmeBorder` by a small
-inert identifier instead of shipping any widget code.
+The compiled catalog lets a `.rfw` blob refer to `AcmeBorder` by a small inert
+identifier.
 
 ## Running it
 
-In a normal project you don't invoke the compiler directly — add
+In a normal project you don't invoke the compiler directly. Add
 [`restage_codegen`](https://pub.dev/packages/restage_codegen) as a dev dependency
 and run `dart run build_runner build`; it drives this pipeline over your
 `@RestageWidget` library and writes the catalog alongside your generated

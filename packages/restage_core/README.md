@@ -24,8 +24,7 @@ The package provides:
   (`RestageMotion`, `RestageFadeIn`, `RestagePulse`, `RestageStagger`, and the
   `RestageSpring` substrate) and the number/price formatters (`RestagePrice`,
   `RestageFormattedNumber`). Standard Flutter widgets (Container, Text, …) are
-  mapped through the catalog, not re-declared here; you author surfaces in
-  ordinary Flutter syntax.
+  mapped through the catalog; you author surfaces in plain Flutter syntax.
 
 The catalog is surface-general: the same primitives compose paywalls,
 onboarding, in-app messages, surveys, or any other server-driven UI surface.

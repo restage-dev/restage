@@ -3,27 +3,26 @@
 This example shows the whole `@RestageWidget` → A2UI catalog loop end to end: it
 compiles annotated Flutter widgets into a [`genui`](https://pub.dev/packages/genui)
 A2UI catalog, then gates payloads against that catalog with `restage_a2ui`'s
-app-side, fail-closed **pre-render check** *before* handing them to genui — so a
+app-side, fail-closed **pre-render check** *before* handing them to genui. A
 payload the build can't render faithfully fails with a clean diagnostic instead of
 throwing mid-render.
 
 ## What it generates
 
-Two custom widget libraries, authored as ordinary annotated Flutter widgets, are
-compiled by the build-time toolchain into a single genui A2UI catalog — no
-hand-written `CatalogItem`s, no hand-authored JSON schemas:
+Two custom widget libraries, authored as plain annotated Flutter widgets, are
+compiled by the build-time toolchain into a single genui A2UI catalog. The build
+writes the `CatalogItem`s and the JSON schemas for you:
 
-- **`acme.widgets` (capability version 3)** — `CtaButton`, `IntegerListPicker`,
+- **`acme.widgets` (capability version 3)**: `CtaButton`, `IntegerListPicker`,
   `ProductCard`, `RatingPicker`, and `ScalarListPanel`.
-- **`acme.lessons` (capability version 1)** — `SectionHeader`, `Callout`, `ComparisonPanel`, `QuizCheck`.
+- **`acme.lessons` (capability version 1)**: `SectionHeader`, `Callout`, `ComparisonPanel`, `QuizCheck`.
 
-The generated catalog contains exactly these widgets — it is your own widgets, not
-Flutter built-ins. Each library carries its own capability version in the emitted
+The generated catalog contains exactly these widgets, all of them your own. Each
+library carries its own capability version in the emitted
 stamp. The two outputs
 (`lib/generated/restage_a2ui_catalog.g.dart` +
 `lib/generated/restage_a2ui_catalog.a2ui.json`) are regenerated from the
-annotated source. There are no example annotations,
-JSON sidecars, or other post-widget authoring inputs. The example has no app
+annotated source, which is the only authoring input. The example has no app
 entrypoint:
 
 ```bash
@@ -58,7 +57,7 @@ to be named `child` or `children`.
 
 ## Gate a payload before rendering
 
-Build the check once (it is immutable — reuse it for every payload), then gate
+Build the check once (it is immutable, so reuse it for every payload), then gate
 each payload before render:
 
 ```dart
@@ -77,7 +76,7 @@ Widget? renderCached(Map<String, Object?> payload) {
     case A2uiRenderable():
       return renderWithGenui(payload); // your genui render call
     case A2uiRejected(:final diagnostic):
-      // Do NOT render — fall back to a built-in surface and log why.
+      // Do NOT render. Fall back to a built-in surface and log why.
       debugPrint('A2UI rejected: $diagnostic');
       return null;
   }
@@ -100,4 +99,4 @@ generated `_restageA2uiSystemPromptFragments` in
 `lib/generated/restage_a2ui_catalog.g.dart`
 shows the result: `Callout` gets its own `usage` line, `SectionHeader` falls back
 to its `description`, and `buildRestageCatalog()` (used above) hands both to genui
-as `Catalog.systemPromptFragments` — your own words, not generated.
+as `Catalog.systemPromptFragments`, in your own words.

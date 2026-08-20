@@ -1,21 +1,20 @@
 # Build your first surface
 
-This walks you from nothing to a real surface rendering in your Flutter app.
-We'll build a paywall, because it's the most common first surface, but the same
+This guide takes you from nothing to a surface rendering in your Flutter app.
+It builds a paywall because that is the most common first surface. The same
 steps build any surface: onboarding, an in-app message, or a full screen.
 
 The whole thing runs offline. You don't need a Restage account or a backend to
 write a surface and render it on device.
 
-If you'd rather read working code than a walkthrough, the [`apps/examples`](apps/examples)
-README has a **Starters** section: four minimal, copy-me surfaces (a paywall, an
-onboarding flow, a one-screen message, and a custom widget), each the smallest file
-that still ships, plus a library of fuller, polished surfaces. Copying a starter is the
-fastest way to begin. This guide builds one from scratch so you see each piece.
+If you'd rather read working code, the [`apps/examples`](apps/examples)
+README has four starters to copy (a paywall, an onboarding flow, a one-screen
+message, and a custom widget), each the smallest file that still ships. This
+guide builds one from scratch so you see each piece.
 
 ## 1. Add the packages
 
-In your Flutter app's `pubspec.yaml`:
+In your app's `pubspec.yaml`, add these to whatever is already there:
 
 ```yaml
 dependencies:
@@ -31,32 +30,25 @@ dev_dependencies:
   restage_codegen: ^1.2.0
 ```
 
-Keep whatever your project already lists (a fresh `flutter create` app has
-`flutter_test` and `flutter_lints` there); add these entries to it rather than
-replacing the block.
-
 Then fetch them:
 
 ```sh
 flutter pub get
 ```
 
-(If you have the CLI installed, `restage init` will do this step and scaffold a
-starter paywall for you. This guide assumes you're doing it by hand.)
+If you have the CLI installed, `restage init` does this step and scaffolds a
+starter paywall. This guide does it by hand.
 
 ## 2. Write the surface
 
-A simple paywall is a `StatelessWidget` annotated with `@Paywall`. You write
-ordinary Flutter. These are your own widgets: swap in your design-system components
-and they ship the same way. The `id` is how you'll reference the surface when you
-render it. (Interactive paywalls, plan selection and the like, are a `StatefulWidget`
-root holding their selection state; the examples show that pattern.)
+A simple paywall is a `StatelessWidget` annotated with `@Paywall`. It is plain
+Flutter, and the widgets are your own: swap in your design-system components
+and they ship the same way. The `id` is how you reference the surface when you
+render it. (An interactive paywall with plan selection is a `StatefulWidget`
+root that holds its selection state; the examples show that pattern.)
 
-Save the source as `lib/paywalls/pro_upgrade.dart`. The builder reads paywalls
-from `lib/paywalls/`, so this walkthrough depends on that path. What the path
-does NOT decide is identity:
-the annotation's `id` and the generated publication manifest own the surface
-identity and its artifact closure.
+Save the file as `lib/paywalls/pro_upgrade.dart`. The builder reads paywalls
+from `lib/paywalls/`, so this guide depends on that path.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -99,31 +91,29 @@ class ProUpgradePaywall extends StatelessWidget {
 }
 ```
 
-Two helpers come from the SDK: `paywallPurchase(slot: 'annual')` wires the
-button to buy that product, and `paywallEvent('restage.restore')` fires the
-SDK's reserved restore event, which the SDK handles when it renders the
-paywall.
+Two helpers come from the SDK. `paywallPurchase(slot: 'annual')` wires the
+button to buy that product. `paywallEvent('restage.restore')` fires the SDK's
+reserved restore event, which the SDK handles when it renders the paywall.
 
-A third helper, `paywallPriceFor(slot: 'annual')`, drops a live store price
-into any `Text`. It binds to your connected store products at render time, so
-it joins when you pass products to `Restage.configure` (step 5). This
-walkthrough attaches no store, and a price binding with nothing behind it
-reports a paywall load failure instead of rendering a wrong price, so leave it
-out here.
+A third helper, `paywallPriceFor(slot: 'annual')`, puts a live store price into
+any `Text`. It binds to your connected store products at render time, so it
+works once you pass products to `Restage.configure` (step 5). This guide
+attaches no store, and a price binding with nothing behind it reports a paywall
+load failure instead of rendering a wrong price, so leave it out here.
 
-A few authoring habits keep a surface compilable. The build follows your widget
-tree literally, so: write each string as a single literal, keep the build tree
-flat rather than extracting helper widgets, and write any theme reads inline at the
-point of use. The examples document the full list. And one capability boundary:
-fully custom render logic (a `CustomPainter`, for instance) is not available in a
-surface; compose from Flutter's own widgets instead. If the build step can't lower
-something, it tells you at build time rather than rendering it differently.
+A few habits keep a surface compilable. The build follows your widget tree
+literally, so write each string as one literal, keep the build tree flat
+instead of extracting helper widgets, and write theme reads inline where you
+use them. The examples document the full list. One boundary: custom render
+logic (a `CustomPainter`, for instance) isn't available in a surface; compose
+from Flutter's own widgets instead. If the build can't lower something, it
+tells you at build time instead of rendering it differently.
 
 ## 3. Compile it
 
-This walkthrough runs offline, so the generated surface has to ship inside the
-app. Create a `build.yaml` next to `pubspec.yaml` that sets `bundled_runtime`
-on every `restage_codegen` builder key:
+This guide runs offline, so the compiled surface has to ship inside the app.
+Create a `build.yaml` next to `pubspec.yaml` that sets `bundled_runtime` on
+every `restage_codegen` builder key:
 
 ```yaml
 targets:
@@ -141,16 +131,15 @@ targets:
 ```
 
 The options must be identical on every key. `&restage_placement` names the
-options block where it first appears and each `*restage_placement` reuses it,
-so there is one block to edit. A mismatch between keys fails the build with a
-placement options divergence error instead of scattering output.
+block where it first appears and each `*restage_placement` reuses it, so there
+is one block to edit. If two keys disagree, the build fails with a placement
+options divergence error instead of scattering output.
 
 > [!NOTE]
-> `bundled_runtime: true` is the opt-in that makes this offline walkthrough
-> work; it is not the default. By default nothing is routed into the app's
-> assets: with hosted delivery, surfaces reach installed apps over the air and
-> no `build.yaml` is needed at all. See **Hosted delivery** under *Where to go
-> next*.
+> `bundled_runtime: true` is what makes this offline guide work. It is not the
+> default. By default nothing goes into the app's assets: with hosted delivery,
+> surfaces reach installed apps over the air and no `build.yaml` is needed at
+> all. See **Hosted delivery** under *Where to go next*.
 
 Run the build:
 
@@ -158,26 +147,28 @@ Run the build:
 dart run build_runner build
 ```
 
-This compiles your widget into one deterministic container:
+This compiles your widget into one container:
 
 ```
 lib/paywalls/pro_upgrade.dart  ──▶  assets/restage/bundles/lib/paywalls/pro_upgrade.rsbundle
 ```
 
-The `.rsbundle` is a zip holding the compiled artifacts at their logical
-paths: the binary `.rfw` blob your app renders, the human-readable `.rfwtxt`,
-and the capability sidecar. Generated artifacts are packaged once, inside the
-container, and the runtime answers logical-path reads from inside it. Unzip
-the bundle when you want to inspect the `.rfwtxt`.
+The `.rsbundle` is a zip that holds the compiled artifacts at their logical
+paths: the binary `.rfw` artifact your app renders, the readable `.rfwtxt`, and
+the capability sidecar. Unzip it when you want to read the `.rfwtxt`.
 
-Artifact paths are not publication selectors; the generated manifest at
-`lib/generated/restage.publication.json` records the exact closure. It is a
-build output, so it appears after this step rather than in a fresh clone.
-Commit the generated outputs your app bundles.
+Those artifacts are the only thing that ships over the air. They hold
+references and literal values, never executable code. Your Dart stays in the
+app.
 
-Bundle the container by adding its directory to your `pubspec.yaml`. A Flutter
-directory entry is not recursive, so each bundle directory is listed; the tree
-mirrors the authored `lib/` layout:
+The build also writes `lib/generated/restage.publication.json`, which records
+the exact artifacts for each surface id. It is a build output, so it appears
+after this step, not in a fresh clone. Commit the generated outputs your app
+bundles.
+
+Add the bundle directory to your `pubspec.yaml`. A Flutter asset directory
+entry isn't recursive, so list each bundle directory; the tree mirrors your
+`lib/` layout:
 
 ```yaml
 flutter:
@@ -186,30 +177,35 @@ flutter:
     - assets/restage/bundles/lib/paywalls/
 ```
 
-The asset entry bundles generated output for this specialized paywall. It does
-not choose which surface the CLI publishes.
+## 4. Publish it
 
-## 4. Publish the generated surface
-
-The normal publication command selects the generated entry by slug:
+When you want the surface on a server, publish it by id:
 
 ```sh
 restage surface publish pro_upgrade
 ```
 
 Run it after `restage init` has configured the project and app, and after
-`restage login` has completed.
+`restage login`. The CLI reads `lib/generated/restage.publication.json` and
+uploads the artifacts recorded there. `--type paywall` is optional validation.
 
-The CLI reads `lib/generated/restage.publication.json` and uploads the
-exact artifact closure recorded there. `--type paywall` is optional validation or
-disambiguation. Do not pass `--path` to select an artifact; source and asset
-directories are not publication authority.
+You can also name the file instead of the id:
+
+```sh
+restage surface publish lib/paywalls/pro_upgrade.dart
+```
+
+The CLI resolves the file through the same generated manifest, so it selects
+what the build produced. If a file produced more than one surface, the CLI
+lists them and asks; `--all` publishes all of them.
+
+You can skip this step for now. The rest of the guide renders the bundled copy.
 
 ## 5. Render it in your app
 
-Configure Restage once at startup, then drop `RestagePaywall` wherever you want
-the paywall. `AssetVariantResolver` tells it to load the bundled blob you just
-compiled.
+Configure Restage once at startup, then put `RestagePaywall` wherever you want
+the paywall. `AssetVariantResolver` tells it to load the bundled artifact you
+just compiled.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -253,16 +249,16 @@ class MyApp extends StatelessWidget {
 }
 ```
 
-`RestagePaywall(id: 'pro_upgrade')` resolves the generated bundled paywall and
-renders it as real Flutter widgets. The `onEvent` callback is where your app
-reacts to what happens in the surface: a view, a purchase, a restore, or any event
-you fired with `paywallEvent`. Keep the `PaywallLoadFailed` case during
-development: a surface that cannot render fails closed to an empty box, and
-that event's message is the one signal saying why.
+`RestagePaywall(id: 'pro_upgrade')` resolves the bundled paywall and renders
+it as real Flutter widgets. `onEvent` is where your app reacts to what happens
+in the surface: a view, a purchase, a restore, or any event you fired with
+`paywallEvent`. Keep the `PaywallLoadFailed` case during development. A
+surface that can't render fails closed to an empty box, and that event's
+message is the one signal that says why.
 
-To see real prices and a working purchase, pass your App Store and Play products to
-`products:` in `configure`. The `paywallPriceFor` and `paywallPurchase` slots bind
-to them by slot name.
+To see real prices and a working purchase, pass your App Store and Play
+products to `products:` in `configure`. The `paywallPriceFor` and
+`paywallPurchase` slots bind to them by slot name.
 
 Build and run it:
 
@@ -270,10 +266,10 @@ Build and run it:
 flutter run
 ```
 
-A debug `flutter run` doesn't tree-shake icons, so it needs no flag. When you build
-a **release** of an app that ships a Restage surface, add `--no-tree-shake-icons`.
-The render blob constructs icons from runtime values, which the release icon
-tree-shaker can't see, so the build fails without the flag:
+A debug `flutter run` doesn't tree-shake icons, so it needs no flag. When you
+build a release of an app that ships a Restage surface, add
+`--no-tree-shake-icons`. The artifact constructs icons from runtime values,
+which the release icon tree-shaker can't see, so the build fails without it:
 
 ```sh
 flutter build ios --no-tree-shake-icons
@@ -293,31 +289,23 @@ Or keep it rebuilding as you edit:
 dart run build_runner watch
 ```
 
-One thing to know: Flutter doesn't hot-reload bundled assets, so after the `.rfw`
-rebuilds, hot-restart the running app (press `R` in `flutter run`) to pick up the
-new blob.
+Flutter doesn't hot-reload bundled assets, so after the `.rfw` rebuilds,
+hot-restart the running app (press `R` in `flutter run`) to pick up the new
+artifact.
 
-That's the whole local loop: write Flutter, compile, render, repeat. Everything so
-far works with no account and no network.
+That's the whole local loop: write Flutter, compile, render, repeat. Nothing
+so far needs an account or a network.
 
 ## Where to go next
 
-- **Another surface.** Onboarding flows, in-app messages, and surveys are authored
-  with the same code generator. The examples keep engagement source files under
-  `lib/onboarding/` as a readable layout convention. See the engagement-surface
-  examples in [`apps/examples`](apps/examples).
-- **An interactive paywall.** The example paywalls show plan selection (tap a plan,
-  the selection updates, the purchase re-targets) that travels inside the render
-  blob with no host code. The examples README explains the pattern.
-- **Hosted delivery.** When you want a published surface to update installed apps
-  over the air, use hosted delivery and `restage surface publish`. Hosted delivery
-  is in private beta; the SDK already falls back to your bundled blob until it's
-  available, so nothing you build now has to change.
-
-## Migration from legacy source annotations
-
-Older projects may use `@PaywallSource`, `@ScreenSource`, or `@FlowSource`.
-Those annotations remain only as deprecated compatibility frontends. New source
-should use `@Paywall`, `@Screen`, or `@FlowGraph(surface: ...)`. The specialized
-`restage paywall publish <name>` command is also retained for compatibility, but
-normal publication uses `restage surface publish <slug>` for every surface family.
+- **Another surface.** Onboarding flows, in-app messages, and surveys use the
+  same code generator. The examples keep engagement source files under
+  `lib/onboarding/`. See the engagement-surface examples in
+  [`apps/examples`](apps/examples).
+- **An interactive paywall.** The example paywalls show plan selection (tap a
+  plan, the selection updates, the purchase re-targets) that travels inside the
+  artifact with no host code. The examples README explains the pattern.
+- **Hosted delivery.** When you want a published surface to update installed
+  apps over the air, use hosted delivery and `restage surface publish`. Hosted
+  delivery is in private beta. The SDK falls back to your bundled artifact
+  until it is available, so nothing you build now has to change.

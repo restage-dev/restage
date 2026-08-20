@@ -15,355 +15,202 @@
 </p>
 
 <!--
-  Logo — animated overprint wordmark. GitHub renders the light/dark SVG (vector,
+  Logo: animated overprint wordmark. GitHub renders the light/dark SVG (vector,
   theme-adaptive, animated); pub.dev and other viewers that strip SVG fall back to
   the WebP <img>. A mark+wordmark lockup variant ships alongside in /brand/.
 -->
 
-**Server-driven UI for Flutter.** Restage is the runtime SDK. It renders server-driven surfaces as *real* Flutter widgets in your own widget tree, via [Remote Flutter Widgets (RFW)](https://pub.dev/packages/rfw). One runtime drives every surface: paywalls, onboarding, in-app messages, surveys, and whole screens. Nothing executable is loaded from a surface.
+Restage is a server-driven UI toolkit for Flutter. Build any part of your app
+with the widgets you already use and ship it over the air. Everything renders as
+real Flutter widgets in your app, using your theme.
 
-## What makes it different
+This package is the runtime SDK. It renders what the build produced as real
+Flutter widgets in your widget tree, through
+[Remote Flutter Widgets](https://pub.dev/packages/rfw). Nothing it loads over
+the air is executable.
 
-- **Your real Flutter UI, over the air.** Author a surface in your own widgets and design system; what ships is compiled from that exact code. Not a fixed palette, not a JSON dialect, not a webview.
-- **Your design system comes with it.** `Theme.of(context)` resolves live at render time. A surface follows your app into dark mode or a rebrand, with no recompile.
-- **No code over the air.** An update changes the screens your app shows. It can't run new code, so an update can't do anything your released app couldn't already do. That's what makes OTA UI workable where the app stores' rules on shipping interpreted code are the constraint — though what your own app needs to satisfy remains your call.
-- **Fails safe, not wrong.** A surface can't reach a client too old to render it, and a failed fetch falls back to your bundled copy. `FlowUnavailablePolicy` is required, not optional.
-- **Built for governed delivery.** This SDK ships the primitives: surface versioning and fail-closed clients. The delivery service builds roll back, freeze, kill, and an exportable audit trail on top; the hosted service is coming soon.
-- **One runtime, every surface.** Paywalls, onboarding, messages, surveys, whole screens. One catalog, one runtime.
+One runtime renders every surface: paywalls, onboarding, in-app messages,
+surveys, and whole screens.
 
-## Status
+## Why Restage
 
-The SDK ships the full delivery path today. The hosted Restage service that runs it for you is in private beta. Either way the generated references and fail-closed policies are the same:
+- **Your widgets, your theme.** The build compiles the code you wrote, and
+  `Theme.of(context)` resolves when the surface renders.
+- **Any part of the app.** A whole screen, a paywall, an onboarding flow, or
+  one card inside your own `Scaffold`.
+- **It ships only content.** An update changes what your app shows. It runs no
+  new code.
+- **It fails safe.** A surface never reaches a client too old to render it, and
+  a failed fetch renders your bundled copy.
 
-- **Standalone screens** use a generated `SurfaceScreenRef<E>` with
-  `RestageSurfaceScreen<E>`. The ref carries the screen's category, contract,
-  and generated event decoder.
-- **Specialized paywalls** use `@Paywall` source and `RestagePaywall` with
-  `AssetVariantResolver` when you bundle the generated paywall artifact. The
-  generated artifact path is an output, not the paywall's identity.
-- **Flows** (onboarding, surveys, messages, or general surfaces) use a generated
-  `SurfaceFlowRef<R>` with `RestageSurfaceFlow<R>`.
-- **Legacy compatibility:** `RestageOnboarding<R>` remains available as the
-  onboarding-only compatibility facade. New host code should use
-  `RestageSurfaceFlow<R>` for every flow category.
-- **Publication metadata:** `lib/generated/restage.publication.json`
-  is the generated authority for each surface identity and its exact artifact
-  closure. Source and asset directories do not select a publication.
-- **Hosted delivery:** `Restage.configure(baseUrl: …)` installs `RestageVariantResolver`. It fetches the active published surface and falls back to a bundled asset when the fetch is unavailable. Point `baseUrl` at your own backend now, or at the hosted service when it opens. Flows take the same hosted path through `ServerFlowResolver` (pass it as `flowResolver:`).
+## Quick start
 
-Apps that bundle all their artifacts keep using the asset resolvers directly.
-
-## Authoring annotations and publication
-
-Declare the surface category where you author it:
-
-- `@Screen(surface: Surface.<category>)` creates an independently published
-  ordinary screen. `@Screen()` creates a reusable flow screen that inherits its
-  containing flow's category.
-- `@Paywall` creates a specialized paywall. A paywall can also be composed into
-  a flow of another category.
-- `@FlowGraph(surface: Surface.<category>)` creates a typed flow graph.
-
-Flow-screen interactions use typed `SurfaceEvent` descriptors and the
-`surfaceEvent(...)` callback helper; ordinary authoring does not use raw event
-name strings.
-
-The accepted categories are the closed `Surface` values: `onboarding`, `message`,
-`survey`, `paywall`, and `general`. Run the generator, then publish by the
-generated slug:
-
-```sh
-dart run build_runner build
-restage surface publish <slug>
-```
-
-The CLI reads the fixed generated manifest. `--type` is optional validation or
-disambiguation. `--path` is not a publication option, and a directory does not
-choose the artifact closure.
-
-## Paywall quick start
+Here's a paywall, written as a plain Flutter widget with one annotation:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-void main() {
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+@Paywall(id: 'pro_upgrade')
+class ProUpgradePaywall extends StatelessWidget {
+  const ProUpgradePaywall({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-        home: Scaffold(
-          body: RestagePaywall(
-            id: 'pro_upgrade',
-            resolver: const AssetVariantResolver(),
-            onEvent: (event) {
-              switch (event) {
-                case PaywallViewed():
-                  debugPrint('viewed');
-                case PurchaseSucceeded():
-                  debugPrint('purchased');
-                case _:
-                  break;
-              }
-            },
+  Widget build(BuildContext context) => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Go Pro', style: Theme.of(context).textTheme.headlineMedium),
+          FilledButton(
+            onPressed: paywallPurchase(slot: 'annual'),
+            child: const Text('Start free trial'),
           ),
-        ),
+        ],
       );
 }
 ```
 
-## Bundled native purchases
-
-Call `Restage.configure` at app startup before showing store-backed paywalls.
-The bundled native gateway requires a `baseUrl` so it can create a durable
-purchase intent before opening store UI and report the transaction afterward.
-It currently accepts auto-renewing subscriptions only.
-Google Play prepaid base plans are not accepted.
-
-For the bundled gateway, Restage listens for native store updates outside the
-lifetime of a paywall. It reports an observed transaction before asking
-StoreKit or Google Play to complete it. If the app exits first, StoreKit's
-unfinished transactions or Google Play's owned-purchase query supplies the
-evidence again when the app starts. Configure-owned StoreKit 1 promotional
-offers fail closed rather than opening store UI without the required binding.
-
-This durability boundary belongs only to the bundled gateway. Custom
-receipt-bearing `BillingGateway` implementations and the RevenueCat adapter
-retain ownership of their own receipt recovery and store-completion durability.
-
-## Flow quick start
-
-`restage_codegen` generates the `SurfaceFlowRef<R>` and, when the flow uses host actions, a `FlowActionRegistry`. The example below shows the public API that generated code and your app code use together.
-
-For the normal bundled path, `RestageSurfaceFlow` uses `AssetFlowResolver` by
-default; it can also be passed explicitly as shown below. The resolver loads
-the generated flow artifact closure from the app bundle. It does not determine
-the flow's identity or publication category; generated publication metadata is
-the authority for those.
-
-```dart
-import 'package:flutter/widgets.dart';
-import 'package:restage/restage.dart';
-
-final class FirstRunResult {
-  const FirstRunResult({required this.completed});
-
-  final bool completed;
-}
-
-abstract final class FirstRunFlowDescriptor {
-  static final SurfaceFlowRef<FirstRunResult> ref =
-      SurfaceFlowRef<FirstRunResult>(
-    id: 'first_run',
-    version: 1,
-    minClient: 3,
-    surface: Surface.onboarding,
-    decodeResult: _decodeResult,
-  );
-
-  static FirstRunResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || result['completed'] is! bool) {
-      throw const FormatException('Invalid first_run result.');
-    }
-    return FirstRunResult(completed: result['completed']! as bool);
-  }
-}
-
-final class NotificationResult {
-  const NotificationResult({required this.granted});
-
-  final bool granted;
-}
-
-final class FirstRunActions implements FlowActionRegistry {
-  FirstRunActions({
-    required FlowActionHandler<void, NotificationResult>
-        requestNotifications,
-  }) : flowActionBindings = {
-          'requestNotifications': FlowActionBinding<void, NotificationResult>(
-            actionName: 'requestNotifications',
-            contractVersion: 1,
-            argsSchema: const FlowActionSchema.object({}),
-            resultSchema: const FlowActionSchema.object({
-              'granted': FlowActionSchemaField(
-                required: true,
-                schema: FlowActionSchema.bool(),
-              ),
-            }),
-            minClient: 3,
-            idempotent: false,
-            handler: requestNotifications,
-            decodeArgs: (_) {},
-            encodeResult: (value) => {'granted': value.granted},
-          ),
-        };
-
-  @override
-  final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings;
-}
-
-class FlowEntry extends StatelessWidget {
-  const FlowEntry({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return RestageSurfaceFlow<FirstRunResult>(
-      flow: FirstRunFlowDescriptor.ref,
-      resolver: const AssetFlowResolver(),
-      actions: FirstRunActions(
-        requestNotifications: (_, context) async {
-          return const NotificationResult(granted: true);
-        },
-      ),
-      unavailable: FlowUnavailablePolicy.fallback(
-        builder: (context, error) => Text(error.message),
-      ),
-      onComplete: (result) {
-        Navigator.of(context).pushReplacementNamed('/home');
-      },
-    );
-  }
-}
-```
-
-`FlowUnavailablePolicy` is required. Missing assets, incompatible versions, unsupported document features, action-contract mismatches, and build-time render failures fall back or hide instead of running the flow partway. Generated result decoders reject missing, extra, or mistyped fields, so a bad terminal result fails closed before `onComplete` runs.
-
-## Flow navigation and customization
-
-The back and skip chrome around a flow is customizable, from theme tokens up to owning the controller yourself. Back navigation follows screen history and never re-fires an action.
-
-See [`doc/flow_navigation_and_customization.md`](doc/flow_navigation_and_customization.md) for the full customization ladder, the onboarding-to-paywall patterns, and the compliance boundary.
-
-## Host actions
-
-Host actions are typed, app-owned capability boundaries. A flow can select among the action capabilities your installed app already shipped. It cannot define new executable behavior. Handlers receive typed args plus `FlowActionContext` and return typed results the runtime encodes back into the flow.
-
-## Data minimization
-
-Flow-originated custom events, terminal results, child-flow results, and action arguments are filtered through explicit declarations before they leave the flow runtime. Do not put secrets, credentials, private tokens, or unreleased business logic in flow documents, generated Dart, or bundled RFW assets.
-
-**The experiment eligibility contract.** Every hosted fetch carries a small rendering-capability contract hash — the built-in catalog version this build ships plus the custom widget libraries it has registered (the full list is uploaded only when the server hasn't seen that hash before). The server uses it only for experiment eligibility: a client is enrolled only in experiments whose every arm this build can render; a client that can't render an arm sits out the experiment and is served the active version, never a broken one. The contract describes what this build can draw. It carries no user, device, or host-supplied render data.
-
-## Live refresh
-
-Every surface picks up new content the next time it is shown. That is the default, and it covers most changes: publish a new version, and the next onboarding run, paywall view, or survey render uses it.
-
-Live refresh is the opt-in accelerator on top of that. When you turn it on, a surface that is already on screen updates itself in place, with no navigation and no app restart. It works the same for every surface. An onboarding screen re-themes while the user is looking at it, a paywall swaps its offer, an in-app message updates its copy. Same lane, same rules.
-
-Two things are worth stating plainly:
-
-- Content updates on the next view by default. Live refresh live-updates on-screen surfaces when you opt in. It does not claim instant delivery everywhere.
-- It never weakens delivery. A live refresh re-resolves through the same fail-safe path your first render uses, skips unchanged content, and applies a change only when the surface is safe to swap: not mid-interaction, not mid-purchase, not enrolled in an experiment. If the realtime lane is unavailable, the surface keeps rendering what it already has. Live refresh accelerates delivery. It is never a bypass.
-
-There are no timers. The realtime lane runs only while a surface is mounted and foregrounded. A resume check covers anything published while the app was backgrounded.
-
-### Turning it on
-
-Opt surfaces in with a set of triggers, resolved most-specific-wins (widget override, then per-surface override, then the app-global set):
-
-```dart
-Restage.configure(
-  apiKey: 'rs_pk_...',
-  baseUrl: 'https://your-backend.example',
-  // Wire the Restage-hosted realtime lane.
-  liveRefreshEdgeUrl: Uri.parse('https://your-edge.example'),
-  // App-global default: every surface takes live edge pushes + the resume check.
-  liveRefresh: const {
-    SurfaceRefreshTrigger.updateChannel,
-    SurfaceRefreshTrigger.appResume,
-  },
-  // Per-surface override by id (wins over the global set).
-  liveRefreshOverrides: const {
-    'welcome_flow': {SurfaceRefreshTrigger.appResume},
-  },
-);
-
-// Per-widget override (wins over everything). An empty set opts this one out.
-RestageSurfaceFlow<FirstRunResult>(
-  flow: welcomeFlow,
-  liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
-  unavailable: const FlowUnavailablePolicy.hide(),
-);
-```
-
-`liveRefreshEdgeUrl` (with `baseUrl` and no custom channel) installs the Restage-hosted realtime lane, so mounted surfaces that opt into `updateChannel` refresh in place as you publish.
-
-When you branch on a trigger, prefer an `if` or a membership test over an exhaustive `switch`. The `SurfaceRefreshTrigger` set is additive, so code that switches over every case would break when a new trigger is added.
-
-### Bring your own channel
-
-To drive live refresh from your own infrastructure (your push provider, your own socket), implement `SurfaceUpdateChannel` and pass it as `updateChannel`. A signal means "this surface may have changed." The SDK re-resolves through its normal delivery path, skips unchanged content, and applies a change through the same swap-safety gate. A channel signals opportunity. It can never force a swap.
-
-```dart
-class MyPushChannel implements SurfaceUpdateChannel {
-  @override
-  Stream<SurfaceUpdate> watch(SurfaceRef surface) {
-    // Emit a SurfaceUpdate(surface) whenever your backend says this surface's
-    // content changed. The SDK subscribes while the surface is mounted and
-    // foregrounded, and cancels on dispose or background.
-    return myPushStream
-        .where((message) => message.matches(surface))
-        .map((_) => SurfaceUpdate(surface));
-  }
-}
-
-Restage.configure(
-  apiKey: 'rs_pk_...',
-  baseUrl: 'https://your-backend.example',
-  updateChannel: MyPushChannel(),
-  liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
-);
-```
-
-## Telemetry and data
-
-Restage includes a conversion-analytics layer. It powers your dashboard, A/B results, and revenue attribution. It's built to be boring and honest:
-
-- **It's off until you connect a backend.** Analytics activates only when you pass `baseUrl` to `Restage.configure(...)`. In local mode (no `baseUrl`) the SDK renders everything on-device and calls no backend.
-- **No endpoint is baked in.** Events go to *your* configured `baseUrl` (`<baseUrl>/analytics/events`), authenticated with your public key (`rs_pk_…`). Point it at Restage Cloud and your events power your dashboard and usage-based billing. Point it at your own backend and they go there. There is no hidden Restage host in the SDK. Grep for it.
-- **The identity is pseudonymous.** Each install gets a random UUID, not derived from any device or advertising identifier, which resets on uninstall or `Restage.reset()`. It is a pseudonymous identifier rather than an anonymous one — treat it as personal data under GDPR and similar laws, as we do. After a reset, future activity is treated as a new user, so experiment assignment may change on the next surface presentation. The SDK never attaches a user identity of your own unless *you* pass one via `Restage.identify(...)`.
-
-**What each event contains:** a dedup id; the event name and a UTC timestamp; which surface it was, with its id, version, and session; the pseudonymous install id and an app-session id; an app context of `platform`, `locale`, SDK version, and optional app version or build; conversion dimensions (product, offer, variant, experiment) where they apply; and the event's own typed fields, after a scrub that keeps render and host context out of analytics.
-
-**What it never collects:** advertising identifiers (IDFA/GAID), device fingerprints, location, contacts, or screen content. Beyond the fields listed above, it collects no personal data you do not explicitly attach — note that ordinary request metadata such as an IP address is visible to whatever backend you point it at, as with any network call.
-
-**Delivery is fail-safe.** Events are batched, capped, retried safely, and never throw into your app.
-
-**Turning it off:** run in local mode (omit `baseUrl`) for zero telemetry, or pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted delivery and entitlement sync while disabling analytics. If you use the hosted service, surface fetches still include the metering token described below.
-
-### The metering token
-
-The hosted service is billed by monthly active users, so the SDK needs a way to count them. How it works:
-
-- **If you don't use the hosted service, there is no token.** Without a `baseUrl` the SDK never creates one. Even with a `baseUrl`, the token is only created the first time a surface is actually fetched from the server.
-- **It's a random UUID.** Generated on the device, stored in `shared_preferences`, gone when the app is uninstalled. It contains nothing about the user or the device, and it is not connected to the analytics install id.
-- **It is only sent with surface fetches.** It goes in the body of the request to `<baseUrl>/sdk/v1/surface` and nowhere else. It never appears in analytics events. Grep for `meteringKey`.
-- **It only goes to the server you configured.** Like everything else in the SDK, there is no baked-in Restage endpoint. If your `baseUrl` is your own backend, the token is sent there, not to us, and your server is free to ignore the field.
-- **`analyticsEnabled: false` does not remove it.** That flag turns off analytics. The metering token is how use of the hosted service is counted for billing, so it stays as long as you fetch surfaces from the server. Run without a `baseUrl` and the SDK sends nothing at all.
-
-If you need to describe it in your own privacy policy: a random per-install identifier, used only to count active users for billing, reset when the app is uninstalled. The implementation is in `lib/src/metering/` and it is short.
-
-It's all BSD-3-Clause and readable: see `lib/src/analytics/` and `lib/src/billing/anonymous_token.dart`.
-
-## Build your artifacts
-
-Add `restage_codegen` as a dev dependency and run build_runner to generate
-typed descriptors, flow documents, screen artifacts, and the publication
-manifest:
+Compile it with [`restage_codegen`](https://pub.dev/packages/restage_codegen):
 
 ```sh
 dart run build_runner build
 ```
 
-Generated asset paths are implementation outputs. Use the generated refs at
-runtime and `restage surface publish <slug>` for publication; do not construct a
-publication by guessing a directory or passing an artifact path.
+Render it anywhere in your app. The SDK loads the compiled artifact and draws
+it as real Flutter widgets:
 
-Apps that depend on `restage` must build with `--no-tree-shake-icons`, because RFW builds `IconData` from runtime values:
+```dart
+RestagePaywall(
+  id: 'pro_upgrade',
+  resolver: const AssetVariantResolver(),
+  onEvent: (event) {
+    if (event case PurchaseSucceeded()) {
+      // unlock Pro
+    }
+  },
+)
+```
+
+Change the widget, rebuild, and the surface updates. Publish it with
+`restage surface publish pro_upgrade` and installed apps pick it up over the
+air. The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
+walks through all of it, including the `build.yaml` for bundled assets.
+
+## Surfaces
+
+One host widget per surface kind:
+
+- **Screens**: any single surface you write with `@Screen`, such as a welcome
+  page, a notice, or a settings card. Mount it with
+  `RestageSurfaceScreen(screen: welcomeScreenRef, ...)` wherever it should appear;
+  the build generates `welcomeScreenRef`, and taps come back as typed Dart events.
+- **Paywalls**: a `@Paywall` surface with products, purchase, and restore built
+  in. Mount it with `RestagePaywall(id: 'pro_upgrade', ...)`.
+- **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a survey,
+  or a multi-step message. Mount it with
+  `RestageSurfaceFlow(flow: FirstRunFlowDescriptor.ref, ...)`; the build
+  generates the descriptor. See [doc/flows.md](doc/flows.md)
+  for the full example, host actions, and data minimization, and
+  [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
+  for back and skip chrome.
+
+### Delivery
+
+Apps that bundle their artifacts use the asset resolvers. To fetch surfaces
+from a server, call `Restage.configure(baseUrl: ...)` at startup. That
+installs `RestageVariantResolver`, which fetches the active published surface
+and falls back to the bundled asset when the fetch fails. Flows take the same
+path through `ServerFlowResolver` (pass it as `flowResolver:`). Point `baseUrl`
+at your own backend, or at the hosted service.
+
+A surface never reaches a client that is too old to render it. If a fetch
+fails, the SDK renders your bundled copy. For flows, `FlowUnavailablePolicy`
+is required, so a flow that can't run falls back or hides instead of running
+partway.
+
+Two more documents cover the rest of delivery:
+
+- [doc/live_refresh.md](doc/live_refresh.md): opt-in in-place updates for
+  surfaces that are already on screen.
+- [doc/bundled_native_purchases.md](doc/bundled_native_purchases.md): what the
+  bundled StoreKit and Google Play gateway needs and guarantees.
+
+## Telemetry and data
+
+Restage includes a conversion-analytics layer. It powers your dashboard, A/B
+results, and revenue attribution. It's built to be boring and honest:
+
+- **It's off until you connect a backend.** Analytics activates only when you
+  pass `baseUrl` to `Restage.configure(...)`. In local mode (no `baseUrl`) the
+  SDK renders everything on device and calls no backend.
+- **No endpoint is baked in.** Events go to *your* configured `baseUrl`
+  (`<baseUrl>/analytics/events`), authenticated with your public key
+  (`rs_pk_...`). Point it at Restage Cloud and your events power your dashboard
+  and usage-based billing. Point it at your own backend and they go there.
+  There is no hidden Restage host in the SDK. Grep for it.
+- **The identity is pseudonymous.** Each install gets a random UUID. It isn't
+  derived from any device or advertising identifier, and it resets on
+  uninstall or `Restage.reset()`. It's a pseudonymous identifier rather than
+  an anonymous one. Treat it as personal data under GDPR and similar laws, as
+  we do. After a reset, the SDK treats future activity as a new user, so
+  experiment assignment may change on the next surface presentation. The SDK
+  never attaches a user identity of your own unless *you* pass one with
+  `Restage.identify(...)`.
+
+**What each event contains:** a dedup id; the event name and a UTC timestamp;
+which surface it was, with its id, version, and session; the pseudonymous
+install id and an app-session id; an app context of `platform`, `locale`, SDK
+version, and optional app version or build; conversion dimensions (product,
+offer, variant, experiment) where they apply; and the event's own typed fields,
+after a scrub that keeps render and host context out of analytics.
+
+**What it never collects:** advertising identifiers (IDFA/GAID), device
+fingerprints, location, contacts, or screen content. Beyond the fields listed
+above, it collects no personal data you don't explicitly attach. Ordinary
+request metadata such as an IP address is visible to whatever backend you point
+it at, as with any network call.
+
+**Delivery is fail-safe.** Events are batched, capped, retried safely, and
+never throw into your app.
+
+**Turning it off:** run in local mode (omit `baseUrl`) for zero telemetry, or
+pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted
+delivery and entitlement sync and disable analytics. If you use the hosted
+service, surface fetches still include the metering token described below.
+
+### The metering token
+
+The hosted service is billed by monthly active users, so the SDK needs a way to
+count them. How it works:
+
+- **If you don't use the hosted service, there is no token.** Without a
+  `baseUrl` the SDK never creates one. Even with a `baseUrl`, the SDK creates
+  the token only the first time it fetches a surface from the server.
+- **It's a random UUID.** The device generates it, stores it in
+  `shared_preferences`, and loses it when the app is uninstalled. It contains
+  nothing about the user or the device, and it isn't connected to the
+  analytics install id.
+- **It's sent only with surface fetches.** It goes in the body of the request
+  to `<baseUrl>/sdk/v1/surface` and nowhere else. It never appears in
+  analytics events. Grep for `meteringKey`.
+- **It goes only to the server you configured.** There is no baked-in Restage
+  endpoint. If your `baseUrl` is your own backend, the token goes there, and
+  your server is free to ignore the field.
+- **`analyticsEnabled: false` doesn't remove it.** That flag turns off
+  analytics. The metering token is how use of the hosted service is counted
+  for billing, so it stays as long as you fetch surfaces from the server. Run
+  without a `baseUrl` and the SDK sends nothing at all.
+
+If you need to describe it in your own privacy policy: a random per-install
+identifier, used only to count active users for billing, reset when the app is
+uninstalled. The implementation is in `lib/src/metering/` and it's short.
+
+All of this is BSD-3-Clause and readable: see `lib/src/analytics/` and
+`lib/src/billing/anonymous_token.dart`.
+
+## Build
+
+Apps that depend on `restage` must build with `--no-tree-shake-icons`, because
+RFW builds `IconData` from runtime values:
 
 ```sh
 flutter build ios --no-tree-shake-icons
@@ -374,7 +221,3 @@ flutter build web --wasm --no-tree-shake-icons
 ## License
 
 BSD-3-Clause. See [LICENSE](LICENSE).
-
-## What's next
-
-- [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples): copy a starter surface.

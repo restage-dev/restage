@@ -7,10 +7,10 @@ pub.dev.
 
 ## Authoring ladder
 
-The examples progress from ordinary Flutter to the complete multi-target
+The examples progress from plain Flutter to the complete multi-target
 screen flow:
 
-1. `OpaqueScreenProof.build` is ordinary Flutter composition. Built-in Flutter
+1. `OpaqueScreenProof.build` is plain Flutter composition. Built-in Flutter
    widgets need no Restage annotation.
 2. `BareCatalogCard` uses only `@RestageWidget()`. Its class name, exact export
    ownership, absent category, constructor inputs/defaults, and Dartdoc supply
@@ -29,8 +29,7 @@ screen flow:
 5. `OpaqueScreenProof` uses the canonical `@Screen` declaration. One build keeps
    the RFW descriptor/text/binary/capability artifacts, adds an exact-ID opaque
    A2UI item, and adds a native Widgetbook story. The generated story is grouped
-   at `Screens/opaque_screen_proof` in this fixture; that output path is not a
-   source-authoring selector.
+   at `Screens/opaque_screen_proof` in this fixture.
 
 The full sources live under `lib/widgets/` and
 `lib/onboarding/screens/opaque_screen_proof.dart`. They carry `#docregion`
@@ -87,10 +86,8 @@ renaming an annotated class changes native generated output-file membership;
 restart the watcher after that change. The next cold run cleans orphaned story
 source, generated plumbing, and component registration. Multiple
 `@RestageWidget` classes and canonical `@Screen` declarations may share a Dart
-file. Widgetbook story discovery does not use a source directory, file stem,
-generated `part`, or one-source-per-library rule as identity or admission
-authority. A generated Restage descriptor part, when present, is build plumbing
-for the Restage output and not a Widgetbook restriction.
+file. A generated Restage descriptor part, when present, is build plumbing for
+the Restage output.
 
 ## Version
 

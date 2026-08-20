@@ -10,7 +10,7 @@ without pulling in Flutter.
 ## The wire boundary this creates
 
 The build-time toolchain encodes blobs with **this vendored copy**. The customer
-app runtime — and the editor — decode/encode with the **published `package:rfw`**.
+app runtime (and the editor) decode/encode with the **published `package:rfw`**.
 `restage_shared` carries no `rfw` dependency, so the two can drift independently.
 They must produce and read **byte-identical** blobs. A breaking binary-format
 change in a future `rfw` minor would otherwise let the runtime decode a server
@@ -18,7 +18,7 @@ blob differently than it was written.
 
 Two guards keep them aligned:
 
-- **`packages/restage_core/test/rfw_wire_parity_test.dart`** — encodes with the
+- **`packages/restage_core/test/rfw_wire_parity_test.dart`**: encodes with the
   vendored codec and decodes with pub `rfw` (and the reverse), asserting parity.
   This is the gate.
 - The `rfw` constraint in every package that depends on `rfw` (e.g.
@@ -31,7 +31,7 @@ Do **not** bump the constraint ceiling without re-vendoring first. Steps:
 
 1. Copy `lib/src/dart/{binary,model,text}.dart` from the target `rfw` release
    over the three files here. They are already pure-Dart in `rfw`'s `dart/`
-   subtree, so no de-Fluttering is needed — but re-check the imports stay
+   subtree, so no de-Fluttering is needed, but re-check that the imports stay
    Flutter-free.
 2. Update the `Vendored from package:rfw X.Y.Z` header in each file and in the
    barrel comments (`packages/restage_shared/lib/src/rfw_formats.dart`).

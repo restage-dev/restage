@@ -28,11 +28,11 @@
   repository root.
 -->
 
-**Server-driven UI for Flutter.** Build any surface of your app from the widgets you already write and ship changes over the air, no app-store release: what ships is content, not code. Surfaces render as *real* Flutter widgets inside your widget tree, and every change is versioned, reversible, and auditable.
+Restage is a server-driven UI toolkit for Flutter. Build any part of your app
+with the widgets you already use and ship it over the air. Everything renders as
+real Flutter widgets in your app, using your theme.
 
-Write a screen in ordinary Flutter. A build step compiles it to generated surface
-artifacts (including a [Remote Flutter Widgets](https://pub.dev/packages/rfw) blob)
-and the SDK renders it, using your live theme.
+## Getting started
 
 ```dart
 import 'package:flutter/material.dart';
@@ -46,72 +46,87 @@ final class WelcomeScreen extends StatelessWidget {
   static const next = SurfaceEvent<void>('next');
 
   @override
-  Widget build(BuildContext context) => Column(children: [
-        Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
-        FilledButton(onPressed: surfaceEvent(next), child: const Text('Get started')),
-      ]);
+  Widget build(BuildContext context) => Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
+          FilledButton(onPressed: surfaceEvent(next), child: const Text('Get started')),
+        ],
+      );
 }
 ```
-
-`dart run build_runner build` generates the descriptor, render artifacts, and
-publication metadata. The generated manifest at
-`lib/generated/restage.publication.json` records the exact artifact
-closure for each publication. The SDK renders the result fully offline.
-
-## Why Restage
-
-- **Your real Flutter UI, over the air.** Use your own widgets and design system; what ships is compiled from that exact code. Not a fixed palette, not a JSON dialect, not a webview.
-- **Your design system comes with it.** `Theme.of(context)` resolves live at render time. A delivered surface follows your app into dark mode or a rebrand, with no recompile.
-- **No code over the air.** An update changes the screens your app shows. It does *not* run new code, so an update can't do anything your released app couldn't already do. That's what makes OTA UI workable where the app stores' rules on shipping interpreted code are the constraint. What your own app needs to satisfy remains your call.
-- **Fails safe, not wrong.** The build step stops with an error instead of guessing. A surface can't reach a client too old to render it, and a failed fetch falls back to your bundled copy.
-- **One runtime, any surface.** Paywalls, onboarding, messages, surveys, a single card, or a whole screen: anything you author runs on the same runtime. Drop one into your own `Scaffold` and only that region is server-driven.
-- **No lock-in.** Generated surface artifacts can be served from your own backend or CDN. The SDK runs fully offline, no hosted service required.
-
-## Built for controlled delivery
-
-Ship UI over the air: versioned, reversible, auditable.
-
-- The SDK ships the safety half: immutable surface versions, and clients that fail closed to a safe one.
-- The delivery service builds the control on top: roll back, freeze, or kill any version, with an exportable audit trail of what changed, when, and by whom.
-
-It's the change control a regulated or enterprise team needs. The hosted service is in private beta.
-
-## Get started
-
-Copy a starter. The [`apps/examples`](apps/examples) README has four minimal, copy-me surfaces: a paywall, an onboarding flow, a one-screen message, and a custom widget. Retitle it, restyle it, ship it.
-
-Prefer building from scratch? The [Quickstart](QUICKSTART.md) writes one step by step.
-
-## Author and publish
-
-Use the annotation that matches the surface you are authoring:
-
-- `@Screen(surface: Surface.<category>)` publishes an ordinary standalone screen.
-- `@Paywall` publishes a specialized paywall that can also appear inside a flow.
-- `@FlowGraph(surface: Surface.<category>)` publishes a typed flow.
-
-`@Screen()` without a category is a reusable flow screen. The category is one of
-the closed `Surface` values: `onboarding`, `message`, `survey`, `paywall`, or
-`general`.
-
-After the build completes, publish by generated identity:
 
 ```sh
 dart run build_runner build
 restage surface publish welcome
 ```
 
-`restage surface publish <slug>` reads the fixed generated manifest and uploads
-the exact closure for that slug. `--type` is an optional validation or
-disambiguation selector. A source directory, artifact directory, or `--path`
-does not select what gets published.
+That's it. The [Quickstart](QUICKSTART.md) takes you from install to a
+published surface. [`apps/examples`](apps/examples) has four
+starters to copy: a paywall, an onboarding flow, a one-screen message, and a
+custom widget.
 
-## What you get
+## Author and publish
 
-- **A 118-widget catalog** across `restage_core`, `restage_material`, and `restage_cupertino`. Extend it with your own widgets via `@RestageWidget`.
-- **Monetization** for commerce surfaces: a pluggable billing gateway, purchase and restore, promotional offers, and an entitlement stream. Keep an existing RevenueCat purchase path through the optional adapter, or use your own backend while adopting Restage presentation.
-- **A2UI (early):** the same widget constructors emit a genui A2UI catalog, so AI-generated UI builds from your real widgets.
-- **Widgetbook:** generate stories from the same constructors and browse the resulting component catalog in a Widgetbook v4 workbench.
+Use the annotation that matches what you build:
+
+- `@Screen(surface: Surface.<category>)` publishes one screen.
+- `@Paywall` publishes a paywall. A paywall can also be a step in a flow.
+- `@FlowGraph(surface: Surface.<category>)` publishes a typed flow of screens.
+
+`@Screen()` with no category is a screen for use inside a flow. The categories
+are `onboarding`, `message`, `survey`, `paywall`, and `general`.
+
+`restage surface publish <id>` uploads the artifacts the build generated for
+that surface id. You can also name the file instead of the id:
+
+```sh
+restage surface publish lib/screens/welcome.dart
+```
+
+The CLI resolves the file through the same generated manifest, so it selects
+what the build produced. Naming a screen that belongs to a flow publishes that
+flow. If a file produced more than one surface, the CLI lists them and asks;
+`--all` publishes all of them.
+
+## Why Restage
+
+- **Your widgets, your theme.** You use your own design system. The build
+  compiles the code you wrote, and `Theme.of(context)` resolves when the
+  surface renders, so a published surface follows your app into dark mode or a
+  rebrand.
+- **It covers any part of the app.** A whole screen, a paywall, an onboarding
+  flow, a survey, or one card inside your own `Scaffold`. One runtime renders
+  all of them.
+- **It has a catalog of 118 widgets** across `restage_core`,
+  `restage_material`, and `restage_cupertino`. Add your own widgets with
+  `@RestageWidget`.
+- **It ships only content.** An update changes what your app shows. It runs
+  no new code, so it cannot do anything your released app could not already
+  do.
+- **It fails safe.** The build stops with an error when it cannot compile
+  something. A surface never reaches a client that is too old to render it. If
+  a fetch fails, the SDK renders your bundled copy.
+- **It includes monetization.** A pluggable billing gateway, purchase and
+  restore, promotional offers, and an entitlement stream. Keep an existing
+  RevenueCat purchase path through the optional adapter, or use your own
+  backend.
+- **It does not lock you in.** Serve the artifacts from your own backend or
+  CDN. The SDK runs fully offline.
+
+## Controlled delivery
+
+The SDK ships immutable surface versions. A client that cannot render a version
+falls back to a safe one. The hosted service adds the controls: roll back,
+freeze, or kill any version, and export an audit trail of what changed, when,
+and by whom. The hosted service is in private beta.
+
+## Also
+
+- **A2UI (early):** the same widget constructors emit a genui A2UI catalog, so
+  AI-generated UI builds from your real widgets.
+- **Widgetbook:** generate stories from the same constructors and browse them
+  in a Widgetbook v4 workbench.
 
 ## Install
 
@@ -125,53 +140,47 @@ dev_dependencies:
   build_runner: ">=2.4.0 <3.0.0"
 ```
 
-The `restage` CLI is optional. It is not on pub.dev yet, so install it from
-source: clone this repo and run `melos run cli:install`, which compiles it to
-a native binary on your PATH.
+Pass `--no-tree-shake-icons` when you build a release that ships a Restage
+surface. The artifact builds icons from runtime values, and the release
+tree-shaker cannot see them. A debug `flutter run` does not need the flag.
 
-> **Note:** when you build a release that ships a Restage surface, pass `--no-tree-shake-icons`. The blob builds icons from runtime values, which the release tree-shaker can't see. A debug `flutter run` doesn't need it.
+The `restage` CLI is optional. It is not on pub.dev yet. Clone this repo and
+run `melos run cli:install` to compile it onto your PATH.
 
 ## Packages
 
 | Package | What it is | License |
 |---|---|---|
 | [`restage`](packages/restage) | The Flutter SDK that renders surfaces on device | BSD-3 |
-| [`restage_revenuecat`](packages/restage_revenuecat) | Optional billing gateway for apps using RevenueCat. Not on pub.dev yet | BSD-3 |
-| [`restage_shared`](packages/restage_shared) | Surface format, schemas, and validation shared by the SDK and the toolchain | BSD-3 |
 | [`restage_core`](packages/restage_core) | Cross-platform widget catalog | BSD-3 |
 | [`restage_material`](packages/restage_material) | Material widget catalog | BSD-3 |
 | [`restage_cupertino`](packages/restage_cupertino) | Cupertino widget catalog | BSD-3 |
+| [`restage_shared`](packages/restage_shared) | Surface format, schemas, and validation shared by the SDK and the toolchain | BSD-3 |
+| [`rfw_catalog_schema`](packages/rfw_catalog_schema) | Catalog format and the `@RestageWidget` annotations | BSD-3 |
+| [`restage_codegen`](packages/restage_codegen) | Build-time toolchain that compiles your Flutter into render artifacts | FSL-1.1-ALv2 |
+| [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |
 | [`restage_mcp`](packages/restage_mcp) | MCP server for agent and tool access. Not on pub.dev yet | BSD-3 |
+| [`restage_revenuecat`](packages/restage_revenuecat) | Optional billing gateway for apps that use RevenueCat. Not on pub.dev yet | BSD-3 |
 | [`restage_a2ui`](packages/restage_a2ui) | App-side capability check for genui A2UI payloads | BSD-3 |
-| [`rfw_catalog_schema`](packages/rfw_catalog_schema) | Catalog format and the `@RestageWidget` annotations | BSD-3 |
-| [`restage_codegen`](packages/restage_codegen) | Build-time toolchain that lowers your Flutter into render blobs | FSL-1.1-ALv2 |
-| [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
-| [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |
 | [`restage_widgetbook_example`](packages/restage_widgetbook_example) | Annotated widget library with generated RFW, A2UI, and Widgetbook output | BSD-3 |
+| [`apps/examples`](apps/examples) | Example surfaces to copy | BSD-3 |
 | [`apps/widgetbook_example`](apps/widgetbook_example) | Runnable Widgetbook v4 workbench for the generated stories | BSD-3 |
 
 ## License
 
-Open source where it runs in your app. Fair-source where it builds your blobs.
+- **BSD-3-Clause** for everything that runs in your app: the SDK, the catalogs,
+  the schema, the CLI, the MCP server, the RevenueCat adapter, the A2UI check,
+  and the examples. Flutter uses the same license.
+- **FSL-1.1-ALv2** for the build-time toolchain (`restage_codegen` and
+  `rfw_catalog_compiler`). The source is available. All use is free, including
+  use inside your own company. Each release converts to Apache-2.0 two years
+  after it ships.
 
-- **BSD-3-Clause:** the SDK, the catalog libraries, the RevenueCat adapter, the schema, the CLI, the MCP server, the A2UI check, and the examples. The same license Flutter uses.
-- **FSL-1.1-ALv2:** the build-time toolchain (`restage_codegen`, `rfw_catalog_compiler`). Source-available, free for all use including inside your own company, and it converts to Apache-2.0 two years after each release.
-
-The hosted platform is proprietary. Every package carries its own `LICENSE`.
+Each package carries its own `LICENSE` file.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The easiest place to start is the widget catalog: adding a widget is a curation entry plus generated registration.
-
-## What's next
-
-- [Quickstart](QUICKSTART.md): build your first surface.
-- [`apps/examples`](apps/examples): copy a starter.
-
-## Migration from legacy source annotations
-
-Older projects may still use `@ScreenSource`, `@PaywallSource`, or `@FlowSource`.
-Those spellings are deprecated compatibility frontends. New source should use
-`@Screen`, `@Paywall`, and `@FlowGraph(surface: ...)`; the generated manifest
-remains the publication authority for both old and new generated artifacts.
+See [CONTRIBUTING.md](CONTRIBUTING.md). The widget catalog is the easiest
+place to start. To add a widget, you write one curation entry; the registration
+is generated.

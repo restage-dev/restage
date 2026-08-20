@@ -2,33 +2,18 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-The Restage command-line interface: the universal agent, human, and CI
-surface for building, previewing, and publishing your Restage surfaces.
+The `restage` command line. Use it to set up a project, publish surfaces,
+manage what is live, and preview compiled artifacts. It works the same for a
+person at a terminal, a CI job, and an agent.
 
 ## Status
 
-Pre-release. The command surface and on-disk credential format are not yet
-stable.
+Pre-release. The commands and the on-disk credential format can still change.
 
 ## Install
 
-Two install paths are supported. Both produce the same `restage` binary
-on your `PATH`; pick the one that suits your environment.
-
-### From pub.dev (once published)
-
-```sh
-dart pub global activate restage_cli
-```
-
-> **Note:** `restage_cli` isn't on pub.dev yet; use the native-binary install
-> below until it's published.
-
-After activation, the `restage` shell wrapper is on your `PATH` (assuming
-`$HOME/.pub-cache/bin` is in your shell's `PATH`). Once published, this is the
-right install path for most users.
-
-### Native binary
+The package is not on pub.dev yet. Until it is, build the native binary from
+the repo:
 
 ```sh
 git clone https://github.com/restage-dev/restage.git
@@ -36,76 +21,87 @@ cd restage
 melos run cli:install
 ```
 
-The melos script compiles the CLI to a native binary and installs it at
-`$PUB_CACHE/bin/restage` (overriding the pub-global shell wrapper). The
-native binary skips the wrapper's per-invocation snapshot rebuild, which
-is noticeable on a home directory that contains spaces. Switch between
-the two install paths freely.
+That compiles the CLI and installs it at `$PUB_CACHE/bin/restage`. Make sure
+`$HOME/.pub-cache/bin` is on your `PATH`.
+
+Once published, `dart pub global activate restage_cli` installs a shell
+wrapper at the same location. The native binary skips the wrapper's snapshot
+rebuild on every run, which you notice on a home directory that contains
+spaces. Switch between the two freely.
 
 ## Usage
 
 ```sh
 restage --help
 
-# Sign in / out and check identity (device-authorization flow).
+# Sign in and out (device-authorization flow).
 restage login
 restage whoami
 restage logout
 
-# Bootstrap a Flutter project for Restage.
+# Set up a Flutter project for Restage.
 restage init
 
-# List and publish generated surfaces. `--all` includes every Surface category.
+# List and publish the surfaces the build generated.
 restage surface list --all
-restage surface publish <slug>
+restage surface publish <id>
+restage surface publish lib/screens/welcome.dart
+restage surface publish lib/screens/onboarding.dart --all
 
-# Inspect and manage one generated surface family.
-restage surface status <slug>
-restage surface history <slug>
-restage surface rollback <slug> --to-version <version> --reason "<reason>"
-restage surface freeze <slug> --reason "<reason>"
-restage surface unfreeze <slug> --reason "<reason>"
+# Manage one surface.
+restage surface status <id>
+restage surface history <id>
+restage surface rollback <id> --to-version <version> --reason "<reason>"
+restage surface freeze <id> --reason "<reason>"
+restage surface unfreeze <id> --reason "<reason>"
 
-# Launch the desktop preview against a compiled .rfw.
+# Open the desktop preview on a compiled .rfw.
 restage preview path/to/paywall.rfw
 
-# Diagnose the local toolchain setup.
+# Check the local toolchain.
 restage doctor
 ```
 
-`init`, `preview`, and `doctor` work fully offline. `login` and the publish
+`init`, `preview`, and `doctor` work offline. `login` and the `surface`
 commands talk to a Restage backend; hosted access is in private beta.
 
 Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
-prompts; missing required values without a default exit non-zero with a
-clear `required: --foo <value>` message.
+prompts. A required value with no default then exits non-zero with a
+`required: --foo <value>` message.
 
-## Generated publication metadata
+## Publishing
 
-The normal publication workflow is manifest-driven. After
-`dart run build_runner build`, the CLI reads the fixed
-`lib/generated/restage.publication.json` and assembles the exact
-generated artifact closure for the selected slug. `restage surface publish`
-supports `--type` as optional validation or disambiguation. It does not accept
-`--path` as an artifact selector, and source or asset directories do not define
-surface identity.
+After `dart run build_runner build`, the CLI reads the generated manifest at
+`lib/generated/restage.publication.json` and uploads the artifacts it records
+for the surface you name. `--type` is optional validation.
 
-The same generated identity drives the generic lifecycle commands. Surface
-categories are the closed values `paywall`, `onboarding`, `message`, `survey`,
-and `general`.
+You can name the surface by id or by its `.dart` file:
 
-### Compatibility command
+```sh
+restage surface publish welcome
+restage surface publish lib/screens/welcome.dart
+```
 
-`restage paywall publish <name>` remains available for a specialized `@Paywall`
-publication. It still reads the generated manifest and is not a raw path-based
-publisher. New workflows should use `restage surface publish <slug>` for every
-surface category.
+A file is resolved through the same manifest, so it selects what the build
+produced for that file. Nothing is parsed and no directory is scanned. A screen
+that belongs to a flow selects the flow, since the flow is what ships it. If a
+file produced more than one surface, the CLI lists them and asks, or publishes
+all of them under `--all`. A file that produced nothing is an error that names
+the manifest. A run over several surfaces stops at the first failure and
+reports what published and what was not attempted.
 
-## Isolated render bundles
+Surface categories are `paywall`, `onboarding`, `message`, `survey`, and
+`general`.
 
-The pre-release render-bundle lane deterministically builds a customer-widget
-renderer, uploads it through a pinned control origin, and advances one selected
-channel. Each immutable bundle executes on a separate derived origin:
+`restage paywall publish <name>` still works for a `@Paywall` surface and reads
+the same manifest. New scripts should use `restage surface publish` for every
+category.
+
+## Render bundles (pre-release)
+
+`restage build push` builds a renderer for your custom widgets, uploads it, and
+advances one channel. Each bundle is immutable and runs on its own derived
+origin:
 
 ```sh
 restage build push \
@@ -113,12 +109,12 @@ restage build push \
   --channel main
 ```
 
-`--channel` accepts `main` or a canonical `user/<handle>` value. An invalid
-channel is rejected before credentials, build work, or network access. The
-command builds twice and requires byte-identical output before it uploads,
-then reports the selected channel's immutable version and content hash.
+`--channel` accepts `main` or a `user/<handle>` value. The command rejects an
+invalid channel before it touches credentials, build work, or the network. It
+builds twice and requires byte-identical output before it uploads, then
+reports the channel's new version and content hash.
 
-Configure all three non-secret origins in `restage_config.yaml`:
+Configure the three origins in `restage_config.yaml`:
 
 ```yaml
 endpoint: http://api.restage.localhost:8080
@@ -126,16 +122,15 @@ dashboardOrigin: http://dashboard.restage.localhost:8082
 renderBundleOrigin: http://bundles.restage.localhost:8081
 ```
 
-Local use requires those exact three `restage.localhost` roles on distinct,
-explicit ports. `renderBundleOrigin` is the upload and control origin; an
-immutable bundle executes on its own derived origin, such as
-`http://b-42.restage.localhost:8081` for bundle 42. Deployed use requires three
-distinct direct HTTPS siblings under `restage.dev`. The dashboard origin is the
-default pinned parent origin. `--parent-origin` is accepted only when it exactly
-matches the configured dashboard origin; `--bundle-origin` may supply the
-bundle control member of the same validated triplet.
+Local use needs those three `restage.localhost` roles on distinct, explicit
+ports. `renderBundleOrigin` is the upload and control origin; a bundle runs on
+its own derived origin, such as `http://b-42.restage.localhost:8081` for bundle
+42. Deployed use needs three distinct HTTPS siblings under `restage.dev`. The
+dashboard origin is the pinned parent origin. `--parent-origin` is accepted
+only when it matches the configured dashboard origin, and `--bundle-origin`
+may supply the bundle control member of the same triplet.
 
-This lane is pre-release and is not a public deployment or package-release
+This lane is pre-release. It is not a public deployment or package-release
 signal.
 
 ## License

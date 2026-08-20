@@ -1,11 +1,11 @@
 # Restage example
 
-Write a surface in vanilla Flutter, compile it to a render blob, and render it —
-all offline, no account.
+Write a surface in plain Flutter, compile it to a render blob, and render it.
+All offline, no account.
 
 ## 1. Author a surface
 
-A surface is an ordinary Flutter widget annotated with its surface type
+A surface is a plain Flutter widget annotated with its surface type
 (`@Paywall` here; use `@Screen` or `@FlowGraph(surface: ...)` for ordinary
 screens and flows). It uses your own widgets and your app's theme.
 
@@ -44,9 +44,9 @@ dart run build_runner build
 This writes generated, inert render artifacts. Commit the generated output your
 app bundles. The fixed
 `lib/generated/restage.publication.json` records the publication
-identity and exact artifact closure; asset paths are outputs, not selectors.
+identity and exact artifact closure.
 
-Publish the generated surface by slug:
+Publish the generated surface by id:
 
 ```sh
 restage surface publish pro
@@ -68,8 +68,8 @@ own widget tree.
 
 ## Full, runnable examples
 
-A complete gallery — paywalls, onboarding, a permission prompt, an in-app message,
-a survey, and custom widgets — lives in
+A complete gallery (paywalls, onboarding, a permission prompt, an in-app
+message, a survey, and custom widgets) lives in
 [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples).
 Copy one to start. The full walkthrough is in
 [QUICKSTART.md](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md).

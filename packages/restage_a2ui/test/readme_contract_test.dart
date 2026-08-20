@@ -14,13 +14,17 @@ void main() {
     expect(
       prose,
       contains(
-        'RFW delivery admits supported customer structured objects, maps, '
-        'records, and lists only when Restage can form a reconstruction plan',
+        'RFW delivery admits supported structured objects, maps, '
+        'records, and lists only when Restage can form a reconstruction plan '
+        'for the exact property',
       ),
     );
     expect(
       prose,
-      contains('Unsupported structured shapes fail generation loudly'),
+      contains(
+        'Unsupported structured shapes fail generation with an error instead '
+        'of being dropped or decoded as a different shape',
+      ),
     );
   });
 }

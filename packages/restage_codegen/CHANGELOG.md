@@ -5,6 +5,14 @@
 This section records the package side of a coordinated breaking release. The
 release version and publication timing are assigned separately.
 
+- Each generated output roster entry records the condition under which its
+  path is written — for every lowering of its source, or only when the lowering
+  produces one particular thing. Paths are reserved before the translator
+  decides what a source lowers to, so this is how a consumer of the ledger
+  tells which reservations are written together. Only paywall reservations are
+  conditional; every screen and flow reservation is written for every lowering.
+  The roster remains an output-ownership ledger, and the publication manifest
+  remains the produced-output truth.
 - Derive customer catalog properties, requiredness, order, constructor defaults,
   and descriptions from resolved constructor/Dartdoc facts across RFW, A2UI,
   and Widgetbook.
@@ -31,6 +39,13 @@ release version and publication timing are assigned separately.
 - Let one `@RestageWidget` opt out of selected package-enabled targets and let
   one safely omissible constructor input use `@Ignore` for selected targets,
   without suppressing diagnostics or properties in its siblings.
+- Fix `paywallPriceFor(productId: ...)` for real store ids: a product key that
+  is not a bare identifier — a reverse-DNS id such as `com.example.pro.annual`,
+  an all-digit id, or one containing a hyphen or space — is now emitted as a
+  quoted reference part, so it stays a single key instead of splitting at each
+  dot, decoding as an integer, or failing to parse. Identifier-shaped keys and
+  slots are unchanged, so any output that previously parsed is byte-for-byte
+  identical. A blank key is now rejected with a diagnostic naming the helper.
 
 ## 1.3.0
 
