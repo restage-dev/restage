@@ -765,9 +765,21 @@ List<RestageOutputClaim> _canonicalOutputClaims({
     ];
   }
 
-  final root = kind == RestageRosterSourceKind.paywall
-      ? 'assets/paywalls/$id'
-      : 'assets/$surfaceKey/screens/$id';
+  final isPaywall = kind == RestageRosterSourceKind.paywall;
+  final root =
+      isPaywall ? 'assets/paywalls/$id' : 'assets/$surfaceKey/screens/$id';
+  // A screen publishes one payload, so its whole set is written for every
+  // lowering. A paywall may lower to a standalone payload, to a navigation
+  // flow whose closure publishes it instead, or to nothing but the adapter
+  // screen another source's flow embeds — and which of those it lowers to is
+  // not knowable here. A paywall that lowers to the adapter alone publishes
+  // nothing of its own, not even inspection text.
+  final payloadCondition = isPaywall
+      ? RestageOutputCondition.standalonePayload
+      : RestageOutputCondition.everyLowering;
+  final textCondition = isPaywall
+      ? RestageOutputCondition.ownPublication
+      : RestageOutputCondition.everyLowering;
   final claims = <RestageOutputClaim>[
     if (part != null) part,
     RestageOutputClaim(
@@ -775,45 +787,52 @@ List<RestageOutputClaim> _canonicalOutputClaims({
       role: 'screen-text',
       builder: _canonicalPublicationOwner,
       ownershipKey: 'canonical-publication:$surfaceKey/$id',
+      writtenWhen: textCondition,
     ),
     RestageOutputClaim(
       path: '$root.rfw',
       role: 'screen-blob',
       builder: _canonicalPublicationOwner,
       ownershipKey: 'canonical-publication:$surfaceKey/$id',
+      writtenWhen: payloadCondition,
     ),
     RestageOutputClaim(
       path: '$root.capability.json',
       role: 'capability-sidecar',
       builder: _canonicalPublicationOwner,
       ownershipKey: 'canonical-publication:$surfaceKey/$id',
+      writtenWhen: payloadCondition,
     ),
   ];
-  if (kind == RestageRosterSourceKind.paywall) {
+  if (isPaywall) {
     claims.addAll([
       RestageOutputClaim(
         path: '$root.navplan.json',
         role: 'navigation-plan',
         builder: _canonicalPublicationOwner,
         ownershipKey: 'canonical-publication:$surfaceKey/$id',
+        writtenWhen: RestageOutputCondition.navigationPlan,
       ),
       RestageOutputClaim(
         path: 'assets/paywalls/screens/paywall_$id.rfw',
         role: 'flow-screen-blob',
         builder: _canonicalPublicationOwner,
         ownershipKey: 'canonical-publication:$surfaceKey/$id',
+        writtenWhen: RestageOutputCondition.flowScreen,
       ),
       RestageOutputClaim(
         path: 'assets/paywalls/screens/paywall_$id.capability.json',
         role: 'flow-screen-capability-sidecar',
         builder: _canonicalPublicationOwner,
         ownershipKey: 'canonical-publication:$surfaceKey/$id',
+        writtenWhen: RestageOutputCondition.flowScreen,
       ),
       RestageOutputClaim(
         path: '$root.flow.json',
         role: 'flow-document',
         builder: _canonicalPublicationOwner,
         ownershipKey: 'canonical-publication:$surfaceKey/$id',
+        writtenWhen: RestageOutputCondition.navigationDocument,
       ),
     ]);
   }
@@ -1142,36 +1161,43 @@ List<RestageOutputClaim>? _legacyOutputClaims(
           path: 'assets/paywalls/$stem.rfwtxt',
           role: 'text',
           builder: builder,
+          writtenWhen: RestageOutputCondition.ownPublication,
         ),
         RestageOutputClaim(
           path: 'assets/paywalls/$stem.rfw',
           role: 'binary',
           builder: builder,
+          writtenWhen: RestageOutputCondition.standalonePayload,
         ),
         RestageOutputClaim(
           path: 'assets/paywalls/$stem.capability.json',
           role: 'capability',
           builder: builder,
+          writtenWhen: RestageOutputCondition.standalonePayload,
         ),
         RestageOutputClaim(
           path: 'assets/paywalls/$stem.navplan.json',
           role: 'navigation-plan',
           builder: builder,
+          writtenWhen: RestageOutputCondition.navigationPlan,
         ),
         RestageOutputClaim(
           path: 'assets/paywalls/screens/paywall_$stem.rfw',
           role: 'flow-screen-binary',
           builder: builder,
+          writtenWhen: RestageOutputCondition.flowScreen,
         ),
         RestageOutputClaim(
           path: 'assets/paywalls/screens/paywall_$stem.capability.json',
           role: 'flow-screen-capability',
           builder: builder,
+          writtenWhen: RestageOutputCondition.flowScreen,
         ),
         RestageOutputClaim(
           path: 'assets/paywalls/$stem.flow.json',
           role: 'flow',
           builder: 'restage_codegen:paywall_flow_codegen',
+          writtenWhen: RestageOutputCondition.navigationDocument,
         ),
       ];
   }

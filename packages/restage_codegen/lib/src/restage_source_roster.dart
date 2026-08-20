@@ -105,6 +105,67 @@ final class RestageIdentityClaim {
       };
 }
 
+/// The condition under which a claimed output path is written.
+///
+/// Ownership is settled at source admission, before translation. What a
+/// declaration lowers to is a translator result the roster cannot know without
+/// repeating the translator's own recognition, so a source reserves every path
+/// any of its lowerings could occupy, and this says under what condition each
+/// reservation is written.
+///
+/// Two reservations carrying the same value are written together. None of them
+/// is a promise that a file exists — the produced-output truth is the
+/// publication manifest.
+///
+/// The values are one per observed condition, taken from a build of the
+/// reference application rather than from the emitter: reading its produced
+/// roster against the contents of every container it packaged separates
+/// exactly these groups across 15 paywalls in four shapes. A grouping is a
+/// claim about behavior, so a value that merely looked related to another was
+/// not enough to share one.
+@internal
+enum RestageOutputCondition {
+  /// Written for every lowering of the owning source kind. Measured for every
+  /// screen and flow reservation; no paywall reservation carries it.
+  everyLowering('every-lowering'),
+
+  /// Written when the source publishes a payload of its own, rather than
+  /// existing only as a screen inside another source's flow.
+  ownPublication('own-publication'),
+
+  /// The standalone payload a source renders on its own: its blob and the
+  /// matching capability sidecar. Not written when the publication selects a
+  /// flow closure instead — the compiler computes those bytes and hands them
+  /// on as ancillary output, but nothing downstream emits them.
+  standalonePayload('standalone-payload'),
+
+  /// The adapter screen a flow closure embeds, and its capability sidecar.
+  /// Written when the source's screen enters a flow closure, whether its own
+  /// or another surface's.
+  flowScreen('flow-screen'),
+
+  /// The flow document a multi-screen lowering publishes.
+  navigationDocument('navigation-document'),
+
+  /// The navigation plan a navigation lowering is derived from.
+  ///
+  /// Separate from [navigationDocument] because the two are not written
+  /// together: in the reference application the flow document is produced for
+  /// the one paywall that owns a navigation flow, and no build observed so far
+  /// writes a navigation plan at all. Whether any output placement writes one
+  /// is unestablished, so this reservation is kept — releasing a reserved path
+  /// would let another declaration claim it — and named honestly.
+  navigationPlan('navigation-plan');
+
+  const RestageOutputCondition(this.wireName);
+
+  /// Stable JSON spelling used by the build-owned roster.
+  ///
+  /// Spelled out rather than derived from [name] so renaming a value cannot
+  /// silently change what a written ledger says.
+  final String wireName;
+}
+
 /// One generated output owned by a source declaration.
 @immutable
 @internal
@@ -115,6 +176,7 @@ final class RestageOutputClaim {
     required this.role,
     required this.builder,
     this.ownershipKey,
+    this.writtenWhen = RestageOutputCondition.everyLowering,
   })  : assert(path != ''),
         assert(role != ''),
         assert(builder != '');
@@ -127,6 +189,9 @@ final class RestageOutputClaim {
 
   /// Build-runner builder that physically owns this output.
   final String builder;
+
+  /// When this reservation is written. See [RestageOutputCondition].
+  final RestageOutputCondition writtenWhen;
 
   /// Optional stable owner for an output shared by declarations in one
   /// library or by a semantic publication identity.
@@ -142,6 +207,7 @@ final class RestageOutputClaim {
         'path': path,
         'role': role,
         'builder': builder,
+        'writtenWhen': writtenWhen.wireName,
         if (ownershipKey != null) 'ownershipKey': ownershipKey!,
       };
 }
@@ -281,6 +347,16 @@ final class RestageSourceDeclaration {
 }
 
 /// The deterministic package source index plus output ownership ledger.
+///
+/// The output side is an OWNERSHIP ledger: path reservations and the
+/// collision bookkeeping the compiler writes into. It records which
+/// declaration may write which path, so two declarations cannot quietly share
+/// one, and so a removed or moved declaration's old paths can be proven
+/// stale. It is not a list of files the build produced — a source reserves a
+/// path for everything its lowering could produce, and the lowering decides
+/// which of them are written. Each reservation carries the condition under
+/// which it is written ([RestageOutputCondition]); the produced-output truth
+/// is the publication manifest.
 @immutable
 @internal
 final class RestageSourceRoster {
@@ -344,6 +420,7 @@ final class RestageOwnedOutput {
     required this.declarationIdentity,
     required this.identities,
     required this.span,
+    this.writtenWhen = RestageOutputCondition.everyLowering,
   });
 
   /// Generated output path.
@@ -354,6 +431,13 @@ final class RestageOwnedOutput {
 
   /// Physical builder owner.
   final String builder;
+
+  /// When this reservation is written. See [RestageOutputCondition].
+  ///
+  /// Deliberately outside sameness: a reservation that changes only in when
+  /// it is written is the same reservation, and re-classifying one must not
+  /// make a live output look stale.
+  final RestageOutputCondition writtenWhen;
 
   /// Exact declaration owner key.
   final String owner;
@@ -375,6 +459,7 @@ final class RestageOwnedOutput {
         'path': path,
         'role': role,
         'builder': builder,
+        'writtenWhen': writtenWhen.wireName,
         'owner': owner,
         'declaration': declarationIdentity,
         'identities': [for (final identity in identities) identity.toJson()],
@@ -583,7 +668,7 @@ RestageSourceRoster assembleRestageSourceRoster(
     // and one writing builder, so only a genuinely distinct owner/builder
     // pair at the same path is a collision.
     final claimants = entry.value
-        .map((output) => '${output.owner} ${output.builder}')
+        .map((output) => '${output.owner}\u0000${output.builder}')
         .toSet();
     if (claimants.length < 2) continue;
     final owners = entry.value
@@ -610,6 +695,12 @@ List<RestageOwnedOutput> _flattenOutputs(
   for (final declaration in declarations) {
     for (final output in declaration.outputs) {
       final owner = output.ownershipKey ?? declaration.ownerKey;
+      // Deliberately not keyed by the write condition: keying by it would
+      // split one physical output into two ledger rows. Two claims agreeing on
+      // path, role, builder and owner are one output, and the first one's
+      // condition stands — the condition is a function of source kind and
+      // role, so they cannot disagree without the emitter contradicting
+      // itself.
       final key =
           [output.path, output.role, output.builder, owner].join('\u0000');
       final existing = grouped[key];
@@ -622,6 +713,7 @@ List<RestageOwnedOutput> _flattenOutputs(
           declarationIdentity:
               output.ownershipKey ?? declaration.declarationIdentity,
           span: declaration.span,
+          writtenWhen: output.writtenWhen,
           identities: declaration.identityClaims,
         );
       } else {
@@ -635,6 +727,7 @@ List<RestageOwnedOutput> _flattenOutputs(
         path: output.path,
         role: output.role,
         builder: output.builder,
+        writtenWhen: output.writtenWhen,
         owner: output.owner,
         identities: output.identities,
         declarationIdentity: output.declarationIdentity,
@@ -653,6 +746,7 @@ final class _OwnedOutputAccumulator {
     required this.owner,
     required this.declarationIdentity,
     required this.span,
+    required this.writtenWhen,
     required Iterable<RestageIdentityClaim> identities,
   }) : _identities = {
           for (final identity in identities) identity.qualifiedKey: identity,
@@ -664,6 +758,7 @@ final class _OwnedOutputAccumulator {
   final String owner;
   final String declarationIdentity;
   final RestageSourceSpan span;
+  final RestageOutputCondition writtenWhen;
   final Map<String, RestageIdentityClaim> _identities;
 
   void addIdentities(Iterable<RestageIdentityClaim> identities) {
