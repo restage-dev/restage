@@ -146,7 +146,10 @@ void main() {
           named: {'productId': '"sku.foo"'},
         ),
       );
-      expect(out, 'data.products.sku.foo.localizedPrice');
+      // A dotted id is quoted so it stays a single reference part; bare, the
+      // parser would split it at the dot. Shape coverage for every id form
+      // lives in `paywall_price_id_quoting_test.dart`.
+      expect(out, 'data.products."sku.foo".localizedPrice');
     });
   });
 

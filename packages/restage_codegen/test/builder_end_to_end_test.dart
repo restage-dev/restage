@@ -908,6 +908,56 @@ widget Paywall = AcmeBanner();
       );
     });
 
+    test('a reverse-DNS productId stays ONE reference part through the blob',
+        () async {
+      // A real store id is dotted, and a bare dotted reference part splits at
+      // every dot — six parts instead of three, which the runtime's
+      // whole-id-keyed product map can never resolve. The id is emitted quoted
+      // so it survives as a single part all the way into the binary blob.
+      const source = '''
+        import 'package:flutter/material.dart';
+        import 'package:restage/restage.dart';
+        $kStubAnnotationsAndBases
+
+        @PaywallSource(id: 'store_id')
+        class StoreIdPaywall extends StatelessWidget {
+          const StoreIdPaywall();
+          Widget build(BuildContext context) =>
+            Text(paywallPriceFor(productId: 'com.example.pro.annual'));
+        }
+      ''';
+
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: true,
+      );
+      readerWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/store_id.dart'),
+        source,
+      );
+
+      await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/paywalls/store_id.dart': source},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        outputs: {
+          'apps_examples|assets/paywalls/store_id.capability.json': anything,
+          'apps_examples|assets/paywalls/store_id.rfwtxt': decodedMatches(
+            contains('data.products."com.example.pro.annual".localizedPrice'),
+          ),
+          // The byte proof: the emitted BINARY blob decodes to a three-part
+          // reference whose middle part is the whole store id.
+          'apps_examples|assets/paywalls/store_id.rfw':
+              const _DottedProductIdMatcher(),
+          'apps_examples|assets/paywalls/screens/paywall_store_id.capability.json':
+              anything,
+          'apps_examples|assets/paywalls/screens/paywall_store_id.rfw':
+              const _RootWidgetMatcher('OnboardingScreen'),
+        },
+      );
+    });
+
     test(
         'PageView(children:) aliases to a RestagePager node, byte-stable + '
         'round-trips', () async {
@@ -2426,6 +2476,62 @@ class _PagerMatcher extends Matcher {
         mismatchDescription,
         matchState,
         fallback: 'did not decode to the expected RestagePager',
+      );
+}
+
+/// Matches a `.rfw` blob whose body root is a `Text` bound to the product
+/// price of a reverse-DNS store id, carried as a SINGLE reference part.
+class _DottedProductIdMatcher extends Matcher {
+  const _DottedProductIdMatcher();
+
+  @override
+  bool matches(dynamic item, Map<dynamic, dynamic> matchState) {
+    if (item is! List<int>) return false;
+    final fmt.RemoteWidgetLibrary decoded;
+    try {
+      decoded = fmt.decodeLibraryBlob(Uint8List.fromList(item));
+    } on fmt.ParserException catch (e) {
+      matchState['decodeError'] = e;
+      return false;
+    }
+    if (decoded.widgets.length != 1) {
+      matchState['shape'] = 'expected 1 widget, got ${decoded.widgets.length}';
+      return false;
+    }
+    final root = decoded.widgets.single.root;
+    if (root is! fmt.ConstructorCall || root.name != 'Text') {
+      matchState['shape'] = 'expected body root Text, got $root';
+      return false;
+    }
+    final price = root.arguments['text'];
+    if (price is! fmt.DataReference ||
+        !const ListEquality<Object>().equals(
+          price.parts,
+          ['products', 'com.example.pro.annual', 'localizedPrice'],
+        )) {
+      matchState['shape'] = 'expected a three-part product price data ref '
+          'keyed by the whole store id, got $price';
+      return false;
+    }
+    return true;
+  }
+
+  @override
+  Description describe(Description description) => description.add(
+        'a .rfw blob binding the price of a dotted store id as one part',
+      );
+
+  @override
+  Description describeMismatch(
+    dynamic item,
+    Description mismatchDescription,
+    Map<dynamic, dynamic> matchState,
+    bool verbose,
+  ) =>
+      _describeBlobMismatch(
+        mismatchDescription,
+        matchState,
+        fallback: 'did not decode to the expected dotted-id price reference',
       );
 }
 
