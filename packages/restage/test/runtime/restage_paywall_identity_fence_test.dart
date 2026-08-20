@@ -1924,7 +1924,11 @@ final class _StrictPaywallAssetBundle extends CachingAssetBundle {
 
   @override
   Future<ByteData> load(String key) async {
-    loadedKeys.add(key);
+    // The asset manifest is how the SDK finds packaged containers, and how it
+    // knows a logical path was never packaged loose. It is not a delivery
+    // artifact, and these tests are about which delivery artifacts a resolve
+    // reads.
+    if (key != 'AssetManifest.bin') loadedKeys.add(key);
     final bytes = _assets[key];
     if (bytes == null) throw FlutterError('Unable to load asset: $key');
     return ByteData.sublistView(Uint8List.fromList(bytes));

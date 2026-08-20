@@ -407,6 +407,41 @@ void main() {
         isNot(contains('assets/onboarding/screens/old_name.rfw')),
       );
     });
+
+    test('re-classifying when a reservation is written is not a change', () {
+      // The marker says when a reserved path gets written, which is a fact
+      // about the lowering, not about who owns the path. Reading it as part
+      // of ownership would make every re-classification look like a path that
+      // must be cleaned up, and delete a live output.
+      List<RestageSourceDeclaration> declarations(
+        RestageOutputCondition writtenWhen,
+      ) =>
+          [
+            _declaration(
+              libraryPath: 'lib/paywalls/pro.dart',
+              declarationName: 'Pro',
+              explicitId: 'pro',
+              outputPaths: const ['assets/paywalls/pro.rfw'],
+              writtenWhen: writtenWhen,
+            ),
+          ];
+      final previous = assembleRestageSourceRoster(
+        declarations(RestageOutputCondition.everyLowering),
+      );
+      final current = assembleRestageSourceRoster(
+        declarations(RestageOutputCondition.standalonePayload),
+      );
+
+      expect(
+        previous.outputs.single.writtenWhen,
+        RestageOutputCondition.everyLowering,
+      );
+      expect(
+        current.outputs.single.writtenWhen,
+        RestageOutputCondition.standalonePayload,
+      );
+      expect(computeRestageStaleOutputs(previous, current), isEmpty);
+    });
   });
 
   group('RestageSourceRosterBuilder', () {
@@ -740,6 +775,33 @@ void main() {
           'assets/paywalls/screens/paywall_premium.rfw',
         ]),
       );
+
+      // Ownership is settled before translation, so a paywall reserves a
+      // path for everything its lowering could produce, and each reservation
+      // carries the condition under which it is written. The conditions are
+      // one per group observed in a real build; a screen publishes one
+      // payload, so its whole set is written for every lowering.
+      final conditionByPath = <String, String>{
+        for (final output in (outputRoster['outputs']! as List<Object?>)
+            .cast<Map<String, Object?>>())
+          output['path']! as String: output['writtenWhen']! as String,
+      };
+      expect(conditionByPath, {
+        'lib/restage.generated/offers.restage.g.dart': 'every-lowering',
+        'assets/general/screens/announcement.rfwtxt': 'every-lowering',
+        'assets/general/screens/announcement.rfw': 'every-lowering',
+        'assets/general/screens/announcement.capability.json': 'every-lowering',
+        'assets/paywalls/premium.rfwtxt': 'own-publication',
+        'assets/paywalls/premium.rfw': 'standalone-payload',
+        'assets/paywalls/premium.capability.json': 'standalone-payload',
+        'assets/paywalls/screens/paywall_premium.rfw': 'flow-screen',
+        'assets/paywalls/screens/paywall_premium.capability.json':
+            'flow-screen',
+        'assets/paywalls/premium.navplan.json': 'navigation-plan',
+        'assets/paywalls/premium.flow.json': 'navigation-document',
+        'lib/generated/restage.publication.json': 'every-lowering',
+        'lib/generated/restage.outputs.json': 'every-lowering',
+      });
     });
 
     test('uses explicit canonical IDs as authoritative across file moves',
@@ -993,6 +1055,7 @@ RestageSourceDeclaration _declaration({
   String identityNamespace = 'test/source',
   List<RestageIdentityClaim>? identityClaims,
   String builder = 'restage_codegen:test',
+  RestageOutputCondition writtenWhen = RestageOutputCondition.everyLowering,
   int line = 1,
 }) {
   final library = libraryPath.substring(
@@ -1027,6 +1090,7 @@ RestageSourceDeclaration _declaration({
           path: path,
           role: path.endsWith('.rfw') ? 'binary' : 'sidecar',
           builder: builder,
+          writtenWhen: writtenWhen,
         ),
     ],
   );
