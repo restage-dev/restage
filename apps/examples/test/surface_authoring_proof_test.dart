@@ -65,7 +65,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: RestageSurfaceFlow<GeneralJourneyResult>(
+          body: RestageFlowGraph<GeneralJourneyResult>(
             flow: generalJourneyRef,
             unavailable: FlowUnavailablePolicy.fallback(
               builder: (_, error) => Text('flow fallback:${error.reason}'),
@@ -93,7 +93,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: RestageSurfaceFlow<MessageOfferResult>(
+          body: RestageFlowGraph<MessageOfferResult>(
             flow: messageOfferRef,
             unavailable: FlowUnavailablePolicy.fallback(
               builder: (_, error) => Text('flow fallback:${error.reason}'),
@@ -171,7 +171,7 @@ Widget _surfaceHost<E>({
 }) =>
     MaterialApp(
       home: Scaffold(
-        body: RestageSurfaceScreen<E>(
+        body: RestageScreen<E>(
           screen: screen,
           onEvent: onEvent,
           onUnavailable: onUnavailable,

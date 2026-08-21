@@ -257,7 +257,7 @@ class FakeSurfaceServer extends http.BaseClient {
     }
 
     final body = jsonEncode({
-      'artifact': SurfaceArtifactDescriptorV1(
+      'artifact': SurfaceArtifactDescriptor(
         payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion,
         surfaceType: document.surfaceType,
         surfaceSlug: document.surfaceSlug,

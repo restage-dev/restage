@@ -27,7 +27,7 @@ final class CravePermissionFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: CraveLocationScreenDescriptor.ref,
+      initial: craveLocationScreenRef,
       flowState: const {
         'locationEnabled': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -49,14 +49,12 @@ final class CravePermissionFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(CraveLocationScreenDescriptor.ref)
+        screen(craveLocationScreenRef)
             .on(CraveLocationScreen.allow)
             .run(requestLocation)
             .result((result) => result.granted)
-            .goTo(CraveReadyScreenDescriptor.ref),
-        screen(CraveReadyScreenDescriptor.ref)
-            .on(CraveReadyScreen.start)
-            .goTo(done),
+            .goTo(craveReadyScreenRef),
+        screen(craveReadyScreenRef).on(CraveReadyScreen.start).goTo(done),
         end(done, result: {'locationEnabled': true}),
       ],
     );

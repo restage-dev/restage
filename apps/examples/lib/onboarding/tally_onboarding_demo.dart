@@ -31,8 +31,8 @@ class _TallyOnboardingDemoState extends State<TallyOnboardingDemo> {
     if (_completed) {
       return const _CompletionScreen();
     }
-    return RestageSurfaceFlow<TallyOnboardingResult>(
-      flow: TallyOnboardingFlowDescriptor.ref,
+    return RestageFlowGraph<TallyOnboardingResult>(
+      flow: tallyOnboardingFlowRef,
       onComplete: (result) {
         if (mounted) setState(() => _completed = true);
       },

@@ -15,8 +15,8 @@ class MinimalCustomWidgetDemo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageSurfaceFlow<MinimalStatsResult>(
-      flow: MinimalStatsFlowDescriptor.ref,
+    return RestageFlowGraph<MinimalStatsResult>(
+      flow: minimalStatsFlowRef,
       unavailable: const FlowUnavailablePolicy.hide(),
       onComplete: (result) => Navigator.of(context).maybePop(),
       onFlowUnavailable: (error) => Navigator.of(context).maybePop(),

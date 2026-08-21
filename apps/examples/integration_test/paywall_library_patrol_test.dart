@@ -8,17 +8,18 @@ import 'package:restage_example/user_factories.g.dart';
 /// Proof-slice integration test for the recreated-paywall library's interactive
 /// surfaces. Drives each new paywall's *delivered render blob* through its
 /// selection states and asserts the consequence (the CTA re-targets the
-/// selected product) — the L9 lesson: a rendered-but-dead control passes a
+/// selected product) — the lesson: a rendered-but-dead control passes a
 /// render-only test, so we drive the tap and assert what it does, not just that
 /// it draws.
 ///
 /// Harness: this runs on **web-chrome**, the only Patrol target `apps/examples`
 /// configures (its pubspec `patrol:` block omits iOS/Android/macOS by design —
 /// it is a web demo app with no Xcode `PatrolTests` target). A `patrol test` on
-/// the iOS simulator therefore fails with `xcodebuild exited 70` (no iOS runner)
-/// — that is a missing-harness condition, not a paywall/test bug, and wiring an
-/// iOS runner onto a web demo app is out of scope. Run the autonomous gate on
-/// chrome; a manual iOS-device pass covers native / SF-Pro fit separately.
+/// the iOS simulator therefore fails with `xcodebuild exited 70` (no iOS
+/// runner) — that is a missing-harness condition, not a paywall/test bug, and
+/// wiring an iOS runner onto a web demo app is out of scope. Run the autonomous
+/// gate on chrome; a manual iOS-device pass covers native / SF-Pro fit
+/// separately.
 ///
 /// Run for the visual gate with a recorded capture that holds each state long
 /// enough to review as a distinct frame:
@@ -29,12 +30,12 @@ import 'package:restage_example/user_factories.g.dart';
 /// ```
 ///
 /// Each `_dwell` parks a state on screen for the frame extractor. What to look
-/// for in the frames: pulse_premium's tier strip highlight moves across
-/// Basic / Premium / Premium+ and its plan border moves monthly ↔ annual; the
-/// Ascend trial paywall walks trial-timeline (footer, no scrim) → tap the footer
-/// → the modal plan sheet rises over the scrim, collapsed on the default plan →
-/// "See All Plans" swaps the sheet content to the plan list → the Monthly
-/// selection and purchase.
+/// for in the frames: pulse_premium's tier strip highlight moves across Basic /
+/// Premium / Premium+ and its plan border moves monthly ↔ annual; the Ascend
+/// trial paywall walks trial-timeline (footer, no scrim) → tap the footer → the
+/// modal plan sheet rises over the scrim, collapsed on the default plan → "See
+/// All Plans" swaps the sheet content to the plan list → the Monthly selection
+/// and purchase.
 const _dwell = Duration(milliseconds: 1200);
 
 ThemeData _theme(Brightness brightness) => ThemeData(
@@ -98,7 +99,8 @@ void main() {
       await $.pumpAndSettle();
       await Future<void>.delayed(_dwell);
 
-      // Plan — select annual, then fire the CTA: it must buy the annual product.
+      // Plan — select annual, then fire the CTA: it must buy the annual
+      // product.
       await $('Annual').tap();
       await $.pumpAndSettle();
       await Future<void>.delayed(_dwell);

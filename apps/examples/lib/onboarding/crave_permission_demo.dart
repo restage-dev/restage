@@ -82,8 +82,8 @@ class _CravePermissionDemoState extends State<CravePermissionDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return const _EnteredAppScreen();
-    return RestageSurfaceFlow<CravePermissionResult>(
-      flow: CravePermissionFlowDescriptor.ref,
+    return RestageFlowGraph<CravePermissionResult>(
+      flow: cravePermissionFlowRef,
       actions: _actions,
       onComplete: (result) => _enterApp(),
       loadingBuilder: (context) => const ColoredBox(color: Colors.white),

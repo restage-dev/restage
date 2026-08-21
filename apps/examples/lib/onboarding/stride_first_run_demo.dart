@@ -9,7 +9,7 @@ import 'flows/stride_first_run.dart';
 ///
 /// The host side is the same shape as any engagement surface: supply the host
 /// action, act on the outcomes, and fail closed. What differs from a typed flow
-/// is the result type — `RestageSurfaceFlow<Map<String, Object?>>`. The flow is
+/// is the result type — `RestageFlowGraph<Map<String, Object?>>`. The flow is
 /// authored in general mode (`delivery: FlowDeliveryMode.general`), so there is
 /// no generated result class; `onComplete` receives a plain `Map` — the
 /// outbound-declared fields, already filtered by the runtime — and the host
@@ -20,7 +20,9 @@ import 'flows/stride_first_run.dart';
 /// This demo ships the flow as a bundled asset (no backend). A production app
 /// delivers it over the air by injecting a `ServerFlowResolver` once at startup;
 /// general delivery lets the server recompose the graph without an app release,
-/// bounded to the vocabulary this app installs.
+/// bounded to the vocabulary this app installs. See
+/// `main_stride_general_demo.dart` for the active-arm variant pointed at a
+/// backend.
 class StrideFirstRunDemo extends StatefulWidget {
   /// Creates the Stride onboarding host.
   ///
@@ -85,8 +87,8 @@ class _StrideFirstRunDemoState extends State<StrideFirstRunDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return _EnteredAppScreen(completed: _completed);
-    return RestageSurfaceFlow<Map<String, Object?>>(
-      flow: StrideFirstRunFlowDescriptor.ref,
+    return RestageFlowGraph<Map<String, Object?>>(
+      flow: strideFirstRunFlowRef,
       actions: _actions,
       // The untyped result: the host reads the fields the flow declared, with
       // no generated class in between — and reads them defensively. Under

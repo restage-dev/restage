@@ -31,7 +31,7 @@ final class ReelCancelFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: ReelReasonScreenDescriptor.ref,
+      initial: reelReasonScreenRef,
       flowState: const {
         'retained': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -53,20 +53,18 @@ final class ReelCancelFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(ReelReasonScreenDescriptor.ref)
+        screen(reelReasonScreenRef)
             .on(ReelReasonScreen.next)
-            .goTo(ReelFrequencyScreenDescriptor.ref),
-        screen(ReelFrequencyScreenDescriptor.ref)
+            .goTo(reelFrequencyScreenRef),
+        screen(reelFrequencyScreenRef)
             .on(ReelFrequencyScreen.next)
-            .goTo(ReelOfferScreenDescriptor.ref),
-        screen(ReelOfferScreenDescriptor.ref)
+            .goTo(reelOfferScreenRef),
+        screen(reelOfferScreenRef)
             .on(ReelOfferScreen.keep)
             .run(redeemOffer)
             .result((result) => result.redeemed)
-            .goTo(ReelKeptScreenDescriptor.ref),
-        screen(ReelKeptScreenDescriptor.ref)
-            .on(ReelKeptScreen.finish)
-            .goTo(done),
+            .goTo(reelKeptScreenRef),
+        screen(reelKeptScreenRef).on(ReelKeptScreen.finish).goTo(done),
         end(done, result: {'retained': true}),
       ],
     );

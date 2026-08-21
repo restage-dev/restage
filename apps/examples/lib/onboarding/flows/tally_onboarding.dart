@@ -35,7 +35,7 @@ final class TallyOnboardingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: TallyWelcomeScreenDescriptor.ref,
+      initial: tallyWelcomeScreenRef,
       flowState: const {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -43,53 +43,47 @@ final class TallyOnboardingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(TallyWelcomeScreenDescriptor.ref)
+        screen(tallyWelcomeScreenRef)
             .on(TallyWelcomeScreen.start)
-            .goTo(TallyGoalScreenDescriptor.ref),
+            .goTo(tallyGoalScreenRef),
         // The fork: one screen, three distinct events, three destinations — the
         // chosen goal is written into flow-state on the way.
-        screen(TallyGoalScreenDescriptor.ref)
+        screen(tallyGoalScreenRef)
             .on(TallyGoalScreen.debt)
             .write('goal', 'debt')
-            .goTo(TallyDebtScreenDescriptor.ref)
+            .goTo(tallyDebtScreenRef)
             .on(TallyGoalScreen.savings)
             .write('goal', 'savings')
-            .goTo(TallySavingsScreenDescriptor.ref)
+            .goTo(tallySavingsScreenRef)
             .on(TallyGoalScreen.invest)
             .write('goal', 'invest')
-            .goTo(TallyInvestScreenDescriptor.ref),
+            .goTo(tallyInvestScreenRef),
         // The three tailored setup screens converge on the routing node.
-        screen(TallyDebtScreenDescriptor.ref)
-            .on(TallyDebtScreen.next)
-            .goTo(route),
-        screen(TallySavingsScreenDescriptor.ref)
-            .on(TallySavingsScreen.next)
-            .goTo(route),
-        screen(TallyInvestScreenDescriptor.ref)
-            .on(TallyInvestScreen.next)
-            .goTo(route),
+        screen(tallyDebtScreenRef).on(TallyDebtScreen.next).goTo(route),
+        screen(tallySavingsScreenRef).on(TallySavingsScreen.next).goTo(route),
+        screen(tallyInvestScreenRef).on(TallyInvestScreen.next).goTo(route),
         // The decision routes the ending on the captured goal.
         decision(
           route,
           branches: [
             flowBranch(
               when: state('goal').equals('debt'),
-              target: TallyRecapDebtScreenDescriptor.ref,
+              target: tallyRecapDebtScreenRef,
             ),
             flowBranch(
               when: state('goal').equals('savings'),
-              target: TallyRecapSavingsScreenDescriptor.ref,
+              target: tallyRecapSavingsScreenRef,
             ),
           ],
-          defaultBranch: flowBranchTarget(TallyRecapInvestScreenDescriptor.ref),
+          defaultBranch: flowBranchTarget(tallyRecapInvestScreenRef),
         ),
-        screen(TallyRecapDebtScreenDescriptor.ref)
+        screen(tallyRecapDebtScreenRef)
             .on(TallyRecapDebtScreen.finish)
             .goTo(done),
-        screen(TallyRecapSavingsScreenDescriptor.ref)
+        screen(tallyRecapSavingsScreenRef)
             .on(TallyRecapSavingsScreen.finish)
             .goTo(done),
-        screen(TallyRecapInvestScreenDescriptor.ref)
+        screen(tallyRecapInvestScreenRef)
             .on(TallyRecapInvestScreen.finish)
             .goTo(done),
         end(done, result: {}),

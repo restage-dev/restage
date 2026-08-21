@@ -728,7 +728,7 @@ List<CatalogItem> buildRestageCatalogItems() {
       widgetBuilder: (itemContext) {
         final data = itemContext.data as Map<String, Object?>;
         final props = (data['props']! as Map).cast<String, Object?>();
-        return RestageSurfaceEventDispatcher(
+        return RestageEventDispatcher(
           onEvent: (eventId, value) {
             itemContext.dispatchEvent(
               UserActionEvent(

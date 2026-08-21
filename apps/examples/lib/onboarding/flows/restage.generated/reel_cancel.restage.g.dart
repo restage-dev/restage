@@ -1,28 +1,30 @@
 part of '../reel_cancel.dart';
 
+const reelCancelFlowRef = SurfaceFlowRef<ReelCancelResult>(
+  id: 'reel_cancel',
+  version: 1,
+  minClient: 1,
+  surface: Surface.onboarding,
+  deliveryMode: FlowDeliveryMode.typed,
+  decodeResult: _decodeReelCancelFlowResult,
+);
+
+ReelCancelResult _decodeReelCancelFlowResult(Map<String, Object?> result) {
+  if (result.length != 1 || !result.containsKey('retained')) {
+    throw const FormatException('Unexpected flow result keys.');
+  }
+  final retained = result['retained'];
+  if (retained is! bool) {
+    throw const FormatException('Expected result field retained to be bool.');
+  }
+  return ReelCancelResult(retained: retained);
+}
+
+@Deprecated('Use reelCancelFlowRef')
 abstract final class ReelCancelFlowDescriptor {
   const ReelCancelFlowDescriptor._();
 
-  static const SurfaceFlowRef<ReelCancelResult> ref =
-      SurfaceFlowRef<ReelCancelResult>(
-    id: 'reel_cancel',
-    version: 1,
-    minClient: 1,
-    surface: Surface.onboarding,
-    deliveryMode: FlowDeliveryMode.typed,
-    decodeResult: ReelCancelFlowDescriptor._decodeResult,
-  );
-
-  static ReelCancelResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || !result.containsKey('retained')) {
-      throw const FormatException('Unexpected flow result keys.');
-    }
-    final retained = result['retained'];
-    if (retained is! bool) {
-      throw const FormatException('Expected result field retained to be bool.');
-    }
-    return ReelCancelResult(retained: retained);
-  }
+  static const SurfaceFlowRef<ReelCancelResult> ref = reelCancelFlowRef;
 }
 
 final class ReelCancelResult {

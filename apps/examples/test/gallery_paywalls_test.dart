@@ -28,13 +28,14 @@ class _StaticResolver implements VariantResolver {
 }
 
 /// A deterministic billing gateway for the interactive tests. The default
-/// gateway is the real [InAppPurchaseGateway], whose `purchase()` awaits a store
-/// purchase stream that never delivers a terminal status under `flutter_test` —
-/// so the SDK's (correct) in-flight billing guard, which releases only when a
-/// purchase completes, would stay held and silently drop a second purchase tap.
-/// This stub completes immediately, so the guard releases between taps and each
-/// plan tap re-targets as it would on a real device. The purchase-initiated
-/// events these tests assert fire before billing, so the outcome is irrelevant.
+/// gateway is the real [InAppPurchaseGateway], whose `purchase()` awaits a
+/// store purchase stream that never delivers a terminal status under
+/// `flutter_test` — so the SDK's (correct) in-flight billing guard, which
+/// releases only when a purchase completes, would stay held and silently drop a
+/// second purchase tap. This stub completes immediately, so the guard releases
+/// between taps and each plan tap re-targets as it would on a real device. The
+/// purchase-initiated events these tests assert fire before billing, so the
+/// outcome is irrelevant.
 class _TestBillingGateway implements BillingGateway {
   @override
   Future<PurchaseOutcome> purchase(String productId,
@@ -139,8 +140,8 @@ Future<void> _tapText(WidgetTester tester, String label) async {
 }
 
 /// Scrolls the plan row carrying [label] into view and taps it. Plan rows are
-/// wrapped in the selector's `GestureDetector`, so tap the nearest such ancestor
-/// of the label rather than the text itself.
+/// wrapped in the selector's `GestureDetector`, so tap the nearest such
+/// ancestor of the label rather than the text itself.
 Future<void> _tapPlanRow(WidgetTester tester, String label) async {
   await tester.ensureVisible(find.text(label));
   await tester.pumpAndSettle();
@@ -155,8 +156,8 @@ Future<void> _tapPlanRow(WidgetTester tester, String label) async {
 
 /// Taps a text label inside the open modal sheet (a `BottomSheet`). When the
 /// sheet is open the underlay stays mounted behind the scrim, so a bare
-/// `find.text` for a label shared by the footer and the sheet (e.g. the
-/// "Start free trial" CTA) is ambiguous — scoping to the `BottomSheet` picks the
+/// `find.text` for a label shared by the footer and the sheet (e.g. the "Start
+/// free trial" CTA) is ambiguous — scoping to the `BottomSheet` picks the
 /// sheet's copy.
 Future<void> _tapSheetText(WidgetTester tester, String label) async {
   final target = find.descendant(
@@ -193,9 +194,9 @@ void _useTallSurface(WidgetTester tester) {
 
 /// The standard interactive-plan-selection group for [paywallId]: the
 /// [defaultPlan] (`'annual'` or `'monthly'`) is the pre-selected plan, so the
-/// CTA buys it when nothing is tapped; tapping the other plan row re-targets the
-/// CTA, and re-selecting the default flips it back. [ctaLabel] is the purchase
-/// button's text.
+/// CTA buys it when nothing is tapped; tapping the other plan row re-targets
+/// the CTA, and re-selecting the default flips it back. [ctaLabel] is the
+/// purchase button's text.
 ///
 /// This drives the *delivered blob* — the same state/`set`/`switch` the runtime
 /// decodes — and asserts the purchase fires for the selected product, not a
@@ -264,8 +265,9 @@ void main() {
   });
 
   group('gallery escape — a paywall close returns to the gallery', () {
-    // The Fluent Pro card has its own back affordance (`paywallEvent('close')`);
-    // tapping it should return to the gallery (no host back button needed).
+    // The Fluent Pro card has its own back affordance
+    // (`paywallEvent('close')`); tapping it should return to the gallery (no
+    // host back button needed).
     final backArrow = find.byWidgetPredicate(
       (widget) =>
           widget is Icon &&
@@ -309,8 +311,9 @@ void main() {
     // The hosted-delivery tile renders Narrate (which carries its own close
     // affordance) through the fake-server over-the-air path. Narrate's close
     // surfaces as a `close` PaywallCustomEvent that the demo's own onEvent maps
-    // to a host pop — without that wiring the close button fires but does nothing
-    // (the SDK shadows the gallery's ambient dispatcher), trapping the user.
+    // to a host pop — without that wiring the close button fires but does
+    // nothing (the SDK shadows the gallery's ambient dispatcher), trapping the
+    // user.
     final hostedClose = find.byWidgetPredicate(
       (widget) =>
           widget is Icon &&
@@ -669,8 +672,9 @@ void main() {
   );
 
   // Lumen Premium — the meditation paywall that climaxes the onboarding flow.
-  // Annual is the default; tapping 'Monthly' re-targets the purchase (the L9
-  // dead-control guard: the plan choice must actually move the money path).
+  // Annual is the default; tapping 'Monthly' re-targets the purchase (the
+  // paywall library dead-control guard: the plan choice must actually move the
+  // money path).
   _interactivePlanSelectionGroup(
     paywallId: 'lumen_premium',
     ctaLabel: 'Start free trial',
@@ -681,8 +685,9 @@ void main() {
   group('tri-state tier strip — pulse_premium', () {
     // The second selection axis (beyond the plan toggle): an `int` tier strip
     // (Basic | Premium | Premium+) whose selected segment fills. It travels
-    // inside the delivered blob as a `switch state.selectedTier`, so this drives
-    // the tap and asserts the fill moves — not just that the strip renders.
+    // inside the delivered blob as a `switch state.selectedTier`, so this
+    // drives the tap and asserts the fill moves — not just that the strip
+    // renders.
     const accent = Color(0xFF7B61FF);
     const transparent = Color(0x00000000);
 
@@ -782,8 +787,8 @@ void main() {
     //
     // The default 800x600 test surface (same as the round-trip tests above):
     // its content column is 744 wide (800 minus the 28+28 scroll padding), and
-    // each CTA's label width sits well below that — so a full-width CTA reads as
-    // ~744 while a hugging one stays flat at its label width. The gap is the
+    // each CTA's label width sits well below that — so a full-width CTA reads
+    // as ~744 while a hugging one stays flat at its label width. The gap is the
     // test. (A *narrower* surface would clamp a hugging CTA to the column and
     // make it look full-width — exactly how this regression hid from the
     // geometry-agnostic matrix tests.)
@@ -858,9 +863,9 @@ void main() {
     // The gallery's delivered-paywall host wires onEvent to
     // showDemoPaywallEventFeedback, so a tap on Restore (which fires a host
     // event, not in-blob behavior) has a visible result instead of silently
-    // doing nothing. This pins that wiring end-to-end: tapping the pulse_premium
-    // blob's Restore affordance surfaces its feedback SnackBar — proving the
-    // delivered-blob → host event → SnackBar path.
+    // doing nothing. This pins that wiring end-to-end: tapping the
+    // pulse_premium blob's Restore affordance surfaces its feedback SnackBar —
+    // proving the delivered-blob → host event → SnackBar path.
     Future<void> pumpPulseWithFeedback(WidgetTester tester) async {
       _useTallSurface(tester);
       final bytes = _encodePaywall('pulse_premium');
@@ -899,8 +904,8 @@ void main() {
     // when the blob can't be resolved or decoded. This pins that contract: a
     // resolver that fails paints the SAME fallback string the gallery uses, the
     // normal heading never appears, and — because a load failure surfaces
-    // through errorBuilder, not the SnackBar host-feedback channel — no feedback
-    // SnackBar is shown for the failure.
+    // through errorBuilder, not the SnackBar host-feedback channel — no
+    // feedback SnackBar is shown for the failure.
     const fallbackText = 'This paywall is unavailable right now.';
 
     testWidgets('a failing resolver paints the fallback, not a heading',
@@ -1072,9 +1077,10 @@ void main() {
 
   // ascend_premium opens its plan selection inside a modal sheet (the lowered
   // showModalBottomSheet), so the standard plan-selection group (which expects
-  // visible plan rows) does not apply. This drives the three modal states on the
-  // DELIVERED blob and asserts the purchase re-targets — the same modal-sheet
-  // mechanics the trial-timeline template pins, proven on the delivered blob.
+  // visible plan rows) does not apply. This drives the three modal states on
+  // the DELIVERED blob and asserts the purchase re-targets — the same
+  // modal-sheet mechanics the trial-timeline template pins, proven on the
+  // delivered blob.
   group('modal plan sheet — ascend_premium', () {
     testWidgets(
         'footer opens the sheet, See All Plans swaps content, plan selection '

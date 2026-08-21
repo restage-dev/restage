@@ -13,9 +13,9 @@ final class BareSurfaceFlow extends RestageFlow {
   @override
   FlowDef buildFlow() {
     return flow(
-      initial: StarterBareSurfaceScreenDescriptor.ref,
+      initial: starterBareSurfaceScreenRef,
       states: [
-        screen(StarterBareSurfaceScreenDescriptor.ref),
+        screen(starterBareSurfaceScreenRef),
       ],
     );
   }

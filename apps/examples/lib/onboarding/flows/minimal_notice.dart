@@ -22,7 +22,7 @@ final class MinimalNoticeFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StarterNoticeScreenDescriptor.ref,
+      initial: starterNoticeScreenRef,
       outbound: const FlowOutboundDeclarations(
         customEvents: {
           // The × — handled by the host, not the flow graph.
@@ -30,9 +30,7 @@ final class MinimalNoticeFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(StarterNoticeScreenDescriptor.ref)
-            .on(StarterNoticeScreen.act)
-            .goTo(done),
+        screen(starterNoticeScreenRef).on(StarterNoticeScreen.act).goTo(done),
         end(done, result: {}),
       ],
     );

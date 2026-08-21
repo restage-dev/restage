@@ -67,7 +67,7 @@ void main() {
 
         // ── Forward ──────────────────────────────────────────────────────
         // Welcome — the first screen, shown at rest (no enter animation).
-        // `RestageSurfaceFlow` resolves its flow + screen blobs with a
+        // `RestageFlowGraph` resolves its flow + screen blobs with a
         // fire-and-forget async load (its loadingBuilder shows until that
         // completes); on the web target that Future is not drained by
         // pumpWidgetAndSettle, so wait until the first screen is actually
@@ -122,7 +122,7 @@ void main() {
 }
 
 /// Minimal host for the first-run onboarding flow under test — renders it through
-/// [RestageSurfaceFlow] with the supplied actions. The forward/back walk above
+/// [RestageFlowGraph] with the supplied actions. The forward/back walk above
 /// drives the flow's own screens, so the host needs nothing more.
 class _FirstRunOnboardingHost extends StatelessWidget {
   const _FirstRunOnboardingHost({required this.actions});
@@ -131,8 +131,8 @@ class _FirstRunOnboardingHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageSurfaceFlow<FirstRunResult>(
-      flow: FirstRunFlowDescriptor.ref,
+    return RestageFlowGraph<FirstRunResult>(
+      flow: firstRunFlowRef,
       actions: actions,
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF0E1B33)),
       unavailable: FlowUnavailablePolicy.fallback(

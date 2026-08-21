@@ -31,7 +31,7 @@ class _BareSurfaceDemoState extends State<BareSurfaceDemo> {
   void _start() {
     late final RestageFlowController<BareSurfaceResult> controller;
     controller = RestageFlowController<BareSurfaceResult>(
-      flow: BareSurfaceFlowDescriptor.ref,
+      flow: bareSurfaceFlowRef,
       resolver: Restage.defaultFlowResolver,
       actions: null,
       onEvent: Restage.fireEvent,
