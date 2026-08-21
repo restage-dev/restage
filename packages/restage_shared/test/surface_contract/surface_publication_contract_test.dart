@@ -8,41 +8,41 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('SurfaceScreenEventSchemaV1', () {
+  group('SurfaceScreenEventSchema', () {
     test('matches the frozen empty and ordered canonical vectors', () {
-      final empty = SurfaceScreenEventSchemaV1(events: const []);
+      final empty = SurfaceScreenEventSchema(events: const []);
       expect(
         SurfaceScreenEventSchemaV1Codec.encodeCanonicalJson(empty),
         '{"schemaVersion":1,"events":[]}',
       );
       expect(
-        SurfaceScreenEventContractHashV1.hash(empty),
+        SurfaceScreenEventContractHash.hash(empty),
         'sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5',
       );
 
-      final schema = SurfaceScreenEventSchemaV1(
-        events: <SurfaceScreenEventV1>[
-          SurfaceScreenEventV1(
+      final schema = SurfaceScreenEventSchema(
+        events: <SurfaceScreenEvent>[
+          SurfaceScreenEvent(
             id: 'submit',
-            arguments: SurfaceScreenEventObjectArgumentsV1(
+            arguments: SurfaceScreenEventObjectArguments(
               const SurfaceScreenEventMapShapeV1(
                 SurfaceScreenEventScalarShapeV1(
-                  SurfaceScreenEventScalarKindV1.jsonValue,
+                  SurfaceScreenEventScalarKind.jsonValue,
                 ),
               ),
             ),
           ),
-          SurfaceScreenEventV1(
+          SurfaceScreenEvent(
             id: 'évent',
-            arguments: const SurfaceScreenEventValueArgumentsV1(
+            arguments: const SurfaceScreenEventValueArguments(
               SurfaceScreenEventScalarShapeV1(
-                SurfaceScreenEventScalarKindV1.integer,
+                SurfaceScreenEventScalarKind.integer,
               ),
             ),
           ),
-          SurfaceScreenEventV1(
+          SurfaceScreenEvent(
             id: 'dismiss\n',
-            arguments: const SurfaceScreenEventNoArgumentsV1(),
+            arguments: const SurfaceScreenEventNoArguments(),
           ),
         ],
       );
@@ -51,7 +51,7 @@ void main() {
         '{"schemaVersion":1,"events":[{"id":"dismiss\\n","arguments":{"encoding":"none"}},{"id":"submit","arguments":{"encoding":"object","shape":{"kind":"map","values":{"kind":"jsonValue"}}}},{"id":"évent","arguments":{"encoding":"value","shape":{"kind":"int"}}}]}',
       );
       expect(
-        SurfaceScreenEventContractHashV1.hash(schema),
+        SurfaceScreenEventContractHash.hash(schema),
         'sha256:e8e6e96e91b1fa3ebab975bf91b75ddb201b88da6d5d3bb2baab4437546be450',
       );
     });
@@ -71,7 +71,7 @@ void main() {
         throwsFormatException,
       );
       expect(
-        () => SurfaceScreenEventArgumentsV1.fromJson(
+        () => SurfaceScreenEventArguments.fromJson(
           <String, Object?>{
             'encoding': 'object',
             'shape': <String, Object?>{'kind': 'string'},
@@ -81,13 +81,13 @@ void main() {
         throwsFormatException,
       );
 
-      final schema = SurfaceScreenEventSchemaV1(
-        events: <SurfaceScreenEventV1>[
-          SurfaceScreenEventV1(
+      final schema = SurfaceScreenEventSchema(
+        events: <SurfaceScreenEvent>[
+          SurfaceScreenEvent(
             id: 'count',
-            arguments: const SurfaceScreenEventValueArgumentsV1(
+            arguments: const SurfaceScreenEventValueArguments(
               SurfaceScreenEventScalarShapeV1(
-                SurfaceScreenEventScalarKindV1.integer,
+                SurfaceScreenEventScalarKind.integer,
               ),
             ),
           ),
@@ -105,7 +105,7 @@ void main() {
     });
   });
 
-  group('SurfaceScreenContractFingerprintV1', () {
+  group('SurfaceScreenContractFingerprint', () {
     test('matches the frozen empty and Unicode canonical vectors', () {
       const zeroHash =
           'sha256:0000000000000000000000000000000000000000000000000000000000000000';
@@ -114,7 +114,7 @@ void main() {
         requiredLibraries: const <LibraryRequirement>[],
       );
       expect(
-        SurfaceScreenContractFingerprintV1.encodeCanonicalJson(
+        SurfaceScreenContractFingerprint.encodeCanonicalJson(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: emptyCapabilities,
@@ -123,7 +123,7 @@ void main() {
         '{"schemaVersion":1,"sourceKind":"screen","payloadKind":"blob","capabilities":{"builtInFloor":1,"requiredLibraries":[]},"eventContractHash":"$zeroHash"}',
       );
       expect(
-        SurfaceScreenContractFingerprintV1.hash(
+        SurfaceScreenContractFingerprint.hash(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: emptyCapabilities,
@@ -143,7 +143,7 @@ void main() {
         ],
       );
       expect(
-        SurfaceScreenContractFingerprintV1.encodeCanonicalJson(
+        SurfaceScreenContractFingerprint.encodeCanonicalJson(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: capabilities,
@@ -152,7 +152,7 @@ void main() {
         '{"schemaVersion":1,"sourceKind":"screen","payloadKind":"blob","capabilities":{"builtInFloor":7,"requiredLibraries":[{"namespace":"a\\u001fedge","minVersion":1},{"namespace":"z/quote\\"slash\\\\","minVersion":2},{"namespace":"é.core","minVersion":3}]},"eventContractHash":"$oneHash"}',
       );
       expect(
-        SurfaceScreenContractFingerprintV1.hash(
+        SurfaceScreenContractFingerprint.hash(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: capabilities,
@@ -171,7 +171,7 @@ void main() {
         ],
       );
       expect(
-        () => SurfaceScreenContractFingerprintV1.hash(
+        () => SurfaceScreenContractFingerprint.hash(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: duplicateCapabilities,
@@ -222,7 +222,7 @@ void main() {
       expect(entry.sources, isEmpty);
       expect(entry.toJson().containsKey('sources'), isFalse);
 
-      final withSources = SurfacePublicationManifestEntryV1(
+      final withSources = SurfacePublicationManifestEntry(
         artifacts: entry.artifacts,
         publication: entry.publication,
         sources: const <String>[
@@ -230,8 +230,8 @@ void main() {
           'lib/screens/shared_header.dart',
         ],
       );
-      final manifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[withSources],
+      final manifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[withSources],
       );
       final encoded =
           SurfacePublicationManifestV1Codec.encodeCanonicalJson(manifest);
@@ -254,8 +254,8 @@ void main() {
         hasLength(1),
       );
 
-      SurfacePublicationManifestEntryV1 withRawSources(List<String> sources) =>
-          SurfacePublicationManifestEntryV1(
+      SurfacePublicationManifestEntry withRawSources(List<String> sources) =>
+          SurfacePublicationManifestEntry(
             artifacts: entry.artifacts,
             publication: entry.publication,
             sources: sources,
@@ -298,7 +298,7 @@ void main() {
       );
 
       expect(
-        () => SurfacePublicationManifestEntryV1.fromJson(
+        () => SurfacePublicationManifestEntry.fromJson(
           <String, Object?>{
             'artifacts': <Object?>[
               for (final artifact in entry.artifacts) artifact.toJson(),
@@ -325,7 +325,7 @@ void main() {
         throwsFormatException,
       );
       expect(
-        () => SurfacePublicationUploadRequestV1(
+        () => SurfacePublicationUploadRequest(
           publication: fixture.publication,
           payload: const <int>[1, 2, 3],
         ),
@@ -342,11 +342,11 @@ void main() {
           fixture.payload.flowDocument.screenArtifacts['start']!;
       final blobArtifact = entry.artifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
+            artifact.role == SurfacePublicationArtifactRole.screenBlob,
       );
       final sidecarArtifact = entry.artifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.capabilitySidecar,
+            artifact.role == SurfacePublicationArtifactRole.capabilitySidecar,
       );
 
       expect(flowArtifact.path, 'start.rfw');
@@ -360,14 +360,14 @@ void main() {
           .single
           .validateAssembledPayload(fixture.payload.canonicalBytes);
 
-      final wrongIdManifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[
-          SurfacePublicationManifestEntryV1(
-            artifacts: <SurfacePublicationArtifactV1>[
+      final wrongIdManifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[
+          SurfacePublicationManifestEntry(
+            artifacts: <SurfacePublicationArtifact>[
               for (final artifact in entry.artifacts)
-                artifact.role == SurfacePublicationArtifactRoleV1.flowDocument
+                artifact.role == SurfacePublicationArtifactRole.flowDocument
                     ? artifact
-                    : SurfacePublicationArtifactV1(
+                    : SurfacePublicationArtifact(
                         contentHash: artifact.contentHash,
                         id: 'unexpected',
                         path: artifact.path,
@@ -397,20 +397,20 @@ void main() {
           ),
         ),
       );
-      final wrongHashManifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[
-          SurfacePublicationManifestEntryV1(
-            artifacts: <SurfacePublicationArtifactV1>[
+      final wrongHashManifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[
+          SurfacePublicationManifestEntry(
+            artifacts: <SurfacePublicationArtifact>[
               for (final artifact in entry.artifacts)
                 if (artifact.path == blobArtifact.path)
-                  SurfacePublicationArtifactV1(
+                  SurfacePublicationArtifact(
                     contentHash: CapabilitySidecar.hashBlob(changedBlob),
                     id: artifact.id,
                     path: artifact.path,
                     role: artifact.role,
                   )
                 else if (artifact.path == sidecarArtifact.path)
-                  SurfacePublicationArtifactV1(
+                  SurfacePublicationArtifact(
                     contentHash:
                         CapabilitySidecar.hashBlob(changedSidecarBytes),
                     id: artifact.id,
@@ -447,10 +447,10 @@ void main() {
           ),
         ),
       );
-      final underDeclaredArtifacts = <SurfacePublicationArtifactV1>[
+      final underDeclaredArtifacts = <SurfacePublicationArtifact>[
         for (final artifact in entry.artifacts)
-          artifact.role == SurfacePublicationArtifactRoleV1.capabilitySidecar
-              ? SurfacePublicationArtifactV1(
+          artifact.role == SurfacePublicationArtifactRole.capabilitySidecar
+              ? SurfacePublicationArtifact(
                   contentHash: CapabilitySidecar.hashBlob(
                     underDeclaredSidecarBytes,
                   ),
@@ -460,9 +460,9 @@ void main() {
                 )
               : artifact,
       ];
-      final underDeclaredManifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[
-          SurfacePublicationManifestEntryV1(
+      final underDeclaredManifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[
+          SurfacePublicationManifestEntry(
             artifacts: underDeclaredArtifacts,
             publication: entry.publication,
           ),
@@ -473,7 +473,7 @@ void main() {
           .singleWhere(
             (artifact) =>
                 artifact.role ==
-                SurfacePublicationArtifactRoleV1.capabilitySidecar,
+                SurfacePublicationArtifactRole.capabilitySidecar,
           )
           .path;
       underDeclaredFiles[underDeclaredPath] = underDeclaredSidecarBytes;
@@ -493,25 +493,25 @@ void main() {
       final sharedArtifacts = flowEntry.artifacts
           .where(
             (artifact) =>
-                artifact.role != SurfacePublicationArtifactRoleV1.flowDocument,
+                artifact.role != SurfacePublicationArtifactRole.flowDocument,
           )
           .toList(growable: false);
       final sharedBlob = sharedArtifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
+            artifact.role == SurfacePublicationArtifactRole.screenBlob,
       );
       final sharedSidecar = sharedArtifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.capabilitySidecar,
+            artifact.role == SurfacePublicationArtifactRole.capabilitySidecar,
       );
       final capabilities = CapabilityManifest(
         builtInFloor: fixture.payload.flowDocument.minClient,
         requiredLibraries: fixture.payload.requiredLibraries,
       );
-      final eventContract = SurfaceScreenEventSchemaV1(events: const []);
+      final eventContract = SurfaceScreenEventSchema(events: const []);
       final eventContractHash =
-          SurfaceScreenEventContractHashV1.hash(eventContract);
-      final contractFingerprint = SurfaceScreenContractFingerprintV1.hash(
+          SurfaceScreenEventContractHash.hash(eventContract);
+      final contractFingerprint = SurfaceScreenContractFingerprint.hash(
         sourceKind: SurfaceSourceKind.screen,
         payloadKind: SurfacePayloadKind.blob,
         capabilities: capabilities,
@@ -522,8 +522,7 @@ void main() {
         blob: fixture.payload.screenBlobs['start']!,
         requiredLibraries: fixture.payload.requiredLibraries,
       );
-      SurfacePublicationV1 publicationForSlug(String slug) =>
-          SurfacePublicationV1(
+      SurfacePublication publicationForSlug(String slug) => SurfacePublication(
             surface: Surface.general,
             slug: slug,
             sourceKind: SurfaceSourceKind.screen,
@@ -536,12 +535,12 @@ void main() {
             contractFingerprint: contractFingerprint,
           );
       final standalonePublication = publicationForSlug('start');
-      final standaloneEntry = SurfacePublicationManifestEntryV1(
+      final standaloneEntry = SurfacePublicationManifestEntry(
         artifacts: sharedArtifacts,
         publication: standalonePublication,
       );
-      final manifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[
+      final manifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[
           flowEntry,
           standaloneEntry,
         ],
@@ -553,10 +552,10 @@ void main() {
       closures[1].validateAssembledPayload(standalonePayload.canonicalBytes);
 
       expect(
-        () => SurfacePublicationManifestEntryV1(
-          artifacts: <SurfacePublicationArtifactV1>[
+        () => SurfacePublicationManifestEntry(
+          artifacts: <SurfacePublicationArtifact>[
             sharedBlob,
-            SurfacePublicationArtifactV1(
+            SurfacePublicationArtifact(
               contentHash: sharedSidecar.contentHash,
               id: sharedSidecar.id,
               path: sharedBlob.path,
@@ -568,8 +567,8 @@ void main() {
         throwsFormatException,
       );
       expect(
-        () => SurfacePublicationManifestV1(
-          publications: <SurfacePublicationManifestEntryV1>[
+        () => SurfacePublicationManifest(
+          publications: <SurfacePublicationManifestEntry>[
             flowEntry,
             flowEntry,
           ],
@@ -581,15 +580,15 @@ void main() {
           'sha256:0000000000000000000000000000000000000000000000000000000000000000';
       final conflictingEntries = <({
         String name,
-        SurfacePublicationManifestEntryV1 entry,
+        SurfacePublicationManifestEntry entry,
       })>[
         (
           name: 'hash',
-          entry: SurfacePublicationManifestEntryV1(
-            artifacts: <SurfacePublicationArtifactV1>[
+          entry: SurfacePublicationManifestEntry(
+            artifacts: <SurfacePublicationArtifact>[
               for (final artifact in sharedArtifacts)
-                artifact.role == SurfacePublicationArtifactRoleV1.screenBlob
-                    ? SurfacePublicationArtifactV1(
+                artifact.role == SurfacePublicationArtifactRole.screenBlob
+                    ? SurfacePublicationArtifact(
                         contentHash: conflictingHash,
                         id: artifact.id,
                         path: artifact.path,
@@ -602,19 +601,19 @@ void main() {
         ),
         (
           name: 'role',
-          entry: SurfacePublicationManifestEntryV1(
-            artifacts: <SurfacePublicationArtifactV1>[
-              SurfacePublicationArtifactV1(
+          entry: SurfacePublicationManifestEntry(
+            artifacts: <SurfacePublicationArtifact>[
+              SurfacePublicationArtifact(
                 contentHash: sharedBlob.contentHash,
                 id: sharedBlob.id,
                 path: sharedBlob.path,
-                role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+                role: SurfacePublicationArtifactRole.capabilitySidecar,
               ),
-              SurfacePublicationArtifactV1(
+              SurfacePublicationArtifact(
                 contentHash: sharedSidecar.contentHash,
                 id: sharedSidecar.id,
                 path: sharedSidecar.path,
-                role: SurfacePublicationArtifactRoleV1.screenBlob,
+                role: SurfacePublicationArtifactRole.screenBlob,
               ),
             ],
             publication: standalonePublication,
@@ -622,10 +621,10 @@ void main() {
         ),
         (
           name: 'id',
-          entry: SurfacePublicationManifestEntryV1(
-            artifacts: <SurfacePublicationArtifactV1>[
+          entry: SurfacePublicationManifestEntry(
+            artifacts: <SurfacePublicationArtifact>[
               for (final artifact in sharedArtifacts)
-                SurfacePublicationArtifactV1(
+                SurfacePublicationArtifact(
                   contentHash: artifact.contentHash,
                   id: 'alternate',
                   path: artifact.path,
@@ -638,8 +637,8 @@ void main() {
       ];
       for (final conflict in conflictingEntries) {
         expect(
-          () => SurfacePublicationManifestV1(
-            publications: <SurfacePublicationManifestEntryV1>[
+          () => SurfacePublicationManifest(
+            publications: <SurfacePublicationManifestEntry>[
               flowEntry,
               conflict.entry,
             ],
@@ -655,74 +654,74 @@ void main() {
       final entry = fixture.manifest.publications.single;
       final flowArtifact = entry.artifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.flowDocument,
+            artifact.role == SurfacePublicationArtifactRole.flowDocument,
       );
       final blobArtifact = entry.artifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
+            artifact.role == SurfacePublicationArtifactRole.screenBlob,
       );
       final sidecarArtifact = entry.artifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.capabilitySidecar,
+            artifact.role == SurfacePublicationArtifactRole.capabilitySidecar,
       );
       final invalidClosures = <({
         String name,
-        List<SurfacePublicationArtifactV1> artifacts,
+        List<SurfacePublicationArtifact> artifacts,
       })>[
         (
           name: 'missing blob/orphaned sidecar',
-          artifacts: <SurfacePublicationArtifactV1>[
+          artifacts: <SurfacePublicationArtifact>[
             flowArtifact,
             sidecarArtifact,
           ],
         ),
         (
           name: 'missing sidecar/orphaned blob',
-          artifacts: <SurfacePublicationArtifactV1>[
+          artifacts: <SurfacePublicationArtifact>[
             flowArtifact,
             blobArtifact,
           ],
         ),
         (
           name: 'missing flow document',
-          artifacts: <SurfacePublicationArtifactV1>[
+          artifacts: <SurfacePublicationArtifact>[
             blobArtifact,
             sidecarArtifact,
           ],
         ),
         (
           name: 'duplicate flow document',
-          artifacts: <SurfacePublicationArtifactV1>[
+          artifacts: <SurfacePublicationArtifact>[
             ...entry.artifacts,
-            SurfacePublicationArtifactV1(
+            SurfacePublicationArtifact(
               contentHash: flowArtifact.contentHash,
               path: 'assets/restage/generated/welcome/flow-copy.json',
-              role: SurfacePublicationArtifactRoleV1.flowDocument,
+              role: SurfacePublicationArtifactRole.flowDocument,
             ),
           ],
         ),
         (
           name: 'duplicate blob id',
-          artifacts: <SurfacePublicationArtifactV1>[
+          artifacts: <SurfacePublicationArtifact>[
             ...entry.artifacts,
-            SurfacePublicationArtifactV1(
+            SurfacePublicationArtifact(
               contentHash: blobArtifact.contentHash,
               id: blobArtifact.id,
               path: 'assets/restage/generated/welcome/start-copy.rfw',
-              role: SurfacePublicationArtifactRoleV1.screenBlob,
+              role: SurfacePublicationArtifactRole.screenBlob,
             ),
           ],
         ),
         (
           name: 'duplicate sidecar id',
-          artifacts: <SurfacePublicationArtifactV1>[
+          artifacts: <SurfacePublicationArtifact>[
             ...entry.artifacts,
-            SurfacePublicationArtifactV1(
+            SurfacePublicationArtifact(
               contentHash: sidecarArtifact.contentHash,
               id: sidecarArtifact.id,
               path:
                   'assets/restage/generated/welcome/start-copy.capability.json',
-              role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+              role: SurfacePublicationArtifactRole.capabilitySidecar,
             ),
           ],
         ),
@@ -730,7 +729,7 @@ void main() {
 
       for (final invalid in invalidClosures) {
         expect(
-          () => SurfacePublicationManifestEntryV1(
+          () => SurfacePublicationManifestEntry(
             artifacts: invalid.artifacts,
             publication: entry.publication,
           ),
@@ -742,16 +741,16 @@ void main() {
 
     test('validates paywall blob and paywall-flow adapter closures', () {
       final screenFixture = _screenFixture();
-      final paywallBlobPublication = SurfacePublicationV1(
+      final paywallBlobPublication = SurfacePublication(
         surface: Surface.paywall,
         slug: screenFixture.publication.slug,
         sourceKind: SurfaceSourceKind.paywall,
         payloadKind: SurfacePayloadKind.blob,
         payloadContentHash: screenFixture.payload.contentHash,
       );
-      final paywallBlobManifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[
-          SurfacePublicationManifestEntryV1(
+      final paywallBlobManifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[
+          SurfacePublicationManifestEntry(
             artifacts: screenFixture.manifest.publications.single.artifacts,
             publication: paywallBlobPublication,
           ),
@@ -763,7 +762,7 @@ void main() {
           .validateAssembledPayload(screenFixture.payload.canonicalBytes);
 
       final flowFixture = _flowFixture();
-      final paywallFlowPublication = SurfacePublicationV1(
+      final paywallFlowPublication = SurfacePublication(
         surface: Surface.paywall,
         slug: flowFixture.payload.flowDocument.flow,
         sourceKind: SurfaceSourceKind.paywall,
@@ -771,9 +770,9 @@ void main() {
         payloadContentHash: flowFixture.payload.contentHash,
         deliveryMode: flowFixture.payload.flowDocument.deliveryMode,
       );
-      final paywallFlowManifest = SurfacePublicationManifestV1(
-        publications: <SurfacePublicationManifestEntryV1>[
-          SurfacePublicationManifestEntryV1(
+      final paywallFlowManifest = SurfacePublicationManifest(
+        publications: <SurfacePublicationManifestEntry>[
+          SurfacePublicationManifestEntry(
             artifacts: flowFixture.manifest.publications.single.artifacts,
             publication: paywallFlowPublication,
           ),
@@ -796,7 +795,7 @@ void main() {
         final malformed = Map<String, Object?>.from(publicationJson)
           ..[unknown.field] = unknown.value;
         expect(
-          () => SurfacePublicationV1.fromJson(
+          () => SurfacePublication.fromJson(
             malformed,
             path: r'$.publication',
           ),
@@ -809,7 +808,7 @@ void main() {
         fixture.manifest.publications.single.artifacts.first.toJson(),
       )..['role'] = 'futureRole';
       expect(
-        () => SurfacePublicationArtifactV1.fromJson(
+        () => SurfacePublicationArtifact.fromJson(
           artifactJson,
           path: r'$.artifact',
         ),
@@ -819,11 +818,11 @@ void main() {
       const contentHash =
           'sha256:0000000000000000000000000000000000000000000000000000000000000000';
       expect(
-        SurfacePublicationArtifactV1(
+        SurfacePublicationArtifact(
           contentHash: contentHash,
           id: 'screen',
           path: 'assets/restage/generated/welcome/start.rfw',
-          role: SurfacePublicationArtifactRoleV1.screenBlob,
+          role: SurfacePublicationArtifactRole.screenBlob,
         ).path,
         'assets/restage/generated/welcome/start.rfw',
       );
@@ -840,11 +839,11 @@ void main() {
         'custom:outside.rfw',
       ]) {
         expect(
-          () => SurfacePublicationArtifactV1(
+          () => SurfacePublicationArtifact(
             contentHash: contentHash,
             id: 'screen',
             path: path,
-            role: SurfacePublicationArtifactRoleV1.screenBlob,
+            role: SurfacePublicationArtifactRole.screenBlob,
           ),
           throwsFormatException,
           reason: path,
@@ -862,17 +861,16 @@ void main() {
       );
       publication['unknown'] = true;
       expect(
-        () =>
-            SurfacePublicationV1.fromJson(publication, path: r'$.publication'),
+        () => SurfacePublication.fromJson(publication, path: r'$.publication'),
         throwsFormatException,
       );
       expect(
-        () => SurfacePublicationArtifactV1(
+        () => SurfacePublicationArtifact(
           contentHash:
               'sha256:0000000000000000000000000000000000000000000000000000000000000000',
           id: 'screen',
           path: '../outside.rfw',
-          role: SurfacePublicationArtifactRoleV1.screenBlob,
+          role: SurfacePublicationArtifactRole.screenBlob,
         ),
         throwsFormatException,
       );
@@ -880,16 +878,14 @@ void main() {
         ..remove('unknown')
         ..['contractFingerprint'] = null;
       expect(
-        () =>
-            SurfacePublicationV1.fromJson(publication, path: r'$.publication'),
+        () => SurfacePublication.fromJson(publication, path: r'$.publication'),
         throwsFormatException,
       );
       publication
         ..remove('contractFingerprint')
         ..remove('eventContractHash');
       expect(
-        () =>
-            SurfacePublicationV1.fromJson(publication, path: r'$.publication'),
+        () => SurfacePublication.fromJson(publication, path: r'$.publication'),
         throwsFormatException,
       );
     });
@@ -898,7 +894,7 @@ void main() {
   group('Surface screen delivery contracts', () {
     test('normalizes only advisory request keys and freezes the request vector',
         () {
-      final normalized = SurfaceScreenDeliveryRequestV1.fromJson(
+      final normalized = SurfaceScreenDeliveryRequest.fromJson(
         <String, Object?>{
           'schemaVersion': 1,
           'surface': 'general',
@@ -911,7 +907,7 @@ void main() {
       expect(normalized.assignmentKey, isNull);
       expect(normalized.meteringKey, isNull);
 
-      final request = SurfaceScreenDeliveryRequestV1(
+      final request = SurfaceScreenDeliveryRequest(
         surface: Surface.general,
         slug: 'feature_announcement',
         contractVersion: 7,
@@ -947,10 +943,10 @@ void main() {
             payload: fixture.document.payload,
             publishedAt: fixture.document.publishedAt,
           );
-      SurfaceScreenDeliveryResponseV1 responseForDocument(
+      SurfaceScreenDeliveryResponse responseForDocument(
         SurfaceDocument document,
       ) =>
-          SurfaceScreenDeliveryResponseV1(
+          SurfaceScreenDeliveryResponse(
             document: document,
             sourceKind: SurfaceSourceKind.screen,
             payloadKind: SurfacePayloadKind.blob,
@@ -978,7 +974,7 @@ void main() {
         );
       }
       expect(
-        () => SurfaceScreenDeliveryResponseV1(
+        () => SurfaceScreenDeliveryResponse(
           document: fixture.document,
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
@@ -991,14 +987,14 @@ void main() {
         reason: 'publishedRevision must equal the document version',
       );
 
-      final descriptor = SurfaceScreenDeliveryDescriptorV1(
+      final descriptor = SurfaceScreenDeliveryDescriptor(
         artifact: _screenArtifactDescriptor(fixture),
         sourceKind: SurfaceSourceKind.screen,
         contractVersion: 7,
         publishedRevision: 12,
         contractFingerprint: fixture.contractFingerprint,
         eventContractHash: fixture.eventContractHash,
-        assignment: SurfaceExperimentAssignmentV1(
+        assignment: SurfaceExperimentAssignment(
           experimentId: 'exp_1',
           variantId: 'treatment',
           experimentEpoch: 3,
@@ -1112,9 +1108,9 @@ void main() {
 }
 
 ({
-  SurfacePublicationManifestV1 manifest,
-  SurfacePublicationUploadRequestV1 upload,
-  SurfacePublicationV1 publication,
+  SurfacePublicationManifest manifest,
+  SurfacePublicationUploadRequest upload,
+  SurfacePublication publication,
   BlobSurfacePayload payload,
   SurfaceDocument document,
   Map<String, List<int>> files,
@@ -1126,10 +1122,9 @@ void main() {
     builtInFloor: 1,
     requiredLibraries: const <LibraryRequirement>[],
   );
-  final eventContract = SurfaceScreenEventSchemaV1(events: const []);
-  final eventContractHash =
-      SurfaceScreenEventContractHashV1.hash(eventContract);
-  final contractFingerprint = SurfaceScreenContractFingerprintV1.hash(
+  final eventContract = SurfaceScreenEventSchema(events: const []);
+  final eventContractHash = SurfaceScreenEventContractHash.hash(eventContract);
+  final contractFingerprint = SurfaceScreenContractFingerprint.hash(
     sourceKind: SurfaceSourceKind.screen,
     payloadKind: SurfacePayloadKind.blob,
     capabilities: capabilities,
@@ -1139,7 +1134,7 @@ void main() {
     minClient: 1,
     blob: Uint8List.fromList(const <int>[1, 2, 3]),
   );
-  final publication = SurfacePublicationV1(
+  final publication = SurfacePublication(
     surface: Surface.general,
     slug: 'feature_announcement',
     sourceKind: SurfaceSourceKind.screen,
@@ -1164,21 +1159,21 @@ void main() {
   const blobPath = 'assets/restage/generated/feature_announcement/screen.rfw';
   const sidecarPath =
       'assets/restage/generated/feature_announcement/screen.capability.json';
-  final manifest = SurfacePublicationManifestV1(
-    publications: <SurfacePublicationManifestEntryV1>[
-      SurfacePublicationManifestEntryV1(
-        artifacts: <SurfacePublicationArtifactV1>[
-          SurfacePublicationArtifactV1(
+  final manifest = SurfacePublicationManifest(
+    publications: <SurfacePublicationManifestEntry>[
+      SurfacePublicationManifestEntry(
+        artifacts: <SurfacePublicationArtifact>[
+          SurfacePublicationArtifact(
             contentHash: CapabilitySidecar.hashBlob(payload.blob),
             id: publication.slug,
             path: blobPath,
-            role: SurfacePublicationArtifactRoleV1.screenBlob,
+            role: SurfacePublicationArtifactRole.screenBlob,
           ),
-          SurfacePublicationArtifactV1(
+          SurfacePublicationArtifact(
             contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
             id: publication.slug,
             path: sidecarPath,
-            role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+            role: SurfacePublicationArtifactRole.capabilitySidecar,
           ),
         ],
         publication: publication,
@@ -1195,7 +1190,7 @@ void main() {
   );
   return (
     manifest: manifest,
-    upload: SurfacePublicationUploadRequestV1(
+    upload: SurfacePublicationUploadRequest(
       publication: publication,
       payload: payload.canonicalBytes,
     ),
@@ -1213,7 +1208,7 @@ void main() {
 }
 
 ({
-  SurfacePublicationManifestV1 manifest,
+  SurfacePublicationManifest manifest,
   FlowSurfacePayload payload,
   Map<String, List<int>> files,
 }) _flowFixture() {
@@ -1268,7 +1263,7 @@ void main() {
   final flowBytes = Uint8List.fromList(
     utf8.encode(FlowDocumentCodec.encodePrettyJson(document)),
   );
-  final publication = SurfacePublicationV1(
+  final publication = SurfacePublication(
     surface: Surface.general,
     slug: 'welcome',
     sourceKind: SurfaceSourceKind.flowGraph,
@@ -1277,26 +1272,26 @@ void main() {
     deliveryMode: FlowDeliveryMode.general,
   );
   return (
-    manifest: SurfacePublicationManifestV1(
-      publications: <SurfacePublicationManifestEntryV1>[
-        SurfacePublicationManifestEntryV1(
-          artifacts: <SurfacePublicationArtifactV1>[
-            SurfacePublicationArtifactV1(
+    manifest: SurfacePublicationManifest(
+      publications: <SurfacePublicationManifestEntry>[
+        SurfacePublicationManifestEntry(
+          artifacts: <SurfacePublicationArtifact>[
+            SurfacePublicationArtifact(
               contentHash: CapabilitySidecar.hashBlob(flowBytes),
               path: flowPath,
-              role: SurfacePublicationArtifactRoleV1.flowDocument,
+              role: SurfacePublicationArtifactRole.flowDocument,
             ),
-            SurfacePublicationArtifactV1(
+            SurfacePublicationArtifact(
               contentHash: CapabilitySidecar.hashBlob(blob),
               id: 'start',
               path: blobPath,
-              role: SurfacePublicationArtifactRoleV1.screenBlob,
+              role: SurfacePublicationArtifactRole.screenBlob,
             ),
-            SurfacePublicationArtifactV1(
+            SurfacePublicationArtifact(
               contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
               id: 'start',
               path: sidecarPath,
-              role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+              role: SurfacePublicationArtifactRole.capabilitySidecar,
             ),
           ],
           publication: publication,
@@ -1327,11 +1322,11 @@ const String _screenDescriptorGolden =
 
 /// The artifact half of the frozen descriptor above, built from the same
 /// fixture so the two cannot drift apart.
-SurfaceArtifactDescriptorV1 _screenArtifactDescriptor(
+SurfaceArtifactDescriptor _screenArtifactDescriptor(
   ({
-    SurfacePublicationManifestV1 manifest,
-    SurfacePublicationUploadRequestV1 upload,
-    SurfacePublicationV1 publication,
+    SurfacePublicationManifest manifest,
+    SurfacePublicationUploadRequest upload,
+    SurfacePublication publication,
     BlobSurfacePayload payload,
     SurfaceDocument document,
     Map<String, List<int>> files,
@@ -1341,7 +1336,7 @@ SurfaceArtifactDescriptorV1 _screenArtifactDescriptor(
   }) fixture,
 ) {
   final hash = fixture.payload.contentHash;
-  return SurfaceArtifactDescriptorV1(
+  return SurfaceArtifactDescriptor(
     payloadFormatVersion: 1,
     surfaceType: fixture.document.surfaceType,
     surfaceSlug: fixture.document.surfaceSlug,

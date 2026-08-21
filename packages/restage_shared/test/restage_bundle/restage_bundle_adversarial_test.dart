@@ -143,7 +143,7 @@ Uint8List _validBundleBytes({
 
 RestageBundleEntry _entry(String path, List<int> bytes) => RestageBundleEntry(
       logicalPath: path,
-      role: RestageBundleEntryRoleV1.screenBlob,
+      role: RestageBundleEntryRole.screenBlob,
       bytes: bytes,
     );
 
@@ -641,7 +641,7 @@ void main() {
             entries: <RestageBundleMetadataEntry>[
               RestageBundleMetadataEntry(
                 logicalPath: 'assets/welcome.rfw',
-                role: RestageBundleEntryRoleV1.screenBlob,
+                role: RestageBundleEntryRole.screenBlob,
                 byteLength: 3,
                 sha256: _placeholderSha256,
               ),

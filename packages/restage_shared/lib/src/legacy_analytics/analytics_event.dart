@@ -1,6 +1,6 @@
 import 'package:meta/meta.dart';
-import 'package:restage_shared/src/analytics/analytics_app_context.dart';
-import 'package:restage_shared/src/analytics/analytics_wire_enums.dart';
+import 'package:restage_shared/src/legacy_analytics/analytics_app_context.dart';
+import 'package:restage_shared/src/legacy_analytics/analytics_wire_enums.dart';
 
 /// The behavioral-analytics event envelope every surface emits.
 ///

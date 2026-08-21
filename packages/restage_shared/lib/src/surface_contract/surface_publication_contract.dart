@@ -20,16 +20,16 @@ import 'package:restage_shared/src/surface_document/surface_document.dart';
 
 const int _surfacePublicationSchemaVersion = 1;
 
-enum SurfacePublicationArtifactRoleV1 {
+enum SurfacePublicationArtifactRole {
   flowDocument('flowDocument'),
   screenBlob('screenBlob'),
   capabilitySidecar('capabilitySidecar');
 
-  const SurfacePublicationArtifactRoleV1(this.wireName);
+  const SurfacePublicationArtifactRole(this.wireName);
 
   final String wireName;
 
-  static SurfacePublicationArtifactRoleV1 fromWireName(String value) {
+  static SurfacePublicationArtifactRole fromWireName(String value) {
     for (final role in values) {
       if (role.wireName == value) return role;
     }
@@ -38,16 +38,16 @@ enum SurfacePublicationArtifactRoleV1 {
 }
 
 @immutable
-final class SurfacePublicationArtifactV1 {
-  factory SurfacePublicationArtifactV1({
+final class SurfacePublicationArtifact {
+  factory SurfacePublicationArtifact({
     required String contentHash,
     required String path,
-    required SurfacePublicationArtifactRoleV1 role,
+    required SurfacePublicationArtifactRole role,
     String? id,
   }) {
     SurfaceContractJson.requireSha256(contentHash, 'artifact.contentHash');
     _requirePackageRelativePath(path, 'artifact.path');
-    if (role == SurfacePublicationArtifactRoleV1.flowDocument) {
+    if (role == SurfacePublicationArtifactRole.flowDocument) {
       if (id != null) {
         throw const FormatException(
             'A flow document artifact cannot carry id.');
@@ -55,7 +55,7 @@ final class SurfacePublicationArtifactV1 {
     } else {
       _requireIdentity(id, 'artifact.id');
     }
-    return SurfacePublicationArtifactV1._(
+    return SurfacePublicationArtifact._(
       contentHash: contentHash,
       path: path,
       role: role,
@@ -63,7 +63,7 @@ final class SurfacePublicationArtifactV1 {
     );
   }
 
-  const SurfacePublicationArtifactV1._({
+  const SurfacePublicationArtifact._({
     required this.contentHash,
     required this.path,
     required this.role,
@@ -72,7 +72,7 @@ final class SurfacePublicationArtifactV1 {
 
   final String contentHash;
   final String path;
-  final SurfacePublicationArtifactRoleV1 role;
+  final SurfacePublicationArtifactRole role;
   final String? id;
 
   Map<String, Object?> toJson() => <String, Object?>{
@@ -82,26 +82,26 @@ final class SurfacePublicationArtifactV1 {
         'role': role.wireName,
       };
 
-  static SurfacePublicationArtifactV1 fromJson(
+  static SurfacePublicationArtifact fromJson(
     Object? value, {
     required String path,
   }) {
     final json = SurfaceContractJson.requireObject(value, path);
-    final role = SurfacePublicationArtifactRoleV1.fromWireName(
+    final role = SurfacePublicationArtifactRole.fromWireName(
       SurfaceContractJson.requiredString(json, 'role', path),
     );
     final expected = <String>{'contentHash', 'path', 'role'};
-    if (role != SurfacePublicationArtifactRoleV1.flowDocument) {
+    if (role != SurfacePublicationArtifactRole.flowDocument) {
       expected.add('id');
     }
     SurfaceContractJson.exactKeys(json, expected, path);
-    return SurfacePublicationArtifactV1(
+    return SurfacePublicationArtifact(
       contentHash: SurfaceContractJson.requiredString(
         json,
         'contentHash',
         path,
       ),
-      id: role == SurfacePublicationArtifactRoleV1.flowDocument
+      id: role == SurfacePublicationArtifactRole.flowDocument
           ? null
           : SurfaceContractJson.requiredString(json, 'id', path),
       path: SurfaceContractJson.requiredString(json, 'path', path),
@@ -111,8 +111,8 @@ final class SurfacePublicationArtifactV1 {
 }
 
 @immutable
-final class SurfacePublicationV1 {
-  factory SurfacePublicationV1({
+final class SurfacePublication {
+  factory SurfacePublication({
     required Surface surface,
     required String slug,
     required SurfaceSourceKind sourceKind,
@@ -121,7 +121,7 @@ final class SurfacePublicationV1 {
     FlowDeliveryMode? deliveryMode,
     int? contractVersion,
     CapabilityManifest? capabilities,
-    SurfaceScreenEventSchemaV1? eventContract,
+    SurfaceScreenEventSchema? eventContract,
     String? eventContractHash,
     String? contractFingerprint,
   }) {
@@ -165,7 +165,7 @@ final class SurfacePublicationV1 {
           'publication.contractFingerprint',
         );
         final canonicalCapabilities = _canonicalManifest(capabilities);
-        final expectedEventHash = SurfaceScreenEventContractHashV1.hash(
+        final expectedEventHash = SurfaceScreenEventContractHash.hash(
           eventContract,
         );
         if (eventContractHash != expectedEventHash) {
@@ -173,7 +173,7 @@ final class SurfacePublicationV1 {
             'Screen eventContractHash does not match eventContract.',
           );
         }
-        final expectedFingerprint = SurfaceScreenContractFingerprintV1.hash(
+        final expectedFingerprint = SurfaceScreenContractFingerprint.hash(
           sourceKind: sourceKind,
           payloadKind: payloadKind,
           capabilities: canonicalCapabilities,
@@ -218,7 +218,7 @@ final class SurfacePublicationV1 {
         );
     }
 
-    return SurfacePublicationV1._(
+    return SurfacePublication._(
       surface: surface,
       slug: slug,
       sourceKind: sourceKind,
@@ -234,7 +234,7 @@ final class SurfacePublicationV1 {
     );
   }
 
-  const SurfacePublicationV1._({
+  const SurfacePublication._({
     required this.surface,
     required this.slug,
     required this.sourceKind,
@@ -256,7 +256,7 @@ final class SurfacePublicationV1 {
   final FlowDeliveryMode? deliveryMode;
   final int? contractVersion;
   final CapabilityManifest? capabilities;
-  final SurfaceScreenEventSchemaV1? eventContract;
+  final SurfaceScreenEventSchema? eventContract;
   final String? eventContractHash;
   final String? contractFingerprint;
 
@@ -290,7 +290,7 @@ final class SurfacePublicationV1 {
     };
   }
 
-  static SurfacePublicationV1 fromJson(
+  static SurfacePublication fromJson(
     Object? value, {
     required String path,
   }) {
@@ -307,7 +307,7 @@ final class SurfacePublicationV1 {
       payloadKind: payloadKind,
     );
     SurfaceContractJson.exactKeys(json, expected, path);
-    return SurfacePublicationV1(
+    return SurfacePublication(
       surface: Surface.fromWireName(
         SurfaceContractJson.requiredString(json, 'surface', path),
       ),
@@ -400,10 +400,10 @@ final class SurfacePublicationV1 {
 }
 
 @immutable
-final class SurfacePublicationManifestEntryV1 {
-  factory SurfacePublicationManifestEntryV1({
-    required List<SurfacePublicationArtifactV1> artifacts,
-    required SurfacePublicationV1 publication,
+final class SurfacePublicationManifestEntry {
+  factory SurfacePublicationManifestEntry({
+    required List<SurfacePublicationArtifact> artifacts,
+    required SurfacePublication publication,
     List<String> sources = const <String>[],
     String path = 'entry',
   }) {
@@ -419,21 +419,21 @@ final class SurfacePublicationManifestEntryV1 {
     }
     _validateAuthoringSources(sources, path);
     _validateArtifactShape(artifacts, publication);
-    return SurfacePublicationManifestEntryV1._(
+    return SurfacePublicationManifestEntry._(
       artifacts: List.unmodifiable(artifacts),
       publication: publication,
       sources: List.unmodifiable(sources),
     );
   }
 
-  const SurfacePublicationManifestEntryV1._({
+  const SurfacePublicationManifestEntry._({
     required this.artifacts,
     required this.publication,
     required this.sources,
   });
 
-  final List<SurfacePublicationArtifactV1> artifacts;
-  final SurfacePublicationV1 publication;
+  final List<SurfacePublicationArtifact> artifacts;
+  final SurfacePublication publication;
 
   /// Package-relative authoring sources this publication was compiled from,
   /// in strictly ascending order.
@@ -460,8 +460,8 @@ final class SurfacePublicationManifestEntryV1 {
   /// would silently drop every field it forgot to transcribe, and an omitted
   /// optional field produces no decode error and no wire-format error — so
   /// nothing downstream would catch it.
-  SurfacePublicationManifestEntryV1 canonical() =>
-      SurfacePublicationManifestEntryV1(
+  SurfacePublicationManifestEntry canonical() =>
+      SurfacePublicationManifestEntry(
         publication: publication,
         sources: sources,
         artifacts: [...artifacts]..sort(_compareArtifactsCanonically),
@@ -475,7 +475,7 @@ final class SurfacePublicationManifestEntryV1 {
         if (sources.isNotEmpty) 'sources': <Object?>[...sources],
       };
 
-  static SurfacePublicationManifestEntryV1 fromJson(
+  static SurfacePublicationManifestEntry fromJson(
     Object? value, {
     required String path,
   }) {
@@ -489,15 +489,15 @@ final class SurfacePublicationManifestEntryV1 {
     final rawSources = json.containsKey('sources')
         ? SurfaceContractJson.requireList(json['sources'], '$path.sources')
         : const <Object?>[];
-    return SurfacePublicationManifestEntryV1(
-      artifacts: <SurfacePublicationArtifactV1>[
+    return SurfacePublicationManifestEntry(
+      artifacts: <SurfacePublicationArtifact>[
         for (var index = 0; index < rawArtifacts.length; index += 1)
-          SurfacePublicationArtifactV1.fromJson(
+          SurfacePublicationArtifact.fromJson(
             rawArtifacts[index],
             path: '$path.artifacts[$index]',
           ),
       ],
-      publication: SurfacePublicationV1.fromJson(
+      publication: SurfacePublication.fromJson(
         SurfaceContractJson.requiredValue(json, 'publication', path),
         path: '$path.publication',
       ),
@@ -511,8 +511,8 @@ final class SurfacePublicationManifestEntryV1 {
 }
 
 int _compareArtifactsCanonically(
-  SurfacePublicationArtifactV1 left,
-  SurfacePublicationArtifactV1 right,
+  SurfacePublicationArtifact left,
+  SurfacePublicationArtifact right,
 ) {
   final path = compareGeneratedOutputPaths(left.path, right.path);
   if (path != 0) return path;
@@ -555,8 +555,8 @@ void _validateAuthoringSources(List<String> sources, String path) {
 }
 
 @immutable
-final class SurfacePublicationArtifactClosureV1 {
-  SurfacePublicationArtifactClosureV1._({
+final class SurfacePublicationArtifactClosure {
+  SurfacePublicationArtifactClosure._({
     required this.publication,
     required Map<String, Uint8List> screenBlobs,
     required Map<String, CapabilityManifest> sidecarCapabilities,
@@ -564,7 +564,7 @@ final class SurfacePublicationArtifactClosureV1 {
   })  : _screenBlobs = Map.unmodifiable(screenBlobs),
         _sidecarCapabilities = Map.unmodifiable(sidecarCapabilities);
 
-  final SurfacePublicationV1 publication;
+  final SurfacePublication publication;
   final Map<String, Uint8List> _screenBlobs;
   final Map<String, CapabilityManifest> _sidecarCapabilities;
   final FlowDocument? flowDocument;
@@ -646,12 +646,12 @@ final class SurfacePublicationArtifactClosureV1 {
 }
 
 @immutable
-final class SurfacePublicationManifestV1 {
-  factory SurfacePublicationManifestV1({
-    required List<SurfacePublicationManifestEntryV1> publications,
+final class SurfacePublicationManifest {
+  factory SurfacePublicationManifest({
+    required List<SurfacePublicationManifestEntry> publications,
   }) {
     final identities = <String>{};
-    final artifactsByPath = <String, SurfacePublicationArtifactV1>{};
+    final artifactsByPath = <String, SurfacePublicationArtifact>{};
     for (final entry in publications) {
       final identity =
           '${entry.publication.surface.wireName}\u0000${entry.publication.slug}';
@@ -675,14 +675,14 @@ final class SurfacePublicationManifestV1 {
     }
     // Entry construction rejects duplicate paths within one closure. Paths may
     // repeat across entries only for the same source artifact declaration.
-    return SurfacePublicationManifestV1._(List.unmodifiable(publications));
+    return SurfacePublicationManifest._(List.unmodifiable(publications));
   }
 
-  const SurfacePublicationManifestV1._(this.publications);
+  const SurfacePublicationManifest._(this.publications);
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
 
-  final List<SurfacePublicationManifestEntryV1> publications;
+  final List<SurfacePublicationManifestEntry> publications;
 
   Map<String, Object?> toJson() => <String, Object?>{
         'schemaVersion': schemaVersion,
@@ -692,7 +692,7 @@ final class SurfacePublicationManifestV1 {
       };
 
   /// This manifest with every entry and the entry list in canonical order.
-  SurfacePublicationManifestV1 canonical() => SurfacePublicationManifestV1(
+  SurfacePublicationManifest canonical() => SurfacePublicationManifest(
         publications: [
           for (final entry in publications) entry.canonical(),
         ]..sort((left, right) {
@@ -704,7 +704,7 @@ final class SurfacePublicationManifestV1 {
           }),
       );
 
-  List<SurfacePublicationArtifactClosureV1> validateArtifactClosure(
+  List<SurfacePublicationArtifactClosure> validateArtifactClosure(
     Map<String, List<int>> files,
   ) {
     final declaredPaths = <String>{
@@ -716,7 +716,7 @@ final class SurfacePublicationManifestV1 {
         throw FormatException('Undeclared artifact path "$path".');
       }
     }
-    final closures = <SurfacePublicationArtifactClosureV1>[];
+    final closures = <SurfacePublicationArtifactClosure>[];
     for (final entry in publications) {
       final bytesByPath = <String, Uint8List>{};
       for (final artifact in entry.artifacts) {
@@ -739,7 +739,7 @@ final class SurfacePublicationManifestV1 {
     return List.unmodifiable(closures);
   }
 
-  static SurfacePublicationManifestV1 fromJson(Object? value) {
+  static SurfacePublicationManifest fromJson(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.exactKeys(
       json,
@@ -751,7 +751,7 @@ final class SurfacePublicationManifestV1 {
       'schemaVersion',
       r'$',
     );
-    if (schemaVersion != SurfacePublicationManifestV1.schemaVersion) {
+    if (schemaVersion != SurfacePublicationManifest.schemaVersion) {
       throw FormatException(
         'Unsupported surface publication manifest schemaVersion $schemaVersion.',
       );
@@ -760,10 +760,10 @@ final class SurfacePublicationManifestV1 {
       SurfaceContractJson.requiredValue(json, 'publications', r'$'),
       r'$.publications',
     );
-    return SurfacePublicationManifestV1(
-      publications: <SurfacePublicationManifestEntryV1>[
+    return SurfacePublicationManifest(
+      publications: <SurfacePublicationManifestEntry>[
         for (var index = 0; index < rawPublications.length; index += 1)
-          SurfacePublicationManifestEntryV1.fromJson(
+          SurfacePublicationManifestEntry.fromJson(
             rawPublications[index],
             path: r'$.publications[' + index.toString() + ']',
           ),
@@ -773,45 +773,45 @@ final class SurfacePublicationManifestV1 {
 }
 
 abstract final class SurfacePublicationManifestV1Codec {
-  static SurfacePublicationManifestV1 decode(Object? value) =>
-      SurfacePublicationManifestV1.fromJson(value);
+  static SurfacePublicationManifest decode(Object? value) =>
+      SurfacePublicationManifest.fromJson(value);
 
-  static SurfacePublicationManifestV1 decodeJson(String source) => decode(
+  static SurfacePublicationManifest decodeJson(String source) => decode(
         SurfaceContractJson.decode(
           source,
           label: 'surface publication manifest',
         ),
       );
 
-  static Map<String, Object?> encode(SurfacePublicationManifestV1 manifest) =>
+  static Map<String, Object?> encode(SurfacePublicationManifest manifest) =>
       manifest.toJson();
 
-  static String encodeCanonicalJson(SurfacePublicationManifestV1 manifest) =>
+  static String encodeCanonicalJson(SurfacePublicationManifest manifest) =>
       SurfaceContractJson.encode(encode(manifest));
 }
 
 @immutable
-final class SurfacePublicationUploadRequestV1 {
-  factory SurfacePublicationUploadRequestV1({
-    required SurfacePublicationV1 publication,
+final class SurfacePublicationUploadRequest {
+  factory SurfacePublicationUploadRequest({
+    required SurfacePublication publication,
     required List<int> payload,
   }) {
     final canonicalPayload = _decodeCanonicalPayload(payload);
     publication.validatePayload(canonicalPayload);
-    return SurfacePublicationUploadRequestV1._(
+    return SurfacePublicationUploadRequest._(
       publication: publication,
       payload: Uint8List.fromList(payload),
     );
   }
 
-  const SurfacePublicationUploadRequestV1._({
+  const SurfacePublicationUploadRequest._({
     required this.publication,
     required Uint8List payload,
   }) : _payload = payload;
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
 
-  final SurfacePublicationV1 publication;
+  final SurfacePublication publication;
   final Uint8List _payload;
 
   Uint8List get payload => Uint8List.fromList(_payload);
@@ -822,7 +822,7 @@ final class SurfacePublicationUploadRequestV1 {
         'payload': SurfaceContractJson.encodeBase64Url(_payload),
       };
 
-  static SurfacePublicationUploadRequestV1 fromJson(Object? value) {
+  static SurfacePublicationUploadRequest fromJson(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.exactKeys(
       json,
@@ -830,8 +830,8 @@ final class SurfacePublicationUploadRequestV1 {
       r'$',
     );
     _requireSchemaVersion(json, 'surface publication upload request');
-    return SurfacePublicationUploadRequestV1(
-      publication: SurfacePublicationV1.fromJson(
+    return SurfacePublicationUploadRequest(
+      publication: SurfacePublication.fromJson(
         SurfaceContractJson.requiredValue(json, 'publication', r'$'),
         path: r'$.publication',
       ),
@@ -844,10 +844,10 @@ final class SurfacePublicationUploadRequestV1 {
 }
 
 abstract final class SurfacePublicationUploadRequestV1Codec {
-  static SurfacePublicationUploadRequestV1 decode(Object? value) =>
-      SurfacePublicationUploadRequestV1.fromJson(value);
+  static SurfacePublicationUploadRequest decode(Object? value) =>
+      SurfacePublicationUploadRequest.fromJson(value);
 
-  static SurfacePublicationUploadRequestV1 decodeJson(String source) => decode(
+  static SurfacePublicationUploadRequest decodeJson(String source) => decode(
         SurfaceContractJson.decode(
           source,
           label: 'surface publication upload request',
@@ -855,18 +855,17 @@ abstract final class SurfacePublicationUploadRequestV1Codec {
       );
 
   static Map<String, Object?> encode(
-    SurfacePublicationUploadRequestV1 request,
+    SurfacePublicationUploadRequest request,
   ) =>
       request.toJson();
 
-  static String encodeCanonicalJson(
-          SurfacePublicationUploadRequestV1 request) =>
+  static String encodeCanonicalJson(SurfacePublicationUploadRequest request) =>
       SurfaceContractJson.encode(encode(request));
 }
 
 @immutable
-final class SurfaceScreenDeliveryRequestV1 {
-  factory SurfaceScreenDeliveryRequestV1({
+final class SurfaceScreenDeliveryRequest {
+  factory SurfaceScreenDeliveryRequest({
     required Surface surface,
     required String slug,
     required int contractVersion,
@@ -878,7 +877,7 @@ final class SurfaceScreenDeliveryRequestV1 {
       throw const FormatException(
           'delivery request.contractVersion must be positive.');
     }
-    return SurfaceScreenDeliveryRequestV1._(
+    return SurfaceScreenDeliveryRequest._(
       surface: surface,
       slug: slug,
       contractVersion: contractVersion,
@@ -887,7 +886,7 @@ final class SurfaceScreenDeliveryRequestV1 {
     );
   }
 
-  const SurfaceScreenDeliveryRequestV1._({
+  const SurfaceScreenDeliveryRequest._({
     required this.surface,
     required this.slug,
     required this.contractVersion,
@@ -933,7 +932,7 @@ final class SurfaceScreenDeliveryRequestV1 {
         if (meteringKey != null) 'meteringKey': meteringKey,
       };
 
-  static SurfaceScreenDeliveryRequestV1 fromJson(Object? value) {
+  static SurfaceScreenDeliveryRequest fromJson(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.allowedKeys(
       json,
@@ -948,7 +947,7 @@ final class SurfaceScreenDeliveryRequestV1 {
       r'$',
     );
     _requireSchemaVersion(json, 'surface screen delivery request');
-    return SurfaceScreenDeliveryRequestV1(
+    return SurfaceScreenDeliveryRequest(
       surface: Surface.fromWireName(
         SurfaceContractJson.requiredString(json, 'surface', r'$'),
       ),
@@ -965,26 +964,26 @@ final class SurfaceScreenDeliveryRequestV1 {
 }
 
 abstract final class SurfaceScreenDeliveryRequestV1Codec {
-  static SurfaceScreenDeliveryRequestV1 decode(Object? value) =>
-      SurfaceScreenDeliveryRequestV1.fromJson(value);
+  static SurfaceScreenDeliveryRequest decode(Object? value) =>
+      SurfaceScreenDeliveryRequest.fromJson(value);
 
-  static SurfaceScreenDeliveryRequestV1 decodeJson(String source) => decode(
+  static SurfaceScreenDeliveryRequest decodeJson(String source) => decode(
         SurfaceContractJson.decode(
           source,
           label: 'surface screen delivery request',
         ),
       );
 
-  static Map<String, Object?> encode(SurfaceScreenDeliveryRequestV1 request) =>
+  static Map<String, Object?> encode(SurfaceScreenDeliveryRequest request) =>
       request.toJson();
 
-  static String encodeCanonicalJson(SurfaceScreenDeliveryRequestV1 request) =>
+  static String encodeCanonicalJson(SurfaceScreenDeliveryRequest request) =>
       SurfaceContractJson.encode(encode(request));
 }
 
 @immutable
-final class SurfaceExperimentAssignmentV1 {
-  factory SurfaceExperimentAssignmentV1({
+final class SurfaceExperimentAssignment {
+  factory SurfaceExperimentAssignment({
     required String experimentId,
     required String variantId,
     required int experimentEpoch,
@@ -995,14 +994,14 @@ final class SurfaceExperimentAssignmentV1 {
       throw const FormatException(
           'assignment.experimentEpoch must be positive.');
     }
-    return SurfaceExperimentAssignmentV1._(
+    return SurfaceExperimentAssignment._(
       experimentId: experimentId,
       variantId: variantId,
       experimentEpoch: experimentEpoch,
     );
   }
 
-  const SurfaceExperimentAssignmentV1._({
+  const SurfaceExperimentAssignment._({
     required this.experimentId,
     required this.variantId,
     required this.experimentEpoch,
@@ -1018,7 +1017,7 @@ final class SurfaceExperimentAssignmentV1 {
         'experimentEpoch': experimentEpoch,
       };
 
-  static SurfaceExperimentAssignmentV1 fromJson(
+  static SurfaceExperimentAssignment fromJson(
     Object? value, {
     required String path,
   }) {
@@ -1028,7 +1027,7 @@ final class SurfaceExperimentAssignmentV1 {
       const {'experimentId', 'variantId', 'experimentEpoch'},
       path,
     );
-    return SurfaceExperimentAssignmentV1(
+    return SurfaceExperimentAssignment(
       experimentId:
           SurfaceContractJson.requiredString(json, 'experimentId', path),
       variantId: SurfaceContractJson.requiredString(json, 'variantId', path),
@@ -1042,8 +1041,8 @@ final class SurfaceExperimentAssignmentV1 {
 }
 
 @immutable
-final class SurfaceScreenDeliveryResponseV1 {
-  factory SurfaceScreenDeliveryResponseV1({
+final class SurfaceScreenDeliveryResponse {
+  factory SurfaceScreenDeliveryResponse({
     required SurfaceDocument document,
     required SurfaceSourceKind sourceKind,
     required SurfacePayloadKind payloadKind,
@@ -1051,7 +1050,7 @@ final class SurfaceScreenDeliveryResponseV1 {
     required int publishedRevision,
     required String contractFingerprint,
     required String eventContractHash,
-    SurfaceExperimentAssignmentV1? assignment,
+    SurfaceExperimentAssignment? assignment,
   }) {
     if (sourceKind != SurfaceSourceKind.screen ||
         payloadKind != SurfacePayloadKind.blob ||
@@ -1089,7 +1088,7 @@ final class SurfaceScreenDeliveryResponseV1 {
       builtInFloor: document.minClient,
       requiredLibraries: document.requiredLibraries,
     );
-    final expectedFingerprint = SurfaceScreenContractFingerprintV1.hash(
+    final expectedFingerprint = SurfaceScreenContractFingerprint.hash(
       sourceKind: sourceKind,
       payloadKind: payloadKind,
       capabilities: capabilities,
@@ -1100,7 +1099,7 @@ final class SurfaceScreenDeliveryResponseV1 {
         'Delivery response contractFingerprint does not match document metadata.',
       );
     }
-    return SurfaceScreenDeliveryResponseV1._(
+    return SurfaceScreenDeliveryResponse._(
       document: document,
       sourceKind: sourceKind,
       payloadKind: payloadKind,
@@ -1112,7 +1111,7 @@ final class SurfaceScreenDeliveryResponseV1 {
     );
   }
 
-  const SurfaceScreenDeliveryResponseV1._({
+  const SurfaceScreenDeliveryResponse._({
     required this.document,
     required this.sourceKind,
     required this.payloadKind,
@@ -1132,16 +1131,16 @@ final class SurfaceScreenDeliveryResponseV1 {
   final int publishedRevision;
   final String contractFingerprint;
   final String eventContractHash;
-  final SurfaceExperimentAssignmentV1? assignment;
+  final SurfaceExperimentAssignment? assignment;
 }
 
 /// What a standalone-screen delivery puts on the wire.
 ///
-/// Everything [SurfaceScreenDeliveryResponseV1] carries EXCEPT the rendered
+/// Everything [SurfaceScreenDeliveryResponse] carries EXCEPT the rendered
 /// document, plus where to fetch the bytes that make one. The rendered document
 /// is no longer sent inline; it is assembled by the reader from
 /// [artifact] and the payload frame that artifact names, and only then handed
-/// to [SurfaceScreenDeliveryResponseV1]'s constructor — which is unchanged, so
+/// to [SurfaceScreenDeliveryResponse]'s constructor — which is unchanged, so
 /// every correlation this contract has ever enforced (the fingerprint recompute
 /// against the assembled document, `publishedRevision == document.version`, the
 /// screen/blob shape requirement) is enforced on exactly the same terms and in
@@ -1151,16 +1150,16 @@ final class SurfaceScreenDeliveryResponseV1 {
 /// else the publication record claims about the bytes, so there is one place a
 /// claim about the artifact can be made and one place it is checked.
 @immutable
-final class SurfaceScreenDeliveryDescriptorV1 {
+final class SurfaceScreenDeliveryDescriptor {
   /// Creates a standalone-screen delivery descriptor.
-  factory SurfaceScreenDeliveryDescriptorV1({
-    required SurfaceArtifactDescriptorV1 artifact,
+  factory SurfaceScreenDeliveryDescriptor({
+    required SurfaceArtifactDescriptor artifact,
     required SurfaceSourceKind sourceKind,
     required int contractVersion,
     required int publishedRevision,
     required String contractFingerprint,
     required String eventContractHash,
-    SurfaceExperimentAssignmentV1? assignment,
+    SurfaceExperimentAssignment? assignment,
   }) {
     if (sourceKind != SurfaceSourceKind.screen) {
       throw const FormatException(
@@ -1194,7 +1193,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
       eventContractHash,
       'delivery descriptor.eventContractHash',
     );
-    return SurfaceScreenDeliveryDescriptorV1._(
+    return SurfaceScreenDeliveryDescriptor._(
       artifact: artifact,
       sourceKind: sourceKind,
       contractVersion: contractVersion,
@@ -1205,7 +1204,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
     );
   }
 
-  const SurfaceScreenDeliveryDescriptorV1._({
+  const SurfaceScreenDeliveryDescriptor._({
     required this.artifact,
     required this.sourceKind,
     required this.contractVersion,
@@ -1220,7 +1219,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
 
   /// Where the payload frame is, what it must hash to, and what the record
   /// claims about it.
-  final SurfaceArtifactDescriptorV1 artifact;
+  final SurfaceArtifactDescriptor artifact;
 
   /// Always [SurfaceSourceKind.screen] on this wire.
   final SurfaceSourceKind sourceKind;
@@ -1238,7 +1237,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
   final String eventContractHash;
 
   /// The experiment arm this delivery was assigned, when there was one.
-  final SurfaceExperimentAssignmentV1? assignment;
+  final SurfaceExperimentAssignment? assignment;
 
   /// The descriptor as wire JSON.
   Map<String, Object?> toJson() => <String, Object?>{
@@ -1253,7 +1252,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
       };
 
   /// Decodes a descriptor strictly.
-  static SurfaceScreenDeliveryDescriptorV1 fromJson(Object? value) {
+  static SurfaceScreenDeliveryDescriptor fromJson(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.allowedKeys(
       json,
@@ -1270,7 +1269,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
       r'$',
     );
     _requireSchemaVersion(json, 'surface screen delivery descriptor');
-    return SurfaceScreenDeliveryDescriptorV1(
+    return SurfaceScreenDeliveryDescriptor(
       artifact: SurfaceArtifactDescriptorV1Codec.decode(
         SurfaceContractJson.requiredValue(json, 'artifact', r'$'),
       ),
@@ -1298,7 +1297,7 @@ final class SurfaceScreenDeliveryDescriptorV1 {
         r'$',
       ),
       assignment: json.containsKey('assignment')
-          ? SurfaceExperimentAssignmentV1.fromJson(
+          ? SurfaceExperimentAssignment.fromJson(
               SurfaceContractJson.requiredValue(json, 'assignment', r'$'),
               path: r'$.assignment',
             )
@@ -1309,12 +1308,12 @@ final class SurfaceScreenDeliveryDescriptorV1 {
   /// Completes this descriptor into a delivery response with [document].
   ///
   /// The one place the two halves are joined. It deliberately routes through
-  /// [SurfaceScreenDeliveryResponseV1]'s own constructor rather than
+  /// [SurfaceScreenDeliveryResponse]'s own constructor rather than
   /// reconstructing the checks: the fingerprint recompute has to run against
   /// the document that was actually assembled from fetched bytes, or it proves
   /// nothing about them.
-  SurfaceScreenDeliveryResponseV1 completeWith(SurfaceDocument document) =>
-      SurfaceScreenDeliveryResponseV1(
+  SurfaceScreenDeliveryResponse completeWith(SurfaceDocument document) =>
+      SurfaceScreenDeliveryResponse(
         document: document,
         sourceKind: sourceKind,
         payloadKind: SurfacePayloadKind.fromWireName(artifact.payloadKind!),
@@ -1326,14 +1325,14 @@ final class SurfaceScreenDeliveryDescriptorV1 {
       );
 }
 
-/// Strict codec for [SurfaceScreenDeliveryDescriptorV1].
+/// Strict codec for [SurfaceScreenDeliveryDescriptor].
 abstract final class SurfaceScreenDeliveryDescriptorV1Codec {
   /// Decodes a descriptor from a decoded JSON value.
-  static SurfaceScreenDeliveryDescriptorV1 decode(Object? value) =>
-      SurfaceScreenDeliveryDescriptorV1.fromJson(value);
+  static SurfaceScreenDeliveryDescriptor decode(Object? value) =>
+      SurfaceScreenDeliveryDescriptor.fromJson(value);
 
   /// Decodes a descriptor from a JSON document.
-  static SurfaceScreenDeliveryDescriptorV1 decodeJson(String source) => decode(
+  static SurfaceScreenDeliveryDescriptor decodeJson(String source) => decode(
         SurfaceContractJson.decode(
           source,
           label: 'surface screen delivery descriptor',
@@ -1342,13 +1341,13 @@ abstract final class SurfaceScreenDeliveryDescriptorV1Codec {
 
   /// Encodes a descriptor to wire JSON.
   static Map<String, Object?> encode(
-    SurfaceScreenDeliveryDescriptorV1 descriptor,
+    SurfaceScreenDeliveryDescriptor descriptor,
   ) =>
       descriptor.toJson();
 
   /// Encodes a descriptor to a canonical JSON document.
   static String encodeCanonicalJson(
-    SurfaceScreenDeliveryDescriptorV1 descriptor,
+    SurfaceScreenDeliveryDescriptor descriptor,
   ) =>
       SurfaceContractJson.encode(encode(descriptor));
 }
@@ -1395,7 +1394,7 @@ Set<String> _publicationRequiredFields({
 void _requireNoScreenContract({
   required int? contractVersion,
   required CapabilityManifest? capabilities,
-  required SurfaceScreenEventSchemaV1? eventContract,
+  required SurfaceScreenEventSchema? eventContract,
   required String? eventContractHash,
   required String? contractFingerprint,
 }) {
@@ -1411,23 +1410,23 @@ void _requireNoScreenContract({
 }
 
 void _validateArtifactShape(
-  List<SurfacePublicationArtifactV1> artifacts,
-  SurfacePublicationV1 publication,
+  List<SurfacePublicationArtifact> artifacts,
+  SurfacePublication publication,
 ) {
-  final flowDocuments = <SurfacePublicationArtifactV1>[];
-  final blobs = <String, SurfacePublicationArtifactV1>{};
-  final sidecars = <String, SurfacePublicationArtifactV1>{};
+  final flowDocuments = <SurfacePublicationArtifact>[];
+  final blobs = <String, SurfacePublicationArtifact>{};
+  final sidecars = <String, SurfacePublicationArtifact>{};
   for (final artifact in artifacts) {
     switch (artifact.role) {
-      case SurfacePublicationArtifactRoleV1.flowDocument:
+      case SurfacePublicationArtifactRole.flowDocument:
         flowDocuments.add(artifact);
-      case SurfacePublicationArtifactRoleV1.screenBlob:
+      case SurfacePublicationArtifactRole.screenBlob:
         final id = artifact.id!;
         if (blobs.containsKey(id)) {
           throw FormatException('Duplicate screen blob artifact id "$id".');
         }
         blobs[id] = artifact;
-      case SurfacePublicationArtifactRoleV1.capabilitySidecar:
+      case SurfacePublicationArtifactRole.capabilitySidecar:
         final id = artifact.id!;
         if (sidecars.containsKey(id)) {
           throw FormatException('Duplicate capability sidecar id "$id".');
@@ -1458,26 +1457,26 @@ void _validateArtifactShape(
   }
 }
 
-SurfacePublicationArtifactClosureV1 _validateEntryBytes(
-  SurfacePublicationManifestEntryV1 entry,
+SurfacePublicationArtifactClosure _validateEntryBytes(
+  SurfacePublicationManifestEntry entry,
   Map<String, Uint8List> bytesByPath,
 ) {
   final artifactsByRole =
-      <SurfacePublicationArtifactRoleV1, List<SurfacePublicationArtifactV1>>{};
+      <SurfacePublicationArtifactRole, List<SurfacePublicationArtifact>>{};
   for (final artifact in entry.artifacts) {
-    (artifactsByRole[artifact.role] ??= <SurfacePublicationArtifactV1>[])
+    (artifactsByRole[artifact.role] ??= <SurfacePublicationArtifact>[])
         .add(artifact);
   }
   final blobs = <String, Uint8List>{};
   final sidecars = <String, CapabilityManifest>{};
   for (final artifact
-      in artifactsByRole[SurfacePublicationArtifactRoleV1.screenBlob] ??
-          const <SurfacePublicationArtifactV1>[]) {
+      in artifactsByRole[SurfacePublicationArtifactRole.screenBlob] ??
+          const <SurfacePublicationArtifact>[]) {
     blobs[artifact.id!] = bytesByPath[artifact.path]!;
   }
   for (final artifact
-      in artifactsByRole[SurfacePublicationArtifactRoleV1.capabilitySidecar] ??
-          const <SurfacePublicationArtifactV1>[]) {
+      in artifactsByRole[SurfacePublicationArtifactRole.capabilitySidecar] ??
+          const <SurfacePublicationArtifact>[]) {
     final manifest = _decodeStrictSidecar(
       bytesByPath[artifact.path]!,
       path: artifact.path,
@@ -1493,7 +1492,7 @@ SurfacePublicationArtifactClosureV1 _validateEntryBytes(
   }
   FlowDocument? flowDocument;
   final flowArtifacts =
-      artifactsByRole[SurfacePublicationArtifactRoleV1.flowDocument];
+      artifactsByRole[SurfacePublicationArtifactRole.flowDocument];
   if (flowArtifacts != null) {
     final artifact = flowArtifacts.single;
     try {
@@ -1540,7 +1539,7 @@ SurfacePublicationArtifactClosureV1 _validateEntryBytes(
       );
     }
   }
-  return SurfacePublicationArtifactClosureV1._(
+  return SurfacePublicationArtifactClosure._(
     publication: entry.publication,
     screenBlobs: <String, Uint8List>{
       for (final entry in blobs.entries)

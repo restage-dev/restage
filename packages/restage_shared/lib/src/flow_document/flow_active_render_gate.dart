@@ -166,7 +166,7 @@ final class FlowActiveRenderAccepted extends FlowActiveRenderVerdict {
 }
 
 /// The active document is unsafe to render under the client; the SDK fails
-/// closed to the bundled document (in P3).
+/// closed to the bundled document (in the bundled lane).
 @immutable
 final class FlowActiveRenderRejected extends FlowActiveRenderVerdict {
   /// Creates a rejected verdict with a typed [reason] and diagnostics.

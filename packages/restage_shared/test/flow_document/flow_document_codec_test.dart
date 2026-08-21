@@ -209,7 +209,7 @@ void main() {
       );
     });
 
-    test('decodes and encodes Phase 1 documents without actions', () {
+    test('decodes and encodes documents without actions', () {
       final decoded = FlowDocumentCodec.decodeJson(_phase1CanonicalJson);
       final encoded =
           utf8.decode(FlowDocumentCodec.encodeCanonicalJson(decoded));
@@ -1050,7 +1050,7 @@ void main() {
       );
     });
 
-    test('non-finite numbers and doubles in Phase 1 documents are rejected',
+    test('non-finite numbers and doubles in actionless documents are rejected',
         () {
       const withDouble = FlowDocument(
         flow: 'first_run',
@@ -1145,7 +1145,7 @@ void main() {
       expect(FlowDocumentValidation.validate(terminalScreen), isEmpty);
     });
 
-    test('validation rejects broken Phase 1 graph invariants', () {
+    test('validation rejects broken baseline graph invariants', () {
       final missingInitial = _firstRunDocument(initial: 'missing');
       final missingScreen = _firstRunDocument(screen: 'missing');
       final missingTarget = _firstRunDocument(target: 'missing');

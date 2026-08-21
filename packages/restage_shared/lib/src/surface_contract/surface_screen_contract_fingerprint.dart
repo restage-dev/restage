@@ -5,7 +5,7 @@ import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_document/surface_document.dart';
 
 /// Canonical V1 fingerprint encoder for one immutable screen contract family.
-abstract final class SurfaceScreenContractFingerprintV1 {
+abstract final class SurfaceScreenContractFingerprint {
   static const String _domain = 'restage.surface-screen-contract';
 
   /// Produces the exact V1 canonical JSON tuple.

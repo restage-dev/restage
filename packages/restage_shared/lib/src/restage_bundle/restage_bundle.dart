@@ -38,47 +38,47 @@ const int _zipMaxEntries = 0xFFFF;
 /// The role of one [RestageBundleEntry].
 ///
 /// A bundle carries every one of a library's delivery artifacts (the same
-/// three roles [SurfacePublicationArtifactRoleV1] carries in the strict
+/// three roles [SurfacePublicationArtifactRole] carries in the strict
 /// publication manifest) plus its canonical `.rfwtxt` inspection text, which
 /// is never part of the delivery manifest closure. This is therefore a
 /// separate, bundle-scoped role vocabulary rather than a reuse of the
 /// manifest's: the manifest's role enum is switched exhaustively wherever
 /// delivery artifacts are validated, and a bundle-only role must never be
 /// mistaken for one.
-enum RestageBundleEntryRoleV1 {
+enum RestageBundleEntryRole {
   /// A canonical flow document. Wire-identical to
-  /// [SurfacePublicationArtifactRoleV1.flowDocument].
+  /// [SurfacePublicationArtifactRole.flowDocument].
   flowDocument('flowDocument'),
 
   /// A compiled screen blob. Wire-identical to
-  /// [SurfacePublicationArtifactRoleV1.screenBlob].
+  /// [SurfacePublicationArtifactRole.screenBlob].
   screenBlob('screenBlob'),
 
   /// A capability sidecar. Wire-identical to
-  /// [SurfacePublicationArtifactRoleV1.capabilitySidecar].
+  /// [SurfacePublicationArtifactRole.capabilitySidecar].
   capabilitySidecar('capabilitySidecar'),
 
   /// The canonical human-readable `.rfwtxt` sibling of a compiled screen
   /// blob. Bundle-only; never a delivery-manifest artifact role.
   rfwText('rfw-text');
 
-  const RestageBundleEntryRoleV1(this.wireName);
+  const RestageBundleEntryRole(this.wireName);
 
   /// The bundle-scoped counterpart of a strict manifest artifact role.
-  factory RestageBundleEntryRoleV1.fromManifestRole(
-    SurfacePublicationArtifactRoleV1 role,
+  factory RestageBundleEntryRole.fromManifestRole(
+    SurfacePublicationArtifactRole role,
   ) =>
       switch (role) {
-        SurfacePublicationArtifactRoleV1.flowDocument => flowDocument,
-        SurfacePublicationArtifactRoleV1.screenBlob => screenBlob,
-        SurfacePublicationArtifactRoleV1.capabilitySidecar => capabilitySidecar,
+        SurfacePublicationArtifactRole.flowDocument => flowDocument,
+        SurfacePublicationArtifactRole.screenBlob => screenBlob,
+        SurfacePublicationArtifactRole.capabilitySidecar => capabilitySidecar,
       };
 
   /// The exact wire spelling, frozen to match the pre-refactor corpus.
   final String wireName;
 
   /// Decodes a bundle entry role from its exact wire spelling.
-  static RestageBundleEntryRoleV1 fromWireName(String value) {
+  static RestageBundleEntryRole fromWireName(String value) {
     for (final role in values) {
       if (role.wireName == value) return role;
     }
@@ -91,10 +91,10 @@ enum RestageBundleEntryRoleV1 {
   /// delivery-manifest artifact role — a caller reaching this on an
   /// inspection-text entry is asking a manifest question about something
   /// that was never a manifest artifact.
-  SurfacePublicationArtifactRoleV1 toManifestRole() => switch (this) {
-        flowDocument => SurfacePublicationArtifactRoleV1.flowDocument,
-        screenBlob => SurfacePublicationArtifactRoleV1.screenBlob,
-        capabilitySidecar => SurfacePublicationArtifactRoleV1.capabilitySidecar,
+  SurfacePublicationArtifactRole toManifestRole() => switch (this) {
+        flowDocument => SurfacePublicationArtifactRole.flowDocument,
+        screenBlob => SurfacePublicationArtifactRole.screenBlob,
+        capabilitySidecar => SurfacePublicationArtifactRole.capabilitySidecar,
         rfwText => throw StateError(
             'rfw-text is a bundle-only role and has no manifest-role '
             'counterpart.',
@@ -118,7 +118,7 @@ final class RestageBundleEntry {
   final String logicalPath;
 
   /// The bundle-scoped artifact role.
-  final RestageBundleEntryRoleV1 role;
+  final RestageBundleEntryRole role;
 
   final Uint8List _bytes;
 
@@ -156,7 +156,7 @@ final class RestageBundleMetadataEntry {
   final String logicalPath;
 
   /// The bundle-scoped artifact role.
-  final RestageBundleEntryRoleV1 role;
+  final RestageBundleEntryRole role;
 
   /// Exact payload length.
   final int byteLength;
@@ -300,7 +300,7 @@ abstract final class RestageBundleMetadataCodec {
             'path',
             entryPath,
           ),
-          role: RestageBundleEntryRoleV1.fromWireName(
+          role: RestageBundleEntryRole.fromWireName(
             SurfaceContractJson.requiredString(entryJson, 'role', entryPath),
           ),
           byteLength: SurfaceContractJson.requiredInt(

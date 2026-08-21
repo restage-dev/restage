@@ -47,12 +47,12 @@ FlowActionContract experimentAction({
   );
 }
 
-FlowActionBindingFingerprintV1 experimentBinding({
+FlowActionBindingFingerprint experimentBinding({
   String actionId = 'request_notifications',
   String actionName = 'request_notifications',
   int minClient = 1,
 }) {
-  return FlowActionBindingFingerprintV1(
+  return FlowActionBindingFingerprint(
     actionId: actionId,
     actionName: actionName,
     contractVersion: 1,
@@ -69,13 +69,13 @@ FlowActionBindingFingerprintV1 experimentBinding({
   );
 }
 
-FlowExperimentDocumentContractV1 experimentDocumentContract({
+FlowExperimentDocumentContract experimentDocumentContract({
   FlowDocument? document,
   Surface surfaceType = Surface.onboarding,
   List<LibraryRequirement> requiredLibraries = const [],
 }) {
   final resolved = document ?? experimentDocument();
-  return FlowExperimentDocumentContractV1(
+  return FlowExperimentDocumentContract(
     surfaceType: surfaceType,
     flowId: resolved.flow,
     version: resolved.version,
@@ -90,14 +90,14 @@ FlowExperimentDocumentContractV1 experimentDocumentContract({
 }
 
 FlowExperimentClientContractV1 experimentClientContract({
-  FlowExperimentDescriptorV1 descriptor = const FlowExperimentDescriptorV1(
+  FlowExperimentDescriptor descriptor = const FlowExperimentDescriptor(
     id: 'first_run',
     version: 1,
     minClient: 3,
   ),
-  List<FlowExperimentDocumentContractV1>? documents,
+  List<FlowExperimentDocumentContract>? documents,
   InstalledCapability? installedCapability,
-  List<FlowActionBindingFingerprintV1> actionBindings = const [],
+  List<FlowActionBindingFingerprint> actionBindings = const [],
   List<String> installedSignals = const [],
   Surface surfaceType = Surface.onboarding,
   FlowDeliveryMode deliveryMode = FlowDeliveryMode.typed,
@@ -117,19 +117,19 @@ FlowExperimentClientContractV1 experimentClientContract({
   );
 }
 
-const verifiedIntegrity = FlowExperimentArtifactIntegrityV1(
+const verifiedIntegrity = FlowExperimentArtifactIntegrity(
   payloadIntegrityVerified: true,
   screenIntegrityVerified: true,
   rfwIntegrityVerified: true,
 );
 
-FlowExperimentClosureV1 experimentClosure({
-  required FlowExperimentDocumentContractV1 root,
-  List<FlowExperimentDocumentContractV1>? documents,
+FlowExperimentClosure experimentClosure({
+  required FlowExperimentDocumentContract root,
+  List<FlowExperimentDocumentContract>? documents,
   int rootCapability = 3,
-  FlowExperimentArtifactIntegrityV1 integrity = verifiedIntegrity,
+  FlowExperimentArtifactIntegrity integrity = verifiedIntegrity,
 }) {
-  return FlowExperimentClosureV1(
+  return FlowExperimentClosure(
     root: root,
     rootCapability: rootCapability,
     documents: documents ?? [root],

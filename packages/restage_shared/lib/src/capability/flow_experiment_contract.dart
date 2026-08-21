@@ -24,9 +24,9 @@ final RegExp _flowExperimentNamespacePattern =
 
 /// The generated root-flow descriptor represented in a V1 client contract.
 @immutable
-final class FlowExperimentDescriptorV1 {
+final class FlowExperimentDescriptor {
   /// Creates a descriptor. Its domains are checked by the enclosing contract.
-  const FlowExperimentDescriptorV1({
+  const FlowExperimentDescriptor({
     required this.id,
     required this.version,
     required this.minClient,
@@ -44,9 +44,9 @@ final class FlowExperimentDescriptorV1 {
 
 /// One deep-frozen installed action binding represented in a V1 contract.
 @immutable
-final class FlowActionBindingFingerprintV1 {
+final class FlowActionBindingFingerprint {
   /// Creates and validates an action-binding fingerprint.
-  factory FlowActionBindingFingerprintV1({
+  factory FlowActionBindingFingerprint({
     required String actionId,
     required String actionName,
     required int contractVersion,
@@ -59,7 +59,7 @@ final class FlowActionBindingFingerprintV1 {
     _checkIdentifier(actionName, r'$.actionName');
     _checkPositiveInt(contractVersion, r'$.contractVersion');
     _checkPositiveInt(minClient, r'$.minClient');
-    return FlowActionBindingFingerprintV1._(
+    return FlowActionBindingFingerprint._(
       actionId: actionId,
       actionName: actionName,
       contractVersion: contractVersion,
@@ -70,7 +70,7 @@ final class FlowActionBindingFingerprintV1 {
     );
   }
 
-  const FlowActionBindingFingerprintV1._({
+  const FlowActionBindingFingerprint._({
     required this.actionId,
     required this.actionName,
     required this.contractVersion,
@@ -104,9 +104,9 @@ final class FlowActionBindingFingerprintV1 {
 
 /// One exact document in a V1 flow closure.
 @immutable
-final class FlowExperimentDocumentContractV1 {
+final class FlowExperimentDocumentContract {
   /// Creates and independently validates a document wrapper.
-  factory FlowExperimentDocumentContractV1({
+  factory FlowExperimentDocumentContract({
     required Surface surfaceType,
     required String flowId,
     required int version,
@@ -150,7 +150,7 @@ final class FlowExperimentDocumentContractV1 {
     final parsedProduction = _StrictJsonParser(productionBytes).parse();
     final nestedCanonicalBytes =
         Uint8List.fromList(_CanonicalJsonWriter.encode(parsedProduction));
-    return FlowExperimentDocumentContractV1._(
+    return FlowExperimentDocumentContract._(
       surfaceType: surfaceType,
       flowId: flowId,
       version: version,
@@ -163,7 +163,7 @@ final class FlowExperimentDocumentContractV1 {
     );
   }
 
-  FlowExperimentDocumentContractV1._({
+  FlowExperimentDocumentContract._({
     required this.surfaceType,
     required this.flowId,
     required this.version,
@@ -220,10 +220,10 @@ final class FlowExperimentClientContractV1 {
   factory FlowExperimentClientContractV1({
     required Surface surfaceType,
     required FlowDeliveryMode deliveryMode,
-    required FlowExperimentDescriptorV1 descriptor,
-    required List<FlowExperimentDocumentContractV1> documents,
+    required FlowExperimentDescriptor descriptor,
+    required List<FlowExperimentDocumentContract> documents,
     required InstalledCapability installedCapability,
-    required List<FlowActionBindingFingerprintV1> actionBindings,
+    required List<FlowActionBindingFingerprint> actionBindings,
     required List<String> installedSignals,
   }) {
     _checkIdentifier(descriptor.id, r'$.descriptor.id');
@@ -257,9 +257,9 @@ final class FlowExperimentClientContractV1 {
     required this.surfaceType,
     required this.deliveryMode,
     required this.descriptor,
-    required List<FlowExperimentDocumentContractV1> documents,
+    required List<FlowExperimentDocumentContract> documents,
     required this.installedCapability,
-    required List<FlowActionBindingFingerprintV1> actionBindings,
+    required List<FlowActionBindingFingerprint> actionBindings,
     required List<String> installedSignals,
   })  : documents = List.unmodifiable(documents),
         actionBindings = List.unmodifiable(actionBindings),
@@ -296,16 +296,16 @@ final class FlowExperimentClientContractV1 {
   final FlowDeliveryMode deliveryMode;
 
   /// Generated root descriptor.
-  final FlowExperimentDescriptorV1 descriptor;
+  final FlowExperimentDescriptor descriptor;
 
   /// Complete exact baseline closure in canonical semantic order.
-  final List<FlowExperimentDocumentContractV1> documents;
+  final List<FlowExperimentDocumentContract> documents;
 
   /// Deep-frozen installed renderer capability.
   final InstalledCapability installedCapability;
 
   /// Complete installed action mount set in canonical semantic order.
-  final List<FlowActionBindingFingerprintV1> actionBindings;
+  final List<FlowActionBindingFingerprint> actionBindings;
 
   /// Exact installed signal union in canonical semantic order.
   final List<String> installedSignals;
@@ -362,7 +362,7 @@ FlowExperimentClientContractV1 _decodeClientContract(
     const {'id', 'minClient', 'version'},
     r'$.descriptor',
   );
-  final descriptor = FlowExperimentDescriptorV1(
+  final descriptor = FlowExperimentDescriptor(
     id: _requiredString(descriptorJson, 'id', r'$.descriptor'),
     version: _requiredPositiveInt(
       descriptorJson,
@@ -377,7 +377,7 @@ FlowExperimentClientContractV1 _decodeClientContract(
   );
 
   final documentsJson = _requiredList(json, 'documents', r'$.documents');
-  final documents = <FlowExperimentDocumentContractV1>[
+  final documents = <FlowExperimentDocumentContract>[
     for (var index = 0; index < documentsJson.length; index += 1)
       _decodeDocumentContract(
         _asJsonObject(documentsJson[index], r'$.documents'),
@@ -393,7 +393,7 @@ FlowExperimentClientContractV1 _decodeClientContract(
   final installedCapability = _decodeInstalledCapability(installedJson);
 
   final actionJson = _requiredList(json, 'actionBindings', r'$.actionBindings');
-  final actions = <FlowActionBindingFingerprintV1>[
+  final actions = <FlowActionBindingFingerprint>[
     for (var index = 0; index < actionJson.length; index += 1)
       _decodeActionBinding(
         _asJsonObject(actionJson[index], r'$.actionBindings'),
@@ -423,7 +423,7 @@ FlowExperimentClientContractV1 _decodeClientContract(
   );
 }
 
-FlowExperimentDocumentContractV1 _decodeDocumentContract(
+FlowExperimentDocumentContract _decodeDocumentContract(
   Map<String, Object?> json,
   String path,
 ) {
@@ -453,7 +453,7 @@ FlowExperimentDocumentContractV1 _decodeDocumentContract(
   final flowJson = _requiredObject(json, 'flowDocument', '$path.flowDocument');
   final flowDocument = FlowDocumentCodec.decodeJson(jsonEncode(flowJson));
 
-  return FlowExperimentDocumentContractV1(
+  return FlowExperimentDocumentContract(
     surfaceType: Surface.fromWireName(
       _requiredString(json, 'surfaceType', path),
     ),
@@ -526,7 +526,7 @@ InstalledLibrary _decodeInstalledLibrary(
   return InstalledLibrary(namespace: namespace, version: version as int?);
 }
 
-FlowActionBindingFingerprintV1 _decodeActionBinding(
+FlowActionBindingFingerprint _decodeActionBinding(
   Map<String, Object?> json,
   String path,
 ) {
@@ -543,7 +543,7 @@ FlowActionBindingFingerprintV1 _decodeActionBinding(
     },
     path,
   );
-  return FlowActionBindingFingerprintV1(
+  return FlowActionBindingFingerprint(
     actionId: _requiredString(json, 'actionId', path),
     actionName: _requiredString(json, 'actionName', path),
     contractVersion: _requiredPositiveInt(json, 'contractVersion', path),
@@ -618,8 +618,8 @@ List<int> _encodeClientContract(FlowExperimentClientContractV1 contract) {
   return _CanonicalJsonWriter.encode(tree);
 }
 
-List<FlowExperimentDocumentContractV1> _canonicalDocuments(
-  List<FlowExperimentDocumentContractV1> documents,
+List<FlowExperimentDocumentContract> _canonicalDocuments(
+  List<FlowExperimentDocumentContract> documents,
 ) {
   if (documents.isEmpty) {
     throw const FormatException(
@@ -627,7 +627,7 @@ List<FlowExperimentDocumentContractV1> _canonicalDocuments(
     );
   }
   final identities = <String>{};
-  final canonical = List<FlowExperimentDocumentContractV1>.of(documents);
+  final canonical = List<FlowExperimentDocumentContract>.of(documents);
   for (final document in canonical) {
     final identity = _documentIdentity(document);
     if (!identities.add(identity)) {
@@ -678,11 +678,11 @@ InstalledCapability _canonicalInstalledCapability(
   );
 }
 
-List<FlowActionBindingFingerprintV1> _canonicalActionBindings(
-  List<FlowActionBindingFingerprintV1> actions,
+List<FlowActionBindingFingerprint> _canonicalActionBindings(
+  List<FlowActionBindingFingerprint> actions,
 ) {
   final ids = <String>{};
-  final canonical = List<FlowActionBindingFingerprintV1>.of(actions);
+  final canonical = List<FlowActionBindingFingerprint>.of(actions);
   for (final action in canonical) {
     _checkIdentifier(action.actionId, r'$.actionBindings.actionId');
     _checkIdentifier(action.actionName, r'$.actionBindings.actionName');
@@ -741,8 +741,8 @@ List<LibraryRequirement> _canonicalRequiredLibraries(
 void _checkCompleteBaselineClosure({
   required Surface surfaceType,
   required FlowDeliveryMode deliveryMode,
-  required FlowExperimentDescriptorV1 descriptor,
-  required List<FlowExperimentDocumentContractV1> documents,
+  required FlowExperimentDescriptor descriptor,
+  required List<FlowExperimentDocumentContract> documents,
 }) {
   final byIdentity = {
     for (final document in documents) _documentIdentity(document): document,
@@ -784,11 +784,11 @@ void _checkCompleteBaselineClosure({
 }
 
 void _walkExactClosure({
-  required FlowExperimentDocumentContractV1 node,
+  required FlowExperimentDocumentContract node,
   required int availableCapability,
   required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
-  required Map<String, FlowExperimentDocumentContractV1> byIdentity,
+  required Map<String, FlowExperimentDocumentContract> byIdentity,
   required Set<String> reached,
   required Set<String> path,
   required int depth,
@@ -857,8 +857,8 @@ void _walkExactClosure({
 }
 
 int _compareDocuments(
-  FlowExperimentDocumentContractV1 a,
-  FlowExperimentDocumentContractV1 b,
+  FlowExperimentDocumentContract a,
+  FlowExperimentDocumentContract b,
 ) {
   final surface = _compareUnsignedUtf8(
     a.surfaceType.wireName,
@@ -869,7 +869,7 @@ int _compareDocuments(
   return flow != 0 ? flow : a.version.compareTo(b.version);
 }
 
-String _documentIdentity(FlowExperimentDocumentContractV1 document) {
+String _documentIdentity(FlowExperimentDocumentContract document) {
   return _documentIdentityParts(
     document.surfaceType,
     document.flowId,
