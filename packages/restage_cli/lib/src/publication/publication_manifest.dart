@@ -23,6 +23,7 @@ final class LoadedSurfacePublicationManifest {
   /// Construct a loaded manifest.
   const LoadedSurfacePublicationManifest({
     required this.projectRoot,
+    required this.outputsFile,
     required this.manifestFile,
     required this.invalidMarkerFile,
     required this.manifest,
@@ -32,6 +33,9 @@ final class LoadedSurfacePublicationManifest {
   /// The project package root used for fixed generated asset paths.
   final Directory projectRoot;
 
+  /// The selected package-wide generated output index.
+  final File outputsFile;
+
   /// The fixed manifest file that was decoded.
   final File manifestFile;
 
@@ -39,7 +43,7 @@ final class LoadedSurfacePublicationManifest {
   final File invalidMarkerFile;
 
   /// The strict generated manifest.
-  final SurfacePublicationManifestV1 manifest;
+  final SurfacePublicationManifest manifest;
 
   /// The physical locators paired with [manifest].
   final RestageOutputIndex outputIndex;
@@ -60,7 +64,7 @@ final class LoadedSurfacePublicationManifest {
   /// never guesses. Throws when [path] cannot name generated output, when the
   /// manifest predates recorded sources, or when nothing was compiled from
   /// that file.
-  List<SurfacePublicationManifestEntryV1> selectByPath({
+  List<SurfacePublicationManifestEntry> selectByPath({
     required String path,
     Surface? type,
     SurfaceSourceKind? sourceKind,
@@ -69,7 +73,7 @@ final class LoadedSurfacePublicationManifest {
     // different real files, and returning both would offer — and under
     // `--all` publish — a surface the developer never named.
     final candidates = _packageRelativeSourceCandidates(path);
-    final attributed = <SurfacePublicationManifestEntryV1>[];
+    final attributed = <SurfacePublicationManifestEntry>[];
     var resolved = candidates.first;
     for (final candidate in candidates) {
       final matches = manifest.publications
@@ -186,7 +190,7 @@ final class LoadedSurfacePublicationManifest {
   ///
   /// [type] is a validation or disambiguation selector only. It never chooses
   /// an artifact directory or changes the generated publication identity.
-  SurfacePublicationManifestEntryV1 select({
+  SurfacePublicationManifestEntry select({
     required String slug,
     Surface? type,
     SurfaceSourceKind? sourceKind,
@@ -292,7 +296,7 @@ final class SurfacePublicationManifestLoader {
     final manifestFile = located.publicationFile;
     final source = located.publicationManifestSource;
 
-    final SurfacePublicationManifestV1 manifest;
+    final SurfacePublicationManifest manifest;
     try {
       manifest = SurfacePublicationManifestV1Codec.decodeJson(source);
     } on Object {
@@ -321,6 +325,7 @@ final class SurfacePublicationManifestLoader {
 
     return LoadedSurfacePublicationManifest(
       projectRoot: root,
+      outputsFile: located.outputsFile,
       manifestFile: manifestFile,
       invalidMarkerFile: invalidMarkerFile,
       manifest: manifest,

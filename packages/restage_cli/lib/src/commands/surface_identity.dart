@@ -163,7 +163,7 @@ Future<SurfaceLifecycleIdentity?> resolveSurfaceLifecycleIdentity({
           .where((entry) => entry.publication.slug == slug)
           .toList(growable: false);
       if (slugMatches.isNotEmpty) {
-        final SurfacePublicationV1 selected;
+        final SurfacePublication selected;
         try {
           selected = loadedManifest
               .select(
@@ -470,7 +470,7 @@ SurfaceSourceKind _fallbackSourceKind({
 }
 
 SurfaceLifecycleIdentity _identityFromPublication(
-  SurfacePublicationV1 publication,
+  SurfacePublication publication,
 ) => SurfaceLifecycleIdentity(
   surface: publication.surface,
   slug: publication.slug,

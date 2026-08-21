@@ -9,15 +9,18 @@ import 'package:restage_cli/src/commands/build_command.dart';
 import 'package:restage_cli/src/commands/catalog_command.dart';
 import 'package:restage_cli/src/commands/doctor_command.dart';
 import 'package:restage_cli/src/commands/console_command.dart';
+import 'package:restage_cli/src/commands/experiment_activation_command.dart';
 import 'package:restage_cli/src/commands/init_command.dart';
 import 'package:restage_cli/src/commands/login_command.dart';
 import 'package:restage_cli/src/commands/logout_command.dart';
 import 'package:restage_cli/src/commands/paywall_command.dart';
 import 'package:restage_cli/src/commands/preview_command.dart';
 import 'package:restage_cli/src/commands/projects_command.dart';
+import 'package:restage_cli/src/commands/programmatic_mutation_command.dart';
 import 'package:restage_cli/src/commands/status_command.dart';
 import 'package:restage_cli/src/commands/surface_command.dart';
 import 'package:restage_cli/src/commands/whoami_command.dart';
+import 'package:restage_cli/src/api/experiment_activation_api.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/preview/binary_discovery.dart';
@@ -70,6 +73,8 @@ class RestageCli {
     ConsoleLauncher? consoleLauncher,
     ConsoleController Function()? consoleControllerFactory,
     RenderBundleArtifactBuilder? renderBundleBuilder,
+    ExperimentActivationApi? experimentActivationApi,
+    Map<String, String>? environment,
   }) : _stdout = stdout ?? StringBuffer(),
        _stderr = stderr ?? StringBuffer(),
        _credentialStore = credentialStore,
@@ -84,6 +89,8 @@ class RestageCli {
        _hasTerminal = hasTerminal ?? stdioHasTerminal,
        _consoleLauncher = consoleLauncher ?? runRestageConsole,
        _renderBundleBuilder = renderBundleBuilder,
+       _experimentActivationApi = experimentActivationApi,
+       _environment = environment,
        _consoleControllerFactory =
            consoleControllerFactory ??
            (() => ConsoleController(
@@ -111,6 +118,8 @@ class RestageCli {
   final ConsoleLauncher _consoleLauncher;
   final ConsoleController Function() _consoleControllerFactory;
   final RenderBundleArtifactBuilder? _renderBundleBuilder;
+  final ExperimentActivationApi? _experimentActivationApi;
+  final Map<String, String>? _environment;
 
   /// Dispatch [args] through the runner and return the exit code.
   Future<int> run(List<String> args) async {
@@ -230,6 +239,16 @@ class RestageCli {
         ),
       )
       ..addCommand(
+        ProgrammaticMutationCommand(
+          stdout: _stdout,
+          stderr: _stderr,
+          interactive: interactive,
+          credentialStore: _credentialStore,
+          httpClient: _httpClient,
+          environment: _environment,
+        ),
+      )
+      ..addCommand(
         AuditCommand(
           stdout: _stdout,
           stderr: _stderr,
@@ -289,6 +308,17 @@ class RestageCli {
           launcher: _previewLauncher,
         ),
       );
+    final experimentActivationApi = _experimentActivationApi;
+    if (experimentActivationApi != null) {
+      runner.addCommand(
+        ExperimentActivationCommand(
+          api: experimentActivationApi,
+          stdout: _stdout,
+          stderr: _stderr,
+          environment: _environment,
+        ),
+      );
+    }
     try {
       if (args.isEmpty && _hasTerminal()) {
         return await _consoleLauncher(_consoleControllerFactory());

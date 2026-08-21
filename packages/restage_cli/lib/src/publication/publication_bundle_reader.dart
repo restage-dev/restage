@@ -24,7 +24,7 @@ final class PublicationBundleEntry {
   final String path;
 
   /// The closed publication role recorded by the bundle metadata.
-  final SurfacePublicationArtifactRoleV1 role;
+  final SurfacePublicationArtifactRole role;
 
   /// The byte length recorded by the bundle metadata.
   final int size;
@@ -92,7 +92,7 @@ final class RestageBundlePublicationReader implements PublicationBundleReader {
     final bundle = await _decode(bundleFile);
     for (final entry in bundle.entries) {
       if (entry.logicalPath == entryPath) {
-        final SurfacePublicationArtifactRoleV1 role;
+        final SurfacePublicationArtifactRole role;
         try {
           role = entry.role.toManifestRole();
         } on StateError {

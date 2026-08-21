@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/api/discovery_models.dart';
+import 'package:restage_cli/src/api/experiment_activation_host_transport.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
@@ -12,6 +13,8 @@ import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as measurement;
 
 /// The stable line prefix of the rollback cohort-impact note. Shared between
 /// the rollback command (which writes the note) and consumers that pick it
@@ -29,6 +32,8 @@ class LifecycleContext {
     required this.app,
     required this.environment,
     required this.organizationId,
+    required this.appId,
+    required this.namedEnvironmentId,
     required this.environmentTargetId,
     required this.runtimePlane,
   });
@@ -51,11 +56,36 @@ class LifecycleContext {
   /// Authorized backend organization id.
   final int organizationId;
 
+  /// Authorized numeric app identity resolved with the target.
+  final int appId;
+
+  /// Stable named-environment identity resolved with the target.
+  final int namedEnvironmentId;
+
   /// Exact numeric environment target id.
   final int environmentTargetId;
 
   /// Canonical runtime plane for the selected target.
   final RuntimePlane runtimePlane;
+}
+
+/// Converts an exact resolved lifecycle context into an activation route
+/// profile without choosing additional selectors.
+extension ExperimentActivationLifecycleContext on LifecycleContext {
+  /// The profile supplied by a CLI host to its activation transport.
+  ExperimentActivationRouteProfile get experimentActivationRouteProfile =>
+      ExperimentActivationRouteProfile(
+        projectSlug: project,
+        appSlug: app,
+        environmentSlug: environment,
+        environmentTargetId: environmentTargetId,
+        runtimePlane: switch (runtimePlane) {
+          RuntimePlane.sandbox => measurement.RuntimePlane.sandbox,
+          RuntimePlane.live => measurement.RuntimePlane.live,
+        },
+        selectedOrganizationId: organizationId,
+        selectedAppId: appId,
+      );
 }
 
 /// Register the options every lifecycle command shares.
@@ -223,6 +253,8 @@ Future<LifecycleContext?> loadLifecycleContext({
     app: app,
     environment: environment,
     organizationId: resolvedTarget.organizationId,
+    appId: resolvedTarget.appId,
+    namedEnvironmentId: resolvedTarget.target.namedEnvironmentId,
     environmentTargetId: resolvedTarget.target.environmentTargetId,
     runtimePlane: resolvedTarget.target.runtimePlane,
   );

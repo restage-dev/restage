@@ -294,8 +294,8 @@ const List<BuiltinWidgetCuration> kCuration = [
     constructorName: 'assetNetwork',
     excludeParams: [
       // `bundle: AssetBundle` is excluded via the centralized type denylist.
-      // Fade curves stay out of the core image surface for now; Track B2 only
-      // lifts curve support on the implicit-animation family.
+      // Fade curves stay out of the core image surface for now; curve support
+      // is lifted only on the implicit-animation family.
       'placeholderErrorBuilder',
       'imageSemanticLabel',
       'imageErrorBuilder',

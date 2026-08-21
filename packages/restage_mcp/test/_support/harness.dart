@@ -21,6 +21,10 @@ Future<ServerConnection> connectServer({
   Future<void> Function(String)? openBrowser,
   Uri? loginEndpoint,
   DateTime Function()? now,
+  ExperimentActivationApi? experimentActivationApi,
+  // The harness exists to exercise tools, so it opts in by default. Pass an
+  // empty map to assert what a default server does NOT expose.
+  Map<String, String> environment = const {'RESTAGE_EXPERIMENTAL': '1'},
 }) async {
   final clientController = StreamController<String>();
   final serverController = StreamController<String>();
@@ -44,6 +48,8 @@ Future<ServerConnection> connectServer({
     openBrowser: openBrowser,
     loginEndpoint: loginEndpoint,
     now: now,
+    experimentActivationApi: experimentActivationApi,
+    environment: environment,
   );
   final connection = client.connectServer(clientChannel);
   addTearDown(client.shutdown);

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_publication_api.dart';
+import 'package:restage_cli/src/commands/publication_upload.dart';
 import 'package:restage_cli/src/commands/target_resolution.dart';
 import 'package:restage_cli/src/io/interactive.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
@@ -51,7 +52,7 @@ bool _isDartSourceArgument(String argument) => argument.endsWith('.dart');
 /// Returns null after writing a user-facing message to [stderr] when the
 /// caller should exit non-zero. Throws [PublicationManifestException] for a
 /// manifest that cannot answer the question at all.
-Future<List<SurfacePublicationManifestEntryV1>?> resolvePublicationEntries({
+Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
   required LoadedSurfacePublicationManifest manifest,
   required String argument,
   required bool all,
@@ -70,7 +71,7 @@ Future<List<SurfacePublicationManifestEntryV1>?> resolvePublicationEntries({
       );
       return null;
     }
-    return <SurfacePublicationManifestEntryV1>[
+    return <SurfacePublicationManifestEntry>[
       manifest.select(slug: argument, type: type),
     ];
   }
@@ -130,7 +131,7 @@ Future<List<SurfacePublicationManifestEntryV1>?> resolvePublicationEntries({
   );
   return choice == publishAll
       ? matches
-      : <SurfacePublicationManifestEntryV1>[matches[choice]];
+      : <SurfacePublicationManifestEntry>[matches[choice]];
 }
 
 /// Publish [assembled] in order against one already-resolved target.
@@ -141,9 +142,15 @@ Future<List<SurfacePublicationManifestEntryV1>?> resolvePublicationEntries({
 ///
 /// Returns the process exit code. [noun] names what is being published in the
 /// output; [onApiException] renders the command's typed-error handling.
+///
+/// Each publication goes out through the operation its own optional
+/// measurement candidate selects, so a measurement-bound surface takes the
+/// bound operation and finalizes its local bundled profile under
+/// [packageRoot], while an ordinary one takes the plain publish.
 Future<int> runPublishRun({
   required RestageApi api,
   required List<AssembledSurfacePublication> assembled,
+  required Directory packageRoot,
   required String project,
   required String app,
   required String environment,
@@ -163,11 +170,13 @@ Future<int> runPublishRun({
     }
 
     try {
-      final result = await publisher.publish(
+      final result = await publishAssembledSurfacePublication(
+        api: publisher,
+        assembled: publication,
+        packageRoot: packageRoot,
         project: project,
         app: app,
         environment: environment,
-        request: publication.request,
         environmentTargetId: target.target.environmentTargetId,
         runtimePlane: target.target.runtimePlane,
         organizationId: target.organizationId,
@@ -182,6 +191,14 @@ Future<int> runPublishRun({
       return stopWith(2);
     } on FormatException {
       stderr.writeln('Could not decode the publication response.');
+      return stopWith(2);
+    } on MeasurementBundledProfileFinalizeException {
+      // The backend committed this publication; only the local bundled
+      // profile did not land, so the run stops without retrying the upload.
+      stderr.writeln(
+        'The $noun was published, but its Measurement bundle profile could '
+        'not be written.',
+      );
       return stopWith(2);
     }
   }
