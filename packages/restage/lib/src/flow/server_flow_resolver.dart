@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         FlowActiveRenderGate,
@@ -19,6 +20,7 @@ import 'package:restage_shared/restage_shared.dart'
         Surface;
 
 import '../assets/bundled_asset_source.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../resolver/surface_assignment_key_provider.dart';
@@ -235,6 +237,7 @@ final class ServerFlowResolver
       screenBlobs,
       surfaceDocument.requiredLibraries,
       assignment: _assignmentOf(result),
+      publicationBindingReference: result.publicationBindingReference,
     );
     _cache[cacheKey] = cachedFlow;
     return _own(
@@ -290,7 +293,10 @@ final class ServerFlowResolver
             active: cached.document,
           ) &&
           _passesRetainedChecks(
-              flow, cached.document, cached.requiredLibraries)) {
+            flow,
+            cached.document,
+            cached.requiredLibraries,
+          )) {
         return _own(
           cached.toResolvedFlow(cacheHit: true),
           requiredLibraries: cached.requiredLibraries,
@@ -398,6 +404,7 @@ final class ServerFlowResolver
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
       assignment: assignment,
+      publicationBindingReference: result.publicationBindingReference,
     );
     return _ExperimentFreshFlow(
       candidateRoot: _own(
@@ -422,11 +429,8 @@ final class ServerFlowResolver
         surfaceSlug: flow.id,
         assignmentKey: snapshot.assignmentKey,
         flowContract: flowContract,
-        publicationGuard: () => _experimentSnapshotIsCurrent(
-          snapshot,
-          boundary,
-          captureSeed,
-        ),
+        publicationGuard: () =>
+            _experimentSnapshotIsCurrent(snapshot, boundary, captureSeed),
       );
     } on SurfaceRequestPublicationRejected {
       throw const _ExperimentSeedDrift();
@@ -524,6 +528,7 @@ final class ServerFlowResolver
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
       assignment: _assignmentOf(result),
+      publicationBindingReference: result.publicationBindingReference,
     );
   }
 
@@ -547,12 +552,16 @@ final class ServerFlowResolver
   }) {
     if (client.deliveryMode != active.deliveryMode) return false;
     if (client.deliveryMode == FlowDeliveryMode.general) {
-      return GeneralFlowRenderGate.evaluate(client: client, active: active)
-          .accepted;
+      return GeneralFlowRenderGate.evaluate(
+        client: client,
+        active: active,
+      ).accepted;
     }
 
-    return FlowActiveRenderGate.evaluate(client: client, active: active)
-        .accepted;
+    return FlowActiveRenderGate.evaluate(
+      client: client,
+      active: active,
+    ).accepted;
   }
 
   /// Runs the retained backstop checks (everything except the version pin) on a
@@ -631,11 +640,11 @@ final class ServerFlowResolver
 
   /// Runs the flow-document compatibility checks. [checkVersion] is the ONE
   /// dimension the active arm relaxes: with `checkVersion: false` the bare
-  /// `version ==` exact-pin is skipped (the P2 render gate replaces it), while
+  /// `version ==` exact-pin is skipped (the render gate replaces it), while
   /// EVERY other check — flow id, schemaVersion, the doc + per-artifact
   /// capability floors — keeps running on the active document (the binding
-  /// backstop). The exact path calls this with the default `checkVersion: true`,
-  /// so its behavior is unchanged.
+  /// backstop). The exact path calls this with the default `checkVersion:
+  /// true`, so its behavior is unchanged.
   void _checkCompatibility<R>(
     OnboardingFlowRef<R> flow,
     FlowDocument document, {
@@ -1000,10 +1009,7 @@ final class _ExperimentFreshFlow {
 }
 
 final class _ExperimentHostedFlow {
-  const _ExperimentHostedFlow({
-    required this.snapshot,
-    required this.accepted,
-  });
+  const _ExperimentHostedFlow({required this.snapshot, required this.accepted});
 
   final FlowMountContractSnapshot snapshot;
   final FlowCandidatePrefetchAccepted accepted;
@@ -1030,9 +1036,7 @@ void _requireExactPublicationCurrent(bool Function()? publicationGuard) {
   throw const _ExperimentSeedDrift();
 }
 
-FlowMountLeaseSeed _captureExperimentSeed(
-  FlowMountSeedCapture captureSeed,
-) {
+FlowMountLeaseSeed _captureExperimentSeed(FlowMountSeedCapture captureSeed) {
   try {
     return captureSeed();
   } on Object {
@@ -1071,6 +1075,7 @@ final class _CachedServerFlow {
     this.contentHash,
     this.requiredLibraries,
     this.assignment,
+    this.publicationBindingReference,
   );
 
   /// Builds a cache entry, computing the canonical-document content hash (the
@@ -1080,6 +1085,8 @@ final class _CachedServerFlow {
     Map<String, Uint8List> screenBlobs,
     List<LibraryRequirement> requiredLibraries, {
     required FlowAssignment? assignment,
+    required MeasurementPublicationBindingReferenceV1?
+        publicationBindingReference,
   }) {
     return _CachedServerFlow(
       document,
@@ -1087,6 +1094,7 @@ final class _CachedServerFlow {
       FlowContentHash.compute(FlowDocumentCodec.encodeCanonicalJson(document)),
       requiredLibraries,
       assignment,
+      publicationBindingReference,
     );
   }
 
@@ -1098,13 +1106,19 @@ final class _CachedServerFlow {
   /// re-run the capability gate (the library registry can change after caching).
   final List<LibraryRequirement> requiredLibraries;
 
+  /// Exact immutable Measurement provenance retained with these exact bytes.
+  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
+
   ResolvedFlow toResolvedFlow({required bool cacheHit}) {
-    return ResolvedFlow(
-      document: document,
-      screenBlobs: screenBlobs,
-      contentHash: contentHash,
-      cacheHit: cacheHit,
-      assignment: assignment,
+    return attachMeasurementPublicationBindingReference(
+      ResolvedFlow(
+        document: document,
+        screenBlobs: screenBlobs,
+        contentHash: contentHash,
+        cacheHit: cacheHit,
+        assignment: assignment,
+      ),
+      publicationBindingReference,
     );
   }
 }

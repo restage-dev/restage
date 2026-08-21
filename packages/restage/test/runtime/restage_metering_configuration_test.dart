@@ -108,7 +108,7 @@ void main() {
     expect(meteringKey, isNotNull);
 
     Restage.fireEvent(
-      const PaywallViewed(paywallId: 'pw-1', productIds: ['p1']),
+      const PaywallViewed(paywallId: 'pw-1', productIds: ['product-1']),
     );
     await pumpEventQueue();
     await Restage.debugFlushAnalytics();

@@ -165,10 +165,9 @@ final class _ControlledSubscription
 void main() {
   setUp(Restage.debugReset);
 
-  test('RestageSurfaceFlow exposes the neutral public configuration surface',
-      () {
+  test('RestageFlowGraph exposes the neutral public configuration surface', () {
     final resolver = _RecordingResolver(resolvedFlow());
-    final widget = RestageSurfaceFlow<FirstRunResult>(
+    final widget = RestageFlowGraph<FirstRunResult>(
       flow: _messageFlowRef,
       initialState: null,
       unavailable: const FlowUnavailablePolicy.hide(),
@@ -203,7 +202,7 @@ void main() {
     (surface: Surface.survey, ref: _surveyFlowRef),
   ]) {
     testWidgets(
-        'RestageSurfaceFlow renders a ${testCase.surface.wireName} descriptor '
+        'RestageFlowGraph renders a ${testCase.surface.wireName} descriptor '
         'through the supplied resolver', (tester) async {
       final resolver = _RecordingResolver(
         resolvedFlow(welcomeText: '${testCase.surface.wireName} welcome'),
@@ -212,7 +211,7 @@ void main() {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          child: RestageSurfaceFlow<FirstRunResult>(
+          child: RestageFlowGraph<FirstRunResult>(
             flow: testCase.ref,
             resolver: resolver,
             unavailable: const FlowUnavailablePolicy.hide(),
@@ -247,11 +246,11 @@ void main() {
         textDirection: TextDirection.ltr,
         child: Column(
           children: [
-            RestageSurfaceFlow<FirstRunResult>(
+            RestageFlowGraph<FirstRunResult>(
               flow: _messageFlowRef,
               unavailable: const FlowUnavailablePolicy.hide(),
             ),
-            RestageSurfaceFlow<FirstRunResult>(
+            RestageFlowGraph<FirstRunResult>(
               flow: _surveyFlowRef,
               unavailable: const FlowUnavailablePolicy.hide(),
             ),
@@ -292,7 +291,7 @@ void main() {
         child: StatefulBuilder(
           builder: (context, setState) {
             updateHost = setState;
-            return RestageSurfaceFlow<FirstRunResult>(
+            return RestageFlowGraph<FirstRunResult>(
               flow: flow,
               unavailable: const FlowUnavailablePolicy.hide(),
             );
@@ -350,7 +349,7 @@ void main() {
         child: StatefulBuilder(
           builder: (context, setState) {
             updateHost = setState;
-            return RestageSurfaceFlow<FirstRunResult>(
+            return RestageFlowGraph<FirstRunResult>(
               flow: flow,
               unavailable: const FlowUnavailablePolicy.hide(),
             );
@@ -404,7 +403,7 @@ void main() {
         child: StatefulBuilder(
           builder: (context, setState) {
             updateHost = setState;
-            return RestageSurfaceFlow<FirstRunResult>(
+            return RestageFlowGraph<FirstRunResult>(
               flow: flow,
               unavailable: const FlowUnavailablePolicy.hide(),
             );
@@ -449,7 +448,7 @@ void main() {
         child: StatefulBuilder(
           builder: (context, setState) {
             updateHost = setState;
-            return RestageSurfaceFlow<FirstRunResult>(
+            return RestageFlowGraph<FirstRunResult>(
               flow: _messageFlowRef,
               liveRefresh: liveRefresh,
               unavailable: const FlowUnavailablePolicy.hide(),
@@ -503,7 +502,7 @@ void main() {
         child: StatefulBuilder(
           builder: (context, setState) {
             updateHost = setState;
-            return RestageSurfaceFlow<FirstRunResult>(
+            return RestageFlowGraph<FirstRunResult>(
               flow: _messageFlowRef,
               resolver: widgetResolver,
               unavailable: const FlowUnavailablePolicy.hide(),

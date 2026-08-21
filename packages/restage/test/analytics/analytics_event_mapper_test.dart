@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/analytics/analytics_event_mapper.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage/src/events/restage_event.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 void main() {
@@ -38,7 +39,7 @@ void main() {
     final envelope = map(
       PaywallViewed(
         paywallId: 'pw-1',
-        productIds: const ['p1'],
+        productIds: const ['product-1'],
         variantId: 'variant-A',
         experimentId: 'exp-1',
         experimentEpoch: 3,
@@ -146,7 +147,7 @@ void main() {
     final envelope = map(
       const PaywallViewed(
         paywallId: 'pw-1',
-        productIds: ['p1'],
+        productIds: ['product-1'],
         publishedVersion: 9,
       ),
     );

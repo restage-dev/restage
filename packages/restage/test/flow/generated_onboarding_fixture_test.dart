@@ -42,7 +42,7 @@ void main() {
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,
       child: RestageOnboarding<FirstRunResult>(
-        flow: FirstRunFlowDescriptor.ref,
+        flow: firstRunFlowRef,
         resolver: AssetFlowResolver(
           bundle: _GeneratedFixtureBundle(assets),
         ),
@@ -217,7 +217,7 @@ void main() {
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,
       child: RestageOnboarding<FirstRunResult>(
-        flow: FirstRunFlowDescriptor.ref,
+        flow: firstRunFlowRef,
         resolver: AssetFlowResolver(
           bundle: _GeneratedFixtureBundle.missingReadyBlob(),
         ),
@@ -245,25 +245,25 @@ Widget fallbackBuilder(BuildContext context, FlowUnavailableError error) {
   );
 }
 
-abstract final class FirstRunFlowDescriptor {
-  static const ref = OnboardingFlowRef<FirstRunResult>(
-    id: 'first_run',
-    version: 1,
-    minClient: 3,
-    surface: Surface.onboarding,
-    decodeResult: _decodeResult,
-  );
+// Mirrors what the build emits for a typed `@FlowGraph`: one top-level
+// `<className>Ref` handle and a top-level decoder, with no holder class.
+const firstRunFlowRef = OnboardingFlowRef<FirstRunResult>(
+  id: 'first_run',
+  version: 1,
+  minClient: 3,
+  surface: Surface.onboarding,
+  decodeResult: _decodeFirstRunFlowResult,
+);
 
-  static FirstRunResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || !result.containsKey('completed')) {
-      throw const FormatException('Unexpected first_run result shape.');
-    }
-    final completed = result['completed'];
-    if (completed is! bool) {
-      throw const FormatException('Expected completed to be a bool.');
-    }
-    return FirstRunResult(completed: completed);
+FirstRunResult _decodeFirstRunFlowResult(Map<String, Object?> result) {
+  if (result.length != 1 || !result.containsKey('completed')) {
+    throw const FormatException('Unexpected first_run result shape.');
   }
+  final completed = result['completed'];
+  if (completed is! bool) {
+    throw const FormatException('Expected completed to be a bool.');
+  }
+  return FirstRunResult(completed: completed);
 }
 
 final class FirstRunResult {
@@ -493,9 +493,9 @@ FlowDocument _generatedDocument() {
 }
 
 void _expectDescriptorMatchesDocument(FlowDocument document) {
-  expect(FirstRunFlowDescriptor.ref.id, document.flow);
-  expect(FirstRunFlowDescriptor.ref.version, document.version);
-  expect(FirstRunFlowDescriptor.ref.minClient, document.minClient);
+  expect(firstRunFlowRef.id, document.flow);
+  expect(firstRunFlowRef.version, document.version);
+  expect(firstRunFlowRef.minClient, document.minClient);
   final action = document.actions['requestNotifications'];
   expect(action?.actionName,
       FirstRunActions.requestNotificationsDescriptor.actionName);

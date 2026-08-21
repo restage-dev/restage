@@ -8,6 +8,7 @@ import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_shared/restage_shared.dart' show kCapturedEventValueKey;
 import 'package:rfw/rfw.dart';
 
+import '../measurement/measurement_rfw_presentation.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/restage.dart';
 import '../runtime/state_variables.dart';
@@ -132,6 +133,7 @@ final class FlowScreenLibraries {
       ..update(kFlowCupertinoLibrary, _cupertino)
       ..update(kFlowScreenLibrary, screen);
     LibraryRuntimeRegistry.applyTo(runtime);
+    installMeasurementRfwPresentationLibrary(runtime);
     return runtime;
   }
 }

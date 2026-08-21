@@ -252,8 +252,9 @@ void main() {
       // document is caught ONE LAYER EARLIER — SurfaceDocument/FlowSurfacePayload
       // construction runs checkValid while canonicalizing — so an invalid active
       // document fails to decode/build and the resolver rejects it before this
-      // arm is entered (exactly ServerFlowResolver's posture; the active-flow P3
-      // closeout likewise did not unit-test _checkValidation directly).
+      // arm is entered (exactly ServerFlowResolver's posture; the server-side
+      // active-flow path likewise does not unit-test _checkValidation
+      // directly).
       expect(
         () => _active(_flowDoc(purchase, danglingTarget: true), purchase),
         throwsA(anything),

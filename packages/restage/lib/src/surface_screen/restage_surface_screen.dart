@@ -13,6 +13,8 @@ import 'package:rfw/rfw.dart'
 import '../analytics/root_analytics_context.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
+import '../measurement/measurement_event_sanitizer.dart';
+import '../measurement/measurement_host_session.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/library_runtime_registry.dart';
@@ -30,9 +32,9 @@ import 'surface_screen_types.dart';
 /// resolver, and validates whatever the resolver returns against the same
 /// provenance, so a resolver cannot introduce an arbitrary artifact or event
 /// contract.
-final class RestageSurfaceScreen<E> extends StatefulWidget {
+final class RestageScreen<E> extends StatefulWidget {
   /// Creates a standalone generated-screen host.
-  const RestageSurfaceScreen({
+  const RestageScreen({
     super.key,
     required this.screen,
     required this.unavailable,
@@ -61,11 +63,10 @@ final class RestageSurfaceScreen<E> extends StatefulWidget {
   final WidgetBuilder? loadingBuilder;
 
   @override
-  State<RestageSurfaceScreen<E>> createState() =>
-      _RestageSurfaceScreenState<E>();
+  State<RestageScreen<E>> createState() => _RestageScreenState<E>();
 }
 
-class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
+class _RestageScreenState<E> extends State<RestageScreen<E>> {
   late final FlowScreenLibraries _libraries;
 
   _ScreenStage? _stage;
@@ -88,7 +89,7 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
   }
 
   @override
-  void didUpdateWidget(RestageSurfaceScreen<E> oldWidget) {
+  void didUpdateWidget(RestageScreen<E> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.screen, widget.screen) ||
         !identical(oldWidget.resolver, widget.resolver)) {
@@ -136,6 +137,7 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
 
     try {
       final stage = _validateAndBuildStage(provenance, resolved);
+      await _attachMeasurementSession(stage, resolved);
       if (!_isCurrent(epoch)) {
         stage.dispose();
         return;
@@ -153,6 +155,27 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
           cause: error,
         ),
       );
+    }
+  }
+
+  /// Opens Measurement only after the host has independently validated the
+  /// exact resolved artifact, and before that artifact can enter the tree.
+  ///
+  /// The controller owns all host-independent resolution and degrades to an
+  /// inert session. Its failure must never make a validated screen unavailable.
+  Future<void> _attachMeasurementSession(
+    _ScreenStage stage,
+    ResolvedSurfaceScreen resolved,
+  ) async {
+    try {
+      stage.attachMeasurementSession(
+        await MeasurementHostSessionController.openForResolvedArtifact(
+          resolved,
+        ),
+      );
+    } on Object {
+      // Measurement is fail-closed and observational. A construction failure
+      // leaves the independently validated screen on its existing path.
     }
   }
 
@@ -233,7 +256,9 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
   void _handleEvent(_ScreenStage stage, String name, Object? value) {
     if (!identical(_stage, stage)) return;
     try {
-      final arguments = normalizeEventArgs(value);
+      final arguments = normalizeEventArgs(
+        stage.sanitizeAndRecordEvent(value),
+      );
       stage.provenance.eventSchema.validateEvent(name, arguments);
       final callback = widget.onEvent;
       if (callback == null) {
@@ -301,11 +326,13 @@ class _RestageSurfaceScreenState<E> extends State<RestageSurfaceScreen<E>> {
       },
       onError: (error, _) => _handleRenderFailure(stage, error),
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RemoteWidget(
-        runtime: stage.runtime,
-        data: stage.data,
-        widget: kFlowScreenWidget,
-        onEvent: (name, value) => _handleEvent(stage, name, value),
+      child: stage.wrapMeasuredRoot(
+        RemoteWidget(
+          runtime: stage.runtime,
+          data: stage.data,
+          widget: kFlowScreenWidget,
+          onEvent: (name, value) => _handleEvent(stage, name, value),
+        ),
       ),
     );
   }
@@ -333,8 +360,45 @@ final class _ScreenStage {
   /// [resolved]'s blob.
   final PlaceholderProductLane placeholderLane;
 
+  MeasurementHostSessionController? _measurementSession;
+  var _disposed = false;
+
+  void attachMeasurementSession(MeasurementHostSessionController session) {
+    if (_disposed || _measurementSession != null) {
+      unawaited(session.teardown());
+      return;
+    }
+    _measurementSession = session;
+  }
+
+  Object? sanitizeAndRecordEvent(Object? rawValue) {
+    final measurementSession = _measurementSession;
+    if (measurementSession != null) {
+      try {
+        return measurementSession.sanitizeAndRecordEvent(rawValue);
+      } on Object {
+        // Measurement must not change the host's ordinary event behavior.
+      }
+    }
+    return MeasurementEventSanitizer.sanitize(rawValue).businessValue;
+  }
+
+  Widget wrapMeasuredRoot(Widget child) =>
+      _measurementSession?.wrapRootSubtree(child) ?? child;
+
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    final measurementSession = _measurementSession;
+    if (measurementSession != null) unawaited(measurementSession.teardown());
     presentation.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) => runtime.dispose());
   }
 }
+
+/// Deprecated spelling of [RestageScreen].
+///
+/// The host widget is named after the `@Screen` annotation that produces
+/// what it mounts. Removed at 3.0.
+@Deprecated('Use RestageScreen')
+typedef RestageSurfaceScreen<E> = RestageScreen<E>;

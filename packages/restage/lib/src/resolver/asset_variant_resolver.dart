@@ -4,11 +4,13 @@ import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show kPaywallScreensAssetDir;
+    show SurfacePublicationArtifactRole, kPaywallScreensAssetDir;
 
 import '../assets/bundled_asset_source.dart';
 import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_resolver.dart';
+import '../measurement/bundled_measurement_publication_binding_read_port.dart';
+import '../measurement/measurement_bundled_generated_source_provenance.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/paywall_error.dart';
 import 'asset_paywall_flow_preflight.dart';
@@ -88,11 +90,14 @@ final class AssetVariantResolver
         },
       );
       return FlowPaywallPayload(
-        flow: ResolvedFlow(
-          document: artifacts.document,
-          screenBlobs: artifacts.screenBlobs,
-          contentHash: artifacts.documentHash,
-          cacheHit: false,
+        flow: attachMeasurementBundledGeneratedArtifactClosureCarrier(
+          ResolvedFlow(
+            document: artifacts.document,
+            screenBlobs: artifacts.screenBlobs,
+            contentHash: artifacts.documentHash,
+            cacheHit: false,
+          ),
+          bundledMeasurementGeneratedArtifactClosureForFlowArtifacts(artifacts),
         ),
         paywallId: id,
       );
@@ -118,9 +123,22 @@ final class AssetVariantResolver
     final path = '$assetPathPrefix/$id.rfw';
     try {
       final data = await _effectiveBundle.load(path);
-      return ResolvedVariant(
-        bytes: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-        paywallId: id,
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      return await attachMeasurementBundledGeneratedArtifactClosureCarrier(
+        ResolvedVariant(bytes: bytes, paywallId: id),
+        MeasurementBundledGeneratedArtifactClosureCarrier(
+          artifacts: <MeasurementBundledGeneratedArtifact>[
+            MeasurementBundledGeneratedArtifact.fromBytes(
+              logicalPath: path,
+              role: SurfacePublicationArtifactRole.screenBlob,
+              id: id,
+              bytes: bytes,
+            ),
+          ],
+        ),
       );
     } on FlutterError catch (e) {
       throw RestagePaywallError(

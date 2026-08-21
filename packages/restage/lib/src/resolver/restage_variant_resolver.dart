@@ -4,6 +4,7 @@ import 'dart:ui' show Locale;
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
@@ -26,6 +27,7 @@ import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_artifact_metadata.dart';
 import '../flow/flow_experiment_mount.dart';
 import '../flow/flow_resolver.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_artifact_assembly.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
@@ -283,8 +285,11 @@ final class RestageVariantResolver
     // never be accepted — the ladder fails closed rather than serving it ungated.
     final held = _cache[id];
     final bundled = (fresh is _FreshFlow || held is _CachedFlow)
-        ? await _bundledFlowPayload(id,
-            placementId: placementId, locale: locale)
+        ? await _bundledFlowPayload(
+            id,
+            placementId: placementId,
+            locale: locale,
+          )
         : null;
 
     // Tier 1 (flow) — gate the fresh active document. A retained-check failure
@@ -300,6 +305,7 @@ final class RestageVariantResolver
         experimentId: fresh.experimentId,
         variantId: fresh.variantId,
         experimentEpoch: fresh.experimentEpoch,
+        publicationBindingReference: fresh.publicationBindingReference,
       );
       if (arm is FlowPaywallActiveAccepted) {
         _requireCurrent(fresh.assignmentLease);
@@ -309,6 +315,7 @@ final class RestageVariantResolver
           experimentId: fresh.experimentId,
           variantId: fresh.variantId,
           experimentEpoch: fresh.experimentEpoch,
+          publicationBindingReference: fresh.publicationBindingReference,
           assignmentLease: fresh.assignmentLease,
         );
         if (!deferFreshPublication) {
@@ -336,12 +343,8 @@ final class RestageVariantResolver
     try {
       final fallback = _assetFallback;
       if (fallback is FlowCapableVariantResolver) {
-        final payload =
-            await (fallback as FlowCapableVariantResolver).resolvePayload(
-          id,
-          placementId: placementId,
-          locale: locale,
-        );
+        final payload = await (fallback as FlowCapableVariantResolver)
+            .resolvePayload(id, placementId: placementId, locale: locale);
         return withoutAssignmentLeaseForDelivery(payload);
       }
       final variant = await fallback.resolve(
@@ -362,13 +365,15 @@ final class RestageVariantResolver
     String id,
     _CachedPayload cacheEntry,
   ) =>
-      HostedPayloadPublication(onCommit: () {
-        // Paint-time host validation already checked the same lease. Re-affirm
-        // here so a token can never publish after an identity boundary even if
-        // it is invoked independently or more than once.
-        if (!cacheEntry.assignmentLease.isCurrent) return;
-        _cache[id] = cacheEntry;
-      });
+      HostedPayloadPublication(
+        onCommit: () {
+          // Paint-time host validation already checked the same lease. Re-affirm
+          // here so a token can never publish after an identity boundary even if
+          // it is invoked independently or more than once.
+          if (!cacheEntry.assignmentLease.isCurrent) return;
+          _cache[id] = cacheEntry;
+        },
+      );
 
   /// Fetches + validates the active hosted version. Returns the fresh outcome:
   /// a renderable blob (with the manifest needed to re-gate a cache hit), a
@@ -464,13 +469,16 @@ final class RestageVariantResolver
         return _FreshRejected(capabilityGap: gateVerdict.message);
       }
 
-      final variant = ResolvedVariant(
-        bytes: payload.blob,
-        paywallId: id,
-        variantId: result.variantId,
-        experimentId: result.experimentId,
-        experimentEpoch: result.experimentEpoch,
-        paywallPublishedVersion: document.version,
+      final variant = attachMeasurementPublicationBindingReference(
+        ResolvedVariant(
+          bytes: payload.blob,
+          paywallId: id,
+          variantId: result.variantId,
+          experimentId: result.experimentId,
+          experimentEpoch: result.experimentEpoch,
+          paywallPublishedVersion: document.version,
+        ),
+        result.publicationBindingReference,
       );
       return _FreshBlob(
         _CachedBlob(
@@ -492,6 +500,7 @@ final class RestageVariantResolver
         result.experimentId,
         result.variantId,
         result.experimentEpoch,
+        result.publicationBindingReference,
         assignmentLease,
       );
     }
@@ -552,13 +561,11 @@ final class RestageVariantResolver
         experimentId: cached.experimentId,
         variantId: cached.variantId,
         experimentEpoch: cached.experimentEpoch,
+        publicationBindingReference: cached.publicationBindingReference,
         cacheHit: true,
       );
       if (arm is FlowPaywallActiveAccepted) {
-        return stampFlowPayloadForDelivery(
-          arm.payload,
-          cached.assignmentLease,
-        );
+        return stampFlowPayloadForDelivery(arm.payload, cached.assignmentLease);
       }
     }
     return null;
@@ -591,12 +598,19 @@ final class RestageVariantResolver
     if (!lease.isCurrent) throw const StaleSurfaceAssignmentResolution();
   }
 
-  // Re-emit [variant] as a cache hit. copyWith carries every field through, so
-  // a field added to ResolvedVariant can't be silently reset on cache hits.
+  // Re-emit [variant] as a cache hit and retain its exact, already-delivered
+  // Measurement provenance. This is the only safe copy path: public copyWith
+  // may change the payload identity and must not inherit a binding reference.
   ResolvedVariant _asCacheHit(ResolvedVariant variant) =>
-      variant.copyWith(cacheHit: true);
+      attachMeasurementPublicationBindingReference(
+        variant.copyWith(cacheHit: true),
+        measurementPublicationBindingReferenceFor(variant),
+      );
 
-  RestagePaywallError _unavailable(String id, [String? capabilityGap]) =>
+  RestagePaywallError _unavailable(
+    String id, [
+    String? capabilityGap,
+  ]) =>
       RestagePaywallError(
         code: RestageErrorCodes.deliveryUnavailable,
         message: capabilityGap == null
@@ -746,8 +760,8 @@ final class _RestagePaywallExperimentPresentation
   Future<FlowPaywallPayload?> resolveNextPayload() => resolvePayload();
 
   bool _baselineCanAdvertise(FlowMountContractSnapshot snapshot) {
-    final verdict = FlowExperimentEligibilityEvaluatorV1.evaluate(
-      FlowExperimentVerdictInputV1(
+    final verdict = FlowExperimentEligibilityEvaluator.evaluate(
+      FlowExperimentVerdictInput(
         clientBaselineClosure: snapshot.clientBaselineClosure,
         candidateArmClosure: snapshot.clientBaselineClosure,
         installedCapability: snapshot.seed.installedCapability,
@@ -804,14 +818,17 @@ final class _RestagePaywallExperimentPresentation
     if (assignment != null && snapshot.assignmentKey == null) return null;
 
     final candidate = _own(
-      ResolvedFlow(
-        document: decoded.document,
-        screenBlobs: decoded.screenBlobs,
-        contentHash: FlowContentHash.compute(
-          FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+      attachMeasurementPublicationBindingReference(
+        ResolvedFlow(
+          document: decoded.document,
+          screenBlobs: decoded.screenBlobs,
+          contentHash: FlowContentHash.compute(
+            FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+          ),
+          cacheHit: false,
+          assignment: assignment,
         ),
-        cacheHit: false,
-        assignment: assignment,
+        result.publicationBindingReference,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -852,10 +869,7 @@ final class _RestagePaywallExperimentPresentation
         message: 'The paywall flow presentation no longer owns resolution.',
       );
     }
-    _requireCurrent(
-      snapshot,
-      FlowMountRevalidationBoundary.candidatePrefetch,
-    );
+    _requireCurrent(snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
     final SurfaceFetchResult? result;
     try {
       result = await owner._client!.fetchSurface(
@@ -870,10 +884,7 @@ final class _RestagePaywallExperimentPresentation
     } on SurfaceRequestPublicationRejected {
       throw const StaleSurfaceAssignmentResolution();
     }
-    _requireCurrent(
-      snapshot,
-      FlowMountRevalidationBoundary.candidatePrefetch,
-    );
+    _requireCurrent(snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
     if (result == null ||
         result.decision == 'assigned' ||
         _flowAssignmentOf(result) != null) {
@@ -900,13 +911,16 @@ final class _RestagePaywallExperimentPresentation
       );
     }
     return _own(
-      ResolvedFlow(
-        document: decoded.document,
-        screenBlobs: decoded.screenBlobs,
-        contentHash: FlowContentHash.compute(
-          FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+      attachMeasurementPublicationBindingReference(
+        ResolvedFlow(
+          document: decoded.document,
+          screenBlobs: decoded.screenBlobs,
+          contentHash: FlowContentHash.compute(
+            FlowDocumentCodec.encodeCanonicalJson(decoded.document),
+          ),
+          cacheHit: false,
         ),
-        cacheHit: false,
+        result.publicationBindingReference,
       ),
       requiredLibraries: decoded.requiredLibraries,
     );
@@ -1103,9 +1117,7 @@ FlowAssignment? _flowAssignmentOf(SurfaceFetchResult result) {
   );
 }
 
-Map<String, Object?> _identityPaywallFlowResult(
-  Map<String, Object?> value,
-) =>
+Map<String, Object?> _identityPaywallFlowResult(Map<String, Object?> value) =>
     value;
 
 /// Outcome of a fresh hosted fetch: a renderable blob (+ its cache entry), a
@@ -1136,6 +1148,7 @@ final class _FreshFlow extends _FreshOutcome {
     this.experimentId,
     this.variantId,
     this.experimentEpoch,
+    this.publicationBindingReference,
     this.assignmentLease,
   );
 
@@ -1144,6 +1157,7 @@ final class _FreshFlow extends _FreshOutcome {
   final String? experimentId;
   final String? variantId;
   final int? experimentEpoch;
+  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
   final SurfaceAssignmentResolutionLease assignmentLease;
 }
 
@@ -1186,6 +1200,7 @@ final class _CachedFlow extends _CachedPayload {
     required this.experimentId,
     required this.variantId,
     required this.experimentEpoch,
+    required this.publicationBindingReference,
     required super.assignmentLease,
   });
 
@@ -1198,6 +1213,7 @@ final class _CachedFlow extends _CachedPayload {
   final String? experimentId;
   final String? variantId;
   final int? experimentEpoch;
+  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
 }
 
 /// Adds the exact assignment/publication transaction to a flow payload.

@@ -26,9 +26,9 @@ OnboardingEventHandler? activeOnboardingEventDispatcher() =>
 /// Authored events fired in the subtree route to the flow controller's current
 /// screen. Generated screen event references replace the helper at build time;
 /// this dispatcher serves local-Dart widget compositions.
-class RestageSurfaceEventDispatcher extends StatefulWidget {
+class RestageEventDispatcher extends StatefulWidget {
   /// Wraps [child] and routes authored flow events fired in its subtree.
-  const RestageSurfaceEventDispatcher({
+  const RestageEventDispatcher({
     super.key,
     required this.onEvent,
     required this.child,
@@ -41,16 +41,14 @@ class RestageSurfaceEventDispatcher extends StatefulWidget {
   final Widget child;
 
   @override
-  State<RestageSurfaceEventDispatcher> createState() =>
-      _RestageSurfaceEventDispatcherState();
+  State<RestageEventDispatcher> createState() => _RestageEventDispatcherState();
 }
 
-/// Deprecated compatibility spelling for [RestageSurfaceEventDispatcher].
-@Deprecated('Use RestageSurfaceEventDispatcher instead.')
-typedef RestageOnboardingEventDispatcher = RestageSurfaceEventDispatcher;
+/// Deprecated compatibility spelling for [RestageEventDispatcher].
+@Deprecated('Use RestageEventDispatcher instead.')
+typedef RestageOnboardingEventDispatcher = RestageEventDispatcher;
 
-class _RestageSurfaceEventDispatcherState
-    extends State<RestageSurfaceEventDispatcher> {
+class _RestageEventDispatcherState extends State<RestageEventDispatcher> {
   @override
   void initState() {
     super.initState();
@@ -58,7 +56,7 @@ class _RestageSurfaceEventDispatcherState
   }
 
   @override
-  void didUpdateWidget(RestageSurfaceEventDispatcher oldWidget) {
+  void didUpdateWidget(RestageEventDispatcher oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.onEvent, widget.onEvent)) {
       final index = _dispatcherStack.lastIndexOf(oldWidget.onEvent);
@@ -80,3 +78,9 @@ class _RestageSurfaceEventDispatcherState
   @override
   Widget build(BuildContext context) => widget.child;
 }
+
+/// Deprecated spelling of [RestageEventDispatcher].
+///
+/// Removed at 3.0.
+@Deprecated('Use RestageEventDispatcher')
+typedef RestageSurfaceEventDispatcher = RestageEventDispatcher;

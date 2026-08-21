@@ -165,12 +165,10 @@ void main() {
     expect(runtime.libraries, isEmpty);
   });
 
-  test('identify / track / reset are no-ops with debug warning', () {
+  test('reset is a no-op when configure was given no baseUrl', () {
     Restage.configure(apiKey: 'rs_pk_test');
-    Restage.identify('user_42', attributes: {'tier': 'gold'});
-    Restage.track('app_open');
     Restage.reset();
-    // No assertion — just verifies they don't throw.
+    // No assertion — just verifies it does not throw with no actor to rotate.
   });
 
   test(

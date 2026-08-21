@@ -5,6 +5,8 @@ import 'package:restage/restage.dart';
 // the barrel, but tests reach in to verify per-mount apply behavior.
 // ignore: implementation_imports
 import 'package:restage/src/runtime/library_runtime_registry.dart';
+// ignore: implementation_imports
+import 'package:restage/src/measurement/measurement_rfw_presentation.dart';
 import 'package:restage_shared/restage_shared.dart' show LibraryRequirement;
 // `rfw` exposes its own `WidgetLibrary` (the runtime's decoded-library
 // type). The catalog `WidgetLibrary` from `restage_shared` is what
@@ -91,6 +93,27 @@ void main() {
       );
       expect(LibraryRuntimeRegistry.isRegistered(namespace), isFalse);
     }
+  });
+
+  test('reserved measurement namespace asserts without claiming a capability',
+      () {
+    final namespace = kMeasurementRfwPresentationLibrary.parts.join('.');
+
+    expect(
+      () => _registerOne(namespace, 'CustomerMeasurementPresented'),
+      throwsAssertionError,
+    );
+    expect(LibraryRuntimeRegistry.isRegistered(namespace), isFalse);
+    expect(
+      LibraryRuntimeRegistry.installedSnapshot()
+          .map((entry) => entry.namespace),
+      isNot(contains(namespace)),
+    );
+    expect(
+      Restage.widgetLibraryRegistrations
+          .map((entry) => entry.library.namespace),
+      isNot(contains(namespace)),
+    );
   });
 
   test('normal custom-namespace registration is unchanged', () {

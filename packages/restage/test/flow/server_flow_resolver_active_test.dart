@@ -11,8 +11,10 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_event_mapper.dart';
 import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
 import 'package:restage/src/flow/flow_resolver.dart' show ActiveArmFlowResolver;
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import 'flow_test_support.dart';
@@ -71,7 +73,7 @@ void main() {
     );
 
     await tester.pumpWidget(MaterialApp(
-      home: RestageSurfaceFlow<Map<String, Object?>>(
+      home: RestageFlowGraph<Map<String, Object?>>(
         flow: flowRef,
         resolver: resolver,
         unavailable: const FlowUnavailablePolicy.hide(),
@@ -205,6 +207,7 @@ void main() {
   test('active fetch fails → hold-last-good (re-gated) when present', () async {
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
+    final bindingReference = _bindingReference('a');
     var fetches = 0;
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
@@ -215,6 +218,7 @@ void main() {
         _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
         liveFor: 1,
         onRequest: (_) => fetches++,
+        publicationBindingReference: bindingReference,
       ),
     );
 
@@ -226,6 +230,14 @@ void main() {
     expect(second.document.version, 2);
     expect(second.screenBlobs['welcome'], activeBytes);
     expect(second.cacheHit, isTrue);
+    expect(
+      measurementPublicationBindingReferenceFor(first),
+      bindingReference,
+    );
+    expect(
+      measurementPublicationBindingReferenceFor(second),
+      bindingReference,
+    );
     final provider = resolver as FlowExperimentArtifactMetadataProvider;
     for (final resolved in [first, second]) {
       final metadata = provider.metadataFor(resolved);
@@ -570,6 +582,7 @@ MockClient _flakyServer(
   Uint8List envelope, {
   required int liveFor,
   void Function(http.Request request)? onRequest,
+  MeasurementPublicationBindingReferenceV1? publicationBindingReference,
 }) {
   var seen = 0;
   return _delivery.client((request) async {
@@ -578,6 +591,11 @@ MockClient _flakyServer(
       return http.Response(
         jsonEncode({..._delivery.describeEnvelope(envelope)}),
         200,
+        headers: {
+          if (publicationBindingReference != null)
+            'Restage-Measurement-Publication-Binding-V1':
+                _bindingHeader(publicationBindingReference),
+        },
       );
     }
     return http.Response('not found', 404);
@@ -586,6 +604,31 @@ MockClient _flakyServer(
 
 MockClient _notFoundServer() =>
     _delivery.client((request) async => http.Response('not found', 404));
+
+String _bindingHeader(MeasurementPublicationBindingReferenceV1 reference) =>
+    base64UrlEncode(reference.canonicalBytes).replaceAll('=', '');
+
+MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
+  final candidate = MeasurementPublicationCandidateReferenceV1(
+    candidateDigest: CanonicalDigest(seed * 64),
+    selectedPublicationManifestDigest: CanonicalDigest('b' * 64),
+    declaredArtifactBytesDigest: CanonicalDigest('c' * 64),
+    assembledPublicationUploadDigest: CanonicalDigest('d' * 64),
+    measurementPublicationDraftDigest: CanonicalDigest('e' * 64),
+  );
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId: MeasurementPublicationAuthorityId(
+        'authority.active-flow.$seed',
+      ),
+      externalPublicationAuthorityRef: 'mpa1.${seed.toUpperCase() * 32}',
+      candidateReference: candidate,
+      immutablePublicationDigest: CanonicalDigest('f' * 64),
+      declaredArtifactBytesDigest: candidate.declaredArtifactBytesDigest,
+    ),
+    bindingDigest: CanonicalDigest('0' * 64),
+  );
+}
 
 final class _TestBundle extends CachingAssetBundle {
   _TestBundle(this._assets);

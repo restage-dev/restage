@@ -6,6 +6,7 @@ import 'package:restage_shared/flow_experiment.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' show decodeLibraryBlob;
 
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
@@ -70,7 +71,7 @@ final class FlowMountRuntimeSeedSource {
   final FlowActionRegistry? actions;
   final Set<String> installedSignalNames;
 
-  List<FlowActionBindingFingerprintV1>? _previousActionBindings;
+  List<FlowActionBindingFingerprint>? _previousActionBindings;
   List<String>? _previousSignals;
   int _actionGeneration = 0;
   int _signalGeneration = 0;
@@ -96,8 +97,9 @@ final class FlowMountRuntimeSeedSource {
         !_stringsEqual(previousSignals, signalSnapshot)) {
       _signalGeneration += 1;
     }
-    _previousActionBindings =
-        List<FlowActionBindingFingerprintV1>.unmodifiable(actionFingerprints);
+    _previousActionBindings = List<FlowActionBindingFingerprint>.unmodifiable(
+      actionFingerprints,
+    );
     _previousSignals = List<String>.unmodifiable(signalSnapshot);
 
     return FlowMountLeaseSeed.capture(
@@ -170,7 +172,7 @@ final class FlowMountLeaseSeed {
     required this.actionGeneration,
     required this.signalGeneration,
     required this.installedCapability,
-    required List<FlowActionBindingFingerprintV1> actionBindings,
+    required List<FlowActionBindingFingerprint> actionBindings,
     required List<String> installedSignals,
   })  : actionBindings = List.unmodifiable(actionBindings),
         installedSignals = List.unmodifiable(installedSignals);
@@ -187,7 +189,7 @@ final class FlowMountLeaseSeed {
   final int actionGeneration;
   final int signalGeneration;
   final InstalledCapability installedCapability;
-  final List<FlowActionBindingFingerprintV1> actionBindings;
+  final List<FlowActionBindingFingerprint> actionBindings;
   final List<String> installedSignals;
 
   bool sameIdentityAs(FlowMountLeaseSeed other) {
@@ -209,10 +211,7 @@ final class FlowMountLeaseSeed {
   }
 }
 
-enum FlowMountSnapshotRejection {
-  seedDrift,
-  closureInvalid,
-}
+enum FlowMountSnapshotRejection { seedDrift, closureInvalid }
 
 sealed class FlowMountSnapshotOutcome {
   const FlowMountSnapshotOutcome();
@@ -265,7 +264,7 @@ final class FlowMountContractSnapshotBuilder {
       final contract = FlowExperimentClientContractV1(
         surfaceType: seed.surfaceType,
         deliveryMode: seed.deliveryMode,
-        descriptor: FlowExperimentDescriptorV1(
+        descriptor: FlowExperimentDescriptor(
           id: seed.flowId,
           version: seed.flowVersion,
           minClient: seed.minimumClient,
@@ -275,17 +274,19 @@ final class FlowMountContractSnapshotBuilder {
         actionBindings: seed.actionBindings,
         installedSignals: seed.installedSignals,
       );
-      return FlowMountSnapshotSealed(FlowMountContractSnapshot(
-        seed: seed,
-        assignmentKey: assignmentKey,
-        clientBaselineClosure: loaded.toClosure(seed.minimumClient),
-        contract: contract,
-        baselineRoot: loaded.rootFlow,
-        baselineResolver: _PinnedFlowResolver(
-          surfaceType: seed.surfaceType,
-          flows: loaded.flows,
+      return FlowMountSnapshotSealed(
+        FlowMountContractSnapshot(
+          seed: seed,
+          assignmentKey: assignmentKey,
+          clientBaselineClosure: loaded.toClosure(seed.minimumClient),
+          contract: contract,
+          baselineRoot: loaded.rootFlow,
+          baselineResolver: _PinnedFlowResolver(
+            surfaceType: seed.surfaceType,
+            flows: loaded.flows,
+          ),
         ),
-      ));
+      );
     } on _SeedDrift {
       return const FlowMountSnapshotRejected(
         FlowMountSnapshotRejection.seedDrift,
@@ -318,13 +319,14 @@ final class FlowMountContractSnapshot {
     required this.contract,
     required this.baselineRoot,
     required this.baselineResolver,
-  })  : _canonicalBytes =
-            Uint8List.fromList(contract.canonicalBytes).asUnmodifiableView(),
+  })  : _canonicalBytes = Uint8List.fromList(
+          contract.canonicalBytes,
+        ).asUnmodifiableView(),
         contentHash = contract.contentHash;
 
   final FlowMountLeaseSeed seed;
   final String? assignmentKey;
-  final FlowExperimentClosureV1 clientBaselineClosure;
+  final FlowExperimentClosure clientBaselineClosure;
   final FlowExperimentClientContractV1 contract;
   final ResolvedFlow baselineRoot;
   final FlowResolver baselineResolver;
@@ -369,8 +371,8 @@ final class FlowCandidatePrefetchAccepted extends FlowCandidatePrefetchOutcome {
 
   final ResolvedFlow candidateRoot;
   final FlowResolver resolver;
-  final FlowExperimentClosureV1 candidateClosure;
-  final FlowExperimentVerdictV1 verdict;
+  final FlowExperimentClosure candidateClosure;
+  final FlowExperimentVerdict verdict;
 
   FlowCandidatePrefetchAccepted asCacheHit() {
     final cacheHitResolver = (resolver as _PinnedFlowResolver).asCacheHit();
@@ -427,8 +429,8 @@ abstract final class FlowCandidatePrefetcher {
       }
 
       final closure = loaded.toClosure(snapshot.seed.minimumClient);
-      final verdict = FlowExperimentEligibilityEvaluatorV1.evaluate(
-        FlowExperimentVerdictInputV1(
+      final verdict = FlowExperimentEligibilityEvaluator.evaluate(
+        FlowExperimentVerdictInput(
           clientBaselineClosure: snapshot.clientBaselineClosure,
           candidateArmClosure: closure,
           installedCapability: snapshot.seed.installedCapability,
@@ -519,12 +521,15 @@ final class _PinnedFlowResolver implements FlowResolver {
 }
 
 ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
-  return ResolvedFlow(
-    document: flow.document,
-    screenBlobs: flow.screenBlobs,
-    contentHash: flow.contentHash,
-    cacheHit: true,
-    assignment: flow.assignment,
+  return attachMeasurementPublicationBindingReference(
+    ResolvedFlow(
+      document: flow.document,
+      screenBlobs: flow.screenBlobs,
+      contentHash: flow.contentHash,
+      cacheHit: true,
+      assignment: flow.assignment,
+    ),
+    measurementPublicationBindingReferenceFor(flow),
   );
 }
 
@@ -545,13 +550,15 @@ final class _FlowExperimentClosureLoader {
   var _allPayloadIntegrityVerified = true;
 
   Future<_LoadedClosure> loadBaseline() async {
-    final root = await resolver.resolve<Object?>(OnboardingFlowRef<Object?>(
-      id: seed.flowId,
-      version: seed.flowVersion,
-      minClient: seed.minimumClient,
-      surface: seed.surfaceType,
-      decodeResult: _identityResult,
-    ));
+    final root = await resolver.resolve<Object?>(
+      OnboardingFlowRef<Object?>(
+        id: seed.flowId,
+        version: seed.flowVersion,
+        minClient: seed.minimumClient,
+        surface: seed.surfaceType,
+        decodeResult: _identityResult,
+      ),
+    );
     _checkSeed();
     await _visit(
       root,
@@ -586,13 +593,9 @@ final class _FlowExperimentClosureLoader {
     return _LoadedClosure(
       root: rootDocument.contract,
       rootFlow: rootDocument.flow,
-      documents: [
-        for (final loaded in _loaded.values) loaded.contract,
-      ],
-      flows: {
-        for (final entry in _loaded.entries) entry.key: entry.value.flow,
-      },
-      integrity: FlowExperimentArtifactIntegrityV1(
+      documents: [for (final loaded in _loaded.values) loaded.contract],
+      flows: {for (final entry in _loaded.entries) entry.key: entry.value.flow},
+      integrity: FlowExperimentArtifactIntegrity(
         payloadIntegrityVerified: _allPayloadIntegrityVerified,
         screenIntegrityVerified: true,
         rfwIntegrityVerified: true,
@@ -630,7 +633,7 @@ final class _FlowExperimentClosureLoader {
       _allPayloadIntegrityVerified &= metadata.payloadIntegrityVerified;
       _loaded[identity] = _LoadedDocument(
         flow: resolved,
-        contract: FlowExperimentDocumentContractV1(
+        contract: FlowExperimentDocumentContract(
           surfaceType: seed.surfaceType,
           flowId: document.flow,
           version: document.version,
@@ -657,13 +660,15 @@ final class _FlowExperimentClosureLoader {
       if (cached != null) {
         child = cached;
       } else {
-        child = await resolver.resolve<Object?>(OnboardingFlowRef<Object?>(
-          id: state.flow,
-          version: state.version,
-          minClient: state.minClient,
-          surface: seed.surfaceType,
-          decodeResult: _identityResult,
-        ));
+        child = await resolver.resolve<Object?>(
+          OnboardingFlowRef<Object?>(
+            id: state.flow,
+            version: state.version,
+            minClient: state.minClient,
+            surface: seed.surfaceType,
+            decodeResult: _identityResult,
+          ),
+        );
         _checkSeed();
       }
       await _visit(
@@ -676,10 +681,7 @@ final class _FlowExperimentClosureLoader {
     }
   }
 
-  void _validateResolved(
-    ResolvedFlow resolved,
-    _ExpectedDocument expected,
-  ) {
+  void _validateResolved(ResolvedFlow resolved, _ExpectedDocument expected) {
     final document = resolved.document;
     if (document.flow != expected.flowId ||
         (expected.version != null && document.version != expected.version) ||
@@ -741,14 +743,14 @@ final class _LoadedClosure {
     required this.integrity,
   });
 
-  final FlowExperimentDocumentContractV1 root;
+  final FlowExperimentDocumentContract root;
   final ResolvedFlow rootFlow;
-  final List<FlowExperimentDocumentContractV1> documents;
+  final List<FlowExperimentDocumentContract> documents;
   final Map<String, ResolvedFlow> flows;
-  final FlowExperimentArtifactIntegrityV1 integrity;
+  final FlowExperimentArtifactIntegrity integrity;
 
-  FlowExperimentClosureV1 toClosure(int rootCapability) {
-    return FlowExperimentClosureV1(
+  FlowExperimentClosure toClosure(int rootCapability) {
+    return FlowExperimentClosure(
       root: root,
       rootCapability: rootCapability,
       documents: documents,
@@ -758,13 +760,10 @@ final class _LoadedClosure {
 }
 
 final class _LoadedDocument {
-  const _LoadedDocument({
-    required this.flow,
-    required this.contract,
-  });
+  const _LoadedDocument({required this.flow, required this.contract});
 
   final ResolvedFlow flow;
-  final FlowExperimentDocumentContractV1 contract;
+  final FlowExperimentDocumentContract contract;
 }
 
 final class _ExpectedDocument {
@@ -797,10 +796,7 @@ final class _SeedDrift implements Exception {
   const _SeedDrift();
 }
 
-bool _seedIsCurrent(
-  FlowMountLeaseSeed seed,
-  FlowMountSeedCapture captureSeed,
-) {
+bool _seedIsCurrent(FlowMountLeaseSeed seed, FlowMountSeedCapture captureSeed) {
   try {
     return seed.sameIdentityAs(captureSeed());
   } on Object {
@@ -837,8 +833,8 @@ bool _stringsEqual(List<String> left, List<String> right) {
 }
 
 bool _actionBindingsEqual(
-  List<FlowActionBindingFingerprintV1> left,
-  List<FlowActionBindingFingerprintV1> right,
+  List<FlowActionBindingFingerprint> left,
+  List<FlowActionBindingFingerprint> right,
 ) {
   if (left.length != right.length) return false;
   for (var index = 0; index < left.length; index += 1) {
@@ -857,12 +853,12 @@ bool _actionBindingsEqual(
   return true;
 }
 
-List<FlowActionBindingFingerprintV1> _fingerprintActionBindings(
+List<FlowActionBindingFingerprint> _fingerprintActionBindings(
   Map<String, FlowActionBinding<dynamic, dynamic>> bindings,
 ) {
   final fingerprints = [
     for (final entry in bindings.entries)
-      FlowActionBindingFingerprintV1(
+      FlowActionBindingFingerprint(
         actionId: entry.key,
         actionName: entry.value.actionName,
         contractVersion: entry.value.contractVersion,

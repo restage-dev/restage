@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -10,7 +9,7 @@ import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_event_mapper.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
-import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 import 'package:rfw/formats.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -241,17 +240,10 @@ void main() {
   });
 
   testWidgets(
-      'Restage.reset changes identity synchronously, leaves no fabricated '
-      'surface session, and paywall mounts do not leak one into global track',
-      (tester) async {
-    final postedEvents = <Map<String, Object?>>[];
-    Restage.debugAnalyticsHttpClient = MockClient((request) async {
-      final body = jsonDecode(request.body) as Map<String, Object?>;
-      postedEvents.addAll(
-        (body['events']! as List<Object?>).cast<Map<String, Object?>>(),
-      );
-      return http.Response('', 200);
-    });
+      'Restage.reset rotates the assignment key synchronously across a real '
+      'paywall mount', (tester) async {
+    Restage.debugAnalyticsHttpClient =
+        MockClient((_) async => http.Response('', 200));
     Restage.configure(
       apiKey: 'rs_pk_test',
       baseUrl: 'http://127.0.0.1:1',
@@ -261,52 +253,29 @@ void main() {
     await _mountPaywall(tester, id: 'before-reset', resolver: resolver);
     final oldAssignmentKey = await SurfaceAssignmentKeyProvider.resolve();
 
-    Restage.identify('customer-before-reset');
-    Restage.track('queued_before_reset');
-
     // reset() is synchronous at its public boundary: code that fires or fetches
     // immediately after this call must already see the new participant.
     Restage.reset();
-    Restage.track('immediate_after_reset');
     final immediateAssignmentKey = await SurfaceAssignmentKeyProvider.resolve();
 
     await tester.pump();
     await Restage.debugFlushAnalytics();
-
-    final beforeReset = _posted(postedEvents, 'queued_before_reset');
-    final afterReset = _posted(postedEvents, 'immediate_after_reset');
-    final oldSurfaceSessionId = beforeReset['surfaceSessionId'] as String?;
-
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
+
+    // A later real mount stays on the post-reset participant rather than
+    // recovering the retired one.
     await _mountPaywall(tester, id: 'after-reset', resolver: resolver);
-    Restage.track('after_real_mount');
+    final afterRealMountKey = await SurfaceAssignmentKeyProvider.resolve();
     await tester.pump();
     await Restage.debugFlushAnalytics();
-
-    final afterRealMount = _posted(postedEvents, 'after_real_mount');
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
 
     expect(oldAssignmentKey, isNotNull);
+    expect(immediateAssignmentKey, isNotNull);
     expect(immediateAssignmentKey, isNot(oldAssignmentKey));
-
-    // The queued pre-reset event keeps its old actor; app-global track events
-    // never inherit a paywall owner's root session. The immediate post-reset
-    // event has the new actor/session, no user, and no invented presentation.
-    expect(beforeReset['anonymousId'], oldAssignmentKey);
-    expect(beforeReset['userId'], 'customer-before-reset');
-    expect(oldSurfaceSessionId, isNull);
-    expect(afterReset['anonymousId'], immediateAssignmentKey);
-    expect(afterReset['anonymousId'], isNot(beforeReset['anonymousId']));
-    expect(afterReset['sessionId'], isNot(beforeReset['sessionId']));
-    expect(afterReset['userId'], isNull);
-    expect(afterReset['surfaceSessionId'], isNull);
-
-    expect(afterRealMount['anonymousId'], immediateAssignmentKey);
-    expect(afterRealMount['sessionId'], afterReset['sessionId']);
-    expect(afterRealMount['userId'], isNull);
-    expect(afterRealMount['surfaceSessionId'], isNull);
+    expect(afterRealMountKey, immediateAssignmentKey);
   });
 }
 
@@ -359,12 +328,6 @@ Future<SharedPreferences> _preferencesSnapshot(Map<String, Object> values) {
   SharedPreferences.setMockInitialValues(values);
   return SharedPreferences.getInstance();
 }
-
-Map<String, Object?> _posted(
-  List<Map<String, Object?>> events,
-  String name,
-) =>
-    events.singleWhere((event) => event['name'] == name);
 
 Future<void> _mountPaywall(
   WidgetTester tester, {

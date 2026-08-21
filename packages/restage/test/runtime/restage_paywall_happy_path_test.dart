@@ -185,9 +185,7 @@ void main() {
     expect(viewed['experimentEpoch'], 4);
   });
 
-  testWidgets(
-      'prepaint paywall lifecycle is owner-bound while global track stays '
-      'surface-anonymous', (tester) async {
+  testWidgets('prepaint paywall lifecycle is owner-bound', (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
     final resolver = _ControlledResolver();
@@ -200,7 +198,6 @@ void main() {
       ),
     );
     await tester.pump();
-    Restage.track('global_during_paywall');
 
     final events = await _capturedEvents(requests);
     final started = events.singleWhere(
@@ -213,14 +210,6 @@ void main() {
     expect(started['experimentId'], isNull);
     expect(started['variantId'], isNull);
     expect(started['experimentEpoch'], isNull);
-
-    final global = events.singleWhere(
-      (event) => event['name'] == 'global_during_paywall',
-    );
-    expect(global['surface'], isNull);
-    expect(global['surfaceId'], isNull);
-    expect(global['surfaceVersion'], isNull);
-    expect(global['surfaceSessionId'], isNull);
 
     resolver.response.complete(
       ResolvedVariant(

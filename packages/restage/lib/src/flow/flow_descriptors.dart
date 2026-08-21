@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../surface_screen/surface_screen_runtime_provenance.dart';
 
 /// Base type for valid flow transition targets.
@@ -12,10 +13,7 @@ sealed class FlowTargetRef {
 
 /// Base type for generated screen references that may occur in a flow.
 sealed class FlowScreenRef extends FlowTargetRef {
-  const FlowScreenRef({
-    required this.slug,
-    required this.contractVersion,
-  });
+  const FlowScreenRef({required this.slug, required this.contractVersion});
 
   /// Stable screen identity.
   final String slug;
@@ -61,6 +59,31 @@ final class NeutralFlowScreenRef extends FlowScreenRef {
         _capabilities = capabilities,
         _legacyMinClient = null;
 
+  /// Creates a compiler-generated legacy screen descriptor with exact bundled
+  /// Measurement source provenance.
+  ///
+  /// This preserves the ordinary descriptor constructor for normal flow DSL
+  /// authoring. Only generated Dart may attach the opaque final-draft carrier.
+  @internal
+  factory NeutralFlowScreenRef.generatedWithMeasurementPublicationDraftDigest({
+    required String id,
+    required String artifactPath,
+    required int version,
+    required int minClient,
+    required String measurementPublicationDraftDigest,
+  }) =>
+      attachMeasurementBundledGeneratedSourceCarrier(
+        NeutralFlowScreenRef(
+          id: id,
+          artifactPath: artifactPath,
+          version: version,
+          minClient: minClient,
+        ),
+        measurementBundledGeneratedSourceCarrierForFinalDraftDigest(
+          measurementPublicationDraftDigest,
+        ),
+      );
+
   /// Legacy generated asset path used only by the advanced graph DSL.
   ///
   /// The canonical generated constructor deliberately leaves this empty; its
@@ -77,10 +100,7 @@ final class NeutralFlowScreenRef extends FlowScreenRef {
   @override
   CapabilityManifest get capabilities =>
       _capabilities ??
-      CapabilityManifest(
-        builtInFloor: minClient,
-        requiredLibraries: const [],
-      );
+      CapabilityManifest(builtInFloor: minClient, requiredLibraries: const []);
 }
 
 /// Deprecated compatibility spelling for [NeutralFlowScreenRef].
@@ -89,9 +109,7 @@ typedef OnboardingScreenRef = NeutralFlowScreenRef;
 
 /// Converts validated standalone-screen wire events into their generated type.
 typedef GeneratedSurfaceScreenEventDecoder<E> = E Function(
-  String name,
-  Map<String, Object?> arguments,
-);
+    String name, Map<String, Object?> arguments);
 
 Never _rejectUnexpectedSurfaceScreenEvent(
   String name,
@@ -157,6 +175,27 @@ final class SurfaceScreenRef<E> extends FlowScreenRef {
     }
   }
 
+  /// Creates a compiler-generated standalone reference with exact bundled
+  /// Measurement source provenance.
+  ///
+  /// Generated Dart is the only caller. Ordinary source construction retains
+  /// [generated] with no Measurement argument or runtime ceremony.
+  @internal
+  factory SurfaceScreenRef.generatedWithMeasurementPublicationDraftDigest({
+    required SurfaceScreenRuntimeProvenance provenance,
+    required SurfaceScreenEventContract<E> eventContract,
+    required String measurementPublicationDraftDigest,
+  }) =>
+      attachMeasurementBundledGeneratedSourceCarrier(
+        SurfaceScreenRef<E>.generated(
+          provenance: provenance,
+          eventContract: eventContract,
+        ),
+        measurementBundledGeneratedSourceCarrierForFinalDraftDigest(
+          measurementPublicationDraftDigest,
+        ),
+      );
+
   /// The compiled-in contract this reference resolves against.
   final SurfaceScreenRuntimeProvenance provenance;
 
@@ -221,6 +260,35 @@ final class SurfaceFlowRef<R> {
     required this.decodeResult,
     this.deliveryMode = FlowDeliveryMode.typed,
   });
+
+  /// Creates a compiler-generated flow reference with exact bundled
+  /// Measurement source provenance.
+  ///
+  /// This generated-only factory keeps the ordinary const constructor free of
+  /// Measurement fields and avoids any developer-authored source syntax.
+  @internal
+  factory SurfaceFlowRef.generatedWithMeasurementPublicationDraftDigest({
+    required String id,
+    required int version,
+    required int minClient,
+    required Surface surface,
+    required FlowResultDecoder<R> decodeResult,
+    required FlowDeliveryMode deliveryMode,
+    required String measurementPublicationDraftDigest,
+  }) =>
+      attachMeasurementBundledGeneratedSourceCarrier(
+        SurfaceFlowRef<R>(
+          id: id,
+          version: version,
+          minClient: minClient,
+          surface: surface,
+          deliveryMode: deliveryMode,
+          decodeResult: decodeResult,
+        ),
+        measurementBundledGeneratedSourceCarrierForFinalDraftDigest(
+          measurementPublicationDraftDigest,
+        ),
+      );
 
   /// Stable flow identifier.
   final String id;
@@ -331,9 +399,7 @@ final class FlowActionContext {
 
 /// Handles a typed host action requested by a flow.
 typedef FlowActionHandler<A, R> = FutureOr<R> Function(
-  A args,
-  FlowActionContext context,
-);
+    A args, FlowActionContext context);
 
 /// Decodes a declaration-filtered action argument payload into the generated
 /// argument type.
@@ -466,7 +532,7 @@ final class FlowActionBinding<A, R> {
 
 /// Registry implemented by generated action collections.
 ///
-/// Passing a registry to `RestageSurfaceFlow` is optional for flows with no host
+/// Passing a registry to `RestageFlowGraph` is optional for flows with no host
 /// actions and required for flows whose document declares action contracts.
 abstract interface class FlowActionRegistry {
   /// Installed bindings keyed by authored action id.
@@ -484,6 +550,10 @@ abstract interface class FlowSignalRegistry {
 }
 
 /// Base class for authored flow graphs.
+///
+/// A `@FlowGraph` source extends this. To *mount* the resulting flow, use the
+/// host widget [RestageFlowGraph] — the names sit next to each other, and the
+/// build refuses a source that extends the widget by mistake.
 abstract base class RestageFlow {
   /// Creates an authored flow.
   const RestageFlow();
@@ -725,10 +795,7 @@ AuthoredFlowBranchTarget flowBranchTarget(
   FlowTargetRef target, {
   Map<String, FlowStateWrite> stateWrites = const {},
 }) {
-  return AuthoredFlowBranchTarget(
-    target: target,
-    stateWrites: stateWrites,
-  );
+  return AuthoredFlowBranchTarget(target: target, stateWrites: stateWrites);
 }
 
 /// Descriptor for an authored event transition.
@@ -758,10 +825,7 @@ final class FlowTransitionDef<T> {
 /// Descriptor for an action-backed transition.
 final class FlowActionDef<I, O> {
   /// Creates an action descriptor.
-  const FlowActionDef({
-    required this.action,
-    required this.resultPredicate,
-  });
+  const FlowActionDef({required this.action, required this.resultPredicate});
 
   /// Host action requested by an action-backed flow transition.
   final FlowActionRef<I, O> action;
@@ -957,10 +1021,7 @@ final class FlowActionResultBuilder<T, I, O> {
     return ScreenEventWriteBuilder<T>._(
       ref: ref,
       event: event,
-      action: FlowActionDef<I, O>(
-        action: action,
-        resultPredicate: predicate,
-      ),
+      action: FlowActionDef<I, O>(action: action, resultPredicate: predicate),
       priorTransitions: priorTransitions,
     );
   }

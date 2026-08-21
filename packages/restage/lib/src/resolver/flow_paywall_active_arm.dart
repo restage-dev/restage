@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         FlowActiveRenderGate,
@@ -10,6 +11,7 @@ import 'package:restage_shared/restage_shared.dart'
         LibraryRequirement;
 
 import '../flow/flow_resolver.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'resolved_paywall_payload.dart';
@@ -64,6 +66,7 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
   String? experimentId,
   String? variantId,
   int? experimentEpoch,
+  MeasurementPublicationBindingReferenceV1? publicationBindingReference,
   bool cacheHit = false,
 }) {
   final active = activePayload.flowDocument;
@@ -89,13 +92,16 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
   );
   if (!verdict.accepted) return const FlowPaywallActiveRejected('render_gate');
 
-  final resolvedFlow = ResolvedFlow(
-    document: active,
-    screenBlobs: activePayload.screenBlobs,
-    contentHash: FlowContentHash.compute(
-      FlowDocumentCodec.encodeCanonicalJson(active),
+  final resolvedFlow = attachMeasurementPublicationBindingReference(
+    ResolvedFlow(
+      document: active,
+      screenBlobs: activePayload.screenBlobs,
+      contentHash: FlowContentHash.compute(
+        FlowDocumentCodec.encodeCanonicalJson(active),
+      ),
+      cacheHit: cacheHit,
     ),
-    cacheHit: cacheHit,
+    publicationBindingReference,
   );
   return FlowPaywallActiveAccepted(
     FlowPaywallPayload(

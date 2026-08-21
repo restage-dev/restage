@@ -36,7 +36,7 @@ Uint8List encodeRestageContainer(
           for (final entry in entries.entries)
             RestageBundleEntry(
               logicalPath: entry.key,
-              role: RestageBundleEntryRoleV1.screenBlob,
+              role: RestageBundleEntryRole.screenBlob,
               bytes: entry.value,
             ),
         ],

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 
 void main() {
   test('ResolvedVariant stores bytes + metadata', () {
@@ -33,17 +34,21 @@ void main() {
       int? experimentEpoch = 3,
       String? paywallVersion = '0.0.1',
       int? paywallPublishedVersion = 7,
+      MeasurementPublicationBindingReferenceV1? publicationBindingReference,
       bool cacheHit = false,
     }) =>
-        ResolvedVariant(
-          bytes: Uint8List.fromList(bytes),
-          paywallId: paywallId,
-          variantId: variantId,
-          experimentId: experimentId,
-          experimentEpoch: experimentEpoch,
-          paywallVersion: paywallVersion,
-          paywallPublishedVersion: paywallPublishedVersion,
-          cacheHit: cacheHit,
+        attachMeasurementPublicationBindingReference(
+          ResolvedVariant(
+            bytes: Uint8List.fromList(bytes),
+            paywallId: paywallId,
+            variantId: variantId,
+            experimentId: experimentId,
+            experimentEpoch: experimentEpoch,
+            paywallVersion: paywallVersion,
+            paywallPublishedVersion: paywallPublishedVersion,
+            cacheHit: cacheHit,
+          ),
+          publicationBindingReference,
         );
 
     test('equal over the identity tuple, ignoring bytes and cacheHit', () {
@@ -70,6 +75,15 @@ void main() {
         isNot(equals(make(paywallVersion: '2'))),
       );
       expect(make(variantId: null), isNot(equals(make(variantId: 'x'))));
+      final first = make(publicationBindingReference: _bindingReference('a'));
+      final second = make(publicationBindingReference: _bindingReference('b'));
+      // Measurement provenance stays in an SDK-private carrier. It must not
+      // widen the public value identity of a resolved paywall.
+      expect(first, equals(second));
+      expect(
+        measurementPublicationBindingReferenceFor(first),
+        isNot(equals(measurementPublicationBindingReferenceFor(second))),
+      );
     });
 
     test('differs when the published version differs (hosted republish)', () {
@@ -96,15 +110,18 @@ void main() {
     // Every field is a DISTINCT non-default value so a dropped/reset field is
     // caught field-by-field (the identity `==` deliberately ignores bytes +
     // cacheHit, so preservation is asserted per-field, NOT via equals).
-    final full = ResolvedVariant(
-      bytes: Uint8List.fromList([7, 8, 9]),
-      paywallId: 'pro_upgrade',
-      variantId: 'variant-a',
-      experimentId: 'exp1',
-      experimentEpoch: 3,
-      paywallVersion: '0.0.1',
-      paywallPublishedVersion: 7,
-      cacheHit: false,
+    final full = attachMeasurementPublicationBindingReference(
+      ResolvedVariant(
+        bytes: Uint8List.fromList([7, 8, 9]),
+        paywallId: 'pro_upgrade',
+        variantId: 'variant-a',
+        experimentId: 'exp1',
+        experimentEpoch: 3,
+        paywallVersion: '0.0.1',
+        paywallPublishedVersion: 7,
+        cacheHit: false,
+      ),
+      _bindingReference('c'),
     );
 
     test('copyWith() with no overrides preserves every field', () {
@@ -116,6 +133,9 @@ void main() {
       expect(copy.experimentEpoch, 3);
       expect(copy.paywallVersion, '0.0.1');
       expect(copy.paywallPublishedVersion, 7);
+      // A public copy can alter the payload identity, so it must never carry
+      // an exact delivery binding by implication.
+      expect(measurementPublicationBindingReferenceFor(copy), isNull);
       expect(copy.cacheHit, isFalse);
     });
 
@@ -130,6 +150,7 @@ void main() {
       expect(hit.experimentEpoch, 3);
       expect(hit.paywallVersion, '0.0.1');
       expect(hit.paywallPublishedVersion, 7);
+      expect(measurementPublicationBindingReferenceFor(hit), isNull);
     });
 
     test('each override lands independently', () {
@@ -158,4 +179,44 @@ void main() {
     expect(e.code, 'decode_failed');
     expect(e.toString(), contains('corrupt blob'));
   });
+
+  test('the private provenance carrier cannot rebind a resolved payload', () {
+    final variant = ResolvedVariant(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      paywallId: 'pro_upgrade',
+    );
+    final original = _bindingReference('d');
+    attachMeasurementPublicationBindingReference(variant, original);
+
+    expect(
+      () => attachMeasurementPublicationBindingReference(
+        variant,
+        _bindingReference('e'),
+      ),
+      throwsStateError,
+    );
+    expect(measurementPublicationBindingReferenceFor(variant), original);
+  });
+}
+
+MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
+  final candidate = MeasurementPublicationCandidateReferenceV1(
+    candidateDigest: CanonicalDigest(seed * 64),
+    selectedPublicationManifestDigest: CanonicalDigest('b' * 64),
+    declaredArtifactBytesDigest: CanonicalDigest('c' * 64),
+    assembledPublicationUploadDigest: CanonicalDigest('d' * 64),
+    measurementPublicationDraftDigest: CanonicalDigest('e' * 64),
+  );
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId: MeasurementPublicationAuthorityId(
+        'authority.resolved-variant.$seed',
+      ),
+      externalPublicationAuthorityRef: 'mpa1.${seed.toUpperCase() * 32}',
+      candidateReference: candidate,
+      immutablePublicationDigest: CanonicalDigest('f' * 64),
+      declaredArtifactBytesDigest: candidate.declaredArtifactBytesDigest,
+    ),
+    bindingDigest: CanonicalDigest('0' * 64),
+  );
 }

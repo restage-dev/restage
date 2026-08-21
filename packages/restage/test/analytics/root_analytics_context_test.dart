@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -49,7 +49,7 @@ void _reportNoDispatcher(String helperName, Map<String, Object?> details) {
   assert(
     false,
     '[restage] $helperName invoked without a '
-    'RestageSurfaceEventDispatcher in scope. Either run this widget under '
+    'RestageEventDispatcher in scope. Either run this widget under '
     'a Restage surface runtime or use restage_codegen so the helper is replaced '
     'with a flow event reference at build time. details=$details',
   );
@@ -57,7 +57,7 @@ void _reportNoDispatcher(String helperName, Map<String, Object?> details) {
     FlutterErrorDetails(
       exception: StateError(
         '[restage] $helperName invoked without a '
-        'RestageSurfaceEventDispatcher: $details',
+        'RestageEventDispatcher: $details',
       ),
       library: 'restage',
       context: ErrorDescription('handling a surface authoring helper tap'),

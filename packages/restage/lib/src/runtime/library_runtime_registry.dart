@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/rfw.dart' as rfw;
 
+import '../measurement/measurement_rfw_presentation.dart';
 import 'restage_widget_factory.dart';
 import 'restage_widget_library_registration.dart';
 
@@ -46,6 +47,21 @@ abstract final class LibraryRuntimeRegistry {
       debugPrint(
         '[restage] registerWidgetLibrary: "$kReservedPreviewLibraryName" is '
         'reserved for internal preview rendering — registration ignored.',
+      );
+      return;
+    }
+    if (library.namespace ==
+        kMeasurementRfwPresentationLibrary.parts.join('.')) {
+      assert(
+        false,
+        'Restage.registerWidgetLibrary: "${library.namespace}" is reserved '
+        'for internal measurement presentation rendering and cannot be '
+        'registered by an application.',
+      );
+      debugPrint(
+        '[restage] registerWidgetLibrary: "${library.namespace}" is reserved '
+        'for internal measurement presentation rendering — registration '
+        'ignored.',
       );
       return;
     }

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
@@ -499,6 +500,7 @@ void main() {
     test('holds the last good blob when a later fetch fails', () async {
       final envelope =
           _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
+      final bindingReference = _bindingReference('a');
       final resolver = RestageVariantResolver(
         apiKey: apiKey,
         environment: RestageEnvironment.production,
@@ -512,6 +514,10 @@ void main() {
               experimentEpoch: 3,
             ),
             200,
+            headers: {
+              'Restage-Measurement-Publication-Binding-V1':
+                  _bindingHeader(bindingReference),
+            },
           ),
           http.Response(jsonEncode({'error': 'unavailable'}), 404),
         ]),
@@ -523,6 +529,10 @@ void main() {
       expect(first.variantId, 'variant_a');
       expect(first.experimentEpoch, 3);
       expect(first.paywallPublishedVersion, 5);
+      expect(
+        measurementPublicationBindingReferenceFor(first),
+        bindingReference,
+      );
 
       final second = await resolver.resolve('pro_upgrade');
       // Fetch failed -> served from the in-memory hold-last-good cache.
@@ -532,6 +542,10 @@ void main() {
       expect(second.variantId, 'variant_a');
       expect(second.experimentEpoch, 3);
       expect(second.paywallPublishedVersion, 5);
+      expect(
+        measurementPublicationBindingReferenceFor(second),
+        bindingReference,
+      );
     });
 
     test('a REJECTED fresh blob funnels into the same ladder (serves cached)',
@@ -795,6 +809,7 @@ void main() {
         () async {
       final bundledScreen = _purchaseScreen('Subscribe');
       final hostedScreen = _purchaseScreen('Subscribe now');
+      final bindingReference = _bindingReference('b');
       final bundle = _PaywallAssetBundle()
         ..writeFlow(
           'pro_upgrade',
@@ -814,6 +829,10 @@ void main() {
               experimentEpoch: 3,
             ),
             200,
+            headers: {
+              'Restage-Measurement-Publication-Binding-V1':
+                  _bindingHeader(bindingReference),
+            },
           ),
           http.Response(jsonEncode({'error': 'unavailable'}), 503),
         ]),
@@ -827,6 +846,10 @@ void main() {
       expect((first as FlowPaywallPayload).paywallPublishedVersion, 9);
       expect(first.variantId, 'variant_a');
       expect(first.experimentEpoch, 3);
+      expect(
+        measurementPublicationBindingReferenceFor(first.flow),
+        bindingReference,
+      );
       // Second (fetch failed): the held-last-good active flow, re-gated + served
       // as a cache hit (still the served version, not the bundled null).
       expect(second, isA<FlowPaywallPayload>());
@@ -836,6 +859,10 @@ void main() {
       expect(held.experimentEpoch, 3);
       expect(held.flow.cacheHit, isTrue);
       expect(held.flow.screenBlobs['welcome'], hostedScreen);
+      expect(
+        measurementPublicationBindingReferenceFor(held.flow),
+        bindingReference,
+      );
     });
 
     test('reaches bundled flow through asset fallback when fetch fails',
@@ -913,6 +940,31 @@ MockClient _sequenceServer(List<http.Response> responses) {
     i++;
     return response;
   });
+}
+
+String _bindingHeader(MeasurementPublicationBindingReferenceV1 reference) =>
+    base64UrlEncode(reference.canonicalBytes).replaceAll('=', '');
+
+MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
+  final candidate = MeasurementPublicationCandidateReferenceV1(
+    candidateDigest: CanonicalDigest(seed * 64),
+    selectedPublicationManifestDigest: CanonicalDigest('b' * 64),
+    declaredArtifactBytesDigest: CanonicalDigest('c' * 64),
+    assembledPublicationUploadDigest: CanonicalDigest('d' * 64),
+    measurementPublicationDraftDigest: CanonicalDigest('e' * 64),
+  );
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId: MeasurementPublicationAuthorityId(
+        'authority.paywall.$seed',
+      ),
+      externalPublicationAuthorityRef: 'mpa1.${seed.toUpperCase() * 32}',
+      candidateReference: candidate,
+      immutablePublicationDigest: CanonicalDigest('f' * 64),
+      declaredArtifactBytesDigest: candidate.declaredArtifactBytesDigest,
+    ),
+    bindingDigest: CanonicalDigest('0' * 64),
+  );
 }
 
 /// Builds a (blob-payload) surface envelope. Defaults to a paywall; the

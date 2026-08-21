@@ -140,7 +140,7 @@ final class HostedArtifactFixture {
       };
 
   /// The typed description of [content], with the bytes held ready to serve.
-  SurfaceArtifactDescriptorV1 descriptorFor({
+  SurfaceArtifactDescriptor descriptorFor({
     required Surface surfaceType,
     required String surfaceSlug,
     required int version,
@@ -155,7 +155,7 @@ final class HostedArtifactFixture {
     final url = '$testArtifactOrigin/artifacts/orgs/1/artifacts/'
         '$payloadFormatVersion/$truthfulHash';
     _content[url] = bytes;
-    return SurfaceArtifactDescriptorV1(
+    return SurfaceArtifactDescriptor(
       payloadFormatVersion: payloadFormatVersion,
       surfaceType: surfaceType,
       surfaceSlug: surfaceSlug,
@@ -170,15 +170,15 @@ final class HostedArtifactFixture {
 
   /// Describes a standalone screen: the artifact plus the contract facts that
   /// travel beside it.
-  SurfaceScreenDeliveryDescriptorV1 describeScreen({
+  SurfaceScreenDeliveryDescriptor describeScreen({
     required SurfaceDocument document,
     required int contractVersion,
     required String contractFingerprint,
     required String eventContractHash,
-    SurfaceExperimentAssignmentV1? assignment,
+    SurfaceExperimentAssignment? assignment,
     String? declaredContentHash,
   }) =>
-      SurfaceScreenDeliveryDescriptorV1(
+      SurfaceScreenDeliveryDescriptor(
         artifact: descriptorFor(
           surfaceType: document.surfaceType,
           surfaceSlug: document.surfaceSlug,

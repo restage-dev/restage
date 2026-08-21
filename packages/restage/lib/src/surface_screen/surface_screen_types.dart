@@ -4,6 +4,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../flow/flow_descriptors.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 
 /// Why a standalone screen could not be rendered.
 enum SurfaceScreenUnavailableReason {
@@ -108,7 +109,7 @@ final class ResolvedSurfaceScreen {
     required String eventContractHash,
     required Uint8List blob,
     required String contentHash,
-    required SurfaceExperimentAssignmentV1? assignment,
+    required SurfaceExperimentAssignment? assignment,
     required bool cacheHit,
   }) : this._(
           origin: SurfaceScreenOrigin.hosted,
@@ -215,7 +216,7 @@ final class ResolvedSurfaceScreen {
   final String? bundledEntryHash;
 
   /// The exact hosted experiment assignment, when one was selected.
-  final SurfaceExperimentAssignmentV1? assignment;
+  final SurfaceExperimentAssignment? assignment;
 
   /// Whether this hosted result came from the resolver cache.
   final bool cacheHit;
@@ -225,20 +226,23 @@ final class ResolvedSurfaceScreen {
     if (origin != SurfaceScreenOrigin.hosted) {
       throw StateError('Only hosted screens may be returned from cache.');
     }
-    return ResolvedSurfaceScreen.hosted(
-      surface: surface,
-      slug: slug,
-      contractVersion: contractVersion,
-      publishedRevision: publishedRevision!,
-      sourceKind: sourceKind,
-      payloadKind: payloadKind,
-      capabilities: capabilities,
-      contractFingerprint: contractFingerprint,
-      eventContractHash: eventContractHash,
-      blob: blob,
-      contentHash: contentHash,
-      assignment: assignment,
-      cacheHit: true,
+    return attachMeasurementPublicationBindingReference(
+      ResolvedSurfaceScreen.hosted(
+        surface: surface,
+        slug: slug,
+        contractVersion: contractVersion,
+        publishedRevision: publishedRevision!,
+        sourceKind: sourceKind,
+        payloadKind: payloadKind,
+        capabilities: capabilities,
+        contractFingerprint: contractFingerprint,
+        eventContractHash: eventContractHash,
+        blob: blob,
+        contentHash: contentHash,
+        assignment: assignment,
+        cacheHit: true,
+      ),
+      measurementPublicationBindingReferenceFor(this),
     );
   }
 }

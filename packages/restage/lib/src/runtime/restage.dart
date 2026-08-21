@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart'
     show WidgetsBinding, WidgetsBindingObserver;
 import 'package:http/http.dart' as http;
+import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../analytics/analytics_event_mapper.dart';
@@ -17,6 +18,12 @@ import '../billing/in_app_purchase_gateway.dart';
 import '../billing/purchase_attribution.dart';
 import '../billing/signed_native_offer.dart';
 import '../metering/metering_token_store.dart';
+import '../measurement/governed_measurement_transport.dart';
+import '../measurement/governed_measurement_rpc_transport.dart';
+import '../measurement/measurement_assignment_transport.dart';
+import '../measurement/itt_assignment_rpc_adapter.dart';
+import '../measurement/restage_measurement.dart';
+import '../measurement/restage_privacy.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_delivery_evidence.dart';
 import '../events/event_enums.dart';
@@ -49,6 +56,12 @@ import 'restage_widget_library_registration.dart';
 /// rendered directly with `AssetVariantResolver` and `AssetFlowResolver`.
 abstract final class Restage {
   Restage._();
+
+  /// Explicit, opt-in governed Measurement operations.
+  static final RestageMeasurement measurement = RestageMeasurement.internal();
+
+  /// Explicit coordinator over independently-owned privacy operations.
+  static final RestagePrivacy privacy = RestagePrivacy.internal();
 
   static String? _apiKey;
   static String? _baseUrl;
@@ -102,18 +115,25 @@ abstract final class Restage {
   static RestageRpcClient? _rpcClient;
   static _RestageLifecycleObserver? _lifecycleObserver;
 
-  /// The Restage SDK version stamped into every analytics event's app context.
-  static const String sdkVersion = '0.1.0';
+  // The SDK version stamped into the app context of each recorded event.
+  static const String _sdkVersion = '0.1.0';
 
   // The behavioral-analytics transport. Active only when [configure] is given a
   // [baseUrl]; otherwise `track`/`identify`/`reset` are inert (no endpoint).
   static AnalyticsIdentity? _analyticsIdentity;
   static AnalyticsTransport? _analyticsTransport;
   static AnalyticsAppContext? _analyticsAppContext;
+
+  // Observes every event passed to [fireEvent], after the host broadcast leg.
+  // Registered by the recording runtime when it is configured and cleared when
+  // it is torn down; there is no host-facing way to install one. Keeping it a
+  // registration rather than a hard call in [fireEvent] is what lets the event
+  // stream and the recording path be reasoned about — and retired — separately.
+  static void Function(RestageEvent)? _recordingSink;
   static ({
     String apiKey,
     String endpoint,
-    RestageEnvironment environment,
+    RestageEnvironment environment
   })? _analyticsAuthority;
 
   /// Configure the SDK at app startup.
@@ -156,6 +176,13 @@ abstract final class Restage {
   /// and the identity it would return is not yet attached to resolver requests
   /// or analytics. Wiring it has no runtime effect today; it is accepted now so
   /// the integration shape can stabilize.
+  ///
+  /// Set [governedMeasurementTransportEnabled] only after the host has
+  /// configured its direct host/IDP proof source. It installs the SDK's
+  /// authenticated canonical transport over [baseUrl]. Supplying
+  /// [governedMeasurementTransport] installs an explicit alternate transport
+  /// instead. With neither option, governed Measurement and privacy calls fail
+  /// closed and legacy analytics identity remains unaffected.
   static void configure({
     required String apiKey,
     String? baseUrl,
@@ -172,7 +199,16 @@ abstract final class Restage {
     Map<String, Set<SurfaceRefreshTrigger>> liveRefreshOverrides = const {},
     SurfaceUpdateChannel? updateChannel,
     Uri? liveRefreshEdgeUrl,
+    bool governedMeasurementTransportEnabled = false,
+    RestageGovernedMeasurementTransport? governedMeasurementTransport,
   }) {
+    if (governedMeasurementTransportEnabled &&
+        governedMeasurementTransport != null) {
+      throw ArgumentError(
+        'Configure either governedMeasurementTransportEnabled or '
+        'governedMeasurementTransport, not both.',
+      );
+    }
     _configurationGeneration += 1;
     assert(
       products.map((p) => p.slot).toSet().length == products.length,
@@ -190,6 +226,17 @@ abstract final class Restage {
     // A reconfiguration must never retain a client bound to the previous
     // origin or credential. Test clients can be reinstalled after configure.
     _rpcClient = null;
+    _installIttAssignmentTransport();
+    if (governedMeasurementTransport != null) {
+      GovernedMeasurementPortRegistry.install(governedMeasurementTransport);
+    } else if (governedMeasurementTransportEnabled) {
+      final client = _requireRpcClient();
+      GovernedMeasurementPortRegistry.install(
+        client == null ? null : RestageGovernedMeasurementRpcTransport(client),
+      );
+    } else {
+      GovernedMeasurementPortRegistry.install(null);
+    }
     _environment = environment;
     _defaultResolver = resolver ??
         RestageVariantResolver(
@@ -199,7 +246,7 @@ abstract final class Restage {
         );
     _defaultFlowResolver = flowResolver ?? const AssetFlowResolver();
     _defaultSurfaceScreenResolver = surfaceScreenResolver ??
-        RestageSurfaceScreenResolver(
+        RestageScreenResolver(
           apiKey: apiKey,
           environment: environment,
           baseUrl: baseUrl,
@@ -323,6 +370,7 @@ abstract final class Restage {
       _analyticsTransport?.close();
       _analyticsTransport = null;
       _analyticsAppContext = null;
+      _recordingSink = null;
       return;
     }
     final endpoint = _analyticsEndpoint(baseUrl);
@@ -340,7 +388,7 @@ abstract final class Restage {
     _analyticsAppContext = AnalyticsAppContext(
       platform: _platformWireName(),
       locale: locale?.toLanguageTag() ?? 'und',
-      sdkVersion: sdkVersion,
+      sdkVersion: _sdkVersion,
     );
     final preservesTransport =
         previousAuthority == authority && _analyticsTransport != null;
@@ -358,6 +406,7 @@ abstract final class Restage {
       identity: _analyticsIdentity!,
       onSurfacePresented: _emitSurfacePresented,
     );
+    _recordingSink = _bridgeEventToAnalytics;
   }
 
   static void _retireAnalyticsAuthority() {
@@ -442,27 +491,26 @@ abstract final class Restage {
   static Set<RestageEntitlement> get currentEntitlements =>
       Set.unmodifiable(_entitlementsById.values);
 
-  /// Attaches the customer's [userId] to subsequent analytics events.
+  /// Rotates the on-device pseudonymous actor.
   ///
-  /// Opt-in only — the host owns consent. Inert until [configure] is given a
-  /// `baseUrl`.
+  /// What it does, exactly: mints a fresh pseudonymous id, rotates the session,
+  /// and clears the current surface-session identity rather than carrying it
+  /// across. Because that id is also the experiment assignment key, the
+  /// installation becomes a new, unlinked randomized unit — assignment is
+  /// re-drawn on the next surface presentation, and no relationship is recorded
+  /// or claimed between the old unit and the new one. Pending hosted first-paint
+  /// work selected under the previous id is invalidated; presentations already
+  /// accepted stay pinned.
   ///
-  /// **[attributes] is experimental and not yet active.** It is a reserved hook
-  /// for a future trait channel: values passed today are accepted but silently
-  /// dropped — never uploaded or attached to any event. The parameter is
-  /// published now so the call shape can stabilize; do not depend on any
-  /// runtime effect from it yet.
-  static void identify(String userId, {Map<String, Object?>? attributes}) {
-    _analyticsIdentity?.identify(userId);
-  }
-
-  /// Resets the pseudonymous analytics actor (the privacy "forget me" primitive):
-  /// mints a fresh `anonymousId`, clears any identified `userId`, and rotates
-  /// the session. Subsequent activity is treated as a new user, so experiment
-  /// assignment may change on the next surface presentation. The current
-  /// surface-session identity is cleared rather than carried across users; the
-  /// next real mount creates a fresh one. Inert until [configure] is given a
-  /// `baseUrl`.
+  /// What it does **not** do. It is a local operation: it sends nothing and
+  /// notifies no server. It does **not** erase, amend, or unlink anything
+  /// already uploaded — records sent before the call are untouched. It does
+  /// **not** clear the billing or metering identifiers, which are separate and
+  /// survive the rotation. It is **not** a server-side erasure request; the
+  /// governed privacy request is [privacy], which coordinates the separately
+  /// owned privacy operations once the hosted side serves them.
+  ///
+  /// Inert until [configure] is given a `baseUrl`.
   static void reset() {
     final identity = _analyticsIdentity;
     if (identity == null) return;
@@ -472,38 +520,6 @@ abstract final class Restage {
     unawaited(identity.reset());
     RootAnalyticsRuntime.retireAll();
     FirstPaintLeaseTransaction.revalidatePendingAfterIdentityReset();
-  }
-
-  /// Records a custom analytics event named [eventName] with optional [args].
-  ///
-  /// Inert until [configure] is given a `baseUrl`. `args` becomes the event's
-  /// `properties` after the reserved-key scrub — **`data` and `context` are
-  /// reserved top-level keys** (host render context) and are dropped.
-  static void track(String eventName, {Map<String, Object?>? args}) {
-    final transport = _analyticsTransport;
-    final identity = _analyticsIdentity;
-    final appContext = _analyticsAppContext;
-    if (transport == null || identity == null || appContext == null) return;
-    final snapshot = _IdentitySnapshot.capture(identity);
-    unawaited(
-      _enqueue(
-        transport,
-        identity,
-        (anonymousId) => AnalyticsEvent(
-          eventId: identity.newEventId(),
-          name: eventName,
-          occurredAt: DateTime.now().toUtc(),
-          surface: null,
-          surfaceSessionId: snapshot.surfaceSessionId,
-          anonymousId: anonymousId,
-          sessionId: snapshot.sessionId,
-          userId: snapshot.userId,
-          appContext: appContext,
-          properties: scrubReservedKeys(args ?? const {}),
-        ),
-        label: 'track("$eventName")',
-      ),
-    );
   }
 
   /// Resolves the pseudonymous id (cached, else awaited) and enqueues the event
@@ -526,19 +542,6 @@ abstract final class Restage {
     } on Object catch (error) {
       debugPrint('[restage][analytics] $label dropped: $error');
     }
-  }
-
-  /// Begins a legacy app-global surface session by minting a new
-  /// `surfaceSessionId`. Root-owned surface attribution does not use this slot.
-  /// Paired with [endSurfaceSession].
-  static void beginSurfaceSession() {
-    final identity = _analyticsIdentity;
-    if (identity != null) identity.surfaceSessionId = identity.newEventId();
-  }
-
-  /// Ends the legacy app-global surface session.
-  static void endSurfaceSession() {
-    _analyticsIdentity?.surfaceSessionId = null;
   }
 
   /// Register a customer-defined widget [library] so its [widgets] can be
@@ -584,19 +587,19 @@ abstract final class Restage {
 
   // --- Internal API used by RestagePaywall + billing layer ---
 
-  /// Adds [event] to the [events] broadcast stream AND bridges it to the
-  /// analytics transport. Internal — used by `RestagePaywall` and the billing
-  /// layer.
+  /// Adds [event] to the [events] broadcast stream. Internal — used by
+  /// `RestagePaywall` and the billing layer.
   ///
-  /// The broadcast leg short-circuits when nothing is listening to [events]; the
-  /// analytics leg is independent (it must capture events even when the host
-  /// does not subscribe to [events]).
+  /// The broadcast leg short-circuits when nothing is listening to [events].
+  /// Recording is a separate concern: it runs through [_recordingSink], which
+  /// the recording runtime registers for itself, so it observes every fired
+  /// event even when the host does not subscribe to [events].
   static void fireEvent(RestageEvent event) {
     final controller = _events;
     if (controller != null && controller.hasListener) {
       controller.add(event);
     }
-    _bridgeEventToAnalytics(event);
+    _recordingSink?.call(event);
   }
 
   static void _bridgeEventToAnalytics(RestageEvent event) {
@@ -725,18 +728,17 @@ abstract final class Restage {
   /// differs (new source / expiry).
   ///
   /// Internal — used by the billing layer.
-  static void grantEntitlement(
-    RestageEntitlement e, {
-    String productId = '',
-  }) {
+  static void grantEntitlement(RestageEntitlement e, {String productId = ''}) {
     final previous = _entitlementsById[e.id];
     _entitlementsById[e.id] = e;
-    fireEvent(EntitlementGranted(
-      entitlementId: e.id,
-      productId: productId,
-      source: e.source,
-      expiresAtMs: e.expiresAtMs,
-    ));
+    fireEvent(
+      EntitlementGranted(
+        entitlementId: e.id,
+        productId: productId,
+        source: e.source,
+        expiresAtMs: e.expiresAtMs,
+      ),
+    );
     if (previous != e) {
       _entitlementsController?.add(currentEntitlements);
     }
@@ -752,10 +754,7 @@ abstract final class Restage {
   ]) {
     if (_entitlementsById.remove(e.id) == null) return;
     _entitlementsController?.add(currentEntitlements);
-    fireEvent(EntitlementRevoked(
-      entitlementId: e.id,
-      reason: reason,
-    ));
+    fireEvent(EntitlementRevoked(entitlementId: e.id, reason: reason));
   }
 
   /// Resolver used when a `RestagePaywall` is constructed without an explicit
@@ -767,14 +766,14 @@ abstract final class Restage {
   /// back to a bundled asset when the fetch is unavailable).
   static VariantResolver get defaultResolver => _defaultResolver;
 
-  /// Resolver used when `RestageSurfaceFlow` is constructed without an explicit
+  /// Resolver used when `RestageFlowGraph` is constructed without an explicit
   /// `resolver:` parameter.
   ///
   /// The default is [AssetFlowResolver]; hosted flow delivery is not installed
   /// by [configure].
   static FlowResolver get defaultFlowResolver => _defaultFlowResolver;
 
-  /// Resolver used when [RestageSurfaceScreen] has no explicit resolver.
+  /// Resolver used when [RestageScreen] has no explicit resolver.
   ///
   /// Without [configure], this is [AssetSurfaceScreenResolver]. After
   /// configuration without an override, it validates hosted delivery against
@@ -928,14 +927,16 @@ abstract final class Restage {
     PurchaseAttributionSnapshot attribution,
   ) {
     void emit() {
-      fireEvent(PurchaseSucceeded(
-        paywallId: attribution.paywallId,
-        productId: outcome.productId,
-        transactionId: outcome.transactionId,
-        priceMicros: outcome.priceMicros,
-        currency: outcome.currency,
-        offerId: attribution.offerId,
-      ));
+      fireEvent(
+        PurchaseSucceeded(
+          paywallId: attribution.paywallId,
+          productId: outcome.productId,
+          transactionId: outcome.transactionId,
+          priceMicros: outcome.priceMicros,
+          currency: outcome.currency,
+          offerId: attribution.offerId,
+        ),
+      );
     }
 
     final rootAnalyticsContext = attribution.rootAnalyticsContext;
@@ -1038,7 +1039,8 @@ abstract final class Restage {
       final client = _requireRpcClient();
       if (client == null) {
         return unavailable(
-            'Promotional offers require a configured service URL.');
+          'Promotional offers require a configured service URL.',
+        );
       }
 
       final signature = await client.mintOfferSignature(
@@ -1077,7 +1079,8 @@ abstract final class Restage {
     }
 
     return unavailable(
-        'Native promotional offers are not supported on this platform.');
+      'Native promotional offers are not supported on this platform.',
+    );
   }
 
   /// Internal: reconciles the local entitlement set against the server's
@@ -1130,10 +1133,12 @@ abstract final class Restage {
           currentExpiry != null &&
           currentExpiry > previousExpiry) {
         _updateEntitlement(summary, source: EntitlementSource.renewal);
-        fireEvent(SubscriptionRenewed(
-          entitlementId: summary.entitlementId,
-          productId: summary.productId,
-        ));
+        fireEvent(
+          SubscriptionRenewed(
+            entitlementId: summary.entitlementId,
+            productId: summary.productId,
+          ),
+        );
       }
     }
 
@@ -1145,10 +1150,9 @@ abstract final class Restage {
       final stale = _lastSyncedSummaryById.remove(id)!;
       final removed = _entitlementsById.remove(id) != null;
       if (removed) {
-        fireEvent(SubscriptionLapsed(
-          entitlementId: id,
-          productId: stale.productId,
-        ));
+        fireEvent(
+          SubscriptionLapsed(entitlementId: id, productId: stale.productId),
+        );
         _entitlementsController?.add(currentEntitlements);
       }
     }
@@ -1164,15 +1168,19 @@ abstract final class Restage {
       return;
     }
     if (summary.status == 'refunded') {
-      fireEvent(EntitlementRevoked(
-        entitlementId: summary.entitlementId,
-        reason: RevokeReason.refunded,
-      ));
+      fireEvent(
+        EntitlementRevoked(
+          entitlementId: summary.entitlementId,
+          reason: RevokeReason.refunded,
+        ),
+      );
     } else {
-      fireEvent(SubscriptionLapsed(
-        entitlementId: summary.entitlementId,
-        productId: summary.productId,
-      ));
+      fireEvent(
+        SubscriptionLapsed(
+          entitlementId: summary.entitlementId,
+          productId: summary.productId,
+        ),
+      );
     }
     _entitlementsController?.add(currentEntitlements);
   }
@@ -1202,10 +1210,12 @@ abstract final class Restage {
       // still wants the lifecycle signal even though `EntitlementGranted`
       // already fired from the optimistic path.
       if (previous != null && !previous.isEntitled) {
-        fireEvent(SubscriptionRenewed(
-          entitlementId: summary.entitlementId,
-          productId: summary.productId,
-        ));
+        fireEvent(
+          SubscriptionRenewed(
+            entitlementId: summary.entitlementId,
+            productId: summary.productId,
+          ),
+        );
       }
       return;
     }
@@ -1214,17 +1224,21 @@ abstract final class Restage {
         : EntitlementSource.renewal;
     _updateEntitlement(summary, source: source);
     if (previous == null) {
-      fireEvent(EntitlementGranted(
-        entitlementId: summary.entitlementId,
-        productId: summary.productId,
-        source: source,
-        expiresAtMs: summary.expiresAtMs,
-      ));
+      fireEvent(
+        EntitlementGranted(
+          entitlementId: summary.entitlementId,
+          productId: summary.productId,
+          source: source,
+          expiresAtMs: summary.expiresAtMs,
+        ),
+      );
     } else {
-      fireEvent(SubscriptionRenewed(
-        entitlementId: summary.entitlementId,
-        productId: summary.productId,
-      ));
+      fireEvent(
+        SubscriptionRenewed(
+          entitlementId: summary.entitlementId,
+          productId: summary.productId,
+        ),
+      );
     }
   }
 
@@ -1351,6 +1365,20 @@ abstract final class Restage {
     return _rpcClient ??= _buildRpcClient();
   }
 
+  static void _installIttAssignmentTransport() {
+    try {
+      _replaceIttAssignmentTransport(_requireRpcClient());
+    } on Object {
+      _replaceIttAssignmentTransport(null);
+    }
+  }
+
+  static void _replaceIttAssignmentTransport(RestageRpcClient? client) {
+    MeasurementAssignmentTransportRegistry.install<IttAssignmentRpcRequest,
+            IttAssignmentRpcOutcome>(
+        client == null ? null : IttAssignmentRpcAdapter(client));
+  }
+
   static RestageRpcClient? _buildRpcClient() {
     final baseUrl = _baseUrl;
     final apiKey = _apiKey;
@@ -1446,8 +1474,10 @@ abstract final class Restage {
   /// tests that drive [syncEntitlements] / [reportTransaction] against
   /// a `MockClient`-backed transport.
   @internal
-  static set debugRestageRpcClient(RestageRpcClient? client) =>
-      _rpcClient = client;
+  static set debugRestageRpcClient(RestageRpcClient? client) {
+    _rpcClient = client;
+    _replaceIttAssignmentTransport(client);
+  }
 
   /// Test-only — exposes the current [RestageRpcClient] for inspection.
   @internal
@@ -1513,6 +1543,7 @@ abstract final class Restage {
     PurchaseCoordinator.debugDelay = null;
     BundledPurchaseOwnership.debugReset();
     _rpcClient = null;
+    MeasurementAssignmentTransportRegistry.debugReset();
     _lastSyncedSummaryById.clear();
     _anonymousTokenStore = AnonymousTokenStore();
     _analyticsTransport?.close();
@@ -1521,6 +1552,7 @@ abstract final class Restage {
     _analyticsIdentity = null;
     _analyticsAppContext = null;
     _analyticsAuthority = null;
+    _recordingSink = null;
     SurfaceAssignmentKeyProvider.clear();
     _meteringTokenStore = null;
     SurfaceMeteringKeyProvider.clear();
@@ -1530,6 +1562,7 @@ abstract final class Restage {
     LibraryRuntimeRegistry.clear();
     resetRestagePaywallCache();
     SurfaceRefreshRegistry.instance.debugReset();
+    GovernedMeasurementPortRegistry.debugReset();
   }
 
   /// Test-only — injects the [http.Client] the analytics transport uses, so a
@@ -1551,9 +1584,7 @@ abstract final class Restage {
           scheduleMicrotask(purchaseCoordinator.onAppResumed);
         }
         scheduleMicrotask(Restage.syncEntitlements);
-        scheduleMicrotask(
-          () => SurfaceRefreshRegistry.instance.onAppResumed(),
-        );
+        scheduleMicrotask(() => SurfaceRefreshRegistry.instance.onAppResumed());
         return;
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:

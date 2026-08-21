@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Icons;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:restage/src/flow/flow_controller.dart'
+    show createHostMeasurementFlowController;
 
 import 'flow_test_support.dart';
 
@@ -146,6 +148,52 @@ void main() {
     await tester.tap(find.text('Welcome'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Profile'), findsOneWidget);
+  });
+
+  testWidgets(
+      'routes an RFW event through measurement before its interceptor and transition',
+      (tester) async {
+    final order = <String>[];
+    final controller = createHostMeasurementFlowController<FirstRunResult>(
+      flow: firstRunFlowRef,
+      resolver: StaticFlowResolver(resolvedFlow()),
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+      onRootResolved: (_) async {},
+      sanitizeAndRecordEvent: (rawValue) {
+        order.add('measurement');
+        return rawValue;
+      },
+    );
+    addTearDown(controller.dispose);
+    controller.addListener(() {
+      if (controller.currentScreenId == 'profile') {
+        order.add('transition');
+      }
+    });
+
+    await tester.pumpWidget(Directionality(
+      textDirection: TextDirection.ltr,
+      child: RestageFlowView<FirstRunResult>(
+        controller: controller,
+        onScreenEvent: (name, arguments) {
+          expect(name, 'next');
+          expect(arguments, isEmpty);
+          order.add('interceptor');
+          return false;
+        },
+      ),
+    ));
+    unawaited(controller.load());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Welcome'));
+    await tester.pumpAndSettle();
+
+    expect(order, ['measurement', 'interceptor', 'transition']);
     expect(find.text('Profile'), findsOneWidget);
   });
 

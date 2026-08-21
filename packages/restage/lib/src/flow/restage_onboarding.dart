@@ -16,7 +16,7 @@ import 'system_back_policy.dart';
 export 'restage_surface_flow.dart'
     show FlowUnavailableBuilder, FlowUnavailablePolicy;
 
-/// Backward-compatible onboarding-only facade over [RestageSurfaceFlow].
+/// Backward-compatible onboarding-only facade over [RestageFlowGraph].
 ///
 /// Generated onboarding descriptors continue to work unchanged. A descriptor
 /// for another surface fails closed before any resolver or refresh work starts.
@@ -185,7 +185,7 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       }
       return const SizedBox.shrink();
     }
-    return RestageSurfaceFlow<R>(
+    return RestageFlowGraph<R>(
       flow: widget.flow,
       initialState: widget.initialState,
       unavailable: widget.unavailable,

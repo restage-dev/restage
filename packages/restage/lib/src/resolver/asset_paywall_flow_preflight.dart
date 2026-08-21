@@ -6,6 +6,8 @@ import '../flow/bundled_flow_loader.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_artifact_metadata.dart';
 import '../flow/flow_resolver.dart';
+import '../measurement/bundled_measurement_publication_binding_read_port.dart';
+import '../measurement/measurement_bundled_generated_source_provenance.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 
 @internal
@@ -90,10 +92,7 @@ Future<AssetPaywallFlowPreflightOutcome> preflightAssetPaywallFlowBaseline({
   );
   try {
     final root = await loader.loadRoot(paywallId);
-    return AssetPaywallFlowBaseline._(
-      root: root,
-      flows: loader.flows,
-    );
+    return AssetPaywallFlowBaseline._(root: root, flows: loader.flows);
   } on _AssetPaywallFlowPreflightError catch (error) {
     return error.missingRoot
         ? const AssetPaywallFlowBaselineAbsent()
@@ -176,11 +175,14 @@ final class _AssetPaywallFlowPreflightLoader {
     final existing = flows[identity];
     if (existing != null) return existing;
 
-    final resolved = ResolvedFlow(
-      document: artifacts.document,
-      screenBlobs: artifacts.screenBlobs,
-      contentHash: canonicalHash,
-      cacheHit: false,
+    final resolved = attachMeasurementBundledGeneratedArtifactClosureCarrier(
+      ResolvedFlow(
+        document: artifacts.document,
+        screenBlobs: artifacts.screenBlobs,
+        contentHash: canonicalHash,
+        cacheHit: false,
+      ),
+      bundledMeasurementGeneratedArtifactClosureForFlowArtifacts(artifacts),
     );
     flows[identity] = resolved;
 

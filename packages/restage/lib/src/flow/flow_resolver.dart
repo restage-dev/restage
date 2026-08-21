@@ -3,16 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../assets/bundled_asset_source.dart';
+import '../measurement/bundled_measurement_publication_binding_read_port.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import 'bundled_flow_loader.dart';
 import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_artifact_metadata.dart';
 
-/// Resolves generated surface-flow descriptors for `RestageSurfaceFlow`.
+/// Resolves generated surface-flow descriptors for `RestageFlowGraph`.
 ///
 /// A resolver returns a validated flow document plus the exact pinned screen
 /// blobs it references. Resolver failures are surfaced as unavailable flows by
-/// `RestageSurfaceFlow`.
+/// `RestageFlowGraph`.
 abstract interface class FlowResolver {
   /// Resolves [flow] into a validated flow document and pinned screen blobs.
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow);
@@ -85,12 +87,23 @@ final class ResolvedFlow {
   final FlowAssignment? assignment;
 
   ResolvedFlow _withCacheHit() {
-    return ResolvedFlow._(
-      assignment: assignment,
-      document: document,
-      screenBlobs: screenBlobs,
-      contentHash: contentHash,
-      cacheHit: true,
+    final cacheHit = attachMeasurementPublicationBindingReference(
+      ResolvedFlow._(
+        assignment: assignment,
+        document: document,
+        screenBlobs: screenBlobs,
+        contentHash: contentHash,
+        cacheHit: true,
+      ),
+      measurementPublicationBindingReferenceFor(this),
+    );
+    final sourceCarrier = attachMeasurementBundledGeneratedSourceCarrier(
+      cacheHit,
+      measurementBundledGeneratedSourceCarrierFor(this),
+    );
+    return attachMeasurementBundledGeneratedArtifactClosureCarrier(
+      sourceCarrier,
+      measurementBundledGeneratedArtifactClosureCarrierFor(this),
     );
   }
 }
@@ -320,8 +333,9 @@ FlowPredicateCondition _freezePredicateCondition(
   FlowPredicateCondition condition,
 ) {
   return switch (condition) {
-    EqualsFlowPredicateCondition(:final value) =>
-      EqualsFlowPredicateCondition(value: _freezeValueSource(value)),
+    EqualsFlowPredicateCondition(:final value) => EqualsFlowPredicateCondition(
+        value: _freezeValueSource(value),
+      ),
     NotEqualsFlowPredicateCondition(:final value) =>
       NotEqualsFlowPredicateCondition(value: _freezeValueSource(value)),
     InFlowPredicateCondition(:final values) => InFlowPredicateCondition(
@@ -337,8 +351,9 @@ FlowPredicateCondition _freezePredicateCondition(
       LessThanFlowPredicateCondition(value: _freezeValueSource(value)),
     LessThanOrEqualsFlowPredicateCondition(:final value) =>
       LessThanOrEqualsFlowPredicateCondition(value: _freezeValueSource(value)),
-    ExistsFlowPredicateCondition(:final exists) =>
-      ExistsFlowPredicateCondition(exists: exists),
+    ExistsFlowPredicateCondition(:final exists) => ExistsFlowPredicateCondition(
+        exists: exists,
+      ),
   };
 }
 
@@ -369,8 +384,10 @@ Map<String, FlowValueSource> _freezeValueSourceMap(
 
 FlowValueSource _freezeValueSource(FlowValueSource source) {
   return switch (source) {
-    LiteralFlowValueSource(:final type, :final value) =>
-      LiteralFlowValueSource(type: type, value: value),
+    LiteralFlowValueSource(:final type, :final value) => LiteralFlowValueSource(
+        type: type,
+        value: value,
+      ),
     StateFlowValueSource(:final key, :final path) => StateFlowValueSource(
         key: key,
         path: List.unmodifiable(path),
@@ -380,15 +397,9 @@ FlowValueSource _freezeValueSource(FlowValueSource source) {
         path: List.unmodifiable(path),
       ),
     ActionResultFlowValueSource(:final key, :final path) =>
-      ActionResultFlowValueSource(
-        key: key,
-        path: List.unmodifiable(path),
-      ),
+      ActionResultFlowValueSource(key: key, path: List.unmodifiable(path)),
     SubFlowResultFlowValueSource(:final key, :final path) =>
-      SubFlowResultFlowValueSource(
-        key: key,
-        path: List.unmodifiable(path),
-      ),
+      SubFlowResultFlowValueSource(key: key, path: List.unmodifiable(path)),
   };
 }
 
@@ -402,16 +413,14 @@ Map<String, Object?> _freezeJsonObject(Map<String, Object?> source) {
 Object? _freezeJsonValue(Object? value) {
   return switch (value) {
     Map<String, Object?>() => _freezeJsonObject(value),
-    List<Object?>() => List<Object?>.unmodifiable(
-        value.map(_freezeJsonValue),
-      ),
+    List<Object?>() => List<Object?>.unmodifiable(value.map(_freezeJsonValue)),
     _ => value,
   };
 }
 
 /// Error surfaced when a surface flow cannot be resolved or rendered.
 ///
-/// `RestageSurfaceFlow` routes this through its required
+/// `RestageFlowGraph` routes this through its required
 /// `FlowUnavailablePolicy`, optional callback, and global flow-unavailable
 /// event.
 final class FlowUnavailableError implements Exception {
@@ -482,21 +491,20 @@ final class AssetFlowResolver
     );
     final resolvedDocument = _freezeDocument(artifacts.document);
 
-    final cacheKey = _cacheKey(
-      flow,
-      artifacts.documentBytes,
-      resolvedDocument,
-    );
+    final cacheKey = _cacheKey(flow, artifacts.documentBytes, resolvedDocument);
     final cached = _cache[cacheKey];
     if (cached != null) {
       return _own(cached._withCacheHit());
     }
 
-    final resolved = ResolvedFlow(
-      document: resolvedDocument,
-      screenBlobs: artifacts.screenBlobs,
-      contentHash: artifacts.documentHash,
-      cacheHit: false,
+    final resolved = attachMeasurementBundledGeneratedSourceCarrier(
+      ResolvedFlow(
+        document: resolvedDocument,
+        screenBlobs: artifacts.screenBlobs,
+        contentHash: artifacts.documentHash,
+        cacheHit: false,
+      ),
+      measurementBundledGeneratedSourceCarrierFor(flow),
     );
     _cache[cacheKey] = resolved;
     return _own(resolved);
@@ -528,9 +536,13 @@ final class AssetFlowResolver
     final artifactHashes = artifactEntries
         .map((entry) => '${entry.key}=${entry.value.contentHash.value}')
         .join('|');
+    final sourceCarrierDigest = measurementBundledGeneratedSourceCarrierFor(
+          flow,
+        )?.measurementPublicationDraftDigest.hex ??
+        '';
     return '${flow.surfaceType.wireName}\u0000${flow.id}\u0000'
         '${flow.version}\u0000$documentHash'
-        '\u0000$artifactHashes';
+        '\u0000$artifactHashes\u0000$sourceCarrierDigest';
   }
 
   FlowUnavailableError _error<R>(
