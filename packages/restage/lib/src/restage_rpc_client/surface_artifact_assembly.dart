@@ -118,7 +118,7 @@ enum SurfaceArtifactFetchFailure {
 /// caller passes [fetchFailure] to say why.
 @internal
 SurfaceArtifactOutcome assembleSurfaceArtifact({
-  required SurfaceArtifactDescriptorV1 descriptor,
+  required SurfaceArtifactDescriptor descriptor,
   required Uint8List? artifactBytes,
   SurfaceArtifactFetchFailure fetchFailure =
       SurfaceArtifactFetchFailure.transport,

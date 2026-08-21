@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/flow_experiment.dart'
     show kFlowExperimentClientContractVersionV1, kFlowExperimentContractKind;
 import 'package:restage_shared/restage_shared.dart';
@@ -44,10 +45,7 @@ final class FlowContractFetchRequest {
     );
   }
 
-  const FlowContractFetchRequest._(
-    this.flowContractHash,
-    this.canonicalBytes,
-  );
+  const FlowContractFetchRequest._(this.flowContractHash, this.canonicalBytes);
 
   /// Exact `sha256:<lowercase hex>` content identity.
   final String flowContractHash;
@@ -67,6 +65,7 @@ final class SurfaceFetchResult {
     this.experimentEpoch,
     this.contractRequired = false,
     this.flowContractRequired = false,
+    this.publicationBindingReference,
   });
 
   /// What the artifact half of this delivery produced: the assembled document,
@@ -104,6 +103,12 @@ final class SurfaceFetchResult {
   ///
   /// This is independent from the legacy blob [contractRequired] channel.
   final bool flowContractRequired;
+
+  /// Exact immutable Measurement reference carried beside this publication payload.
+  ///
+  /// `null` disables Measurement for this payload only. It is never inferred
+  /// from a surface identity, version, payload bytes, or current pointer.
+  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
 }
 
 /// The active-version stamp for a surface.
@@ -132,10 +137,16 @@ sealed class SurfaceScreenDeliveryResult {
 /// A strict standalone-screen delivery response matching the request identity.
 final class SurfaceScreenDeliveryAvailable extends SurfaceScreenDeliveryResult {
   /// Creates an available standalone-screen delivery outcome.
-  const SurfaceScreenDeliveryAvailable(this.response);
+  const SurfaceScreenDeliveryAvailable(
+    this.response, {
+    this.publicationBindingReference,
+  });
 
   /// The strict shared delivery response.
-  final SurfaceScreenDeliveryResponseV1 response;
+  final SurfaceScreenDeliveryResponse response;
+
+  /// Exact immutable Measurement reference carried beside [response].
+  final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
 }
 
 /// The requested standalone screen has no active hosted response.
@@ -174,6 +185,322 @@ final class SurfaceScreenDeliveryInvalidResponse
 
   /// The failed response check.
   final SurfaceScreenDeliveryInvalidResponseReason reason;
+}
+
+/// Why an authenticated measurement RPC did not produce an accepted result.
+@internal
+enum MeasurementIngestRpcUnavailableReason {
+  /// The service denied access to the configured session.
+  forbidden,
+
+  /// The service reported a retryable unavailable condition.
+  serviceUnavailable,
+
+  /// The service returned a status outside the accepted closed mapping.
+  unexpectedStatus,
+
+  /// A successful response did not carry the strict receipt shape.
+  malformedResponse,
+
+  /// The request did not receive a usable HTTP response.
+  transportFailure,
+}
+
+/// Outcome of the SDK's authenticated measurement HTTP call.
+@internal
+sealed class MeasurementIngestRpcOutcome {
+  /// Creates an RPC outcome.
+  const MeasurementIngestRpcOutcome();
+}
+
+/// The service accepted the request and returned its canonical receipt carrier.
+@internal
+final class MeasurementIngestRpcAccepted extends MeasurementIngestRpcOutcome {
+  /// Creates an accepted measurement RPC outcome.
+  const MeasurementIngestRpcAccepted({required this.receiptCanonicalBase64});
+
+  /// Exact unpadded base64url receipt carrier returned by the service.
+  final String receiptCanonicalBase64;
+}
+
+/// The service rejected the canonical request.
+@internal
+final class MeasurementIngestRpcRejected extends MeasurementIngestRpcOutcome {
+  /// Creates a rejected measurement RPC outcome.
+  const MeasurementIngestRpcRejected();
+}
+
+/// The service found a durable retry or finality conflict.
+@internal
+final class MeasurementIngestRpcConflict extends MeasurementIngestRpcOutcome {
+  /// Creates a conflicting measurement RPC outcome.
+  const MeasurementIngestRpcConflict();
+}
+
+/// The service could not authenticate the SDK request.
+@internal
+final class MeasurementIngestRpcUnauthenticated
+    extends MeasurementIngestRpcOutcome {
+  /// Creates an unauthenticated measurement RPC outcome.
+  const MeasurementIngestRpcUnauthenticated();
+}
+
+/// The measurement RPC was unavailable without creating an observed result.
+@internal
+final class MeasurementIngestRpcUnavailable
+    extends MeasurementIngestRpcOutcome {
+  /// Creates an unavailable measurement RPC outcome.
+  const MeasurementIngestRpcUnavailable(this.reason);
+
+  /// Closed, non-sensitive reason for the unavailable observation.
+  final MeasurementIngestRpcUnavailableReason reason;
+}
+
+/// Strict target-free carrier for one authenticated assignment request.
+///
+/// The immutable receipt is the sole experiment authority. The credential
+/// value is a private server-vault handle, never credential material. SDK
+/// built-ins and the optional typed context are exact canonical documents
+/// evaluated by the service's programmatic authority.
+@internal
+final class IttAssignmentRpcRequest {
+  /// Creates the assignment carrier.
+  const IttAssignmentRpcRequest({
+    required this.acceptedReceiptCanonicalBase64,
+    required this.credentialHandle,
+    required this.sdkBuiltInsCanonicalBase64,
+    this.assignmentContextCanonicalBase64,
+  });
+
+  /// Exact immutable accepted receipt carrier.
+  final String acceptedReceiptCanonicalBase64;
+
+  /// Bounded private credential-vault locator.
+  final String credentialHandle;
+
+  /// Exact typed SDK-built-in audience input carrier.
+  final String sdkBuiltInsCanonicalBase64;
+
+  /// Exact typed request context when required by the pinned audience policy.
+  final String? assignmentContextCanonicalBase64;
+
+  /// Whether every carrier component satisfies the closed wire grammar.
+  bool get isValid =>
+      _isCanonicalBase64UrlCarrier(acceptedReceiptCanonicalBase64) &&
+      _ittCredentialHandle.hasMatch(credentialHandle) &&
+      _isCanonicalBase64UrlCarrier(sdkBuiltInsCanonicalBase64) &&
+      (assignmentContextCanonicalBase64 == null ||
+          _isCanonicalBase64UrlCarrier(assignmentContextCanonicalBase64!));
+
+  /// Exact JSON object sent to the authenticated route.
+  String get canonicalJson => assignmentContextCanonicalBase64 == null
+      ? '{"acceptedReceiptCanonicalBase64":"$acceptedReceiptCanonicalBase64",'
+          '"credentialHandle":"$credentialHandle",'
+          '"sdkBuiltInsCanonicalBase64":"$sdkBuiltInsCanonicalBase64"}'
+      : '{"acceptedReceiptCanonicalBase64":"$acceptedReceiptCanonicalBase64",'
+          '"credentialHandle":"$credentialHandle",'
+          '"sdkBuiltInsCanonicalBase64":"$sdkBuiltInsCanonicalBase64",'
+          '"assignmentContextCanonicalBase64":"$assignmentContextCanonicalBase64"}';
+}
+
+/// Candidate-delivery state reported after durable admission.
+@internal
+enum IttAssignmentRpcCandidateDelivery {
+  /// Candidate delivery completed after durable enrollment.
+  rendered,
+
+  /// Candidate delivery failed while ITT enrollment remains durable.
+  renderFailedButEnrolled,
+
+  /// A prior request completed candidate delivery.
+  alreadyRendered,
+
+  /// Another request owns candidate delivery.
+  renderInFlight,
+}
+
+/// Closed reason for an unavailable assignment RPC result.
+@internal
+enum IttAssignmentRpcUnavailableReason {
+  /// The authenticated SDK session was absent or rejected.
+  unauthenticated,
+
+  /// Hosted policy denied the request.
+  forbidden,
+
+  /// The route or private composition was unavailable.
+  serviceUnavailable,
+
+  /// The response status was outside the accepted mapping.
+  unexpectedStatus,
+
+  /// A response object did not satisfy the closed route protocol.
+  malformedResponse,
+
+  /// No usable HTTP response was received.
+  transportFailure,
+}
+
+/// Closed outcome of the SDK's authenticated assignment call.
+@internal
+sealed class IttAssignmentRpcOutcome {
+  /// Creates a RPC outcome.
+  const IttAssignmentRpcOutcome();
+}
+
+/// The server committed enrollment and reported delivery state.
+@internal
+final class IttAssignmentRpcAssigned extends IttAssignmentRpcOutcome {
+  /// Creates the durable admission outcome.
+  const IttAssignmentRpcAssigned(this.candidateDelivery);
+
+  /// Candidate-delivery diagnostic only.
+  final IttAssignmentRpcCandidateDelivery candidateDelivery;
+}
+
+/// The audience policy closed the request outside its exact audience.
+@internal
+final class IttAssignmentRpcOutsideAudience extends IttAssignmentRpcOutcome {
+  /// Creates the outside-audience outcome.
+  const IttAssignmentRpcOutsideAudience();
+}
+
+/// The audience policy closed the request as ineligible.
+@internal
+final class IttAssignmentRpcIneligible extends IttAssignmentRpcOutcome {
+  /// Creates the ineligible outcome.
+  const IttAssignmentRpcIneligible();
+}
+
+/// Exact activation or audience authority could not be established.
+@internal
+final class IttAssignmentRpcAuthorityUnavailable
+    extends IttAssignmentRpcOutcome {
+  /// Creates the authority-unavailable outcome.
+  const IttAssignmentRpcAuthorityUnavailable();
+}
+
+/// Lifecycle state withheld the eligible population.
+@internal
+final class IttAssignmentRpcPopulationUnavailable
+    extends IttAssignmentRpcOutcome {
+  /// Creates the population-unavailable outcome.
+  const IttAssignmentRpcPopulationUnavailable();
+}
+
+/// The authenticated session was unavailable to the assignment route.
+@internal
+final class IttAssignmentRpcUnauthenticated extends IttAssignmentRpcOutcome {
+  /// Creates the unauthenticated outcome.
+  const IttAssignmentRpcUnauthenticated();
+}
+
+/// The route did not yield a safe outcome.
+@internal
+final class IttAssignmentRpcUnavailable extends IttAssignmentRpcOutcome {
+  /// Creates the unavailable outcome.
+  const IttAssignmentRpcUnavailable(this.reason);
+
+  /// Closed wire or transport reason.
+  final IttAssignmentRpcUnavailableReason reason;
+}
+
+/// Closed HTTP failure classes for governed Measurement operations.
+@internal
+enum GovernedMeasurementRpcFailure {
+  /// The server rejected the outer carrier before a domain operation ran.
+  rejected,
+
+  /// The configured SDK credential was unavailable or denied.
+  unauthenticated,
+
+  /// The server observed a durable retry conflict outside a result carrier.
+  conflict,
+
+  /// No strict canonical result carrier was available.
+  unavailable,
+}
+
+/// Outcome of one authenticated governed Measurement HTTP call.
+@internal
+sealed class GovernedMeasurementRpcOutcome {
+  const GovernedMeasurementRpcOutcome();
+}
+
+/// The server returned one strict canonical governed result carrier.
+@internal
+final class GovernedMeasurementRpcAccepted
+    extends GovernedMeasurementRpcOutcome {
+  const GovernedMeasurementRpcAccepted({required this.resultCanonicalBase64});
+
+  final String resultCanonicalBase64;
+}
+
+/// The call did not return a usable canonical result carrier.
+@internal
+final class GovernedMeasurementRpcFailed extends GovernedMeasurementRpcOutcome {
+  const GovernedMeasurementRpcFailed(this.failure);
+
+  final GovernedMeasurementRpcFailure failure;
+}
+
+/// Outcome of the SDK's authenticated exact publication-binding HTTP call.
+///
+/// This is intentionally SDK-internal: hosted lifecycle composition receives
+/// the schema read port, never a new developer-facing RPC API.
+@internal
+sealed class MeasurementPublicationBindingReadRpcOutcome {
+  /// Creates an exact-binding RPC outcome.
+  const MeasurementPublicationBindingReadRpcOutcome();
+}
+
+/// The server returned one closed binding and registered attestation.
+@internal
+final class MeasurementPublicationBindingReadRpcAccepted
+    extends MeasurementPublicationBindingReadRpcOutcome {
+  /// Creates an accepted exact-binding RPC outcome.
+  const MeasurementPublicationBindingReadRpcAccepted({
+    required this.binding,
+    required this.registeredPublicationAttestation,
+  });
+
+  /// Exact immutable binding document returned by the server.
+  final MeasurementPublicationBindingV1 binding;
+
+  /// Closed registered-adapter attestation for [binding].
+  final RegisteredPublicationAttestationV1 registeredPublicationAttestation;
+}
+
+/// The requested exact binding was absent for the authenticated target.
+@internal
+final class MeasurementPublicationBindingReadRpcAbsent
+    extends MeasurementPublicationBindingReadRpcOutcome {
+  /// Creates an exact absence outcome.
+  const MeasurementPublicationBindingReadRpcAbsent();
+}
+
+/// The server rejected an exact response whose joins did not close.
+@internal
+final class MeasurementPublicationBindingReadRpcMismatched
+    extends MeasurementPublicationBindingReadRpcOutcome {
+  /// Creates a mismatched exact-binding outcome.
+  const MeasurementPublicationBindingReadRpcMismatched();
+}
+
+/// The server identified an unsupported future exact-binding shape.
+@internal
+final class MeasurementPublicationBindingReadRpcUnsupportedFuture
+    extends MeasurementPublicationBindingReadRpcOutcome {
+  /// Creates an unsupported-future outcome.
+  const MeasurementPublicationBindingReadRpcUnsupportedFuture();
+}
+
+/// The exact binding HTTP call did not produce a usable closed result.
+@internal
+final class MeasurementPublicationBindingReadRpcUnavailable
+    extends MeasurementPublicationBindingReadRpcOutcome {
+  /// Creates an unavailable exact-binding outcome.
+  const MeasurementPublicationBindingReadRpcUnavailable();
 }
 
 /// HTTP/JSON client for the SDK's `/sdk/v1` endpoints.
@@ -358,6 +685,242 @@ class RestageRpcClient {
         body: request.toJson(),
       );
 
+  /// Sends one canonical Measurement request through the SDK HTTP session.
+  ///
+  /// This call deliberately retains the named HTTP distinctions needed by the
+  /// internal measurement transport instead of using [_postJsonObject], whose
+  /// fail-closed contract collapses all non-success statuses.
+  @internal
+  Future<MeasurementIngestRpcOutcome> ingestMeasurement(
+    String canonicalRequestBase64,
+  ) async {
+    final uri = Uri.parse('$_baseUrl/sdk/v1/measurement');
+    final http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'canonicalRequestBase64': canonicalRequestBase64}),
+      );
+    } on Object {
+      debugPrint(
+        '[restage] measurement ingest request failed before a response',
+      );
+      return const MeasurementIngestRpcUnavailable(
+        MeasurementIngestRpcUnavailableReason.transportFailure,
+      );
+    }
+
+    switch (response.statusCode) {
+      case 200:
+        return _parseMeasurementIngestAcceptedResponse(response.body);
+      case 400:
+      case 413:
+        return const MeasurementIngestRpcRejected();
+      case 401:
+        return const MeasurementIngestRpcUnauthenticated();
+      case 409:
+        return const MeasurementIngestRpcConflict();
+      case 403:
+        return const MeasurementIngestRpcUnavailable(
+          MeasurementIngestRpcUnavailableReason.forbidden,
+        );
+      case 503:
+        return const MeasurementIngestRpcUnavailable(
+          MeasurementIngestRpcUnavailableReason.serviceUnavailable,
+        );
+      default:
+        debugPrint(
+          '[restage] measurement ingest request failed with '
+          'status ${response.statusCode}',
+        );
+        return const MeasurementIngestRpcUnavailable(
+          MeasurementIngestRpcUnavailableReason.unexpectedStatus,
+        );
+    }
+  }
+
+  /// Delivers one strict authenticated assignment carrier.
+  ///
+  /// The response carries only closed diagnostics. It cannot transport an
+  /// arm, unit, target, allocation value, or render payload.
+  @internal
+  Future<IttAssignmentRpcOutcome> serveIttAssignment(
+    IttAssignmentRpcRequest request,
+  ) async {
+    if (!request.isValid) {
+      return const IttAssignmentRpcUnavailable(
+        IttAssignmentRpcUnavailableReason.malformedResponse,
+      );
+    }
+    final uri = Uri.parse('$_baseUrl/sdk/v1/measurement-assignment');
+    final http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: request.canonicalJson,
+      );
+    } on Object {
+      debugPrint('[restage] assignment request failed before a response');
+      return const IttAssignmentRpcUnavailable(
+        IttAssignmentRpcUnavailableReason.transportFailure,
+      );
+    }
+
+    switch (response.statusCode) {
+      case 200:
+        return _parseIttAssignmentResponse(response.body);
+      case 401:
+        return const IttAssignmentRpcUnauthenticated();
+      case 403:
+        return const IttAssignmentRpcUnavailable(
+          IttAssignmentRpcUnavailableReason.forbidden,
+        );
+      case 503:
+        return const IttAssignmentRpcUnavailable(
+          IttAssignmentRpcUnavailableReason.serviceUnavailable,
+        );
+      case 400:
+      case 413:
+        return const IttAssignmentRpcUnavailable(
+          IttAssignmentRpcUnavailableReason.malformedResponse,
+        );
+      default:
+        debugPrint(
+          '[restage] assignment request failed with '
+          'status ${response.statusCode}',
+        );
+        return const IttAssignmentRpcUnavailable(
+          IttAssignmentRpcUnavailableReason.unexpectedStatus,
+        );
+    }
+  }
+
+  /// Sends one governed Measurement operation through the authenticated SDK
+  /// session. The operation name is an SDK-internal closed dispatch selector;
+  /// the request and result remain strict canonical carriers.
+  @internal
+  Future<GovernedMeasurementRpcOutcome> invokeGovernedMeasurement({
+    required String operation,
+    required String canonicalRequestBase64,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/sdk/v1/measurement-governed');
+    final http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'operation': operation,
+          'requestCanonicalBase64': canonicalRequestBase64,
+        }),
+      );
+    } on Object {
+      debugPrint(
+        '[restage] governed measurement request failed before a response',
+      );
+      return const GovernedMeasurementRpcFailed(
+        GovernedMeasurementRpcFailure.unavailable,
+      );
+    }
+
+    switch (response.statusCode) {
+      case 200:
+        return _parseGovernedMeasurementAcceptedResponse(response.body);
+      case 400:
+      case 413:
+        return const GovernedMeasurementRpcFailed(
+          GovernedMeasurementRpcFailure.rejected,
+        );
+      case 401:
+      case 403:
+        return const GovernedMeasurementRpcFailed(
+          GovernedMeasurementRpcFailure.unauthenticated,
+        );
+      case 409:
+        return const GovernedMeasurementRpcFailed(
+          GovernedMeasurementRpcFailure.conflict,
+        );
+      default:
+        debugPrint(
+          '[restage] governed measurement request failed with '
+          'status ${response.statusCode}',
+        );
+        return const GovernedMeasurementRpcFailed(
+          GovernedMeasurementRpcFailure.unavailable,
+        );
+    }
+  }
+
+  /// Reads one complete immutable Measurement publication binding.
+  ///
+  /// This uses the existing authenticated SDK HTTP client and sends no target,
+  /// tenant, surface, active/current, or fallback selector. The sole request
+  /// value is [reference]'s canonical immutable carrier.
+  @internal
+  Future<MeasurementPublicationBindingReadRpcOutcome>
+      readMeasurementPublicationBindingExact(
+    MeasurementPublicationBindingReferenceV1 reference,
+  ) async {
+    final carrier =
+        base64Url.encode(reference.canonicalBytes).replaceAll('=', '');
+    final uri = Uri.parse('$_baseUrl/sdk/v1/measurement-publication-binding');
+    final http.Response response;
+    try {
+      response = await _client.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+        },
+        body: '{"bindingReferenceCanonicalBase64":"$carrier"}',
+      );
+    } on Object {
+      // Transport errors can retain request details. Keep this shape-only.
+      debugPrint(
+        '[restage] measurement publication binding request failed before a '
+        'response',
+      );
+      return const MeasurementPublicationBindingReadRpcUnavailable();
+    }
+
+    switch (response.statusCode) {
+      case 200:
+        return _parseMeasurementPublicationBindingReadAcceptedResponse(
+          response.body,
+          reference: reference,
+        );
+      case 400:
+      case 409:
+      case 413:
+        return const MeasurementPublicationBindingReadRpcMismatched();
+      case 404:
+        return const MeasurementPublicationBindingReadRpcAbsent();
+      case 422:
+        return const MeasurementPublicationBindingReadRpcUnsupportedFuture();
+      case 401:
+      case 403:
+      case 503:
+        return const MeasurementPublicationBindingReadRpcUnavailable();
+      default:
+        debugPrint(
+          '[restage] measurement publication binding request failed with '
+          'status ${response.statusCode}',
+        );
+        return const MeasurementPublicationBindingReadRpcUnavailable();
+    }
+  }
+
   /// Fetches a surface document envelope for [surfaceSlug] of [surfaceType].
   ///
   /// Pass an explicit [version] to fetch that exact published version. Omit it
@@ -392,7 +955,7 @@ class RestageRpcClient {
         throw const SurfaceRequestPublicationRejected();
       }
     }
-    final json = await _postJsonObject(
+    final httpResult = await _postJsonObjectWithHeaders(
       path: '/sdk/v1/surface',
       body: {
         'surfaceType': surfaceType,
@@ -411,6 +974,7 @@ class RestageRpcClient {
         },
       },
     );
+    final json = httpResult?.json;
     if (json == null) return null;
 
     final assignment = _parseSurfaceAssignmentMetadata(json);
@@ -427,7 +991,7 @@ class RestageRpcClient {
     final flowContractRequired =
         rawFlowContractRequired is bool ? rawFlowContractRequired : false;
 
-    final SurfaceArtifactDescriptorV1 descriptor;
+    final SurfaceArtifactDescriptor descriptor;
     try {
       descriptor = SurfaceArtifactDescriptorV1Codec.decode(json['artifact']);
     } on FormatException catch (error) {
@@ -455,6 +1019,10 @@ class RestageRpcClient {
       experimentEpoch: assignment.experimentEpoch,
       contractRequired: contractRequired,
       flowContractRequired: flowContractRequired,
+      publicationBindingReference:
+          _measurementPublicationBindingReferenceFromHeaders(
+        httpResult!.headers,
+      ),
     );
   }
 
@@ -465,7 +1033,7 @@ class RestageRpcClient {
   /// funnels into one outcome type and is reported once, here, so a resolver's
   /// fallback is never taken in silence.
   Future<SurfaceArtifactOutcome> _resolveArtifact(
-    SurfaceArtifactDescriptorV1 descriptor,
+    SurfaceArtifactDescriptor descriptor,
   ) async {
     // An artifact is content-addressed, so a re-resolve that names the same one
     // is naming bytes this client already holds and verified. Re-fetching them
@@ -538,7 +1106,7 @@ class RestageRpcClient {
   /// only one of them reported would be a failure whose visibility depended on
   /// whether the same artifact had been resolved earlier in the session.
   SurfaceArtifactOutcome _reported(
-    SurfaceArtifactDescriptorV1 descriptor,
+    SurfaceArtifactDescriptor descriptor,
     SurfaceArtifactOutcome outcome,
   ) {
     if (outcome is SurfaceArtifactUnavailable) {
@@ -563,7 +1131,7 @@ class RestageRpcClient {
   /// "one object, ten minutes", which only holds while the pass reaches the
   /// origin the server chose and nobody else.
   Future<Uint8List> _fetchArtifactBytes(
-    SurfaceArtifactDescriptorV1 descriptor,
+    SurfaceArtifactDescriptor descriptor,
   ) async {
     final request = http.Request('GET', Uri.parse(descriptor.artifactUrl))
       ..followRedirects = false
@@ -588,7 +1156,7 @@ class RestageRpcClient {
   /// callers to apply their own fallback policy without accepting an
   /// untrusted response.
   Future<SurfaceScreenDeliveryResult> fetchSurfaceScreen(
-    SurfaceScreenDeliveryRequestV1 request,
+    SurfaceScreenDeliveryRequest request,
   ) async {
     final uri = Uri.parse('$_baseUrl/sdk/v1/surface');
     final body = SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(
@@ -644,7 +1212,7 @@ class RestageRpcClient {
       );
     }
 
-    final SurfaceScreenDeliveryDescriptorV1 described;
+    final SurfaceScreenDeliveryDescriptor described;
     try {
       described = SurfaceScreenDeliveryDescriptorV1Codec.decodeJson(
         response.body,
@@ -662,7 +1230,7 @@ class RestageRpcClient {
     // was actually assembled out of the fetched bytes, which is the only
     // version of that check that says anything about them.
     final artifact = await _resolveArtifact(described.artifact);
-    final SurfaceScreenDeliveryResponseV1 delivery;
+    final SurfaceScreenDeliveryResponse delivery;
     switch (artifact) {
       case SurfaceArtifactAssembled(:final document):
         try {
@@ -707,7 +1275,11 @@ class RestageRpcClient {
         SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
       );
     }
-    return SurfaceScreenDeliveryAvailable(delivery);
+    return SurfaceScreenDeliveryAvailable(
+      delivery,
+      publicationBindingReference:
+          _measurementPublicationBindingReferenceFromHeaders(response.headers),
+    );
   }
 
   /// Fetches the active-version stamp for a surface without downloading its
@@ -720,10 +1292,7 @@ class RestageRpcClient {
   }) async {
     final json = await _postJsonObject(
       path: '/sdk/v1/surface-stamp',
-      body: {
-        'surfaceType': surfaceType,
-        'surfaceSlug': surfaceSlug,
-      },
+      body: {'surfaceType': surfaceType, 'surfaceSlug': surfaceSlug},
     );
     final version = json?['version'];
     if (version is! int) return null;
@@ -809,6 +1378,14 @@ class RestageRpcClient {
   Future<Map<String, dynamic>?> _postJsonObject({
     required String path,
     required Map<String, dynamic> body,
+  }) async =>
+      (await _postJsonObjectWithHeaders(path: path, body: body))?.json;
+
+  /// Like [_postJsonObject], while retaining response headers for the one
+  /// additive carrier that must remain attached to a hosted publication payload.
+  Future<_JsonObjectHttpResponse?> _postJsonObjectWithHeaders({
+    required String path,
+    required Map<String, dynamic> body,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     try {
@@ -832,7 +1409,10 @@ class RestageRpcClient {
         debugPrint('[restage] response from $path was not a JSON object');
         return null;
       }
-      return decoded.cast<String, dynamic>();
+      return _JsonObjectHttpResponse(
+        json: decoded.cast<String, dynamic>(),
+        headers: response.headers,
+      );
     } on Object {
       // Transport exceptions can include request details. Keep diagnostics
       // shape-only because transaction requests may carry receipts or tokens.
@@ -853,6 +1433,240 @@ class RestageRpcClient {
       }
     }
     return out;
+  }
+}
+
+final class _JsonObjectHttpResponse {
+  const _JsonObjectHttpResponse({required this.json, required this.headers});
+
+  final Map<String, dynamic> json;
+  final Map<String, String> headers;
+}
+
+const _measurementPublicationBindingHeaderV1 =
+    'Restage-Measurement-Publication-Binding-V1';
+const _maximumMeasurementPublicationBindingHeaderCharacters = 4096;
+final _base64UrlNoPadding = RegExp(r'^[A-Za-z0-9_-]+$');
+final _ittCredentialHandle = RegExp(r'^[A-Za-z0-9._-]{1,256}$');
+const _maximumMeasurementPublicationBindingReadResponseBodyBytes =
+    8 * 1024 * 1024;
+final _exactMeasurementPublicationBindingReadResponseBody = RegExp(
+  r'\{"bindingCanonicalBase64":"([A-Za-z0-9_-]+)",'
+  r'"registeredPublicationAttestationCanonicalBase64":"([A-Za-z0-9_-]+)"\}',
+);
+
+MeasurementIngestRpcOutcome _parseMeasurementIngestAcceptedResponse(
+  String body,
+) {
+  Object? decoded;
+  try {
+    decoded = jsonDecode(body);
+  } on Object {
+    debugPrint('[restage] measurement ingest response was malformed');
+    return const MeasurementIngestRpcUnavailable(
+      MeasurementIngestRpcUnavailableReason.malformedResponse,
+    );
+  }
+
+  if (decoded is! Map ||
+      decoded.length != 1 ||
+      !decoded.containsKey('receiptCanonicalBase64')) {
+    debugPrint('[restage] measurement ingest response was malformed');
+    return const MeasurementIngestRpcUnavailable(
+      MeasurementIngestRpcUnavailableReason.malformedResponse,
+    );
+  }
+
+  final receiptCanonicalBase64 = decoded['receiptCanonicalBase64'];
+  if (receiptCanonicalBase64 is! String ||
+      !_isCanonicalBase64UrlCarrier(receiptCanonicalBase64)) {
+    debugPrint('[restage] measurement ingest response was malformed');
+    return const MeasurementIngestRpcUnavailable(
+      MeasurementIngestRpcUnavailableReason.malformedResponse,
+    );
+  }
+
+  return MeasurementIngestRpcAccepted(
+    receiptCanonicalBase64: receiptCanonicalBase64,
+  );
+}
+
+IttAssignmentRpcOutcome _parseIttAssignmentResponse(String body) {
+  const assignedPrefix = '{"result":"assigned","candidateDelivery":"';
+  const assignedSuffix = '"}';
+  if (body.startsWith(assignedPrefix) && body.endsWith(assignedSuffix)) {
+    final candidate = body.substring(
+      assignedPrefix.length,
+      body.length - assignedSuffix.length,
+    );
+    final delivery = switch (candidate) {
+      'rendered' => IttAssignmentRpcCandidateDelivery.rendered,
+      'renderFailedButEnrolled' =>
+        IttAssignmentRpcCandidateDelivery.renderFailedButEnrolled,
+      'alreadyRendered' => IttAssignmentRpcCandidateDelivery.alreadyRendered,
+      'renderInFlight' => IttAssignmentRpcCandidateDelivery.renderInFlight,
+      _ => null,
+    };
+    if (delivery != null) return IttAssignmentRpcAssigned(delivery);
+  }
+  return switch (body) {
+    '{"result":"outsideAudience"}' => const IttAssignmentRpcOutsideAudience(),
+    '{"result":"ineligible"}' => const IttAssignmentRpcIneligible(),
+    '{"result":"authorityUnavailable"}' =>
+      const IttAssignmentRpcAuthorityUnavailable(),
+    '{"result":"populationUnavailable"}' =>
+      const IttAssignmentRpcPopulationUnavailable(),
+    _ => const IttAssignmentRpcUnavailable(
+        IttAssignmentRpcUnavailableReason.malformedResponse,
+      ),
+  };
+}
+
+GovernedMeasurementRpcOutcome _parseGovernedMeasurementAcceptedResponse(
+  String body,
+) {
+  Object? decoded;
+  try {
+    decoded = jsonDecode(body);
+  } on Object {
+    debugPrint('[restage] governed measurement response was malformed');
+    return const GovernedMeasurementRpcFailed(
+      GovernedMeasurementRpcFailure.unavailable,
+    );
+  }
+  if (decoded is! Map ||
+      decoded.length != 1 ||
+      !decoded.containsKey('resultCanonicalBase64')) {
+    debugPrint('[restage] governed measurement response was malformed');
+    return const GovernedMeasurementRpcFailed(
+      GovernedMeasurementRpcFailure.unavailable,
+    );
+  }
+  final carrier = decoded['resultCanonicalBase64'];
+  if (carrier is! String || !_isCanonicalBase64UrlCarrier(carrier)) {
+    debugPrint('[restage] governed measurement response was malformed');
+    return const GovernedMeasurementRpcFailed(
+      GovernedMeasurementRpcFailure.unavailable,
+    );
+  }
+  return GovernedMeasurementRpcAccepted(resultCanonicalBase64: carrier);
+}
+
+MeasurementPublicationBindingReadRpcOutcome
+    _parseMeasurementPublicationBindingReadAcceptedResponse(
+  String body, {
+  required MeasurementPublicationBindingReferenceV1 reference,
+}) {
+  if (utf8.encode(body).length >
+      _maximumMeasurementPublicationBindingReadResponseBodyBytes) {
+    debugPrint(
+      '[restage] measurement publication binding response was malformed',
+    );
+    return const MeasurementPublicationBindingReadRpcMismatched();
+  }
+  final match = _exactMeasurementPublicationBindingReadResponseBody.firstMatch(
+    body,
+  );
+  if (match == null || match.start != 0 || match.end != body.length) {
+    debugPrint(
+      '[restage] measurement publication binding response was malformed',
+    );
+    return const MeasurementPublicationBindingReadRpcMismatched();
+  }
+  final bindingCarrier = match.group(1);
+  final attestationCarrier = match.group(2);
+  if (bindingCarrier == null || attestationCarrier == null) {
+    debugPrint(
+      '[restage] measurement publication binding response was malformed',
+    );
+    return const MeasurementPublicationBindingReadRpcMismatched();
+  }
+  try {
+    final bindingBytes = _decodeCanonicalBase64UrlCarrier(bindingCarrier);
+    final attestationBytes = _decodeCanonicalBase64UrlCarrier(
+      attestationCarrier,
+    );
+    if (bindingBytes == null || attestationBytes == null) {
+      return const MeasurementPublicationBindingReadRpcMismatched();
+    }
+    final binding = MeasurementPublicationBindingV1.fromCanonicalBytes(
+      bindingBytes,
+    );
+    final attestation = RegisteredPublicationAttestationV1.fromCanonicalBytes(
+      attestationBytes,
+    );
+    if (!binding.matchesReference(reference) ||
+        attestation.bindingReference != reference) {
+      return const MeasurementPublicationBindingReadRpcMismatched();
+    }
+    return MeasurementPublicationBindingReadRpcAccepted(
+      binding: binding,
+      registeredPublicationAttestation: attestation,
+    );
+  } on Object {
+    // The documents/carriers can contain private runtime route data. Keep the
+    // diagnostic shape-only and return a closed non-authoritative result.
+    debugPrint(
+      '[restage] measurement publication binding response was malformed',
+    );
+    return const MeasurementPublicationBindingReadRpcMismatched();
+  }
+}
+
+bool _isCanonicalBase64UrlCarrier(String value) {
+  if (value.isEmpty ||
+      value.contains('=') ||
+      !_base64UrlNoPadding.hasMatch(value)) {
+    return false;
+  }
+  try {
+    final bytes = base64Url.decode(base64Url.normalize(value));
+    return base64UrlEncode(bytes).replaceAll('=', '') == value;
+  } on Object {
+    return false;
+  }
+}
+
+Uint8List? _decodeCanonicalBase64UrlCarrier(String value) {
+  if (!_isCanonicalBase64UrlCarrier(value)) return null;
+  try {
+    return Uint8List.fromList(base64Url.decode(base64Url.normalize(value)));
+  } on Object {
+    return null;
+  }
+}
+
+/// Strictly decodes the optional additive provenance header.
+///
+/// Header failure is deliberately isolated from frozen publication response decoding:
+/// absent, duplicate, malformed, noncanonical, or future values simply leave
+/// Measurement disabled for this payload.
+MeasurementPublicationBindingReferenceV1?
+    _measurementPublicationBindingReferenceFromHeaders(
+  Map<String, String> headers,
+) {
+  final values = <String>[];
+  for (final entry in headers.entries) {
+    if (entry.key.toLowerCase() ==
+        _measurementPublicationBindingHeaderV1.toLowerCase()) {
+      values.add(entry.value);
+    }
+  }
+  if (values.length != 1) return null;
+
+  final value = values.single;
+  if (value.length > _maximumMeasurementPublicationBindingHeaderCharacters ||
+      !_base64UrlNoPadding.hasMatch(value)) {
+    return null;
+  }
+  try {
+    final bytes = base64Url.decode(base64Url.normalize(value));
+    // A permissive base64 decoder must not turn a noncanonical spelling into a
+    // reference. The public carrier is exactly base64url with no padding.
+    if (base64UrlEncode(bytes).replaceAll('=', '') != value) return null;
+    return MeasurementPublicationBindingReferenceV1.fromCanonicalBytes(bytes);
+  } on Object {
+    return null;
   }
 }
 
