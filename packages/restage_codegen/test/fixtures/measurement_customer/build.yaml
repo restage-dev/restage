@@ -1,0 +1,18 @@
+targets:
+  $default:
+    builders:
+      restage_codegen:restage_source_roster:
+        options:
+          bundled_runtime: true
+      restage_codegen:restage_package_surface_compiler:
+        options:
+          bundled_runtime: true
+          measurement_minimum_client: 1
+          measurement_privacy_policy_revision_id: privacy.customer-v1
+          measurement_collection_budget_revision_id: budget.customer-v1
+      restage_codegen:generated_dart:
+        options:
+          bundled_runtime: true
+      restage_codegen:outputs:
+        options:
+          bundled_runtime: true

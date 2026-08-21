@@ -1,0 +1,6 @@
+# The fixture is a separate customer package whose generated parts are created
+# only in the hermetic build_test reader/writer. Keep those transient outputs
+# out of the repository and out of the parent package's analysis scope.
+analyzer:
+  exclude:
+    - '**/*.dart'
