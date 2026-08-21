@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
-import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 
 import '../secure_transport.dart';
 

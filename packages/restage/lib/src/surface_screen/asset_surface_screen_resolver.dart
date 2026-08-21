@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../flow/flow_descriptors.dart';
+import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import 'surface_screen_bundle_provider.dart';
 import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
@@ -49,22 +50,25 @@ final class AssetSurfaceScreenResolver implements BundledSurfaceScreenResolver {
       expected: provenance.capabilities,
     );
 
-    return ResolvedSurfaceScreen.bundled(
-      surface: provenance.surface,
-      slug: provenance.slug,
-      contractVersion: provenance.contractVersion,
-      sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
-      payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
-      capabilities: provenance.capabilities,
-      contractFingerprint: provenance.contractFingerprint,
-      eventContractHash: provenance.eventContractHash,
-      blob: blob,
-      contentHash: BlobSurfacePayload(
-        minClient: provenance.capabilities.builtInFloor,
+    return attachMeasurementBundledGeneratedSourceCarrier(
+      ResolvedSurfaceScreen.bundled(
+        surface: provenance.surface,
+        slug: provenance.slug,
+        contractVersion: provenance.contractVersion,
+        sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
+        payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
+        capabilities: provenance.capabilities,
+        contractFingerprint: provenance.contractFingerprint,
+        eventContractHash: provenance.eventContractHash,
         blob: blob,
-        requiredLibraries: provenance.capabilities.requiredLibraries,
-      ).contentHash,
-      bundledEntryHash: locator.screenBlob.sha256,
+        contentHash: BlobSurfacePayload(
+          minClient: provenance.capabilities.builtInFloor,
+          blob: blob,
+          requiredLibraries: provenance.capabilities.requiredLibraries,
+        ).contentHash,
+        bundledEntryHash: locator.screenBlob.sha256,
+      ),
+      measurementBundledGeneratedSourceCarrierFor(screen),
     );
   }
 

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 import '../flow/flow_descriptors.dart';
+import '../measurement/measurement_resolved_publication_provenance.dart';
 import '../resolver/restage_variant_resolver.dart' show RestageEnvironment;
 import '../resolver/surface_assignment_key_provider.dart';
 import '../resolver/surface_metering_key_provider.dart';
@@ -13,9 +15,9 @@ import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_types.dart';
 
 /// Resolves one generated screen from hosted delivery with verified bundled fallback.
-final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
+final class RestageScreenResolver implements SurfaceScreenResolver {
   /// Creates the standard hosted standalone-screen resolver.
-  RestageSurfaceScreenResolver({
+  RestageScreenResolver({
     required this.apiKey,
     required this.environment,
     this.baseUrl,
@@ -64,7 +66,7 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
       }
       final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
       if (!lease.isCurrent) continue;
-      final request = SurfaceScreenDeliveryRequestV1(
+      final request = SurfaceScreenDeliveryRequest(
         surface: screen.surface,
         slug: screen.slug,
         contractVersion: screen.contractVersion,
@@ -74,8 +76,15 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
       final result = await client.fetchSurfaceScreen(request);
       if (!lease.isCurrent) continue;
       switch (result) {
-        case SurfaceScreenDeliveryAvailable(:final response):
-          final resolved = _resolveHosted(response, provenance);
+        case SurfaceScreenDeliveryAvailable(
+            :final response,
+            :final publicationBindingReference,
+          ):
+          final resolved = _resolveHosted(
+            response,
+            provenance,
+            publicationBindingReference,
+          );
           if (resolved.assignment != null && lease.assignmentKey == null) {
             throw const SurfaceScreenUnavailableError(
               reason: SurfaceScreenUnavailableReason.contractMismatch,
@@ -109,8 +118,9 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
   }
 
   ResolvedSurfaceScreen _resolveHosted(
-    SurfaceScreenDeliveryResponseV1 response,
+    SurfaceScreenDeliveryResponse response,
     SurfaceScreenRuntimeProvenance provenance,
+    MeasurementPublicationBindingReferenceV1? publicationBindingReference,
   ) {
     final document = response.document;
     final payload = document.payload;
@@ -153,20 +163,23 @@ final class RestageSurfaceScreenResolver implements SurfaceScreenResolver {
         cause: capabilityVerdict,
       );
     }
-    return ResolvedSurfaceScreen.hosted(
-      surface: document.surfaceType,
-      slug: document.surfaceSlug,
-      contractVersion: response.contractVersion,
-      publishedRevision: response.publishedRevision,
-      sourceKind: response.sourceKind,
-      payloadKind: response.payloadKind,
-      capabilities: provenance.capabilities,
-      contractFingerprint: response.contractFingerprint,
-      eventContractHash: response.eventContractHash,
-      blob: payload.blob,
-      contentHash: document.contentHash,
-      assignment: response.assignment,
-      cacheHit: false,
+    return attachMeasurementPublicationBindingReference(
+      ResolvedSurfaceScreen.hosted(
+        surface: document.surfaceType,
+        slug: document.surfaceSlug,
+        contractVersion: response.contractVersion,
+        publishedRevision: response.publishedRevision,
+        sourceKind: response.sourceKind,
+        payloadKind: response.payloadKind,
+        capabilities: provenance.capabilities,
+        contractFingerprint: response.contractFingerprint,
+        eventContractHash: response.eventContractHash,
+        blob: payload.blob,
+        contentHash: document.contentHash,
+        assignment: response.assignment,
+        cacheHit: false,
+      ),
+      publicationBindingReference,
     );
   }
 
@@ -235,3 +248,9 @@ final class _CachedHostedScreen {
   final ResolvedSurfaceScreen screen;
   final SurfaceAssignmentResolutionLease lease;
 }
+
+/// Deprecated spelling of [RestageScreenResolver].
+///
+/// Removed at 3.0.
+@Deprecated('Use RestageScreenResolver')
+typedef RestageSurfaceScreenResolver = RestageScreenResolver;

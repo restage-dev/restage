@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:restage/src/analytics/analytics_transport.dart';
-import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 
 void main() {
   const appContext = AnalyticsAppContext(

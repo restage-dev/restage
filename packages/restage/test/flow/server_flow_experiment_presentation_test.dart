@@ -1536,14 +1536,14 @@ void main() {
       home: Column(
         children: [
           Expanded(
-            child: RestageSurfaceFlow<Map<String, Object?>>(
+            child: RestageFlowGraph<Map<String, Object?>>(
               flow: messageRef,
               resolver: resolver,
               unavailable: const FlowUnavailablePolicy.hide(),
             ),
           ),
           Expanded(
-            child: RestageSurfaceFlow<Map<String, Object?>>(
+            child: RestageFlowGraph<Map<String, Object?>>(
               flow: surveyRef,
               resolver: resolver,
               unavailable: const FlowUnavailablePolicy.hide(),
@@ -1875,7 +1875,7 @@ Widget _host(
   void Function(FlowUnavailableError error)? onFlowUnavailable,
 }) =>
     MaterialApp(
-      home: RestageSurfaceFlow<Map<String, Object?>>(
+      home: RestageFlowGraph<Map<String, Object?>>(
         flow: _flowRef,
         resolver: resolver,
         onFlowUnavailable: onFlowUnavailable,

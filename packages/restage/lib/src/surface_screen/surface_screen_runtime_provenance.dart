@@ -42,7 +42,7 @@ final class SurfaceScreenBundleEntryReference {
   final String logicalPath;
 
   /// Bundle-scoped role of the entry.
-  final RestageBundleEntryRoleV1 role;
+  final RestageBundleEntryRole role;
 
   /// Exact payload byte length.
   final int byteLength;
@@ -91,9 +91,8 @@ final class SurfaceScreenBundleLocator {
         'must not contain duplicate logical paths',
       );
     }
-    if (_entriesForRole(RestageBundleEntryRoleV1.screenBlob).length != 1 ||
-        _entriesForRole(RestageBundleEntryRoleV1.capabilitySidecar).length !=
-            1) {
+    if (_entriesForRole(RestageBundleEntryRole.screenBlob).length != 1 ||
+        _entriesForRole(RestageBundleEntryRole.capabilitySidecar).length != 1) {
       throw ArgumentError.value(
         entries,
         'entries',
@@ -120,14 +119,14 @@ final class SurfaceScreenBundleLocator {
 
   /// The one screen-blob entry of this closure.
   SurfaceScreenBundleEntryReference get screenBlob =>
-      _entriesForRole(RestageBundleEntryRoleV1.screenBlob).single;
+      _entriesForRole(RestageBundleEntryRole.screenBlob).single;
 
   /// The paired capability-sidecar entry of this closure.
   SurfaceScreenBundleEntryReference get capabilitySidecar =>
-      _entriesForRole(RestageBundleEntryRoleV1.capabilitySidecar).single;
+      _entriesForRole(RestageBundleEntryRole.capabilitySidecar).single;
 
   Iterable<SurfaceScreenBundleEntryReference> _entriesForRole(
-    RestageBundleEntryRoleV1 role,
+    RestageBundleEntryRole role,
   ) =>
       entries.where((entry) => entry.role == role);
 }
@@ -151,7 +150,7 @@ final class SurfaceScreenRuntimeProvenance {
     required String slug,
     required int contractVersion,
     required CapabilityManifest capabilities,
-    required SurfaceScreenEventSchemaV1 eventSchema,
+    required SurfaceScreenEventSchema eventSchema,
     SurfaceScreenBundleLocator? bundle,
   }) {
     if (contractVersion < 1) {
@@ -161,8 +160,7 @@ final class SurfaceScreenRuntimeProvenance {
         'must be positive',
       );
     }
-    final eventContractHash =
-        SurfaceScreenEventContractHashV1.hash(eventSchema);
+    final eventContractHash = SurfaceScreenEventContractHash.hash(eventSchema);
     return SurfaceScreenRuntimeProvenance._(
       surface: surface,
       slug: slug,
@@ -170,7 +168,7 @@ final class SurfaceScreenRuntimeProvenance {
       capabilities: capabilities,
       eventSchema: eventSchema,
       eventContractHash: eventContractHash,
-      contractFingerprint: SurfaceScreenContractFingerprintV1.hash(
+      contractFingerprint: SurfaceScreenContractFingerprint.hash(
         sourceKind: sourceKind,
         payloadKind: payloadKind,
         capabilities: capabilities,
@@ -233,7 +231,7 @@ final class SurfaceScreenRuntimeProvenance {
   final CapabilityManifest capabilities;
 
   /// Complete accepted event set of the screen.
-  final SurfaceScreenEventSchemaV1 eventSchema;
+  final SurfaceScreenEventSchema eventSchema;
 
   /// Hash derived from [eventSchema].
   final String eventContractHash;

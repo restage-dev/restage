@@ -7,6 +7,8 @@ import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart';
 import '../events/restage_event.dart'
     show FlowStarted, FlowUnavailable, OnboardingStepViewed, RestageEvent;
+import '../measurement/measurement_event_sanitizer.dart';
+import '../measurement/measurement_host_session.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -32,7 +34,7 @@ typedef FlowUnavailableBuilder = Widget Function(
 
 /// Explicit policies for unavailable flows.
 ///
-/// Every `RestageSurfaceFlow` must choose a policy so missing, incompatible, or
+/// Every `RestageFlowGraph` must choose a policy so missing, incompatible, or
 /// unrenderable artifacts fail closed in a visible way.
 final class FlowUnavailablePolicy {
   /// Presents host-provided UI when the flow is unavailable.
@@ -67,9 +69,9 @@ enum _FlowUnavailablePolicyKind { fallback, hide }
 /// Loads a generated [SurfaceFlowRef], resolves its pinned artifacts, runs
 /// typed app-owned actions when declared, and calls [onComplete] only after the
 /// terminal result has been filtered and decoded.
-final class RestageSurfaceFlow<R> extends StatefulWidget {
+final class RestageFlowGraph<R> extends StatefulWidget {
   /// Creates a flow surface.
-  const RestageSurfaceFlow({
+  const RestageFlowGraph({
     super.key,
     required this.flow,
     this.initialState,
@@ -184,15 +186,26 @@ final class RestageSurfaceFlow<R> extends StatefulWidget {
   final Set<SurfaceRefreshTrigger>? liveRefresh;
 
   @override
-  State<RestageSurfaceFlow<R>> createState() => _RestageSurfaceFlowState<R>();
+  State<RestageFlowGraph<R>> createState() => _RestageFlowGraphState<R>();
 }
 
-class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
+class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   static const int _maxHostedIdentityAttempts = 3;
 
   RestageFlowController<R>? _controller;
   FirstPaintLeaseTransaction? _transaction;
   RootAnalyticsPresentation? _presentation;
+  final Set<RestageFlowController<R>> _ownedControllers =
+      <RestageFlowController<R>>{};
+  final Map<RestageFlowController<R>, MeasurementHostSessionController>
+      _measurementSessions =
+      <RestageFlowController<R>, MeasurementHostSessionController>{};
+
+  /// The accepted Measurement owner. This remains on the retained controller
+  /// while a live-refresh controller is only provisionally painted, so a
+  /// rollback can restore it without reopening or reviving a finalized
+  /// session.
+  RestageFlowController<R>? _activeMeasurementController;
   int _rejectedHostedIdentityAttempts = 0;
   bool _forceUnassignedFallback = false;
 
@@ -286,19 +299,23 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
       },
       onComplete: (result) {
         if (identical(_pendingController, pending)) {
+          _finalizeMeasurementSessionFor(pending);
           _scheduleDiscardPending(pending);
           return;
         }
         if (!mounted || !identical(_controller, pending)) return;
+        _finalizeMeasurementSessionFor(pending);
         widget.onComplete?.call(result);
       },
       onUnavailable: (error) {
         if (identical(_pendingController, pending)) {
           // Silent: keep the current render. No fallback UI, no host callback.
+          _finalizeMeasurementSessionFor(pending);
           _scheduleDiscardPending(pending);
           return;
         }
         if (!mounted || !identical(_controller, pending)) return;
+        _finalizeMeasurementSessionFor(pending);
         setState(() => _unavailableError = error);
         widget.onFlowUnavailable?.call(error);
       },
@@ -381,18 +398,20 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
         !pendingTransaction.isPaintAcknowledged) {
       return;
     }
+    final old = _controllerToDisposeAfterPromotion;
+    final oldTransaction = _transactionToDisposeAfterPromotion;
+    final oldPresentation = _presentationToDisposeAfterPromotion;
     _removePendingReadinessListener(pending);
     _pendingController = null;
     _pendingTransaction = null;
     _pendingPresentation = null;
     _pendingPromotionScheduled = false;
+    if (old != null) _finalizeMeasurementSessionFor(old);
+    _activateMeasurementOwner(pending);
     setState(() {
       _pendingIsStaged = false;
       _unavailableError = null;
     });
-    final old = _controllerToDisposeAfterPromotion;
-    final oldTransaction = _transactionToDisposeAfterPromotion;
-    final oldPresentation = _presentationToDisposeAfterPromotion;
     _controllerToDisposeAfterPromotion = null;
     _transactionToDisposeAfterPromotion = null;
     _presentationToDisposeAfterPromotion = null;
@@ -494,7 +513,7 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
   }
 
   @override
-  void didUpdateWidget(RestageSurfaceFlow<R> oldWidget) {
+  void didUpdateWidget(RestageFlowGraph<R> oldWidget) {
     super.didUpdateWidget(oldWidget);
     final replaceRefreshHandle =
         oldWidget.flow.surfaceType != widget.flow.surfaceType ||
@@ -551,6 +570,7 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
       },
       onComplete: (result) {
         if (!mounted || !identical(_controller, controller)) return;
+        _finalizeMeasurementSessionFor(controller);
         widget.onComplete?.call(result);
       },
       onUnavailable: (error) {
@@ -563,6 +583,7 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
           scheduleMicrotask(() => _restartUnstableInitial(controller));
           return;
         }
+        _finalizeMeasurementSessionFor(controller);
         setState(() => _unavailableError = error);
         widget.onFlowUnavailable?.call(error);
       },
@@ -581,6 +602,7 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
           identical(_presentation, presentation),
       canCommitPresentation: () => true,
       afterRejection: () => _restartRejectedInitial(controller, transaction),
+      onPainted: () => _activateMeasurementOwner(controller),
     );
     _controller = controller;
     _transaction = transaction;
@@ -626,7 +648,8 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
     } else {
       resolver = configuredResolver;
     }
-    return RestageFlowController<R>(
+    late final RestageFlowController<R> controller;
+    controller = createHostMeasurementFlowController<R>(
       flow: widget.flow,
       resolver: resolver,
       initialState: widget.initialState,
@@ -635,7 +658,13 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
       onEvent: onEvent,
       onComplete: onComplete,
       onUnavailable: onUnavailable,
+      onRootResolved: (resolved) =>
+          _openMeasurementSessionForResolvedRoot(controller, resolved),
+      sanitizeAndRecordEvent: (rawValue) =>
+          _sanitizeAndRecordEvent(controller, rawValue),
     );
+    _ownedControllers.add(controller);
+    return controller;
   }
 
   FirstPaintLeaseTransaction? _buildFirstPaintTransaction(
@@ -644,6 +673,7 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
     required bool Function() isCurrent,
     required bool Function() canCommitPresentation,
     VoidCallback? commitPresentation,
+    VoidCallback? onPainted,
     required VoidCallback afterRejection,
   }) {
     final resolver = controller.resolver;
@@ -680,6 +710,7 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
       onPainted: () {
         presentation.activate();
         experimentResolver?.publishHostedLastGood();
+        onPainted?.call();
       },
       afterCommit: () {
         if (mounted && isCurrent()) setState(() {});
@@ -745,6 +776,11 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
     FirstPaintLeaseTransaction? transaction,
     RootAnalyticsPresentation? presentation,
   ) {
+    _finalizeMeasurementSessionFor(controller);
+    _ownedControllers.remove(controller);
+    if (identical(_activeMeasurementController, controller)) {
+      _activeMeasurementController = null;
+    }
     transaction?.supersede();
     presentation?.dispose();
     final resolver = controller.resolver;
@@ -809,11 +845,65 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
     presentation.runWithEventContext(() => Restage.fireEvent(event));
   }
 
-  void _handleAuthoredEvent(String eventId, Object? value) {
+  Future<void> _openMeasurementSessionForResolvedRoot(
+    RestageFlowController<R> controller,
+    Object resolvedOrPayload,
+  ) async {
+    final session =
+        await MeasurementHostSessionController.openForResolvedArtifact(
+      resolvedOrPayload,
+    );
+    if (!_ownedControllers.contains(controller)) {
+      unawaited(session.teardown());
+      return;
+    }
+    final previous = _measurementSessions[controller];
+    if (previous != null && !identical(previous, session)) {
+      unawaited(previous.teardown());
+    }
+    _measurementSessions[controller] = session;
+  }
+
+  Object? _sanitizeAndRecordEvent(
+    RestageFlowController<R> controller,
+    Object? rawValue,
+  ) {
+    final session = _measurementSessions[controller];
+    if (session != null) return session.sanitizeAndRecordEvent(rawValue);
+    return MeasurementEventSanitizer.sanitize(rawValue).businessValue;
+  }
+
+  void _activateMeasurementOwner(RestageFlowController<R> controller) {
+    if (!_ownedControllers.contains(controller)) return;
+    final previous = _activeMeasurementController;
+    if (previous != null && !identical(previous, controller)) {
+      _finalizeMeasurementSessionFor(previous);
+    }
+    _activeMeasurementController = controller;
+  }
+
+  void _finalizeMeasurementSessionFor(RestageFlowController<R> controller) {
+    final session = _measurementSessions.remove(controller);
+    if (session != null) unawaited(session.teardown());
+    if (identical(_activeMeasurementController, controller)) {
+      _activeMeasurementController = null;
+    }
+  }
+
+  void _handleAuthoredEvent(
+    RestageFlowController<R> controller,
+    String eventId,
+    Object? value,
+  ) {
+    if (!identical(_controller, controller)) return;
     // Normalize through the same point the RFW render paths use so a scalar
     // authored-event value reaches the controller in the canonical shape and a
     // flow `.capture()` resolves identically on the local-Dart path.
-    _controller?.handleEvent(eventId, normalizeEventArgs(value));
+    final businessValue = _sanitizeAndRecordEvent(controller, value);
+    controller.handleEvent(
+      eventId,
+      normalizeEventArgs(businessValue),
+    );
   }
 
   @override
@@ -862,8 +952,9 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
         : _transaction;
     final candidatePending =
         transaction != null && transaction.isReady && !transaction.isCommitted;
-    Widget child = RestageSurfaceEventDispatcher(
-      onEvent: _handleAuthoredEvent,
+    Widget child = RestageEventDispatcher(
+      onEvent: (eventId, value) =>
+          _handleAuthoredEvent(controller, eventId, value),
       child: RestageFlowView<R>(
         controller: controller,
         transition: widget.transition,
@@ -879,6 +970,8 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
         priceQueries: widget.priceQueries,
       ),
     );
+    final session = _measurementSessions[controller];
+    if (session != null) child = session.wrapRootSubtree(child);
     if (transaction != null) {
       child = FirstPaintLeaseScope(
         transaction: transaction,
@@ -901,3 +994,10 @@ class _RestageSurfaceFlowState<R> extends State<RestageSurfaceFlow<R>> {
     );
   }
 }
+
+/// Deprecated spelling of [RestageFlowGraph].
+///
+/// The host widget is named after the `@FlowGraph` annotation that produces
+/// what it mounts. Removed at 3.0.
+@Deprecated('Use RestageFlowGraph')
+typedef RestageSurfaceFlow<R> = RestageFlowGraph<R>;

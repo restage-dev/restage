@@ -26,7 +26,7 @@ final class ScreenFixture<E> {
   });
 
   final SurfaceScreenRef<E> ref;
-  final SurfaceScreenEventSchemaV1 schema;
+  final SurfaceScreenEventSchema schema;
   final CapabilityManifest capabilities;
   final Uint8List blob;
   final String contentHash;
@@ -50,17 +50,17 @@ final class ScreenFixture<E> {
           entries: <RestageBundleEntry>[
             RestageBundleEntry(
               logicalPath: locator.screenBlob.logicalPath,
-              role: RestageBundleEntryRoleV1.screenBlob,
+              role: RestageBundleEntryRole.screenBlob,
               bytes: blobOverride ?? blob,
             ),
             RestageBundleEntry(
               logicalPath: locator.capabilitySidecar.logicalPath,
-              role: RestageBundleEntryRoleV1.capabilitySidecar,
+              role: RestageBundleEntryRole.capabilitySidecar,
               bytes: sidecarBytes,
             ),
             RestageBundleEntry(
               logicalPath: 'assets/restage/surface_screens/${ref.slug}.rfwtxt',
-              role: RestageBundleEntryRoleV1.rfwText,
+              role: RestageBundleEntryRole.rfwText,
               bytes: Uint8List.fromList(utf8.encode('widget Inspection = ();')),
             ),
           ],
@@ -92,7 +92,7 @@ final class ScreenFixture<E> {
   ResolvedSurfaceScreen hosted({
     Uint8List? hostedBlob,
     int publishedRevision = 7,
-    SurfaceExperimentAssignmentV1? assignment,
+    SurfaceExperimentAssignment? assignment,
   }) {
     final blob = hostedBlob ?? this.blob;
     return ResolvedSurfaceScreen.hosted(
@@ -118,11 +118,11 @@ final class ScreenFixture<E> {
   /// the half of the wire that carries the pixels was never exercised.
   final HostedArtifactFixture hostedDelivery = HostedArtifactFixture();
 
-  SurfaceScreenDeliveryDescriptorV1 delivery({
+  SurfaceScreenDeliveryDescriptor delivery({
     Uint8List? hostedBlob,
     int publishedRevision = 7,
     int? contractVersion,
-    SurfaceExperimentAssignmentV1? assignment,
+    SurfaceExperimentAssignment? assignment,
   }) {
     final blob = hostedBlob ?? this.blob;
     final payload = BlobSurfacePayload(
@@ -155,7 +155,7 @@ ScreenFixture<String> stringScreenFixture({
   int contractVersion = 1,
   String text = 'Bundled screen',
   String emittedEvent = 'tap',
-  SurfaceScreenEventSchemaV1? schema,
+  SurfaceScreenEventSchema? schema,
   GeneratedSurfaceScreenEventDecoder<String>? decoder,
   CapabilityManifest? capabilities,
   Uint8List? blob,
@@ -164,10 +164,10 @@ ScreenFixture<String> stringScreenFixture({
   final effectiveCapabilities = capabilities ??
       CapabilityManifest(builtInFloor: 1, requiredLibraries: const []);
   final effectiveSchema = schema ??
-      SurfaceScreenEventSchemaV1(events: <SurfaceScreenEventV1>[
-        SurfaceScreenEventV1(
+      SurfaceScreenEventSchema(events: <SurfaceScreenEvent>[
+        SurfaceScreenEvent(
           id: emittedEvent,
-          arguments: const SurfaceScreenEventNoArgumentsV1(),
+          arguments: const SurfaceScreenEventNoArguments(),
         ),
       ]);
   return _fixtureFor(
@@ -196,8 +196,7 @@ ScreenFixture<Never> neverScreenFixture({
       surface: surface,
       slug: slug,
       contractVersion: contractVersion,
-      schema:
-          SurfaceScreenEventSchemaV1(events: const <SurfaceScreenEventV1>[]),
+      schema: SurfaceScreenEventSchema(events: const <SurfaceScreenEvent>[]),
       capabilities:
           CapabilityManifest(builtInFloor: 1, requiredLibraries: const []),
       blob: rfwScreenBlob(text: text, event: emittedEvent),
@@ -212,7 +211,7 @@ ScreenFixture<E> _fixtureFor<E>({
   required Surface surface,
   required String slug,
   required int contractVersion,
-  required SurfaceScreenEventSchemaV1 schema,
+  required SurfaceScreenEventSchema schema,
   required CapabilityManifest capabilities,
   required Uint8List blob,
   required bool packagesBundle,
@@ -235,13 +234,13 @@ ScreenFixture<E> _fixtureFor<E>({
     entries: <SurfaceScreenBundleEntryReference>[
       SurfaceScreenBundleEntryReference(
         logicalPath: 'assets/restage/surface_screens/$slug.rfw',
-        role: RestageBundleEntryRoleV1.screenBlob,
+        role: RestageBundleEntryRole.screenBlob,
         byteLength: blob.length,
         sha256: CapabilitySidecar.hashBlob(blob),
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath: 'assets/restage/surface_screens/$slug.capabilities.json',
-        role: RestageBundleEntryRoleV1.capabilitySidecar,
+        role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: sidecarBytes.length,
         sha256: CapabilitySidecar.hashBlob(sidecarBytes),
       ),

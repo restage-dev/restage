@@ -7,11 +7,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 @internal
-typedef BundledFlowErrorFactory = Object Function(
-  String reason,
-  String message, [
-  Object? cause,
-]);
+typedef BundledFlowErrorFactory = Object Function(String reason, String message,
+    [Object? cause]);
 
 @internal
 final class BundledFlowArtifacts {
@@ -20,12 +17,24 @@ final class BundledFlowArtifacts {
     required this.documentHash,
     required this.document,
     required this.screenBlobs,
+    this.flowJsonPath = '',
+    this.screenAssetPaths = const <String, String>{},
   });
 
   final Uint8List documentBytes;
   final FlowContentHash documentHash;
   final FlowDocument document;
   final Map<String, Uint8List> screenBlobs;
+
+  /// Exact asset path selected for the flow document bytes.
+  final String flowJsonPath;
+
+  /// Exact asset path selected for each resolved screen blob.
+  ///
+  /// This preserves the loader's actual candidate choice (including a legacy
+  /// paywall fallback) for internal provenance consumers. It is not a path
+  /// inferred from a screen id.
+  final Map<String, String> screenAssetPaths;
 }
 
 @internal
@@ -63,6 +72,7 @@ Future<BundledFlowArtifacts> loadBundledFlowArtifacts({
   _checkValidation(document, buildError);
 
   final screenBlobs = <String, Uint8List>{};
+  final screenAssetPaths = <String, String>{};
   var legacyNoticeShown = false;
   for (final entry in document.screenArtifacts.entries) {
     final screenId = entry.key;
@@ -118,6 +128,7 @@ Future<BundledFlowArtifacts> loadBundledFlowArtifacts({
       );
     }
     screenBlobs[screenId] = bytes;
+    screenAssetPaths[screenId] = path;
   }
 
   return BundledFlowArtifacts(
@@ -125,6 +136,8 @@ Future<BundledFlowArtifacts> loadBundledFlowArtifacts({
     documentHash: documentHash,
     document: document,
     screenBlobs: screenBlobs,
+    flowJsonPath: flowJsonPath,
+    screenAssetPaths: Map<String, String>.unmodifiable(screenAssetPaths),
   );
 }
 
@@ -141,11 +154,7 @@ Future<Uint8List> _loadScreenCandidate(
   } on FlutterError {
     rethrow;
   } on Object catch (error) {
-    throw buildError(
-      'load_failed',
-      'Failed to load "$path": $error.',
-      error,
-    );
+    throw buildError('load_failed', 'Failed to load "$path": $error.', error);
   }
 }
 

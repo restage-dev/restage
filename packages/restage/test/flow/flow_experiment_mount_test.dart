@@ -404,7 +404,7 @@ void main() {
       final outcome = await future;
       expect(outcome, isA<FlowCandidatePrefetchAccepted>());
       final accepted = outcome as FlowCandidatePrefetchAccepted;
-      expect(accepted.verdict, isA<FlowExperimentAcceptedV1>());
+      expect(accepted.verdict, isA<FlowExperimentAccepted>());
       final callsBeforePinnedResolve = resolver.calls.length;
       final pinnedChild = await accepted.resolver.resolve(
         const OnboardingFlowRef<Map<String, Object?>>(

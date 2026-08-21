@@ -7,10 +7,14 @@ import 'package:rfw/rfw.dart';
 
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
+import '../measurement/measurement_event_sanitizer.dart';
 import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
+
+typedef _FlowRootResolvedAdmission = Future<void> Function(ResolvedFlow root);
+typedef _FlowEventMeasurementSanitizer = Object? Function(Object? rawValue);
 
 /// SDK-owned onboarding flow runtime controller.
 ///
@@ -28,6 +32,20 @@ final class RestageFlowController<R> extends ChangeNotifier {
     required this.onComplete,
     required this.onUnavailable,
   });
+
+  RestageFlowController._forHostMeasurement({
+    required this.flow,
+    required this.resolver,
+    this.initialState,
+    required this.actions,
+    this.installedSignalNames = const <String>{},
+    required this.onEvent,
+    required this.onComplete,
+    required this.onUnavailable,
+    required _FlowRootResolvedAdmission onRootResolved,
+    required _FlowEventMeasurementSanitizer sanitizeAndRecordEvent,
+  })  : _onRootResolved = onRootResolved,
+        _sanitizeAndRecordEvent = sanitizeAndRecordEvent;
 
   /// Flow descriptor being executed.
   final OnboardingFlowRef<R> flow;
@@ -63,6 +81,9 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Called when the flow fails closed.
   final void Function(FlowUnavailableError error) onUnavailable;
+
+  _FlowRootResolvedAdmission? _onRootResolved;
+  _FlowEventMeasurementSanitizer? _sanitizeAndRecordEvent;
 
   static final Random _operationIdRandom = Random.secure();
   static const Object _missingOutboundValue = Object();
@@ -272,6 +293,8 @@ final class RestageFlowController<R> extends ChangeNotifier {
       _validateGeneralSignalNames(resolved.document);
       final seed = initialState?.toFlowState() ?? const <String, Object?>{};
       _validateSeed(resolved.document, seed);
+      await _admitResolvedRoot(resolved);
+      if (_isDisposed) return;
       final rootFrame = _FlowFrame(
         resolved: resolved,
         flowId: flow.id,
@@ -307,6 +330,21 @@ final class RestageFlowController<R> extends ChangeNotifier {
       _fail(e);
     } on Object catch (e) {
       _fail(_error('resolve_failed', 'Failed to resolve flow: $e.'));
+    }
+  }
+
+  /// Isolates optional host-composition work from normal flow rendering.
+  ///
+  /// A failed or absent admission must leave the already validated flow on its
+  /// existing rendering path. The hook itself is awaited so an admitted host
+  /// can install its root-owned lifecycle before the first screen exists.
+  Future<void> _admitResolvedRoot(ResolvedFlow root) async {
+    final admission = _onRootResolved;
+    if (admission == null) return;
+    try {
+      await admission(root);
+    } on Object {
+      return;
     }
   }
 
@@ -1973,6 +2011,59 @@ final class RestageFlowController<R> extends ChangeNotifier {
       }
     }
     return false;
+  }
+}
+
+/// Creates a controller with a root-owned host lifecycle bridge.
+///
+/// This is deliberately absent from `package:restage/restage.dart`: public
+/// callers keep using [RestageFlowController]'s unchanged constructor while
+/// SDK surface hosts opt into Measurement composition internally.
+@internal
+RestageFlowController<R> createHostMeasurementFlowController<R>({
+  required OnboardingFlowRef<R> flow,
+  required FlowResolver resolver,
+  FlowSeed? initialState,
+  required FlowActionRegistry? actions,
+  Set<String> installedSignalNames = const <String>{},
+  required void Function(RestageEvent event) onEvent,
+  required void Function(R result) onComplete,
+  required void Function(FlowUnavailableError error) onUnavailable,
+  required Future<void> Function(ResolvedFlow root) onRootResolved,
+  required Object? Function(Object? rawValue) sanitizeAndRecordEvent,
+}) {
+  return RestageFlowController<R>._forHostMeasurement(
+    flow: flow,
+    resolver: resolver,
+    initialState: initialState,
+    actions: actions,
+    installedSignalNames: installedSignalNames,
+    onEvent: onEvent,
+    onComplete: onComplete,
+    onUnavailable: onUnavailable,
+    onRootResolved: onRootResolved,
+    sanitizeAndRecordEvent: sanitizeAndRecordEvent,
+  );
+}
+
+/// Sanitizes and records one raw screen event before ordinary flow handling.
+///
+/// The host bridge is deliberately isolated: a Measurement failure preserves
+/// the existing namespace-stripping behavior for the controller, interceptors,
+/// actions, and app callbacks.
+@internal
+Object? sanitizeAndRecordHostFlowEvent<R>(
+  RestageFlowController<R> controller,
+  Object? rawValue,
+) {
+  final sanitizer = controller._sanitizeAndRecordEvent;
+  if (sanitizer == null) {
+    return MeasurementEventSanitizer.sanitize(rawValue).businessValue;
+  }
+  try {
+    return sanitizer(rawValue);
+  } on Object {
+    return MeasurementEventSanitizer.sanitize(rawValue).businessValue;
   }
 }
 

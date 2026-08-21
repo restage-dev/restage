@@ -1,5 +1,5 @@
 import 'package:restage/src/events/restage_event.dart';
-import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 
 import 'root_analytics_context.dart';
 

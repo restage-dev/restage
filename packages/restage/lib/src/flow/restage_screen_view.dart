@@ -5,6 +5,7 @@ import 'package:rfw/rfw.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/product_reference_walk.dart';
 import '../runtime/state_variables.dart';
+import '../measurement/measurement_event_sanitizer.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
 
@@ -199,7 +200,11 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
         onEvent: (name, args) {
           // Inert unless this is the owning controller's current screen.
           if (entryId != controller.currentScreenEntryId) return;
-          controller.handleEvent(name, normalizeEventArgs(args));
+          final sanitized = MeasurementEventSanitizer.sanitize(args);
+          controller.handleEvent(
+            name,
+            normalizeEventArgs(sanitized.businessValue),
+          );
         },
       ),
     );

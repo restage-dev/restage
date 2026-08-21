@@ -124,12 +124,12 @@ void main() {
         entries: <RestageBundleEntry>[
           RestageBundleEntry(
             logicalPath: fixture.locator.screenBlob.logicalPath,
-            role: RestageBundleEntryRoleV1.screenBlob,
+            role: RestageBundleEntryRole.screenBlob,
             bytes: fixture.blob,
           ),
           RestageBundleEntry(
             logicalPath: fixture.locator.capabilitySidecar.logicalPath,
-            role: RestageBundleEntryRoleV1.capabilitySidecar,
+            role: RestageBundleEntryRole.capabilitySidecar,
             bytes: fixture.sidecarBytes,
           ),
         ],
@@ -175,12 +175,12 @@ void main() {
               entries: <RestageBundleEntry>[
                 RestageBundleEntry(
                   logicalPath: fixture.locator.screenBlob.logicalPath,
-                  role: RestageBundleEntryRoleV1.screenBlob,
+                  role: RestageBundleEntryRole.screenBlob,
                   bytes: fixture.blob,
                 ),
                 RestageBundleEntry(
                   logicalPath: fixture.locator.capabilitySidecar.logicalPath,
-                  role: RestageBundleEntryRoleV1.capabilitySidecar,
+                  role: RestageBundleEntryRole.capabilitySidecar,
                   bytes: wrongSidecar,
                 ),
               ],

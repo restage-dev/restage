@@ -9,6 +9,7 @@ import 'package:restage/src/analytics/analytics_event_mapper.dart';
 // The installed built-in catalog content version (the resolver's capability
 // ceiling) is internal; this proof reaches it via the src path.
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
+import 'package:restage_shared/legacy_analytics.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart';
 
@@ -29,7 +30,7 @@ const int _renderableMinClient =
 /// action contracts below pin independently.)
 const int _refFloorMinClient = _renderableMinClient + 2;
 
-/// End-to-end proof slice for Phase 4: a SERVER-delivered onboarding flow
+/// End-to-end proof: a SERVER-delivered onboarding flow
 /// (fetched through a real [ServerFlowResolver] from a fake surface server)
 /// fires the onboarding analytics events on the public `Restage.events` stream,
 /// and those events map to the blessed onboarding analytics envelope.

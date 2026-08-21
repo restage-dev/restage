@@ -38,8 +38,8 @@ void main() {
 
   test('refuses a reference whose event decoder disagrees with its schema', () {
     final fixture = stringScreenFixture();
-    final differentSchema = SurfaceScreenEventSchemaV1(
-      events: const <SurfaceScreenEventV1>[],
+    final differentSchema = SurfaceScreenEventSchema(
+      events: const <SurfaceScreenEvent>[],
     );
 
     // Provenance and the typed decoder are generated separately, so their
@@ -50,7 +50,7 @@ void main() {
       () => SurfaceScreenRef<String>.generated(
         provenance: fixture.provenance,
         eventContract: SurfaceScreenEventContract<String>.generated(
-          hash: SurfaceScreenEventContractHashV1.hash(differentSchema),
+          hash: SurfaceScreenEventContractHash.hash(differentSchema),
           decodeValidated: (_, __) => 'unexpected',
         ),
       ),
@@ -84,11 +84,11 @@ void main() {
 
   testWidgets('rejects an unknown RFW event without calling the typed callback',
       (tester) async {
-    final schema = SurfaceScreenEventSchemaV1(
-      events: <SurfaceScreenEventV1>[
-        SurfaceScreenEventV1(
+    final schema = SurfaceScreenEventSchema(
+      events: <SurfaceScreenEvent>[
+        SurfaceScreenEvent(
           id: 'tap',
-          arguments: const SurfaceScreenEventNoArgumentsV1(),
+          arguments: const SurfaceScreenEventNoArguments(),
         ),
       ],
     );
@@ -116,13 +116,13 @@ void main() {
 
   testWidgets('rejects malformed RFW arguments before conversion',
       (tester) async {
-    final schema = SurfaceScreenEventSchemaV1(
-      events: <SurfaceScreenEventV1>[
-        SurfaceScreenEventV1(
+    final schema = SurfaceScreenEventSchema(
+      events: <SurfaceScreenEvent>[
+        SurfaceScreenEvent(
           id: 'tap',
-          arguments: const SurfaceScreenEventValueArgumentsV1(
+          arguments: const SurfaceScreenEventValueArguments(
             SurfaceScreenEventScalarShapeV1(
-              SurfaceScreenEventScalarKindV1.string,
+              SurfaceScreenEventScalarKind.string,
             ),
           ),
         ),
@@ -211,7 +211,7 @@ void main() {
         home: Stack(
           children: <Widget>[
             const Text('Host remains visible'),
-            RestageSurfaceScreen<String>(
+            RestageScreen<String>(
               screen: fixture.ref,
               resolver: FailingScreenResolver(
                 const SurfaceScreenUnavailableError(
@@ -281,7 +281,7 @@ widget OnboardingScreen = Throwing();
         resolver: FixedScreenResolver(
           fixture.hosted(
             publishedRevision: 9,
-            assignment: SurfaceExperimentAssignmentV1(
+            assignment: SurfaceExperimentAssignment(
               experimentId: 'experiment',
               variantId: 'variant',
               experimentEpoch: 2,
@@ -334,7 +334,7 @@ Widget _host<E>({
 }) =>
     MaterialApp(
       home: Scaffold(
-        body: RestageSurfaceScreen<E>(
+        body: RestageScreen<E>(
           key: key,
           screen: fixture.ref,
           resolver: resolver,

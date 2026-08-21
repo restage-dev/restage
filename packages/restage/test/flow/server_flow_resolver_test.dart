@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 // ignore: implementation_imports
 import 'package:restage/src/flow/flow_experiment_artifact_metadata.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 // The installed built-in catalog content version is the resolver's capability
 // ceiling (internal; the resolver's own tests reach it via the src path).
 import 'package:restage/src/runtime/builtin_catalog_capabilities.dart';
@@ -277,11 +278,16 @@ void main() {
     final screenBytes = Uint8List.fromList([1, 2, 3]);
     final envelope =
         _envelope(_validDocument(screenBytes: screenBytes), screenBytes);
+    final bindingReference = _bindingReference('a');
     var fetches = 0;
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
-      httpClient: _server(envelope, onRequest: (_) => fetches++),
+      httpClient: _server(
+        envelope,
+        onRequest: (_) => fetches++,
+        publicationBindingReference: bindingReference,
+      ),
     );
 
     final first = await resolver.resolve(flowRef);
@@ -289,6 +295,14 @@ void main() {
 
     expect(first.cacheHit, isFalse);
     expect(second.cacheHit, isTrue);
+    expect(
+      measurementPublicationBindingReferenceFor(first),
+      bindingReference,
+    );
+    expect(
+      measurementPublicationBindingReferenceFor(second),
+      bindingReference,
+    );
     // A pinned version is served from cache: only one network fetch.
     expect(fetches, 1);
     // The cached result is still deep-frozen and carries the same bytes.
@@ -872,14 +886,43 @@ Uint8List _envelopeWithIdentity(
 MockClient _server(
   Uint8List envelope, {
   void Function(http.Request request)? onRequest,
+  MeasurementPublicationBindingReferenceV1? publicationBindingReference,
 }) {
   return _delivery.client((request) async {
     onRequest?.call(request);
     return http.Response(
       jsonEncode({..._delivery.describeEnvelope(envelope)}),
       200,
+      headers: {
+        if (publicationBindingReference != null)
+          'Restage-Measurement-Publication-Binding-V1':
+              _bindingHeader(publicationBindingReference),
+      },
     );
   });
+}
+
+String _bindingHeader(MeasurementPublicationBindingReferenceV1 reference) =>
+    base64UrlEncode(reference.canonicalBytes).replaceAll('=', '');
+
+MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
+  final candidate = MeasurementPublicationCandidateReferenceV1(
+    candidateDigest: CanonicalDigest(seed * 64),
+    selectedPublicationManifestDigest: CanonicalDigest('b' * 64),
+    declaredArtifactBytesDigest: CanonicalDigest('c' * 64),
+    assembledPublicationUploadDigest: CanonicalDigest('d' * 64),
+    measurementPublicationDraftDigest: CanonicalDigest('e' * 64),
+  );
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId: MeasurementPublicationAuthorityId('authority.flow.$seed'),
+      externalPublicationAuthorityRef: 'mpa1.${seed.toUpperCase() * 32}',
+      candidateReference: candidate,
+      immutablePublicationDigest: CanonicalDigest('f' * 64),
+      declaredArtifactBytesDigest: candidate.declaredArtifactBytesDigest,
+    ),
+    bindingDigest: CanonicalDigest('0' * 64),
+  );
 }
 
 FlowDocument _validDocument({

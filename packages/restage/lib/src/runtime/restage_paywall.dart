@@ -21,6 +21,9 @@ import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_mount.dart' show FlowMountRevalidationBoundary;
 import '../flow/flow_resolver.dart';
 import '../flow/restage_flow_view.dart';
+import '../measurement/measurement_event_sanitizer.dart';
+import '../measurement/measurement_host_session.dart';
+import '../measurement/measurement_rfw_presentation.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
@@ -210,6 +213,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
   final Map<RestageFlowController<void>, RootAnalyticsPresentation>
       _flowPresentations =
       <RestageFlowController<void>, RootAnalyticsPresentation>{};
+
+  /// Each exact flow root owns its own Measurement session, including every
+  /// screen and sub-flow it reaches. A refresh candidate remains separate until
+  /// its host transaction promotes it, so a rollback cannot contaminate the
+  /// retained presentation's session.
+  final Set<RestageFlowController<void>> _measurementOwnedFlowControllers =
+      <RestageFlowController<void>>{};
+  final Map<RestageFlowController<void>, MeasurementHostSessionController>
+      _flowMeasurementSessions =
+      <RestageFlowController<void>, MeasurementHostSessionController>{};
+  RestageFlowController<void>? _activeFlowMeasurementController;
 
   VoidCallback? _initialFlowReadinessListener;
   bool _initialFlowIsStaged = false;
@@ -525,7 +539,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
           return;
         }
       }
-      _stageBlob(
+      await _stageBlob(
         payload,
         library,
         epoch: epoch,
@@ -537,13 +551,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
       if (!mounted || epoch != _loadEpoch) return;
       // A failed refresh keeps the current render and stays silent.
       if (isRefresh) return;
-      _finishInitialLoadFailure(e, stopwatch, epoch);
+      await _finishInitialLoadFailure(e, stopwatch, epoch);
     } catch (e, st) {
       if (!mounted || epoch != _loadEpoch) return;
       // A failed refresh keeps the current render and stays silent.
       if (isRefresh) return;
       _reportUnexpectedLoadFailure(e, st);
-      _finishInitialLoadFailure(
+      await _finishInitialLoadFailure(
         _unexpectedLoadError(e, st),
         stopwatch,
         epoch,
@@ -551,13 +565,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
   }
 
-  void _finishInitialLoadFailure(
+  Future<void> _finishInitialLoadFailure(
     RestagePaywallError error,
     Stopwatch stopwatch,
     int epoch,
-  ) {
+  ) async {
     if (!mounted || epoch != _loadEpoch) return;
-    if (_tryFallbackToCache(stopwatch, epoch)) return;
+    if (await _tryFallbackToCache(stopwatch, epoch)) return;
+    if (!mounted || epoch != _loadEpoch) return;
     setState(() => _error = error);
     _fireEvent(PaywallLoadFailed(
       paywallId: widget.id,
@@ -693,6 +708,15 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _stagePaywallAnalyticsPresentation(analyticsPresentation, payload);
       },
       onPainted: () {
+        final oldFlow = _flowToDisposeAfterPromotion;
+        if (oldFlow != null) {
+          _finalizeMeasurementSessionForFlow(oldFlow);
+        }
+        final oldBlob = _blobToDisposeAfterPromotion;
+        if (oldBlob != null) {
+          unawaited(oldBlob.measurementSession.teardown());
+        }
+        _activateFlowMeasurementOwner(pending);
         analyticsPresentation.activate();
         _publishRenderedPayload(payload);
       },
@@ -1123,6 +1147,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onPainted: () {
         analyticsPresentation.activate();
         _publishRenderedPayload(payload);
+        _activateFlowMeasurementOwner(controller);
       },
       afterCommit: () => _finishInitialFlowPaintCommit(
         controller,
@@ -1272,11 +1297,11 @@ class _RestagePaywallState extends State<RestagePaywall> {
       }
     } on RestagePaywallError catch (error) {
       if (!mounted || epoch != _loadEpoch) return;
-      _finishInitialLoadFailure(error, stopwatch, epoch);
+      await _finishInitialLoadFailure(error, stopwatch, epoch);
     } catch (error, stackTrace) {
       if (!mounted || epoch != _loadEpoch) return;
       _reportUnexpectedLoadFailure(error, stackTrace);
-      _finishInitialLoadFailure(
+      await _finishInitialLoadFailure(
         _unexpectedLoadError(error, stackTrace),
         stopwatch,
         epoch,
@@ -1445,7 +1470,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required void Function(FlowUnavailableError) onUnavailable,
   }) {
     final document = payload.flow.document;
-    return RestageFlowController<void>(
+    late final RestageFlowController<void> controller;
+    controller = createHostMeasurementFlowController<void>(
       flow: OnboardingFlowRef<void>(
         id: document.flow,
         version: document.version,
@@ -1459,7 +1485,66 @@ class _RestagePaywallState extends State<RestagePaywall> {
       onEvent: onEvent,
       onComplete: onComplete,
       onUnavailable: onUnavailable,
+      onRootResolved: (_) =>
+          _openMeasurementSessionForFlow(controller, payload),
+      sanitizeAndRecordEvent: (rawValue) =>
+          _sanitizeAndRecordFlowEvent(controller, rawValue),
     );
+    _measurementOwnedFlowControllers.add(controller);
+    return controller;
+  }
+
+  /// Opens the root-owned session before the flow controller installs a screen.
+  ///
+  /// The controller's package-internal admission hook invokes this only after
+  /// it has resolved the exact root. [payload] retains that exact resolved
+  /// paywall provenance (including hosted precedence or bundled identity), so
+  /// the session never reconstructs identity from a mutable controller state.
+  Future<void> _openMeasurementSessionForFlow(
+    RestageFlowController<void> controller,
+    FlowPaywallPayload payload,
+  ) async {
+    final session =
+        await MeasurementHostSessionController.openForResolvedArtifact(payload);
+    if (!_measurementOwnedFlowControllers.contains(controller)) {
+      unawaited(session.teardown());
+      return;
+    }
+    final previous = _flowMeasurementSessions[controller];
+    if (previous != null && !identical(previous, session)) {
+      unawaited(previous.teardown());
+    }
+    _flowMeasurementSessions[controller] = session;
+  }
+
+  /// Runs through the exact owning root session before the flow view invokes
+  /// its paywall interceptor, controller transition table, or app callbacks.
+  Object? _sanitizeAndRecordFlowEvent(
+    RestageFlowController<void> controller,
+    Object? rawValue,
+  ) {
+    final session = _flowMeasurementSessions[controller];
+    if (session != null) return session.sanitizeAndRecordEvent(rawValue);
+    return MeasurementEventSanitizer.sanitize(rawValue).businessValue;
+  }
+
+  void _activateFlowMeasurementOwner(RestageFlowController<void> controller) {
+    if (!_measurementOwnedFlowControllers.contains(controller)) return;
+    final previous = _activeFlowMeasurementController;
+    if (previous != null && !identical(previous, controller)) {
+      _finalizeMeasurementSessionForFlow(previous);
+    }
+    _activeFlowMeasurementController = controller;
+  }
+
+  void _finalizeMeasurementSessionForFlow(
+    RestageFlowController<void> controller,
+  ) {
+    final session = _flowMeasurementSessions.remove(controller);
+    if (session != null) unawaited(session.teardown());
+    if (identical(_activeFlowMeasurementController, controller)) {
+      _activeFlowMeasurementController = null;
+    }
   }
 
   /// Routes a screen-fired event for a flow-hosted paywall. Navigation events
@@ -1634,6 +1719,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// a blob paywall.)
   void _handleFlowComplete(RestageFlowController<void> controller) {
     if (!mounted || !identical(_flowController, controller)) return;
+    _finalizeMeasurementSessionForFlow(controller);
     _fireDismissed(DismissReason.userClose);
   }
 
@@ -1645,6 +1731,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FlowUnavailableError error,
   ) {
     if (!mounted || !identical(_flowController, controller)) return;
+    _finalizeMeasurementSessionForFlow(controller);
     // Evict a poisonous cached flow so a later fallback does not re-host an
     // unrenderable flow forever (mirrors the blob path's cache eviction on a
     // decode failure). A no-op when nothing is cached.
@@ -1684,14 +1771,21 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   /// Stages a decoded blob in an isolated runtime. The current presentation
   /// stays mounted until this exact candidate commits at first paint.
-  void _stageBlob(
+  Future<bool> _stageBlob(
     BlobPaywallPayload payload,
     WidgetLibrary library, {
     required int epoch,
     required bool isRefresh,
     required Duration loadDuration,
     required bool cacheHit,
-  }) {
+  }) async {
+    final measurementSession =
+        await MeasurementHostSessionController.openForResolvedArtifact(payload);
+    if (!mounted || epoch != _loadEpoch) {
+      unawaited(measurementSession.teardown());
+      payload.abandonHostedLastGood();
+      return false;
+    }
     final runtime = _createBlobRuntime()..update(_paywallLibrary, library);
     final data = DynamicContent();
     final analyticsPresentation = RootAnalyticsRuntime.createPresentation(
@@ -1712,6 +1806,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
         );
       },
       onPainted: () {
+        final previousBlob = stage.previousBlob;
+        if (previousBlob != null) {
+          unawaited(previousBlob.measurementSession.teardown());
+        }
+        final previousFlow = stage.previousFlow;
+        if (previousFlow != null) {
+          _finalizeMeasurementSessionForFlow(previousFlow);
+        }
         analyticsPresentation.activate();
         _publishRenderedPayload(payload);
       },
@@ -1732,6 +1834,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       cacheHit: cacheHit,
       transaction: transaction,
       analyticsPresentation: analyticsPresentation,
+      measurementSession: measurementSession,
       library: library,
     );
     _populateBlobData(stage);
@@ -1743,6 +1846,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
     _pendingBlobStage = stage;
     setState(() => _error = null);
+    return true;
   }
 
   Runtime _createBlobRuntime() {
@@ -1760,6 +1864,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         restage_cupertino.buildCupertinoWidgetLibrary(),
       );
     LibraryRuntimeRegistry.applyTo(runtime);
+    installMeasurementRfwPresentationLibrary(runtime);
     return runtime;
   }
 
@@ -1949,7 +2054,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// can repopulate, and fire a structured `PaywallLoadFailed` event so the
   /// host sees the cache failure separately from the original resolver
   /// failure (otherwise the cached-blob corruption is invisible).
-  bool _tryFallbackToCache(Stopwatch stopwatch, int epoch) {
+  Future<bool> _tryFallbackToCache(Stopwatch stopwatch, int epoch) async {
     if (!widget.cacheLastRender) return false;
     final cached = _lastSuccessfulPayloads[widget.id];
     if (cached == null) return false;
@@ -1976,7 +2081,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         try {
           final library = decodeLibraryBlob(variant.bytes);
           if (!mounted) return false;
-          _stageBlob(
+          return await _stageBlob(
             cached,
             library,
             epoch: epoch,
@@ -1984,7 +2089,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
             loadDuration: stopwatch.elapsed,
             cacheHit: true,
           );
-          return true;
         } catch (e, st) {
           // Evict the poisonous payload (bytes + version travel together on the
           // sealed payload, so there is no orphaned version to mis-attribute).
@@ -2018,6 +2122,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   void _disposeFlowController(RestageFlowController<void> controller) {
+    _finalizeMeasurementSessionForFlow(controller);
+    _measurementOwnedFlowControllers.remove(controller);
     _flowPresentations.remove(controller)?.dispose();
     final resolver = controller.resolver;
     if (resolver is _PreResolvedFlowResolver) {
@@ -2101,15 +2207,24 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// When the demuxed event is [PurchaseInitiated] / [RestoreInitiated] the
   /// SDK also invokes [Restage.billingGateway] and fires the resulting
   /// follow-up event (`PurchaseSucceeded`, `PurchasePending`, etc.).
-  void _handleRfwEvent(String name, Object? args) {
+  void _handleRfwEvent(
+    String name,
+    Object? args, {
+    MeasurementHostSessionController? measurementSession,
+  }) {
+    final businessArgs = measurementSession == null
+        ? MeasurementEventSanitizer.sanitize(args).businessValue
+        : measurementSession.sanitizeAndRecordEvent(args);
     // Any authored event from the rendered content marks the surface dirty for
     // the swap-safety gate. Deliberately broad — taps, inputs, purchases — so a
     // live swap never lands under an engaged user. Only reached for authored
     // content events (theme/system changes flow through didChangeDependencies).
     _userInteracted = true;
-    final argsMap = args is Map<String, Object?>
-        ? args
-        : (args is Map ? args.cast<String, Object?>() : <String, Object?>{});
+    final argsMap = businessArgs is Map<String, Object?>
+        ? businessArgs
+        : (businessArgs is Map
+            ? businessArgs.cast<String, Object?>()
+            : <String, Object?>{});
     final event = demuxRfwEvent(
       paywallId: widget.id,
       name: name,
@@ -2349,11 +2464,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
     );
   }
 
-  /// Adapter so the [RestagePaywallEventDispatcher] (which expects
-  /// `void Function(String, Map<String, Object?>)`) can forward to the
-  /// shared [_handleRfwEvent] helper.
-  void _dispatcherEvent(String name, Map<String, Object?> args) =>
-      _handleRfwEvent(name, args);
+  void _handleBlobRfwEvent(
+    _BlobStage stage,
+    String name,
+    Object? args,
+  ) =>
+      _handleRfwEvent(
+        name,
+        args,
+        measurementSession: stage.measurementSession,
+      );
 
   bool _canBuildHostedFlow(RestageFlowController<void> controller) {
     if (identical(_flowController, controller)) {
@@ -2423,6 +2543,21 @@ class _RestagePaywallState extends State<RestagePaywall> {
       // overlaps its authored back and dismiss affordances.
       chromeBuilder: (context, state, screen) => screen,
     );
+    final measurementSession = _flowMeasurementSessions[controller];
+    if (measurementSession != null) {
+      child = measurementSession.wrapRootSubtree(
+        transaction == null
+            ? child
+            : FirstPaintLeaseScope(
+                // The Measurement commit hook owns an inner first-paint
+                // lease. Re-expose this candidate's lease at the actual flow
+                // boundary so a trapped screen build error rejects the
+                // candidate rather than committing an error replacement.
+                transaction: transaction,
+                child: child,
+              ),
+      );
+    }
     if (transaction != null) {
       child = FirstPaintLeaseScope(
         transaction: transaction,
@@ -2462,7 +2597,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
               transaction: stage.transaction,
               armed: true,
               child: RestagePaywallEventDispatcher(
-                onEvent: _dispatcherEvent,
+                onEvent: (name, args) => _handleBlobRfwEvent(stage, name, args),
                 child: RuntimeErrorBoundary(
                   onError: (error, _) {
                     _handleBlobBuildFailure(stage, error);
@@ -2481,14 +2616,25 @@ class _RestagePaywallState extends State<RestagePaywall> {
                       ),
                     );
                   },
-                  child: RemoteWidget(
-                    runtime: stage.runtime,
-                    data: stage.data,
-                    widget: const FullyQualifiedWidgetName(
-                      _paywallLibrary,
-                      'Paywall',
+                  child: stage.measurementSession.wrapRootSubtree(
+                    // The Measurement commit hook owns an inner first-paint
+                    // lease. Re-expose this candidate's lease at the actual
+                    // RFW boundary so a trapped build error rejects the
+                    // candidate rather than being mistaken for a successful
+                    // Measurement-only paint.
+                    FirstPaintLeaseScope(
+                      transaction: stage.transaction,
+                      child: RemoteWidget(
+                        runtime: stage.runtime,
+                        data: stage.data,
+                        widget: const FullyQualifiedWidgetName(
+                          _paywallLibrary,
+                          'Paywall',
+                        ),
+                        onEvent: (name, args) =>
+                            _handleBlobRfwEvent(stage, name, args),
+                      ),
                     ),
-                    onEvent: _handleRfwEvent,
                   ),
                 ),
               ),
@@ -2574,6 +2720,7 @@ final class _BlobStage {
     required this.cacheHit,
     required this.transaction,
     required this.analyticsPresentation,
+    required this.measurementSession,
     required WidgetLibrary library,
   }) : placeholderLane = PlaceholderProductLane(library);
 
@@ -2586,6 +2733,7 @@ final class _BlobStage {
   final bool cacheHit;
   final FirstPaintLeaseTransaction transaction;
   final RootAnalyticsPresentation analyticsPresentation;
+  final MeasurementHostSessionController measurementSession;
 
   /// This stage's placeholder-lane state (memoized referenced keys + sticky
   /// log flag), walked once at construction from the stage's decoded widget
@@ -2602,6 +2750,7 @@ final class _BlobStage {
     if (_disposed) return;
     _disposed = true;
     transaction.supersede();
+    unawaited(measurementSession.teardown());
     analyticsPresentation.dispose();
     runtime.dispose();
   }

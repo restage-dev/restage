@@ -42,8 +42,6 @@ final class FirstPaintLeaseTransaction {
 
   static final Set<FirstPaintLeaseTransaction> _pendingTransactions =
       <FirstPaintLeaseTransaction>{};
-  static final List<FirstPaintLeaseTransaction> _paintingTransactions =
-      <FirstPaintLeaseTransaction>[];
 
   /// Test-only failure injection immediately before guarded descendant paint.
   ///
@@ -67,7 +65,7 @@ final class FirstPaintLeaseTransaction {
   bool _abandonmentReported = false;
   bool _paintReported = false;
   bool _frameworkRenderFailed = false;
-  final Set<Object> _frameworkPaintFailureTokens = HashSet<Object>.identity();
+  Set<Object>? _frameworkPaintFailureTokens;
 
   bool get isPending => _state == _FirstPaintLeaseState.pending;
   bool get isCommitted => _state == _FirstPaintLeaseState.committed;
@@ -82,8 +80,10 @@ final class FirstPaintLeaseTransaction {
   bool get isReady => _isReady();
 
   /// Whether framework-owned rendering can still acknowledge success.
-  bool get canReportFrameworkRenderSuccess =>
-      !_frameworkRenderFailed && _frameworkPaintFailureTokens.isEmpty;
+  bool get canReportFrameworkRenderSuccess {
+    final tokens = _frameworkPaintFailureTokens;
+    return !_frameworkRenderFailed && (tokens == null || tokens.isEmpty);
+  }
 
   /// Marks a descendant build failure before this frame reaches paint.
   void recordBuildFailure() {
@@ -159,30 +159,23 @@ final class FirstPaintLeaseTransaction {
 
   bool _holdFrameworkPaintError(Object token) {
     if (!isPending && !isCommitted) return false;
-    _frameworkPaintFailureTokens.add(token);
+    (_frameworkPaintFailureTokens ??= HashSet<Object>.identity()).add(token);
     return true;
   }
 
   void _releaseFrameworkPaintError(Object token) {
-    _frameworkPaintFailureTokens.remove(token);
+    final tokens = _frameworkPaintFailureTokens;
+    if (tokens == null) return;
+    tokens.remove(token);
+    if (tokens.isEmpty) _frameworkPaintFailureTokens = null;
   }
 
   void _commitFrameworkRenderFailure(Object token) {
-    if (!_frameworkPaintFailureTokens.contains(token)) return;
+    final tokens = _frameworkPaintFailureTokens;
+    if (tokens == null || !tokens.contains(token)) return;
     _frameworkRenderFailed = true;
-    _frameworkPaintFailureTokens.remove(token);
-  }
-
-  void _beginPaintObservation() {
-    _paintingTransactions.add(this);
-  }
-
-  bool _endPaintObservation() {
-    final index = _paintingTransactions.lastIndexWhere(
-      (transaction) => identical(transaction, this),
-    );
-    if (index != -1) _paintingTransactions.removeAt(index);
-    return canReportFrameworkRenderSuccess;
+    tokens.remove(token);
+    if (tokens.isEmpty) _frameworkPaintFailureTokens = null;
   }
 
   void _rejectAfterIdentityResetIfInvalid() {
@@ -355,16 +348,17 @@ final class RenderFirstPaintLeaseGuard extends RenderProxyBox {
     }
     if (!_transaction._admitPaint()) return;
     var returnedNormally = false;
-    _transaction._beginPaintObservation();
     try {
-      FirstPaintLeaseTransaction.debugBeforeDescendantPaint?.call(
-        _transaction,
-      );
+      assert(() {
+        FirstPaintLeaseTransaction.debugBeforeDescendantPaint?.call(
+          _transaction,
+        );
+        return true;
+      }());
       super.paint(context, offset);
       returnedNormally = true;
     } finally {
-      final paintSucceeded = _transaction._endPaintObservation();
-      if (returnedNormally && paintSucceeded) {
+      if (returnedNormally && _transaction.canReportFrameworkRenderSuccess) {
         _transaction._didPaint();
       }
     }

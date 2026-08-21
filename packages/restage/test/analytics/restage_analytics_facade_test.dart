@@ -56,7 +56,7 @@ void main() {
   test('a fired paywall event posts a mapped envelope to ingest', () async {
     final events = await firedEvents(() {
       Restage.fireEvent(
-        const PaywallViewed(paywallId: 'pw-1', productIds: ['p1']),
+        const PaywallViewed(paywallId: 'pw-1', productIds: ['product-1']),
       );
     });
     expect(events, hasLength(1));
@@ -138,7 +138,13 @@ void main() {
     });
     Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
 
-    Restage.track('button_clicked');
+    Restage.fireEvent(
+      const PaywallDismissed(
+        paywallId: 'pw-1',
+        reason: DismissReason.userClose,
+        timeOnPaywall: Duration(seconds: 3),
+      ),
+    );
     await pumpEventQueue();
     expect(calls, 0);
 
@@ -150,27 +156,11 @@ void main() {
     expect(calls, 1);
   });
 
-  test('track posts a custom event with reserved keys scrubbed', () async {
-    final events = await firedEvents(() {
-      Restage.track('button_clicked', args: {
-        'label': 'upgrade',
-        'data': {'context': 'render-secret'},
-      });
-    });
-    expect(events, hasLength(1));
-    final envelope = events.single! as Map<String, Object?>;
-    expect(envelope['name'], 'button_clicked');
-    final properties = envelope['properties']! as Map<String, Object?>;
-    expect(properties['label'], 'upgrade');
-    expect(properties.containsKey('data'), isFalse);
-  });
-
-  test('with no baseUrl, track/fireEvent are inert (no transport)', () async {
+  test('with no baseUrl, fireEvent is inert (no transport)', () async {
     Restage.debugAnalyticsHttpClient = MockClient((req) async {
       fail('analytics must not POST when no baseUrl is configured');
     });
     Restage.configure(apiKey: 'rs_pk_test');
-    Restage.track('button_clicked');
     Restage.fireEvent(
       const PaywallViewed(paywallId: 'pw-1', productIds: []),
     );
@@ -187,7 +177,6 @@ void main() {
       baseUrl: baseUrl,
       analyticsEnabled: false,
     );
-    Restage.track('button_clicked');
     Restage.fireEvent(
       const PaywallViewed(paywallId: 'pw-1', productIds: []),
     );

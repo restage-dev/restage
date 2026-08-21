@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
+import 'package:restage/src/measurement/measurement_resolved_publication_provenance.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
@@ -25,6 +26,7 @@ void main() {
       () async {
     final fixture = stringScreenFixture();
     await _installMeteringKey();
+    final bindingReference = _bindingReference('a');
     String? assignmentKey = 'assignment-a';
     SurfaceAssignmentKeyProvider.current = () => assignmentKey;
     final requests = <http.Request>[];
@@ -37,7 +39,7 @@ void main() {
         final body = jsonDecode(request.body) as Map<String, Object?>;
         final assigned = body['assignmentKey'] == null
             ? null
-            : SurfaceExperimentAssignmentV1(
+            : SurfaceExperimentAssignment(
                 experimentId: 'experiment',
                 variantId: 'variant',
                 experimentEpoch: 2,
@@ -51,6 +53,10 @@ void main() {
             ),
           ),
           200,
+          headers: {
+            'Restage-Measurement-Publication-Binding-V1':
+                _bindingHeader(bindingReference),
+          },
         );
       }),
     );
@@ -68,8 +74,16 @@ void main() {
 
     expect(first.origin, SurfaceScreenOrigin.hosted);
     expect(first.cacheHit, isFalse);
+    expect(
+      measurementPublicationBindingReferenceFor(first),
+      bindingReference,
+    );
     expect(first.contentHash, isNot(fixture.contentHash));
     expect(cached.cacheHit, isTrue);
+    expect(
+      measurementPublicationBindingReferenceFor(cached),
+      bindingReference,
+    );
     expect(otherAssignment.cacheHit, isFalse);
     expect(unassigned.cacheHit, isFalse);
     expect(requests, hasLength(3));
@@ -98,7 +112,7 @@ void main() {
     final fixture = stringScreenFixture();
     for (final statusCode in <int>[204, 404]) {
       final fallback = FixedBundledScreenResolver(fixture.bundled());
-      final resolver = RestageSurfaceScreenResolver(
+      final resolver = RestageScreenResolver(
         apiKey: _apiKey,
         environment: RestageEnvironment.production,
         baseUrl: _baseUrl,
@@ -407,16 +421,16 @@ void main() {
 
     expect(
       Restage.defaultSurfaceScreenResolver,
-      isA<RestageSurfaceScreenResolver>(),
+      isA<RestageScreenResolver>(),
     );
   });
 }
 
-RestageSurfaceScreenResolver _resolver({
+RestageScreenResolver _resolver({
   required RestageRpcClient client,
   required BundledSurfaceScreenResolver fallback,
 }) =>
-    RestageSurfaceScreenResolver(
+    RestageScreenResolver(
       apiKey: _apiKey,
       environment: RestageEnvironment.production,
       baseUrl: _baseUrl,
@@ -438,5 +452,30 @@ Future<void> _installMeteringKey() async {
   final preferences = await SharedPreferences.getInstance();
   SurfaceMeteringKeyProvider.install(
     store: MeteringTokenStore(prefsProvider: () async => preferences),
+  );
+}
+
+String _bindingHeader(MeasurementPublicationBindingReferenceV1 reference) =>
+    base64UrlEncode(reference.canonicalBytes).replaceAll('=', '');
+
+MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
+  final candidate = MeasurementPublicationCandidateReferenceV1(
+    candidateDigest: CanonicalDigest(seed * 64),
+    selectedPublicationManifestDigest: CanonicalDigest('b' * 64),
+    declaredArtifactBytesDigest: CanonicalDigest('c' * 64),
+    assembledPublicationUploadDigest: CanonicalDigest('d' * 64),
+    measurementPublicationDraftDigest: CanonicalDigest('e' * 64),
+  );
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId: MeasurementPublicationAuthorityId(
+        'authority.screen.resolver.$seed',
+      ),
+      externalPublicationAuthorityRef: 'mpa1.${seed.toUpperCase() * 32}',
+      candidateReference: candidate,
+      immutablePublicationDigest: CanonicalDigest('f' * 64),
+      declaredArtifactBytesDigest: candidate.declaredArtifactBytesDigest,
+    ),
+    bindingDigest: CanonicalDigest('0' * 64),
   );
 }

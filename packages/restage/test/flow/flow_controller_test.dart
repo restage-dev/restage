@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:restage/src/flow/flow_controller.dart'
+    show createHostMeasurementFlowController;
 // `package:matcher` (via `flutter_test`) also exports `allOf`, used below as a
 // matcher; hide the flow-authoring `allOf` here since this file only needs the
 // `state(...)` predicate sugar.
@@ -12,6 +14,109 @@ import 'package:rfw/formats.dart';
 
 void main() {
   setUp(Restage.debugReset);
+
+  group('RestageFlowController root-resolved admission', () {
+    test('awaits root admission before it installs the first screen', () async {
+      final resolved = _resolvedFlow();
+      final admissionStarted = Completer<void>();
+      final releaseAdmission = Completer<void>();
+      late final RestageFlowController<_FirstRunResult> controller;
+      controller = createHostMeasurementFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(resolved),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+        onRootResolved: (root) async {
+          expect(root, same(resolved));
+          expect(controller.currentScreenId, isNull);
+          expect(controller.currentScreenEntryId, isNull);
+          admissionStarted.complete();
+          await releaseAdmission.future;
+        },
+        sanitizeAndRecordEvent: (value) => value,
+      );
+      addTearDown(controller.dispose);
+
+      final load = controller.load();
+      await admissionStarted.future;
+
+      expect(controller.currentScreenId, isNull);
+      expect(controller.currentScreenEntryId, isNull);
+
+      releaseAdmission.complete();
+      await load;
+
+      expect(controller.currentScreenId, 'welcome');
+      expect(controller.currentScreenEntryId, isNotNull);
+    });
+
+    test('keeps root admission failure out of the flow fail-closed path',
+        () async {
+      FlowUnavailableError? unavailable;
+      final controller = createHostMeasurementFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _StaticFlowResolver(_resolvedFlow()),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+        onRootResolved: (_) async {
+          throw StateError('Measurement admission is unavailable');
+        },
+        sanitizeAndRecordEvent: (value) => value,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+
+      expect(controller.currentScreenId, 'welcome');
+      expect(controller.isUnavailable, isFalse);
+      expect(unavailable, isNull);
+    });
+
+    test('admits the root once and never opens an independent sub-flow owner',
+        () async {
+      final admittedRootIds = <String>[];
+      final controller = createHostMeasurementFlowController<_FirstRunResult>(
+        flow: _flowRef,
+        resolver: _subFlowResolver(),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+        onRootResolved: (root) async {
+          admittedRootIds.add(root.document.flow);
+        },
+        sanitizeAndRecordEvent: (value) => value,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      controller.handleEvent('next', const <String, Object?>{});
+      await _drainFlowTasks();
+
+      expect(controller.currentScreenId, 'welcome');
+      expect(admittedRootIds, ['first_run']);
+    });
+  });
+
+  test('the public constructor needs no Measurement syntax', () async {
+    final controller = RestageFlowController<_FirstRunResult>(
+      flow: _flowRef,
+      resolver: _StaticFlowResolver(_resolvedFlow()),
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+    );
+    addTearDown(controller.dispose);
+
+    await controller.load();
+
+    expect(controller.currentScreenId, 'welcome');
+  });
 
   group('RestageFlowController chrome-availability getters', () {
     test('isComplete is false until the flow reaches an end state', () async {

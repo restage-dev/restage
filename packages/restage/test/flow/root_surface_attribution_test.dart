@@ -101,7 +101,7 @@ void main() {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          child: RestageSurfaceFlow<FirstRunResult>(
+          child: RestageFlowGraph<FirstRunResult>(
             flow: testCase.flow,
             resolver: StaticFlowResolver(
               _withAssignment(resolvedFlow(), _rootAssignment),
@@ -181,7 +181,7 @@ void main() {
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          child: RestageSurfaceFlow<FirstRunResult>(
+          child: RestageFlowGraph<FirstRunResult>(
             flow: _messageFlowRef,
             resolver: resolver,
             unavailable: const FlowUnavailablePolicy.hide(),
@@ -208,7 +208,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: ControlledInitialSubFlowResolver(
             root: initialSubFlowRoot(
@@ -264,7 +264,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: StaticFlowResolver(general),
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -309,7 +309,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: StaticFlowResolver(screenless),
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -333,7 +333,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           key: const ValueKey<String>('throwing'),
           flow: _messageFlowRef,
           resolver: StaticFlowResolver(throwingResolvedFlow()),
@@ -364,7 +364,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -392,7 +392,7 @@ void main() {
 
     Widget surface(Key key) => Directionality(
           textDirection: TextDirection.ltr,
-          child: RestageSurfaceFlow<FirstRunResult>(
+          child: RestageFlowGraph<FirstRunResult>(
             key: key,
             flow: _messageFlowRef,
             resolver: StaticFlowResolver(assigned),
@@ -455,7 +455,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -500,7 +500,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -578,7 +578,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -641,7 +641,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -717,7 +717,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -772,7 +772,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: ControlledInitialSubFlowResolver(
             root: initialSubFlowRoot(
@@ -820,7 +820,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -867,7 +867,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: RestageSurfaceFlow<FirstRunResult>(
+        child: RestageFlowGraph<FirstRunResult>(
           flow: _messageFlowRef,
           resolver: resolver,
           unavailable: const FlowUnavailablePolicy.hide(),
@@ -903,7 +903,7 @@ void main() {
 
     Widget surface(Key key) => Directionality(
           textDirection: TextDirection.ltr,
-          child: RestageSurfaceFlow<FirstRunResult>(
+          child: RestageFlowGraph<FirstRunResult>(
             key: key,
             flow: _messageFlowRef,
             resolver: StaticFlowResolver(assigned),

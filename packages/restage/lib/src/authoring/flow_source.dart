@@ -2,7 +2,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
     show FlowDeliveryMode, Surface, kBaselineCatalogVersion;
 
-/// Marks a top-level [FlowDefinition] or [RestageFlow] class as a flow graph.
+/// Marks a top-level [FlowDefinition] or [RestageFlow] class as a flow
+/// graph.
 ///
 /// A flow always declares its product category in source. The generator derives
 /// an omitted [id] from the library filename when that declaration is

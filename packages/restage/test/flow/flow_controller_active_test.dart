@@ -8,10 +8,10 @@ import 'package:rfw/formats.dart';
 
 /// Controller-side proof that the active version-pin skip is active-SCOPED (the
 /// `_validateResolved(active:)` private param) and that every OTHER retained
-/// runtime validity check (the BINDING P2 backstop) still runs on the active
-/// document. A fake `ActiveArmFlowResolver` injects a chosen `ResolvedFlow`,
-/// bypassing the resolver's own gate — so these tests isolate the controller's
-/// backstop from the resolver's.
+/// runtime validity check still runs on the active document. A fake
+/// `ActiveArmFlowResolver` injects a chosen `ResolvedFlow`, bypassing the
+/// resolver's own gate — so these tests isolate the controller's backstop from
+/// the resolver's.
 void main() {
   setUp(Restage.debugReset);
 
