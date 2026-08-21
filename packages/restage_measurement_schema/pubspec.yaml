@@ -1,0 +1,23 @@
+name: restage_measurement_schema
+description: >-
+  Deterministic pure-Dart contracts for Restage measurement manifests,
+  semantic observations, metric results, and experiment descriptions.
+version: 0.1.0
+repository: https://github.com/restage-dev/restage
+homepage: https://restage.dev
+issue_tracker: https://github.com/restage-dev/restage/issues
+topics:
+  - analytics
+  - experimentation
+  - measurement
+
+environment:
+  sdk: ^3.5.0
+
+resolution: workspace
+
+dependencies:
+  crypto: ^3.0.7
+
+dev_dependencies:
+  test: ^1.25.0
