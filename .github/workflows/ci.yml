@@ -61,5 +61,5 @@ jobs:
         # (including the rfw wire-format goldens in restage_core) and the
         # lightweight Dart packages.
         run: |
-          melos run test:dart --scope="rfw_catalog_schema,restage_shared,restage_mcp,restage_cli"
+          melos run test:dart --scope="rfw_catalog_schema,restage_shared,restage_mcp,restage_cli,restage_measurement_schema"
           melos run test:flutter --no-select

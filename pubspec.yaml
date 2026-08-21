@@ -24,6 +24,7 @@ workspace:
   - packages/restage_a2ui
   - packages/restage_a2ui/example
   - packages/restage_widgetbook_example
+  - packages/restage_measurement_schema
   - apps/examples
   - apps/widgetbook_example
 
