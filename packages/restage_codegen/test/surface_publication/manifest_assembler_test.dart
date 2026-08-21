@@ -42,9 +42,9 @@ void main() {
       result.manifest.publications.single.artifacts
           .map((artifact) => artifact.role),
       [
-        SurfacePublicationArtifactRoleV1.flowDocument,
-        SurfacePublicationArtifactRoleV1.screenBlob,
-        SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        SurfacePublicationArtifactRole.flowDocument,
+        SurfacePublicationArtifactRole.screenBlob,
+        SurfacePublicationArtifactRole.capabilitySidecar,
       ],
     );
     expect(
@@ -129,7 +129,7 @@ void main() {
           artifacts: [
             SurfacePublicationArtifactInput(
               path: '../outside.rfw',
-              role: SurfacePublicationArtifactRoleV1.screenBlob,
+              role: SurfacePublicationArtifactRole.screenBlob,
               id: valid.slug,
               bytes: blob.bytes,
             ),
@@ -179,8 +179,7 @@ void main() {
 
     final flow = _flowInput();
     final flowBlob = flow.artifacts.singleWhere(
-      (artifact) =>
-          artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
+      (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
     );
     expect(
       () => SurfacePublicationManifestAssembler.assemble([
@@ -352,18 +351,18 @@ SurfacePublicationAssemblyInput _standaloneInput({
     screenContractFacts: SurfacePublicationScreenContractFacts(
       contractVersion: 7,
       capabilities: effectiveCapabilities,
-      eventContract: SurfaceScreenEventSchemaV1(events: const []),
+      eventContract: SurfaceScreenEventSchema(events: const []),
     ),
     artifacts: [
       SurfacePublicationArtifactInput(
         path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
         id: slug,
         bytes: blobBytes,
       ),
       SurfacePublicationArtifactInput(
         path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
         id: slug,
         bytes: _sidecarBytes(blobBytes, effectiveCapabilities),
       ),
@@ -381,13 +380,13 @@ SurfacePublicationAssemblyInput _paywallBlobInput() {
     artifacts: [
       SurfacePublicationArtifactInput(
         path: 'assets/paywalls/premium.rfw',
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
         id: 'premium',
         bytes: blob,
       ),
       SurfacePublicationArtifactInput(
         path: 'assets/paywalls/premium.capability.json',
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
         id: 'premium',
         bytes: _sidecarBytes(blob, _emptyCapabilities),
       ),
@@ -457,18 +456,18 @@ SurfacePublicationAssemblyInput _flowInput({
     artifacts: [
       SurfacePublicationArtifactInput(
         path: flowPath,
-        role: SurfacePublicationArtifactRoleV1.flowDocument,
+        role: SurfacePublicationArtifactRole.flowDocument,
         bytes: flowBytes,
       ),
       SurfacePublicationArtifactInput(
         path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
         id: screenId,
         bytes: blobBytes,
       ),
       SurfacePublicationArtifactInput(
         path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
         id: screenId,
         bytes: _sidecarBytes(blobBytes, effectiveSidecarCapabilities),
       ),

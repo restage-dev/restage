@@ -2,19 +2,29 @@
 // ignore_for_file: public_member_api_docs
 
 import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:glob/glob.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
-import 'package:restage_codegen/src/authored_library_predicate.dart';
+import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
+import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
+import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
 import 'package:restage_codegen/src/onboarding/flow_builder.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
+import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
+import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_codegen/src/paywall_flow_builder.dart';
+import 'package:restage_codegen/src/production_helpers.dart';
+import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
@@ -25,27 +35,33 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/restage_shared.dart'
     show
         CapabilityManifest,
         CapabilitySidecar,
         FlowContentHash,
         ScreenArtifact,
-        Surface;
+        Surface,
+        SurfacePayloadKind,
+        SurfacePublicationArtifactRole,
+        SurfacePublicationManifest,
+        SurfaceSourceKind;
 
-const String _authoredDartGlob = 'lib/**.dart';
 const JsonEncoder _capabilitySidecarEncoder = JsonEncoder.withIndent('  ');
 
 @immutable
 final class TrackedPackageSurfaceCompilation {
   TrackedPackageSurfaceCompilation({
     required this.publicationBundle,
+    required this.measurementCompilerOutput,
     required Map<String, String> generatedParts,
     required List<Issue> issues,
   })  : generatedParts = Map.unmodifiable(Map.of(generatedParts)),
         issues = List.unmodifiable(issues);
 
   final RestageSurfacePublicationBundle publicationBundle;
+  final RestageMeasurementCompilerOutputV1 measurementCompilerOutput;
   final Map<String, String> generatedParts;
   final List<Issue> issues;
 
@@ -65,11 +81,13 @@ Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
   BuildStep buildStep, {
   required String builderKey,
   RestageOutputPlacementPlan? plan,
+  MeasurementCompilerPolicyInput? measurementPolicy,
 }) async {
   final cache = await buildStep.fetchResource(_trackedCompilationResource);
   return cache.get(
     buildStep,
     plan ?? RestageOutputPlacementPlan.defaults,
+    measurementPolicy,
     builderKey: builderKey,
   );
 }
@@ -77,26 +95,31 @@ Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
 Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   BuildStep buildStep,
   RestageOutputPlacementPlan plan,
+  MeasurementCompilerPolicyInput? measurementPolicy,
 ) async {
   final issues = <Issue>[];
-  // The roster builder owns discovery; this lane consumes that exact production
-  // seam.
+  // One selection, shared with the roster below: this lane and the roster
+  // cannot disagree about which libraries can declare a surface, and the
+  // package's sources are read once instead of twice.
+  final assets = await selectRestageSurfaceCandidates(buildStep);
+  // The roster builder owns discovery; this lane consumes that exact
+  // production seam.
   // ignore: invalid_use_of_visible_for_testing_member
-  final roster = await collectRestageSourceRoster(buildStep, plan: plan);
+  final roster = await collectRestageSourceRoster(
+    buildStep,
+    plan: plan,
+    candidates: assets,
+  );
   issues.addAll(roster.issues);
   if (issues.isNotEmpty) return _invalidCompilation(issues);
-
-  final assets = await buildStep
-      .findAssets(Glob(_authoredDartGlob))
-      .where(isAuthoredDartLibraryAsset)
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
   final flows = <NormalizedFlowSource>[];
   final rendered = <CompiledSurfaceArtifact>[];
   final contracts = <ResolvedStandaloneScreenContract>[];
   final legacyContracts = <LegacyStandaloneScreenContract>[];
   final precompiledFlows = <CompiledFlowArtifact>[];
   final canonicalPaywallJobs = <_CanonicalPaywallJob>[];
+  final measurementPaywallJobs = <_CanonicalPaywallJob>[];
+  final measurementScreenInputs = <ResolvedScreenCompilationInput>[];
   final flowJobs = <_FlowCompilationJob>[];
   final sourcesByLibrary = <String, List<RestageSourceDeclaration>>{};
   for (final source in roster.declarations) {
@@ -140,6 +163,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       assetId,
     );
     issues.addAll(screenInspection.issues);
+    measurementScreenInputs.addAll(screenInspection.screens);
     if (screenInspection.screens.isNotEmpty) {
       final compilation = await compileResolvedScreens(
         buildStep,
@@ -206,6 +230,24 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         issues.add(_lostDeclarationIssue(source));
         continue;
       }
+      final visited = await visitOnboardingSources(library, assetId);
+      issues.addAll(visited.issues);
+      final legacyInput = visited.sources
+          .where((candidate) => candidate.className == declaration.name)
+          .firstOrNull;
+      if (legacyInput != null) {
+        measurementScreenInputs.add(
+          ResolvedScreenCompilationInput(
+            assetId: assetId,
+            declaration: declaration,
+            id: legacyInput.id,
+            version: legacyInput.version,
+            minClient: legacyInput.minClient,
+            surface: source.surface,
+            build: legacyInput.build,
+          ),
+        );
+      }
       final blob = await _readClaimBytes(
         buildStep,
         source,
@@ -268,8 +310,18 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         ),
       );
     }
-    for (final paywall
-        in paywalls.sources.where((source) => !source.isCanonical)) {
+    if (paywalls.sources.isNotEmpty) {
+      measurementPaywallJobs.add(
+        _CanonicalPaywallJob(
+          assetId: assetId,
+          library: library,
+          sources: paywalls.sources,
+        ),
+      );
+    }
+    for (final paywall in paywalls.sources.where(
+      (source) => !source.isCanonical,
+    )) {
       final declaration = library.classes
           .where((candidate) => candidate.name == paywall.className)
           .firstOrNull;
@@ -412,7 +464,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   }
 
   if (issues.isNotEmpty) return _invalidCompilation(issues);
-  final result = compilePackageSurfacePublications(
+  final provisionalResult = compilePackageSurfacePublications(
     PackageSurfaceCompilationInput(
       roster: roster,
       flows: flows,
@@ -422,9 +474,291 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       precompiledFlows: precompiledFlows,
     ),
   );
+  issues.addAll(provisionalResult.issues);
+  final provisionalBundle = provisionalResult.bundle;
+  if (issues.isNotEmpty || provisionalBundle == null) {
+    return _invalidCompilation(issues);
+  }
+  if (measurementPolicy == null) {
+    return _validCompilation(
+      provisionalBundle,
+      RestageMeasurementCompilerOutputV1.empty(),
+    );
+  }
+
+  final priorMeasurementOutput = await _readPriorMeasurementOutput(
+    buildStep,
+    issues,
+  );
+  if (priorMeasurementOutput == null) return _invalidCompilation(issues);
+  final discoveries = await _discoverMeasurementSources(
+    buildStep,
+    screens: measurementScreenInputs,
+    paywallJobs: measurementPaywallJobs,
+    issues: issues,
+  );
+  final planningInputs = _measurementPlanningInputs(
+    provisionalBundle.manifest,
+    roster: roster,
+    discoveriesByDeclarationIdentity: discoveries,
+    issues: issues,
+  );
+  _validateFlowMeasurementClosures(
+    planningInputs,
+    flows: flows,
+    issues: issues,
+  );
+  if (issues.isNotEmpty) {
+    return _invalidCompilation(
+      issues,
+      measurementCompilerOutput: priorMeasurementOutput,
+    );
+  }
+  final planning = MeasurementPublicationPlanner.plan(
+    publications: planningInputs,
+    priorOutput: priorMeasurementOutput,
+    policy: measurementPolicy,
+  );
+  if (!planning.isValid) {
+    final planningIssues = [
+      for (final error in planning.errors)
+        Issue(
+          code: IssueCode.annotationEvaluationFailed,
+          message: error,
+          location: kRestageMeasurementCompilerOutputPath,
+        ),
+    ];
+    return _invalidCompilation(
+      planningIssues,
+      measurementCompilerOutput: RestageMeasurementCompilerOutputV1(
+        valid: false,
+        errors: planning.errors,
+        policy: measurementPolicy,
+        nextIdentitySequence: planning.nextIdentitySequence,
+        ledgerNodes: planning.ledgerNodes,
+        acceptedRelocations: priorMeasurementOutput.acceptedRelocations,
+        proposals: planning.proposals,
+        publications: const [],
+      ),
+    );
+  }
+
+  final emissionPlans = <String, MeasurementRouteEmissionPlan>{};
+  for (final publication in planningInputs) {
+    final routePlan = planning.routePlansByKey[publication.selector.key];
+    if (routePlan == null) continue;
+    for (final sourceArtifact in publication.sourceArtifacts) {
+      final identity =
+          sourceArtifact.discovery.sourceProvenance!.resolvedSourceIdentity;
+      final plan = MeasurementRouteEmissionPlan.fromDiscovery(
+        discovery: sourceArtifact.discovery,
+        routePlan: routePlan,
+        codeIdentityByStructuralOccurrenceKey:
+            planning.codeIdentityByStructuralOccurrenceKey,
+      );
+      emissionPlans.putIfAbsent(identity, () => plan);
+    }
+  }
+  final paywallRouteOwnership = _paywallRouteOwnership(
+    planningInputs,
+    roster: roster,
+    issues: issues,
+  );
+
+  final finalRendered = <CompiledSurfaceArtifact>[];
+  final finalContracts = <ResolvedStandaloneScreenContract>[];
+  final finalLegacyContracts = <LegacyStandaloneScreenContract>[];
+  await _appendResolvedScreens(
+    buildStep,
+    inputs: measurementScreenInputs,
+    routePlans: emissionPlans,
+    placement: plan,
+    rendered: finalRendered,
+    contracts: finalContracts,
+    legacyContracts: finalLegacyContracts,
+    sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+    issues: issues,
+  );
+  await _compileCanonicalPaywalls(
+    buildStep,
+    jobs: measurementPaywallJobs,
+    rendered: finalRendered,
+    sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+    measurementRoutePlans: emissionPlans,
+    measurementRouteOwnership: paywallRouteOwnership,
+    issues: issues,
+  );
+  final finalClassFlowScreens = _resolvedClassFlowScreens(
+    finalRendered,
+    sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+    issues: issues,
+  );
+  final finalPrecompiledFlows = <CompiledFlowArtifact>[];
+  if (issues.isEmpty) {
+    await _compileCanonicalClassFlowDocuments(
+      buildStep,
+      flows: flows,
+      jobs: flowJobs,
+      screens: finalClassFlowScreens,
+      sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+      precompiledFlows: finalPrecompiledFlows,
+      issues: issues,
+    );
+    await _compileLegacyClassFlowDocuments(
+      buildStep,
+      jobs: flowJobs,
+      screens: finalClassFlowScreens,
+      sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+      precompiledFlows: finalPrecompiledFlows,
+      issues: issues,
+    );
+  }
+  if (issues.isNotEmpty) {
+    return _invalidCompilation(
+      issues,
+      measurementCompilerOutput: priorMeasurementOutput,
+    );
+  }
+
+  final finalizedDraftResult = compilePackageSurfacePublications(
+    PackageSurfaceCompilationInput(
+      roster: roster,
+      flows: flows,
+      renderedSources: finalRendered,
+      standaloneScreens: finalContracts,
+      legacyStandaloneScreens: finalLegacyContracts,
+      precompiledFlows: finalPrecompiledFlows,
+      measurementRoutePlansByPublicationKey: planning.routePlansByKey,
+    ),
+  );
+  issues.addAll(finalizedDraftResult.issues);
+  final finalizedDraftBundle = finalizedDraftResult.bundle;
+  if (issues.isNotEmpty || finalizedDraftBundle == null) {
+    return _invalidCompilation(
+      issues,
+      measurementCompilerOutput: priorMeasurementOutput,
+    );
+  }
+
+  final carrierDraftDigestsByPublicationKey = <String, String>{
+    for (final publication in finalizedDraftBundle.measurementPublications)
+      if (publication.draft.routes.isNotEmpty)
+        publication.selector.key: publication.draft.canonicalDigest.hex,
+  };
+  final carrierDraftDigestsByDeclarationIdentity =
+      _measurementCarrierDraftDigestsByDeclarationIdentity(
+    roster: roster,
+    carrierDraftDigestsByPublicationKey: carrierDraftDigestsByPublicationKey,
+  );
+  final carrierPrecompiledFlows = <CompiledFlowArtifact>[];
+  if (issues.isEmpty) {
+    await _compileCanonicalClassFlowDocuments(
+      buildStep,
+      flows: flows,
+      jobs: flowJobs,
+      screens: finalClassFlowScreens,
+      sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+      precompiledFlows: carrierPrecompiledFlows,
+      generatedSourceCarrierDraftDigestsByDeclarationIdentity:
+          carrierDraftDigestsByDeclarationIdentity,
+      issues: issues,
+    );
+    await _compileLegacyClassFlowDocuments(
+      buildStep,
+      jobs: flowJobs,
+      screens: finalClassFlowScreens,
+      sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
+      precompiledFlows: carrierPrecompiledFlows,
+      generatedSourceCarrierDraftDigestsByDeclarationIdentity:
+          carrierDraftDigestsByDeclarationIdentity,
+      issues: issues,
+    );
+  }
+  if (issues.isNotEmpty) {
+    return _invalidCompilation(
+      issues,
+      measurementCompilerOutput: priorMeasurementOutput,
+    );
+  }
+
+  final result = compilePackageSurfacePublications(
+    PackageSurfaceCompilationInput(
+      roster: roster,
+      flows: flows,
+      renderedSources: finalRendered,
+      standaloneScreens: finalContracts,
+      legacyStandaloneScreens: finalLegacyContracts,
+      precompiledFlows: carrierPrecompiledFlows,
+      measurementRoutePlansByPublicationKey: planning.routePlansByKey,
+      generatedSourceCarrierDraftDigestsByPublicationKey:
+          carrierDraftDigestsByPublicationKey,
+    ),
+  );
   issues.addAll(result.issues);
   final bundle = result.bundle;
-  if (issues.isNotEmpty || bundle == null) return _invalidCompilation(issues);
+  if (issues.isNotEmpty || bundle == null) {
+    return _invalidCompilation(
+      issues,
+      measurementCompilerOutput: priorMeasurementOutput,
+    );
+  }
+  final measurementCompilerOutput = RestageMeasurementCompilerOutputV1(
+    valid: true,
+    errors: const [],
+    policy: measurementPolicy,
+    nextIdentitySequence: planning.nextIdentitySequence,
+    ledgerNodes: planning.ledgerNodes,
+    acceptedRelocations: priorMeasurementOutput.acceptedRelocations,
+    proposals: const [],
+    publications: bundle.measurementPublications,
+  );
+  return _validCompilation(bundle, measurementCompilerOutput);
+}
+
+Map<String, String> _measurementCarrierDraftDigestsByDeclarationIdentity({
+  required RestageSourceRoster roster,
+  required Map<String, String> carrierDraftDigestsByPublicationKey,
+}) {
+  final result = <String, String>{};
+  for (final source in roster.declarations) {
+    MeasurementPublicationSelectorV1? selector;
+    switch (source.kind) {
+      case RestageRosterSourceKind.screen:
+        final surface = source.surface;
+        if (surface != null) {
+          selector = MeasurementPublicationSelectorV1(
+            surface: surface,
+            slug: source.effectiveId,
+            sourceKind: SurfaceSourceKind.screen,
+            contractVersion: source.version,
+          );
+        }
+      case RestageRosterSourceKind.flow:
+        final surface = source.surface;
+        if (surface != null) {
+          selector = MeasurementPublicationSelectorV1(
+            surface: surface,
+            slug: source.effectiveId,
+            sourceKind: SurfaceSourceKind.flowGraph,
+          );
+        }
+      case RestageRosterSourceKind.paywall:
+        // Paywalls carry their exact provenance on the resolved payload path,
+        // not on a generated Dart descriptor.
+        break;
+    }
+    final digest = selector == null
+        ? null
+        : carrierDraftDigestsByPublicationKey[selector.key];
+    if (digest != null) result[source.declarationIdentity] = digest;
+  }
+  return Map<String, String>.unmodifiable(result);
+}
+
+TrackedPackageSurfaceCompilation _validCompilation(
+  PackageSurfaceCompilationBundle bundle,
+  RestageMeasurementCompilerOutputV1 measurementCompilerOutput,
+) {
   final manifestFiles = bundle.manifestFiles;
   final aggregateOwnedManifestFiles = bundle.aggregateOwnedManifestFiles;
   final ownedOutputs = <String, List<int>>{
@@ -448,6 +782,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       ownedOutputs: ownedOutputs,
       artifactLibraryPaths: bundle.artifactLibraryPaths,
     ),
+    measurementCompilerOutput: measurementCompilerOutput,
     generatedParts: bundle.generatedParts,
     issues: const [],
   );
@@ -457,11 +792,12 @@ final Resource<_TrackedCompilationCache> _trackedCompilationResource =
     Resource<_TrackedCompilationCache>(_TrackedCompilationCache.new);
 
 final class _TrackedCompilationCache {
-  final Map<String, Future<TrackedPackageSurfaceCompilation>> _byPackage = {};
+  final Map<String, Future<TrackedPackageSurfaceCompilation>> _byKey = {};
 
   Future<TrackedPackageSurfaceCompilation> get(
     BuildStep buildStep,
-    RestageOutputPlacementPlan plan, {
+    RestageOutputPlacementPlan plan,
+    MeasurementCompilerPolicyInput? measurementPolicy, {
     required String builderKey,
   }) async {
     await registerRestagePlacementSignature(
@@ -469,9 +805,19 @@ final class _TrackedCompilationCache {
       plan,
       builderKey: builderKey,
     );
-    return _byPackage.putIfAbsent(
-      buildStep.inputId.package,
-      () => _compileTrackedPackageSurfaces(buildStep, plan),
+    // Keyed by package AND measurement policy: builders in one package share a
+    // compilation, but only when they asked for the same policy. The builder
+    // key names who disagreed about placement and is deliberately NOT part of
+    // this key — sharing across builders is what the memo is for.
+    final key = '${buildStep.inputId.package}\u0000'
+        '${measurementPolicy?.cacheKey ?? '<measurement-disabled>'}';
+    return _byKey.putIfAbsent(
+      key,
+      () => _compileTrackedPackageSurfaces(
+        buildStep,
+        plan,
+        measurementPolicy,
+      ),
     );
   }
 }
@@ -486,7 +832,10 @@ final class PackageSurfaceCompilerBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$package$': [kRestageSurfacePublicationCompilerBundlePath],
+        r'$package$': [
+          kRestageSurfacePublicationCompilerBundlePath,
+          kRestageMeasurementCompilerOutputPath,
+        ],
       };
 
   @override
@@ -494,18 +843,606 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
+        options,
+      ),
       builderKey: 'restage_codegen:restage_package_surface_compiler',
     );
     for (final issue in compilation.issues) {
       log.severe(issue.toLogString());
     }
-    await buildStep.writeAsString(
-      AssetId(
-        buildStep.inputId.package,
-        kRestageSurfacePublicationCompilerBundlePath,
+    if (compilation.isValid &&
+        compilation.measurementCompilerOutput.policy != null) {
+      await _persistMeasurementCompilerLedgerSource(
+        package: buildStep.inputId.package,
+        output: compilation.measurementCompilerOutput,
+      );
+    }
+    await Future.wait([
+      buildStep.writeAsString(
+        AssetId(
+          buildStep.inputId.package,
+          kRestageSurfacePublicationCompilerBundlePath,
+        ),
+        compilation.publicationBundle.encodeCanonicalJson(),
       ),
-      compilation.publicationBundle.encodeCanonicalJson(),
+      buildStep.writeAsString(
+        AssetId(
+          buildStep.inputId.package,
+          kRestageMeasurementCompilerOutputPath,
+        ),
+        compilation.measurementCompilerOutput.encodeCanonicalJson(),
+      ),
+    ]);
+  }
+}
+
+Future<RestageMeasurementCompilerOutputV1?> _readPriorMeasurementOutput(
+  BuildStep buildStep,
+  List<Issue> issues,
+) async {
+  final asset = AssetId(
+    buildStep.inputId.package,
+    kRestageMeasurementCompilerLedgerSourcePath,
+  );
+  if (!await buildStep.canRead(asset)) {
+    return RestageMeasurementCompilerOutputV1.empty();
+  }
+  try {
+    final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+      await buildStep.readAsBytes(asset),
     );
+    if (!output.valid) {
+      throw const FormatException(
+        'The committed Measurement ledger source must be a valid compiler '
+        'state. Review its proposals without replacing the last valid state.',
+      );
+    }
+    return output;
+  } on Object catch (error) {
+    issues.add(
+      Issue(
+        code: IssueCode.malformedTranslatorOutput,
+        message: 'The build-owned Measurement compiler state is invalid: '
+            '$error',
+        location: kRestageMeasurementCompilerLedgerSourcePath,
+      ),
+    );
+    return null;
+  }
+}
+
+Future<void> _persistMeasurementCompilerLedgerSource({
+  required String package,
+  required RestageMeasurementCompilerOutputV1 output,
+}) async {
+  final packageLib = await Isolate.resolvePackageUri(
+    Uri.parse('package:$package/'),
+  );
+  if (packageLib == null || packageLib.scheme != 'file') return;
+  final root = packageLib.resolve('../');
+  final file = File.fromUri(
+    root.resolve(kRestageMeasurementCompilerLedgerSourcePath),
+  );
+  final bytes = output.canonicalBytes;
+  if (file.existsSync()) {
+    final existing = file.readAsBytesSync();
+    if (existing.length == bytes.length &&
+        existing.indexed.every((entry) => bytes[entry.$1] == entry.$2)) {
+      return;
+    }
+  }
+  file.parent.createSync(recursive: true);
+  final temporary = File('$file.path.tmp.$pid');
+  try {
+    temporary
+      ..writeAsBytesSync(bytes, flush: true)
+      ..renameSync(file.path);
+  } finally {
+    if (temporary.existsSync()) temporary.deleteSync();
+  }
+}
+
+Future<Map<String, MeasurementSourceDiscoveryResult>>
+    _discoverMeasurementSources(
+  BuildStep buildStep, {
+  required List<ResolvedScreenCompilationInput> screens,
+  required List<_CanonicalPaywallJob> paywallJobs,
+  required List<Issue> issues,
+}) async {
+  final catalog = await loadMergedCatalog(buildStep);
+  final discoveries = <String, MeasurementSourceDiscoveryResult>{};
+
+  Future<void> addDiscovery({
+    required String declarationIdentity,
+    required MeasurementSourceDiscoveryInput input,
+  }) async {
+    final discovery = MeasurementSourceDiscovery.discover(input);
+    if (discovery.disposition !=
+        MeasurementSourceDiscoveryDisposition.accepted) {
+      issues.add(
+        Issue(
+          code: IssueCode.annotationEvaluationFailed,
+          message: 'Measurement source discovery rejected '
+              '$declarationIdentity: ${discovery.rejectionReason}',
+          location: declarationIdentity,
+        ),
+      );
+      return;
+    }
+    if (discoveries.putIfAbsent(declarationIdentity, () => discovery) !=
+        discovery) {
+      issues.add(
+        Issue(
+          code: IssueCode.duplicateId,
+          message: 'Measurement source discovery repeated resolved '
+              'declaration $declarationIdentity.',
+          location: declarationIdentity,
+        ),
+      );
+    }
+  }
+
+  if (screens.isNotEmpty) {
+    final helpers = HelperRegistry()..registerAll(onboardingHelpers);
+    final classification = await classifyReferencedCustomWidgets(
+      rootExpressions: screens.map((screen) => screen.build.rootExpression),
+      catalog: catalog,
+      helpers: helpers,
+      astNodeFor: (fragment) =>
+          buildStep.resolver.astNodeFor(fragment, resolve: true),
+    );
+    for (final screen in screens) {
+      await addDiscovery(
+        declarationIdentity: screen.declarationIdentity,
+        input: MeasurementSourceDiscoveryInput(
+          authority: MeasurementSourceAuthority.screen,
+          sourceClass: screen.declaration,
+          rootExpression: screen.build.rootExpression,
+          catalog: catalog,
+          inlinedCustomWidgetBlueprints: classification.blueprints,
+        ),
+      );
+    }
+  }
+
+  if (paywallJobs.isNotEmpty) {
+    final helpers = productionPaywallHelperRegistry();
+    final sources = [
+      for (final job in paywallJobs)
+        for (final source in job.sources) (job: job, source: source),
+    ];
+    final classification = await classifyReferencedCustomWidgets(
+      rootExpressions: sources.map((entry) => entry.source.rootExpression),
+      catalog: catalog,
+      helpers: helpers,
+      astNodeFor: (fragment) =>
+          buildStep.resolver.astNodeFor(fragment, resolve: true),
+    );
+    for (final entry in sources) {
+      final declaration = entry.job.library.classes
+          .where(
+            (candidate) => candidate.name == entry.source.className,
+          )
+          .firstOrNull;
+      if (declaration == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.analyzerResolutionFailed,
+            message: 'Measurement discovery lost paywall class '
+                '${entry.source.className}.',
+            location: entry.job.assetId.path,
+          ),
+        );
+        continue;
+      }
+      final identity =
+          '${entry.job.library.identifier}#${entry.source.className}';
+      await addDiscovery(
+        declarationIdentity: identity,
+        input: MeasurementSourceDiscoveryInput(
+          authority: MeasurementSourceAuthority.paywall,
+          sourceClass: declaration,
+          rootExpression: entry.source.rootExpression,
+          catalog: catalog,
+          inlinedCustomWidgetBlueprints: classification.blueprints,
+        ),
+      );
+    }
+  }
+  return discoveries;
+}
+
+List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
+  SurfacePublicationManifest manifest, {
+  required RestageSourceRoster roster,
+  required Map<String, MeasurementSourceDiscoveryResult>
+      discoveriesByDeclarationIdentity,
+  required List<Issue> issues,
+}) {
+  final sourcesByOutputPath = <String, RestageSourceDeclaration>{};
+  for (final source in roster.declarations.where(
+    (source) =>
+        source.kind == RestageRosterSourceKind.screen ||
+        source.kind == RestageRosterSourceKind.paywall,
+  )) {
+    for (final output in source.outputs) {
+      final previous = sourcesByOutputPath[output.path];
+      if (previous != null &&
+          previous.declarationIdentity != source.declarationIdentity) {
+        issues.add(
+          Issue(
+            code: IssueCode.duplicateId,
+            message: 'Measurement cannot reconcile shared source output '
+                '${output.path} to one analyzer declaration.',
+            location: output.path,
+          ),
+        );
+      } else {
+        sourcesByOutputPath[output.path] = source;
+      }
+    }
+  }
+  final result = <MeasurementPublicationPlanningInput>[];
+  for (final entry in manifest.publications) {
+    final sourceArtifacts = <MeasurementPublicationSourceArtifact>[];
+    for (final artifact in entry.artifacts.where(
+      (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
+    )) {
+      final source = sourcesByOutputPath[artifact.path];
+      final discovery = source == null
+          ? null
+          : discoveriesByDeclarationIdentity[source.declarationIdentity];
+      if (source == null || discovery == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.missingScreenDescriptor,
+            message: 'Measurement publication '
+                '${entry.publication.surface.wireName}/'
+                '${entry.publication.slug} cannot reconcile screen artifact '
+                '${artifact.path} to one discovered source.',
+            location: artifact.path,
+          ),
+        );
+        continue;
+      }
+      sourceArtifacts.add(
+        MeasurementPublicationSourceArtifact(
+          artifactPath: artifact.path,
+          discovery: discovery,
+        ),
+      );
+    }
+    if (sourceArtifacts.length !=
+        entry.artifacts
+            .where(
+              (artifact) =>
+                  artifact.role == SurfacePublicationArtifactRole.screenBlob,
+            )
+            .length) {
+      continue;
+    }
+    result.add(
+      MeasurementPublicationPlanningInput(
+        entry: entry,
+        sourceArtifacts: sourceArtifacts,
+      ),
+    );
+  }
+  return result;
+}
+
+Map<String, MeasurementPaywallRouteEmissionOwnership> _paywallRouteOwnership(
+  List<MeasurementPublicationPlanningInput> publications, {
+  required RestageSourceRoster roster,
+  required List<Issue> issues,
+}) {
+  final paywallsByIdentity = {
+    for (final source in roster.declarations.where(
+      (source) => source.kind == RestageRosterSourceKind.paywall,
+    ))
+      source.declarationIdentity: source,
+  };
+  final ownership = <String, ({bool standalone, bool adapter})>{};
+  for (final publication in publications) {
+    for (final artifact in publication.sourceArtifacts) {
+      final identity =
+          artifact.discovery.sourceProvenance!.resolvedSourceIdentity;
+      final source = paywallsByIdentity[identity];
+      if (source == null) continue;
+      final claims = source.outputs
+          .where((output) => output.path == artifact.artifactPath)
+          .toList(growable: false);
+      if (claims.length != 1) {
+        issues.add(
+          Issue(
+            code: IssueCode.missingScreenDescriptor,
+            message: 'Measurement paywall artifact ${artifact.artifactPath} '
+                'requires one exact roster output role; found '
+                '${claims.length}.',
+            location: artifact.artifactPath,
+          ),
+        );
+        continue;
+      }
+      final prior = ownership[identity] ?? (standalone: false, adapter: false);
+      switch (claims.single.role) {
+        case 'screen-blob' || 'binary':
+          ownership[identity] = (
+            standalone: true,
+            adapter: prior.adapter,
+          );
+        case 'flow-screen-blob' || 'flow-screen-binary':
+          ownership[identity] = (
+            standalone: prior.standalone,
+            adapter: true,
+          );
+        default:
+          issues.add(
+            Issue(
+              code: IssueCode.missingScreenDescriptor,
+              message: 'Measurement paywall artifact '
+                  '${artifact.artifactPath} resolved to unsupported roster '
+                  'role ${claims.single.role}.',
+              location: artifact.artifactPath,
+            ),
+          );
+      }
+    }
+  }
+  return {
+    for (final entry in ownership.entries)
+      entry.key: MeasurementPaywallRouteEmissionOwnership(
+        standalone: entry.value.standalone,
+        adapter: entry.value.adapter,
+      ),
+  };
+}
+
+void _validateFlowMeasurementClosures(
+  List<MeasurementPublicationPlanningInput> publications, {
+  required List<NormalizedFlowSource> flows,
+  required List<Issue> issues,
+}) {
+  for (final publication in publications.where(
+    (publication) =>
+        publication.entry.publication.payloadKind == SurfacePayloadKind.flow &&
+        publication.entry.publication.sourceKind == SurfaceSourceKind.flowGraph,
+  )) {
+    final selector = publication.selector;
+    final matches = flows
+        .where(
+          (flow) =>
+              flow.surface == selector.surface && flow.id == selector.slug,
+        )
+        .toList(growable: false);
+    if (matches.length != 1) {
+      issues.add(
+        Issue(
+          code: IssueCode.missingScreenDescriptor,
+          message: 'Measurement flow closure requires one resolved flow for '
+              '${selector.surface.wireName}/${selector.slug}; found '
+              '${matches.length}.',
+          location: selector.key,
+        ),
+      );
+      continue;
+    }
+    final declaration = matches.single.declaration;
+    if (declaration is! ClassElement) continue;
+    final closure = MeasurementSourceDiscovery.closeFlowSourceV1(
+      MeasurementFlowSourceClosureInput(
+        flowSourceClass: declaration,
+        staticArtifactDiscoveries: publication.sourceArtifacts.map(
+          (artifact) => artifact.discovery,
+        ),
+      ),
+    );
+    if (closure.disposition !=
+        MeasurementFlowSourceClosureDisposition.accepted) {
+      issues.add(
+        Issue(
+          code: IssueCode.annotationEvaluationFailed,
+          message: 'Measurement flow closure rejected '
+              '${selector.surface.wireName}/${selector.slug}: '
+              '${closure.rejectionReason}',
+          location: matches.single.declarationIdentity,
+        ),
+      );
+    }
+  }
+}
+
+Future<void> _appendResolvedScreens(
+  BuildStep buildStep, {
+  required List<ResolvedScreenCompilationInput> inputs,
+  required Map<String, MeasurementRouteEmissionPlan> routePlans,
+  required RestageOutputPlacementPlan placement,
+  required List<CompiledSurfaceArtifact> rendered,
+  required List<ResolvedStandaloneScreenContract> contracts,
+  required List<LegacyStandaloneScreenContract> legacyContracts,
+  required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
+  required List<Issue> issues,
+}) async {
+  final compilation = await compileResolvedScreens(
+    buildStep,
+    inputs,
+    measurementRoutePlans: routePlans,
+  );
+  issues.addAll(compilation.issues);
+  for (final screen in compilation.screens) {
+    final source =
+        sourcesByDeclarationIdentity[screen.input.declarationIdentity];
+    if (source == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.analyzerResolutionFailed,
+          message: 'Compiled Measurement screen lost its roster source.',
+          location: screen.input.declarationIdentity,
+        ),
+      );
+      continue;
+    }
+    final capabilities = _effectiveScreenCapabilities(
+      authoredMinClient: screen.input.minClient,
+      derivedCapabilities: screen.capabilities,
+    );
+    final sidecar = _effectiveCapabilitySidecar(
+      existing: screen.capabilitySidecar,
+      blob: screen.blob,
+      derivedCapabilities: screen.capabilities,
+      effectiveCapabilities: capabilities,
+    );
+    rendered.add(
+      CompiledSurfaceArtifact(
+        declaration: screen.input.declaration,
+        blob: screen.blob,
+        capabilitySidecar: sidecar,
+        flowArtifactPath: '${screen.input.id}.rfw',
+        rfwText: utf8.encode(screen.text),
+      ),
+    );
+    final surface = screen.input.surface;
+    if (surface == null) continue;
+    if (source.isCanonical) {
+      final contract = inspectStandaloneScreenContract(
+        ResolvedStandaloneScreenContractInput(
+          assetId: screen.input.assetId,
+          screen: screen.input.declaration,
+          surface: surface,
+          slug: screen.input.id,
+          contractVersion: screen.input.version,
+          capabilities: capabilities,
+          plan: placement,
+          bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
+            blobSha256: CapabilitySidecar.hashBlob(screen.blob),
+            blobByteLength: screen.blob.length,
+            sidecarSha256: CapabilitySidecar.hashBlob(sidecar),
+            sidecarByteLength: sidecar.length,
+          ),
+        ),
+      );
+      issues.addAll(contract.issues);
+      if (contract.contract != null) contracts.add(contract.contract!);
+    } else {
+      final contract = inspectLegacyStandaloneScreenContract(
+        LegacyStandaloneScreenContractInput(
+          assetId: screen.input.assetId,
+          screen: screen.input.declaration,
+          surface: surface,
+          slug: screen.input.id,
+          contractVersion: screen.input.version,
+          capabilities: capabilities,
+        ),
+      );
+      issues.addAll(contract.issues);
+      if (contract.contract != null) legacyContracts.add(contract.contract!);
+    }
+  }
+}
+
+List<ResolvedClassFlowScreen> _resolvedClassFlowScreens(
+  List<CompiledSurfaceArtifact> rendered, {
+  required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
+  required List<Issue> issues,
+}) {
+  final result = <ResolvedClassFlowScreen>[];
+  for (final artifact in rendered) {
+    final source = sourcesByDeclarationIdentity[artifact.declarationIdentity];
+    if (source == null) {
+      issues.add(
+        Issue(
+          code: IssueCode.analyzerResolutionFailed,
+          message: 'Rendered Measurement source is absent from the roster.',
+          location: artifact.declarationIdentity,
+        ),
+      );
+      continue;
+    }
+    final sidecar = _decodeCapabilitySidecar(
+      artifact.capabilitySidecar,
+      source: source,
+      issues: issues,
+    );
+    if (sidecar == null) continue;
+    result.add(
+      ResolvedClassFlowScreen(
+        declaration: artifact.declaration,
+        surface: source.surface,
+        id: artifact.flowScreenId ?? source.effectiveId,
+        artifactPath: artifact.flowArtifactPath,
+        version: source.version,
+        minClient: sidecar.manifest.builtInFloor,
+        blob: artifact.blob,
+        canonicalPaywallId: source.kind == RestageRosterSourceKind.paywall
+            ? source.effectiveId
+            : null,
+      ),
+    );
+  }
+  return result;
+}
+
+Future<void> _compileLegacyClassFlowDocuments(
+  BuildStep buildStep, {
+  required List<_FlowCompilationJob> jobs,
+  required List<ResolvedClassFlowScreen> screens,
+  required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
+  required List<CompiledFlowArtifact> precompiledFlows,
+  required List<Issue> issues,
+  Map<String, String> generatedSourceCarrierDraftDigestsByDeclarationIdentity =
+      const {},
+}) async {
+  for (final job in jobs) {
+    for (final flow in job.flows.where(
+      (flow) => flow.graph == null && !flow.isCanonical,
+    )) {
+      if (!sourcesByDeclarationIdentity.containsKey(flow.declarationIdentity)) {
+        issues.add(
+          Issue(
+            code: IssueCode.analyzerResolutionFailed,
+            message: 'Legacy flow ${flow.declarationIdentity} is absent from '
+                'the source roster during Measurement recompilation.',
+            location: flow.declarationIdentity,
+          ),
+        );
+        continue;
+      }
+      final compilation = await compileResolvedClassFlows(
+        buildStep,
+        library: job.library,
+        assetId: job.assetId,
+        legacySurface: flow.surface,
+        includeCanonical: false,
+        resolvedScreens: screens,
+        declarationIdentities: {flow.declarationIdentity},
+        generatedSourceCarrierDraftDigestsByDeclarationIdentity:
+            generatedSourceCarrierDraftDigestsByDeclarationIdentity,
+      );
+      issues.addAll(compilation.issues);
+      if (compilation.flows.length != 1) {
+        if (compilation.issues.isEmpty) {
+          issues.add(
+            Issue(
+              code: IssueCode.analyzerResolutionFailed,
+              message: 'Expected one Measurement-recompiled legacy flow for '
+                  '${flow.declarationIdentity}; found '
+                  '${compilation.flows.length}.',
+              location: flow.declarationIdentity,
+            ),
+          );
+        }
+        continue;
+      }
+      final compiled = compilation.flows.single;
+      precompiledFlows.add(
+        CompiledFlowArtifact(
+          declaration: compiled.declaration,
+          flowDocumentBytes: compiled.flowDocumentBytes,
+          generatedPart: compiled.generatedPart,
+        ),
+      );
+    }
   }
 }
 
@@ -517,6 +1454,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
   required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
   required List<CompiledFlowArtifact> precompiledFlows,
   required List<Issue> issues,
+  Map<String, String> generatedSourceCarrierDraftDigestsByDeclarationIdentity =
+      const {},
 }) async {
   final hasCanonicalClassFlow = jobs.any(
     (job) => job.flows.any(
@@ -610,6 +1549,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
   if (issues.isNotEmpty) return;
 
   final documents = <NormalizedFlowIdentity, List<int>>{};
+  final generatedSourceCarrierDraftDigests =
+      generatedSourceCarrierDraftDigestsByDeclarationIdentity;
   final pending = Map<NormalizedFlowIdentity, NormalizedFlowSource>.of(
     canonicalByIdentity,
   );
@@ -617,8 +1558,9 @@ Future<void> _compileCanonicalClassFlowDocuments(
     var madeProgress = false;
     final ordered = pending.values.toList()
       ..sort((left, right) {
-        final bySurface =
-            left.surface.wireName.compareTo(right.surface.wireName);
+        final bySurface = left.surface.wireName.compareTo(
+          right.surface.wireName,
+        );
         return bySurface != 0 ? bySurface : left.id.compareTo(right.id);
       });
     for (final flow in ordered) {
@@ -679,6 +1621,8 @@ Future<void> _compileCanonicalClassFlowDocuments(
           resolvedScreens: screens,
           childFlowDocuments: documents,
           declarationIdentities: {flow.declarationIdentity},
+          generatedSourceCarrierDraftDigestsByDeclarationIdentity:
+              generatedSourceCarrierDraftDigests,
         );
         issues.addAll(compilation.issues);
         if (compilation.flows.length != 1) {
@@ -808,14 +1752,15 @@ Future<void> _compileCanonicalPaywalls(
   required List<CompiledSurfaceArtifact> rendered,
   required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
   required List<Issue> issues,
+  Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans = const {},
+  Map<String, MeasurementPaywallRouteEmissionOwnership>
+      measurementRouteOwnership = const {},
 }) async {
   String? canonicalPaywallIdFor(ClassElement declaration) {
     final identity =
         '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
     final source = sourcesByDeclarationIdentity[identity];
-    if (source == null ||
-        source.kind != RestageRosterSourceKind.paywall ||
-        !source.isCanonical) {
+    if (source == null || source.kind != RestageRosterSourceKind.paywall) {
       return null;
     }
     return source.effectiveId;
@@ -829,6 +1774,8 @@ Future<void> _compileCanonicalPaywalls(
       assetId: job.assetId,
       sources: job.sources,
       canonicalPaywallIdFor: canonicalPaywallIdFor,
+      measurementRoutePlans: measurementRoutePlans,
+      measurementRouteOwnership: measurementRouteOwnership,
     );
     issues.addAll(compilation.issues);
     for (final compiled in compilation.paywalls) {
@@ -1127,7 +2074,10 @@ final class _CanonicalCompiledPaywall {
   final CompiledPaywallArtifacts artifacts;
 }
 
-TrackedPackageSurfaceCompilation _invalidCompilation(List<Issue> rawIssues) {
+TrackedPackageSurfaceCompilation _invalidCompilation(
+  List<Issue> rawIssues, {
+  RestageMeasurementCompilerOutputV1? measurementCompilerOutput,
+}) {
   final issues = List<Issue>.of(rawIssues)
     ..sort((left, right) {
       final byLocation = left.location.compareTo(right.location);
@@ -1136,10 +2086,25 @@ TrackedPackageSurfaceCompilation _invalidCompilation(List<Issue> rawIssues) {
       if (byCode != 0) return byCode;
       return left.message.compareTo(right.message);
     });
+  final supplied = measurementCompilerOutput;
+  final errors = issues.map((issue) => issue.toLogString()).toList();
+  final invalidMeasurementOutput = supplied != null && !supplied.valid
+      ? supplied
+      : RestageMeasurementCompilerOutputV1(
+          valid: false,
+          errors: errors,
+          policy: supplied?.policy,
+          nextIdentitySequence: supplied?.nextIdentitySequence ?? 1,
+          ledgerNodes: supplied?.ledgerNodes ?? const [],
+          acceptedRelocations: supplied?.acceptedRelocations ?? const [],
+          proposals: supplied?.proposals ?? const [],
+          publications: const [],
+        );
   return TrackedPackageSurfaceCompilation(
     publicationBundle: RestageSurfacePublicationBundle.invalid(
-      issues.map((issue) => issue.toLogString()),
+      errors,
     ),
+    measurementCompilerOutput: invalidMeasurementOutput,
     generatedParts: const {},
     issues: issues,
   );

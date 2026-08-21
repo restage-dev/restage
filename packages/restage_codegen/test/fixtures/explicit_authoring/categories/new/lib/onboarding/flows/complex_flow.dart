@@ -13,11 +13,9 @@ final class ComplexFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: NeutralWelcomeDescriptor.ref,
+      initial: neutralWelcomeRef,
       states: [
-        screen(NeutralWelcomeDescriptor.ref)
-            .on(NeutralWelcome.finish)
-            .goTo(done),
+        screen(neutralWelcomeRef).on(NeutralWelcome.finish).goTo(done),
         end(done, result: {}),
       ],
     );

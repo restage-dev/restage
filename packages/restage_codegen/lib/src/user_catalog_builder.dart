@@ -7,8 +7,9 @@ import 'package:restage_codegen/src/user_catalog_emitter.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// Aggregates `@RestageWidget`-annotated classes from every `lib/**.dart`
-/// file in the consuming package and emits a single
+/// Aggregates `@RestageWidget`-annotated classes from the consuming
+/// package — scanning every `lib/**.dart` and walking the files that spell a
+/// Restage annotation (or an alias of one) — and emits a single
 /// `lib/user_catalog.g.dart` declaring `final Catalog kUserCatalog`.
 ///
 /// Customers register the resulting catalog at startup with

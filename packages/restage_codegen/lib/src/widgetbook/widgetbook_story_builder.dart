@@ -1,10 +1,10 @@
 import 'dart:io';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/dart_source_parsing.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
@@ -326,21 +326,22 @@ List<_AuthoredUnit> _readAuthoredUnits(Directory lib) {
 /// A class declared in a `part` belongs to the owning library, and that is
 /// the library whose placement decides where its story is written.
 _AuthoredUnit _authoredUnit(Directory lib, File file) {
-  final unit = parseString(
-    content: file.readAsStringSync(),
-    path: file.path,
-    throwIfDiagnostics: false,
-  ).unit;
+  final unit = parseUnresolvedDart(file.readAsStringSync(), path: file.path);
   final own = p.posix.join(
     'lib',
     p.posix.joinAll(p.split(p.relative(file.path, from: lib.path))),
   );
-  final partOf = unit.directives.whereType<PartOfDirective>().firstOrNull;
-  final ownerUri = partOf?.uri?.stringValue;
-  return _AuthoredUnit(
-    libraryPath: ownerUri == null ? own : _resolveOwnerPath(own, ownerUri),
-    unit: unit,
-  );
+  // The deprecated `part of <library name>` form names no location, so this
+  // discovery cannot follow it and attributes the file to itself — the
+  // behaviour it has always had, stated rather than falling out of a null
+  // check. The build-step walk resolves that form by scanning what the other
+  // candidates declare, which is not available here.
+  final libraryPath = switch (partOwnerReferenceOf(unit)) {
+    PartOwnerUri(:final uri) => _resolveOwnerPath(own, uri),
+    PartOwnerLibraryName() => own,
+    null => own,
+  };
+  return _AuthoredUnit(libraryPath: libraryPath, unit: unit);
 }
 
 /// The package-relative path a `part of` URI names, from a part at [own].

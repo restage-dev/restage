@@ -11,7 +11,7 @@ const String compilerJsonPath =
 
 typedef OutputsFixture = ({
   String libraryPath,
-  SurfacePublicationManifestEntryV1 entry,
+  SurfacePublicationManifestEntry entry,
   Map<String, List<int>> files,
   Map<String, List<int>> ownedOutputs,
 });
@@ -71,7 +71,7 @@ OutputsFixture flowFixture({
   final flowPath = 'assets/general/flows/$segment.flow.json';
   final blobPath = 'assets/general/screens/$segment.rfw';
   final sidecarPath = 'assets/general/screens/$segment.capability.json';
-  final publication = SurfacePublicationV1(
+  final publication = SurfacePublication(
     surface: Surface.general,
     slug: slug,
     sourceKind: SurfaceSourceKind.flowGraph,
@@ -79,24 +79,24 @@ OutputsFixture flowFixture({
     payloadContentHash: CapabilitySidecar.hashBlob(flowBytes),
     deliveryMode: FlowDeliveryMode.general,
   );
-  final entry = SurfacePublicationManifestEntryV1(
-    artifacts: <SurfacePublicationArtifactV1>[
-      SurfacePublicationArtifactV1(
+  final entry = SurfacePublicationManifestEntry(
+    artifacts: <SurfacePublicationArtifact>[
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(flowBytes),
         path: flowPath,
-        role: SurfacePublicationArtifactRoleV1.flowDocument,
+        role: SurfacePublicationArtifactRole.flowDocument,
       ),
-      SurfacePublicationArtifactV1(
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(screenBytes),
         id: 'start',
         path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
       ),
-      SurfacePublicationArtifactV1(
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
         id: 'start',
         path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
       ),
     ],
     publication: publication,
@@ -121,7 +121,7 @@ OutputsFixture flowFixture({
 
 /// Encodes the compiler handoff JSON for a set of fixtures.
 String compilerJsonFor(List<OutputsFixture> fixtures) {
-  final manifest = SurfacePublicationManifestV1(
+  final manifest = SurfacePublicationManifest(
     publications: [for (final fixture in fixtures) fixture.entry],
   );
   final artifacts = <String, List<int>>{

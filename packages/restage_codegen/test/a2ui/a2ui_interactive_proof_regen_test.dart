@@ -371,7 +371,7 @@ void main() {
   group('interactive proof — scope-correctness vocabulary (the inert subset)',
       () {
     // A codegen-correctness guard: the emitter produces EXACTLY the designed
-    // Phase-2 interactive vocabulary — controlled write-back through the
+    // designed interactive vocabulary — controlled write-back through the
     // shared source/override helper, dispatch (a compile-fixed
     // `dispatchEvent(UserActionEvent)`), and the value-reference oneOf schema —
     // and NONE of the genui producer-driven action surface (a genui `action()`

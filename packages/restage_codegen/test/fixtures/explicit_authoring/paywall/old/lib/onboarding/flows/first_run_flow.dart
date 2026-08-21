@@ -14,9 +14,9 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: OfferIntroScreenDescriptor.ref,
+      initial: offerIntroScreenRef,
       states: [
-        screen(OfferIntroScreenDescriptor.ref)
+        screen(offerIntroScreenRef)
             .on(OfferIntroScreen.next)
             .goTo(paywallScreen('premium')),
         screen(paywallScreen('premium'))

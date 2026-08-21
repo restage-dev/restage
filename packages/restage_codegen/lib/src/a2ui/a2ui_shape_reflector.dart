@@ -115,12 +115,12 @@ final class A2uiShapeScopedOut extends A2uiShapeResult {
 }
 
 /// A function / callback-typed field: the interactivity (write-back / dispatch)
-/// surface handled by the Phase-2 event layer.
+/// surface handled by the event layer.
 ///
 /// The deliberate reclassification — a callback is **not** data and is **not**
 /// a data scope-out; it is excluded from the data schema and routed to the
 /// interactivity layer, so it carries no diagnostic. It carries the
-/// [signature], the classified callback disposition the Phase-2 lowering reads
+/// [signature], the classified callback disposition the interactive lowering reads
 /// (a customer `@RestageWidget` callback's signature is otherwise discarded —
 /// the catalog collapses every callback to a bare event property).
 @immutable
@@ -168,7 +168,7 @@ A2uiShapeResult _reflect(DartType type, Set<String> path, int depth) {
   }
   final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
 
-  // A function/closure with a signature is the Phase-2 event surface; it
+  // A function/closure with a signature is the interactive event surface; it
   // carries the classified callback disposition the lowering reads.
   if (type is FunctionType) {
     return A2uiShapeEventSurface(_classifyCallback(type));

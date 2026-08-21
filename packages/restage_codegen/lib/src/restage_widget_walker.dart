@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:glob/glob.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/customer_map_plan.dart';
 import 'package:restage_codegen/src/customer_record_plan.dart';
@@ -11,6 +10,7 @@ import 'package:restage_codegen/src/customer_structured_admissibility.dart';
 import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
@@ -59,7 +59,8 @@ bool isCustomerFactoryEmittableForWalker(
       customerChildProperties: true,
     );
 
-/// Walks every `lib/**.dart` asset in [buildStep]'s package for
+/// Scans every `lib/**.dart` and walks the files that spell a
+/// Restage annotation (or an alias of one) asset in [buildStep]'s package for
 /// `@RestageWidget`-annotated classes, aggregates the resulting
 /// `WidgetEntry`s, detects cross-file `(library, name)` duplicates, and
 /// returns the deduplicated list in `(library namespace, name)` order
@@ -101,10 +102,9 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
   final declaredCapabilityVersions = <String, int?>{};
 
   final sources = <ResolvedPackageLibrary>[];
-  await for (final assetId in buildStep.findAssets(Glob('lib/**.dart'))) {
-    // Do not pre-filter with `resolver.isLibrary` — its implementation
-    // calls `libraryFor` internally, so a guard would double the resolver
-    // cost on every Dart asset. Catch `NonLibraryAssetException` instead.
+  // A selected `part` still throws below and is still skipped; it reaches the
+  // walk through its owning library, which the selection carries with it.
+  for (final assetId in await selectRestageWidgetCandidates(buildStep)) {
     final LibraryElement library;
     try {
       library = await buildStep.resolver.libraryFor(

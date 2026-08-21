@@ -720,7 +720,7 @@ void main() {
         // returns `T?`, so the emit threads a no-op `(DateTime _) {}`
         // fallback so the assignment to the non-nullable
         // `onDateTimeChanged` Flutter param compiles. Binding an event
-        // handler is an editor-time choice; the catalog stays renderable
+        // handler is an authoring-time choice; the catalog stays renderable
         // without one.
         const entry = WidgetEntry(
           wireId: WireId.unallocatedWidget,

@@ -323,8 +323,17 @@ Future<FlowFrontendResult> inspectFlowDefinitions(
       issues.add(
         Issue(
           code: IssueCode.unsupportedBaseClass,
-          message: 'A flow annotation must target a concrete RestageFlow '
-              'subclass resolved from package:restage.',
+          message: _extendsHostWidgetInsteadOfFlowBase(cls)
+              // The two names sit next to each other in an editor's
+              // completion list. `RestageFlowGraph` is a `final class`, so the
+              // analyzer already rejects extending it — this is a second,
+              // clearer message naming which of the pair was wanted, not the
+              // only thing standing between the author and a silent bug.
+              ? 'RestageFlowGraph is the host widget that mounts a flow. An '
+                  'authored flow extends RestageFlow: change '
+                  '`extends RestageFlowGraph` to `extends RestageFlow`.'
+              : 'A flow annotation must target a concrete RestageFlow '
+                  'subclass resolved from package:restage.',
           location: '${assetId.path}#${cls.name ?? '<unnamed>'}',
         ),
       );
@@ -514,9 +523,34 @@ bool _isRestageEnumValue(DartObject? value, String name) {
       );
 }
 
+/// Whether [element] extends the host widget where it meant to extend the
+/// authored flow base.
+///
+/// `RestageFlowGraph` mounts a flow; `RestageFlow` is what a flow source
+/// extends. The analyzer rejects the mix-up on its own (the widget is a
+/// `final class`); this check exists only to distinguish it from an unrelated
+/// unsupported base class and say which name was wanted.
+bool _extendsHostWidgetInsteadOfFlowBase(ClassElement element) {
+  for (var current = element.supertype; current != null;) {
+    final type = current;
+    if (type.element.name == 'RestageFlowGraph' &&
+        libraryUriMatchesOrigin(
+          type.element.library.identifier,
+          kRestageSdkLibraryOrigin,
+        )) {
+      return true;
+    }
+    current = type.element.supertype;
+  }
+  return false;
+}
+
 bool _isRestageFlowClass(ClassElement element) {
   for (var current = element.supertype; current != null;) {
     final type = current;
+    // Matches the authored flow base by name. The base is `RestageFlow` and
+    // was NOT renamed at 2.0; the new host widget `RestageFlowGraph` is a
+    // different type and must never be recognised here as a flow source.
     if (type.element.name == 'RestageFlow' &&
         libraryUriMatchesOrigin(
           type.element.library.identifier,

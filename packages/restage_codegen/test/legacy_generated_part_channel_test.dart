@@ -49,9 +49,9 @@ final class WelcomeFlow extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: WelcomeDescriptor.ref,
+      initial: welcomeRef,
       states: [
-        screen(WelcomeDescriptor.ref).on(Welcome.finish).goTo(done),
+        screen(welcomeRef).on(Welcome.finish).goTo(done),
         end(done, result: {}),
       ],
     );

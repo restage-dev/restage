@@ -13,7 +13,7 @@ final class ProfileFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: ProfileScreenDescriptor.ref,
+      initial: profileScreenRef,
       flowState: const {
         'profileName': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -21,7 +21,7 @@ final class ProfileFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(ProfileScreenDescriptor.ref).on(ProfileScreen.finish).goTo(done),
+        screen(profileScreenRef).on(ProfileScreen.finish).goTo(done),
         end(done, result: {}),
       ],
     );

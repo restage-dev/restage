@@ -23,6 +23,7 @@ import 'package:restage_codegen/src/number_format_recognition.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/single_select_recognition.dart';
@@ -214,6 +215,7 @@ final class ExpressionTranslator {
     this.customWidgetClassifications = const <String, WidgetClassification>{},
     this.customWidgetBlueprints = const <String, CustomWidgetBlueprint>{},
     this.canonicalPaywallIdFor,
+    this.measurementRouteEmissionPlan,
   }) : _isFrameworkValueType = isFrameworkValueTypeLibrary;
 
   /// Test-only override of the framework-value-type predicate the
@@ -235,6 +237,7 @@ final class ExpressionTranslator {
     this.customWidgetClassifications = const <String, WidgetClassification>{},
     this.customWidgetBlueprints = const <String, CustomWidgetBlueprint>{},
     this.canonicalPaywallIdFor,
+    this.measurementRouteEmissionPlan,
   }) : _isFrameworkValueType = frameworkLibraryPredicate;
 
   /// Resolves canonical pushed-paywall identities from the package roster.
@@ -243,6 +246,11 @@ final class ExpressionTranslator {
   /// compiler owns canonical source identity. Legacy `@PaywallSource`
   /// navigation still resolves through its compatibility annotation field.
   final CanonicalPaywallIdFor? canonicalPaywallIdFor;
+
+  /// Exact analyzer-expression bindings for transient Measurement route
+  /// markers. The package publication compiler resolves those markers to the
+  /// final carrier before hashing the emitted artifact.
+  final MeasurementRouteEmissionPlan? measurementRouteEmissionPlan;
 
   /// The framework-value-type predicate the value-substitution gate keys on —
   /// [isFrameworkValueTypeLibrary] in production, overridden only via
@@ -5398,7 +5406,36 @@ final class ExpressionTranslator {
         (branch) => _translateParamValue(param, branch, issues),
       );
     }
-    return _coerceParamValue(param, _translate(stripped, issues));
+    final value = _coerceParamValue(param, _translate(stripped, issues));
+    final marker = measurementRouteEmissionPlan?.markerFor(expr) ??
+        measurementRouteEmissionPlan?.markerFor(stripped);
+    if (marker == null) return value;
+    if (value.isEmpty || !value.trimLeft().startsWith('event ')) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidEventConfiguration,
+          message: 'The measured inlined custom-widget callback did not '
+              'lower to one RFW event handler.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+    try {
+      return MeasurementRouteEventMarkerEmitter.attach(
+        value,
+        marker: marker,
+      );
+    } on ArgumentError catch (error) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidEventConfiguration,
+          message: error.message?.toString() ?? error.toString(),
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
   }
 
   /// Coerces a numeric parameter's [value] to a double literal — so it
@@ -5750,6 +5787,63 @@ final class ExpressionTranslator {
   /// the branch literals and the runtime decode would silently null them.
   /// Any other value translates and coerces as a unit.
   String _translateSlotValue(
+    Expression expr,
+    PropertyType type,
+    List<Issue> issues, {
+    PropertyEntry? property,
+  }) {
+    final marker = type == PropertyType.event
+        ? measurementRouteEmissionPlan?.markerFor(expr)
+        : null;
+    final value = _translateSlotValueCore(
+      expr,
+      type,
+      issues,
+      property: property,
+    );
+    if (type != PropertyType.event) return value;
+    if (value.isEmpty) {
+      if (marker != null) {
+        issues.add(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message: 'The measured callback produced no RFW event handler, '
+                'so its private Measurement route cannot be emitted.',
+            location: _locationOf(expr),
+          ),
+        );
+      }
+      return value;
+    }
+    if (marker != null && !value.trimLeft().startsWith('event ')) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidEventConfiguration,
+          message: 'The measured callback did not lower to one RFW event '
+              'handler, so its private Measurement route cannot be emitted.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+    try {
+      return MeasurementRouteEventMarkerEmitter.attach(
+        value,
+        marker: marker,
+      );
+    } on ArgumentError catch (error) {
+      issues.add(
+        Issue(
+          code: IssueCode.invalidEventConfiguration,
+          message: error.message?.toString() ?? error.toString(),
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+  }
+
+  String _translateSlotValueCore(
     Expression expr,
     PropertyType type,
     List<Issue> issues, {

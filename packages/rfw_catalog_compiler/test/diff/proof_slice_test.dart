@@ -1,4 +1,4 @@
-// Phase 11 proof slice — diffs constructed canonical Catalog pairs end to
+// Diff-tool proof — diffs constructed canonical Catalog pairs end to
 // end through computeCatalogDiff and asserts both the classification and
 // the emitted CompatRule for every constructible compatibility-taxonomy
 // row, across all six wire-ID kinds plus a customer namespace.

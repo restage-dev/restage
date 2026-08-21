@@ -13,9 +13,9 @@ final class CompatibilityWelcomeFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: CompatibilityWelcomeDescriptor.ref,
+      initial: compatibilityWelcomeRef,
       states: [
-        screen(CompatibilityWelcomeDescriptor.ref)
+        screen(compatibilityWelcomeRef)
             .on(CompatibilityWelcome.finish)
             .goTo(done),
         end(done, result: {}),

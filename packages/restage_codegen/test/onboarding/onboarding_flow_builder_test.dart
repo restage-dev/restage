@@ -37,18 +37,26 @@ void main() {
       );
       expect(
         generated,
-        allOf(
+        // Passed as a list: `allOf` caps positional matchers at seven.
+        allOf([
           contains("part of '../first_run.dart';"),
+          // One top-level handle; the holder survives as a deprecated alias
+          // forwarding to it, so both spellings stay covered.
+          contains('const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>('),
+          contains("@Deprecated('Use firstRunFlowRef')"),
           contains('abstract final class FirstRunFlowDescriptor'),
+          contains(
+            'static const SurfaceFlowRef<FirstRunResult> ref = firstRunFlowRef;',
+          ),
           contains('SurfaceFlowRef<FirstRunResult>'),
-          contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
+          contains('decodeResult: _decodeFirstRunFlowResult'),
           contains('final class FirstRunResult'),
           contains('final class FirstRunActions'),
           isNot(contains('FlowActionHandler')),
-        ),
+        ]),
       );
       expect(generated, contains('surface: Surface.onboarding'));
-      expect(generated, contains('static FirstRunResult _decodeResult('));
+      expect(generated, contains('FirstRunResult _decodeFirstRunFlowResult('));
       expect(
         generated,
         allOf(
@@ -424,7 +432,7 @@ void main() {
       expect(
         generated,
         allOf(
-          contains('static FirstRunResult _decodeResult('),
+          contains('FirstRunResult _decodeFirstRunFlowResult('),
           contains('if (result.isNotEmpty)'),
           contains('return const FirstRunResult();'),
         ),
@@ -912,6 +920,47 @@ void main() {
       );
     });
 
+    test(
+        'a same-named screen in a sibling library does not capture the '
+        'reference', () async {
+      // Two screens both called `WelcomeScreen`: a duplicate class name must
+      // not make the flow's reference ambiguous.
+      //
+      // Scope, stated because it is narrower than it looks: these are legacy
+      // `@OnboardingSource` screens, so resolution goes through the
+      // `legacyDescriptors` map keyed by descriptor name — it never reaches
+      // the library-identifier discrimination the modern `@Screen()` path
+      // uses. Proven by mutation: deleting that branch leaves this test green.
+      // The modern path's cross-library behaviour is NOT covered here.
+      final sources = _firstRunSources();
+      sources['apps_examples|lib/onboarding/screens/decoy.dart'] =
+          _screenSource('decoy', 'WelcomeScreen', 'next');
+      final logs = <LogRecord>[];
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          onboardingScreenBuilder(BuilderOptions.empty),
+          onboardingFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        onLog: logs.add,
+      );
+
+      final log = logs.map((record) => record.message).join('\n');
+      expect(
+        log,
+        isNot(contains('must resolve through one analyzer-authored library')),
+        reason: 'the duplicate class name must not make the reference '
+            'ambiguous — the owning library separates them',
+      );
+      expect(result.succeeded, isTrue,
+          reason: 'a same-named screen the flow does not import is not a '
+              'conflict on the legacy lookup path');
+    });
+
     test('missing imported generated screen descriptor fails before JSON',
         () async {
       final sources = _firstRunSources()
@@ -964,7 +1013,7 @@ final class extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
         end(done, result: {'completed': true}),
       ],
@@ -1439,7 +1488,9 @@ final class ActionArgs {
         logs.map((log) => log.message).join('\n'),
         allOf(
           contains('unsupportedFlowRuntimeFeature'),
-          isNot(contains('unsupportedInPhase1')),
+          // Assembled so the roadmap-wording guard does not read the
+          // contiguous banned token from this pin.
+          isNot(contains(['unsupported', 'In', 'Phase', '1'].join())),
           isNot(contains('run is not lowered')),
           isNot(contains('result is not lowered')),
           contains('subflow'),
@@ -1745,7 +1796,7 @@ final class NotificationResult {
         'screen then terminal': _terminalStateCollisionSources(
           declarations: "final done = endState('welcome');",
           states: '''
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -1755,7 +1806,7 @@ final class NotificationResult {
           declarations: "final done = endState('welcome');",
           states: '''
         end(done, result: {'completed': true}),
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
 ''',
@@ -1766,7 +1817,7 @@ final class NotificationResult {
     final gate = flowNode('done');
 ''',
           states: '''
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         decision(
@@ -1783,7 +1834,7 @@ final class NotificationResult {
     final gate = flowNode('done');
 ''',
           states: '''
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -1853,7 +1904,7 @@ final class NotificationResult {
 
     test('non-event const descriptors fail closed in transition events',
         () async {
-      final sources = _eventExpressionSources('WelcomeScreenDescriptor.ref');
+      final sources = _eventExpressionSources('welcomeScreenRef');
       final logs = <LogRecord>[];
       final readerWriter = await _readerWriterWith(sources);
 
@@ -1873,7 +1924,7 @@ final class NotificationResult {
         logs.map((log) => log.message).join('\n'),
         allOf(
           contains('Expected a static OnboardingEvent field reference'),
-          contains('WelcomeScreenDescriptor.ref'),
+          contains('welcomeScreenRef'),
         ),
       );
     });
@@ -1936,19 +1987,19 @@ final class NotificationResult {
       final cases = <String, String>{
         'if': '''
         if (true)
-          screen(WelcomeScreenDescriptor.ref)
+          screen(welcomeScreenRef)
               .on(WelcomeScreen.next)
               .goTo(done),
         ''',
         'for': '''
         for (final item in [1])
-          screen(WelcomeScreenDescriptor.ref)
+          screen(welcomeScreenRef)
               .on(WelcomeScreen.next)
               .goTo(done),
         ''',
         'spread': '''
         ...[
-          screen(WelcomeScreenDescriptor.ref)
+          screen(welcomeScreenRef)
               .on(WelcomeScreen.next)
               .goTo(done),
         ],
@@ -1986,14 +2037,14 @@ final class NotificationResult {
         () async {
       final cases = <String, String>{
         'duplicate end id': '''
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
         end(done, result: {'completed': false}),
         ''',
         'multiple end ids': '''
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -2623,7 +2674,7 @@ import 'package:restage_shared/restage_shared.dart'
 $source
 
 void main() {
-  final decoded = FirstRunFlowDescriptor.ref.decodeResult({'completed': true});
+  final decoded = firstRunFlowRef.decodeResult({'completed': true});
   if (!decoded.completed) {
     throw StateError('canonical result did not decode');
   }
@@ -2634,7 +2685,7 @@ void main() {
 
 void _rejects(Map<String, Object?> result) {
   try {
-    FirstRunFlowDescriptor.ref.decodeResult(result);
+    firstRunFlowRef.decodeResult(result);
   } on FormatException {
     return;
   }
@@ -2679,15 +2730,15 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
-            .goTo(PermissionsScreenDescriptor.ref),
-        screen(PermissionsScreenDescriptor.ref)
+            .goTo(permissionsScreenRef),
+        screen(permissionsScreenRef)
             .on(PermissionsScreen.next)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -2724,7 +2775,7 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         '$seedKey': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -2738,10 +2789,10 @@ final class FirstRunFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -2782,7 +2833,7 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         ${includeCompletedState ? "'completed': FlowStateDeclaration(type: FlowDataType.bool, classification: FlowStateClassification.exportable)," : ""}
         'secret': FlowStateDeclaration(
@@ -2811,13 +2862,13 @@ final class FirstRunFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
-            .goTo(PermissionsScreenDescriptor.ref),
-        screen(PermissionsScreenDescriptor.ref)
+            .goTo(permissionsScreenRef),
+        screen(permissionsScreenRef)
             .on(PermissionsScreen.next)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true, 'secret': 'do-not-emit'}),
@@ -2854,7 +2905,7 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'completed': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -2873,7 +2924,7 @@ final class FirstRunFlow extends RestageFlow {
         ),
       ),
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.primary)
             .write('completed', true)
             .goTo(done)
@@ -2907,9 +2958,9 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(paywallScreen('serene')),
         screen(paywallScreen('serene'))
@@ -2946,7 +2997,7 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'isPro': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -2977,7 +3028,7 @@ final class FirstRunFlow extends RestageFlow {
         ),
       ),
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(branch),
         decision(
@@ -3144,9 +3195,9 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .run(requestNotifications)
             .result((result) => result)
@@ -3216,9 +3267,9 @@ $extraActionRefs
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .run(requestNotifications)
             .result($resultPredicate)
@@ -3257,9 +3308,9 @@ final class FirstRunFlow extends RestageFlow {
     $extraBuildFlowStatements
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: $resultExpression),
@@ -3289,12 +3340,12 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -3325,9 +3376,9 @@ final class FirstRunFlow extends RestageFlow {
     final nextEvent = WelcomeScreen.next;
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(nextEvent)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -3357,9 +3408,9 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on($eventExpression)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -3391,9 +3442,9 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(fake)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -3433,7 +3484,7 @@ final class FirstRunFlow extends RestageFlow {
     $extraEndStates
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
 $states
       ],
@@ -3466,7 +3517,7 @@ final class FirstRunFlow extends RestageFlow {
     $declarations
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
 $states
       ],
@@ -3561,7 +3612,7 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: GoalScreenDescriptor.ref,
+      initial: goalScreenRef,
       flowState: const {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -3573,14 +3624,14 @@ final class BranchingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(GoalScreenDescriptor.ref)
+        screen(goalScreenRef)
             .on(GoalScreen.sleep)
             .write('goal', 'sleep')
-            .goTo(RatingScreenDescriptor.ref)
+            .goTo(ratingScreenRef)
             .on(GoalScreen.focus)
             .write('goal', 'focus')
-            .goTo(RatingScreenDescriptor.ref),
-        screen(RatingScreenDescriptor.ref)
+            .goTo(ratingScreenRef),
+        screen(ratingScreenRef)
             .on(RatingScreen.submit)
             .capture('rating')
             .goTo(done),
@@ -3621,7 +3672,7 @@ final class DecisionRouteFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: GoalScreenDescriptor.ref,
+      initial: goalScreenRef,
       flowState: const {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -3629,7 +3680,7 @@ final class DecisionRouteFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(GoalScreenDescriptor.ref)
+        screen(goalScreenRef)
             .on(GoalScreen.goalChosen)
             .capture('goal')
             .goTo(route),
@@ -3638,12 +3689,12 @@ final class DecisionRouteFlow extends RestageFlow {
           branches: [
             flowBranch(
               when: state('goal').equals('sleep'),
-              target: SleepScreenDescriptor.ref,
+              target: sleepScreenRef,
             ),
           ],
           defaultBranch: flowBranchTarget(done),
         ),
-        screen(SleepScreenDescriptor.ref).on(SleepScreen.ack).goTo(done),
+        screen(sleepScreenRef).on(SleepScreen.ack).goTo(done),
         end(done, result: {}),
       ],
     );
@@ -3675,7 +3726,7 @@ final class DecisionRouteFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StartScreenDescriptor.ref,
+      initial: startScreenRef,
       flowState: const {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -3695,7 +3746,7 @@ final class DecisionRouteFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        screen(startScreenRef).on(StartScreen.begin).goTo(route),
         decision(
           route,
           branches: [
@@ -3756,7 +3807,7 @@ final class DecisionRouteFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StartScreenDescriptor.ref,
+      initial: startScreenRef,
       flowState: const {
         'age': FlowStateDeclaration(
           type: FlowDataType.int,
@@ -3764,7 +3815,7 @@ final class DecisionRouteFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        screen(startScreenRef).on(StartScreen.begin).goTo(route),
         decision(
           route,
           branches: [
@@ -3809,7 +3860,7 @@ final class DecisionRouteFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StartScreenDescriptor.ref,
+      initial: startScreenRef,
       flowState: const {
         'age': FlowStateDeclaration(
           type: FlowDataType.int,
@@ -3817,7 +3868,7 @@ final class DecisionRouteFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        screen(startScreenRef).on(StartScreen.begin).goTo(route),
         decision(
           route,
           branches: [
@@ -3866,7 +3917,7 @@ final class DecisionRouteFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StartScreenDescriptor.ref,
+      initial: startScreenRef,
       flowState: const {
         'goal': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -3874,7 +3925,7 @@ final class DecisionRouteFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(StartScreenDescriptor.ref).on(StartScreen.begin).goTo(route),
+        screen(startScreenRef).on(StartScreen.begin).goTo(route),
         decision(
           route,
           branches: [
@@ -3912,7 +3963,7 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'granted': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -3920,7 +3971,7 @@ final class BranchingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .run(requestNotifications)
             .result((result) => result)
@@ -3962,14 +4013,14 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: GoalScreenDescriptor.ref,
+      initial: goalScreenRef,
       states: [
-        screen(GoalScreenDescriptor.ref)
+        screen(goalScreenRef)
             .on(GoalScreen.sleep)
-            .goTo(RatingScreenDescriptor.ref)
+            .goTo(ratingScreenRef)
             .on(GoalScreen.sleep)
             .goTo(done),
-        screen(RatingScreenDescriptor.ref)
+        screen(ratingScreenRef)
             .on(RatingScreen.submit)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -4002,9 +4053,9 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: RatingScreenDescriptor.ref,
+      initial: ratingScreenRef,
       states: [
-        screen(RatingScreenDescriptor.ref)
+        screen(ratingScreenRef)
             .on(RatingScreen.submit)
             .capture('rating')
             .goTo(done),
@@ -4035,7 +4086,7 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'x': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -4043,7 +4094,7 @@ final class BranchingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .capture('x')
             .goTo(done),
@@ -4077,7 +4128,7 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: GoalScreenDescriptor.ref,
+      initial: goalScreenRef,
       // 'goal' is declared int, but the screen writes a String literal into it.
       flowState: const {
         'goal': FlowStateDeclaration(
@@ -4086,7 +4137,7 @@ final class BranchingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(GoalScreenDescriptor.ref)
+        screen(goalScreenRef)
             .on(GoalScreen.sleep)
             .write('goal', 'sleep')
             .goTo(done),
@@ -4120,7 +4171,7 @@ final class BranchingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: RatingScreenDescriptor.ref,
+      initial: ratingScreenRef,
       // 'rating' is declared String, but submit is an OnboardingEvent<int>.
       flowState: const {
         'rating': FlowStateDeclaration(
@@ -4129,7 +4180,7 @@ final class BranchingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(RatingScreenDescriptor.ref)
+        screen(ratingScreenRef)
             .on(RatingScreen.submit)
             .capture('rating')
             .goTo(done),
@@ -4179,9 +4230,9 @@ final class NoticeFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: NoticeScreenDescriptor.ref,
+      initial: noticeScreenRef,
       states: [
-        screen(NoticeScreenDescriptor.ref)
+        screen(noticeScreenRef)
             .on(NoticeScreen.dismiss)
             .goTo(done),
         end(done, result: {}),
@@ -4223,9 +4274,9 @@ final class BareSurfaceFlow extends RestageFlow {
   @override
   FlowDef buildFlow() {
     return flow(
-      initial: BareScreenDescriptor.ref,
+      initial: bareScreenRef,
       states: [
-        screen(BareScreenDescriptor.ref),
+        screen(bareScreenRef),
       ],
     );
   }

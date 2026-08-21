@@ -8,6 +8,7 @@ import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../index_probe_helpers.dart';
 
 void main() {
   test('no-screen builder path freezes the customer props Dart and JSON bytes',
@@ -191,7 +192,7 @@ dependencies:
       expect(dart, contains("value: props['title']"));
       expect(dart, contains("value: props['enabled']"));
       expect(dart, contains('OpaqueScreen('));
-      expect(dart, contains('RestageSurfaceEventDispatcher('));
+      expect(dart, contains('RestageEventDispatcher('));
       expect(dart, contains('UserActionEvent('));
       expect(dart, contains('sourceComponentId: itemContext.id'));
       expect(dart, contains("'value': value"));
@@ -584,6 +585,6 @@ dependencies:
   rfw_catalog_schema: any
 ''';
 
-const _screenSourcePackageGraph = '''
-{"roots":["apps_examples"],"packages":[{"name":"apps_examples","version":"0.0.0","dependencies":["flutter","restage","rfw_catalog_schema"],"devDependencies":[]}]}
-''';
+final String _screenSourcePackageGraph = nativeScreenPackageGraph(
+  const {'flutter', 'restage', 'rfw_catalog_schema'},
+);

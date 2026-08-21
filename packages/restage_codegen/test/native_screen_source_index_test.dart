@@ -1,18 +1,13 @@
-import 'dart:convert';
-
-import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
-import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
-import 'helpers.dart';
+import 'index_probe_helpers.dart';
 
 void main() {
   for (final consumer in NativeScreenSourceConsumer.values) {
     group('${consumer.name} shared ScreenSource admission', () {
       test('rejects a source outside the exact RFW screen topology', () async {
-        final probe = await _runIndexProbe(
+        final probe = await runIndexProbe(
           {'lib/wrong_path.dart': _screenSource('wrong_path')},
           consumer: consumer,
           addGeneratedPartDirective: false,
@@ -24,7 +19,7 @@ void main() {
       });
 
       test('rejects an id that differs from the input file stem', () async {
-        final probe = await _runIndexProbe(
+        final probe = await runIndexProbe(
           {
             'lib/onboarding/screens/expected_id.dart':
                 _screenSource('actual_id', generatedPartStem: 'expected_id'),
@@ -39,7 +34,7 @@ void main() {
       });
 
       test('rejects a missing generated RFW part directive', () async {
-        final probe = await _runIndexProbe(
+        final probe = await runIndexProbe(
           {
             'lib/onboarding/screens/missing_part.dart':
                 _screenSource('missing_part', includeGeneratedPart: false),
@@ -57,7 +52,7 @@ void main() {
         test(
           'rejects a ${decoy.key} part-directive decoy with no native output',
           () async {
-            final probe = await _runIndexProbe(
+            final probe = await runIndexProbe(
               {
                 'lib/onboarding/screens/part_decoy.dart': _screenSource(
                   'part_decoy',
@@ -80,7 +75,7 @@ void main() {
       }
 
       test('rejects more than one source in an input library', () async {
-        final probe = await _runIndexProbe(
+        final probe = await runIndexProbe(
           {
             'lib/onboarding/screens/duplicate_class.dart': _screenSource(
               'duplicate_class',
@@ -101,7 +96,7 @@ void main() {
       'indexes package-wide canonical screens with implicit and colocated '
       'explicit IDs alongside legacy compatibility sources',
       () async {
-        final probe = await _runIndexProbe(
+        final probe = await runIndexProbe(
           const {
             'lib/features/implicit_notice.dart': _canonicalImplicitNotice,
             'lib/features/message_bundle.dart': _canonicalMessageBundle,
@@ -155,7 +150,7 @@ class EnabledScreen extends StatelessWidget {
 }
 ''';
 
-      final probe = await _runIndexProbe({
+      final probe = await runIndexProbe({
         'lib/onboarding/screens/enabled_${config.key}.dart': source,
       });
 
@@ -190,7 +185,7 @@ class EnabledNullScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/enabled_null.dart': source,
     });
 
@@ -228,7 +223,7 @@ class InheritedEnabledScreen extends BaseScreen {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/base_screen.dart': base,
       'lib/onboarding/screens/inherited_enabled.dart': screen,
     });
@@ -290,7 +285,7 @@ class ProofScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/proof.dart': source},
     );
 
@@ -340,7 +335,7 @@ class PrefixedSurfaceEventScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/prefixed_surface_event.dart': source,
     });
 
@@ -365,7 +360,7 @@ class PrefixedOnboardingEventScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/prefixed_onboarding_event.dart': source,
     });
 
@@ -392,7 +387,7 @@ class A2uiIndependentScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/a2ui_independent.dart': source},
       consumer: NativeScreenSourceConsumer.a2ui,
     );
@@ -427,7 +422,7 @@ class WidgetbookIndependentScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/widgetbook_independent.dart': source,
     });
 
@@ -461,7 +456,7 @@ class PartScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/part_screen.dart': library,
       'lib/src/part_screen.dart': part,
     });
@@ -505,7 +500,7 @@ class DualSource extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/screen-contract.dart': source,
     });
 
@@ -558,7 +553,7 @@ class SecondScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/duplicate.dart': firstLibrary,
       'lib/src/first_screen.dart': firstPart,
       'lib/message/screens/duplicate.dart': second,
@@ -624,7 +619,7 @@ class CustomerComponent extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {
         'lib/onboarding/screens/shared_component.dart': screen,
         'lib/customer_component.dart': widget,
@@ -673,7 +668,7 @@ class RelativeImportScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/model.dart': model,
       'lib/onboarding/screens/relative_import.dart': screen,
     });
@@ -706,7 +701,7 @@ class DartImportScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/dart_import.dart': screen,
     });
 
@@ -735,7 +730,7 @@ class PrivateDependencyScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/private_dependency.dart': screen},
     );
 
@@ -768,7 +763,7 @@ class TransitiveDependencyScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/transitive_dependency.dart': screen},
       dependencies: const {'flutter', 'restage'},
     );
@@ -799,7 +794,7 @@ class _PrivateScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/private_screen.dart': screen,
     });
 
@@ -831,7 +826,7 @@ abstract class AbstractScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/abstract_screen.dart': screen,
     });
 
@@ -858,7 +853,7 @@ class NotAWidgetScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/not_a_widget.dart': screen,
     });
 
@@ -893,7 +888,7 @@ final class ConcreteScreen extends ScreenBase {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/concrete_screen.dart': screen,
     });
 
@@ -921,7 +916,7 @@ class PrivateInputScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/private_input.dart': screen,
     });
 
@@ -956,7 +951,7 @@ class PrivateDefaultScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe({
+    final probe = await runIndexProbe({
       'lib/onboarding/screens/private_default.dart': screen,
     });
 
@@ -997,7 +992,7 @@ class PrivateDefaultConstructorScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/private_default_constructor.dart': screen},
     );
 
@@ -1032,7 +1027,7 @@ class FlowYamlScreen extends StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/flow_yaml.dart': screen},
       pubspec: '''
 name: apps_examples
@@ -1062,7 +1057,7 @@ class AmbiguousImportScreen extends widgets.StatelessWidget {
 }
 ''';
 
-    final probe = await _runIndexProbe(
+    final probe = await runIndexProbe(
       {'lib/onboarding/screens/ambiguous_import.dart': screen},
     );
 
@@ -1076,70 +1071,6 @@ class AmbiguousImportScreen extends widgets.StatelessWidget {
     );
     expect(probe.output, isNot(contains('package:flutter/material.dart')));
   });
-}
-
-Future<({TestBuilderResult result, List<String> logs, String output})>
-    _runIndexProbe(
-  Map<String, String> dartSources, {
-  NativeScreenSourceConsumer consumer = NativeScreenSourceConsumer.widgetbook,
-  bool validateA2uiNamespace = false,
-  String? pubspec,
-  Set<String> dependencies = const {
-    'flutter',
-    'restage',
-    'rfw_catalog_schema',
-  },
-  bool addGeneratedPartDirective = true,
-}) async {
-  final pubspecBuffer = StringBuffer()
-    ..writeln('name: apps_examples')
-    ..writeln('dependencies:');
-  for (final dependency in dependencies.toList()..sort()) {
-    pubspecBuffer.writeln('  $dependency: any');
-  }
-  final admittedDartSources = <String, String>{
-    for (final entry in dartSources.entries)
-      entry.key: addGeneratedPartDirective
-          ? _withGeneratedPartDirective(entry.key, entry.value)
-          : entry.value,
-  };
-  final sources = <String, String>{
-    'apps_examples|pubspec.yaml': pubspec ?? pubspecBuffer.toString(),
-    'apps_examples|.dart_tool/package_graph.json': _packageGraph(
-      dependencies,
-    ),
-    for (final entry in admittedDartSources.entries)
-      'apps_examples|${entry.key}': entry.value,
-  };
-  final readerWriter = await readerWriterWithFilesystemSources(
-    rootPackage: 'apps_examples',
-  );
-  for (final entry in sources.entries) {
-    readerWriter.testing.writeString(AssetId.parse(entry.key), entry.value);
-  }
-  final logs = <String>[];
-  final result = await runWithNativeScreenPackageGraphForTesting(
-    packageGraphSource: _packageGraph(dependencies),
-    body: () => testBuilder(
-      _NativeScreenIndexProbeBuilder(
-        consumer: consumer,
-        validateA2uiNamespace: validateA2uiNamespace,
-      ),
-      sources,
-      rootPackage: 'apps_examples',
-      readerWriter: readerWriter,
-      flattenOutput: true,
-      onLog: (record) => logs.add(record.message),
-    ),
-  );
-  final outputId = AssetId(
-    'apps_examples',
-    'lib/native_screen_source_index.txt',
-  );
-  final output = result.readerWriter.testing.exists(outputId)
-      ? utf8.decode(result.readerWriter.testing.readBytes(outputId))
-      : '';
-  return (result: result, logs: logs, output: output);
 }
 
 String _screenSource(
@@ -1237,121 +1168,3 @@ final class LegacyNotice extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ''';
-
-String _withGeneratedPartDirective(String path, String source) {
-  final match = RegExp(
-    r'^lib/(?:onboarding|message|survey)/screens/([^/]+)\.dart$',
-  ).firstMatch(path);
-  if (match == null) return source;
-  final stem = match.group(1)!;
-  if (source.contains('$stem.rsscreen.g.dart')) return source;
-  final imports = RegExp(
-    r'''^import\s+['"][^'"]+['"][^;]*;''',
-    multiLine: true,
-  ).allMatches(source).toList(growable: false);
-  if (imports.isEmpty) return source;
-  final offset = imports.last.end;
-  return source.replaceRange(
-    offset,
-    offset,
-    "\n\npart 'restage.generated/$stem.restage.g.dart';",
-  );
-}
-
-String _packageGraph(Set<String> dependencies) => jsonEncode({
-      'roots': ['apps_examples'],
-      'packages': [
-        {
-          'name': 'apps_examples',
-          'version': '0.0.0',
-          'dependencies': dependencies.toList()..sort(),
-          'devDependencies': <String>[],
-        },
-      ],
-    });
-
-final class _NativeScreenIndexProbeBuilder implements Builder {
-  const _NativeScreenIndexProbeBuilder({
-    required this.consumer,
-    required this.validateA2uiNamespace,
-  });
-
-  final NativeScreenSourceConsumer consumer;
-  final bool validateA2uiNamespace;
-
-  @override
-  Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['native_screen_source_index.txt'],
-      };
-
-  @override
-  Future<void> build(BuildStep buildStep) async {
-    final index = await loadNativeScreenSourceIndex(
-      buildStep,
-      consumer: consumer,
-      validateA2uiNamespace: validateA2uiNamespace,
-    );
-    final output = StringBuffer();
-    for (final screen in index.screens) {
-      final widgetbookAllValues = screen
-          .widgetbookTargetConfig.properties.entries
-          .where((entry) => entry.value.allValues)
-          .map((entry) => entry.key)
-          .join(',');
-      final events = screen.events
-          .map(
-            (event) => '${event.fieldName}:${event.id}:'
-                '${event.payloadType.getDisplayString()}',
-          )
-          .join(',');
-      output
-        ..writeln('id=${screen.id}')
-        ..writeln('version=${screen.version}')
-        ..writeln('minClient=${screen.minClient}')
-        ..writeln('identity=${screen.classIdentity}')
-        ..writeln('source=${screen.sourceAsset.path}')
-        ..writeln('declaration=${screen.declarationSourcePath}')
-        ..writeln('import=${screen.importUri}')
-        ..writeln('imports=${screen.importUris.join(',')}')
-        ..writeln(
-          'description=${screen.description?.replaceAll('\n', r'\n')}',
-        )
-        ..writeln(
-          'inputs=${screen.constructorFacts.inputs.map((input) {
-            return '${input.name}:${input.required ? 'required' : 'optional'}';
-          }).join(',')}',
-        )
-        ..writeln(
-          'defaults=${screen.constructorFacts.inputs.map((input) {
-                final value = input.constructorDefault.reconstructedValue;
-                return value == null
-                    ? null
-                    : '${input.name}:${_displayDefault(value)}';
-              }).whereType<String>().join(',')}',
-        )
-        ..writeln('a2uiUsage=${screen.a2uiTargetConfig.usage}')
-        ..writeln(
-          'widgetbookMaxStories=${screen.widgetbookTargetConfig.maxStories}',
-        )
-        ..writeln(
-          'widgetbookAllValues=$widgetbookAllValues',
-        )
-        ..writeln('events=$events');
-    }
-    await buildStep.writeAsString(
-      AssetId(
-        buildStep.inputId.package,
-        'lib/native_screen_source_index.txt',
-      ),
-      output.toString(),
-    );
-  }
-}
-
-String _displayDefault(DartConstValue value) => switch (value) {
-      DartConstNull() => 'null',
-      DartConstScalar(:final value) => '$value',
-      DartConstReference(:final owner, :final member) =>
-        owner == null ? member : '$owner.$member',
-      _ => value.runtimeType.toString(),
-    };

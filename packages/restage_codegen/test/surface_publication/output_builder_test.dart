@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -108,7 +109,7 @@ const launch = FlowDefinition(
       (entry) =>
           entry.logicalPath == 'assets/general/screens/announcement.rfwtxt',
     );
-    expect(rfwTextEntry.role, RestageBundleEntryRoleV1.rfwText);
+    expect(rfwTextEntry.role, RestageBundleEntryRole.rfwText);
 
     final launchBundleBytes = readerWriter.testing.readBytes(
       AssetId(
@@ -291,7 +292,7 @@ final class FeatureAnnouncement extends StatelessWidget {
         // Checked before the generic `.json` branch below: role and fenced
         // block form are exclusive to rfw-text, never JSON.
         sawRfwTextEntry = true;
-        expect(entry.role, RestageBundleEntryRoleV1.rfwText);
+        expect(entry.role, RestageBundleEntryRole.rfwText);
         final decoded = utf8.decode(entry.bytes);
         expect(
           reportText,
@@ -405,10 +406,10 @@ final class FeatureAnnouncement extends StatelessWidget {
     );
     final bundle = RestageBundleCodec.decode(bundleBytes);
     final blobEntry = bundle.entries.singleWhere(
-      (entry) => entry.role == RestageBundleEntryRoleV1.screenBlob,
+      (entry) => entry.role == RestageBundleEntryRole.screenBlob,
     );
     final sidecarEntry = bundle.entries.singleWhere(
-      (entry) => entry.role == RestageBundleEntryRoleV1.capabilitySidecar,
+      (entry) => entry.role == RestageBundleEntryRole.capabilitySidecar,
     );
 
     final generatedPart = readerWriter.testing.readString(
@@ -435,7 +436,7 @@ final class FeatureAnnouncement extends StatelessWidget {
     );
     expect(
       generatedPart,
-      contains('role: RestageBundleEntryRoleV1.screenBlob'),
+      contains('role: RestageBundleEntryRole.screenBlob'),
     );
     expect(
       generatedPart,
@@ -451,7 +452,7 @@ final class FeatureAnnouncement extends StatelessWidget {
     );
     expect(
       generatedPart,
-      contains('role: RestageBundleEntryRoleV1.capabilitySidecar'),
+      contains('role: RestageBundleEntryRole.capabilitySidecar'),
     );
     expect(
       generatedPart,
@@ -522,13 +523,15 @@ final class FeatureAnnouncement extends StatelessWidget {
 
   test('emits no bundle for a library with no delivery artifacts', () async {
     final bundle = RestageSurfacePublicationBundle.valid(
-      manifest: SurfacePublicationManifestV1(publications: const []),
+      manifest: SurfacePublicationManifest(publications: const []),
       artifacts: const {},
     );
     final sources = <String, String>{
       'apps_examples|lib/features/empty.dart': '// no Restage declarations\n',
       'apps_examples|lib/src/surface_publication/surface_publication.compiler.json':
           bundle.encodeCanonicalJson(),
+      'apps_examples|$kRestageMeasurementCompilerOutputPath':
+          RestageMeasurementCompilerOutputV1.empty().encodeCanonicalJson(),
     };
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',

@@ -1242,7 +1242,7 @@ class AcmeButton extends StatelessWidget {
       );
     });
 
-    test('a non-constructor widget field is not a Phase-3-inlinable verdict',
+    test('a non-constructor widget field is not an inlinable verdict',
         () async {
       final result = await classifyFixture(
         {

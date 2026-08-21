@@ -6,8 +6,9 @@ import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-/// Aggregates `@RestageWidget`-annotated classes from every `lib/**.dart` file
-/// in the consuming package and emits `lib/src/widget_catalog/catalog.json` —
+/// Aggregates `@RestageWidget`-annotated classes from the consuming package
+/// — scanning every `lib/**.dart` and walking the files that spell a Restage
+/// annotation (or an alias of one) — and emits `lib/src/widget_catalog/catalog.json` —
 /// the build-time catalog the paywall/onboarding transpile reads to resolve a
 /// registered custom widget as a catalog reference instead of attempting to
 /// inline it.

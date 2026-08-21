@@ -386,6 +386,16 @@ final class RestageSourceRoster {
   /// Whether the roster can be emitted as authoritative package metadata.
   bool get isValid => issues.isEmpty;
 
+  /// Whether this roster has nothing to record about the package.
+  ///
+  /// `outputs` is deliberately not consulted. A roster assembled for a build
+  /// gets the fixed publication claims attached before anyone asks, so its
+  /// outputs are non-empty whatever the package declared — which makes them
+  /// no answer to this question. The constructor itself defaults them to
+  /// empty, so this is a property of how the builder assembles a roster, not
+  /// of the class.
+  bool get recordsNothing => declarations.isEmpty && issues.isEmpty;
+
   /// Encodes the package-wide source index.
   String encodeSourceIndex(String packageName) => _encodeJson({
         'schemaVersion': 1,
@@ -668,7 +678,7 @@ RestageSourceRoster assembleRestageSourceRoster(
     // and one writing builder, so only a genuinely distinct owner/builder
     // pair at the same path is a collision.
     final claimants = entry.value
-        .map((output) => '${output.owner}\u0000${output.builder}')
+        .map((output) => (owner: output.owner, builder: output.builder))
         .toSet();
     if (claimants.length < 2) continue;
     final owners = entry.value
@@ -691,7 +701,10 @@ RestageSourceRoster assembleRestageSourceRoster(
 List<RestageOwnedOutput> _flattenOutputs(
   Iterable<RestageSourceDeclaration> declarations,
 ) {
-  final grouped = <String, _OwnedOutputAccumulator>{};
+  // A record key: the four fields compare structurally, so there is no
+  // separator to pick and no value a field could hold that would collide.
+  final grouped = <({String path, String role, String builder, String owner}),
+      _OwnedOutputAccumulator>{};
   for (final declaration in declarations) {
     for (final output in declaration.outputs) {
       final owner = output.ownershipKey ?? declaration.ownerKey;
@@ -701,8 +714,12 @@ List<RestageOwnedOutput> _flattenOutputs(
       // condition stands — the condition is a function of source kind and
       // role, so they cannot disagree without the emitter contradicting
       // itself.
-      final key =
-          [output.path, output.role, output.builder, owner].join('\u0000');
+      final key = (
+        path: output.path,
+        role: output.role,
+        builder: output.builder,
+        owner: owner,
+      );
       final existing = grouped[key];
       if (existing == null) {
         grouped[key] = _OwnedOutputAccumulator(

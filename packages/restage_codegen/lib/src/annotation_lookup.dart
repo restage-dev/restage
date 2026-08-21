@@ -64,6 +64,18 @@ ElementAnnotation? firstAnnotationFromOriginAny(
   return null;
 }
 
+/// The canonical const-instance spelling of annotation class [name].
+///
+/// A no-argument annotation is conventionally offered two ways — the class
+/// (`@Ignore()`) and a lowercase const instance (`@ignore`) — and where the
+/// const instance is declared, both name the same annotation. Anything
+/// deciding whether a source mentions an annotation has to accept both, so
+/// the rule lives here rather than in each of them. It is a spelling rule, not
+/// a guarantee that the instance exists: most annotation classes declare no
+/// such constant, and for those this simply matches nothing.
+String constInstanceSpelling(String name) =>
+    name.isEmpty ? name : name[0].toLowerCase() + name.substring(1);
+
 /// Whether [source] is an annotation written with [name]'s own spelling.
 ///
 /// Accepts both forms Dart uses for a no-argument annotation — the class
@@ -71,8 +83,7 @@ ElementAnnotation? firstAnnotationFromOriginAny(
 /// the identifier to end there, so `@ignoreOther` does not read as `@ignore`.
 bool _sourceSpells(String source, String name) {
   if (name.isEmpty) return false;
-  final instanceName = name[0].toLowerCase() + name.substring(1);
-  for (final spelling in <String>{name, instanceName}) {
+  for (final spelling in <String>{name, constInstanceSpelling(name)}) {
     if (!source.startsWith('@$spelling')) continue;
     final end = spelling.length + 1;
     if (source.length == end) return true;

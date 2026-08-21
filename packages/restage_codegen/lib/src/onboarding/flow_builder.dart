@@ -16,11 +16,13 @@ import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/onboarding/general_discipline_validators.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_source_visitor.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
@@ -245,6 +247,9 @@ final class OnboardingFlowBuilder implements Builder {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      measurementPolicy: MeasurementCompilerPolicyInput.fromBuilderOptions(
+        options,
+      ),
       builderKey: 'restage_codegen:${surface.wireName}_flow_codegen',
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);
@@ -447,12 +452,15 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
   Iterable<ResolvedClassFlowScreen> resolvedScreens = const [],
   Map<NormalizedFlowIdentity, List<int>> childFlowDocuments = const {},
   Set<String>? declarationIdentities,
+  Map<String, String> generatedSourceCarrierDraftDigestsByDeclarationIdentity =
+      const {},
   RestageOutputPlacementPlan? plan,
 }) async {
   final issues = <Issue>[];
   final sourceText = await buildStep.readAsString(assetId);
-  final resolvedForSyntax =
-      await library.session.getResolvedLibraryByElement(library);
+  final resolvedForSyntax = await library.session.getResolvedLibraryByElement(
+    library,
+  );
   if (resolvedForSyntax is ResolvedLibraryResult &&
       resolvedForSyntax.units.isNotEmpty) {
     issues.addAll(
@@ -562,6 +570,9 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
       childFlowDocuments,
     );
     if (lowered == null || issues.isNotEmpty) continue;
+    final sourceCarrierDraftDigest =
+        generatedSourceCarrierDraftDigestsByDeclarationIdentity[
+            flow.declarationIdentity];
     compiled.add(
       CompiledClassFlow(
         declaration: flow.element,
@@ -572,7 +583,13 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
           lowered.document,
         ),
         generatedPart: formatGeneratedDart(
-          _emitFlowDescriptor(stem, flow, lowered, effectiveSurface),
+          _emitFlowDescriptor(
+            stem,
+            flow,
+            lowered,
+            effectiveSurface,
+            measurementPublicationDraftDigest: sourceCarrierDraftDigest,
+          ),
         ),
       ),
     );
@@ -971,8 +988,10 @@ Future<_LoweredFlow?> _lowerFlow(
     }
     if (element is MethodInvocation && element.methodName.name == 'end') {
       endCount += 1;
-      final endState =
-          _endStateId(element.argumentList.arguments.firstOrNull, endLocals);
+      final endState = _endStateId(
+        element.argumentList.arguments.firstOrNull,
+        endLocals,
+      );
       final resultExpr = _namedArg(element, 'result');
       if (endState == null || resultExpr == null) {
         issues.add(
@@ -2008,8 +2027,8 @@ final class _ScreenDescriptorResolver {
         issues.add(
           Issue(
             code: IssueCode.missingScreenDescriptor,
-            message: 'Missing imported generated screen descriptor '
-                '${reference.name}.',
+            message: 'Missing imported generated screen reference '
+                '${reference.authoredSpelling}.',
             location: assetId.path,
           ),
         );
@@ -2035,9 +2054,9 @@ final class _ScreenDescriptorResolver {
       issues.add(
         Issue(
           code: IssueCode.analyzerResolutionFailed,
-          message: 'Generated screen descriptor ${reference.name} must '
-              'resolve through one analyzer-authored library declaration; '
-              'found ${candidates.length}'
+          message: 'Generated screen reference ${reference.authoredSpelling} '
+              'must resolve through one analyzer-authored library '
+              'declaration; found ${candidates.length}'
               '${identities.isEmpty ? '' : ' (${identities.join(', ')})'}.',
           location: assetId.path,
         ),
@@ -2149,9 +2168,18 @@ final class _DescriptorReference {
     required this.name,
     required this.descriptorElement,
     required this.importPrefix,
-  });
+    String? authoredSpelling,
+  }) : authoredSpelling = authoredSpelling ?? name;
 
   final String name;
+
+  /// What the author actually wrote at the reference site.
+  ///
+  /// Equal to [name] for the holder spelling. For the `<name>Ref` handle it is
+  /// that handle, while [name] is the canonical holder key resolution uses —
+  /// so a diagnostic can name the symbol the author typed rather than one the
+  /// build synthesised from it.
+  final String authoredSpelling;
   final ClassElement? descriptorElement;
   final PrefixElement? importPrefix;
 }
@@ -2164,7 +2192,35 @@ _DescriptorReference? _descriptorReference(Expression? expression) {
     final target = expression.target;
     return target == null ? null : _descriptorReferenceForTarget(target);
   }
+  // The generated handle: a bare top-level `<className>Ref`. Both spellings
+  // normalise to the same key, so everything downstream stays keyed on the
+  // screen's class name rather than on how the flow happened to spell it.
+  if (expression is SimpleIdentifier) {
+    return _descriptorReferenceFromHandle(expression.name);
+  }
+  if (expression is PrefixedIdentifier) {
+    return _descriptorReferenceFromHandle(
+      expression.identifier.name,
+      importPrefix: _prefixElement(expression.prefix.element),
+    );
+  }
   return null;
+}
+
+_DescriptorReference? _descriptorReferenceFromHandle(
+  String name, {
+  PrefixElement? importPrefix,
+}) {
+  if (!name.endsWith('Ref') || name.length <= 3) return null;
+  final stem = name.substring(0, name.length - 3);
+  final descriptor =
+      '${stem.substring(0, 1).toUpperCase()}${stem.substring(1)}Descriptor';
+  return _DescriptorReference(
+    name: descriptor,
+    descriptorElement: null,
+    importPrefix: importPrefix,
+    authoredSpelling: name,
+  );
 }
 
 _DescriptorReference? _descriptorReferenceForTarget(Expression target) {
@@ -2523,8 +2579,11 @@ FlowActionSchema? _schemaForActionType(
   }
 
   if (type is InterfaceType && _isListType(type)) {
-    final child =
-        _schemaForActionType(type.typeArguments.single, issues, assetId);
+    final child = _schemaForActionType(
+      type.typeArguments.single,
+      issues,
+      assetId,
+    );
     if (child == null) return null;
     return FlowActionSchema.list(child);
   }
@@ -3065,20 +3124,26 @@ FlowPredicateCondition? _predicateCondition(
     );
   }
 
-  final equals =
-      _maybeInstanceCreation(expression, 'EqualsFlowPredicateCondition');
+  final equals = _maybeInstanceCreation(
+    expression,
+    'EqualsFlowPredicateCondition',
+  );
   if (equals != null) {
     final value = singleValue(equals);
     return value == null ? null : EqualsFlowPredicateCondition(value: value);
   }
-  final notEquals =
-      _maybeInstanceCreation(expression, 'NotEqualsFlowPredicateCondition');
+  final notEquals = _maybeInstanceCreation(
+    expression,
+    'NotEqualsFlowPredicateCondition',
+  );
   if (notEquals != null) {
     final value = singleValue(notEquals);
     return value == null ? null : NotEqualsFlowPredicateCondition(value: value);
   }
-  final inCondition =
-      _maybeInstanceCreation(expression, 'InFlowPredicateCondition');
+  final inCondition = _maybeInstanceCreation(
+    expression,
+    'InFlowPredicateCondition',
+  );
   if (inCondition != null) {
     final valuesExpr = _namedConstructorArg(inCondition, 'values');
     if (valuesExpr is! ListLiteral) {
@@ -3105,8 +3170,10 @@ FlowPredicateCondition? _predicateCondition(
     }
     return InFlowPredicateCondition(values: values);
   }
-  final greaterThan =
-      _maybeInstanceCreation(expression, 'GreaterThanFlowPredicateCondition');
+  final greaterThan = _maybeInstanceCreation(
+    expression,
+    'GreaterThanFlowPredicateCondition',
+  );
   if (greaterThan != null) {
     final value = singleValue(greaterThan);
     return value == null
@@ -3123,8 +3190,10 @@ FlowPredicateCondition? _predicateCondition(
         ? null
         : GreaterThanOrEqualsFlowPredicateCondition(value: value);
   }
-  final lessThan =
-      _maybeInstanceCreation(expression, 'LessThanFlowPredicateCondition');
+  final lessThan = _maybeInstanceCreation(
+    expression,
+    'LessThanFlowPredicateCondition',
+  );
   if (lessThan != null) {
     final value = singleValue(lessThan);
     return value == null ? null : LessThanFlowPredicateCondition(value: value);
@@ -3139,8 +3208,10 @@ FlowPredicateCondition? _predicateCondition(
         ? null
         : LessThanOrEqualsFlowPredicateCondition(value: value);
   }
-  final exists =
-      _maybeInstanceCreation(expression, 'ExistsFlowPredicateCondition');
+  final exists = _maybeInstanceCreation(
+    expression,
+    'ExistsFlowPredicateCondition',
+  );
   if (exists != null) {
     final existsExpr = _namedConstructorArg(exists, 'exists');
     if (existsExpr is BooleanLiteral) {
@@ -3409,8 +3480,10 @@ FlowValueSource? _flowValueSource(
   if (action != null) {
     return ActionResultFlowValueSource(key: action.key, path: action.path);
   }
-  final subFlow =
-      _refFlowValueSource(expression, 'SubFlowResultFlowValueSource');
+  final subFlow = _refFlowValueSource(
+    expression,
+    'SubFlowResultFlowValueSource',
+  );
   if (subFlow != null) {
     return SubFlowResultFlowValueSource(key: subFlow.key, path: subFlow.path);
   }
@@ -4325,15 +4398,34 @@ String _emitFlowDescriptor(
   String stem,
   _FlowSource flow,
   _LoweredFlow lowered,
-  Surface surface,
-) {
+  Surface surface, {
+  String? measurementPublicationDraftDigest,
+}) {
   final baseName = _flowBaseName(flow.className);
   final descriptorClass = '${flow.className}Descriptor';
+  // One handle per annotated class: the top-level `<className>Ref`. The
+  // holder class below is the previous shape, kept as a deprecated alias for
+  // one major so a source written against it still compiles.
+  final refName = generatedHandleName(flow.className, fallback: 'surfaceFlow');
+  final decoderName = '_decode${flow.className}Result';
   final actionsClass = _actionsClassName(flow.className);
   final actionsInterface =
       flow.actions.isEmpty ? '' : ' implements FlowActionRegistry';
-  final seedClass =
-      _emitSeedClass('${baseName}Seed', lowered.document.flowState);
+  final seedClass = _emitSeedClass(
+    '${baseName}Seed',
+    lowered.document.flowState,
+  );
+  final referenceKeyword =
+      measurementPublicationDraftDigest == null ? 'const' : 'final';
+  String referenceConstructor(String resultType) =>
+      measurementPublicationDraftDigest == null
+          ? 'SurfaceFlowRef<$resultType>'
+          : 'SurfaceFlowRef<$resultType>'
+              '.generatedWithMeasurementPublicationDraftDigest';
+  final carrierArgument = measurementPublicationDraftDigest == null
+      ? ''
+      : '  measurementPublicationDraftDigest: '
+          '${_dartStringLiteral(measurementPublicationDraftDigest)},\n';
   if (flow.delivery == FlowDeliveryMode.general) {
     final signalNames = lowered.document.outbound.customEvents.keys.toList()
       ..sort();
@@ -4354,21 +4446,22 @@ String _emitFlowDescriptor(
     return '''
 part of '$stem.dart';
 
+$referenceKeyword $refName = ${referenceConstructor('Map<String, Object?>')}(
+  id: '${flow.id}',
+  version: ${flow.version},
+  minClient: ${flow.minClient},
+  surface: Surface.${surface.wireName},
+  deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
+  decodeResult: $decoderName,
+$carrierArgument);
+
+Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
+
+@Deprecated('Use $refName')
 abstract final class $descriptorClass {
   const $descriptorClass._();
 
-  static const SurfaceFlowRef<Map<String, Object?>> ref =
-      SurfaceFlowRef<Map<String, Object?>>(
-    id: '${flow.id}',
-    version: ${flow.version},
-    minClient: ${flow.minClient},
-    surface: Surface.${surface.wireName},
-    deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
-    decodeResult: $descriptorClass._decodeResult,
-  );
-
-  static Map<String, Object?> _decodeResult(Map<String, Object?> result) =>
-      result;
+  static $referenceKeyword SurfaceFlowRef<Map<String, Object?>> ref = $refName;
 }
 
 class $actionsClass implements FlowActionRegistry, FlowSignalRegistry {
@@ -4383,20 +4476,22 @@ $seedClass''';
   return '''
 part of '$stem.dart';
 
+$referenceKeyword $refName = ${referenceConstructor(resultClass)}(
+  id: '${flow.id}',
+  version: ${flow.version},
+  minClient: ${flow.minClient},
+  surface: Surface.${surface.wireName},
+  deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
+  decodeResult: $decoderName,
+$carrierArgument);
+
+${_emitResultDecoder(decoderName, resultClass, result)}
+
+@Deprecated('Use $refName')
 abstract final class $descriptorClass {
   const $descriptorClass._();
 
-  static const SurfaceFlowRef<$resultClass> ref =
-      SurfaceFlowRef<$resultClass>(
-    id: '${flow.id}',
-    version: ${flow.version},
-    minClient: ${flow.minClient},
-    surface: Surface.${surface.wireName},
-    deliveryMode: FlowDeliveryMode.${flow.delivery.wireName},
-    decodeResult: $descriptorClass._decodeResult,
-  );
-
-${_emitResultDecoder(resultClass, result)}
+  static $referenceKeyword SurfaceFlowRef<$resultClass> ref = $refName;
 }
 
 ${_emitResultClass(resultClass, result)}
@@ -4492,15 +4587,19 @@ Map<String, Object?> _soleTypedTerminalResult(FlowDocument document) {
   }
 }
 
-String _emitResultDecoder(String className, Map<String, FlowDataType> result) {
+String _emitResultDecoder(
+  String decoderName,
+  String className,
+  Map<String, FlowDataType> result,
+) {
   if (result.isEmpty) {
     return '''
-  static $className _decodeResult(Map<String, Object?> result) {
-    if (result.isNotEmpty) {
-      throw const FormatException('Unexpected flow result keys.');
-    }
-    return const $className();
+$className $decoderName(Map<String, Object?> result) {
+  if (result.isNotEmpty) {
+    throw const FormatException('Unexpected flow result keys.');
   }
+  return const $className();
+}
 ''';
   }
 
@@ -4511,13 +4610,13 @@ String _emitResultDecoder(String className, Map<String, FlowDataType> result) {
       .join('\n');
   final params = result.keys.map((key) => '$key: $key').join(', ');
   return '''
-  static $className _decodeResult(Map<String, Object?> result) {
-    if (result.length != ${result.length} || $keyChecks) {
-      throw const FormatException('Unexpected flow result keys.');
-    }
-$valueReads
-    return $className($params);
+$className $decoderName(Map<String, Object?> result) {
+  if (result.length != ${result.length} || $keyChecks) {
+    throw const FormatException('Unexpected flow result keys.');
   }
+$valueReads
+  return $className($params);
+}
 ''';
 }
 
@@ -4887,9 +4986,14 @@ final class _FlowSource {
   final bool isCanonical;
   final Surface? surface;
 
+  String get declarationIdentity =>
+      '${element.library.identifier}#${element.name ?? '<unnamed>'}';
+
   List<String> get generatedNames {
     final baseName = _flowBaseName(className);
     return [
+      generatedHandleName(className, fallback: 'surfaceFlow'),
+      '_decode${className}Result',
       '${className}Descriptor',
       '${baseName}Result',
       '${baseName}Actions',

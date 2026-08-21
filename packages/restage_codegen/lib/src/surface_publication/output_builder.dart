@@ -10,6 +10,7 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
@@ -81,6 +82,32 @@ final class RestageOutputsBuilder implements Builder {
   ) async {
     final manifest = bundle.manifest;
     if (manifest == null) return;
+    final measurementAsset = AssetId(
+      buildStep.inputId.package,
+      kRestageMeasurementCompilerOutputPath,
+    );
+    RestageMeasurementCompilerOutputV1? measurementOutput;
+    if (await buildStep.canRead(measurementAsset)) {
+      try {
+        measurementOutput =
+            RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+          await buildStep.readAsBytes(measurementAsset),
+        );
+      } on Object catch (error) {
+        log.severe(
+          'The package Measurement compiler output is invalid; package-wide '
+          'Restage outputs were not materialized: $error',
+        );
+        return;
+      }
+      if (!measurementOutput.valid) {
+        log.severe(
+          'Measurement compilation failed: '
+          '${measurementOutput.errors.join('; ')}',
+        );
+        return;
+      }
+    }
     final manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
       manifest,
     );
@@ -97,7 +124,7 @@ final class RestageOutputsBuilder implements Builder {
     // location is discoverable through the bundle's own META-INF records,
     // via the manifest artifact the index does locate for that library.
     final entries = _entriesFor(bundle)
-        .where((entry) => entry.role != RestageBundleEntryRoleV1.rfwText);
+        .where((entry) => entry.role != RestageBundleEntryRole.rfwText);
     final indexEntries = <Map<String, Object?>>[];
     for (final entry in entries) {
       final libraryPath = bundle.artifactLibraryPaths[entry.logicalPath];
@@ -133,6 +160,12 @@ final class RestageOutputsBuilder implements Builder {
       AssetId(buildStep.inputId.package, plan.outputIndexPath),
       const JsonEncoder.withIndent('  ').convert(index),
     );
+    if (measurementOutput != null) {
+      await buildStep.writeAsBytes(
+        AssetId(buildStep.inputId.package, plan.measurementOutputIndexPath),
+        measurementOutput.outputIndexBytes(buildStep.inputId.package),
+      );
+    }
   }
 
   /// Every manifest-closure entry plus the library's canonical `.rfwtxt`
@@ -151,9 +184,9 @@ final class RestageOutputsBuilder implements Builder {
     RestageSurfacePublicationBundle bundle, {
     String? onlyLibrary,
   }) {
-    final rolesByPath = <String, SurfacePublicationArtifactRoleV1>{};
+    final rolesByPath = <String, SurfacePublicationArtifactRole>{};
     final publications = bundle.manifest?.publications ??
-        const <SurfacePublicationManifestEntryV1>[];
+        const <SurfacePublicationManifestEntry>[];
     for (final publication in publications) {
       for (final artifact in publication.artifacts) {
         rolesByPath[artifact.path] = artifact.role;
@@ -184,7 +217,7 @@ final class RestageOutputsBuilder implements Builder {
       entries.add(
         RestageBundleEntry(
           logicalPath: path,
-          role: RestageBundleEntryRoleV1.fromManifestRole(role),
+          role: RestageBundleEntryRole.fromManifestRole(role),
           bytes: merged[path]!,
         ),
       );
@@ -206,7 +239,7 @@ final class RestageOutputsBuilder implements Builder {
       entries.add(
         RestageBundleEntry(
           logicalPath: path,
-          role: RestageBundleEntryRoleV1.rfwText,
+          role: RestageBundleEntryRole.rfwText,
           bytes: bundle.ownedOutputs[path]!,
         ),
       );

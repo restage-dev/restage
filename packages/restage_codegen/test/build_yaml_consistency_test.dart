@@ -17,6 +17,14 @@ import 'package:yaml/yaml.dart';
 /// wiring, and the ordering graph together so any future drift fails loud —
 /// and derives the ordering rules from the declared builder-name set, so a
 /// NEW surface's builders cannot be forgotten.
+/// `build.yaml`, parsed once for every group below so they cannot come to
+/// disagree about what it declares.
+final YamlMap _buildYaml =
+    loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
+
+/// Every builder this package declares, keyed by its `build.yaml` name.
+final YamlMap _declaredBuilders = _buildYaml['builders'] as YamlMap;
+
 void main() {
   group('build.yaml ↔ Builder.buildExtensions', () {
     // Each builder factory the package exposes, keyed by its build.yaml name.
@@ -72,8 +80,7 @@ void main() {
     late Map<String, List<String>> factoryNames;
 
     setUpAll(() {
-      final root = loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
-      final builders = root['builders'] as YamlMap;
+      final builders = _declaredBuilders;
       declared = {
         for (final builder in builders.entries)
           builder.key as String: {
@@ -162,9 +169,8 @@ void main() {
     test(
         'the unified outputs builder is a normal builder with no '
         'post-process stage', () {
-      final root = loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
       expect(
-        root.containsKey('post_process_builders'),
+        _buildYaml.containsKey('post_process_builders'),
         isFalse,
         reason: 'Generated-output materialization is a normal builder with '
             'statically predictable buildExtensions; a post-process builder '
@@ -175,7 +181,10 @@ void main() {
       ).buildExtensions[r'$package$']!;
       expect(
         compilerOutputs,
-        ['lib/src/surface_publication/surface_publication.compiler.json'],
+        [
+          'lib/src/surface_publication/surface_publication.compiler.json',
+          'lib/src/measurement/restage.measurement.compiler.json',
+        ],
       );
     });
   });
@@ -185,8 +194,7 @@ void main() {
     late Set<String> declaredNames;
 
     setUpAll(() {
-      final root = loadYaml(File('build.yaml').readAsStringSync()) as YamlMap;
-      final builders = root['builders'] as YamlMap;
+      final builders = _declaredBuilders;
       declaredNames = {for (final b in builders.entries) b.key as String};
       runsBefore = {
         for (final builder in builders.entries)
@@ -309,6 +317,122 @@ void main() {
         runsBefore['user_catalog'],
         contains('restage_codegen:user_catalog_json'),
         reason: 'the JSON emitter must read a fully-appended wire-id log.',
+      );
+    });
+  });
+
+  // The README tells a customer which builders to switch off and what their
+  // inputs are. Those are claims about build.yaml, written in prose a long way
+  // from it, and a wrong one costs the reader a build they cannot explain: an
+  // `enabled: false` under a key that does not exist is accepted silently by
+  // build_runner and simply does nothing. So the README's builder keys are
+  // derived from build.yaml here rather than trusted.
+  group('README ↔ build.yaml', () {
+    final readme = File('README.md').readAsStringSync();
+    final builders = _declaredBuilders;
+
+    /// The builder keys [text] names, in the `restage_codegen:<key>` form a
+    /// customer writes in their own `build.yaml`.
+    Set<String> builderKeysIn(String text) => {
+          for (final match
+              in RegExp('restage_codegen:([a-z_][a-z0-9_]*)').allMatches(text))
+            match.group(1)!,
+        };
+
+    /// The `build_extensions` key of [builder] — a build_runner placeholder
+    /// for a package-wide builder, a file pattern for a per-file one.
+    String primaryInput(String builder) =>
+        ((builders[builder] as YamlMap)['build_extensions'] as YamlMap)
+            .keys
+            .first
+            .toString();
+
+    /// Builders whose input is a placeholder rather than the customer's files.
+    Set<String> packageWide({required String autoApply}) => {
+          for (final entry in builders.entries)
+            if ((entry.value as YamlMap)['auto_apply'] == autoApply &&
+                primaryInput(entry.key.toString()).startsWith(r'$'))
+              entry.key.toString(),
+        };
+
+    test('every builder key the README names exists in build.yaml', () {
+      final named = builderKeysIn(readme);
+
+      expect(
+        named,
+        isNotEmpty,
+        reason: 'the README names no builder key at all, so this guard has '
+            'stopped reading what it is here to check',
+      );
+      expect(
+        named.difference(builders.keys.map((key) => '$key').toSet()),
+        isEmpty,
+        reason: 'the README tells a customer to configure these keys and '
+            'build.yaml does not declare them. build_runner accepts a '
+            'configuration block under an unknown builder key without '
+            'complaint, so the reader would get no error and no effect',
+      );
+    });
+
+    test('the opt-out recipe lists every builder that is on by default', () {
+      final recipe = RegExp('```yaml(.*?)```', dotAll: true)
+          .allMatches(readme)
+          .map((match) => match.group(1)!)
+          .firstWhere(
+            (block) => block.contains('enabled: false'),
+            orElse: () => '',
+          );
+      expect(
+        recipe,
+        isNotEmpty,
+        reason: 'the README no longer contains an opt-out recipe block, so '
+            'this guard is reading nothing',
+      );
+
+      final listed = builderKeysIn(recipe);
+
+      expect(
+        listed,
+        equals(packageWide(autoApply: 'dependents')),
+        reason: 'the recipe is presented as the complete way to switch these '
+            'builders off in a package. A package-wide builder added to '
+            'build.yaml and left out of it would keep running in a package '
+            'the customer believes they opted out of',
+      );
+    });
+
+    test('the README names each package-wide builder input correctly', () {
+      // These are the placeholders that make `generate_for` the wrong tool
+      // for the job.
+      for (final builder in packageWide(autoApply: 'dependents')) {
+        final input = primaryInput(builder);
+        expect(
+          readme,
+          contains(input == r'$lib$' ? r'lib/$lib$' : input),
+          reason: '$builder takes "$input", and the README explains what a '
+              'glob does to it. If the placeholder changed, that explanation '
+              'is now advice about a build that no longer exists',
+        );
+      }
+    });
+
+    test('the README counts the package-wide builders correctly', () {
+      const asWords = {5: 'five', 6: 'six', 7: 'seven', 8: 'eight'};
+      final total = packageWide(autoApply: 'dependents').length +
+          packageWide(autoApply: 'none').length;
+
+      expect(
+        asWords,
+        contains(total),
+        reason: 'build.yaml declares $total package-wide builders, which this '
+            'guard has no word for, so it cannot check the README sentence at '
+            'all. Extend the table',
+      );
+      expect(
+        readme,
+        contains('these ${asWords[total]} builders'),
+        reason: 'the README says how many builders changed behaviour; '
+            'build.yaml now declares $total package-wide builders',
       );
     });
   });

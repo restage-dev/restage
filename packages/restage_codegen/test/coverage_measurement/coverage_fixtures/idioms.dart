@@ -1,4 +1,4 @@
-// Broad synthetic Flutter-idiom census (B2) — representative of *customer
+// Broad synthetic Flutter-idiom census — representative of *customer
 // authoring*, not just paywall shapes. Each widget exercises one idiom slot
 // across the inlinable / deferred / structural spectrum, so the
 // classifier-bucketing measures the frequency signal the tiered scope

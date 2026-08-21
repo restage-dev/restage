@@ -9,7 +9,7 @@
 //   * a resolved customer `Alignment` look-alike DEFERS (no `{x, y}`
 //     substitution AND no bare member string — the diagnosed defer);
 //   * `AlignmentDirectional` and unsupported members diagnose;
-//   * a genuinely-unknown property still diagnoses (the Phase-4 regression
+//   * a genuinely-unknown property still diagnoses (the regression
 //     condition: opening one known slot must not make unknown props vanish).
 //
 // Positives are VALUE-asserted against the real Flutter constants. Negatives

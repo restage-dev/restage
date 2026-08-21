@@ -237,8 +237,9 @@ sealed class A2uiObjectConstruction {
   const A2uiObjectConstruction();
 }
 
-/// A named data class built through its constructor — `TypeName(p1: …)` /
-/// `TypeName(v1, …)`, or `TypeName.constructorName(…)` for a named constructor.
+/// A named data class built through its constructor — `TypeName(field: …)` /
+/// `TypeName(value, …)`, or `TypeName.constructorName(…)` for a named
+/// constructor.
 @immutable
 final class A2uiClassConstruction extends A2uiObjectConstruction {
   /// Creates a class construction descriptor.

@@ -32,13 +32,12 @@ void main() {
         allOf(
           contains('SurfaceFlowRef<Map<String, Object?>>'),
           contains('surface: Surface.onboarding'),
-          contains(
-            'decodeResult: GeneralFirstRunFlowDescriptor._decodeResult',
-          ),
-          contains(
-            'static Map<String, Object?> _decodeResult(Map<String, Object?> '
-            'result) =>',
-          ),
+          contains('decodeResult: _decodeGeneralFirstRunFlowResult'),
+          // The emitted decoder wraps after the paren under the formatter, so
+          // assert the signature's pieces rather than one fragile line.
+          contains('Map<String, Object?> _decodeGeneralFirstRunFlowResult('),
+          contains('const generalFirstRunFlowRef ='),
+          contains("@Deprecated('Use generalFirstRunFlowRef')"),
         ),
       );
       // No typed result class is generated for a general flow (the host reads
@@ -138,7 +137,7 @@ final class GeneralProofFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'completed': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -159,12 +158,12 @@ final class GeneralProofFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
             .run(requestNotifications)
             .result((granted) => granted)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -204,7 +203,7 @@ final class GeneralFirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'completed': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -225,10 +224,10 @@ final class GeneralFirstRunFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -261,12 +260,12 @@ final class TypedFirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true}),
@@ -370,7 +369,7 @@ $source
 
 void main() {
   const input = <String, Object?>{'completed': true, 'anything': 42};
-  final decoded = GeneralFirstRunFlowDescriptor.ref.decodeResult(input);
+  final decoded = generalFirstRunFlowRef.decodeResult(input);
   if (!identical(decoded, input) && decoded.length != input.length) {
     throw StateError('identity decode altered the map: \$decoded');
   }

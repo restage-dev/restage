@@ -11,6 +11,7 @@ import 'package:restage_codegen/src/widgetbook/widgetbook_story_source_renderer.
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../index_probe_helpers.dart';
 
 void main() {
   test('syntax lookalikes declare one package output without owning it', () {
@@ -330,6 +331,7 @@ class PlainCard {}
       const {
         'apps_examples|lib/indirect_annotations.dart': _indirectAnnotations,
         'apps_examples|lib/indirect_alias_cards.dart': _indirectAliasCards,
+        'apps_examples|lib/imported_alias_cards.dart': _importedAliasCards,
         'widgetbook|lib/widgetbook.dart': _widgetbookStub,
       },
       rootPackage: 'apps_examples',
@@ -695,7 +697,7 @@ class PlainCard {}
                 ),
                 contains('final defaults = _Defaults('),
                 contains('setup: (context, child, args) =>'),
-                contains('restage_runtime.RestageSurfaceEventDispatcher('),
+                contains('restage_runtime.RestageEventDispatcher('),
                 contains('previewEvents.add((id: eventId, value: value))'),
                 contains('child: child'),
                 contains(
@@ -805,7 +807,7 @@ class PlainCard {}
     'Restage dispatcher',
     () async {
       const output = 'apps_examples|lib/onboarding/screens/restage.generated/'
-          'restage_surface_event_dispatcher.stories.dart';
+          'restage_event_dispatcher.stories.dart';
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
       );
@@ -815,7 +817,7 @@ class PlainCard {}
         body: () => testBuilder(
           const WidgetbookStoryBuilder({
             r'$lib$': [
-              'onboarding/screens/restage.generated/restage_surface_event_dispatcher.stories.dart',
+              'onboarding/screens/restage.generated/restage_event_dispatcher.stories.dart',
             ],
           }),
           const {
@@ -839,7 +841,7 @@ class PlainCard {}
                 contains(
                   "import 'package:restage/restage.dart' as restage_runtime;",
                 ),
-                contains('restage_runtime.RestageSurfaceEventDispatcher('),
+                contains('restage_runtime.RestageEventDispatcher('),
               ),
             ),
           },
@@ -852,7 +854,7 @@ class PlainCard {}
               _dispatcherNamedScreenSource,
           output: generated,
           'apps_examples|lib/onboarding/screens/restage.generated/'
-                  'restage_surface_event_dispatcher.stories.g.dart':
+                  'restage_event_dispatcher.stories.g.dart':
               _dispatcherStoryPartStub,
           'widgetbook|lib/widgetbook.dart': _widgetbookStub,
         },
@@ -860,7 +862,7 @@ class PlainCard {}
           final library = await resolver.libraryFor(
             AssetId(
               'apps_examples',
-              'lib/onboarding/screens/restage.generated/restage_surface_event_dispatcher.stories.dart',
+              'lib/onboarding/screens/restage.generated/restage_event_dispatcher.stories.dart',
             ),
           );
           final resolved =
@@ -1294,9 +1296,9 @@ dependencies:
   rfw_catalog_schema: any
 ''';
 
-const _screenSourcePackageGraph = '''
-{"roots":["apps_examples"],"packages":[{"name":"apps_examples","version":"0.0.0","dependencies":["flutter","restage","rfw_catalog_schema"],"devDependencies":[]}]}
-''';
+final String _screenSourcePackageGraph = nativeScreenPackageGraph(
+  const {'flutter', 'restage', 'rfw_catalog_schema'},
+);
 
 String _screenWithPartDirectiveDecoy(String decoy) => '''
 import 'package:flutter/widgets.dart';
@@ -1326,8 +1328,8 @@ import 'package:restage/restage.dart' as restage;
 part 'restage.generated/dispatcher_named_screen.restage.g.dart';
 
 @restage.ScreenSource(id: 'dispatcher_named_screen')
-final class RestageSurfaceEventDispatcher extends StatelessWidget {
-  const RestageSurfaceEventDispatcher({super.key});
+final class RestageEventDispatcher extends StatelessWidget {
+  const RestageEventDispatcher({super.key});
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
@@ -1527,8 +1529,6 @@ const _indirectAliasCards = '''
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-import 'indirect_annotations.dart' as aliases;
-
 const localCatalogWidget = RestageWidget(
   name: 'LocalAliasCard',
   library: WidgetLibrary.custom('fixture.widgets'),
@@ -1544,6 +1544,24 @@ class LocalAliasCard extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+@Deprecated('not a Restage widget')
+class ReservedOnlyCard {}
+
+class PlainCard {}
+''';
+
+/// The imported-alias card, in a file of its own that spells no annotation
+/// name at all.
+///
+/// It used to share a file with the local alias above, whose declaration
+/// happens to name `RestageWidget` — so the file was scanned for that reason
+/// and this card came along with it. Split out, it is a real test of whether
+/// an alias declared in another file is followed.
+const _importedAliasCards = '''
+import 'package:flutter/widgets.dart';
+
+import 'indirect_annotations.dart' as aliases;
+
 @aliases.importedCatalogWidget
 class ImportedAliasCard extends StatelessWidget {
   const ImportedAliasCard({super.key});
@@ -1551,11 +1569,6 @@ class ImportedAliasCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
-
-@Deprecated('not a Restage widget')
-class ReservedOnlyCard {}
-
-class PlainCard {}
 ''';
 
 const _genuineManualCard = '''
@@ -1663,25 +1676,25 @@ final class CallbackDefaultCardArgs {
 ''';
 
 const _dispatcherStoryPartStub = '''
-part of 'restage_surface_event_dispatcher.stories.dart';
+part of 'restage_event_dispatcher.stories.dart';
 
-typedef _Defaults = RestageSurfaceEventDispatcherDefaults;
-typedef _Story = RestageSurfaceEventDispatcherStory;
-typedef _Args = RestageSurfaceEventDispatcherArgs;
+typedef _Defaults = RestageEventDispatcherDefaults;
+typedef _Story = RestageEventDispatcherStory;
+typedef _Args = RestageEventDispatcherArgs;
 
-final class RestageSurfaceEventDispatcherDefaults {
-  RestageSurfaceEventDispatcherDefaults({
+final class RestageEventDispatcherDefaults {
+  RestageEventDispatcherDefaults({
     required Object builder,
     Object? setup,
   });
 }
 
-final class RestageSurfaceEventDispatcherStory {
-  RestageSurfaceEventDispatcherStory({required Object args});
+final class RestageEventDispatcherStory {
+  RestageEventDispatcherStory({required Object args});
 }
 
-final class RestageSurfaceEventDispatcherArgs {
-  RestageSurfaceEventDispatcherArgs({
+final class RestageEventDispatcherArgs {
+  RestageEventDispatcherArgs({
     required Object restageMetadataDescription,
     required Object restageMetadataUsage,
   });

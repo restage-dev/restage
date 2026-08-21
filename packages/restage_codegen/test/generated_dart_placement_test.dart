@@ -277,7 +277,10 @@ const launch = FlowDefinition(
           reason: 'the `part of` URI is resolved relative to the part file, '
               'so it changes with placement',
         );
-        expect(screenPart, contains('Descriptor'));
+        // The categorized screen's generated handle. Was `contains('Descriptor')`,
+        // which named the neutral holder a categorized screen no longer emits;
+        // the handle is both present today and specific to this screen.
+        expect(screenPart, contains('featureAnnouncementRef'));
 
         final flowPart = await readerWriter.readAsString(
           AssetId(

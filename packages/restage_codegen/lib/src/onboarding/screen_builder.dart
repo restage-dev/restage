@@ -20,6 +20,8 @@ import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
 import 'package:restage_codegen/src/screen_source_admission.dart';
@@ -213,8 +215,10 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
 /// bytes without writing outputs.
 Future<ResolvedScreenCompilationResult> compileResolvedScreens(
   BuildStep buildStep,
-  Iterable<ResolvedScreenCompilationInput> inputs,
-) async {
+  Iterable<ResolvedScreenCompilationInput> inputs, {
+  Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans =
+      const <String, MeasurementRouteEmissionPlan>{},
+}) async {
   final ordered = inputs.toList()
     ..sort(
       (left, right) =>
@@ -233,12 +237,16 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
     astNodeFor: (fragment) =>
         buildStep.resolver.astNodeFor(fragment, resolve: true),
   );
-  final translator = ExpressionTranslator(
-    catalog: catalog,
-    helpers: helpers,
-    customWidgetClassifications: classification.classifications,
-    customWidgetBlueprints: classification.blueprints,
-  );
+  ExpressionTranslator translatorFor(
+    MeasurementRouteEmissionPlan? measurementRoutePlan,
+  ) =>
+      ExpressionTranslator(
+        catalog: catalog,
+        helpers: helpers,
+        customWidgetClassifications: classification.classifications,
+        customWidgetBlueprints: classification.blueprints,
+        measurementRouteEmissionPlan: measurementRoutePlan,
+      );
   final compiled = <CompiledResolvedScreen>[];
   for (final source in ordered) {
     final resolved =
@@ -249,7 +257,9 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
         resolved is ResolvedLibraryResult && resolved.units.isNotEmpty
             ? resolved.units.first.lineInfo
             : null;
-    final translation = translator.translate(
+    final translation = translatorFor(
+      measurementRoutePlans[source.declarationIdentity],
+    ).translate(
       source.build.rootExpression,
       sourcePath: source.assetId.path,
       lineInfo: lineInfo,
@@ -517,6 +527,8 @@ final class OnboardingScreenBuilder implements Builder {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
       plan: RestageOutputPlacementPlan.fromBuilderOptions(options),
+      measurementPolicy:
+          MeasurementCompilerPolicyInput.fromBuilderOptions(options),
       builderKey: 'restage_codegen:${surface.wireName}_screen_codegen',
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);

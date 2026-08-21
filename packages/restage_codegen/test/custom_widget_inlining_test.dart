@@ -440,7 +440,7 @@ void main() {
     test(
         'inlines a themeAsData-only widget, lowering the theme read to a '
         'data.theme.* reference in the definition body', () async {
-      // Phase 4 implements the themeAsData mechanism, so a widget whose
+      // The themeAsData mechanism exists, so a widget whose
       // required mechanisms are a subset of {constantFolding, themeAsData}
       // is now inlinable — the classifier's tag is no longer a deferred
       // signal. The translator emits the body with the theme read lowered

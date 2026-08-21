@@ -1209,7 +1209,7 @@ String _nativeScreenReturnExpression(
   _A2uiGeneratedSymbolPlan symbols,
 ) =>
     '''
-RestageSurfaceEventDispatcher(
+RestageEventDispatcher(
   onEvent: (eventId, value) {
     ${symbols.itemContext}.dispatchEvent(
       UserActionEvent(

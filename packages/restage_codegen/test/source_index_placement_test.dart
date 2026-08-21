@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/widgetbook/widgetbook_story_builder.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'index_probe_helpers.dart';
 
 /// A package that opts into a source-index consumer must stay buildable under
 /// every placement mode.
@@ -148,9 +149,9 @@ Future<TestBuilderResult> _build(
   );
 }
 
-const String _packageGraph = '''
-{"roots":["apps_examples"],"packages":[{"name":"apps_examples","version":"0.0.0","dependencies":["flutter","restage","rfw_catalog_schema"],"devDependencies":[]}]}
-''';
+final String _packageGraph = nativeScreenPackageGraph(
+  const {'flutter', 'restage', 'rfw_catalog_schema'},
+);
 
 Future<TestReaderWriter> _readerWriter(
   RestageOutputPlacementPlan plan,

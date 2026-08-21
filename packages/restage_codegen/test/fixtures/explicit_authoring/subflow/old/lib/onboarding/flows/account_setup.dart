@@ -25,7 +25,7 @@ final class AccountSetupFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: AccountScreenDescriptor.ref,
+      initial: accountScreenRef,
       flowState: const {
         'accountName': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -33,9 +33,7 @@ final class AccountSetupFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(AccountScreenDescriptor.ref)
-            .on(AccountScreen.profile)
-            .goTo(profile),
+        screen(accountScreenRef).on(AccountScreen.profile).goTo(profile),
         subFlow(
           profile,
           flow: profileChildFlow,
@@ -49,9 +47,9 @@ final class AccountSetupFlow extends RestageFlow {
             ),
           ],
           defaultBranch: flowBranchTarget(done),
-          subFlowUnavailable: flowBranchTarget(ErrorScreenDescriptor.ref),
+          subFlowUnavailable: flowBranchTarget(errorScreenRef),
         ),
-        screen(ErrorScreenDescriptor.ref),
+        screen(errorScreenRef),
         end(done, result: {}),
       ],
     );

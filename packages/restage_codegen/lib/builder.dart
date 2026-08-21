@@ -89,13 +89,15 @@ Builder restageGeneratedDartBuilder(BuilderOptions options) =>
     RestageGeneratedDartBuilder(options);
 
 /// build_runner factory entry point for the package-wide customer-catalog
-/// emitter. Walks every `lib/**.dart` for `@RestageWidget`-annotated
+/// emitter. Scans every `lib/**.dart` and walks the files that spell a
+/// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
 /// classes and emits a single `lib/user_catalog.g.dart` aggregating them.
 Builder userCatalogBuilder(BuilderOptions options) =>
     UserCatalogBuilder(options);
 
 /// build_runner factory entry point for the package-wide customer-catalog
-/// JSON emitter. Walks every `lib/**.dart` for `@RestageWidget`-annotated
+/// JSON emitter. Scans every `lib/**.dart` and walks the files that spell a
+/// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
 /// classes and emits `lib/src/widget_catalog/catalog.json` from the same
 /// allocation as `lib/user_catalog.g.dart`, so a paywall referencing a
 /// registered custom widget resolves it against the catalog.
@@ -110,7 +112,8 @@ Builder factoryFunctionBuilder(BuilderOptions options) =>
     FactoryFunctionBuilder(options);
 
 /// build_runner factory entry point for the package-wide customer-factory
-/// emitter. Walks every `lib/**.dart` for `@RestageWidget`-annotated
+/// emitter. Scans every `lib/**.dart` and walks the files that spell a
+/// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
 /// classes, generates per-widget `LocalWidgetBuilder` closures, and emits
 /// a single `lib/user_factories.g.dart` exposing a
 /// `registerRestageCustomerWidgets()` helper the customer calls once at
@@ -119,7 +122,9 @@ Builder userFactoryBuilder(BuilderOptions options) =>
     UserFactoryBuilder(options);
 
 /// build_runner factory entry point for the package-wide A2UI catalog emitter.
-/// Walks every `lib/**.dart` for `@RestageWidget`-annotated classes, assembles
+/// Scans every `lib/**.dart` and walks the files that spell a
+/// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
+/// classes, assembles
 /// the analyzer-fed A2UI seams off the resolved elements, and emits a single
 /// `lib/generated/restage_a2ui_catalog.g.dart` declaring
 /// `buildRestageCatalogItems()` (the genui `Catalog` source) plus the colocated

@@ -13,6 +13,7 @@ import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
@@ -388,10 +389,12 @@ Future<_CorpusSnapshot> _buildCorpus(
   final bytesByPath = <String, List<int>>{
     for (final entry in allBytesByPath.entries)
       if (!corpus.virtualOnlyTransientBuildOutputPaths.contains(entry.key) &&
-          // The compiler handoff is a builder-to-builder intermediate, not an
-          // artifact under test. It is only present because the generated-Dart
-          // owner reads it, and it is neither shipped nor frozen.
-          entry.key != kRestageSurfacePublicationCompilerBundlePath)
+          // Compiler outputs are builder-to-builder intermediates, not
+          // publication delivery artifacts under test. They are only present
+          // because the generated-Dart owner reads them, and are neither
+          // shipped nor frozen by this publication oracle.
+          entry.key != kRestageSurfacePublicationCompilerBundlePath &&
+          entry.key != kRestageMeasurementCompilerOutputPath)
         entry.key: entry.value,
   };
   final snapshot = _CorpusSnapshot(corpus, bytesByPath);

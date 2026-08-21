@@ -15,7 +15,7 @@ import 'helpers.dart';
 /// unambiguously):
 ///
 ///   - **Deferred** — *"…this transpiler increment does not yet …"*. A
-///     future codegen unlock could move the construct into the inlinable
+///     later codegen capability could move the construct into the inlinable
 ///     set; the customer can also rewrite to a recognised shape today.
 ///   - **Structural** — *"…the declarative paywall format cannot
 ///     express…"* / *"…cannot be transpiled…"*. The construct is

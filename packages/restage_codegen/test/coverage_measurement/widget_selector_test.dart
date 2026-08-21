@@ -5,7 +5,8 @@ import 'package:restage_codegen/src/coverage_measurement/real_package_scanner.da
 import 'package:test/test.dart';
 
 /// Resolves the on-disk directory of the real example package via the running
-/// isolate's package config (CWD-independent), exactly like the B3 self-test.
+/// isolate's package config (CWD-independent), exactly like the real-package
+/// scanner self-test.
 Future<String> _examplesPackageDir() async {
   final libUri = await Isolate.resolvePackageUri(
     Uri.parse('package:restage_example/main.dart'),

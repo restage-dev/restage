@@ -3,7 +3,7 @@
 // This is intentionally a pure seam. The aggregate build owner supplies
 // analyzer-resolved declarations, roster-owned output paths, and already
 // rendered bytes; this module neither scans directories nor chooses a source
-// artifact path from a handwritten Dart reference.
+// artifact path from a human-authored Dart reference.
 // ignore_for_file: public_member_api_docs
 
 import 'dart:convert';
@@ -12,19 +12,26 @@ import 'dart:typed_data';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart' show AssetId;
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
+import 'package:restage_codegen/src/measurement/measurement_rfw_route_composer.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/manifest_assembler.dart';
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 const String _restageSdkOrigin = 'package:restage';
@@ -82,7 +89,7 @@ final class CompiledSurfaceArtifact {
 
   /// The delivery-local path preserved in a [ScreenArtifact] inside a flow.
   ///
-  /// It is source-compiler output, not a value selected by a handwritten
+  /// It is source-compiler output, not a value selected by a human-authored
   /// generated reference. It remains distinct from the roster-owned package
   /// path carried by the manifest.
   final String flowArtifactPath;
@@ -122,11 +129,21 @@ final class PackageSurfaceCompilationInput {
     required Iterable<ResolvedStandaloneScreenContract> standaloneScreens,
     Iterable<LegacyStandaloneScreenContract> legacyStandaloneScreens = const [],
     Iterable<CompiledFlowArtifact> precompiledFlows = const [],
+    Map<String, MeasurementPublicationRoutePlanV1>
+        measurementRoutePlansByPublicationKey = const {},
+    Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey =
+        const {},
   })  : flows = List.unmodifiable(flows),
         renderedSources = List.unmodifiable(renderedSources),
         standaloneScreens = List.unmodifiable(standaloneScreens),
         legacyStandaloneScreens = List.unmodifiable(legacyStandaloneScreens),
-        precompiledFlows = List.unmodifiable(precompiledFlows);
+        precompiledFlows = List.unmodifiable(precompiledFlows),
+        measurementRoutePlansByPublicationKey = Map.unmodifiable(
+          measurementRoutePlansByPublicationKey,
+        ),
+        generatedSourceCarrierDraftDigestsByPublicationKey = Map.unmodifiable(
+          generatedSourceCarrierDraftDigestsByPublicationKey,
+        );
 
   /// Canonical package source/output ownership record.
   final RestageSourceRoster roster;
@@ -147,6 +164,18 @@ final class PackageSurfaceCompilationInput {
 
   /// Exact documents emitted by the proven class-shaped/legacy frontend.
   final List<CompiledFlowArtifact> precompiledFlows;
+
+  /// Carrier-independent route plans keyed by exact publication selector.
+  final Map<String, MeasurementPublicationRoutePlanV1>
+      measurementRoutePlansByPublicationKey;
+
+  /// Final draft digests the compiler attaches only to generated source
+  /// descriptors after exact Measurement artifact finalization.
+  ///
+  /// The aggregate validates every supplied value against the final draft it
+  /// just built. This is generated-only output, not a manifest field or an
+  /// authoring input.
+  final Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey;
 }
 
 @immutable
@@ -178,6 +207,7 @@ final class PackageSurfaceCompilationBundle {
     required Map<String, String> generatedParts,
     required Set<String> aggregateOwnedOutputPaths,
     required Map<String, String> artifactLibraryPaths,
+    Iterable<MeasurementCompilerPublication> measurementPublications = const [],
   })  : _outputFiles = _freezeFileMap(outputFiles),
         _aggregateOwnedOutputPaths = Set.unmodifiable(
           aggregateOwnedOutputPaths,
@@ -186,12 +216,13 @@ final class PackageSurfaceCompilationBundle {
           Map.of(artifactLibraryPaths),
         ),
         generatedParts = Map.unmodifiable(Map.of(generatedParts)),
+        measurementPublications = List.unmodifiable(measurementPublications),
         manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
           manifest,
         );
 
   /// Strict shared DTO used by publication and delivery consumers.
-  final SurfacePublicationManifestV1 manifest;
+  final SurfacePublicationManifest manifest;
 
   /// Canonical manifest bytes as UTF-8 text.
   final String manifestJson;
@@ -273,6 +304,9 @@ final class PackageSurfaceCompilationBundle {
   /// Roster-owned Dart parts, grouped so multiple declarations in one library
   /// become exactly one generated part.
   final Map<String, String> generatedParts;
+
+  /// Final target-neutral Measurement drafts produced from exact final bytes.
+  final List<MeasurementCompilerPublication> measurementPublications;
 }
 
 /// Result of a fail-closed package compilation attempt.
@@ -411,7 +445,7 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
       fallback: 'SurfaceFlow',
     );
     final refName =
-        '${_lowerCamelIdentifier(declarationName, fallback: 'surfaceFlow')}Ref';
+        generatedHandleName(declarationName, fallback: 'surfaceFlow');
     final resultName = '${flowStem}Result';
     final decoderName = '_decode${flowStem}Result';
     final seedName = '${flowStem}Seed';
@@ -733,21 +767,26 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   final artifactsByIdentity = <String, List<_ResolvedArtifact>>{};
   final paywallsByIdentity = <String, PaywallArtifactFacts>{};
   final partFragments = <String, _PartAccumulator>{};
+  final pendingStandaloneParts = <_PendingStandalonePart>[];
+  final pendingCompatibilityScreenParts = <_PendingCompatibilityScreenPart>[];
+  final pendingFlowParts = <_PendingFlowPart>[];
   final claimedSymbols = <String, String>{};
 
-  for (final rendered in input.renderedSources) {
-    final identity = rendered.declarationIdentity;
+  for (final suppliedRendered in input.renderedSources) {
+    final identity = suppliedRendered.declarationIdentity;
     final source = sourcesByIdentity[identity];
     if (source == null) {
       _addIssue(
         issues,
         code: IssueCode.unresolvedIdentifier,
-        message: 'Rendered source ${rendered.declaration.name ?? '<unnamed>'} '
+        message: 'Rendered source '
+            '${suppliedRendered.declaration.name ?? '<unnamed>'} '
             'is absent from the canonical source roster.',
         location: identity,
       );
       continue;
     }
+
     if (source.kind != RestageRosterSourceKind.screen &&
         source.kind != RestageRosterSourceKind.paywall) {
       _addIssue(
@@ -759,6 +798,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       );
       continue;
     }
+    final rendered = suppliedRendered;
     if (artifactsByIdentity.containsKey(identity)) {
       _addIssue(
         issues,
@@ -971,18 +1011,22 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         fallback: 'SurfaceScreen',
       );
       final descriptor = '${screenStem}Descriptor';
-      _claimGeneratedSymbol(
-        claimedSymbols,
-        source: source,
-        library: rendered.declaration.library,
-        symbol: descriptor,
-        issues: issues,
-      );
+      final refName = generatedHandleName(className, fallback: 'surfaceScreen');
+      for (final symbol in [refName, descriptor]) {
+        _claimGeneratedSymbol(
+          claimedSymbols,
+          source: source,
+          library: rendered.declaration.library,
+          symbol: symbol,
+          issues: issues,
+        );
+      }
       _addPartFragment(
         partFragments,
         path: partPath,
         source: source,
         fragment: _emitNeutralReference(
+          refName: refName,
           descriptor: descriptor,
           id: source.effectiveId,
           version: source.version,
@@ -1095,17 +1139,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       claimedSymbols,
       source: source,
       library: contract.screen.library,
-      symbol:
-          '${_lowerCamelIdentifier(screenName, fallback: 'surfaceScreen')}Ref',
-      issues: issues,
-    );
-    final compatibilityDescriptor =
-        '${_pascalIdentifier(screenName, fallback: 'SurfaceScreen')}Descriptor';
-    _claimGeneratedSymbol(
-      claimedSymbols,
-      source: source,
-      library: contract.screen.library,
-      symbol: compatibilityDescriptor,
+      symbol: generatedHandleName(screenName, fallback: 'surfaceScreen'),
       issues: issues,
     );
 
@@ -1122,24 +1156,15 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       issues: issues,
     );
     if (partPath != null) {
-      _addPartFragment(
-        partFragments,
-        path: partPath,
-        source: source,
-        fragment: '${_withoutPartHeader(contract.emitReferenceDart())}\n\n'
-            '${_emitCompatibilityScreenDescriptor(
-          descriptor: compatibilityDescriptor,
-          id: source.effectiveId,
-          artifactPath: artifact.rendered.flowArtifactPath,
-          version: source.version,
-          minClient: source.minClient,
-          sdkPrefix: _sdkPrefixFor(
-            contract.screen.library,
-            const {'NeutralFlowScreenRef'},
-          ),
+      // A categorized screen is standalone: its handle is the typed
+      // `<name>Ref`. It carries no neutral in-flow reference, because a
+      // flow step is a neutral `@Screen()` and the two are exclusive.
+      pendingStandaloneParts.add(
+        _PendingStandalonePart(
+          partPath: partPath,
           source: source,
-          issues: issues,
-        )}',
+          contract: contract,
+        ),
       );
     }
   }
@@ -1215,11 +1240,10 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       issues: issues,
     );
     if (partPath == null) continue;
-    _addPartFragment(
-      partFragments,
-      path: partPath,
-      source: source,
-      fragment: _emitCompatibilityScreenDescriptor(
+    pendingCompatibilityScreenParts.add(
+      _PendingCompatibilityScreenPart(
+        partPath: partPath,
+        source: source,
         descriptor: descriptor,
         id: source.effectiveId,
         artifactPath: artifact.rendered.flowArtifactPath,
@@ -1229,8 +1253,6 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
           contract.screen.library,
           const {'NeutralFlowScreenRef'},
         ),
-        source: source,
-        issues: issues,
       ),
     );
   }
@@ -1424,8 +1446,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       continue;
     }
     final flowStem = _pascalIdentifier(sourceName, fallback: 'SurfaceFlow');
-    final refName =
-        '${_lowerCamelIdentifier(sourceName, fallback: 'surfaceFlow')}Ref';
+    final refName = generatedHandleName(sourceName, fallback: 'surfaceFlow');
     final resultName = '${flowStem}Result';
     final decoderName = '_decode${flowStem}Result';
     final seedName = '${flowStem}Seed';
@@ -1463,23 +1484,21 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       );
       continue;
     }
-    final reference = _emitFlowReference(
-      refName: refName,
-      resultName: resultName,
-      decoderName: decoderName,
-      seedName: seedName,
-      graph: emittedGraph,
-      flow: flow,
-      sdkPrefix: sdkPrefix,
-      source: source,
-      issues: issues,
-    );
-    if (reference == null) continue;
-    _addPartFragment(
-      partFragments,
-      path: flowPartPath,
-      source: source,
-      fragment: reference,
+    pendingFlowParts.add(
+      _PendingFlowPart(
+        partPath: flowPartPath,
+        source: source,
+        refName: refName,
+        resultName: resultName,
+        decoderName: decoderName,
+        seedName: seedName,
+        graph: emittedGraph,
+        flow: flow,
+        sdkPrefix: sdkPrefix,
+        measurementPublicationKey: _measurementSelectorForAssembly(
+          assembly.manifestInput,
+        ).key,
+      ),
     );
   }
 
@@ -1529,11 +1548,168 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
 
   if (issues.isNotEmpty) return _invalidResult(issues);
 
+  final measurementPublications = <MeasurementCompilerPublication>[];
+  if (input.measurementRoutePlansByPublicationKey.isNotEmpty) {
+    try {
+      final finalized = _finalizeMeasurementAssemblies(
+        inputs: manifestInputs,
+        routePlansByPublicationKey: input.measurementRoutePlansByPublicationKey,
+        sourcesByOutputPath: {
+          for (final source in sourcesByIdentity.values)
+            for (final output in source.outputs) output.path: source,
+        },
+      );
+      final unplannedPaths = <String>{
+        for (final assembly in manifestInputs)
+          if (!input.measurementRoutePlansByPublicationKey.containsKey(
+            _measurementSelectorForAssembly(assembly).key,
+          ))
+            for (final artifact in assembly.artifacts) artifact.path,
+      };
+      final replacedTemplatePaths = <String>{
+        for (final assembly in manifestInputs)
+          if (input.measurementRoutePlansByPublicationKey.containsKey(
+            _measurementSelectorForAssembly(assembly).key,
+          ))
+            for (final artifact in assembly.artifacts) artifact.path,
+      };
+      for (final path in replacedTemplatePaths.difference(unplannedPaths)) {
+        outputFiles.remove(path);
+        aggregateOwnedOutputPaths.remove(path);
+        artifactLibraryPaths.remove(path);
+      }
+      for (final artifact in finalized.artifacts) {
+        _putOutputFile(
+          outputFiles,
+          path: artifact.path,
+          bytes: artifact.bytes,
+          source: artifact.source,
+          issues: issues,
+          libraryPaths: artifactLibraryPaths,
+        );
+        if (artifact.source.isCanonical) {
+          aggregateOwnedOutputPaths.add(artifact.path);
+        }
+      }
+      manifestInputs
+        ..clear()
+        ..addAll(finalized.inputs);
+      measurementPublications.addAll(finalized.publications);
+      _stripMeasurementMarkersFromInspectionOutputs(outputFiles);
+    } on Object catch (error) {
+      _addIssue(
+        issues,
+        code: IssueCode.annotationEvaluationFailed,
+        message: 'Measurement publication finalization failed: $error',
+        location: 'the package Measurement publication closure',
+      );
+    }
+  }
+  if (issues.isNotEmpty) return _invalidResult(issues);
+
+  final finalizedDraftDigestsByPublicationKey = <String, String>{
+    for (final publication in measurementPublications)
+      publication.selector.key: publication.draft.canonicalDigest.hex,
+  };
+  for (final carrier
+      in input.generatedSourceCarrierDraftDigestsByPublicationKey.entries) {
+    final finalized = finalizedDraftDigestsByPublicationKey[carrier.key];
+    if (finalized == carrier.value) continue;
+    _addIssue(
+      issues,
+      code: IssueCode.annotationEvaluationFailed,
+      message: 'Generated Measurement source carrier for ${carrier.key} does '
+          'not match the exact final publication draft.',
+      location: 'the package Measurement publication closure',
+    );
+  }
+  if (issues.isNotEmpty) return _invalidResult(issues);
+
   final manifest = _buildManifest(
     manifestInputs,
     issues: issues,
   );
   if (manifest == null || issues.isNotEmpty) return _invalidResult(issues);
+
+  final carrierDraftDigestsByPublicationKey =
+      input.generatedSourceCarrierDraftDigestsByPublicationKey;
+  for (final pending in pendingStandaloneParts) {
+    final contract = _refreshStandaloneContractBundleMetadata(
+      pending.contract,
+      manifestInputs: manifestInputs,
+      issues: issues,
+    );
+    if (contract == null) continue;
+    final selector = MeasurementPublicationSelectorV1(
+      surface: contract.surface,
+      slug: contract.slug,
+      sourceKind: SurfaceSourceKind.screen,
+      contractVersion: contract.contractVersion,
+    );
+    _addPartFragment(
+      partFragments,
+      path: pending.partPath,
+      source: pending.source,
+      fragment: '${_withoutPartHeader(
+        contract.emitReferenceDart(
+          measurementPublicationDraftDigest:
+              carrierDraftDigestsByPublicationKey[selector.key],
+        ),
+      )}\n\n',
+    );
+  }
+  for (final pending in pendingCompatibilityScreenParts) {
+    final surface = pending.source.surface;
+    final measurementPublicationDraftDigest = surface == null
+        ? null
+        : carrierDraftDigestsByPublicationKey[MeasurementPublicationSelectorV1(
+            surface: surface,
+            slug: pending.source.effectiveId,
+            sourceKind: SurfaceSourceKind.screen,
+            contractVersion: pending.source.version,
+          ).key];
+    final reference = _emitCompatibilityScreenDescriptor(
+      descriptor: pending.descriptor,
+      id: pending.id,
+      artifactPath: pending.artifactPath,
+      version: pending.version,
+      minClient: pending.minClient,
+      sdkPrefix: pending.sdkPrefix,
+      source: pending.source,
+      measurementPublicationDraftDigest: measurementPublicationDraftDigest,
+      issues: issues,
+    );
+    if (reference == null) continue;
+    _addPartFragment(
+      partFragments,
+      path: pending.partPath,
+      source: pending.source,
+      fragment: reference,
+    );
+  }
+  for (final pending in pendingFlowParts) {
+    final reference = _emitFlowReference(
+      refName: pending.refName,
+      resultName: pending.resultName,
+      decoderName: pending.decoderName,
+      seedName: pending.seedName,
+      graph: pending.graph,
+      flow: pending.flow,
+      sdkPrefix: pending.sdkPrefix,
+      source: pending.source,
+      measurementPublicationDraftDigest: carrierDraftDigestsByPublicationKey[
+          pending.measurementPublicationKey],
+      issues: issues,
+    );
+    if (reference == null) continue;
+    _addPartFragment(
+      partFragments,
+      path: pending.partPath,
+      source: pending.source,
+      fragment: reference,
+    );
+  }
+  if (issues.isNotEmpty) return _invalidResult(issues);
 
   final generatedParts = <String, String>{};
   for (final entry in partFragments.entries) {
@@ -1549,6 +1725,7 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       generatedParts: generatedParts,
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
       artifactLibraryPaths: artifactLibraryPaths,
+      measurementPublications: measurementPublications,
     ),
     issues: const [],
   );
@@ -1792,8 +1969,9 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
 }) {
   final normalizedFlows = flows.toList(growable: false);
   final byIdentity = <NormalizedFlowIdentity, NormalizedFlowSource>{};
-  for (final flow
-      in normalizedFlows.where((candidate) => candidate.graph != null)) {
+  for (final flow in normalizedFlows.where(
+    (candidate) => candidate.graph != null,
+  )) {
     if (precompiledFlowDocumentsByIdentity.containsKey(flow.identity)) {
       _addIssue(
         issues,
@@ -1927,8 +2105,9 @@ Map<NormalizedFlowIdentity, Uint8List> _compileCanonicalFlowDocuments(
 
   (byIdentity.values.toList()
         ..sort((left, right) {
-          final bySurface =
-              left.surface.wireName.compareTo(right.surface.wireName);
+          final bySurface = left.surface.wireName.compareTo(
+            right.surface.wireName,
+          );
           return bySurface != 0 ? bySurface : left.id.compareTo(right.id);
         }))
       .forEach(compile);
@@ -2097,7 +2276,7 @@ _FlowAssembly? _assembleFlowPublication({
       artifacts: [
         SurfacePublicationArtifactInput(
           path: flowDocumentPath,
-          role: SurfacePublicationArtifactRoleV1.flowDocument,
+          role: SurfacePublicationArtifactRole.flowDocument,
           bytes: documentBytes,
         ),
         for (final artifact in closureArtifacts)
@@ -2184,7 +2363,7 @@ _FlowAssembly? _assemblePrecompiledFlowPublication({
         artifacts: [
           SurfacePublicationArtifactInput(
             path: flowDocumentPath,
-            role: SurfacePublicationArtifactRoleV1.flowDocument,
+            role: SurfacePublicationArtifactRole.flowDocument,
             bytes: documentBytes,
           ),
           for (final artifact in closure)
@@ -2311,6 +2490,7 @@ SurfacePublicationAssemblyResult? _buildManifest(
 }
 
 String? _emitNeutralReference({
+  required String refName,
   required String descriptor,
   required String id,
   required int version,
@@ -2328,17 +2508,22 @@ String? _emitNeutralReference({
     );
     return null;
   }
+  // The handle is the top-level `<className>Ref`. The holder class is the
+  // previous shape, kept as a deprecated alias for one major so a source
+  // written against it still compiles.
   return '''
+const $refName = ${sdkPrefix}NeutralFlowScreenRef(
+  id: ${_dartSingleString(id)},
+  artifactPath: ${_dartSingleString('$id.rfw')},
+  version: $version,
+  minClient: ${capabilities.builtInFloor},
+);
+
+@Deprecated('Use $refName')
 abstract final class $descriptor {
   const $descriptor._();
 
-  static const ${sdkPrefix}NeutralFlowScreenRef ref =
-      ${sdkPrefix}NeutralFlowScreenRef(
-    id: ${_dartSingleString(id)},
-    artifactPath: ${_dartSingleString('$id.rfw')},
-    version: $version,
-    minClient: ${capabilities.builtInFloor},
-  );
+  static const ${sdkPrefix}NeutralFlowScreenRef ref = $refName;
 }
 ''';
 }
@@ -2352,6 +2537,7 @@ String? _emitCompatibilityScreenDescriptor({
   required String? sdkPrefix,
   required RestageSourceDeclaration source,
   required List<Issue> issues,
+  String? measurementPublicationDraftDigest,
 }) {
   if (sdkPrefix == null) {
     _addIssue(
@@ -2363,17 +2549,27 @@ String? _emitCompatibilityScreenDescriptor({
     );
     return null;
   }
+  final declarationKeyword =
+      measurementPublicationDraftDigest == null ? 'const' : 'final';
+  final referenceConstructor = measurementPublicationDraftDigest == null
+      ? '${sdkPrefix}NeutralFlowScreenRef'
+      : '${sdkPrefix}NeutralFlowScreenRef'
+          '.generatedWithMeasurementPublicationDraftDigest';
+  final carrierArgument = measurementPublicationDraftDigest == null
+      ? ''
+      : '    measurementPublicationDraftDigest: '
+          '${_dartSingleString(measurementPublicationDraftDigest)},\n';
   return '''
 abstract final class $descriptor {
   const $descriptor._();
 
-  static const ${sdkPrefix}NeutralFlowScreenRef ref =
-      ${sdkPrefix}NeutralFlowScreenRef(
+  static $declarationKeyword ${sdkPrefix}NeutralFlowScreenRef ref =
+      $referenceConstructor(
     id: ${_dartSingleString(id)},
     artifactPath: ${_dartSingleString(artifactPath)},
     version: $version,
     minClient: $minClient,
-  );
+$carrierArgument  );
 }
 ''';
 }
@@ -2388,18 +2584,30 @@ String? _emitFlowReference({
   required String sdkPrefix,
   required RestageSourceDeclaration source,
   required List<Issue> issues,
+  String? measurementPublicationDraftDigest,
 }) {
   final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
+  final declarationKeyword =
+      measurementPublicationDraftDigest == null ? 'const' : 'final';
+  String referenceConstructor(String resultType) =>
+      measurementPublicationDraftDigest == null
+          ? '${sdkPrefix}SurfaceFlowRef<$resultType>'
+          : '${sdkPrefix}SurfaceFlowRef<$resultType>'
+              '.generatedWithMeasurementPublicationDraftDigest';
+  final carrierArgument = measurementPublicationDraftDigest == null
+      ? ''
+      : '  measurementPublicationDraftDigest: '
+          '${_dartSingleString(measurementPublicationDraftDigest)},\n';
   if (flow.delivery == FlowDeliveryMode.general) {
     return '''
-const $refName = ${sdkPrefix}SurfaceFlowRef<Map<String, Object?>>(
+$declarationKeyword $refName = ${referenceConstructor('Map<String, Object?>')}(
   id: ${_dartSingleString(flow.id)},
   version: ${flow.version},
   minClient: ${graph.minClient},
   surface: ${sdkPrefix}Surface.${flow.surface.name},
   deliveryMode: ${sdkPrefix}FlowDeliveryMode.${flow.delivery.name},
   decodeResult: $decoderName,
-);
+$carrierArgument);
 
 Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
 ${_emitSeedClass(seedName, graph.flowState, sdkPrefix)}
@@ -2427,14 +2635,14 @@ $support''';
   );
   final result = _emitTypedResultClass(resultName, fields);
   return '''
-const $refName = ${sdkPrefix}SurfaceFlowRef<$resultName>(
+$declarationKeyword $refName = ${referenceConstructor(resultName)}(
   id: ${_dartSingleString(flow.id)},
   version: ${flow.version},
   minClient: ${graph.minClient},
   surface: ${sdkPrefix}Surface.${flow.surface.name},
   deliveryMode: ${sdkPrefix}FlowDeliveryMode.${flow.delivery.name},
   decodeResult: $decoderName,
-);
+$carrierArgument);
 
 $decoder
 
@@ -2665,17 +2873,80 @@ List<SurfacePublicationArtifactInput> _screenClosureInputs(
   return [
     SurfacePublicationArtifactInput(
       path: artifact.blobPath,
-      role: SurfacePublicationArtifactRoleV1.screenBlob,
+      role: SurfacePublicationArtifactRole.screenBlob,
       id: artifactId,
       bytes: artifact.rendered.blob,
     ),
     SurfacePublicationArtifactInput(
       path: artifact.sidecarPath,
-      role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+      role: SurfacePublicationArtifactRole.capabilitySidecar,
       id: artifactId,
       bytes: artifact.rendered.capabilitySidecar,
     ),
   ];
+}
+
+ResolvedStandaloneScreenContract? _refreshStandaloneContractBundleMetadata(
+  ResolvedStandaloneScreenContract contract, {
+  required List<SurfacePublicationAssemblyInput> manifestInputs,
+  required List<Issue> issues,
+}) {
+  final matchingPublications = manifestInputs.where(
+    (input) =>
+        input.surface == contract.surface &&
+        input.slug == contract.slug &&
+        input.sourceKind == SurfaceSourceKind.screen &&
+        input.screenContractFacts?.contractVersion == contract.contractVersion,
+  );
+  if (matchingPublications.length != 1) {
+    _addIssue(
+      issues,
+      code: IssueCode.missingScreenDescriptor,
+      message: 'Standalone screen ${contract.slug} must resolve exactly one '
+          'final publication before generated reference emission.',
+      location: contract.input.location,
+    );
+    return null;
+  }
+  final artifacts = matchingPublications.single.artifacts;
+  final blobs = artifacts.where(
+    (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
+  );
+  final sidecars = artifacts.where(
+    (artifact) =>
+        artifact.role == SurfacePublicationArtifactRole.capabilitySidecar,
+  );
+  if (blobs.length != 1 || sidecars.length != 1) {
+    _addIssue(
+      issues,
+      code: IssueCode.missingScreenDescriptor,
+      message: 'Standalone screen ${contract.slug} must resolve one final '
+          'blob and capability sidecar before generated reference emission.',
+      location: contract.input.location,
+    );
+    return null;
+  }
+  final blob = blobs.single.bytes;
+  final sidecar = sidecars.single.bytes;
+  final inspection = inspectStandaloneScreenContract(
+    ResolvedStandaloneScreenContractInput(
+      assetId: contract.input.assetId,
+      screen: contract.screen,
+      surface: contract.surface,
+      slug: contract.slug,
+      contractVersion: contract.contractVersion,
+      capabilities: contract.capabilities,
+      plan: contract.input.plan,
+      bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
+        blobSha256: CapabilitySidecar.hashBlob(blob),
+        blobByteLength: blob.length,
+        sidecarSha256: CapabilitySidecar.hashBlob(sidecar),
+        sidecarByteLength: sidecar.length,
+      ),
+    ),
+  );
+  issues.addAll(inspection.issues);
+  return inspection.contract;
 }
 
 List<String> _outputPaths(
@@ -2814,6 +3085,311 @@ CapabilitySidecar? _decodeSidecar(
     );
     return null;
   }
+}
+
+_FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
+  required List<SurfacePublicationAssemblyInput> inputs,
+  required Map<String, MeasurementPublicationRoutePlanV1>
+      routePlansByPublicationKey,
+  required Map<String, RestageSourceDeclaration> sourcesByOutputPath,
+}) {
+  final pathClaims = <String, int>{};
+  for (final input in inputs) {
+    for (final artifact in input.artifacts) {
+      pathClaims.update(artifact.path, (count) => count + 1, ifAbsent: () => 1);
+    }
+  }
+  final finalizedInputs = <SurfacePublicationAssemblyInput>[];
+  final finalizedArtifacts = <_FinalizedMeasurementArtifact>[];
+  final publications = <MeasurementCompilerPublication>[];
+  final claimedPlans = <String>{};
+
+  for (final input in inputs) {
+    final selector = _measurementSelectorForAssembly(input);
+    final routePlan = routePlansByPublicationKey[selector.key];
+    if (routePlan == null) {
+      finalizedInputs.add(input);
+      continue;
+    }
+    claimedPlans.add(selector.key);
+    final bySlot = <String, SurfacePublicationArtifactInput>{
+      for (final artifact in input.artifacts)
+        _measurementArtifactSlot(artifact.role, artifact.id): artifact,
+    };
+    final finalBytesBySlot = <String, Uint8List>{
+      for (final entry in bySlot.entries)
+        entry.key: Uint8List.fromList(entry.value.bytes),
+    };
+    final consumed = <String>{};
+    for (final entry in bySlot.entries.where(
+      (entry) => entry.value.role == SurfacePublicationArtifactRole.screenBlob,
+    )) {
+      final composition = MeasurementRfwRouteComposer.composeBlob(
+        blob: entry.value.bytes,
+        routePlan: routePlan,
+      );
+      final duplicate = consumed.intersection(composition.generatedReferences);
+      if (duplicate.isNotEmpty) {
+        throw FormatException(
+          'Measurement generated references occurred in multiple publication '
+          'artifacts: ${duplicate.toList()..sort()}',
+        );
+      }
+      consumed.addAll(composition.generatedReferences);
+      finalBytesBySlot[entry.key] = composition.blob;
+      final sidecarSlot = _measurementArtifactSlot(
+        SurfacePublicationArtifactRole.capabilitySidecar,
+        entry.value.id,
+      );
+      final sidecar = finalBytesBySlot[sidecarSlot];
+      if (sidecar == null) {
+        throw FormatException(
+          'Measurement blob ${entry.value.id} has no capability sidecar.',
+        );
+      }
+      finalBytesBySlot[sidecarSlot] = Uint8List.fromList(
+        _sidecarForComposedBlob(sidecar, composition.blob),
+      );
+    }
+    MeasurementRfwRouteComposer.requireCompleteRouteClosure(
+      routePlan: routePlan,
+      consumedReferences: consumed,
+    );
+
+    if (input.payloadKind == SurfacePayloadKind.flow) {
+      final flowSlot = _measurementArtifactSlot(
+        SurfacePublicationArtifactRole.flowDocument,
+        null,
+      );
+      final flowBytes = finalBytesBySlot[flowSlot];
+      if (flowBytes == null) {
+        throw const FormatException(
+          'A measured flow has no exact flow document.',
+        );
+      }
+      final flow = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
+      final screenArtifacts = <String, ScreenArtifact>{};
+      for (final entry in flow.screenArtifacts.entries) {
+        final blob = finalBytesBySlot[_measurementArtifactSlot(
+          SurfacePublicationArtifactRole.screenBlob,
+          entry.key,
+        )];
+        if (blob == null) {
+          throw FormatException(
+            'Measured flow screen ${entry.key} has no exact final blob.',
+          );
+        }
+        screenArtifacts[entry.key] = ScreenArtifact(
+          path: entry.value.path,
+          version: entry.value.version,
+          schemaVersion: entry.value.schemaVersion,
+          minClient: entry.value.minClient,
+          contentHash: FlowContentHash.compute(blob),
+        );
+      }
+      finalBytesBySlot[flowSlot] = Uint8List.fromList(
+        FlowDocumentCodec.encodeCanonicalJson(
+          flow.copyWith(screenArtifacts: screenArtifacts),
+        ),
+      );
+    }
+
+    final finalArtifacts = <SurfacePublicationArtifactInput>[];
+    final draftArtifacts = <MeasurementPublicationDraftArtifactV1>[];
+    for (final artifact in input.artifacts) {
+      final slot = _measurementArtifactSlot(artifact.role, artifact.id);
+      final bytes = finalBytesBySlot[slot]!;
+      final path = pathClaims[artifact.path]! > 1
+          ? _measurementPublicationOwnedPath(artifact.path, selector)
+          : artifact.path;
+      final finalArtifact = SurfacePublicationArtifactInput(
+        path: path,
+        role: artifact.role,
+        id: artifact.id,
+        bytes: bytes,
+      );
+      finalArtifacts.add(finalArtifact);
+      final source = sourcesByOutputPath[artifact.path];
+      if (source == null) {
+        throw FormatException(
+          'Measurement artifact ${artifact.path} has no roster source owner.',
+        );
+      }
+      finalizedArtifacts.add(
+        _FinalizedMeasurementArtifact(
+          path: path,
+          bytes: bytes,
+          source: source,
+        ),
+      );
+      final artifactId = measurementArtifactIdForPublicationArtifactV1(
+        selector,
+        SurfacePublicationArtifact(
+          contentHash: CapabilitySidecar.hashBlob(bytes),
+          path: artifact.path,
+          role: artifact.role,
+          id: artifact.id,
+        ),
+      );
+      final topology = routePlan.artifacts.singleWhere(
+        (candidate) => candidate.artifactId == artifactId,
+      );
+      draftArtifacts.add(
+        MeasurementPublicationDraftArtifactV1(
+          artifactId: topology.artifactId,
+          artifactKind: topology.artifactKind,
+          contentHash: CanonicalDigest(
+            crypto.sha256.convert(bytes).toString(),
+          ),
+          occurrenceEdgeToken: topology.occurrenceEdgeToken,
+          localManifestId: topology.localManifestId,
+          parentOccurrenceEdgeToken: topology.parentOccurrenceEdgeToken,
+        ),
+      );
+    }
+    final draft = MeasurementPublicationDraftV1(
+      routePlan: routePlan,
+      artifacts: draftArtifacts,
+    );
+    publications.add(
+      MeasurementCompilerPublication(
+        selector: selector,
+        routePlan: routePlan,
+        draft: draft,
+      ),
+    );
+    finalizedInputs.add(
+      SurfacePublicationAssemblyInput(
+        surface: input.surface,
+        slug: input.slug,
+        sourceKind: input.sourceKind,
+        payloadKind: input.payloadKind,
+        artifacts: finalArtifacts,
+        flowFacts: input.flowFacts,
+        screenContractFacts: input.screenContractFacts,
+      ),
+    );
+  }
+  final missingPlans = routePlansByPublicationKey.keys
+      .where((key) => !claimedPlans.contains(key))
+      .toList()
+    ..sort();
+  if (missingPlans.isNotEmpty) {
+    throw FormatException(
+      'Measurement route plans have no exact publication: $missingPlans',
+    );
+  }
+  return _FinalizedMeasurementAssemblies(
+    inputs: finalizedInputs,
+    artifacts: finalizedArtifacts,
+    publications: publications,
+  );
+}
+
+MeasurementPublicationSelectorV1 _measurementSelectorForAssembly(
+  SurfacePublicationAssemblyInput input,
+) =>
+    MeasurementPublicationSelectorV1(
+      surface: input.surface,
+      slug: input.slug,
+      sourceKind: input.sourceKind,
+      contractVersion: input.screenContractFacts?.contractVersion,
+    );
+
+void _stripMeasurementMarkersFromInspectionOutputs(
+  Map<String, Uint8List> outputFiles,
+) {
+  for (final entry in outputFiles.entries.toList()) {
+    if (!entry.key.endsWith('.rfwtxt')) continue;
+    final text = utf8.decode(entry.value);
+    if (!text.contains(kMeasurementRouteReferenceMarkerKeyV1)) continue;
+    outputFiles[entry.key] = Uint8List.fromList(
+      utf8.encode(
+        MeasurementRfwRouteComposer.stripTransientMarkersFromText(text),
+      ),
+    );
+  }
+}
+
+String _measurementArtifactSlot(
+  SurfacePublicationArtifactRole role,
+  String? id,
+) =>
+    '${role.wireName}:${id ?? ''}';
+
+String _measurementPublicationOwnedPath(
+  String original,
+  MeasurementPublicationSelectorV1 selector,
+) {
+  final digest = crypto.sha256
+      .convert(CanonicalJsonCodec.encode(selector.toJson()))
+      .toString()
+      .substring(0, 16);
+  return p.posix.join(
+    p.posix.dirname(original),
+    'measurement',
+    digest,
+    p.posix.basename(original),
+  );
+}
+
+final class _FinalizedMeasurementAssemblies {
+  const _FinalizedMeasurementAssemblies({
+    required this.inputs,
+    required this.artifacts,
+    required this.publications,
+  });
+
+  final List<SurfacePublicationAssemblyInput> inputs;
+  final List<_FinalizedMeasurementArtifact> artifacts;
+  final List<MeasurementCompilerPublication> publications;
+}
+
+final class _FinalizedMeasurementArtifact {
+  const _FinalizedMeasurementArtifact({
+    required this.path,
+    required this.bytes,
+    required this.source,
+  });
+
+  final String path;
+  final Uint8List bytes;
+  final RestageSourceDeclaration source;
+}
+
+List<int> _sidecarForComposedBlob(
+  List<int> sidecarBytes,
+  List<int> blob,
+) {
+  final decoded = jsonDecode(utf8.decode(sidecarBytes));
+  if (decoded is! Map<Object?, Object?> ||
+      decoded.length != 2 ||
+      !decoded.containsKey('blobSha256') ||
+      !decoded.containsKey('manifest')) {
+    throw const FormatException(
+      'Capability sidecar must contain exactly blobSha256 and manifest.',
+    );
+  }
+  final sidecarJson = <String, dynamic>{};
+  for (final entry in decoded.entries) {
+    if (entry.key is! String) {
+      throw const FormatException('Capability sidecar keys must be strings.');
+    }
+    final key = entry.key;
+    if (key is! String) {
+      throw const FormatException('Capability sidecar keys must be strings.');
+    }
+    sidecarJson[key] = entry.value;
+  }
+  final previous = CapabilitySidecar.fromJson(sidecarJson);
+  return utf8.encode(
+    jsonEncode(
+      CapabilitySidecar(
+        blobSha256: CapabilitySidecar.hashBlob(blob),
+        manifest: previous.manifest,
+      ).toJson(),
+    ),
+  );
 }
 
 String? _requiredOutputPath(
@@ -3127,23 +3703,12 @@ String _partOfHeader({
       p.posix.relative(libraryPath, from: p.posix.dirname(partPath)),
     )};';
 
-String _pascalIdentifier(String value, {required String fallback}) {
-  final words = value
-      .replaceFirst(RegExp('^_+'), '')
-      .split('_')
-      .where((word) => word.isNotEmpty);
-  final result = words
-      .map(
-        (word) => '${word.substring(0, 1).toUpperCase()}${word.substring(1)}',
-      )
-      .join();
-  return result.isEmpty ? fallback : result;
-}
-
-String _lowerCamelIdentifier(String value, {required String fallback}) {
-  final pascal = _pascalIdentifier(value, fallback: fallback);
-  return '${pascal.substring(0, 1).toLowerCase()}${pascal.substring(1)}';
-}
+// Both name derivations live in generated_handle_names.dart so the screen and
+// flow frontends spell one rule. These aliases keep the call sites unchanged.
+const String Function(String, {required String fallback}) _pascalIdentifier =
+    pascalIdentifier;
+const String Function(String, {required String fallback})
+    _lowerCamelIdentifier = lowerCamelIdentifier;
 
 String _dartString(String value) => jsonEncode(value).replaceAll(r'$', r'\$');
 
@@ -3315,6 +3880,66 @@ final class _FlowClosureArtifact {
 
   final _ResolvedArtifact artifact;
   final String id;
+}
+
+final class _PendingStandalonePart {
+  const _PendingStandalonePart({
+    required this.partPath,
+    required this.source,
+    required this.contract,
+  });
+
+  final String partPath;
+  final RestageSourceDeclaration source;
+  final ResolvedStandaloneScreenContract contract;
+}
+
+final class _PendingCompatibilityScreenPart {
+  const _PendingCompatibilityScreenPart({
+    required this.partPath,
+    required this.source,
+    required this.descriptor,
+    required this.id,
+    required this.artifactPath,
+    required this.version,
+    required this.minClient,
+    required this.sdkPrefix,
+  });
+
+  final String partPath;
+  final RestageSourceDeclaration source;
+  final String descriptor;
+  final String id;
+  final String artifactPath;
+  final int version;
+  final int minClient;
+  final String? sdkPrefix;
+}
+
+final class _PendingFlowPart {
+  const _PendingFlowPart({
+    required this.partPath,
+    required this.source,
+    required this.refName,
+    required this.resultName,
+    required this.decoderName,
+    required this.seedName,
+    required this.graph,
+    required this.flow,
+    required this.sdkPrefix,
+    required this.measurementPublicationKey,
+  });
+
+  final String partPath;
+  final RestageSourceDeclaration source;
+  final String refName;
+  final String resultName;
+  final String decoderName;
+  final String seedName;
+  final NormalizedFlowGraph graph;
+  final NormalizedFlowSource flow;
+  final String sdkPrefix;
+  final String measurementPublicationKey;
 }
 
 final class _PartAccumulator {

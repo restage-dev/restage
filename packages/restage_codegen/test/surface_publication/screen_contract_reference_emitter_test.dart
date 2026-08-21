@@ -29,45 +29,45 @@ const _multiContractFingerprint = 'sha256:'
 void main() {
   group('standalone screen contract/reference emitter', () {
     test('pins the shared event-hash and fingerprint vectors', () {
-      final empty = SurfaceScreenEventSchemaV1(events: const []);
+      final empty = SurfaceScreenEventSchema(events: const []);
       expect(
-        SurfaceScreenEventContractHashV1.hash(empty),
+        SurfaceScreenEventContractHash.hash(empty),
         _emptyEventHash,
       );
 
-      final multi = SurfaceScreenEventSchemaV1(
+      final multi = SurfaceScreenEventSchema(
         events: [
-          SurfaceScreenEventV1(
+          SurfaceScreenEvent(
             id: 'submit',
-            arguments: SurfaceScreenEventObjectArgumentsV1(
+            arguments: SurfaceScreenEventObjectArguments(
               const SurfaceScreenEventMapShapeV1(
                 SurfaceScreenEventScalarShapeV1(
-                  SurfaceScreenEventScalarKindV1.jsonValue,
+                  SurfaceScreenEventScalarKind.jsonValue,
                 ),
               ),
             ),
           ),
-          SurfaceScreenEventV1(
+          SurfaceScreenEvent(
             id: 'évent',
-            arguments: const SurfaceScreenEventValueArgumentsV1(
+            arguments: const SurfaceScreenEventValueArguments(
               SurfaceScreenEventScalarShapeV1(
-                SurfaceScreenEventScalarKindV1.integer,
+                SurfaceScreenEventScalarKind.integer,
               ),
             ),
           ),
-          SurfaceScreenEventV1(
+          SurfaceScreenEvent(
             id: 'dismiss\n',
-            arguments: const SurfaceScreenEventNoArgumentsV1(),
+            arguments: const SurfaceScreenEventNoArguments(),
           ),
         ],
       );
       expect(
-        SurfaceScreenEventContractHashV1.hash(multi),
+        SurfaceScreenEventContractHash.hash(multi),
         _multiEventHash,
       );
 
       expect(
-        SurfaceScreenContractFingerprintV1.hash(
+        SurfaceScreenContractFingerprint.hash(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: _capabilities(),
@@ -77,7 +77,7 @@ void main() {
       );
 
       expect(
-        SurfaceScreenContractFingerprintV1.hash(
+        SurfaceScreenContractFingerprint.hash(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: CapabilityManifest(
@@ -122,7 +122,7 @@ void main() {
       );
       expect(
         contract.contractFingerprint,
-        SurfaceScreenContractFingerprintV1.hash(
+        SurfaceScreenContractFingerprint.hash(
           sourceKind: SurfaceSourceKind.screen,
           payloadKind: SurfacePayloadKind.blob,
           capabilities: _capabilities(),

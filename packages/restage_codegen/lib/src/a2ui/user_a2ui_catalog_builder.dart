@@ -5,7 +5,6 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:build/build.dart';
-import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_native_screen.dart';
@@ -15,6 +14,7 @@ import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
+import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
@@ -293,7 +293,9 @@ final class UserA2uiCatalogBuilder implements Builder {
     );
   }
 
-  /// Walks every `lib/**.dart` asset for the consumer's `@RestageWidget`
+  /// Scans every `lib/**.dart` and walks the files that spell a
+  /// Restage annotation (or an alias of one) asset for the consumer's
+  /// `@RestageWidget`
   /// classes — projecting each to a [WidgetEntry] via the public
   /// [visitRestageWidgets] vocabulary while capturing its resolved
   /// [ClassElement] (the seam-assembly's analyzer input) in the same pass — and
@@ -309,7 +311,7 @@ final class UserA2uiCatalogBuilder implements Builder {
     final issues = <Issue>[];
 
     final sources = <ResolvedPackageLibrary>[];
-    await for (final assetId in buildStep.findAssets(Glob('lib/**.dart'))) {
+    for (final assetId in await selectRestageWidgetCandidates(buildStep)) {
       final LibraryElement library;
       try {
         library = await buildStep.resolver.libraryFor(
