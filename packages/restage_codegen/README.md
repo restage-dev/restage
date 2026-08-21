@@ -121,6 +121,82 @@ contains one, restart `dart run build_runner watch` so the package-wide story
 output is rescanned. A normal `dart run build_runner build` always performs the
 full scan.
 
+## Large codebases
+
+Seven builders look at the whole package rather than one file. Five run for
+every dependent — the source roster, the package surface compiler, and the
+three that aggregate `@RestageWidget` classes — and two more do the same once
+you opt in: the A2UI catalog and the Widgetbook stories. On a large app,
+resolving every Dart library just to ask whether it declares anything is the
+dominant cost: not because analysis is slow, but because resolving a file pulls
+in its transitive imports and makes all of them dependencies of that builder,
+so any later edit re-triggers the whole scan.
+
+So they read each file's raw source first and resolve only the files that can
+declare something. A package with none pays no analysis at all; a package with
+a handful of surfaces pays for that handful. Every file under `lib/` is still
+scanned — including generated ones that already exist when the builder runs,
+because a generated file can be a `part` — and a declaration inside a `part` is
+still found through the library that owns it.
+
+**What you write is discovered exactly as before.** An annotation written on
+the declaration, behind an import prefix, in a `part`, or through a `const` or
+`typedef` alias declared in another file **in the same package** all reach the
+same place they always did.
+
+One shape is not followed: an alias declared in a **different package** — a
+shared annotations package that exports `const card = RestageWidget(...)`, used
+as `@card` in yours. These builders scan only the package they are building, so
+they never see that declaration and the annotated class is not discovered. Write
+the annotation itself, or declare the alias in the same package.
+
+Two things do change, and both are about diagnostics rather than discovery.
+
+A syntax error in a file that spells no Restage annotation is no longer
+reported by these seven builders, because they no longer analyse that file. The
+Dart toolchain still reports it. The exception is the deprecated screen path
+`lib/<onboarding|message|survey>/screens/<id>.dart`: the per-file screen
+builders still analyse a library there whether or not it is annotated, and the
+two opt-in package-wide builders still select it, so its errors are unchanged.
+
+The two roster ledgers, `assets/restage/source-index.json` and
+`assets/restage/output-roster.json`, are written into your package only once it
+declares a Restage source, or reports a problem with one. A package that merely
+depends on `restage_codegen` does not get them.
+
+**Turning builders off.** If a package will never declare a customer widget or
+a Restage surface — a data layer, a networking package, a generated-model
+package — switch the package-wide builders off in that package's `build.yaml`
+(the two opt-in builders are off unless you turned them on):
+
+```yaml
+targets:
+  $default:
+    builders:
+      restage_codegen:user_catalog:
+        enabled: false
+      restage_codegen:user_catalog_json:
+        enabled: false
+      restage_codegen:user_factories:
+        enabled: false
+      restage_codegen:restage_source_roster:
+        enabled: false
+      restage_codegen:restage_package_surface_compiler:
+        enabled: false
+```
+
+Restage's own registry-driven widget packages use the first two entries of that
+recipe.
+
+`generate_for` is not an alternative here. These builders take a `build_runner`
+placeholder as their input — `$package$` for the source roster and the surface
+compiler, `lib/$lib$` for the three widget aggregators — not your source files.
+A glob narrowed to a subtree (`lib/widgets/**`) matches neither placeholder, so
+it does not scope the builder, it stops it running. A broad glob (`lib/**`)
+matches `lib/$lib$`, so it scopes nothing for the three widget aggregators —
+and it does not match `$package$`, so it stops the source roster and the surface
+compiler outright. `enabled: false` is the supported control.
+
 ## License
 
 Functional Source License, Version 1.1, ALv2 Future License (FSL-1.1-ALv2):

@@ -5,7 +5,7 @@ toolchain behaves when a customer authors against the new design packages
 (`package:material_ui/`, `package:cupertino_ui/`) instead of
 `package:flutter/material.dart`.
 
-They are **fixture data, not workspace code** — `analysis_options.yaml` excludes
+They are **fixture data, not workspace code**: `analysis_options.yaml` excludes
 them from analysis, and `pubspec.template.yaml` is a template rather than a
 live `pubspec.yaml` so the probe package is never a workspace member.
 
@@ -37,12 +37,13 @@ library URIs verified below, so they need no new dependency at all.
 
 `evidence/` holds the captured outputs.
 
-- `migrated.rfwtxt` / `baseline.rfwtxt` — the same surface authored against
+- `migrated.rfwtxt` / `baseline.rfwtxt`: the same surface authored against
   `package:material_ui/material_ui.dart` and `package:flutter/material.dart`.
   The emitted text is character-identical and the two screen blobs share one
-  SHA-256, which is the whole point: the design-package surface bound silently
-  to catalog entries that construct legacy widgets.
-- `user_factories.g.dart.emitted` — generated customer code emitting a private
+  SHA-256, which is the point: a surface authored against the design packages
+  resolves to the same existing catalog entries, with no change to the emitted
+  output.
+- `user_factories.g.dart.emitted`: generated customer code emitting a private
   `lib/src` import of a third-party package.
 
 Established against `material_ui 1.0.0` / `cupertino_ui 1.0.0` under Flutter

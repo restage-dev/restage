@@ -2,7 +2,7 @@
 
 `restage_codegen` generates the `SurfaceFlowRef<R>` and, when the flow uses host actions, a `FlowActionRegistry`. The example below shows the public API that generated code and your app code use together.
 
-For the normal bundled path, `RestageSurfaceFlow` uses `AssetFlowResolver` by
+For the normal bundled path, `RestageFlowGraph` uses `AssetFlowResolver` by
 default; it can also be passed explicitly as shown below. The resolver loads
 the generated flow artifact closure from the app bundle. It does not determine
 the flow's identity or publication category; generated publication metadata is
@@ -74,8 +74,8 @@ class FlowEntry extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RestageSurfaceFlow<FirstRunResult>(
-      flow: FirstRunFlowDescriptor.ref,
+    return RestageFlowGraph<FirstRunResult>(
+      flow: firstRunFlowRef,
       resolver: const AssetFlowResolver(),
       actions: FirstRunActions(
         requestNotifications: (_, context) async {

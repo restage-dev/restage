@@ -165,7 +165,7 @@ stable catalog key must differ from the Dart class name:
   library: WidgetLibrary.custom('acme.widgets'),
   category: WidgetCategory.action,
 )
-class SubmitControl extends StatelessWidget { /* ... */ }
+class LegacySubmitControl extends StatelessWidget { /* ... */ }
 ```
 
 Canonical v5 JSON is final-form only. The decoder also accepts v4 catalogs and

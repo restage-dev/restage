@@ -81,7 +81,7 @@ The gallery also includes a minimal `hello` artifact, rendered straight through
 
 The same pipeline drives multi-screen engagement surfaces. Flow sources use
 `@FlowGraph(surface: Surface.<category>)`, and codegen emits a typed
-`SurfaceFlowRef<R>`. The runtime mounts that ref with `RestageSurfaceFlow<R>`.
+`SurfaceFlowRef<R>`. The runtime mounts that ref with `RestageFlowGraph<R>`.
 The gallery presents four:
 
 - **Meditation onboarding to paywall** (`flows/lumen_onboarding.dart`): welcome,
@@ -169,9 +169,6 @@ the screen artifacts it uses.
 A message is the smallest flow (one screen, one terminal state), so it lives
 here too. See `flows/apex_drop.dart`.
 
-> **Build note:** codegen does not yet format the generated flow descriptor, so
-> after a `build_runner` regen, run `dart format` over it before committing. The
-> generated screen descriptors are already format-clean.
 
 ## Authoring an interactive paywall
 

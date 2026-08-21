@@ -24,12 +24,12 @@ screen flow:
    write-back selection. Every customer A2UI component keeps `id` and
    `component` on the protocol envelope and nests exact constructor inputs
    under required `props`. RFW callback events remain automatic from supported
-   constructor callback signatures; `rfw.Config` is currently an empty marker,
-   so the example does not present it as behavior configuration.
+   constructor callback signatures, so the example configures no RFW-specific
+   behavior.
 5. `OpaqueScreenProof` uses the canonical `@Screen` declaration. One build keeps
    the RFW descriptor/text/binary/capability artifacts, adds an exact-ID opaque
    A2UI item, and adds a native Widgetbook story. The generated story is grouped
-   at `Screens/opaque_screen_proof` in this fixture.
+   at `Screens/opaque_screen_proof` in this example.
 
 The full sources live under `lib/widgets/` and
 `lib/onboarding/screens/opaque_screen_proof.dart`. They carry `#docregion`
@@ -56,17 +56,14 @@ That one normal invocation produces or updates:
   Widgetbook's matching `*.stories.g.dart` plumbing, and
   `lib/components.g.dart`.
 
-There is no target-specific second pass, hand-written story, scenario sidecar,
-or customer host. The screen story places `RestageSurfaceEventDispatcher` in
-generated `Defaults.setup`; Widgetbook's generated `Story.setup` forwards it.
-No customer `Config.appBuilder` is required.
+One build produces every target's output; there is no second pass and no
+hand-written story. The screen story installs `RestageEventDispatcher` through
+the generated `Defaults.setup`, which Widgetbook's generated `Story.setup`
+forwards, so no `Config.appBuilder` is needed.
 
-A2UI output is customer-only. It does not register Flutter, Material,
-Cupertino, or Restage built-ins, and it treats a screen as an opaque native
-component rather than lowering its Flutter tree. Flow graphs and specialized
-paywalls do not receive native sibling projections from this target. RFW
-continues to use only its existing blueprint/state/event source surface and
-gains no constructor binding from this integration.
+The A2UI catalog covers your own widgets only. Flutter, Material, Cupertino,
+and Restage built-ins are not registered, and a screen appears as one opaque
+component rather than a lowered widget tree.
 
 ## Build the workbench
 

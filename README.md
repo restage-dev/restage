@@ -157,6 +157,7 @@ run `melos run cli:install` to compile it onto your PATH.
 | [`restage_cupertino`](packages/restage_cupertino) | Cupertino widget catalog | BSD-3 |
 | [`restage_shared`](packages/restage_shared) | Surface format, schemas, and validation shared by the SDK and the toolchain | BSD-3 |
 | [`rfw_catalog_schema`](packages/rfw_catalog_schema) | Catalog format and the `@RestageWidget` annotations | BSD-3 |
+| [`restage_measurement_schema`](packages/restage_measurement_schema) | Inert measurement and experiment contracts | BSD-3 |
 | [`restage_codegen`](packages/restage_codegen) | Build-time toolchain that compiles your Flutter into render artifacts | FSL-1.1-ALv2 |
 | [`rfw_catalog_compiler`](packages/rfw_catalog_compiler) | Catalog compiler used by the toolchain | FSL-1.1-ALv2 |
 | [`restage_cli`](packages/restage_cli) | The `restage` command-line tool. Not on pub.dev yet | BSD-3 |
@@ -170,8 +171,8 @@ run `melos run cli:install` to compile it onto your PATH.
 ## License
 
 - **BSD-3-Clause** for everything that runs in your app: the SDK, the catalogs,
-  the schema, the CLI, the MCP server, the RevenueCat adapter, the A2UI check,
-  and the examples. Flutter uses the same license.
+  the catalog and measurement schemas, the CLI, the MCP server, the RevenueCat
+  adapter, the A2UI check, and the examples. Flutter uses the same license.
 - **FSL-1.1-ALv2** for the build-time toolchain (`restage_codegen` and
   `rfw_catalog_compiler`). The source is available. All use is free, including
   use inside your own company. Each release converts to Apache-2.0 two years
