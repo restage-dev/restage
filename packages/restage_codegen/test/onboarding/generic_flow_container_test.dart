@@ -136,12 +136,12 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
+        screen(welcomeScreenRef)
             .on(WelcomeScreen.next)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref)
+            .goTo(readyScreenRef),
+        screen(readyScreenRef)
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true}),

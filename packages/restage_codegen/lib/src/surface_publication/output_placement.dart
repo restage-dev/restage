@@ -6,6 +6,8 @@
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart'
+    show kRestageMeasurementOutputIndexFileName;
 
 /// The reserved directory name collecting generated files for one source
 /// directory under the default [RestageSourceOutputLayout.generatedDirectory]
@@ -188,6 +190,10 @@ final class RestageOutputPlacementPlan {
   String get publicationManifestPath =>
       _packageWidePath(_kPublicationManifestFileName);
 
+  /// The separate package-wide target-neutral Measurement publication index.
+  String get measurementOutputIndexPath =>
+      _packageWidePath(kRestageMeasurementOutputIndexFileName);
+
   /// The package-wide producer-facing A2UI catalog document path.
   String get a2uiCatalogPath => _packageWidePath(_kA2uiCatalogFileName);
 
@@ -226,6 +232,7 @@ final class RestageOutputPlacementPlan {
     extensions[r'$package$'] = <String>[
       outputIndexPath,
       publicationManifestPath,
+      measurementOutputIndexPath,
     ];
     return extensions;
   }

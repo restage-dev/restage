@@ -222,7 +222,7 @@ void main() {
       expect(result.dsl, 'data.theme.colorScheme.primary');
     });
 
-    test('a parenthesized chain segment is recognised (L1)', () async {
+    test('a parenthesized chain segment is recognised', () async {
       // `(Theme.of(c).colorScheme).primary` — the parens are syntactic
       // noise; the walker unwraps them so the chain still recognises.
       final expr = await parseExpressionForTest(

@@ -3050,7 +3050,7 @@ SegmentedButton<String>(
     });
   });
 
-  group('non-finite numeric guard (E2 #1)', () {
+  group('non-finite numeric guard', () {
     // A non-finite double — `double.infinity` / `.negativeInfinity` / `.nan`,
     // or an overflowing literal like `1e400` — has no representable RFW value.
     // Pre-guard it was emitted silently: the named consts fell through the

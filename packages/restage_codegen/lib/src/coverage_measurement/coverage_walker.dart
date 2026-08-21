@@ -17,7 +17,7 @@ CoverageBucket bucketFor(WidgetClassification classification) =>
     };
 
 /// Buckets a [classification] with the translator's strict-emit [outcome]
-/// folded in — the emit-confirmed bucketing (B1).
+/// folded in — the emit-confirmed bucketing.
 ///
 /// A widget the classifier would bucket into an `inlinable*` family but
 /// whose [outcome] is [EmitOutcome.failed] is demoted to

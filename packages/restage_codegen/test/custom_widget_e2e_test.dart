@@ -17,7 +17,7 @@ import 'package:test/test.dart';
 
 import 'helpers.dart';
 
-/// Outcome of transpiling a custom-widget fixture through the full Phase-3
+/// Outcome of transpiling a custom-widget fixture through the full
 /// chain — classify → translate → emit → parse → validate → encode → decode.
 class _TranspileResult {
   _TranspileResult(this.issues, this.decoded);
@@ -3347,7 +3347,7 @@ WidgetEntry _entry(
     );
 
 /// Transpiles [source] (which defines the custom widgets and a paywall
-/// root `Object x() => <root>;`) through the full Phase-3 chain against
+/// root `Object x() => <root>;`) through the full transpile chain against
 /// [catalog]. Pass [rootPackage]`: 'apps_examples'` for fixtures that
 /// need real `package:flutter/material.dart` resolution (the strict
 /// theme-read recognizer requires a `package:flutter/` library URI).
@@ -3376,7 +3376,7 @@ Future<_TranspileResult> _transpile(
   return resolved;
 }
 
-/// Builder that runs the Phase-3 transpile chain over the e2e probe library.
+/// Builder that runs the full transpile chain over the e2e probe library.
 class _TranspileProbeBuilder implements Builder {
   _TranspileProbeBuilder(this.catalog, this.onResult);
 

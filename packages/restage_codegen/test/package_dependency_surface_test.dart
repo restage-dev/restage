@@ -4,7 +4,8 @@ import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
-  test('published dependency surface stays frozen', () {
+  test('published dependency surface matches the committed compiler contract',
+      () {
     final pubspec =
         loadYaml(File('pubspec.yaml').readAsStringSync()) as YamlMap;
     final dependencies =
@@ -26,11 +27,13 @@ void main() {
         'meta',
         'package_config',
         'path',
+        'restage_measurement_schema',
         'restage_shared',
         'rfw_catalog_compiler',
         'rfw_catalog_schema',
       },
-      reason: 'restage_codegen must not gain published dependencies.',
+      reason: 'The committed measurement schema dependency is allowed; '
+          'restage_codegen must not gain further published dependencies.',
     );
     expect(
       devDependencies,

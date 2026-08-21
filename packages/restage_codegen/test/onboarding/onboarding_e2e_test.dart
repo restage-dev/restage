@@ -85,12 +85,20 @@ void main() {
     expect(
       generatedFlow,
       allOf([
+        // The 2.0 shape: one top-level handle plus a top-level decoder. The
+        // holder survives as a deprecated alias forwarding to the handle, so
+        // the frozen contract still covers both spellings a source may use.
+        contains('const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>('),
+        contains("@Deprecated('Use firstRunFlowRef')"),
         contains('abstract final class FirstRunFlowDescriptor'),
+        contains(
+          'static const SurfaceFlowRef<FirstRunResult> ref = firstRunFlowRef;',
+        ),
         contains('SurfaceFlowRef<FirstRunResult>'),
         contains("id: 'first_run'"),
         contains('version: 1'),
         contains('minClient: 3'),
-        contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
+        contains('decodeResult: _decodeFirstRunFlowResult'),
         contains('final class FirstRunResult'),
         contains('final class FirstRunActions implements FlowActionRegistry'),
         contains("actionName: 'requestNotifications'"),
@@ -270,7 +278,7 @@ import 'onboarding/screens/ready.dart';
 import 'onboarding/screens/welcome.dart';
 
 void consumeGeneratedDescriptors() {
-  const OnboardingFlowRef<FirstRunResult> flow = FirstRunFlowDescriptor.ref;
+  const OnboardingFlowRef<FirstRunResult> flow = firstRunFlowRef;
   const screens = [
     WelcomeScreenDescriptor.ref,
     PermissionsScreenDescriptor.ref,

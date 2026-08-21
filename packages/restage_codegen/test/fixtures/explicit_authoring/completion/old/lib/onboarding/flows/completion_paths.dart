@@ -15,19 +15,15 @@ final class CompletionPathsFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StartScreenDescriptor.ref,
+      initial: startScreenRef,
       states: [
-        screen(StartScreenDescriptor.ref)
+        screen(startScreenRef)
             .on(StartScreen.accept)
-            .goTo(AcceptedScreenDescriptor.ref)
+            .goTo(acceptedScreenRef)
             .on(StartScreen.decline)
-            .goTo(DeclinedScreenDescriptor.ref),
-        screen(AcceptedScreenDescriptor.ref)
-            .on(AcceptedScreen.finish)
-            .goTo(done),
-        screen(DeclinedScreenDescriptor.ref)
-            .on(DeclinedScreen.finish)
-            .goTo(done),
+            .goTo(declinedScreenRef),
+        screen(acceptedScreenRef).on(AcceptedScreen.finish).goTo(done),
+        screen(declinedScreenRef).on(DeclinedScreen.finish).goTo(done),
         end(done, result: {}),
       ],
     );

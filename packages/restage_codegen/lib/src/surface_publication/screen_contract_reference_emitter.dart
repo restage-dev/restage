@@ -13,6 +13,7 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_shared/restage_shared.dart';
 
@@ -143,7 +144,7 @@ final class ResolvedStandaloneScreenContract {
   final ResolvedStandaloneScreenContractInput input;
 
   /// Complete independently validated event accepted set for the manifest.
-  final SurfaceScreenEventSchemaV1 eventSchema;
+  final SurfaceScreenEventSchema eventSchema;
 
   /// Hash produced only by the shared event-contract encoder.
   final String eventContractHash;
@@ -174,7 +175,13 @@ final class ResolvedStandaloneScreenContract {
   ///
   /// The output contains no authoritative artifact path. A later aggregate
   /// owner emits the manifest entry that selects the verified artifact closure.
-  String emitReferenceDart() => _emitReferenceDart(this);
+  String emitReferenceDart({
+    String? measurementPublicationDraftDigest,
+  }) =>
+      _emitReferenceDart(
+        this,
+        measurementPublicationDraftDigest: measurementPublicationDraftDigest,
+      );
 }
 
 /// Inspects one analyzer-resolved categorized `@Screen` declaration.
@@ -208,8 +215,9 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
   }
 
   final annotationValue = annotation.computeConstantValue();
-  final declaredSurface =
-      _surfaceFromValue(annotationValue?.getField('surface'));
+  final declaredSurface = _surfaceFromValue(
+    annotationValue?.getField('surface'),
+  );
   if (declaredSurface == null) {
     issues.add(
       _issue(
@@ -369,15 +377,15 @@ StandaloneScreenContractInspection inspectStandaloneScreenContract(
     return StandaloneScreenContractInspection(contract: null, issues: issues);
   }
 
-  final SurfaceScreenEventSchemaV1 schema;
+  final SurfaceScreenEventSchema schema;
   final String eventContractHash;
   final String contractFingerprint;
   try {
-    schema = SurfaceScreenEventSchemaV1(
+    schema = SurfaceScreenEventSchema(
       events: [for (final event in events) event.schemaEvent],
     );
-    eventContractHash = SurfaceScreenEventContractHashV1.hash(schema);
-    contractFingerprint = SurfaceScreenContractFingerprintV1.hash(
+    eventContractHash = SurfaceScreenEventContractHash.hash(schema);
+    contractFingerprint = SurfaceScreenContractFingerprint.hash(
       sourceKind: SurfaceSourceKind.screen,
       payloadKind: SurfacePayloadKind.blob,
       capabilities: input.capabilities,
@@ -418,7 +426,7 @@ _ResolvedScreenEvent? _eventFromType({
     return _ResolvedScreenEvent(
       field: field,
       id: id,
-      arguments: const SurfaceScreenEventNoArgumentsV1(),
+      arguments: const SurfaceScreenEventNoArguments(),
       dartShape: null,
     );
   }
@@ -434,8 +442,8 @@ _ResolvedScreenEvent? _eventFromType({
     field: field,
     id: id,
     arguments: isObject
-        ? SurfaceScreenEventObjectArgumentsV1(shape.schemaShape)
-        : SurfaceScreenEventValueArgumentsV1(shape.schemaShape),
+        ? SurfaceScreenEventObjectArguments(shape.schemaShape)
+        : SurfaceScreenEventValueArguments(shape.schemaShape),
     dartShape: shape,
   );
 }
@@ -479,7 +487,7 @@ _DartEventShape? _shapeFromType(
       type.nullabilitySuffix == NullabilitySuffix.question) {
     return const _ScalarDartEventShape(
       dartType: 'Object?',
-      scalar: SurfaceScreenEventScalarKindV1.jsonValue,
+      scalar: SurfaceScreenEventScalarKind.jsonValue,
     );
   }
   if (type.nullabilitySuffix == NullabilitySuffix.question) {
@@ -527,10 +535,10 @@ _DartEventShape? _shapeFromInterface(
 
   if (isCore && type.typeArguments.isEmpty) {
     final scalar = switch (name) {
-      'bool' => SurfaceScreenEventScalarKindV1.boolean,
-      'int' => SurfaceScreenEventScalarKindV1.integer,
-      'double' => SurfaceScreenEventScalarKindV1.doubleValue,
-      'String' => SurfaceScreenEventScalarKindV1.string,
+      'bool' => SurfaceScreenEventScalarKind.boolean,
+      'int' => SurfaceScreenEventScalarKind.integer,
+      'double' => SurfaceScreenEventScalarKind.doubleValue,
+      'String' => SurfaceScreenEventScalarKind.string,
       _ => null,
     };
     if (scalar != null) {
@@ -649,7 +657,10 @@ void _reportGeneratedSymbolCollisions(
   }
 }
 
-String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
+String _emitReferenceDart(
+  ResolvedStandaloneScreenContract contract, {
+  String? measurementPublicationDraftDigest,
+}) {
   final screenName = contract.screen.name!;
   final screenStem = _pascalIdentifier(screenName, fallback: 'SurfaceScreen');
   final refStem = _lowerCamelIdentifier(screenName, fallback: 'surfaceScreen');
@@ -657,7 +668,7 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
   final eventContractName = '_${refStem}Events';
   final provenanceName = '_${refStem}Provenance';
   final decoderName = '_decodeValidated$eventBase';
-  final refName = '${refStem}Ref';
+  final refName = generatedHandleName(screenName, fallback: 'surfaceScreen');
   final sdk = contract._sdkPrefix;
   final sourceFile = _fileName(contract.input.assetId.path);
   final buffer = StringBuffer()
@@ -677,7 +688,7 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
       if (shape == null) {
         buffer.writeln('  const $eventClass();');
       } else {
-        final parameter = event.arguments is SurfaceScreenEventObjectArgumentsV1
+        final parameter = event.arguments is SurfaceScreenEventObjectArguments
             ? 'arguments'
             : 'value';
         buffer
@@ -706,6 +717,10 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
   }
 
   final referenceEventType = contract._events.isEmpty ? 'Never' : eventBase;
+  final referenceConstructor = measurementPublicationDraftDigest == null
+      ? '${sdk}SurfaceScreenRef<$referenceEventType>.generated'
+      : '${sdk}SurfaceScreenRef<$referenceEventType>'
+          '.generatedWithMeasurementPublicationDraftDigest';
 
   // The event schema is emitted in its canonical encoded form rather than as a
   // Dart literal tree, so the value the runtime hashes is byte-identical to
@@ -739,11 +754,17 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
     ..writeln(');')
     ..writeln()
     ..writeln(
-      'final $refName = ${sdk}SurfaceScreenRef<$referenceEventType>.generated(',
+      'final $refName = $referenceConstructor(',
     )
     ..writeln('  provenance: $provenanceName,')
-    ..writeln('  eventContract: $eventContractName,')
-    ..writeln(');');
+    ..writeln('  eventContract: $eventContractName,');
+  if (measurementPublicationDraftDigest != null) {
+    buffer.writeln(
+      '  measurementPublicationDraftDigest: '
+      '${_dartString(measurementPublicationDraftDigest)},',
+    );
+  }
+  buffer.writeln(');');
 
   if (contract._events.isNotEmpty) {
     buffer
@@ -759,7 +780,7 @@ String _emitReferenceDart(ResolvedStandaloneScreenContract contract) {
       if (event.dartShape == null) {
         buffer.writeln('      return const $eventClass();');
       } else {
-        final source = event.arguments is SurfaceScreenEventObjectArgumentsV1
+        final source = event.arguments is SurfaceScreenEventObjectArguments
             ? 'arguments'
             : "arguments['value']";
         buffer.writeln(
@@ -832,13 +853,13 @@ String? _resolveBundleLocatorSource(
     ..writeln('  entries: [')
     ..writeln('    ${sdk}SurfaceScreenBundleEntryReference(')
     ..writeln('      logicalPath: ${_dartString(blobPath)},')
-    ..writeln('      role: ${sdk}RestageBundleEntryRoleV1.screenBlob,')
+    ..writeln('      role: ${sdk}RestageBundleEntryRole.screenBlob,')
     ..writeln('      byteLength: ${metadata.blobByteLength},')
     ..writeln('      sha256: ${_dartString(metadata.blobSha256)},')
     ..writeln('    ),')
     ..writeln('    ${sdk}SurfaceScreenBundleEntryReference(')
     ..writeln('      logicalPath: ${_dartString(sidecarPath)},')
-    ..writeln('      role: ${sdk}RestageBundleEntryRoleV1.capabilitySidecar,')
+    ..writeln('      role: ${sdk}RestageBundleEntryRole.capabilitySidecar,')
     ..writeln('      byteLength: ${metadata.sidecarByteLength},')
     ..writeln('      sha256: ${_dartString(metadata.sidecarSha256)},')
     ..writeln('    ),')
@@ -876,7 +897,7 @@ List<String> _generatedSymbols(
     '_${refStem}Events',
     '_${refStem}Provenance',
     '_decodeValidated${screenStem}Event',
-    '${refStem}Ref',
+    generatedHandleName(screenName, fallback: 'surfaceScreen'),
     for (final event in events) _eventClassName(screenStem, event.field.name),
   ];
 }
@@ -1051,23 +1072,12 @@ String _fileStem(String path) {
 
 String _dartString(String value) => jsonEncode(value).replaceAll(r'$', r'\$');
 
-String _pascalIdentifier(String value, {required String fallback}) {
-  final words = value
-      .replaceFirst(RegExp('^_+'), '')
-      .split('_')
-      .where((word) => word.isNotEmpty);
-  final result = words
-      .map(
-        (word) => '${word.substring(0, 1).toUpperCase()}${word.substring(1)}',
-      )
-      .join();
-  return result.isEmpty ? fallback : result;
-}
-
-String _lowerCamelIdentifier(String value, {required String fallback}) {
-  final pascal = _pascalIdentifier(value, fallback: fallback);
-  return '${pascal.substring(0, 1).toLowerCase()}${pascal.substring(1)}';
-}
+// Both name derivations live in generated_handle_names.dart so the screen and
+// flow frontends spell one rule. These aliases keep the call sites unchanged.
+const String Function(String, {required String fallback}) _pascalIdentifier =
+    pascalIdentifier;
+const String Function(String, {required String fallback})
+    _lowerCamelIdentifier = lowerCamelIdentifier;
 
 @immutable
 final class _ResolvedScreenEvent {
@@ -1080,10 +1090,10 @@ final class _ResolvedScreenEvent {
 
   final FieldElement field;
   final String id;
-  final SurfaceScreenEventArgumentsV1 arguments;
+  final SurfaceScreenEventArguments arguments;
   final _DartEventShape? dartShape;
 
-  SurfaceScreenEventV1 get schemaEvent => SurfaceScreenEventV1(
+  SurfaceScreenEvent get schemaEvent => SurfaceScreenEvent(
         id: id,
         arguments: arguments,
       );
@@ -1093,7 +1103,7 @@ sealed class _DartEventShape {
   const _DartEventShape();
 
   String get dartType;
-  SurfaceScreenEventShapeV1 get schemaShape;
+  SurfaceScreenEventShape get schemaShape;
   String decode(String source);
 }
 
@@ -1105,15 +1115,15 @@ final class _ScalarDartEventShape extends _DartEventShape {
 
   @override
   final String dartType;
-  final SurfaceScreenEventScalarKindV1 scalar;
+  final SurfaceScreenEventScalarKind scalar;
 
   @override
-  SurfaceScreenEventShapeV1 get schemaShape =>
+  SurfaceScreenEventShape get schemaShape =>
       SurfaceScreenEventScalarShapeV1(scalar);
 
   @override
   String decode(String source) =>
-      scalar == SurfaceScreenEventScalarKindV1.jsonValue
+      scalar == SurfaceScreenEventScalarKind.jsonValue
           ? source
           : '$source as $dartType';
 }
@@ -1127,7 +1137,7 @@ final class _NullableDartEventShape extends _DartEventShape {
   String get dartType => '${value.dartType}?';
 
   @override
-  SurfaceScreenEventShapeV1 get schemaShape =>
+  SurfaceScreenEventShape get schemaShape =>
       SurfaceScreenEventNullableShapeV1(value.schemaShape);
 
   @override
@@ -1144,7 +1154,7 @@ final class _ListDartEventShape extends _DartEventShape {
   String get dartType => 'List<${items.dartType}>';
 
   @override
-  SurfaceScreenEventShapeV1 get schemaShape =>
+  SurfaceScreenEventShape get schemaShape =>
       SurfaceScreenEventListShapeV1(items.schemaShape);
 
   @override
@@ -1164,7 +1174,7 @@ final class _MapDartEventShape extends _DartEventShape {
   String get dartType => 'Map<String, ${values.dartType}>';
 
   @override
-  SurfaceScreenEventShapeV1 get schemaShape =>
+  SurfaceScreenEventShape get schemaShape =>
       SurfaceScreenEventMapShapeV1(values.schemaShape);
 
   @override

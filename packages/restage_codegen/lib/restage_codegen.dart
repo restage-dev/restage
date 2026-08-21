@@ -53,6 +53,41 @@ export 'src/catalog_loader.dart' show findWidgetsByName, loadMergedCatalog;
 export 'src/emit_utils.dart' show formatGeneratedDart;
 export 'src/factory_emitter.dart' show kSupportedSyntheticStrategies;
 export 'src/issue.dart' show Issue, IssueCode;
+export 'src/measurement/measurement_compiler_boundary.dart'
+    show MeasurementCompilerBoundary;
+export 'src/measurement/measurement_compiler_input.dart'
+    show
+        MeasurementArtifactInput,
+        MeasurementCompilerBoundaryDisposition,
+        MeasurementCompilerBoundaryInput,
+        MeasurementCompilerBoundaryResult,
+        MeasurementCompilerEventInput,
+        MeasurementCompilerNodeInput,
+        MeasurementCurrentEndpointClaim,
+        MeasurementLineageTransitionDraft,
+        PriorActiveLineageLedgerV1;
+export 'src/measurement/measurement_discovered_boundary.dart'
+    show MeasurementDiscoveredBoundaryInput, MeasurementDiscoveredNodeBinding;
+export 'src/measurement/measurement_resolved_event.dart'
+    show
+        MeasurementEventDeclarationProvenance,
+        MeasurementResolvedEvent,
+        MeasurementResolvedFlutterEvent,
+        MeasurementResolvedOpaqueCustomWidgetEvent,
+        MeasurementSourceRootKind;
+export 'src/measurement/measurement_source_discovery.dart'
+    show
+        MeasurementDiscoveredEvent,
+        MeasurementDiscoveredNode,
+        MeasurementFlowSourceClosureDisposition,
+        MeasurementFlowSourceClosureInput,
+        MeasurementFlowSourceClosureResult,
+        MeasurementSourceAuthority,
+        MeasurementSourceDiscovery,
+        MeasurementSourceDiscoveryDisposition,
+        MeasurementSourceDiscoveryInput,
+        MeasurementSourceDiscoveryResult,
+        MeasurementSourceProvenance;
 export 'src/type_inference.dart' show inferPropertyType;
 export 'src/user_catalog_emitter.dart' show emitUserCatalogDart;
 export 'src/widget_visitor.dart'

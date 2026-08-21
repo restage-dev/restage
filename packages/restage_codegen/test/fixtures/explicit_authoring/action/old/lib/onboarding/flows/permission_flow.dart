@@ -17,14 +17,14 @@ final class PermissionFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: PermissionScreenDescriptor.ref,
+      initial: permissionScreenRef,
       states: [
-        screen(PermissionScreenDescriptor.ref)
+        screen(permissionScreenRef)
             .on(PermissionScreen.enable)
             .run(requestNotifications)
             .result((granted) => granted)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref).on(ReadyScreen.finish).goTo(done),
+            .goTo(readyScreenRef),
+        screen(readyScreenRef).on(ReadyScreen.finish).goTo(done),
         end(done, result: {}),
       ],
     );

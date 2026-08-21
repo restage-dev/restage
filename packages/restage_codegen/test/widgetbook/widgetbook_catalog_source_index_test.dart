@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.d
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../index_probe_helpers.dart';
 
 void main() {
   test(
@@ -511,9 +512,9 @@ dependencies:
   });
 }
 
-const _screenSourcePackageGraph = '''
-{"roots":["apps_examples"],"packages":[{"name":"apps_examples","version":"0.0.0","dependencies":["flutter","restage","rfw_catalog_schema"],"devDependencies":[]}]}
-''';
+final String _screenSourcePackageGraph = nativeScreenPackageGraph(
+  const {'flutter', 'restage', 'rfw_catalog_schema'},
+);
 
 const _screenSourcePubspec = '''
 name: apps_examples

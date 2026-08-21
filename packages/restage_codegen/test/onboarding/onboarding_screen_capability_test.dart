@@ -20,7 +20,7 @@ import '../helpers.dart';
 ///
 /// This guard locks the consequence `custom_widget_e2e_test` does not assert:
 /// that the SCREEN's sidecar `requiredLibraries` is empty *because* the custom
-/// widget inlined. If a future codegen change ever made a Dart custom widget
+/// widget inlined. If a later codegen change ever made a Dart custom widget
 /// emit a silent custom-library reference without updating the derivation, this
 /// fails — catching a fail-open before it ships.
 void main() {

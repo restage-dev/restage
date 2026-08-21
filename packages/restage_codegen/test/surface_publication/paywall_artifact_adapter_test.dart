@@ -78,15 +78,15 @@ void main() {
       expect(facts.navigationFlow!.flow, 'premium');
       expect(
         facts.flowDocument!.artifact.role,
-        SurfacePublicationArtifactRoleV1.flowDocument,
+        SurfacePublicationArtifactRole.flowDocument,
       );
       expect(facts.flowScreens.keys, ['paywall_premium']);
       expect(
         facts.flowArtifacts.map((artifact) => artifact.role),
         [
-          SurfacePublicationArtifactRoleV1.flowDocument,
-          SurfacePublicationArtifactRoleV1.screenBlob,
-          SurfacePublicationArtifactRoleV1.capabilitySidecar,
+          SurfacePublicationArtifactRole.flowDocument,
+          SurfacePublicationArtifactRole.screenBlob,
+          SurfacePublicationArtifactRole.capabilitySidecar,
         ],
       );
       expect(facts.filesByPath.keys, containsAll(files.keys));

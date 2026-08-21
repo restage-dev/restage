@@ -19,11 +19,11 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 class A2uiDataBuilder {
   /// Builds a value-builder over a widget's data-shape [roots].
   ///
-  /// [prefixes] maps each customer `libraryUri` to its import prefix (`p0`,
-  /// `p1`, …); the builder spells every customer type qualified by it, so two
-  /// same-named classes from different libraries can never collide in the
-  /// generated source. Empty (the default) emits bare spellings — used when no
-  /// rich shape is present.
+  /// [prefixes] maps each customer `libraryUri` to the short import prefix the
+  /// emitter allocated for it; the builder spells every customer type
+  /// qualified by that prefix, so two same-named classes from different
+  /// libraries can never collide in the generated source. Empty (the default)
+  /// emits bare spellings — used when no rich shape is present.
   A2uiDataBuilder(
     Iterable<A2uiSchemaNode> roots, {
     Map<String, String> prefixes = const {},

@@ -156,7 +156,7 @@ void main() {
     // would be meaningless here; the lie-catcher (emit-confirmed bucketing
     // via `EmitOutcome`) is exercised in the unit tests + the real-Flutter
     // proof test, and the full real-catalog emit-confirmed corpus is the
-    // post-L12 closure-phase harness conversion. The `classifier-only/
+    // Closure-phase harness conversion. The `classifier-only/
     // emit-failed` bucket is therefore always empty in this snapshot.
     final report = CoverageReport.from(allClassifications);
 

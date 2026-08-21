@@ -14,12 +14,10 @@ final class WelcomeFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       states: [
-        screen(WelcomeScreenDescriptor.ref)
-            .on(WelcomeScreen.next)
-            .goTo(ProfileScreenDescriptor.ref),
-        screen(ProfileScreenDescriptor.ref).on(ProfileScreen.finish).goTo(done),
+        screen(welcomeScreenRef).on(WelcomeScreen.next).goTo(profileScreenRef),
+        screen(profileScreenRef).on(ProfileScreen.finish).goTo(done),
         end(done, result: {}),
       ],
     );

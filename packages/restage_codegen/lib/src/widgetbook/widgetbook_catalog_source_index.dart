@@ -12,6 +12,7 @@ import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
+import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_widget_package_facts.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/syntax_diagnostics.dart';
@@ -267,11 +268,7 @@ final class WidgetbookCatalogIndexCache {
     if (cached != null && cached.fingerprint == fingerprint) {
       return cached.index;
     }
-    final index = loadWidgetbookCatalogSourceIndex(
-      buildStep,
-      assets: assets,
-      plan: plan,
-    );
+    final index = loadWidgetbookCatalogSourceIndex(buildStep, plan: plan);
     _byPackage[packageName] =
         (fingerprint: fingerprint, placement: placement, index: index);
     return index;
@@ -282,16 +279,16 @@ final class WidgetbookCatalogIndexCache {
 /// index without applying RFW factory admission.
 Future<WidgetbookCatalogSourceIndex> loadWidgetbookCatalogSourceIndex(
   BuildStep buildStep, {
-  Iterable<AssetId>? assets,
   RestageOutputPlacementPlan? plan,
 }) async {
-  final sourceAssets = (assets == null
-      ? await buildStep
-          .findAssets(Glob('lib/**.dart'))
-          .where(_isAuthoredDartAsset)
-          .toList()
-      : assets.toList())
-    ..sort((left, right) => left.path.compareTo(right.path));
+  // Only the assets that can carry a customer widget are worth resolving.
+  // Scanning still covers the whole package, so a token in a file this index
+  // will not resolve still pulls in the owner it will — if it is a `part`.
+  // A token in a non-part file this index skips pulls in nothing.
+  final sourceAssets = await selectRestageWidgetCandidates(
+    buildStep,
+    resolvable: _isAuthoredDartAsset,
+  );
   final widgetbookLibrary = await _resolveOptionalLibrary(
     buildStep.resolver,
     AssetId('widgetbook', 'lib/widgetbook.dart'),

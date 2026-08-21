@@ -20,6 +20,14 @@ const String kRestageSurfacePublicationCompilerBundlePath =
 /// an absent asset means this package compiles no surfaces, and a malformed
 /// or failed handoff is reported once and then produces no output — so they
 /// share one reader rather than each restating the terms and risking drift.
+///
+/// The materializing builders run once per Dart library, and decoding the
+/// handoff means decoding every compiled artifact's bytes, so the decode is
+/// performed once per package per build and shared. The `canRead` below is
+/// deliberately not shared: it is what declares the handoff an input of *this*
+/// step, and without it an edited handoff would not invalidate the steps that
+/// consumed it. Sharing also makes the "reported once" above literally true —
+/// a failed decode is remembered, not re-reported per library.
 Future<RestageSurfacePublicationBundle?> readRestageCompilerHandoff(
   BuildStep buildStep,
 ) async {
@@ -29,6 +37,31 @@ Future<RestageSurfacePublicationBundle?> readRestageCompilerHandoff(
   );
   if (!await buildStep.canRead(compilerInput)) return null;
 
+  final cache = await buildStep.fetchResource(_compilerHandoffResource);
+  return cache.get(buildStep, compilerInput);
+}
+
+final Resource<_CompilerHandoffCache> _compilerHandoffResource =
+    Resource<_CompilerHandoffCache>(_CompilerHandoffCache.new);
+
+/// One decoded handoff per package, for the lifetime of one build.
+final class _CompilerHandoffCache {
+  final Map<String, Future<RestageSurfacePublicationBundle?>> _byPackage = {};
+
+  Future<RestageSurfacePublicationBundle?> get(
+    BuildStep buildStep,
+    AssetId compilerInput,
+  ) =>
+      _byPackage.putIfAbsent(
+        compilerInput.package,
+        () => _decodeCompilerHandoff(buildStep, compilerInput),
+      );
+}
+
+Future<RestageSurfacePublicationBundle?> _decodeCompilerHandoff(
+  BuildStep buildStep,
+  AssetId compilerInput,
+) async {
   final RestageSurfacePublicationBundle bundle;
   try {
     bundle = RestageSurfacePublicationBundle.fromJson(
@@ -78,7 +111,7 @@ final class RestageSurfacePublicationBundle {
 
   /// Creates and validates a complete delivery bundle.
   factory RestageSurfacePublicationBundle.valid({
-    required SurfacePublicationManifestV1 manifest,
+    required SurfacePublicationManifest manifest,
     required Map<String, List<int>> artifacts,
     Map<String, List<int>> borrowedArtifacts = const {},
     Map<String, List<int>> ownedOutputs = const {},
@@ -260,7 +293,7 @@ final class RestageSurfacePublicationBundle {
   final List<String> errors;
 
   /// The complete strict manifest, present only for a valid bundle.
-  final SurfacePublicationManifestV1? manifest;
+  final SurfacePublicationManifest? manifest;
 
   /// Exact package-relative artifact bytes keyed by their manifest paths.
   final Map<String, List<int>> artifacts;
@@ -319,8 +352,8 @@ List<Map<String, Object?>> _encodeOutputs(Map<String, List<int>> outputs) => [
         },
     ];
 
-SurfacePublicationManifestV1 _canonicalizeManifest(
-  SurfacePublicationManifestV1 manifest,
+SurfacePublicationManifest _canonicalizeManifest(
+  SurfacePublicationManifest manifest,
 ) =>
     manifest.canonical();
 

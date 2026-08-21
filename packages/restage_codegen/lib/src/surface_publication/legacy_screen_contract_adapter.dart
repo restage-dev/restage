@@ -43,7 +43,7 @@ final class LegacyStandaloneScreenContract {
   });
 
   final LegacyStandaloneScreenContractInput input;
-  final SurfaceScreenEventSchemaV1 eventSchema;
+  final SurfaceScreenEventSchema eventSchema;
 
   ClassElement get screen => input.screen;
   Surface get surface => input.surface;
@@ -126,7 +126,7 @@ LegacyStandaloneScreenContractInspection inspectLegacyStandaloneScreenContract(
     );
   }
 
-  final events = <SurfaceScreenEventV1>[];
+  final events = <SurfaceScreenEvent>[];
   final eventIds = <String>{};
   final fields = input.screen.children
       .whereType<FieldElement>()
@@ -190,7 +190,7 @@ LegacyStandaloneScreenContractInspection inspectLegacyStandaloneScreenContract(
       issues: issues,
     );
     if (arguments != null) {
-      events.add(SurfaceScreenEventV1(id: id, arguments: arguments));
+      events.add(SurfaceScreenEvent(id: id, arguments: arguments));
     }
   }
 
@@ -204,7 +204,7 @@ LegacyStandaloneScreenContractInspection inspectLegacyStandaloneScreenContract(
     return LegacyStandaloneScreenContractInspection(
       contract: LegacyStandaloneScreenContract(
         input: input,
-        eventSchema: SurfaceScreenEventSchemaV1(events: events),
+        eventSchema: SurfaceScreenEventSchema(events: events),
       ),
       issues: const [],
     );
@@ -222,14 +222,14 @@ LegacyStandaloneScreenContractInspection inspectLegacyStandaloneScreenContract(
   }
 }
 
-SurfaceScreenEventArgumentsV1? _eventArguments(
+SurfaceScreenEventArguments? _eventArguments(
   DartType payloadType, {
   required LegacyStandaloneScreenContractInput input,
   required FieldElement field,
   required List<Issue> issues,
 }) {
   if (payloadType is VoidType) {
-    return const SurfaceScreenEventNoArgumentsV1();
+    return const SurfaceScreenEventNoArguments();
   }
   final shape = _shapeFromType(
     payloadType,
@@ -239,11 +239,11 @@ SurfaceScreenEventArgumentsV1? _eventArguments(
   );
   if (shape == null) return null;
   return _isNonNullableStringMap(payloadType)
-      ? SurfaceScreenEventObjectArgumentsV1(shape)
-      : SurfaceScreenEventValueArgumentsV1(shape);
+      ? SurfaceScreenEventObjectArguments(shape)
+      : SurfaceScreenEventValueArguments(shape);
 }
 
-SurfaceScreenEventShapeV1? _shapeFromType(
+SurfaceScreenEventShape? _shapeFromType(
   DartType type, {
   required LegacyStandaloneScreenContractInput input,
   required FieldElement field,
@@ -280,7 +280,7 @@ SurfaceScreenEventShapeV1? _shapeFromType(
       type.typeArguments.isEmpty &&
       type.nullabilitySuffix == NullabilitySuffix.question) {
     return const SurfaceScreenEventScalarShapeV1(
-      SurfaceScreenEventScalarKindV1.jsonValue,
+      SurfaceScreenEventScalarKind.jsonValue,
     );
   }
   final shape = _shapeFromInterface(
@@ -306,7 +306,7 @@ SurfaceScreenEventShapeV1? _shapeFromType(
   return shape;
 }
 
-SurfaceScreenEventShapeV1? _shapeFromInterface(
+SurfaceScreenEventShape? _shapeFromInterface(
   InterfaceType type, {
   required LegacyStandaloneScreenContractInput input,
   required FieldElement field,
@@ -317,10 +317,10 @@ SurfaceScreenEventShapeV1? _shapeFromInterface(
   final name = element.name;
   if (isCore && type.typeArguments.isEmpty) {
     final scalar = switch (name) {
-      'bool' => SurfaceScreenEventScalarKindV1.boolean,
-      'int' => SurfaceScreenEventScalarKindV1.integer,
-      'double' => SurfaceScreenEventScalarKindV1.doubleValue,
-      'String' => SurfaceScreenEventScalarKindV1.string,
+      'bool' => SurfaceScreenEventScalarKind.boolean,
+      'int' => SurfaceScreenEventScalarKind.integer,
+      'double' => SurfaceScreenEventScalarKind.doubleValue,
+      'String' => SurfaceScreenEventScalarKind.string,
       _ => null,
     };
     if (scalar != null) return SurfaceScreenEventScalarShapeV1(scalar);

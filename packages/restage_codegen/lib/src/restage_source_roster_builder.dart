@@ -1,18 +1,17 @@
 import 'dart:convert';
 
-import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:glob/glob.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
-import 'package:restage_codegen/src/authored_library_predicate.dart';
+import 'package:restage_codegen/src/dart_source_parsing.dart';
 import 'package:restage_codegen/src/helper_registry.dart'
     show libraryUriMatchesOrigin;
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
+import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
@@ -20,7 +19,6 @@ import 'package:restage_shared/restage_shared.dart'
     show FlowDeliveryMode, Surface, kBaselineCatalogVersion;
 
 const String _restageOrigin = 'package:restage';
-const String _authoredDartGlob = 'lib/**.dart';
 const String _canonicalPublicationOwner = 'restage_codegen:outputs';
 
 /// The one builder that materializes every authored library's generated Dart
@@ -90,9 +88,14 @@ final class RestageSourceRosterBuilder implements Builder {
         log.severe(issue.toLogString());
       }
     }
-    // Always materialize the fixed package index and output ledger before
-    // failing. The publication bundle has its own post-process invalid marker;
-    // this source-admission failure remains deliberately visible to callers.
+    // Both ledgers are written into the consuming package's own tree, so a
+    // package that declares no Restage source and reports no problem with one
+    // is left alone rather than given two files recording nothing.
+    if (roster.recordsNothing) return;
+    // Otherwise always materialize the fixed package index and output ledger
+    // before failing. The publication bundle has its own post-process invalid
+    // marker; this source-admission failure remains deliberately visible to
+    // callers.
     await Future.wait<void>([
       buildStep.writeAsString(
         AssetId(packageName, 'assets/restage/source-index.json'),
@@ -203,17 +206,19 @@ RestageSourceRoster _withFixedPublicationManifest({
 /// Canonical declarations are recognized only through resolved SDK analyzer
 /// elements.  The legacy branch below is intentionally the only branch that
 /// consults a source directory for product meaning.
+///
+/// [candidates] lets a caller that has already selected this package's
+/// surface-source libraries hand them over rather than select them a second
+/// time; omitting it selects them here.
 @visibleForTesting
 Future<RestageSourceRoster> collectRestageSourceRoster(
   BuildStep buildStep, {
   RestageOutputPlacementPlan? plan,
+  List<AssetId>? candidates,
 }) async {
   final effectivePlan = plan ?? RestageOutputPlacementPlan.defaults;
-  final sourceAssets = await buildStep
-      .findAssets(Glob(_authoredDartGlob))
-      .where(isAuthoredDartLibraryAsset)
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
+  final sourceAssets =
+      candidates ?? await selectRestageSurfaceCandidates(buildStep);
 
   final declarations = <RestageSourceDeclaration>[];
   final normalizedFlows = <NormalizedFlowSource>[];
@@ -1045,11 +1050,7 @@ List<Issue> _legacyAdmissionIssues({
   required bool checkNeutralPart,
 }) {
   final issues = <Issue>[];
-  final parsed = parseString(
-    content: sourceText,
-    path: assetId.path,
-    throwIfDiagnostics: false,
-  ).unit;
+  final parsed = parseUnresolvedDart(sourceText, path: assetId.path);
 
   final pathMatch = switch (kind) {
     RestageRosterSourceKind.screen =>

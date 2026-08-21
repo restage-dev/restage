@@ -16,7 +16,7 @@ final class RetryFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StartScreenDescriptor.ref,
+      initial: startScreenRef,
       flowState: const {
         'attempts': FlowStateDeclaration(
           type: FlowDataType.int,
@@ -25,23 +25,23 @@ final class RetryFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(StartScreenDescriptor.ref).on(StartScreen.next).goTo(retry),
+        screen(startScreenRef).on(StartScreen.next).goTo(retry),
         decision(
           retry,
           branches: [
             flowBranch(
               when: state('attempts').lessThan(3),
-              target: RetryScreenDescriptor.ref,
+              target: retryScreenRef,
             ),
           ],
-          defaultBranch: flowBranchTarget(FailureScreenDescriptor.ref),
+          defaultBranch: flowBranchTarget(failureScreenRef),
         ),
-        screen(RetryScreenDescriptor.ref)
+        screen(retryScreenRef)
             .on(RetryScreen.failed)
             .goTo(retry)
             .on(RetryScreen.succeeded)
             .goTo(done),
-        screen(FailureScreenDescriptor.ref).on(FailureScreen.finish).goTo(done),
+        screen(failureScreenRef).on(FailureScreen.finish).goTo(done),
         end(done, result: {}),
       ],
     );

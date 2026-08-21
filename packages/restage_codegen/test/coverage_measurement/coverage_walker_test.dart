@@ -95,8 +95,8 @@ void main() {
   });
 
   group(
-      'bucketForEmit — emit-aware bucketing (B1: emit-confirmed, not '
-      'merely classifier-recognised)', () {
+      'bucketForEmit — emit-aware bucketing (emit-confirmed, not merely '
+      'classifier-recognised)', () {
     test(
         'a ComposableWidget the classifier recognises as inlinable but whose '
         'strict emit FAILED buckets to classifierOnly, not an inlinable '

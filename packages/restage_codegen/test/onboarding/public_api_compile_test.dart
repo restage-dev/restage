@@ -18,24 +18,37 @@ void main() {
     expect(readme, isNot(contains('Restage servers')));
     expect(readme, isNot(contains("Restage.configure(apiKey: 'rs_pk_...')")));
     expect(readme, isNot(contains('use Restage servers')));
-    expect(readme, contains('RestageOnboarding'));
-    expect(readme, contains('SurfaceFlowRef<'));
+    // The current host widget, not the backward-compatible `RestageOnboarding`
+    // facade over it.
+    expect(readme, contains('RestageFlowGraph'));
     expect(readme, contains('FlowUnavailablePolicy'));
-    expect(readme, contains('FlowActionRegistry'));
-    expect(readme, contains('onComplete'));
-    expect(readme, contains('AssetFlowResolver'));
     expect(readme, contains('AssetVariantResolver'));
-    expect(readme, contains('missing, extra, or mistyped fields'));
-    expect(readme, contains('a bad terminal result fails closed'));
     expect(readme, isNot(contains('?? false')));
+
+    // The flow API details moved from the README to the package's flow guide;
+    // the pins follow the content.
+    final flowsDoc = _readFlutterSdkFlowsDoc();
+    expect(flowsDoc, contains('SurfaceFlowRef<'));
+    expect(flowsDoc, contains('FlowActionRegistry'));
+    expect(flowsDoc, contains('onComplete'));
+    expect(flowsDoc, contains('AssetFlowResolver'));
+    expect(flowsDoc, contains('missing, extra, or mistyped fields'));
+    expect(flowsDoc, contains('a bad terminal result fails closed'));
   });
 
   test('public SDK and codegen sources avoid internal roadmap wording', () {
     final root = _repoRoot();
     final files = [
       File('${root.path}/packages/restage/README.md'),
+      File('${root.path}/packages/restage/CHANGELOG.md'),
+      File('${root.path}/packages/restage_codegen/README.md'),
+      File('${root.path}/packages/restage_codegen/CHANGELOG.md'),
       ..._dartFilesIn(Directory('${root.path}/packages/restage/lib')),
       ..._dartFilesIn(Directory('${root.path}/packages/restage_codegen/lib')),
+      // The guard's own file carries the banned phrases as pins; skip it.
+      ..._dartFilesIn(
+        Directory('${root.path}/packages/restage_codegen/test'),
+      ).where((f) => !f.path.endsWith('public_api_compile_test.dart')),
     ];
     final banned = <Pattern>[
       'Pre-implementation',
@@ -49,7 +62,7 @@ void main() {
       'unsupportedInPhase1',
       RegExp(r'\bE0\b'),
       RegExp(r'\bADR\b'),
-      RegExp(r'\bPhase [0-9]\b'),
+      RegExp(r'\bPhase[- ][0-9]\b'),
       RegExp(r'\bthis release\b'),
       RegExp(r'\bfuture release\b'),
       RegExp(r'\blater release\b'),
@@ -81,22 +94,22 @@ void main() {
 import 'package:flutter/widgets.dart';
 import 'package:restage/restage.dart';
 
-abstract final class FirstRunFlowDescriptor {
-  static final SurfaceFlowRef<FirstRunResult> ref =
-      SurfaceFlowRef<FirstRunResult>(
-    id: 'first_run',
-    version: 1,
-    minClient: 3,
-    surface: Surface.onboarding,
-    decodeResult: _decodeResult,
-  );
+// Mirrors the 2.0 generated shape: one top-level handle, a top-level decoder,
+// no holder class.
+final SurfaceFlowRef<FirstRunResult> firstRunFlowRef =
+    SurfaceFlowRef<FirstRunResult>(
+  id: 'first_run',
+  version: 1,
+  minClient: 3,
+  surface: Surface.onboarding,
+  decodeResult: _decodeFirstRunFlowResult,
+);
 
-  static FirstRunResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || result['completed'] is! bool) {
-      throw const FormatException('Invalid first_run result.');
-    }
-    return FirstRunResult(completed: result['completed']! as bool);
+FirstRunResult _decodeFirstRunFlowResult(Map<String, Object?> result) {
+  if (result.length != 1 || result['completed'] is! bool) {
+    throw const FormatException('Invalid first_run result.');
   }
+  return FirstRunResult(completed: result['completed']! as bool);
 }
 
 final class FirstRunResult {
@@ -156,7 +169,7 @@ final class PublicOnboardingUsage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RestageOnboarding<FirstRunResult>(
-      flow: FirstRunFlowDescriptor.ref,
+      flow: firstRunFlowRef,
       actions: FirstRunActions(
         requestNotifications: (_, context) async {
           final operationId = context.operationId;
@@ -203,15 +216,15 @@ final class PublicSurfaceUsage extends StatelessWidget {
     version: 1,
     minClient: 3,
     surface: Surface.message,
-    decodeResult: FirstRunFlowDescriptor._decodeResult,
+    decodeResult: _decodeFirstRunFlowResult,
   );
 
   @override
   Widget build(BuildContext context) {
     final SurfaceEventHandler onEvent = (eventId, value) {};
-    return RestageSurfaceEventDispatcher(
+    return RestageEventDispatcher(
       onEvent: onEvent,
-      child: RestageSurfaceFlow<FirstRunResult>(
+      child: RestageFlowGraph<FirstRunResult>(
         flow: messageRef,
         unavailable: const FlowUnavailablePolicy.hide(),
       ),
@@ -366,7 +379,7 @@ final class NotificationResult {
         contains('static final FlowActionDescriptor<void, NotificationResult>'),
         contains('requestNotificationsDescriptor ='),
         contains('descriptor: requestNotificationsDescriptor,'),
-        contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
+        contains('decodeResult: _decodeFirstRunFlowResult'),
         isNot(contains('typedef FlowActionHandler')),
         isNot(
           contains('final FlowActionHandler<void, NotificationResult> '
@@ -502,7 +515,15 @@ final class FirstRunFlow extends RestageFlow {
       generated,
       allOf(
         contains('SurfaceFlowRef<FirstRunResult>'),
-        contains('decodeResult: FirstRunFlowDescriptor._decodeResult'),
+        contains('decodeResult: _decodeFirstRunFlowResult'),
+        // The handle is the subject; the deprecated holder must still forward
+        // to it, or a source written against the old spelling breaks silently
+        // rather than at its deprecation warning.
+        contains('const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>('),
+        contains("@Deprecated('Use firstRunFlowRef')"),
+        contains(
+          'static const SurfaceFlowRef<FirstRunResult> ref = firstRunFlowRef;',
+        ),
       ),
     );
     await _assertGeneratedFixtureAnalyzes(result, sources);
@@ -1305,6 +1326,11 @@ Future<void> _assertGeneratedFixtureAnalyzes(
 
 String _readFlutterSdkReadme() {
   return File('${_repoRoot().path}/packages/restage/README.md')
+      .readAsStringSync();
+}
+
+String _readFlutterSdkFlowsDoc() {
+  return File('${_repoRoot().path}/packages/restage/doc/flows.md')
       .readAsStringSync();
 }
 

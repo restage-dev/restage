@@ -1,9 +1,8 @@
-// Canonical-Catalog fixture builders for the Phase 11 diff-tool suites.
+// Canonical-Catalog fixture builders for the diff-tool suites.
 //
 // Every builder defaults every field, so a test names only what it varies.
 // The diff tool joins entries by (library, wireId); these builders carry
-// real wire IDs, which the shipped legacy-v2 catalogs do not — see the
-// Phase 11 plan, Hard Question A.
+// real wire IDs, which the shipped legacy-v2 catalogs do not.
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Default library namespace used by the fixture builders.

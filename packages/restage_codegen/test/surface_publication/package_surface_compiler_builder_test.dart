@@ -385,6 +385,181 @@ final class OrphanPaywall extends StatelessWidget {
     );
   });
 
+  test('a screen reached only through a re-export does not resolve', () async {
+    // Documents a real limitation, found while asking whether the handle
+    // spelling weakened cross-library resolution. It did not — but neither
+    // spelling handles a barrel: screen discovery walks the flow's DIRECT
+    // imports, so a screen re-exported through another library is never a
+    // candidate and the build fails with `found 0`.
+    //
+    // Asserted as current behaviour rather than left as a passing-looking
+    // gap. It fails loudly, which is the right failure; it is the diagnostic
+    // that is unhelpful, since nothing tells the author a barrel is the
+    // problem.
+    const screen = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen()
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  static const finish = SurfaceEvent<void>('finish');
+
+  @override
+  Widget build(BuildContext context) => const Text('Welcome');
+}
+""";
+    const barrel = "export 'welcome.dart';";
+    const flow = """
+import 'package:restage/restage.dart';
+import '../shared/barrel.dart';
+part 'restage.generated/complex.restage.g.dart';
+
+@FlowGraph(surface: Surface.general)
+final class Complex extends RestageFlow {
+  const Complex();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+    return flow(
+      initial: welcomeRef,
+      states: [
+        screen(welcomeRef).on(Welcome.finish).goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+""";
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const <String, String>{
+        'apps_examples|lib/shared/welcome.dart': screen,
+        'apps_examples|lib/shared/barrel.dart': barrel,
+        'apps_examples|lib/journeys/complex.dart': flow,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isFalse);
+    expect(
+      result.errors.join('\n'),
+      contains('must resolve through one analyzer-authored library'),
+      reason: 'the limitation must stay loud; if this starts passing, '
+          're-exports became supported and this pin should be retired',
+    );
+  });
+
+  test(
+      'a same-named screen in another library does not capture a modern '
+      'handle reference', () async {
+    // Screen references match by CLASS NAME, so two classes both called
+    // `Welcome` are both candidates and only the owning library separates
+    // them. The deprecated holder spelling got that discrimination from its
+    // `ClassElement`; the 2.0 handle is a top-level variable with none, so it
+    // carries its library identifier instead.
+    //
+    // This is the modern `@Screen()` + `@FlowGraph` path, which resolves
+    // through this compiler — not the legacy map lookup.
+    //
+    // Measured, because the obvious reading is wrong: deleting the
+    // `libraryIdentifier` branch does NOT fail this test. Resolution then
+    // falls through to `_isImportedScreen`, which admits a screen only from
+    // the flow's own library or one it actually imports — so the decoy is
+    // excluded either way. Two independent mechanisms give the same answer,
+    // and the newer one is defensive rather than load-bearing. This test
+    // guards the OUTCOME (the right screen wins), not either mechanism.
+    const screen = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen()
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  static const finish = SurfaceEvent<void>('finish');
+
+  @override
+  Widget build(BuildContext context) => const Text('Welcome');
+}
+""";
+    // Same CLASS NAME, different library and a distinct id, never imported by
+    // the flow. A distinct id matters: two `@Screen()` classes in same-named
+    // files derive the same id and the build refuses them as a duplicate
+    // identity before resolution runs — so that case cannot reach the
+    // disambiguation at all. This one can: both declare `Welcome`, so both
+    // carry `WelcomeDescriptor` as their descriptor name and both generate a
+    // top-level `welcomeRef` in their own library.
+    const decoy = """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+part 'restage.generated/sidebar.restage.g.dart';
+
+@Screen()
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+  static const finish = SurfaceEvent<void>('finish');
+
+  @override
+  Widget build(BuildContext context) => const Text('Decoy');
+}
+""";
+    const flow = """
+import 'package:restage/restage.dart';
+import '../shared/welcome.dart';
+part 'restage.generated/complex.restage.g.dart';
+
+@FlowGraph(surface: Surface.general)
+final class Complex extends RestageFlow {
+  const Complex();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+    return flow(
+      initial: welcomeRef,
+      states: [
+        screen(welcomeRef).on(Welcome.finish).goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+""";
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const <String, String>{
+        'apps_examples|lib/shared/welcome.dart': screen,
+        'apps_examples|lib/decoy/sidebar.dart': decoy,
+        'apps_examples|lib/journeys/complex.dart': flow,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(
+      result.succeeded,
+      isTrue,
+      reason: 'a same-named screen the flow never imports must not make the '
+          'reference ambiguous:\n${result.errors.join('\n')}',
+    );
+    expect(
+      result.errors.join('\n'),
+      isNot(contains('must resolve through one analyzer-authored library')),
+    );
+  });
+
   test('publishes a canonical class-shaped advanced flow', () async {
     const screen = '''
 import 'package:flutter/material.dart';
@@ -413,9 +588,9 @@ final class Complex extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: WelcomeDescriptor.ref,
+      initial: welcomeRef,
       states: [
-        screen(WelcomeDescriptor.ref).on(Welcome.finish).goTo(done),
+        screen(welcomeRef).on(Welcome.finish).goTo(done),
         end(done, result: {}),
       ],
     );
@@ -484,9 +659,9 @@ final class WelcomeFlow extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: WelcomeDescriptor.ref,
+      initial: welcomeRef,
       states: [
-        screen(WelcomeDescriptor.ref).on(Welcome.finish).goTo(done),
+        screen(welcomeRef).on(Welcome.finish).goTo(done),
         end(done, result: {}),
       ],
     );
@@ -553,13 +728,13 @@ final class WelcomeFlow extends RestageFlow {
     );
     expect(
       legacyScreen.publication.eventContract!.events.single.arguments,
-      isA<SurfaceScreenEventValueArgumentsV1>().having(
+      isA<SurfaceScreenEventValueArguments>().having(
         (arguments) => arguments.shape,
         'shape',
         isA<SurfaceScreenEventScalarShapeV1>().having(
           (shape) => shape.kind,
           'kind',
-          SurfaceScreenEventScalarKindV1.string,
+          SurfaceScreenEventScalarKind.string,
         ),
       ),
       reason: 'typedef-resolved legacy events retain the strict schema',
@@ -616,9 +791,9 @@ final class OnboardingAdvanced extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: onboarding.WelcomeDescriptor.ref,
+      initial: onboarding.welcomeRef,
       states: [
-        screen(onboarding.WelcomeDescriptor.ref)
+        screen(onboarding.welcomeRef)
             .on(onboarding.Welcome.finish)
             .goTo(done),
         end(done, result: {}),
@@ -642,9 +817,9 @@ final class MessageAdvanced extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: message.WelcomeDescriptor.ref,
+      initial: message.welcomeRef,
       states: [
-        screen(message.WelcomeDescriptor.ref)
+        screen(message.welcomeRef)
             .on(message.Welcome.finish)
             .goTo(done),
         end(done, result: {}),
@@ -803,7 +978,11 @@ final class MinimumNotice extends StatelessWidget {
           'lib/features/restage.generated/minimum_notice.restage.g.dart']!,
     );
     expect(generatedPart, contains('builtInFloor: 3'));
-    expect(generatedPart, contains('minClient: 3'));
+    // A categorized screen carries its authored floor on the handle's
+    // provenance, not on an in-flow neutral reference — that reference is no
+    // longer generated for a categorized screen. Same authored value, read
+    // where it now lives.
+    expect(generatedPart, contains('builtInFloor: 3'));
   });
 
   test('propagates authored embedded-screen minClient into the flow document',
@@ -839,9 +1018,9 @@ final class MinimumFlow extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: notice.MinimumNoticeDescriptor.ref,
+      initial: notice.minimumNoticeRef,
       states: [
-        screen(notice.MinimumNoticeDescriptor.ref)
+        screen(notice.minimumNoticeRef)
             .on(notice.MinimumNotice.finish)
             .goTo(done),
         end(done, result: {}),
@@ -930,9 +1109,9 @@ final class AdvancedTrigger extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: DerivedFloorDescriptor.ref,
+      initial: derivedFloorRef,
       states: [
-        screen(DerivedFloorDescriptor.ref)
+        screen(derivedFloorRef)
             .on(DerivedFloor.next)
             .goTo(done),
         end(done, result: {}),
@@ -1047,9 +1226,9 @@ final class FlatParent extends RestageFlow {
     final child = flowNode('child');
     final done = endState('done');
     return flow(
-      initial: SharedEntryDescriptor.ref,
+      initial: sharedEntryRef,
       states: [
-        screen(SharedEntryDescriptor.ref).on(SharedEntry.next).goTo(child),
+        screen(sharedEntryRef).on(SharedEntry.next).goTo(child),
         subFlow(
           child,
           flow: flatLeafRef,
@@ -1131,9 +1310,9 @@ final class AdvancedLeaf extends RestageFlow {
   FlowDef buildFlow() {
     final done = endState('done');
     return flow(
-      initial: AdvancedEntryDescriptor.ref,
+      initial: advancedEntryRef,
       states: [
-        screen(AdvancedEntryDescriptor.ref)
+        screen(advancedEntryRef)
             .on(AdvancedEntry.next)
             .goTo(done),
         end(done, result: {}),
@@ -1168,9 +1347,9 @@ final class AdvancedParent extends RestageFlow {
     final child = flowNode('child');
     final done = endState('done');
     return flow(
-      initial: AdvancedEntryDescriptor.ref,
+      initial: advancedEntryRef,
       states: [
-        screen(AdvancedEntryDescriptor.ref).on(AdvancedEntry.next).goTo(child),
+        screen(advancedEntryRef).on(AdvancedEntry.next).goTo(child),
         subFlow(
           child,
           flow: advancedLeafRef,
@@ -1282,9 +1461,9 @@ final class CrossSurfaceParent extends RestageFlow {
     final child = flowNode('child');
     final done = endState('done');
     return flow(
-      initial: CrossSurfaceEntryDescriptor.ref,
+      initial: crossSurfaceEntryRef,
       states: [
-        screen(CrossSurfaceEntryDescriptor.ref)
+        screen(crossSurfaceEntryRef)
             .on(CrossSurfaceEntry.next)
             .goTo(child),
         subFlow(

@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
@@ -9,6 +10,46 @@ import '../helpers.dart';
 
 void main() {
   group('flow definition frontend', () {
+    test('a source extending the host widget is told which class it wanted',
+        () async {
+      // `RestageFlowGraph` mounts a flow; `RestageFlow` is what a flow source
+      // extends, and the two sit next to each other in a completion list.
+      //
+      // The analyzer already rejects this (the widget is a `final class`), so
+      // this test is really asking whether the build ALSO reaches the case and
+      // says which of the pair was wanted. If build_runner stopped at the
+      // semantic error the branch would be unreachable and the diagnostic
+      // would be dead code.
+      final result = await _inspect({
+        'lib/onboarding/flows/mixed_up.dart': """
+import 'package:restage/restage.dart';
+
+@FlowGraph(id: 'mixed_up', surface: Surface.onboarding)
+final class MixedUpFlow extends RestageFlowGraph {
+  const MixedUpFlow();
+
+  @override
+  FlowDef buildFlow() => flow(initial: null, states: const []);
+}
+""",
+      });
+
+      expect(result.flows, isEmpty);
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.unsupportedBaseClass),
+      );
+      expect(
+        result.issues.map((i) => i.message).join('\n'),
+        allOf(
+          contains('RestageFlowGraph is the host widget'),
+          contains('extends RestageFlow'),
+        ),
+        reason: 'the message must name the class the author wanted, not just '
+            'restate that the base class is unsupported',
+      );
+    });
+
     test('normalizes a legacy class flow into the shared source model',
         () async {
       final result = await _inspect({

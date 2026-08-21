@@ -2,7 +2,7 @@ name: restage_codegen
 description: >-
   Write your UI as real Flutter widgets — your own design system, not a dialect —
   and restage_codegen compiles it into the blobs the Restage SDK ships over the air.
-version: 1.3.0
+version: 2.0.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
 issue_tracker: https://github.com/restage-dev/restage/issues
@@ -37,6 +37,8 @@ dependencies:
   meta: ^1.16.0
   package_config: ">=2.0.0 <4.0.0"
   path: ^1.9.0
+  restage_measurement_schema:
+    path: ../restage_measurement_schema
   restage_shared:
     path: ../restage_shared
   rfw_catalog_compiler:
@@ -45,28 +47,15 @@ dependencies:
     path: ../rfw_catalog_schema
 
 dev_dependencies:
-  # PINNED EXACTLY, and not by preference.
+  # Exact pins, not ranges. The build-integration tests configure the
+  # builders in ways the public `build_test` API cannot express, so they
+  # depend on implementation details that semver does not cover and that
+  # have changed in a patch release before. Exact pins keep a locked and an
+  # unlocked resolve identical.
   #
-  # The persistent build proof in `test/` reaches into these packages' `src/`
-  # libraries. It does that because the configuration it needs cannot be
-  # expressed through the public test API: that API registers a post-process
-  # builder with `hideOutput` hard-set, and synthesizes a target's `sources`
-  # from the literal input paths of each call rather than from a glob. A build
-  # written through it is therefore neither source-output nor incremental, and
-  # measures the harness instead of the build system.
-  #
-  # `src/` is not covered by semver, and a PATCH release has already refactored
-  # it out from under this proof — `TestingOverrides.flattenOutput` was removed
-  # and `BuildPlan.load` changed to take a single positional argument, five
-  # analyzer errors. Ranges let that arrive silently in any tree that resolves
-  # fresh. Exact pins make both a locked and an unlocked resolve agree.
-  #
-  # These are dev-dependencies, so they are not transitive: nothing a consumer
-  # of this package resolves is affected. Raising them is a deliberate act that
-  # must re-verify the proof against the new internals.
-  #
-  # `build` itself is a regular dependency above and keeps its range; pinning
-  # `build_runner` holds it in place transitively.
+  # These are dev-dependencies, so nothing a consumer of this package
+  # resolves is affected. Raising them means re-verifying the integration
+  # tests. `build` itself is a regular dependency above and keeps its range.
   build_config: 1.3.0
   build_runner: 2.15.0
   build_test: 3.5.15
@@ -78,6 +67,8 @@ dev_dependencies:
   # Test-only standards oracle for emitted Draft 2020-12 constraint keywords.
   json_schema: 5.2.2
   logging: ^1.2.0
+  restage_cli:
+    path: ../restage_cli
   test: ^1.25.0
   # Parses build.yaml in the build.yaml ↔ Builder.buildExtensions consistency
   # test (the production build_runner reads build.yaml; tests read the getter).

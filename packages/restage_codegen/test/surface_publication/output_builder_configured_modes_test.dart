@@ -181,7 +181,7 @@ void main() {
     final rfwTextEntry = bundle.entries.singleWhere(
       (entry) => entry.logicalPath == rfwTextPath,
     );
-    expect(rfwTextEntry.role, RestageBundleEntryRoleV1.rfwText);
+    expect(rfwTextEntry.role, RestageBundleEntryRole.rfwText);
     expect(
       indexEntries.any((entry) => entry['path'] == rfwTextPath),
       isFalse,

@@ -13,7 +13,7 @@ import 'package:test/test.dart';
 import '../helpers.dart';
 
 /// The authored `@RestageWidget` custom widgets in the real example package's
-/// `lib/widgets/` directory — the real-package surface B3 measures.
+/// `lib/widgets/` directory — the real-package surface this scanner measures.
 const _kExampleWidgetNames = {
   'AcmeBorder',
   'AcmeStack',

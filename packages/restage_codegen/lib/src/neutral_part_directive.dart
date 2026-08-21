@@ -5,8 +5,8 @@
 // placement plan, so a package configuring a non-default layout gets a
 // diagnostic naming the exact URI it must declare rather than a hardcoded one.
 
-import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:restage_codegen/src/dart_source_parsing.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 
@@ -109,11 +109,7 @@ List<Issue> neutralPartDirectiveIssuesForSource({
   required RestageOutputPlacementPlan plan,
 }) =>
     neutralPartDirectiveIssues(
-      unit: parseString(
-        content: sourceText,
-        path: libraryPath,
-        throwIfDiagnostics: false,
-      ).unit,
+      unit: parseUnresolvedDart(sourceText, path: libraryPath),
       libraryPath: libraryPath,
       plan: plan,
     );

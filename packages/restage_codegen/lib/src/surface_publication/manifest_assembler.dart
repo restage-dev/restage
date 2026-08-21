@@ -22,7 +22,7 @@ final class SurfacePublicationArtifactInput {
   }) : _bytes = _copyBytes(bytes);
 
   final String path;
-  final SurfacePublicationArtifactRoleV1 role;
+  final SurfacePublicationArtifactRole role;
   final String? id;
   final Uint8List _bytes;
 
@@ -52,12 +52,12 @@ final class SurfacePublicationScreenContractFacts {
 
   final int contractVersion;
   final CapabilityManifest capabilities;
-  final SurfaceScreenEventSchemaV1 eventContract;
+  final SurfaceScreenEventSchema eventContract;
 
   String get eventContractHash =>
-      SurfaceScreenEventContractHashV1.hash(eventContract);
+      SurfaceScreenEventContractHash.hash(eventContract);
 
-  String get contractFingerprint => SurfaceScreenContractFingerprintV1.hash(
+  String get contractFingerprint => SurfaceScreenContractFingerprint.hash(
         sourceKind: SurfaceSourceKind.screen,
         payloadKind: SurfacePayloadKind.blob,
         capabilities: capabilities,
@@ -112,7 +112,7 @@ final class SurfacePublicationAssemblyResult {
     required List<int> canonicalBytes,
   }) : _canonicalBytes = Uint8List.fromList(canonicalBytes);
 
-  final SurfacePublicationManifestV1 manifest;
+  final SurfacePublicationManifest manifest;
   final Uint8List _canonicalBytes;
 
   Uint8List get canonicalBytes => Uint8List.fromList(_canonicalBytes);
@@ -150,7 +150,7 @@ abstract final class SurfacePublicationManifestAssembler {
     }
 
     final filesByPath = <String, Uint8List>{};
-    final declarationsByPath = <String, SurfacePublicationArtifactV1>{};
+    final declarationsByPath = <String, SurfacePublicationArtifact>{};
     for (final publication in prepared) {
       for (final artifact in publication.artifacts) {
         final previousBytes = filesByPath[artifact.declaration.path];
@@ -178,10 +178,10 @@ abstract final class SurfacePublicationManifestAssembler {
       }
     }
 
-    final manifest = SurfacePublicationManifestV1(
+    final manifest = SurfacePublicationManifest(
       publications: [
         for (final publication in prepared)
-          SurfacePublicationManifestEntryV1(
+          SurfacePublicationManifestEntry(
             artifacts: [
               for (final artifact in publication.artifacts)
                 artifact.declaration,
@@ -231,7 +231,7 @@ abstract final class SurfacePublicationManifestAssembler {
     final paths = <String>{};
     for (final artifact in input.artifacts) {
       final bytes = _copyBytes(artifact.bytes);
-      final declaration = SurfacePublicationArtifactV1(
+      final declaration = SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(bytes),
         path: artifact.path,
         role: artifact.role,
@@ -255,16 +255,16 @@ abstract final class SurfacePublicationManifestAssembler {
         .where(
           (artifact) =>
               artifact.declaration.role ==
-              SurfacePublicationArtifactRoleV1.flowDocument,
+              SurfacePublicationArtifactRole.flowDocument,
         )
         .toList(growable: false);
     final blobs = _artifactsById(
       artifacts,
-      SurfacePublicationArtifactRoleV1.screenBlob,
+      SurfacePublicationArtifactRole.screenBlob,
     );
     final sidecars = _artifactsById(
       artifacts,
-      SurfacePublicationArtifactRoleV1.capabilitySidecar,
+      SurfacePublicationArtifactRole.capabilitySidecar,
     );
 
     if (flowDocuments.length > 1) {
@@ -406,7 +406,7 @@ abstract final class SurfacePublicationManifestAssembler {
     }
 
     final contractFacts = input.screenContractFacts;
-    final publication = SurfacePublicationV1(
+    final publication = SurfacePublication(
       surface: input.surface,
       slug: input.slug,
       sourceKind: input.sourceKind,
@@ -438,7 +438,7 @@ final class _PreparedPublication {
     required this.sources,
   });
 
-  final SurfacePublicationV1 publication;
+  final SurfacePublication publication;
   final List<_PreparedArtifact> artifacts;
   final SurfacePayload payload;
   final List<String> sources;
@@ -447,7 +447,7 @@ final class _PreparedPublication {
 final class _PreparedArtifact {
   const _PreparedArtifact({required this.declaration, required this.bytes});
 
-  final SurfacePublicationArtifactV1 declaration;
+  final SurfacePublicationArtifact declaration;
   final Uint8List bytes;
 }
 
@@ -497,7 +497,7 @@ void _validateFactShape(SurfacePublicationAssemblyInput input) {
 
 Map<String, _PreparedArtifact> _artifactsById(
   List<_PreparedArtifact> artifacts,
-  SurfacePublicationArtifactRoleV1 role,
+  SurfacePublicationArtifactRole role,
 ) {
   final result = <String, _PreparedArtifact>{};
   for (final artifact in artifacts.where(
@@ -699,15 +699,15 @@ int _compareArtifacts(_PreparedArtifact left, _PreparedArtifact right) {
   return left.declaration.path.compareTo(right.declaration.path);
 }
 
-int _roleOrder(SurfacePublicationArtifactRoleV1 role) => switch (role) {
-      SurfacePublicationArtifactRoleV1.flowDocument => 0,
-      SurfacePublicationArtifactRoleV1.screenBlob => 1,
-      SurfacePublicationArtifactRoleV1.capabilitySidecar => 2,
+int _roleOrder(SurfacePublicationArtifactRole role) => switch (role) {
+      SurfacePublicationArtifactRole.flowDocument => 0,
+      SurfacePublicationArtifactRole.screenBlob => 1,
+      SurfacePublicationArtifactRole.capabilitySidecar => 2,
     };
 
 bool _sameArtifactDeclaration(
-  SurfacePublicationArtifactV1 left,
-  SurfacePublicationArtifactV1 right,
+  SurfacePublicationArtifact left,
+  SurfacePublicationArtifact right,
 ) =>
     left.contentHash == right.contentHash &&
     left.path == right.path &&

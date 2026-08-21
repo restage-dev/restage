@@ -183,7 +183,7 @@ Object x() => Text(
     });
   });
 
-  group('defers — incomplete static config extraction (L1)', () {
+  group('defers — incomplete static config extraction', () {
     test('a dynamic (non-const) locale DEFERS, naming the param', () async {
       final r = await run(
         r"Text(NumberFormat.currency(locale: someLocale, symbol: r'$', "

@@ -21,10 +21,10 @@ final class PaywallArtifactFile {
   PaywallArtifactFile({
     required this.path,
     required List<int> bytes,
-    required SurfacePublicationArtifactRoleV1 role,
+    required SurfacePublicationArtifactRole role,
     String? id,
   })  : bytes = Uint8List.fromList(bytes),
-        artifact = SurfacePublicationArtifactV1(
+        artifact = SurfacePublicationArtifact(
           contentHash: CapabilitySidecar.hashBlob(bytes),
           path: path,
           role: role,
@@ -33,7 +33,7 @@ final class PaywallArtifactFile {
 
   final String path;
   final Uint8List bytes;
-  final SurfacePublicationArtifactV1 artifact;
+  final SurfacePublicationArtifact artifact;
 
   String get contentHash => artifact.contentHash;
 }
@@ -71,13 +71,13 @@ final class PaywallScreenArtifactFacts {
       blob: PaywallArtifactFile(
         path: blobPath,
         bytes: blobBytes,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
         id: id,
       ),
       capabilitySidecar: PaywallArtifactFile(
         path: capabilityPath,
         bytes: capabilityBytes,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
         id: id,
       ),
       sidecar: sidecar,
@@ -96,7 +96,7 @@ final class PaywallScreenArtifactFacts {
   final PaywallArtifactFile capabilitySidecar;
   final CapabilitySidecar sidecar;
 
-  List<SurfacePublicationArtifactV1> get artifacts => [
+  List<SurfacePublicationArtifact> get artifacts => [
         blob.artifact,
         capabilitySidecar.artifact,
       ];
@@ -150,15 +150,15 @@ final class PaywallArtifactFacts {
   /// Exact manifest facts for the standalone specialized paywall payload.
   /// Returns an empty list when the translator deliberately suppressed that
   /// payload for a flow-only navigation source.
-  List<SurfacePublicationArtifactV1> get standaloneArtifacts =>
+  List<SurfacePublicationArtifact> get standaloneArtifacts =>
       standalone == null ? const [] : standalone!.artifacts;
 
   /// Exact manifest facts for the navigation-flow payload, including every
   /// adapter screen and its matching sidecar.
-  List<SurfacePublicationArtifactV1> get flowArtifacts {
+  List<SurfacePublicationArtifact> get flowArtifacts {
     final document = flowDocument;
     if (document == null) return const [];
-    final entries = <SurfacePublicationArtifactV1>[document.artifact];
+    final entries = <SurfacePublicationArtifact>[document.artifact];
     final ordered = flowScreens.values.toList()
       ..sort((left, right) => left.id.compareTo(right.id));
     for (final screen in ordered) {
@@ -318,7 +318,7 @@ abstract final class PaywallArtifactAdapter {
         : PaywallArtifactFile(
             path: flowDocumentPath,
             bytes: flowBytes!,
-            role: SurfacePublicationArtifactRoleV1.flowDocument,
+            role: SurfacePublicationArtifactRole.flowDocument,
           );
 
     final flowScreens = <String, PaywallScreenArtifactFacts>{};

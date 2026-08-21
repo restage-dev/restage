@@ -71,7 +71,7 @@ void main() {
     expect(bundle.entries, hasLength(4));
     expect(
       bundle.entries.map((entry) => entry.role),
-      contains(RestageBundleEntryRoleV1.rfwText),
+      contains(RestageBundleEntryRole.rfwText),
     );
   });
 
@@ -392,7 +392,7 @@ void main() {
     );
     const orphanTextPath = 'assets/general/screens/orphan.rfwtxt';
     final bundle = RestageSurfacePublicationBundle.valid(
-      manifest: SurfacePublicationManifestV1(publications: [alpha.entry]),
+      manifest: SurfacePublicationManifest(publications: [alpha.entry]),
       artifacts: alpha.files,
       ownedOutputs: {
         ...alpha.ownedOutputs,
@@ -464,7 +464,7 @@ void main() {
     final textEntry = bundle.entries.singleWhere(
       (entry) => entry.logicalPath == 'assets/paywalls/fluent_pro.rfwtxt',
     );
-    expect(textEntry.role, RestageBundleEntryRoleV1.rfwText);
+    expect(textEntry.role, RestageBundleEntryRole.rfwText);
     expect(
       bundle.entries.map((entry) => entry.logicalPath),
       containsAll(<String>[
@@ -535,7 +535,7 @@ void main() {
     );
     const orphanTextPath = 'assets/general/screens/orphan.rfwtxt';
     final bundle = RestageSurfacePublicationBundle.valid(
-      manifest: SurfacePublicationManifestV1(publications: [known.entry]),
+      manifest: SurfacePublicationManifest(publications: [known.entry]),
       artifacts: known.files,
       ownedOutputs: {
         ...known.ownedOutputs,
@@ -607,7 +607,7 @@ void main() {
 }) {
   final screenArtifacts = <String, ScreenArtifact>{};
   final files = <String, List<int>>{};
-  final artifacts = <SurfacePublicationArtifactV1>[];
+  final artifacts = <SurfacePublicationArtifact>[];
   final libraryPaths = <String, String>{};
   for (final id in screenIds) {
     final blob = utf8.encode('RFW blob for $slug/$id');
@@ -627,16 +627,16 @@ void main() {
     libraryPaths[blobPath] = libraryPath;
     libraryPaths[sidecarPath] = libraryPath;
     artifacts.addAll([
-      SurfacePublicationArtifactV1(
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(blob),
         path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
         id: id,
       ),
-      SurfacePublicationArtifactV1(
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
         path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
         id: id,
       ),
     ]);
@@ -674,14 +674,14 @@ void main() {
   files[flowPath] = flowBytes;
   libraryPaths[flowPath] = libraryPath;
   artifacts.add(
-    SurfacePublicationArtifactV1(
+    SurfacePublicationArtifact(
       contentHash: CapabilitySidecar.hashBlob(flowBytes),
       path: flowPath,
-      role: SurfacePublicationArtifactRoleV1.flowDocument,
+      role: SurfacePublicationArtifactRole.flowDocument,
     ),
   );
 
-  final publication = SurfacePublicationV1(
+  final publication = SurfacePublication(
     surface: Surface.paywall,
     slug: slug,
     sourceKind: SurfaceSourceKind.paywall,
@@ -689,7 +689,7 @@ void main() {
     payloadContentHash: CapabilitySidecar.hashBlob(flowBytes),
     deliveryMode: FlowDeliveryMode.general,
   );
-  final entry = SurfacePublicationManifestEntryV1(
+  final entry = SurfacePublicationManifestEntry(
     artifacts: artifacts,
     publication: publication,
   );
@@ -704,7 +704,7 @@ void main() {
 
   return (
     bundle: RestageSurfacePublicationBundle.valid(
-      manifest: SurfacePublicationManifestV1(publications: [entry]),
+      manifest: SurfacePublicationManifest(publications: [entry]),
       artifacts: files,
       ownedOutputs: {textPath: textBytes},
       artifactLibraryPaths: libraryPaths,

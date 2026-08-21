@@ -16,7 +16,7 @@ final class SetupSurveyFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: QuestionScreenDescriptor.ref,
+      initial: questionScreenRef,
       flowState: const {
         'answer': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -48,7 +48,7 @@ final class SetupSurveyFlow extends RestageFlow {
         ),
       ),
       states: [
-        screen(QuestionScreenDescriptor.ref)
+        screen(questionScreenRef)
             .on(QuestionScreen.answer)
             .capture('answer')
             .goTo(route)
@@ -60,17 +60,17 @@ final class SetupSurveyFlow extends RestageFlow {
           branches: [
             flowBranch(
               when: state('answer').equals('guided'),
-              target: GuidedScreenDescriptor.ref,
+              target: guidedScreenRef,
             ),
             flowBranch(
               when: state('returningUser').equals(true),
-              target: GuidedScreenDescriptor.ref,
+              target: guidedScreenRef,
             ),
           ],
-          defaultBranch: flowBranchTarget(ExploreScreenDescriptor.ref),
+          defaultBranch: flowBranchTarget(exploreScreenRef),
         ),
-        screen(GuidedScreenDescriptor.ref).on(GuidedScreen.finish).goTo(done),
-        screen(ExploreScreenDescriptor.ref).on(ExploreScreen.finish).goTo(done),
+        screen(guidedScreenRef).on(GuidedScreen.finish).goTo(done),
+        screen(exploreScreenRef).on(ExploreScreen.finish).goTo(done),
         end(done, result: {}),
       ],
     );

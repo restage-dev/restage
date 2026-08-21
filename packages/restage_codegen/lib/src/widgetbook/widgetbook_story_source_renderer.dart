@@ -233,7 +233,7 @@ String renderWidgetbookStorySource({
     out
       ..writeln('  setup: (context, child, args) =>')
       ..writeln(
-        '      $_restageRuntimePrefix.RestageSurfaceEventDispatcher(',
+        '      $_restageRuntimePrefix.RestageEventDispatcher(',
       )
       ..writeln('    onEvent: (eventId, value) =>')
       ..writeln('        previewEvents.add((id: eventId, value: value)),')

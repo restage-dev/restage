@@ -836,7 +836,7 @@ widget Paywall = AcmeBanner();
               isNot(contains('.format(')),
             ),
           ),
-          // L3 byte proof: the emitted BINARY blob decodes to a Paywall whose
+          // Byte proof: the emitted BINARY blob decodes to a Paywall whose
           // body root is a RestagePrice carrying the statically-extracted
           // config — the substitution survives the encode/decode round-trip.
           'apps_examples|assets/paywalls/price_tag.rfw':
@@ -2341,7 +2341,7 @@ class _StatefulRootMatcher extends Matcher {
 
 /// Asserts the emitted paywall binary decodes to a `Paywall` whose body root is
 /// a `RestagePrice` carrying the config statically extracted from the original
-/// `NumberFormat.currency('en_US', r'$', 2).format(9.99)` idiom — the L3 proof
+/// `NumberFormat.currency('en_US', r'$', 2).format(9.99)` idiom — the byte proof
 /// that the #2 auto-substitution survives the encode/decode round-trip.
 class _SubstitutedPriceMatcher extends Matcher {
   const _SubstitutedPriceMatcher();

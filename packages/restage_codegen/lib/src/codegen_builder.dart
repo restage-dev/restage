@@ -16,6 +16,8 @@ import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
@@ -132,6 +134,18 @@ final class ResolvedPaywallCompilationResult {
   final List<Issue> issues;
 }
 
+/// Exact generated paywall forms that carry transient Measurement markers.
+@immutable
+final class MeasurementPaywallRouteEmissionOwnership {
+  const MeasurementPaywallRouteEmissionOwnership({
+    required this.standalone,
+    required this.adapter,
+  });
+
+  final bool standalone;
+  final bool adapter;
+}
+
 /// Compiles every supplied analyzer-resolved paywall without choosing an
 /// output path. The package roster remains the sole path/identity authority.
 Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
@@ -140,6 +154,10 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   required AssetId assetId,
   required List<PaywallSourceFound> sources,
   required String? Function(ClassElement declaration) canonicalPaywallIdFor,
+  Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans =
+      const <String, MeasurementRouteEmissionPlan>{},
+  Map<String, MeasurementPaywallRouteEmissionOwnership> measurementRouteOwnership =
+      const <String, MeasurementPaywallRouteEmissionOwnership>{},
 }) async {
   if (sources.isEmpty) {
     return ResolvedPaywallCompilationResult(
@@ -180,16 +198,25 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
     astNodeFor: (fragment) =>
         buildStep.resolver.astNodeFor(fragment, resolve: true),
   );
-  final translator = ExpressionTranslator(
-    catalog: catalog,
-    helpers: helpers,
-    customWidgetClassifications: classification.classifications,
-    customWidgetBlueprints: classification.blueprints,
-    canonicalPaywallIdFor: canonicalPaywallIdFor,
-  );
+  ExpressionTranslator translatorFor(
+    PaywallSourceFound source,
+    MeasurementRouteEmissionPlan? routePlan,
+  ) =>
+      ExpressionTranslator(
+        catalog: catalog,
+        helpers: helpers,
+        customWidgetClassifications: classification.classifications,
+        customWidgetBlueprints: classification.blueprints,
+        canonicalPaywallIdFor: canonicalPaywallIdFor,
+        measurementRouteEmissionPlan: routePlan,
+      );
   final compiled = <CompiledPaywallArtifacts>[];
   for (final source in sources) {
-    final standalone = translator.translate(
+    final routePlan =
+        measurementRoutePlans['${library.identifier}#${source.className}'];
+    final routeOwnership =
+        measurementRouteOwnership['${library.identifier}#${source.className}'];
+    final probe = translatorFor(source, null).translate(
       source.rootExpression,
       entryId: source.id,
       sourcePath: assetId.path,
@@ -198,8 +225,22 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       rootEventHandlers: source.build.eventHandlers,
       buildContextParameter: source.build.buildContextParameter,
     );
-    final adapter = (standalone.navigation != null || standalone.suppressed)
-        ? translator.translate(
+    final usesFlowForm = probe.navigation != null || probe.suppressed;
+    final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
+    final emitAdapter = routeOwnership?.adapter ?? usesFlowForm;
+    final standalone = routePlan != null && emitStandalone
+        ? translatorFor(source, routePlan).translate(
+            source.rootExpression,
+            entryId: source.id,
+            sourcePath: assetId.path,
+            lineInfo: lineInfo,
+            rootState: source.build.state,
+            rootEventHandlers: source.build.eventHandlers,
+            buildContextParameter: source.build.buildContextParameter,
+          )
+        : probe;
+    final adapter = usesFlowForm
+        ? translatorFor(source, emitAdapter ? routePlan : null).translate(
             source.rootExpression,
             entryId: source.id,
             sourcePath: assetId.path,
@@ -209,7 +250,18 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             buildContextParameter: source.build.buildContextParameter,
             flowScreenContext: true,
           )
-        : standalone;
+        : routePlan != null && emitAdapter
+            ? translatorFor(source, routePlan).translate(
+                source.rootExpression,
+                entryId: source.id,
+                sourcePath: assetId.path,
+                lineInfo: lineInfo,
+                rootState: source.build.state,
+                rootEventHandlers: source.build.eventHandlers,
+                buildContextParameter: source.build.buildContextParameter,
+                flowScreenContext: true,
+              )
+            : probe;
     _addFatalTranslationIssues(issues, standalone.issues);
     _addFatalTranslationIssues(issues, adapter.issues);
     if (issues.isNotEmpty) continue;
@@ -731,6 +783,8 @@ final class RestageCodegenBuilder implements Builder {
   ) async {
     final compilation = await compileTrackedPackageSurfaces(
       buildStep,
+      measurementPolicy:
+          MeasurementCompilerPolicyInput.fromBuilderOptions(options),
       builderKey: 'restage_codegen:paywall_codegen',
     );
     if (!compilation.isValid) _surfaceIssues(compilation.issues);

@@ -813,7 +813,7 @@ void main() {
         fieldName: 'onTap',
       );
       final result = reflectType(type);
-      // A callback routes to the interactivity layer (Phase 2), and is NOT
+      // A callback routes to the interactivity layer, and is NOT
       // emitted as an unsupported-data diagnostic.
       expect(result, isA<A2uiShapeEventSurface>());
       expect(result, isNot(isA<A2uiShapeScopedOut>()));
@@ -1506,8 +1506,8 @@ void main() {
     });
   });
 
-  group('reflectType — callback signatures (Phase-2 interactivity)', () {
-    // The event surface now carries the callback signature the Phase-2 lowering
+  group('reflectType — callback signatures (interactivity)', () {
+    // The event surface now carries the callback signature the interactive lowering
     // reads: a 0-arg callback dispatches an event; a single-value
     // `ValueChanged<T>` writes the value back; any other shape is unsupported
     // (fail-loud before lowering, never mis-lowered to dispatch). ValueChanged

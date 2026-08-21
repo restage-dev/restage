@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
@@ -7,6 +5,7 @@ import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../index_probe_helpers.dart';
 
 /// Classifier-coverage fail-loud guards: a classify-level scope-out must be as
 /// loud as the walk / seam gates. Without the coverage gate, a widget the
@@ -70,17 +69,9 @@ dependencies:
   rfw_catalog_schema: any
 ''';
 
-final String _appPackageGraph = jsonEncode({
-  'roots': ['apps_examples'],
-  'packages': [
-    {
-      'name': 'apps_examples',
-      'version': '0.0.0',
-      'dependencies': ['flutter', 'restage', 'rfw_catalog_schema'],
-      'devDependencies': <String>[],
-    },
-  ],
-});
+final String _appPackageGraph = nativeScreenPackageGraph(
+  const {'flutter', 'restage', 'rfw_catalog_schema'},
+);
 
 void main() {
   group('UserA2uiCatalogBuilder — classifier coverage fails loud', () {
