@@ -29,7 +29,7 @@ final class MinimalOnboardingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StarterWelcomeScreenDescriptor.ref,
+      initial: starterWelcomeScreenRef,
       flowState: const {
         'mode': FlowStateDeclaration(
           type: FlowDataType.string,
@@ -37,11 +37,11 @@ final class MinimalOnboardingFlow extends RestageFlow {
         ),
       },
       states: [
-        screen(StarterWelcomeScreenDescriptor.ref)
+        screen(starterWelcomeScreenRef)
             .on(StarterWelcomeScreen.next)
-            .goTo(StarterQuestionScreenDescriptor.ref),
+            .goTo(starterQuestionScreenRef),
         // The fork: one screen, two events, the chosen answer written on the way.
-        screen(StarterQuestionScreenDescriptor.ref)
+        screen(starterQuestionScreenRef)
             .on(StarterQuestionScreen.guided)
             .write('mode', 'guided')
             .goTo(route)
@@ -54,16 +54,15 @@ final class MinimalOnboardingFlow extends RestageFlow {
           branches: [
             flowBranch(
               when: state('mode').equals('guided'),
-              target: StarterDoneGuidedScreenDescriptor.ref,
+              target: starterDoneGuidedScreenRef,
             ),
           ],
-          defaultBranch:
-              flowBranchTarget(StarterDoneExploreScreenDescriptor.ref),
+          defaultBranch: flowBranchTarget(starterDoneExploreScreenRef),
         ),
-        screen(StarterDoneGuidedScreenDescriptor.ref)
+        screen(starterDoneGuidedScreenRef)
             .on(StarterDoneGuidedScreen.finish)
             .goTo(done),
-        screen(StarterDoneExploreScreenDescriptor.ref)
+        screen(starterDoneExploreScreenRef)
             .on(StarterDoneExploreScreen.finish)
             .goTo(done),
         end(done, result: {}),

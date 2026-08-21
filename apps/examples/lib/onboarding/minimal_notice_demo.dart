@@ -58,8 +58,8 @@ class _MinimalNoticeDemoState extends State<MinimalNoticeDemo> {
   @override
   Widget build(BuildContext context) {
     if (_opened) return const _OpenedScreen();
-    return RestageSurfaceFlow<MinimalNoticeResult>(
-      flow: MinimalNoticeFlowDescriptor.ref,
+    return RestageFlowGraph<MinimalNoticeResult>(
+      flow: minimalNoticeFlowRef,
       // A one-screen surface draws nothing if it can't load, rather than a
       // fallback; `onFlowUnavailable` then routes away from the blank surface.
       unavailable: const FlowUnavailablePolicy.hide(),

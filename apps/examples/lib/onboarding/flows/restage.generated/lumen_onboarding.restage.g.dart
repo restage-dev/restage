@@ -1,29 +1,32 @@
 part of '../lumen_onboarding.dart';
 
+const lumenOnboardingFlowRef = SurfaceFlowRef<LumenOnboardingResult>(
+  id: 'lumen_onboarding',
+  version: 1,
+  minClient: 1,
+  surface: Surface.onboarding,
+  deliveryMode: FlowDeliveryMode.typed,
+  decodeResult: _decodeLumenOnboardingFlowResult,
+);
+
+LumenOnboardingResult _decodeLumenOnboardingFlowResult(
+    Map<String, Object?> result) {
+  if (result.length != 1 || !result.containsKey('subscribed')) {
+    throw const FormatException('Unexpected flow result keys.');
+  }
+  final subscribed = result['subscribed'];
+  if (subscribed is! bool) {
+    throw const FormatException('Expected result field subscribed to be bool.');
+  }
+  return LumenOnboardingResult(subscribed: subscribed);
+}
+
+@Deprecated('Use lumenOnboardingFlowRef')
 abstract final class LumenOnboardingFlowDescriptor {
   const LumenOnboardingFlowDescriptor._();
 
   static const SurfaceFlowRef<LumenOnboardingResult> ref =
-      SurfaceFlowRef<LumenOnboardingResult>(
-    id: 'lumen_onboarding',
-    version: 1,
-    minClient: 1,
-    surface: Surface.onboarding,
-    deliveryMode: FlowDeliveryMode.typed,
-    decodeResult: LumenOnboardingFlowDescriptor._decodeResult,
-  );
-
-  static LumenOnboardingResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || !result.containsKey('subscribed')) {
-      throw const FormatException('Unexpected flow result keys.');
-    }
-    final subscribed = result['subscribed'];
-    if (subscribed is! bool) {
-      throw const FormatException(
-          'Expected result field subscribed to be bool.');
-    }
-    return LumenOnboardingResult(subscribed: subscribed);
-  }
+      lumenOnboardingFlowRef;
 }
 
 final class LumenOnboardingResult {

@@ -23,7 +23,7 @@ void main() {
               ).readAsBytesSync(),
             )
             .toString(),
-        '7a957c6f48b7af23359c9c9cd2d503e45ba345556bd7830f78b3b7676c6ab8c5',
+        'a9272cac5f3e4fac613b4f1156bcd9cf5832833b5248c369a0b37cc2c340156f',
         reason:
             'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
       );
@@ -50,7 +50,7 @@ void main() {
     },
   );
 
-  test('RFW text, capability, and flow-facing descriptor stay exact', () {
+  test('RFW text, capability, and generated handle stay exact', () {
     expect(
       utf8.decode(
         _packagedArtifacts()['assets/onboarding/screens/'
@@ -64,13 +64,15 @@ void main() {
       'onPressed: event "continue" { value: "preview" }, child: '
       'Text(text: "Opaque screen proof")));\n',
     );
-    expect(OpaqueScreenProofDescriptor.ref.id, 'opaque_screen_proof');
-    expect(
-      OpaqueScreenProofDescriptor.ref.artifactPath,
-      'opaque_screen_proof.rfw',
-    );
-    expect(OpaqueScreenProofDescriptor.ref.version, 1);
-    expect(OpaqueScreenProofDescriptor.ref.minClient, 1);
+    // A categorized `@Screen(surface:)` is standalone, so its handle is the
+    // typed `SurfaceScreenRef` — it carries no `artifactPath`/`minClient`,
+    // which belonged to the in-flow neutral reference this screen no longer
+    // generates. The packaged `.rfw` path those two stood for is asserted by
+    // exact digest in the delivery-map test above, not weakened here.
+    expect(opaqueScreenProofRef.id, 'opaque_screen_proof');
+    expect(opaqueScreenProofRef.version, 1);
+    expect(opaqueScreenProofRef.capabilities.builtInFloor, 1);
+    expect(opaqueScreenProofRef.surface, Surface.onboarding);
     expect(
       utf8.decode(
         _packagedArtifacts()['assets/onboarding/screens/'

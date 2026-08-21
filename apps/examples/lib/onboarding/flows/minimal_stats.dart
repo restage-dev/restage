@@ -18,11 +18,9 @@ final class MinimalStatsFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StarterStatsScreenDescriptor.ref,
+      initial: starterStatsScreenRef,
       states: [
-        screen(StarterStatsScreenDescriptor.ref)
-            .on(StarterStatsScreen.done)
-            .goTo(done),
+        screen(starterStatsScreenRef).on(StarterStatsScreen.done).goTo(done),
         end(done, result: {}),
       ],
     );

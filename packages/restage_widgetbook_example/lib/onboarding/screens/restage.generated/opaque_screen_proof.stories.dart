@@ -61,12 +61,10 @@ const component = widgetbook.ComponentMeta(
 final previewEvents = <({String id, Object? value})>[];
 
 final defaults = _Defaults(
-  setup: (context, child, args) =>
-      restage_runtime.RestageSurfaceEventDispatcher(
-        onEvent: (eventId, value) =>
-            previewEvents.add((id: eventId, value: value)),
-        child: child,
-      ),
+  setup: (context, child, args) => restage_runtime.RestageEventDispatcher(
+    onEvent: (eventId, value) => previewEvents.add((id: eventId, value: value)),
+    child: child,
+  ),
   builder: (context, args) => restage_source.OpaqueScreenProof(
     title: args.title,
     enabled: args.enabled,

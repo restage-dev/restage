@@ -31,7 +31,7 @@ import 'onboarding/flows/section_header_showcase.dart';
 /// low-level route proves the same thing while skipping what a real app gets
 /// from the wrapper. For the idiomatic host, see
 /// `lib/onboarding/minimal_notice_demo.dart`, which renders a
-/// structurally identical single-screen flow through `RestageSurfaceFlow`.
+/// structurally identical single-screen flow through `RestageFlowGraph`.
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Register the example's custom widgets (incl. SectionHeader) so the
@@ -84,7 +84,7 @@ class _SectionHeaderDemoState extends State<SectionHeaderDemo> {
   void _start() {
     late final RestageFlowController<SectionHeaderShowcaseResult> controller;
     controller = RestageFlowController<SectionHeaderShowcaseResult>(
-      flow: SectionHeaderShowcaseFlowDescriptor.ref,
+      flow: sectionHeaderShowcaseFlowRef,
       resolver: Restage.defaultFlowResolver,
       actions: null,
       onEvent: Restage.fireEvent,

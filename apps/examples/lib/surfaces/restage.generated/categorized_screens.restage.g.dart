@@ -33,14 +33,14 @@ final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
     entries: [
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/general/screens/general_status.rfw",
-        role: RestageBundleEntryRoleV1.screenBlob,
+        role: RestageBundleEntryRole.screenBlob,
         byteLength: 294,
         sha256:
             "sha256:1ae8f2705bb19f252828dcee6ebf290eae269a5dee6b25a54931920d168ebcd3",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/general/screens/general_status.capability.json",
-        role: RestageBundleEntryRoleV1.capabilitySidecar,
+        role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 165,
         sha256:
             "sha256:89e64f177e966fc319d3c51c6dd669bacffdbdb157c2778d0e2059f3d13a53bb",
@@ -63,17 +63,6 @@ GeneralStatusEvent _decodeValidatedGeneralStatusEvent(
       return const GeneralStatusFinishEvent();
   }
   throw FormatException("Invalid GeneralStatus event \"" + name + "\".");
-}
-
-abstract final class GeneralStatusDescriptor {
-  const GeneralStatusDescriptor._();
-
-  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
-    id: 'general_status',
-    artifactPath: 'general_status.rfw',
-    version: 1,
-    minClient: 1,
-  );
 }
 
 sealed class MessageNoticeEvent {
@@ -109,14 +98,14 @@ final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
     entries: [
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/message/screens/message_notice.rfw",
-        role: RestageBundleEntryRoleV1.screenBlob,
+        role: RestageBundleEntryRole.screenBlob,
         byteLength: 304,
         sha256:
             "sha256:7b8dec85c690f81ab2ef4ded9e73965d6993a6ce424e80230eb94735d4b68ea4",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/message/screens/message_notice.capability.json",
-        role: RestageBundleEntryRoleV1.capabilitySidecar,
+        role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 165,
         sha256:
             "sha256:8d950cdbcb7265b9849492b15461d92033e8e6b3a9b38d63bc85f3573a3779d2",
@@ -139,17 +128,6 @@ MessageNoticeEvent _decodeValidatedMessageNoticeEvent(
       return const MessageNoticeOpenOfferEvent();
   }
   throw FormatException("Invalid MessageNotice event \"" + name + "\".");
-}
-
-abstract final class MessageNoticeDescriptor {
-  const MessageNoticeDescriptor._();
-
-  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
-    id: 'message_notice',
-    artifactPath: 'message_notice.rfw',
-    version: 1,
-    minClient: 1,
-  );
 }
 
 sealed class OnboardingWelcomeEvent {
@@ -185,7 +163,7 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
     entries: [
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/onboarding/screens/onboarding_welcome.rfw",
-        role: RestageBundleEntryRoleV1.screenBlob,
+        role: RestageBundleEntryRole.screenBlob,
         byteLength: 300,
         sha256:
             "sha256:2001e30b617bd2b5f1a5c374b65e06f0d1ca6466d285f1ad7e451af4dc5cd9e4",
@@ -193,7 +171,7 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
       SurfaceScreenBundleEntryReference(
         logicalPath:
             "assets/onboarding/screens/onboarding_welcome.capability.json",
-        role: RestageBundleEntryRoleV1.capabilitySidecar,
+        role: RestageBundleEntryRole.capabilitySidecar,
         byteLength: 165,
         sha256:
             "sha256:af0e5bfbdf4b1978c046f46bfecc34911059b21cdb879281c9d1a87085279192",
@@ -216,15 +194,4 @@ OnboardingWelcomeEvent _decodeValidatedOnboardingWelcomeEvent(
       return const OnboardingWelcomeContinueFlowEvent();
   }
   throw FormatException("Invalid OnboardingWelcome event \"" + name + "\".");
-}
-
-abstract final class OnboardingWelcomeDescriptor {
-  const OnboardingWelcomeDescriptor._();
-
-  static const NeutralFlowScreenRef ref = NeutralFlowScreenRef(
-    id: 'onboarding_welcome',
-    artifactPath: 'onboarding_welcome.rfw',
-    version: 1,
-    minClient: 1,
-  );
 }

@@ -34,7 +34,7 @@ final class LumenOnboardingFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: LumenWelcomeScreenDescriptor.ref,
+      initial: lumenWelcomeScreenRef,
       outbound: const FlowOutboundDeclarations(
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
@@ -46,21 +46,21 @@ final class LumenOnboardingFlow extends RestageFlow {
         ),
       ),
       states: [
-        screen(LumenWelcomeScreenDescriptor.ref)
+        screen(lumenWelcomeScreenRef)
             .on(LumenWelcomeScreen.next)
-            .goTo(LumenExperienceScreenDescriptor.ref),
-        screen(LumenExperienceScreenDescriptor.ref)
+            .goTo(lumenExperienceScreenRef),
+        screen(lumenExperienceScreenRef)
             .on(LumenExperienceScreen.next)
-            .goTo(LumenGoalScreenDescriptor.ref),
-        screen(LumenGoalScreenDescriptor.ref)
+            .goTo(lumenGoalScreenRef),
+        screen(lumenGoalScreenRef)
             .on(LumenGoalScreen.next)
-            .goTo(LumenReminderScreenDescriptor.ref),
-        screen(LumenReminderScreenDescriptor.ref)
+            .goTo(lumenReminderScreenRef),
+        screen(lumenReminderScreenRef)
             .on(LumenReminderScreen.enable)
             .run(enableReminders)
             .result((result) => result.granted)
-            .goTo(LumenRecapScreenDescriptor.ref),
-        screen(LumenRecapScreenDescriptor.ref)
+            .goTo(lumenRecapScreenRef),
+        screen(lumenRecapScreenRef)
             .on(LumenRecapScreen.next)
             .goTo(paywallScreen('lumen_premium')),
         screen(paywallScreen('lumen_premium'))

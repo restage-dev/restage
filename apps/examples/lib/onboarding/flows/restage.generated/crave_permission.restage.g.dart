@@ -1,29 +1,33 @@
 part of '../crave_permission.dart';
 
+const cravePermissionFlowRef = SurfaceFlowRef<CravePermissionResult>(
+  id: 'crave_permission',
+  version: 1,
+  minClient: 1,
+  surface: Surface.onboarding,
+  deliveryMode: FlowDeliveryMode.typed,
+  decodeResult: _decodeCravePermissionFlowResult,
+);
+
+CravePermissionResult _decodeCravePermissionFlowResult(
+    Map<String, Object?> result) {
+  if (result.length != 1 || !result.containsKey('locationEnabled')) {
+    throw const FormatException('Unexpected flow result keys.');
+  }
+  final locationEnabled = result['locationEnabled'];
+  if (locationEnabled is! bool) {
+    throw const FormatException(
+        'Expected result field locationEnabled to be bool.');
+  }
+  return CravePermissionResult(locationEnabled: locationEnabled);
+}
+
+@Deprecated('Use cravePermissionFlowRef')
 abstract final class CravePermissionFlowDescriptor {
   const CravePermissionFlowDescriptor._();
 
   static const SurfaceFlowRef<CravePermissionResult> ref =
-      SurfaceFlowRef<CravePermissionResult>(
-    id: 'crave_permission',
-    version: 1,
-    minClient: 1,
-    surface: Surface.onboarding,
-    deliveryMode: FlowDeliveryMode.typed,
-    decodeResult: CravePermissionFlowDescriptor._decodeResult,
-  );
-
-  static CravePermissionResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || !result.containsKey('locationEnabled')) {
-      throw const FormatException('Unexpected flow result keys.');
-    }
-    final locationEnabled = result['locationEnabled'];
-    if (locationEnabled is! bool) {
-      throw const FormatException(
-          'Expected result field locationEnabled to be bool.');
-    }
-    return CravePermissionResult(locationEnabled: locationEnabled);
-  }
+      cravePermissionFlowRef;
 }
 
 final class CravePermissionResult {

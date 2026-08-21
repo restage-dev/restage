@@ -18,14 +18,14 @@ final class SectionHeaderShowcaseFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: SectionHeaderShowcaseScreenDescriptor.ref,
+      initial: sectionHeaderShowcaseScreenRef,
       outbound: const FlowOutboundDeclarations(
         customEvents: {
           'dismiss': FlowOutboundPayloadDeclaration(),
         },
       ),
       states: [
-        screen(SectionHeaderShowcaseScreenDescriptor.ref)
+        screen(sectionHeaderShowcaseScreenRef)
             .on(SectionHeaderShowcaseScreen.act)
             .goTo(done),
         end(done, result: {}),

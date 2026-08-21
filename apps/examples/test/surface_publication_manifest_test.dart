@@ -98,7 +98,7 @@ void main() {
           '${entry.value} is absent from ${entry.key}.',
         ),
       );
-      expect(document.role, RestageBundleEntryRoleV1.flowDocument);
+      expect(document.role, RestageBundleEntryRole.flowDocument);
       // The packaged bytes must be the canonical encoding the runtime expects.
       final decoded = FlowDocumentCodec.decodeJson(
         String.fromCharCodes(document.bytes),

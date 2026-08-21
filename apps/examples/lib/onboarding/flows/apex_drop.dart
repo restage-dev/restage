@@ -21,7 +21,7 @@ final class ApexDropFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: ApexDropScreenDescriptor.ref,
+      initial: apexDropScreenRef,
       outbound: const FlowOutboundDeclarations(
         customEvents: {
           // The × — handled by the host, not the flow graph.
@@ -29,7 +29,7 @@ final class ApexDropFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(ApexDropScreenDescriptor.ref).on(ApexDropScreen.act).goTo(done),
+        screen(apexDropScreenRef).on(ApexDropScreen.act).goTo(done),
         end(done, result: {}),
       ],
     );

@@ -18,14 +18,14 @@ final class PlanBoardShowcaseFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: PlanBoardShowcaseScreenDescriptor.ref,
+      initial: planBoardShowcaseScreenRef,
       outbound: const FlowOutboundDeclarations(
         customEvents: {
           'dismiss': FlowOutboundPayloadDeclaration(),
         },
       ),
       states: [
-        screen(PlanBoardShowcaseScreenDescriptor.ref)
+        screen(planBoardShowcaseScreenRef)
             .on(PlanBoardShowcaseScreen.act)
             .goTo(done),
         end(done, result: {}),

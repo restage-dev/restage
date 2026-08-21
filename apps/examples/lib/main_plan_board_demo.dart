@@ -31,7 +31,7 @@ import 'onboarding/flows/plan_board_showcase.dart';
 /// low-level route proves the same thing while skipping what a real app gets
 /// from the wrapper. For the idiomatic host, see
 /// `lib/onboarding/minimal_notice_demo.dart`, which renders a structurally
-/// identical single-screen flow through `RestageSurfaceFlow`.
+/// identical single-screen flow through `RestageFlowGraph`.
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Register the example's custom widgets (incl. PlanBoard) so the delivered
@@ -84,7 +84,7 @@ class _PlanBoardDemoState extends State<PlanBoardDemo> {
   void _start() {
     late final RestageFlowController<PlanBoardShowcaseResult> controller;
     controller = RestageFlowController<PlanBoardShowcaseResult>(
-      flow: PlanBoardShowcaseFlowDescriptor.ref,
+      flow: planBoardShowcaseFlowRef,
       resolver: Restage.defaultFlowResolver,
       actions: null,
       onEvent: Restage.fireEvent,

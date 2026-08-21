@@ -23,7 +23,7 @@ part 'restage.generated/stride_first_run.restage.g.dart';
 /// `outbound`-declared fields, already filtered by the runtime (never raw flow
 /// state). The host reads `result['completed']`, with no generated class in
 /// between. Author the surface with
-/// `RestageSurfaceFlow<Map<String, Object?>>` (see `stride_first_run_demo.dart`).
+/// `RestageFlowGraph<Map<String, Object?>>` (see `stride_first_run_demo.dart`).
 /// The untyped shape is what lets the *same* runtime interpret a flow the app
 /// never compiled against — an editor-authored or over-the-air composition.
 ///
@@ -73,7 +73,7 @@ final class StrideFirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: StrideWelcomeScreenDescriptor.ref,
+      initial: strideWelcomeScreenRef,
       flowState: const {
         'completed': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -95,20 +95,18 @@ final class StrideFirstRunFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(StrideWelcomeScreenDescriptor.ref)
+        screen(strideWelcomeScreenRef)
             .on(StrideWelcomeScreen.start)
-            .goTo(StrideGoalsScreenDescriptor.ref),
-        screen(StrideGoalsScreenDescriptor.ref)
+            .goTo(strideGoalsScreenRef),
+        screen(strideGoalsScreenRef)
             .on(StrideGoalsScreen.next)
-            .goTo(StrideRemindersScreenDescriptor.ref),
-        screen(StrideRemindersScreenDescriptor.ref)
+            .goTo(strideRemindersScreenRef),
+        screen(strideRemindersScreenRef)
             .on(StrideRemindersScreen.enable)
             .run(requestNotifications)
             .result((result) => result.granted)
-            .goTo(StrideReadyScreenDescriptor.ref),
-        screen(StrideReadyScreenDescriptor.ref)
-            .on(StrideReadyScreen.begin)
-            .goTo(done),
+            .goTo(strideReadyScreenRef),
+        screen(strideReadyScreenRef).on(StrideReadyScreen.begin).goTo(done),
         end(done, result: {'completed': true}),
       ],
     );

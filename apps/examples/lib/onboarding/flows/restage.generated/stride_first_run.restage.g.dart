@@ -1,20 +1,23 @@
 part of '../stride_first_run.dart';
 
+const strideFirstRunFlowRef = SurfaceFlowRef<Map<String, Object?>>(
+  id: 'stride_first_run',
+  version: 2,
+  minClient: 1,
+  surface: Surface.onboarding,
+  deliveryMode: FlowDeliveryMode.general,
+  decodeResult: _decodeStrideFirstRunFlowResult,
+);
+
+Map<String, Object?> _decodeStrideFirstRunFlowResult(
+        Map<String, Object?> result) =>
+    result;
+
+@Deprecated('Use strideFirstRunFlowRef')
 abstract final class StrideFirstRunFlowDescriptor {
   const StrideFirstRunFlowDescriptor._();
 
-  static const SurfaceFlowRef<Map<String, Object?>> ref =
-      SurfaceFlowRef<Map<String, Object?>>(
-    id: 'stride_first_run',
-    version: 2,
-    minClient: 1,
-    surface: Surface.onboarding,
-    deliveryMode: FlowDeliveryMode.general,
-    decodeResult: StrideFirstRunFlowDescriptor._decodeResult,
-  );
-
-  static Map<String, Object?> _decodeResult(Map<String, Object?> result) =>
-      result;
+  static const SurfaceFlowRef<Map<String, Object?>> ref = strideFirstRunFlowRef;
 }
 
 class StrideFirstRunActions implements FlowActionRegistry, FlowSignalRegistry {

@@ -83,8 +83,8 @@ class _ReelCancelDemoState extends State<ReelCancelDemo> {
     if (_outcome != _Outcome.none) {
       return _OutcomeScreen(retained: _outcome == _Outcome.retained);
     }
-    return RestageSurfaceFlow<ReelCancelResult>(
-      flow: ReelCancelFlowDescriptor.ref,
+    return RestageFlowGraph<ReelCancelResult>(
+      flow: reelCancelFlowRef,
       actions: _actions,
       onComplete: (result) => _settle(_Outcome.retained),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF141414)),

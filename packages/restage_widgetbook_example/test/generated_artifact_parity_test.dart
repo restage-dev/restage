@@ -69,7 +69,7 @@ void main() {
     ).readAsString();
     final registry = await File('lib/components.g.dart').readAsString();
     expect(story, contains("path: 'Screens'"));
-    expect(story, contains('restage_runtime.RestageSurfaceEventDispatcher('));
+    expect(story, contains('restage_runtime.RestageEventDispatcher('));
     expect(story, contains('final String restageMetadataDescription;'));
     expect(story, contains('final String restageMetadataUsage;'));
     expect(story, contains('final String description;'));
@@ -231,7 +231,7 @@ void main() {
       'lib/widgets/restage.generated/required_nullable_widget_proof.stories.g.dart':
           'eba61dcb87d9bd63b0f2473c88b1c060b876e09822c2ced78957d2b537f2def6',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart':
-          'f21ef76e20a1c53ed0ca4aeaa7e1fe8e656791a52b635eab14da9614beade805',
+          'd59815e128ea999ce3fb3e30277a2d111bac2690ae3e2cec869735fb5a9a9891',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart':
           '752764a1a6f72d5ea40a54ed7e88a3cfdeaba2b6587566fb313e701c92504521',
       'lib/widgets/restage.generated/stat_tile.stories.dart':
@@ -241,7 +241,7 @@ void main() {
       'lib/generated/restage_a2ui_catalog.a2ui.json':
           'd87ed0601571f76401fce3d530a60eda52df2a70100945c8fafcd1abdeea77b4',
       'lib/generated/restage_a2ui_catalog.g.dart':
-          '19c99024642e1d602769998670e4f75918756f32cf8acd42abf98c1c1eea03f6',
+          'e448b77ba5fc1dd9e3b0628170ebb93e910d4c28b3d9945ef07ad8339506e616',
       'lib/src/widget_catalog/catalog.json':
           '5c4aca8207e886e4016c3e77e18ee52244a2b09985ea936ed6e557272e2b77d3',
       'lib/user_catalog.g.dart':

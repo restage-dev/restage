@@ -49,7 +49,7 @@ final class FirstRunFlow extends RestageFlow {
     final done = endState('done');
 
     return flow(
-      initial: WelcomeScreenDescriptor.ref,
+      initial: welcomeScreenRef,
       flowState: const {
         'completed': FlowStateDeclaration(
           type: FlowDataType.bool,
@@ -71,18 +71,14 @@ final class FirstRunFlow extends RestageFlow {
         },
       ),
       states: [
-        screen(WelcomeScreenDescriptor.ref)
-            .on(WelcomeScreen.next)
-            .goTo(ValueScreenDescriptor.ref),
-        screen(ValueScreenDescriptor.ref)
-            .on(ValueScreen.next)
-            .goTo(NotifyScreenDescriptor.ref),
-        screen(NotifyScreenDescriptor.ref)
+        screen(welcomeScreenRef).on(WelcomeScreen.next).goTo(valueScreenRef),
+        screen(valueScreenRef).on(ValueScreen.next).goTo(notifyScreenRef),
+        screen(notifyScreenRef)
             .on(NotifyScreen.enable)
             .run(requestNotifications)
             .result((result) => result.granted)
-            .goTo(ReadyScreenDescriptor.ref),
-        screen(ReadyScreenDescriptor.ref).on(ReadyScreen.start).goTo(done),
+            .goTo(readyScreenRef),
+        screen(readyScreenRef).on(ReadyScreen.start).goTo(done),
         end(done, result: {'completed': true}),
       ],
     );

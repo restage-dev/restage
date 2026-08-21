@@ -63,8 +63,8 @@ class _ApexDropDemoState extends State<ApexDropDemo> {
   @override
   Widget build(BuildContext context) {
     if (_done) return const _ShopScreen();
-    return RestageSurfaceFlow<ApexDropResult>(
-      flow: ApexDropFlowDescriptor.ref,
+    return RestageFlowGraph<ApexDropResult>(
+      flow: apexDropFlowRef,
       onComplete: (result) => _act(),
       onFlowUnavailable: (error) => _close(),
       loadingBuilder: (context) => const ColoredBox(color: Color(0xFF0A0A0A)),

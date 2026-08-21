@@ -1,29 +1,30 @@
 part of '../first_run.dart';
 
+const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>(
+  id: 'first_run',
+  version: 1,
+  minClient: 1,
+  surface: Surface.onboarding,
+  deliveryMode: FlowDeliveryMode.typed,
+  decodeResult: _decodeFirstRunFlowResult,
+);
+
+FirstRunResult _decodeFirstRunFlowResult(Map<String, Object?> result) {
+  if (result.length != 1 || !result.containsKey('completed')) {
+    throw const FormatException('Unexpected flow result keys.');
+  }
+  final completed = result['completed'];
+  if (completed is! bool) {
+    throw const FormatException('Expected result field completed to be bool.');
+  }
+  return FirstRunResult(completed: completed);
+}
+
+@Deprecated('Use firstRunFlowRef')
 abstract final class FirstRunFlowDescriptor {
   const FirstRunFlowDescriptor._();
 
-  static const SurfaceFlowRef<FirstRunResult> ref =
-      SurfaceFlowRef<FirstRunResult>(
-    id: 'first_run',
-    version: 1,
-    minClient: 1,
-    surface: Surface.onboarding,
-    deliveryMode: FlowDeliveryMode.typed,
-    decodeResult: FirstRunFlowDescriptor._decodeResult,
-  );
-
-  static FirstRunResult _decodeResult(Map<String, Object?> result) {
-    if (result.length != 1 || !result.containsKey('completed')) {
-      throw const FormatException('Unexpected flow result keys.');
-    }
-    final completed = result['completed'];
-    if (completed is! bool) {
-      throw const FormatException(
-          'Expected result field completed to be bool.');
-    }
-    return FirstRunResult(completed: completed);
-  }
+  static const SurfaceFlowRef<FirstRunResult> ref = firstRunFlowRef;
 }
 
 final class FirstRunResult {
