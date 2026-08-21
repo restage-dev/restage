@@ -58,9 +58,9 @@ bool surfaceArtifactFrameRequiresManifest(int payloadFormatVersion) =>
 /// the hashed one — the disagreement this design removes by construction rather
 /// than by checking.
 @immutable
-final class SurfaceArtifactDescriptorV1 {
+final class SurfaceArtifactDescriptor {
   /// Creates a descriptor, validating every field it will later be trusted for.
-  factory SurfaceArtifactDescriptorV1({
+  factory SurfaceArtifactDescriptor({
     required int payloadFormatVersion,
     required Surface surfaceType,
     required String surfaceSlug,
@@ -109,7 +109,7 @@ final class SurfaceArtifactDescriptorV1 {
     if (artifactPass.isEmpty) {
       throw const FormatException('An artifact pass must not be empty.');
     }
-    return SurfaceArtifactDescriptorV1._(
+    return SurfaceArtifactDescriptor._(
       payloadFormatVersion: payloadFormatVersion,
       surfaceType: surfaceType,
       surfaceSlug: surfaceSlug,
@@ -122,7 +122,7 @@ final class SurfaceArtifactDescriptorV1 {
     );
   }
 
-  const SurfaceArtifactDescriptorV1._({
+  const SurfaceArtifactDescriptor._({
     required this.payloadFormatVersion,
     required this.surfaceType,
     required this.surfaceSlug,
@@ -205,7 +205,7 @@ final class SurfaceArtifactDescriptorV1 {
 
   @override
   bool operator ==(Object other) =>
-      other is SurfaceArtifactDescriptorV1 &&
+      other is SurfaceArtifactDescriptor &&
       other.payloadFormatVersion == payloadFormatVersion &&
       other.surfaceType == surfaceType &&
       other.surfaceSlug == surfaceSlug &&
@@ -230,7 +230,7 @@ final class SurfaceArtifactDescriptorV1 {
       );
 }
 
-/// Strict codec for [SurfaceArtifactDescriptorV1].
+/// Strict codec for [SurfaceArtifactDescriptor].
 abstract final class SurfaceArtifactDescriptorV1Codec {
   /// Decodes a descriptor, gating BOTH version domains before anything else.
   ///
@@ -244,7 +244,7 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
   /// it first would report a key a newer version legitimately added as an
   /// unsupported field, which sends a reader hunting a corruption that is not
   /// there.
-  static SurfaceArtifactDescriptorV1 decode(Object? value) {
+  static SurfaceArtifactDescriptor decode(Object? value) {
     if (value is! Map<String, Object?>) {
       throw const FormatException('A surface artifact descriptor must be an '
           'object.');
@@ -269,7 +269,7 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
 
     _rejectUnknownKeys(value);
 
-    return SurfaceArtifactDescriptorV1(
+    return SurfaceArtifactDescriptor(
       payloadFormatVersion: payloadFormatVersion,
       surfaceType: Surface.fromWireName(_requiredString(value, 'surfaceType')),
       surfaceSlug: _requiredString(value, 'surfaceSlug'),
@@ -285,7 +285,7 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
   }
 
   /// Decodes a descriptor from a JSON document.
-  static SurfaceArtifactDescriptorV1 decodeJson(String source) {
+  static SurfaceArtifactDescriptor decodeJson(String source) {
     final Object? decoded;
     try {
       decoded = jsonDecode(source);
@@ -298,7 +298,7 @@ abstract final class SurfaceArtifactDescriptorV1Codec {
   }
 
   /// Encodes a descriptor to wire JSON.
-  static Map<String, Object?> encode(SurfaceArtifactDescriptorV1 descriptor) =>
+  static Map<String, Object?> encode(SurfaceArtifactDescriptor descriptor) =>
       descriptor.toJson();
 }
 

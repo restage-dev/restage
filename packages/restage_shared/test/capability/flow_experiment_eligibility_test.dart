@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 import 'flow_experiment_test_support.dart';
 
 void main() {
-  group('FlowExperimentEligibilityEvaluatorV1', () {
+  group('FlowExperimentEligibilityEvaluator', () {
     test('accepts a valid typed baseline and content-compatible candidate', () {
       final baseline = experimentDocumentContract();
       final candidate = experimentDocumentContract();
@@ -15,7 +15,7 @@ void main() {
         candidate: experimentClosure(root: candidate),
       );
 
-      expect(verdict, isA<FlowExperimentAcceptedV1>());
+      expect(verdict, isA<FlowExperimentAccepted>());
     });
 
     test('accepts a general topology change when all capabilities are present',
@@ -42,7 +42,7 @@ void main() {
         signals: const ['skip'],
       );
 
-      expect(verdict, isA<FlowExperimentAcceptedV1>());
+      expect(verdict, isA<FlowExperimentAccepted>());
     });
 
     test('typed mode rejects a contract-surface change', () {
@@ -63,10 +63,10 @@ void main() {
           baseline: experimentClosure(root: baseline),
           candidate: experimentClosure(root: candidate),
         ),
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (verdict) => verdict.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+          FlowExperimentRejectionReason.typedCompatibilityRejected,
         ),
       );
     });
@@ -101,11 +101,11 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>()
+        isA<FlowExperimentRejected>()
             .having(
               (value) => value.reason,
               'reason',
-              FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+              FlowExperimentRejectionReason.typedCompatibilityRejected,
             )
             .having((value) => value.message, 'message', contains('child')),
       );
@@ -134,10 +134,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+          FlowExperimentRejectionReason.typedCompatibilityRejected,
         ),
       );
     });
@@ -145,17 +145,17 @@ void main() {
     test('requires payload, screen, and RFW integrity preconditions', () {
       final document = experimentDocumentContract();
       const failures = [
-        FlowExperimentArtifactIntegrityV1(
+        FlowExperimentArtifactIntegrity(
           payloadIntegrityVerified: false,
           screenIntegrityVerified: true,
           rfwIntegrityVerified: true,
         ),
-        FlowExperimentArtifactIntegrityV1(
+        FlowExperimentArtifactIntegrity(
           payloadIntegrityVerified: true,
           screenIntegrityVerified: false,
           rfwIntegrityVerified: true,
         ),
-        FlowExperimentArtifactIntegrityV1(
+        FlowExperimentArtifactIntegrity(
           payloadIntegrityVerified: true,
           screenIntegrityVerified: true,
           rfwIntegrityVerified: false,
@@ -172,10 +172,10 @@ void main() {
         );
         expect(
           verdict,
-          isA<FlowExperimentRejectedV1>().having(
+          isA<FlowExperimentRejected>().having(
             (value) => value.reason,
             'reason',
-            FlowExperimentRejectionReasonV1.artifactIntegrityUnverified,
+            FlowExperimentRejectionReason.artifactIntegrityUnverified,
           ),
         );
       }
@@ -211,13 +211,13 @@ void main() {
 
       expect(
         missing,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (verdict) => verdict.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.requiredLibraryUnsatisfied,
+          FlowExperimentRejectionReason.requiredLibraryUnsatisfied,
         ),
       );
-      expect(installed, isA<FlowExperimentAcceptedV1>());
+      expect(installed, isA<FlowExperimentAccepted>());
     });
 
     test('checks full action fingerprint and supported minimum', () {
@@ -245,7 +245,7 @@ void main() {
       );
       final matching = experimentBinding(minClient: 3);
       final mismatches = [
-        FlowActionBindingFingerprintV1(
+        FlowActionBindingFingerprint(
           actionId: matching.actionId,
           actionName: matching.actionName,
           contractVersion: 2,
@@ -254,7 +254,7 @@ void main() {
           minClient: matching.minClient,
           idempotent: matching.idempotent,
         ),
-        FlowActionBindingFingerprintV1(
+        FlowActionBindingFingerprint(
           actionId: matching.actionId,
           actionName: matching.actionName,
           contractVersion: matching.contractVersion,
@@ -263,7 +263,7 @@ void main() {
           minClient: matching.minClient,
           idempotent: matching.idempotent,
         ),
-        FlowActionBindingFingerprintV1(
+        FlowActionBindingFingerprint(
           actionId: matching.actionId,
           actionName: matching.actionName,
           contractVersion: matching.contractVersion,
@@ -272,7 +272,7 @@ void main() {
           minClient: matching.minClient,
           idempotent: matching.idempotent,
         ),
-        FlowActionBindingFingerprintV1(
+        FlowActionBindingFingerprint(
           actionId: matching.actionId,
           actionName: matching.actionName,
           contractVersion: matching.contractVersion,
@@ -281,7 +281,7 @@ void main() {
           minClient: 1,
           idempotent: matching.idempotent,
         ),
-        FlowActionBindingFingerprintV1(
+        FlowActionBindingFingerprint(
           actionId: matching.actionId,
           actionName: matching.actionName,
           contractVersion: matching.contractVersion,
@@ -292,13 +292,13 @@ void main() {
         ),
       ];
 
-      expect(exact, isA<FlowExperimentAcceptedV1>());
+      expect(exact, isA<FlowExperimentAccepted>());
       expect(
         wrongName,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (verdict) => verdict.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.actionBindingUnsatisfied,
+          FlowExperimentRejectionReason.actionBindingUnsatisfied,
         ),
       );
       for (final mismatch in mismatches) {
@@ -308,10 +308,10 @@ void main() {
             candidate: experimentClosure(root: document),
             actions: [mismatch],
           ),
-          isA<FlowExperimentRejectedV1>().having(
+          isA<FlowExperimentRejected>().having(
             (verdict) => verdict.reason,
             'reason',
-            FlowExperimentRejectionReasonV1.actionBindingUnsatisfied,
+            FlowExperimentRejectionReason.actionBindingUnsatisfied,
           ),
         );
       }
@@ -346,10 +346,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.signalUnsatisfied,
+          FlowExperimentRejectionReason.signalUnsatisfied,
         ),
       );
     });
@@ -366,7 +366,7 @@ void main() {
       final document = experimentDocumentContract(
         document: _screenActionDocument(action),
       );
-      final binding = FlowActionBindingFingerprintV1(
+      final binding = FlowActionBindingFingerprint(
         actionId: 'request_notifications',
         actionName: action.actionName,
         contractVersion: action.contractVersion,
@@ -384,10 +384,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.actionBindingUnsatisfied,
+          FlowExperimentRejectionReason.actionBindingUnsatisfied,
         ),
       );
     });
@@ -408,10 +408,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.capabilityFloorRaised,
+          FlowExperimentRejectionReason.capabilityFloorRaised,
         ),
       );
     });
@@ -443,7 +443,7 @@ void main() {
         mode: FlowDeliveryMode.general,
       );
 
-      expect(verdict, isA<FlowExperimentAcceptedV1>());
+      expect(verdict, isA<FlowExperimentAccepted>());
     });
 
     test('general mode rejects a typed descendant', () {
@@ -472,10 +472,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.surfaceOrModeMismatch,
+          FlowExperimentRejectionReason.surfaceOrModeMismatch,
         ),
       );
     });
@@ -508,10 +508,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.liveStateAmbiguous,
+          FlowExperimentRejectionReason.liveStateAmbiguous,
         ),
       );
     });
@@ -569,10 +569,10 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.liveStateAmbiguous,
+          FlowExperimentRejectionReason.liveStateAmbiguous,
         ),
       );
     });
@@ -622,7 +622,7 @@ void main() {
         ),
       );
 
-      expect(verdict, isA<FlowExperimentAcceptedV1>());
+      expect(verdict, isA<FlowExperimentAccepted>());
     });
 
     test('rejects missing, extra, cyclic, and over-depth closure nodes', () {
@@ -685,10 +685,10 @@ void main() {
       for (final verdict in [missing, extra, cyclic, overDepth]) {
         expect(
           verdict,
-          isA<FlowExperimentRejectedV1>().having(
+          isA<FlowExperimentRejected>().having(
             (value) => value.reason,
             'reason',
-            FlowExperimentRejectionReasonV1.closureInvalid,
+            FlowExperimentRejectionReason.closureInvalid,
           ),
         );
       }
@@ -696,8 +696,8 @@ void main() {
 
     test('is total and fails closed on a stale gate revision', () {
       final document = experimentDocumentContract();
-      final verdict = FlowExperimentEligibilityEvaluatorV1.evaluate(
-        FlowExperimentVerdictInputV1(
+      final verdict = FlowExperimentEligibilityEvaluator.evaluate(
+        FlowExperimentVerdictInput(
           clientBaselineClosure: experimentClosure(root: document),
           candidateArmClosure: experimentClosure(root: document),
           installedCapability: InstalledCapability(
@@ -714,26 +714,26 @@ void main() {
 
       expect(
         verdict,
-        isA<FlowExperimentRejectedV1>().having(
+        isA<FlowExperimentRejected>().having(
           (value) => value.reason,
           'reason',
-          FlowExperimentRejectionReasonV1.unsupportedGateRevision,
+          FlowExperimentRejectionReason.unsupportedGateRevision,
         ),
       );
     });
   });
 }
 
-FlowExperimentVerdictV1 evaluate({
-  required FlowExperimentClosureV1 baseline,
-  required FlowExperimentClosureV1 candidate,
+FlowExperimentVerdict evaluate({
+  required FlowExperimentClosure baseline,
+  required FlowExperimentClosure candidate,
   InstalledCapability? capability,
-  List<FlowActionBindingFingerprintV1> actions = const [],
+  List<FlowActionBindingFingerprint> actions = const [],
   List<String> signals = const [],
   FlowDeliveryMode mode = FlowDeliveryMode.typed,
 }) {
-  return FlowExperimentEligibilityEvaluatorV1.evaluate(
-    FlowExperimentVerdictInputV1(
+  return FlowExperimentEligibilityEvaluator.evaluate(
+    FlowExperimentVerdictInput(
       clientBaselineClosure: baseline,
       candidateArmClosure: candidate,
       installedCapability: capability ??
@@ -777,8 +777,8 @@ FlowDocument _subFlowParent({
   );
 }
 
-FlowExperimentDocumentContractV1 _parentContractForChild(
-  FlowExperimentDocumentContractV1 child, {
+FlowExperimentDocumentContract _parentContractForChild(
+  FlowExperimentDocumentContract child, {
   FlowDeliveryMode mode = FlowDeliveryMode.typed,
   int version = 1,
 }) {
@@ -803,11 +803,11 @@ FlowExperimentDocumentContractV1 _parentContractForChild(
   );
 }
 
-FlowExperimentClosureV1 _deepClosure() {
+FlowExperimentClosure _deepClosure() {
   var child = experimentDocumentContract(
     document: experimentDocument(flow: 'depth_5'),
   );
-  final documents = <FlowExperimentDocumentContractV1>[child];
+  final documents = <FlowExperimentDocumentContract>[child];
   for (var depth = 4; depth >= 0; depth -= 1) {
     child = experimentDocumentContract(
       document: _subFlowParent(

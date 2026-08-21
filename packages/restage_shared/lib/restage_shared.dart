@@ -11,18 +11,17 @@
 /// `package:restage_shared/rfw_formats.dart` barrel for the vendored rfw
 /// formats sublibrary — kept separate to avoid name collisions with
 /// `package:rfw/rfw.dart` for consumers that import both.
+///
+/// The legacy behavioral-analytics event taxonomy is no longer exported here.
+/// It lives behind `package:restage_shared/legacy_analytics.dart`, is retained
+/// only for the legacy analytics runtime the SDK still ships, and retires with
+/// it. New code measures through
+/// `package:restage_measurement_schema/restage_measurement_schema.dart`.
 library;
 
 export 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-// The analytics exports (lines below) are the behavioral-analytics event
-// taxonomy contract — the wire envelope every surface emits.
-export 'src/analytics/analytics_app_context.dart';
-export 'src/analytics/analytics_event.dart';
-export 'src/analytics/analytics_reserved_keys.dart';
-export 'src/analytics/analytics_skew.dart';
-export 'src/analytics/analytics_taxonomy_registry.dart';
-export 'src/analytics/analytics_wire_enums.dart';
+export 'src/bundled_measurement_target_profile.dart';
 export 'src/capability/blob_render_capability_gate.dart';
 export 'src/capability/capability_manifest.dart';
 export 'src/capability/capability_sidecar.dart';

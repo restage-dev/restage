@@ -12,12 +12,12 @@ void main() {
         entries: <RestageBundleEntry>[
           RestageBundleEntry(
             logicalPath: 'assets/general/screens/welcome.rfw',
-            role: RestageBundleEntryRoleV1.screenBlob,
+            role: RestageBundleEntryRole.screenBlob,
             bytes: const <int>[0, 255, 1, 2],
           ),
           RestageBundleEntry(
             logicalPath: 'assets/general/screens/welcome.capability.json',
-            role: RestageBundleEntryRoleV1.capabilitySidecar,
+            role: RestageBundleEntryRole.capabilitySidecar,
             bytes: utf8.encode('{"blobSha256":"sha256:example"}'),
           ),
         ],

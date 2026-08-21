@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
-/// B0 proof slice (restage_shared half): the delivery-mode marker rides the
+/// Proof slice (restage_shared half): the delivery-mode marker rides the
 /// full delivery envelope, and general-mode is gated as a forward-contract
 /// capability requirement — a decoder that does not recognize the marker fails
 /// closed rather than mis-rendering a general document.

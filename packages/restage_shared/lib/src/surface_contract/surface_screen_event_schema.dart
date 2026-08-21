@@ -8,7 +8,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 
 /// The sole supported recursive wire shapes for standalone-screen events.
-enum SurfaceScreenEventScalarKindV1 {
+enum SurfaceScreenEventScalarKind {
   /// A JSON boolean.
   boolean('bool'),
 
@@ -24,13 +24,13 @@ enum SurfaceScreenEventScalarKindV1 {
   /// Any recursively valid JSON value.
   jsonValue('jsonValue');
 
-  const SurfaceScreenEventScalarKindV1(this.wireName);
+  const SurfaceScreenEventScalarKind(this.wireName);
 
   /// Stable wire discriminator.
   final String wireName;
 
   /// Parses a stable wire discriminator.
-  static SurfaceScreenEventScalarKindV1 fromWireName(String value) {
+  static SurfaceScreenEventScalarKind fromWireName(String value) {
     for (final kind in values) {
       if (kind.wireName == value) return kind;
     }
@@ -39,11 +39,11 @@ enum SurfaceScreenEventScalarKindV1 {
 }
 
 /// A closed event argument shape.
-sealed class SurfaceScreenEventShapeV1 {
-  const SurfaceScreenEventShapeV1();
+sealed class SurfaceScreenEventShape {
+  const SurfaceScreenEventShape();
 
   /// Decodes one strict event shape object.
-  factory SurfaceScreenEventShapeV1.fromJson(Object? value,
+  factory SurfaceScreenEventShape.fromJson(Object? value,
       {String path = r'$'}) {
     final json = SurfaceContractJson.requireObject(value, path);
     final kind = SurfaceContractJson.requiredString(json, 'kind', path);
@@ -55,12 +55,12 @@ sealed class SurfaceScreenEventShapeV1 {
       case 'jsonValue':
         SurfaceContractJson.exactKeys(json, const {'kind'}, path);
         return SurfaceScreenEventScalarShapeV1(
-          SurfaceScreenEventScalarKindV1.fromWireName(kind),
+          SurfaceScreenEventScalarKind.fromWireName(kind),
         );
       case 'nullable':
         SurfaceContractJson.exactKeys(json, const {'kind', 'value'}, path);
         return SurfaceScreenEventNullableShapeV1(
-          SurfaceScreenEventShapeV1.fromJson(
+          SurfaceScreenEventShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'value', path),
             path: '$path.value',
           ),
@@ -68,7 +68,7 @@ sealed class SurfaceScreenEventShapeV1 {
       case 'list':
         SurfaceContractJson.exactKeys(json, const {'kind', 'items'}, path);
         return SurfaceScreenEventListShapeV1(
-          SurfaceScreenEventShapeV1.fromJson(
+          SurfaceScreenEventShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'items', path),
             path: '$path.items',
           ),
@@ -76,7 +76,7 @@ sealed class SurfaceScreenEventShapeV1 {
       case 'map':
         SurfaceContractJson.exactKeys(json, const {'kind', 'values'}, path);
         return SurfaceScreenEventMapShapeV1(
-          SurfaceScreenEventShapeV1.fromJson(
+          SurfaceScreenEventShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'values', path),
             path: '$path.values',
           ),
@@ -95,12 +95,12 @@ sealed class SurfaceScreenEventShapeV1 {
 
 /// A scalar event shape.
 @immutable
-final class SurfaceScreenEventScalarShapeV1 extends SurfaceScreenEventShapeV1 {
+final class SurfaceScreenEventScalarShapeV1 extends SurfaceScreenEventShape {
   /// Creates a scalar shape.
   const SurfaceScreenEventScalarShapeV1(this.kind);
 
   /// Stable scalar kind.
-  final SurfaceScreenEventScalarKindV1 kind;
+  final SurfaceScreenEventScalarKind kind;
 
   @override
   Map<String, Object?> toJson() => {'kind': kind.wireName};
@@ -108,16 +108,16 @@ final class SurfaceScreenEventScalarShapeV1 extends SurfaceScreenEventShapeV1 {
   @override
   void validate(Object? value, {String path = r'$'}) {
     switch (kind) {
-      case SurfaceScreenEventScalarKindV1.boolean:
+      case SurfaceScreenEventScalarKind.boolean:
         if (value is! bool) _invalid(path, kind.wireName);
-      case SurfaceScreenEventScalarKindV1.integer:
+      case SurfaceScreenEventScalarKind.integer:
         if (value is! int) _invalid(path, kind.wireName);
-      case SurfaceScreenEventScalarKindV1.doubleValue:
+      case SurfaceScreenEventScalarKind.doubleValue:
         if (value is! double || !value.isFinite) _invalid(path, kind.wireName);
-      case SurfaceScreenEventScalarKindV1.string:
+      case SurfaceScreenEventScalarKind.string:
         if (value is! String) _invalid(path, kind.wireName);
         SurfaceContractJson.requireUnicodeScalars(value, path);
-      case SurfaceScreenEventScalarKindV1.jsonValue:
+      case SurfaceScreenEventScalarKind.jsonValue:
         _validateJsonValue(value, path);
     }
   }
@@ -125,13 +125,12 @@ final class SurfaceScreenEventScalarShapeV1 extends SurfaceScreenEventShapeV1 {
 
 /// A nullable event shape.
 @immutable
-final class SurfaceScreenEventNullableShapeV1
-    extends SurfaceScreenEventShapeV1 {
+final class SurfaceScreenEventNullableShapeV1 extends SurfaceScreenEventShape {
   /// Creates a nullable shape.
   const SurfaceScreenEventNullableShapeV1(this.value);
 
   /// The non-null value shape.
-  final SurfaceScreenEventShapeV1 value;
+  final SurfaceScreenEventShape value;
 
   @override
   Map<String, Object?> toJson() =>
@@ -145,12 +144,12 @@ final class SurfaceScreenEventNullableShapeV1
 
 /// A list event shape.
 @immutable
-final class SurfaceScreenEventListShapeV1 extends SurfaceScreenEventShapeV1 {
+final class SurfaceScreenEventListShapeV1 extends SurfaceScreenEventShape {
   /// Creates a list shape.
   const SurfaceScreenEventListShapeV1(this.items);
 
   /// Shape of every list item.
-  final SurfaceScreenEventShapeV1 items;
+  final SurfaceScreenEventShape items;
 
   @override
   Map<String, Object?> toJson() => {'kind': 'list', 'items': items.toJson()};
@@ -167,12 +166,12 @@ final class SurfaceScreenEventListShapeV1 extends SurfaceScreenEventShapeV1 {
 
 /// A string-keyed map event shape.
 @immutable
-final class SurfaceScreenEventMapShapeV1 extends SurfaceScreenEventShapeV1 {
+final class SurfaceScreenEventMapShapeV1 extends SurfaceScreenEventShape {
   /// Creates a map shape.
   const SurfaceScreenEventMapShapeV1(this.values);
 
   /// Shape of every map value.
-  final SurfaceScreenEventShapeV1 values;
+  final SurfaceScreenEventShape values;
 
   @override
   Map<String, Object?> toJson() => {'kind': 'map', 'values': values.toJson()};
@@ -187,8 +186,8 @@ final class SurfaceScreenEventMapShapeV1 extends SurfaceScreenEventShapeV1 {
 }
 
 /// The argument wrapping required for one event.
-sealed class SurfaceScreenEventArgumentsV1 {
-  const SurfaceScreenEventArgumentsV1();
+sealed class SurfaceScreenEventArguments {
+  const SurfaceScreenEventArguments();
 
   /// Stable wrapping discriminator.
   String get encoding;
@@ -199,7 +198,7 @@ sealed class SurfaceScreenEventArgumentsV1 {
   /// Validates an emitted argument map.
   void validate(Map<String, Object?> arguments, {required String eventId});
 
-  factory SurfaceScreenEventArgumentsV1.fromJson(
+  factory SurfaceScreenEventArguments.fromJson(
     Object? value, {
     required String path,
   }) {
@@ -208,10 +207,10 @@ sealed class SurfaceScreenEventArgumentsV1 {
     switch (encoding) {
       case 'none':
         SurfaceContractJson.exactKeys(json, const {'encoding'}, path);
-        return const SurfaceScreenEventNoArgumentsV1();
+        return const SurfaceScreenEventNoArguments();
       case 'object':
         SurfaceContractJson.exactKeys(json, const {'encoding', 'shape'}, path);
-        final shape = SurfaceScreenEventShapeV1.fromJson(
+        final shape = SurfaceScreenEventShape.fromJson(
           SurfaceContractJson.requiredValue(json, 'shape', path),
           path: '$path.shape',
         );
@@ -219,11 +218,11 @@ sealed class SurfaceScreenEventArgumentsV1 {
           throw FormatException(
               'Object event arguments at "$path" require a map shape.');
         }
-        return SurfaceScreenEventObjectArgumentsV1(shape);
+        return SurfaceScreenEventObjectArguments(shape);
       case 'value':
         SurfaceContractJson.exactKeys(json, const {'encoding', 'shape'}, path);
-        return SurfaceScreenEventValueArgumentsV1(
-          SurfaceScreenEventShapeV1.fromJson(
+        return SurfaceScreenEventValueArguments(
+          SurfaceScreenEventShape.fromJson(
             SurfaceContractJson.requiredValue(json, 'shape', path),
             path: '$path.shape',
           ),
@@ -237,10 +236,9 @@ sealed class SurfaceScreenEventArgumentsV1 {
 
 /// A `SurfaceEvent<void>` argument contract.
 @immutable
-final class SurfaceScreenEventNoArgumentsV1
-    extends SurfaceScreenEventArgumentsV1 {
+final class SurfaceScreenEventNoArguments extends SurfaceScreenEventArguments {
   /// Creates a no-argument declaration.
-  const SurfaceScreenEventNoArgumentsV1();
+  const SurfaceScreenEventNoArguments();
 
   @override
   String get encoding => 'none';
@@ -258,10 +256,10 @@ final class SurfaceScreenEventNoArgumentsV1
 
 /// A `SurfaceEvent<Map<String, T>>` argument contract.
 @immutable
-final class SurfaceScreenEventObjectArgumentsV1
-    extends SurfaceScreenEventArgumentsV1 {
+final class SurfaceScreenEventObjectArguments
+    extends SurfaceScreenEventArguments {
   /// Creates an object argument declaration.
-  SurfaceScreenEventObjectArgumentsV1(this.shape) {
+  SurfaceScreenEventObjectArguments(this.shape) {
     if (shape is! SurfaceScreenEventMapShapeV1) {
       throw const FormatException(
           'Object event arguments require a map shape.');
@@ -269,7 +267,7 @@ final class SurfaceScreenEventObjectArgumentsV1
   }
 
   /// Required argument-map shape.
-  final SurfaceScreenEventShapeV1 shape;
+  final SurfaceScreenEventShape shape;
 
   @override
   String get encoding => 'object';
@@ -288,13 +286,13 @@ final class SurfaceScreenEventObjectArgumentsV1
 
 /// A non-map, non-void event argument contract.
 @immutable
-final class SurfaceScreenEventValueArgumentsV1
-    extends SurfaceScreenEventArgumentsV1 {
+final class SurfaceScreenEventValueArguments
+    extends SurfaceScreenEventArguments {
   /// Creates a value argument declaration.
-  const SurfaceScreenEventValueArgumentsV1(this.shape);
+  const SurfaceScreenEventValueArguments(this.shape);
 
   /// Required value shape.
-  final SurfaceScreenEventShapeV1 shape;
+  final SurfaceScreenEventShape shape;
 
   @override
   String get encoding => 'value';
@@ -318,9 +316,9 @@ final class SurfaceScreenEventValueArgumentsV1
 
 /// One named standalone-screen event declaration.
 @immutable
-final class SurfaceScreenEventV1 {
+final class SurfaceScreenEvent {
   /// Creates an event declaration.
-  SurfaceScreenEventV1({
+  SurfaceScreenEvent({
     required this.id,
     required this.arguments,
   }) {
@@ -334,7 +332,7 @@ final class SurfaceScreenEventV1 {
   final String id;
 
   /// Exact wire argument contract.
-  final SurfaceScreenEventArgumentsV1 arguments;
+  final SurfaceScreenEventArguments arguments;
 
   /// Strict JSON representation.
   Map<String, Object?> toJson() => {
@@ -345,13 +343,13 @@ final class SurfaceScreenEventV1 {
 
 /// Complete strict V1 standalone-screen event schema.
 @immutable
-final class SurfaceScreenEventSchemaV1 {
+final class SurfaceScreenEventSchema {
   /// Creates and canonically orders a schema.
-  factory SurfaceScreenEventSchemaV1({
-    required List<SurfaceScreenEventV1> events,
+  factory SurfaceScreenEventSchema({
+    required List<SurfaceScreenEvent> events,
   }) {
     final ids = <String>{};
-    final canonical = List<SurfaceScreenEventV1>.of(events);
+    final canonical = List<SurfaceScreenEvent>.of(events);
     for (final event in canonical) {
       if (!ids.add(event.id)) {
         throw FormatException(
@@ -360,16 +358,16 @@ final class SurfaceScreenEventSchemaV1 {
     }
     canonical.sort(
         (left, right) => SurfaceContractJson.compareUtf8(left.id, right.id));
-    return SurfaceScreenEventSchemaV1._(List.unmodifiable(canonical));
+    return SurfaceScreenEventSchema._(List.unmodifiable(canonical));
   }
 
-  const SurfaceScreenEventSchemaV1._(this.events);
+  const SurfaceScreenEventSchema._(this.events);
 
   /// The frozen schema version.
   static const int schemaVersion = 1;
 
   /// Events in canonical raw-UTF-8 ID order.
-  final List<SurfaceScreenEventV1> events;
+  final List<SurfaceScreenEvent> events;
 
   /// Validates one emitted event before a generated conversion decoder runs.
   void validateEvent(String name, Map<String, Object?> arguments) {
@@ -381,7 +379,7 @@ final class SurfaceScreenEventSchemaV1 {
     event.arguments.validate(arguments, eventId: name);
   }
 
-  SurfaceScreenEventV1? _byId(String id) {
+  SurfaceScreenEvent? _byId(String id) {
     for (final event in events) {
       if (event.id == id) return event;
     }
@@ -389,16 +387,16 @@ final class SurfaceScreenEventSchemaV1 {
   }
 }
 
-/// Strict JSON codec for [SurfaceScreenEventSchemaV1].
+/// Strict JSON codec for [SurfaceScreenEventSchema].
 abstract final class SurfaceScreenEventSchemaV1Codec {
   /// Decodes one schema object.
-  static SurfaceScreenEventSchemaV1 decode(Object? value) {
+  static SurfaceScreenEventSchema decode(Object? value) {
     final json = SurfaceContractJson.requireObject(value, r'$');
     SurfaceContractJson.exactKeys(
         json, const {'schemaVersion', 'events'}, r'$');
     final version =
         SurfaceContractJson.requiredInt(json, 'schemaVersion', r'$');
-    if (version != SurfaceScreenEventSchemaV1.schemaVersion) {
+    if (version != SurfaceScreenEventSchema.schemaVersion) {
       throw FormatException(
           'Unsupported surface screen event schemaVersion $version.');
     }
@@ -406,45 +404,45 @@ abstract final class SurfaceScreenEventSchemaV1Codec {
       SurfaceContractJson.requiredValue(json, 'events', r'$'),
       r'$.events',
     );
-    final events = <SurfaceScreenEventV1>[];
+    final events = <SurfaceScreenEvent>[];
     for (var index = 0; index < rawEvents.length; index += 1) {
       final path = r'$.events[' + index.toString() + ']';
       final event = SurfaceContractJson.requireObject(rawEvents[index], path);
       SurfaceContractJson.exactKeys(event, const {'id', 'arguments'}, path);
       events.add(
-        SurfaceScreenEventV1(
+        SurfaceScreenEvent(
           id: SurfaceContractJson.requiredString(event, 'id', path),
-          arguments: SurfaceScreenEventArgumentsV1.fromJson(
+          arguments: SurfaceScreenEventArguments.fromJson(
             SurfaceContractJson.requiredValue(event, 'arguments', path),
             path: '$path.arguments',
           ),
         ),
       );
     }
-    return SurfaceScreenEventSchemaV1(events: events);
+    return SurfaceScreenEventSchema(events: events);
   }
 
   /// Decodes strict schema JSON.
-  static SurfaceScreenEventSchemaV1 decodeJson(String source) => decode(
+  static SurfaceScreenEventSchema decodeJson(String source) => decode(
       SurfaceContractJson.decode(source, label: 'surface screen event schema'));
 
   /// Encodes the schema as the canonical JSON object used by its hash.
-  static Map<String, Object?> encode(SurfaceScreenEventSchemaV1 schema) => {
-        'schemaVersion': SurfaceScreenEventSchemaV1.schemaVersion,
+  static Map<String, Object?> encode(SurfaceScreenEventSchema schema) => {
+        'schemaVersion': SurfaceScreenEventSchema.schemaVersion,
         'events': <Object?>[for (final event in schema.events) event.toJson()],
       };
 
   /// Encodes strict canonical schema JSON without whitespace or a trailing newline.
-  static String encodeCanonicalJson(SurfaceScreenEventSchemaV1 schema) =>
+  static String encodeCanonicalJson(SurfaceScreenEventSchema schema) =>
       SurfaceContractJson.encode(encode(schema));
 }
 
-/// Canonical SHA-256 encoder for [SurfaceScreenEventSchemaV1].
-abstract final class SurfaceScreenEventContractHashV1 {
+/// Canonical SHA-256 encoder for [SurfaceScreenEventSchema].
+abstract final class SurfaceScreenEventContractHash {
   static const String _domain = 'restage.surface-screen-events';
 
   /// Produces the exact V1 canonical JSON preimage.
-  static List<int> preimage(SurfaceScreenEventSchemaV1 schema) => <int>[
+  static List<int> preimage(SurfaceScreenEventSchema schema) => <int>[
         ...ascii.encode(_domain),
         0,
         ...ascii.encode('v1'),
@@ -454,7 +452,7 @@ abstract final class SurfaceScreenEventContractHashV1 {
       ];
 
   /// Produces the stable `sha256:<64 lowercase hex>` contract hash.
-  static String hash(SurfaceScreenEventSchemaV1 schema) =>
+  static String hash(SurfaceScreenEventSchema schema) =>
       SurfaceContractJson.hash(preimage(schema));
 }
 

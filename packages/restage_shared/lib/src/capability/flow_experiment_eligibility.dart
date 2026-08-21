@@ -11,9 +11,9 @@ const int kFlowExperimentGateLogicRevisionV1 = 1;
 /// loader must verify the payload frame, every screen blob, and its RFW bytes
 /// before asking the pure evaluator for an eligibility decision.
 @immutable
-final class FlowExperimentArtifactIntegrityV1 {
+final class FlowExperimentArtifactIntegrity {
   /// Creates explicit integrity preconditions with no permissive defaults.
-  const FlowExperimentArtifactIntegrityV1({
+  const FlowExperimentArtifactIntegrity({
     required this.payloadIntegrityVerified,
     required this.screenIntegrityVerified,
     required this.rfwIntegrityVerified,
@@ -36,15 +36,15 @@ final class FlowExperimentArtifactIntegrityV1 {
 
 /// One resolver-produced exact flow closure evaluated as a unit.
 @immutable
-final class FlowExperimentClosureV1 {
+final class FlowExperimentClosure {
   /// Creates an immutable closure snapshot.
-  factory FlowExperimentClosureV1({
-    required FlowExperimentDocumentContractV1 root,
+  factory FlowExperimentClosure({
+    required FlowExperimentDocumentContract root,
     required int rootCapability,
-    required List<FlowExperimentDocumentContractV1> documents,
-    required FlowExperimentArtifactIntegrityV1 integrity,
+    required List<FlowExperimentDocumentContract> documents,
+    required FlowExperimentArtifactIntegrity integrity,
   }) {
-    return FlowExperimentClosureV1._(
+    return FlowExperimentClosure._(
       root: root,
       rootCapability: rootCapability,
       documents: List.unmodifiable(documents),
@@ -52,7 +52,7 @@ final class FlowExperimentClosureV1 {
     );
   }
 
-  const FlowExperimentClosureV1._({
+  const FlowExperimentClosure._({
     required this.root,
     required this.rootCapability,
     required this.documents,
@@ -60,33 +60,33 @@ final class FlowExperimentClosureV1 {
   });
 
   /// The resolved root node. Active candidates may use a newer version.
-  final FlowExperimentDocumentContractV1 root;
+  final FlowExperimentDocumentContract root;
 
   /// Requested root descriptor floor retained across active resolution.
   final int rootCapability;
 
   /// Root plus every exact reachable descendant.
-  final List<FlowExperimentDocumentContractV1> documents;
+  final List<FlowExperimentDocumentContract> documents;
 
   /// Integrity facts proven outside the V1 JSON grammar.
-  final FlowExperimentArtifactIntegrityV1 integrity;
+  final FlowExperimentArtifactIntegrity integrity;
 }
 
 /// Complete pure input to the shared V1 eligibility predicate.
 @immutable
-final class FlowExperimentVerdictInputV1 {
+final class FlowExperimentVerdictInput {
   /// Creates a deep-frozen evaluator input.
-  factory FlowExperimentVerdictInputV1({
-    required FlowExperimentClosureV1 clientBaselineClosure,
-    required FlowExperimentClosureV1 candidateArmClosure,
+  factory FlowExperimentVerdictInput({
+    required FlowExperimentClosure clientBaselineClosure,
+    required FlowExperimentClosure candidateArmClosure,
     required InstalledCapability installedCapability,
-    required List<FlowActionBindingFingerprintV1> actionBindings,
+    required List<FlowActionBindingFingerprint> actionBindings,
     required List<String> installedSignals,
     required Surface surfaceType,
     required FlowDeliveryMode deliveryMode,
     required int flowGateRevision,
   }) {
-    return FlowExperimentVerdictInputV1._(
+    return FlowExperimentVerdictInput._(
       clientBaselineClosure: clientBaselineClosure,
       candidateArmClosure: candidateArmClosure,
       installedCapability: installedCapability,
@@ -98,7 +98,7 @@ final class FlowExperimentVerdictInputV1 {
     );
   }
 
-  const FlowExperimentVerdictInputV1._({
+  const FlowExperimentVerdictInput._({
     required this.clientBaselineClosure,
     required this.candidateArmClosure,
     required this.installedCapability,
@@ -110,16 +110,16 @@ final class FlowExperimentVerdictInputV1 {
   });
 
   /// Exact client-bundled baseline closure.
-  final FlowExperimentClosureV1 clientBaselineClosure;
+  final FlowExperimentClosure clientBaselineClosure;
 
   /// Trusted-resolver candidate closure.
-  final FlowExperimentClosureV1 candidateArmClosure;
+  final FlowExperimentClosure candidateArmClosure;
 
   /// Installed renderer capability.
   final InstalledCapability installedCapability;
 
   /// Installed action mount fingerprints.
-  final List<FlowActionBindingFingerprintV1> actionBindings;
+  final List<FlowActionBindingFingerprint> actionBindings;
 
   /// Installed general-surface signal names.
   final List<String> installedSignals;
@@ -135,8 +135,8 @@ final class FlowExperimentVerdictInputV1 {
 }
 
 /// Total V1 flow-experiment eligibility result.
-sealed class FlowExperimentVerdictV1 {
-  const FlowExperimentVerdictV1();
+sealed class FlowExperimentVerdict {
+  const FlowExperimentVerdict();
 
   /// Whether the candidate can be assigned and rendered.
   bool get accepted;
@@ -144,9 +144,9 @@ sealed class FlowExperimentVerdictV1 {
 
 /// The baseline and candidate are compatible from documents/capabilities alone.
 @immutable
-final class FlowExperimentAcceptedV1 extends FlowExperimentVerdictV1 {
+final class FlowExperimentAccepted extends FlowExperimentVerdict {
   /// Creates an accepted decision.
-  const FlowExperimentAcceptedV1();
+  const FlowExperimentAccepted();
 
   @override
   bool get accepted => true;
@@ -154,15 +154,15 @@ final class FlowExperimentAcceptedV1 extends FlowExperimentVerdictV1 {
 
 /// A fail-closed V1 eligibility decision.
 @immutable
-final class FlowExperimentRejectedV1 extends FlowExperimentVerdictV1 {
+final class FlowExperimentRejected extends FlowExperimentVerdict {
   /// Creates a typed rejection.
-  const FlowExperimentRejectedV1({
+  const FlowExperimentRejected({
     required this.reason,
     required this.message,
   });
 
   /// Stable rejection category.
-  final FlowExperimentRejectionReasonV1 reason;
+  final FlowExperimentRejectionReason reason;
 
   /// Diagnostic suitable for internal logs.
   final String message;
@@ -172,7 +172,7 @@ final class FlowExperimentRejectedV1 extends FlowExperimentVerdictV1 {
 }
 
 /// Why a V1 flow candidate was ineligible.
-enum FlowExperimentRejectionReasonV1 {
+enum FlowExperimentRejectionReason {
   /// The verdict revision is stale or unsupported.
   unsupportedGateRevision,
 
@@ -211,23 +211,23 @@ enum FlowExperimentRejectionReasonV1 {
 }
 
 /// Shared pure evaluator for typed and general V1 flow candidates.
-abstract final class FlowExperimentEligibilityEvaluatorV1 {
+abstract final class FlowExperimentEligibilityEvaluator {
   /// Evaluates [input] without IO and never throws to the caller.
-  static FlowExperimentVerdictV1 evaluate(
-    FlowExperimentVerdictInputV1 input,
+  static FlowExperimentVerdict evaluate(
+    FlowExperimentVerdictInput input,
   ) {
     try {
       if (input.flowGateRevision != kFlowExperimentGateLogicRevisionV1) {
-        return FlowExperimentRejectedV1(
-          reason: FlowExperimentRejectionReasonV1.unsupportedGateRevision,
+        return FlowExperimentRejected(
+          reason: FlowExperimentRejectionReason.unsupportedGateRevision,
           message: 'Unsupported flow gate revision '
               '${input.flowGateRevision}.',
         );
       }
       if (!input.clientBaselineClosure.integrity._allVerified ||
           !input.candidateArmClosure.integrity._allVerified) {
-        return const FlowExperimentRejectedV1(
-          reason: FlowExperimentRejectionReasonV1.artifactIntegrityUnverified,
+        return const FlowExperimentRejected(
+          reason: FlowExperimentRejectionReason.artifactIntegrityUnverified,
           message: 'Payload, screen, and RFW integrity must all be verified.',
         );
       }
@@ -236,7 +236,7 @@ abstract final class FlowExperimentEligibilityEvaluatorV1 {
           _canonicalInstalledCapability(input.installedCapability);
       final actions = _canonicalActionBindings(input.actionBindings);
       final signals = _canonicalSignals(input.installedSignals).toSet();
-      final actionMap = <String, FlowActionBindingFingerprintV1>{
+      final actionMap = <String, FlowActionBindingFingerprint>{
         for (final action in actions) action.actionId: action,
       };
 
@@ -260,8 +260,8 @@ abstract final class FlowExperimentEligibilityEvaluatorV1 {
       if (baseline.root.flowId != candidate.root.flowId ||
           baseline.root.surfaceType != candidate.root.surfaceType ||
           baseline.rootCapability != candidate.rootCapability) {
-        return const FlowExperimentRejectedV1(
-          reason: FlowExperimentRejectionReasonV1.surfaceOrModeMismatch,
+        return const FlowExperimentRejected(
+          reason: FlowExperimentRejectionReason.surfaceOrModeMismatch,
           message: 'Candidate root identity or retained capability differs.',
         );
       }
@@ -278,20 +278,20 @@ abstract final class FlowExperimentEligibilityEvaluatorV1 {
           _checkEveryGeneralNode(baseline, label: 'baseline');
           _checkEveryGeneralNode(candidate, label: 'candidate');
       }
-      return const FlowExperimentAcceptedV1();
+      return const FlowExperimentAccepted();
     } on _EligibilityFailure catch (failure) {
-      return FlowExperimentRejectedV1(
+      return FlowExperimentRejected(
         reason: failure.reason,
         message: failure.message,
       );
     } on FormatException catch (error) {
-      return FlowExperimentRejectedV1(
-        reason: FlowExperimentRejectionReasonV1.malformedInput,
+      return FlowExperimentRejected(
+        reason: FlowExperimentRejectionReason.malformedInput,
         message: 'Malformed evaluator input: ${error.message}',
       );
     } on Object catch (error) {
-      return FlowExperimentRejectedV1(
-        reason: FlowExperimentRejectionReasonV1.documentInvalid,
+      return FlowExperimentRejected(
+        reason: FlowExperimentRejectionReason.documentInvalid,
         message: 'Flow eligibility evaluation failed closed: $error',
       );
     }
@@ -299,32 +299,32 @@ abstract final class FlowExperimentEligibilityEvaluatorV1 {
 }
 
 _ValidatedClosure _validateEligibilityClosure({
-  required FlowExperimentClosureV1 closure,
+  required FlowExperimentClosure closure,
   required InstalledCapability installed,
-  required Map<String, FlowActionBindingFingerprintV1> actions,
+  required Map<String, FlowActionBindingFingerprint> actions,
   required Set<String> signals,
   required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
 }) {
   if (closure.rootCapability < 1) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.closureInvalid,
+      FlowExperimentRejectionReason.closureInvalid,
       'Root capability must be positive.',
     );
   }
   if (closure.documents.isEmpty) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.closureInvalid,
+      FlowExperimentRejectionReason.closureInvalid,
       'Closure contains no documents.',
     );
   }
 
-  final byIdentity = <String, FlowExperimentDocumentContractV1>{};
+  final byIdentity = <String, FlowExperimentDocumentContract>{};
   for (final document in closure.documents) {
     final identity = _documentIdentity(document);
     if (byIdentity.containsKey(identity)) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.closureInvalid,
+        FlowExperimentRejectionReason.closureInvalid,
         'Duplicate closure document identity $identity.',
       );
     }
@@ -335,7 +335,7 @@ _ValidatedClosure _validateEligibilityClosure({
   if (canonicalRoot == null ||
       canonicalRoot.contentHash != closure.root.contentHash) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.closureInvalid,
+      FlowExperimentRejectionReason.closureInvalid,
       'Closure root is not an exact member of its document set.',
     );
   }
@@ -356,7 +356,7 @@ _ValidatedClosure _validateEligibilityClosure({
   );
   if (reached.length != byIdentity.length) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.closureInvalid,
+      FlowExperimentRejectionReason.closureInvalid,
       'Closure contains unreachable documents.',
     );
   }
@@ -376,8 +376,8 @@ void _checkTypedClosureCompatibility(
   final visitedPairs = <String>{};
 
   void visit(
-    FlowExperimentDocumentContractV1 baselineNode,
-    FlowExperimentDocumentContractV1 candidateNode,
+    FlowExperimentDocumentContract baselineNode,
+    FlowExperimentDocumentContract candidateNode,
     String path,
   ) {
     final baselineIdentity = _documentIdentity(baselineNode);
@@ -387,7 +387,7 @@ void _checkTypedClosureCompatibility(
     if ((priorBaseline != null && priorBaseline != baselineIdentity) ||
         (priorCandidate != null && priorCandidate != candidateIdentity)) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+        FlowExperimentRejectionReason.typedCompatibilityRejected,
         'Typed descendant correspondence is ambiguous at "$path".',
       );
     }
@@ -416,7 +416,7 @@ void _checkTypedClosureCompatibility(
           baselineState.flow != candidateState.flow ||
           baselineState.version != candidateState.version) {
         throw _EligibilityFailure(
-          FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+          FlowExperimentRejectionReason.typedCompatibilityRejected,
           'Typed descendant correspondence is missing at "$path.$stateId".',
         );
       }
@@ -433,7 +433,7 @@ void _checkTypedClosureCompatibility(
       )];
       if (baselineChild == null || candidateChild == null) {
         throw _EligibilityFailure(
-          FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+          FlowExperimentRejectionReason.typedCompatibilityRejected,
           'Typed descendant correspondence is incomplete at '
           '"$path.$stateId".',
         );
@@ -447,7 +447,7 @@ void _checkTypedClosureCompatibility(
     );
     if (!verdict.accepted) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+        FlowExperimentRejectionReason.typedCompatibilityRejected,
         'Typed compatibility rejected node "${candidateNode.flowId}" at '
         '"$path".',
       );
@@ -458,7 +458,7 @@ void _checkTypedClosureCompatibility(
   if (candidateToBaseline.length != candidate.documentsByIdentity.length ||
       baselineToCandidate.length != baseline.documentsByIdentity.length) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.typedCompatibilityRejected,
+      FlowExperimentRejectionReason.typedCompatibilityRejected,
       'Typed closures do not have complete one-to-one descendant '
       'correspondence.',
     );
@@ -489,7 +489,7 @@ void _checkEveryGeneralNode(
     );
     if (!verdict.accepted) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.documentInvalid,
+        FlowExperimentRejectionReason.documentInvalid,
         'General render gate rejected $label node "${node.flowId}".',
       );
     }
@@ -497,14 +497,14 @@ void _checkEveryGeneralNode(
 }
 
 void _walkEligibilityClosure({
-  required FlowExperimentDocumentContractV1 node,
+  required FlowExperimentDocumentContract node,
   required int availableCapability,
   required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
   required InstalledCapability installed,
-  required Map<String, FlowActionBindingFingerprintV1> actions,
+  required Map<String, FlowActionBindingFingerprint> actions,
   required Set<String> signals,
-  required Map<String, FlowExperimentDocumentContractV1> byIdentity,
+  required Map<String, FlowExperimentDocumentContract> byIdentity,
   required Set<String> reached,
   required Set<String> path,
   required int depth,
@@ -512,7 +512,7 @@ void _walkEligibilityClosure({
   final identity = _documentIdentity(node);
   if (path.contains(identity)) {
     throw _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.closureInvalid,
+      FlowExperimentRejectionReason.closureInvalid,
       'Closure contains a cycle at $identity.',
     );
   }
@@ -538,20 +538,20 @@ void _walkEligibilityClosure({
     );
     if (nextPath.contains(childIdentity)) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.closureInvalid,
+        FlowExperimentRejectionReason.closureInvalid,
         'Closure contains an indirect cycle at $childIdentity.',
       );
     }
     if (depth >= _maxFlowExperimentClosureDepth) {
       throw const _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.closureInvalid,
+        FlowExperimentRejectionReason.closureInvalid,
         'Closure exceeds maximum sub-flow depth 4.',
       );
     }
     final child = byIdentity[childIdentity];
     if (child == null) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.closureInvalid,
+        FlowExperimentRejectionReason.closureInvalid,
         'Missing exact child "${state.flow}".',
       );
     }
@@ -559,7 +559,7 @@ void _walkEligibilityClosure({
         child.minClient != state.minClient ||
         child.contentHash != state.contentHash) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.closureInvalid,
+        FlowExperimentRejectionReason.closureInvalid,
         'Child "${state.flow}" does not match its exact pinned reference.',
       );
     }
@@ -585,53 +585,53 @@ void _walkEligibilityClosure({
 }
 
 void _validateDocumentAdmission({
-  required FlowExperimentDocumentContractV1 node,
+  required FlowExperimentDocumentContract node,
   required int availableCapability,
   required Surface expectedSurface,
   required FlowDeliveryMode expectedMode,
   required InstalledCapability installed,
-  required Map<String, FlowActionBindingFingerprintV1> actions,
+  required Map<String, FlowActionBindingFingerprint> actions,
   required Set<String> signals,
 }) {
   final document = node.flowDocument;
   if (node.surfaceType != expectedSurface ||
       document.deliveryMode != expectedMode) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.surfaceOrModeMismatch,
+      FlowExperimentRejectionReason.surfaceOrModeMismatch,
       'Closure node crosses the anchored surface or delivery mode.',
     );
   }
   if (document.schemaVersion != _flowDocumentSchemaVersion) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.documentInvalid,
+      FlowExperimentRejectionReason.documentInvalid,
       'Unsupported FlowDocument schema version.',
     );
   }
   final issues = FlowDocumentValidation.validate(document);
   if (issues.isNotEmpty) {
     throw _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.documentInvalid,
+      FlowExperimentRejectionReason.documentInvalid,
       'FlowDocument validation failed: ${issues.join('; ')}.',
     );
   }
   if (document.minClient > availableCapability ||
       document.minClient > installed.builtInCatalogVersion) {
     throw const _EligibilityFailure(
-      FlowExperimentRejectionReasonV1.capabilityFloorRaised,
+      FlowExperimentRejectionReason.capabilityFloorRaised,
       'FlowDocument exceeds the retained or installed capability floor.',
     );
   }
   for (final artifact in document.screenArtifacts.values) {
     if (artifact.schemaVersion != _flowDocumentSchemaVersion) {
       throw const _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.documentInvalid,
+        FlowExperimentRejectionReason.documentInvalid,
         'Unsupported screen artifact schema version.',
       );
     }
     if (artifact.minClient > availableCapability ||
         artifact.minClient > installed.builtInCatalogVersion) {
       throw const _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.capabilityFloorRaised,
+        FlowExperimentRejectionReason.capabilityFloorRaised,
         'Screen artifact exceeds the available capability floor.',
       );
     }
@@ -648,7 +648,7 @@ void _validateDocumentAdmission({
     final version = installedLibrary?.version;
     if (version == null || version < requirement.minVersion) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.requiredLibraryUnsatisfied,
+        FlowExperimentRejectionReason.requiredLibraryUnsatisfied,
         'Required library "${requirement.namespace}" is unavailable.',
       );
     }
@@ -665,7 +665,7 @@ void _validateDocumentAdmission({
         actual.minClient < expected.minClient ||
         actual.idempotent != expected.idempotent) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.actionBindingUnsatisfied,
+        FlowExperimentRejectionReason.actionBindingUnsatisfied,
         'Installed action binding "${entry.key}" does not satisfy the '
         'document contract.',
       );
@@ -677,7 +677,7 @@ void _validateDocumentAdmission({
     for (final signal in document.outbound.customEvents.keys) {
       if (!signals.contains(signal)) {
         throw _EligibilityFailure(
-          FlowExperimentRejectionReasonV1.signalUnsatisfied,
+          FlowExperimentRejectionReason.signalUnsatisfied,
           'General signal "$signal" is not installed.',
         );
       }
@@ -700,7 +700,7 @@ void _checkActionResultPredicates(FlowDocument document) {
       };
       if (!compatible) {
         throw _EligibilityFailure(
-          FlowExperimentRejectionReasonV1.actionBindingUnsatisfied,
+          FlowExperimentRejectionReason.actionBindingUnsatisfied,
           'Action "${transition.action}" has an incompatible result '
           'predicate.',
         );
@@ -729,7 +729,7 @@ void _checkHostStatePreservation(
         !candidateDeclaration.hostSeedable ||
         candidateDeclaration.type != baselineDeclaration.type) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.liveStateAmbiguous,
+        FlowExperimentRejectionReason.liveStateAmbiguous,
         'Candidate does not preserve host-seedable state "${entry.key}".',
       );
     }
@@ -745,7 +745,7 @@ void _checkDefiniteSubFlowInputs({
     final childDeclaration = child.flowState[entry.key];
     if (childDeclaration == null) {
       throw _EligibilityFailure(
-        FlowExperimentRejectionReasonV1.closureInvalid,
+        FlowExperimentRejectionReason.closureInvalid,
         'Sub-flow input "${entry.key}" is not declared by the child.',
       );
     }
@@ -754,7 +754,7 @@ void _checkDefiniteSubFlowInputs({
         if (type != childDeclaration.type ||
             !_matchesFlowDataType(type, value)) {
           throw _EligibilityFailure(
-            FlowExperimentRejectionReasonV1.closureInvalid,
+            FlowExperimentRejectionReason.closureInvalid,
             'Literal sub-flow input "${entry.key}" has the wrong type.',
           );
         }
@@ -765,14 +765,14 @@ void _checkDefiniteSubFlowInputs({
             parentDeclaration.defaultValue == null ||
             parentDeclaration.type != childDeclaration.type) {
           throw _EligibilityFailure(
-            FlowExperimentRejectionReasonV1.liveStateAmbiguous,
+            FlowExperimentRejectionReason.liveStateAmbiguous,
             'Sub-flow input "${entry.key}" is not definitely available from '
             'document defaults.',
           );
         }
       default:
         throw _EligibilityFailure(
-          FlowExperimentRejectionReasonV1.liveStateAmbiguous,
+          FlowExperimentRejectionReason.liveStateAmbiguous,
           'Sub-flow input "${entry.key}" depends on live runtime state.',
         );
     }
@@ -794,14 +794,14 @@ final class _ValidatedClosure {
     required this.documentsByIdentity,
   });
 
-  final FlowExperimentDocumentContractV1 root;
+  final FlowExperimentDocumentContract root;
   final int rootCapability;
-  final Map<String, FlowExperimentDocumentContractV1> documentsByIdentity;
+  final Map<String, FlowExperimentDocumentContract> documentsByIdentity;
 }
 
 final class _EligibilityFailure implements Exception {
   const _EligibilityFailure(this.reason, this.message);
 
-  final FlowExperimentRejectionReasonV1 reason;
+  final FlowExperimentRejectionReason reason;
   final String message;
 }

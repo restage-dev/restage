@@ -106,7 +106,7 @@ void main() {
         ),
       );
       final contract = experimentClientContract(
-        descriptor: const FlowExperimentDescriptorV1(
+        descriptor: const FlowExperimentDescriptor(
           id: 'zeta_flow',
           version: 1,
           minClient: 3,

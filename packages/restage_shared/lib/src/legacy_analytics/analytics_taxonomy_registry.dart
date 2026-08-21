@@ -1,5 +1,5 @@
 import 'package:meta/meta.dart';
-import 'package:restage_shared/src/analytics/analytics_wire_enums.dart';
+import 'package:restage_shared/src/legacy_analytics/analytics_wire_enums.dart';
 
 /// The registry entry for a canonical event name.
 @immutable
