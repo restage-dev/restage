@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show debugPrint;
@@ -8,6 +9,7 @@ import 'package:restage/src/billing/purchase_token_digest.dart';
 import 'package:restage/src/metering/metering_token_store.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
 import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,6 +56,192 @@ void main() {
         ),
         throwsA(isA<ArgumentError>()),
       );
+    });
+  });
+
+  group('RestageRpcClient.ingestMeasurement', () {
+    test('POSTs the exact target-free request with Bearer auth', () async {
+      const canonicalRequestBase64 = 'cGF5bG9hZA';
+      const receiptCanonicalBase64 = 'cGF5bG9hZC1yZWNlaXB0';
+      late http.Request seen;
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient((request) async {
+          seen = request;
+          return http.Response(
+            jsonEncode({'receiptCanonicalBase64': receiptCanonicalBase64}),
+            200,
+          );
+        }),
+      );
+
+      final outcome = await client.ingestMeasurement(canonicalRequestBase64);
+
+      expect(seen.method, 'POST');
+      expect(seen.url.path, '/sdk/v1/measurement');
+      expect(seen.url.query, isEmpty);
+      expect(seen.headers['Authorization'], 'Bearer rs_pk_test');
+      expect(seen.headers['Content-Type'], contains('application/json'));
+      expect(
+        seen.body,
+        '{"canonicalRequestBase64":"$canonicalRequestBase64"}',
+      );
+      expect(
+        outcome,
+        isA<MeasurementIngestRpcAccepted>().having(
+          (value) => value.receiptCanonicalBase64,
+          'receiptCanonicalBase64',
+          receiptCanonicalBase64,
+        ),
+      );
+    });
+
+    test('requires an exact response object and canonical receipt carrier',
+        () async {
+      const validReceipt = 'cGF5bG9hZC1yZWNlaXB0';
+      final responseBodies = <String>[
+        '{}',
+        '{"receiptCanonicalBase64":7}',
+        '{"receiptCanonicalBase64":""}',
+        '{"receiptCanonicalBase64":"not a carrier"}',
+        '{"receiptCanonicalBase64":"$validReceipt="}',
+        '{"receiptCanonicalBase64":"$validReceipt","future":true}',
+        'not-json',
+        '["$validReceipt"]',
+      ];
+
+      for (final body in responseBodies) {
+        final client = RestageRpcClient(
+          baseUrl: 'https://example.com',
+          apiKey: 'rs_pk_test',
+          httpClient: MockClient(
+            (_) async => http.Response(body, 200),
+          ),
+        );
+
+        final outcome = await client.ingestMeasurement('cGF5bG9hZA');
+
+        expect(
+          outcome,
+          isA<MeasurementIngestRpcUnavailable>().having(
+            (value) => value.reason,
+            'reason',
+            MeasurementIngestRpcUnavailableReason.malformedResponse,
+          ),
+          reason: body,
+        );
+      }
+    });
+
+    test('preserves every named HTTP outcome distinction', () async {
+      final cases = <int, Type>{
+        400: MeasurementIngestRpcRejected,
+        413: MeasurementIngestRpcRejected,
+        401: MeasurementIngestRpcUnauthenticated,
+        409: MeasurementIngestRpcConflict,
+      };
+
+      for (final entry in cases.entries) {
+        final client = _measurementClientWithResponse(
+          http.Response('', entry.key),
+        );
+
+        final outcome = await client.ingestMeasurement('cGF5bG9hZA');
+
+        expect(outcome.runtimeType, entry.value, reason: 'status ${entry.key}');
+      }
+
+      final forbidden = await _measurementClientWithResponse(
+        http.Response('', 403),
+      ).ingestMeasurement('cGF5bG9hZA');
+      expect(
+        forbidden,
+        isA<MeasurementIngestRpcUnavailable>().having(
+          (value) => value.reason,
+          'reason',
+          MeasurementIngestRpcUnavailableReason.forbidden,
+        ),
+      );
+
+      final serviceUnavailable = await _measurementClientWithResponse(
+        http.Response('', 503),
+      ).ingestMeasurement('cGF5bG9hZA');
+      expect(
+        serviceUnavailable,
+        isA<MeasurementIngestRpcUnavailable>().having(
+          (value) => value.reason,
+          'reason',
+          MeasurementIngestRpcUnavailableReason.serviceUnavailable,
+        ),
+      );
+
+      for (final status in <int>[204, 418, 500, 502]) {
+        final outcome = await _measurementClientWithResponse(
+          http.Response('', status),
+        ).ingestMeasurement('cGF5bG9hZA');
+        expect(
+          outcome,
+          isA<MeasurementIngestRpcUnavailable>().having(
+            (value) => value.reason,
+            'reason',
+            MeasurementIngestRpcUnavailableReason.unexpectedStatus,
+          ),
+          reason: 'status $status',
+        );
+      }
+    });
+
+    test('maps timeout and I/O exceptions to transport unavailable', () async {
+      final timeoutClient = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (_) async => throw TimeoutException('request timed out'),
+        ),
+      );
+      final ioClient = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: MockClient(
+          (_) async => throw http.ClientException('socket failed'),
+        ),
+      );
+
+      for (final outcome in <MeasurementIngestRpcOutcome>[
+        await timeoutClient.ingestMeasurement('cGF5bG9hZA'),
+        await ioClient.ingestMeasurement('cGF5bG9hZA'),
+      ]) {
+        expect(
+          outcome,
+          isA<MeasurementIngestRpcUnavailable>().having(
+            (value) => value.reason,
+            'reason',
+            MeasurementIngestRpcUnavailableReason.transportFailure,
+          ),
+        );
+      }
+    });
+
+    test('diagnostics do not echo credentials or carriers', () async {
+      final messages = <String?>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (message, {wrapWidth}) => messages.add(message);
+      addTearDown(() => debugPrint = originalDebugPrint);
+      const apiKey = 'rs_pk_secret';
+      const requestCarrier = 'c2Vuc2l0aXZlLXJlcXVlc3Q';
+
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: apiKey,
+        httpClient: MockClient((_) async => http.Response('', 503)),
+      );
+
+      await client.ingestMeasurement(requestCarrier);
+
+      final diagnostics = messages.whereType<String>().join('\n');
+      expect(diagnostics, isNot(contains(apiKey)));
+      expect(diagnostics, isNot(contains(requestCarrier)));
     });
   });
 
@@ -693,6 +881,121 @@ void main() {
       expect(result.experimentEpoch, 3);
     });
 
+    test('retains the exact binding header beside a generic artifact payload',
+        () async {
+      final reference = _bindingReference('a');
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: _delivery.client(
+          (_) async => http.Response(
+            jsonEncode({
+              ..._blobDelivery([1, 2, 3]),
+              'experimentId': 'exp_paywall_copy',
+              'variantId': 'variant_a',
+              'experimentEpoch': 3,
+            }),
+            200,
+            headers: {
+              // HTTP field names are case-insensitive.
+              'restage-measurement-publication-binding-v1':
+                  _bindingHeader(reference),
+            },
+          ),
+        ),
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(assembledBlob(result!.artifact), orderedEquals([1, 2, 3]));
+      expect(result.experimentId, 'exp_paywall_copy');
+      expect(result.variantId, 'variant_a');
+      expect(result.experimentEpoch, 3);
+      expect(result.publicationBindingReference, reference);
+    });
+
+    test(
+      'missing, malformed, future, and coalesced binding headers leave generic artifact delivery intact',
+      () async {
+        final valid = _bindingHeader(_bindingReference('b'));
+        for (final header in <String?>[
+          null,
+          'not/base64url',
+          '$valid=',
+          '$valid,$valid',
+          'a' * 4097,
+          base64UrlEncode(const [0xff]).replaceAll('=', ''),
+        ]) {
+          final client = RestageRpcClient(
+            baseUrl: 'https://example.com',
+            apiKey: 'rs_pk_test',
+            httpClient: _delivery.client(
+              (_) async => http.Response(
+                jsonEncode({
+                  ..._blobDelivery([1, 2, 3]),
+                  'experimentId': 'exp_paywall_copy',
+                  'variantId': 'variant_a',
+                  'experimentEpoch': 3,
+                }),
+                200,
+                headers: {
+                  if (header != null)
+                    'Restage-Measurement-Publication-Binding-V1': header,
+                },
+              ),
+            ),
+          );
+
+          final result = await client.fetchSurface(
+            surfaceType: 'paywall',
+            surfaceSlug: 'pro_upgrade',
+          );
+
+          expect(result, isNotNull, reason: 'header: $header');
+          expect(assembledBlob(result!.artifact), orderedEquals([1, 2, 3]));
+          expect(result.experimentId, 'exp_paywall_copy');
+          expect(result.variantId, 'variant_a');
+          expect(result.experimentEpoch, 3);
+          expect(result.publicationBindingReference, isNull);
+        }
+      },
+    );
+
+    test(
+        'case-only duplicate binding headers leave generic artifact delivery intact',
+        () async {
+      final header = _bindingHeader(_bindingReference('d'));
+      final client = RestageRpcClient(
+        baseUrl: 'https://example.com',
+        apiKey: 'rs_pk_test',
+        httpClient: _delivery.client(
+          (_) async => http.Response(
+            jsonEncode({
+              ..._blobDelivery([1, 2, 3]),
+            }),
+            200,
+            headers: {
+              'Restage-Measurement-Publication-Binding-V1': header,
+              'restage-measurement-publication-binding-v1': header,
+            },
+          ),
+        ),
+      );
+
+      final result = await client.fetchSurface(
+        surfaceType: 'paywall',
+        surfaceSlug: 'pro_upgrade',
+      );
+
+      expect(result, isNotNull);
+      expect(assembledBlob(result!.artifact), orderedEquals([1, 2, 3]));
+      expect(result.publicationBindingReference, isNull);
+    });
+
     test('parses the serve decision when present', () async {
       final mock = _delivery.client((req) async {
         return http.Response(
@@ -1251,6 +1554,13 @@ RestageRpcClient _clientCapturing(MockClient mock) => RestageRpcClient(
       httpClient: mock,
     );
 
+RestageRpcClient _measurementClientWithResponse(http.Response response) =>
+    RestageRpcClient(
+      baseUrl: 'https://example.com',
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((_) async => response),
+    );
+
 Future<SharedPreferences> _prefsWith(String token) async {
   SharedPreferences.setMockInitialValues(<String, Object>{
     'restage.metering_token': token,
@@ -1326,5 +1636,28 @@ Map<String, Object?> _acceptedResponse({bool entitled = false}) {
     }),
     delivery: delivery,
     posts: posts,
+  );
+}
+
+String _bindingHeader(MeasurementPublicationBindingReferenceV1 reference) =>
+    base64UrlEncode(reference.canonicalBytes).replaceAll('=', '');
+
+MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
+  final candidate = MeasurementPublicationCandidateReferenceV1(
+    candidateDigest: CanonicalDigest(seed * 64),
+    selectedPublicationManifestDigest: CanonicalDigest('b' * 64),
+    declaredArtifactBytesDigest: CanonicalDigest('c' * 64),
+    assembledPublicationUploadDigest: CanonicalDigest('d' * 64),
+    measurementPublicationDraftDigest: CanonicalDigest('e' * 64),
+  );
+  return MeasurementPublicationBindingReferenceV1(
+    publicationAuthorityReference: RegisteredPublicationAuthorityReferenceV1(
+      authorityId: MeasurementPublicationAuthorityId('authority.rpc.$seed'),
+      externalPublicationAuthorityRef: 'mpa1.${seed.toUpperCase() * 32}',
+      candidateReference: candidate,
+      immutablePublicationDigest: CanonicalDigest('f' * 64),
+      declaredArtifactBytesDigest: candidate.declaredArtifactBytesDigest,
+    ),
+    bindingDigest: CanonicalDigest('0' * 64),
   );
 }

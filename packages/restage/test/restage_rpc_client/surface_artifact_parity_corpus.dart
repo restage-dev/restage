@@ -243,9 +243,9 @@ ParityOutcome evaluateSelfContained(ParityCase testCase) {
 /// same order — the client adds the fetch in front and the ladder behind, and
 /// neither of those is what this compares.
 ParityOutcome evaluateSplitPath(ParityCase testCase) {
-  final SurfaceArtifactDescriptorV1 descriptor;
+  final SurfaceArtifactDescriptor descriptor;
   try {
-    descriptor = SurfaceArtifactDescriptorV1(
+    descriptor = SurfaceArtifactDescriptor(
       payloadFormatVersion: kSurfaceArtifactPayloadFormatVersion,
       surfaceType: testCase.surfaceType,
       surfaceSlug: testCase.surfaceSlug,

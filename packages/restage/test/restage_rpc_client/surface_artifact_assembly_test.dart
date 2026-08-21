@@ -24,13 +24,13 @@ void main() {
     blob: Uint8List.fromList(const <int>[1, 2, 3]),
   );
 
-  SurfaceArtifactDescriptorV1 describing(
+  SurfaceArtifactDescriptor describing(
     SurfacePayload payload, {
     String? payloadKind,
     String? contentHash,
     int payloadFormatVersion = kSurfaceArtifactPayloadFormatVersion,
   }) =>
-      SurfaceArtifactDescriptorV1(
+      SurfaceArtifactDescriptor(
         payloadFormatVersion: payloadFormatVersion,
         surfaceType: Surface.paywall,
         surfaceSlug: 'pro_upgrade',
