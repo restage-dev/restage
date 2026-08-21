@@ -2,11 +2,43 @@ import 'package:args/args.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
 import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/credentials/credential.dart';
 import 'package:restage_cli/src/io/interactive.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    as measurement;
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 void main() {
+  test('maps an exact lifecycle context to an activation route profile', () {
+    final context = LifecycleContext(
+      credential: const Credential(
+        endpoint: 'http://localhost:8080/',
+        kind: CredentialKind.authKey,
+        authToken: 'key:secret',
+      ),
+      apiEndpoint: Uri.parse('http://localhost:8080/'),
+      project: 'project',
+      app: 'app',
+      environment: 'environment',
+      organizationId: 11,
+      appId: 23,
+      namedEnvironmentId: 37,
+      environmentTargetId: 31,
+      runtimePlane: RuntimePlane.sandbox,
+    );
+
+    final profile = context.experimentActivationRouteProfile;
+
+    expect(profile.projectSlug, 'project');
+    expect(profile.appSlug, 'app');
+    expect(profile.environmentSlug, 'environment');
+    expect(profile.environmentTargetId, 31);
+    expect(profile.runtimePlane, measurement.RuntimePlane.sandbox);
+    expect(profile.selectedOrganizationId, 11);
+    expect(profile.selectedAppId, 23);
+  });
+
   test('exact family help separates source kind from surface category', () {
     final parser = ArgParser();
     addLifecycleOptions(

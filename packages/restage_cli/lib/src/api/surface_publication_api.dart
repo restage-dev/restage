@@ -1,16 +1,79 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:meta/meta.dart';
 import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
 import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart'
+    hide RuntimePlane;
 import 'package:restage_shared/restage_shared.dart';
 
 /// The control-plane RPC operation for generated publication uploads.
 ///
 /// This operation is intentionally separate from the legacy draft and
 /// lifecycle methods. It accepts one canonical
-/// [SurfacePublicationUploadRequestV1] JSON document and performs publication
+/// [SurfacePublicationUploadRequest] JSON document and performs publication
 /// atomically.
 const String surfacePublicationUploadMethod = 'publishPublication';
+
+/// The additive control-plane operation for a Measurement-bound publication.
+const String measurementBoundSurfacePublicationUploadMethod =
+    'publishMeasurementBound';
+
+/// Exact bytes for one publication-declared artifact in an additive publication upload.
+@experimental
+@immutable
+final class MeasurementBoundSurfacePublicationArtifactWire {
+  /// Creates one immutable artifact tuple.
+  MeasurementBoundSurfacePublicationArtifactWire({
+    required this.path,
+    required List<int> bytes,
+  }) : _bytes = Uint8List.fromList(bytes);
+
+  /// Canonical surface publication artifact path.
+  final String path;
+
+  final Uint8List _bytes;
+
+  /// Defensive copy of the exact artifact bytes.
+  Uint8List get bytes => Uint8List.fromList(_bytes);
+}
+
+/// Target-neutral additive upload assembled from one exact generated closure.
+@experimental
+@immutable
+final class MeasurementBoundSurfacePublicationUploadWire {
+  /// Creates an immutable additive upload and retains its inert proof.
+  MeasurementBoundSurfacePublicationUploadWire({
+    required this.proof,
+    required List<MeasurementBoundSurfacePublicationArtifactWire>
+    declaredArtifactClosure,
+  }) : declaredArtifactClosure = List.unmodifiable(declaredArtifactClosure);
+
+  /// Complete local proof over exact publication bytes and the generated draft.
+  final MeasurementPublicationCandidateProofV1 proof;
+
+  /// Exact publication-declared artifact paths and bytes.
+  final List<MeasurementBoundSurfacePublicationArtifactWire>
+  declaredArtifactClosure;
+
+  /// Exact assembled publication upload bytes.
+  Uint8List get publicationUploadCanonicalBytes =>
+      proof.assembledPublicationUploadCanonicalBytes;
+
+  /// Exact selected one-entry publication manifest bytes.
+  Uint8List get selectedSingleEntryPublicationManifestCanonicalBytes =>
+      proof.selectedPublicationManifestCanonicalBytes;
+
+  /// Exact generated target-neutral draft bytes.
+  Uint8List get measurementPublicationDraftCanonicalBytes =>
+      proof.measurementPublicationDraft.canonicalBytes;
+
+  /// Inert target-neutral reference recomputed from [proof].
+  Uint8List get candidateReferenceCanonicalBytes =>
+      proof.reference.canonicalBytes;
+}
 
 /// Result of one generated publication upload.
 @experimental
@@ -95,6 +158,67 @@ final class SurfacePublicationUploadResult {
   };
 }
 
+/// Finalized backend result returned by an additive Measurement publication.
+@experimental
+@immutable
+final class MeasurementBoundSurfacePublicationUploadResult {
+  /// Construct a finalized result from authoritative backend output.
+  MeasurementBoundSurfacePublicationUploadResult({
+    required this.publicationResult,
+    required this.publicationBindingReference,
+    required this.bundledPublicationEntry,
+  }) {
+    if (bundledPublicationEntry.reference != publicationBindingReference) {
+      throw ArgumentError(
+        'The finalized bundled entry does not match its binding reference.',
+      );
+    }
+  }
+
+  /// Final publication result.
+  final SurfacePublicationUploadResult publicationResult;
+
+  /// Backend-finalized publication binding reference.
+  final MeasurementPublicationBindingReferenceV1 publicationBindingReference;
+
+  /// Backend-finalized exact bundled publication entry.
+  final MeasurementPublicationBundledRegistryEntryV1 bundledPublicationEntry;
+
+  /// Decode the accepted additive result shape.
+  factory MeasurementBoundSurfacePublicationUploadResult.fromWire(
+    Object? value,
+  ) {
+    if (value is! Map<String, dynamic>) {
+      throw const FormatException(
+        'The Measurement publication response was malformed.',
+      );
+    }
+    try {
+      return MeasurementBoundSurfacePublicationUploadResult(
+        publicationResult: SurfacePublicationUploadResult.fromWire(
+          value['publicationResult'],
+        ),
+        publicationBindingReference:
+            MeasurementPublicationBindingReferenceV1.fromCanonicalBytes(
+              _decodeByteDataWire(
+                value['publicationBindingReferenceCanonicalBytes'],
+              ),
+            ),
+        bundledPublicationEntry:
+            MeasurementPublicationBundledRegistryEntryV1.fromCanonicalBytes(
+              _decodeByteDataWire(
+                value['bundledPublicationEntryCanonicalBytes'],
+              ),
+            ),
+      );
+    } on Object {
+      throw const FormatException(
+        'The Measurement publication response was malformed.',
+      );
+    }
+  }
+}
+
 /// Typed client for the one-operation generated publication path.
 @experimental
 final class SurfacePublicationApi {
@@ -112,7 +236,7 @@ final class SurfacePublicationApi {
     required String project,
     required String app,
     required String environment,
-    required SurfacePublicationUploadRequestV1 request,
+    required SurfacePublicationUploadRequest request,
     int? environmentTargetId,
     RuntimePlane? runtimePlane,
     int? organizationId,
@@ -140,5 +264,97 @@ final class SurfacePublicationApi {
         'The publication response could not be decoded.',
       );
     }
+  }
+
+  /// Submit one inert target-neutral candidate through the additive operation.
+  ///
+  /// The upload contains no caller-selected binding, revision, ordinal, or
+  /// activation state. Those values are finalized by the control plane.
+  Future<MeasurementBoundSurfacePublicationUploadResult>
+  publishMeasurementBound({
+    required String project,
+    required String app,
+    required String environment,
+    required MeasurementBoundSurfacePublicationUploadWire upload,
+    int? environmentTargetId,
+    RuntimePlane? runtimePlane,
+    int? organizationId,
+  }) async {
+    final raw = await _api.call(
+      'surface',
+      measurementBoundSurfacePublicationUploadMethod,
+      {
+        'projectSlug': project,
+        'appSlug': app,
+        'environmentSlug': environment,
+        'upload': <String, dynamic>{
+          '__className__': 'MeasurementBoundSurfacePublicationUpload',
+          'publicationUploadCanonicalBytes': _encodeByteDataWire(
+            upload.publicationUploadCanonicalBytes,
+          ),
+          'selectedSingleEntryPublicationManifestCanonicalBytes':
+              _encodeByteDataWire(
+                upload.selectedSingleEntryPublicationManifestCanonicalBytes,
+              ),
+          'declaredArtifactClosure': [
+            for (final artifact in upload.declaredArtifactClosure)
+              <String, dynamic>{
+                '__className__': 'MeasurementBoundSurfacePublicationArtifact',
+                'path': artifact.path,
+                'bytes': _encodeByteDataWire(artifact.bytes),
+              },
+          ],
+          'measurementPublicationDraftCanonicalBytes': _encodeByteDataWire(
+            upload.measurementPublicationDraftCanonicalBytes,
+          ),
+          'candidateReferenceCanonicalBytes': _encodeByteDataWire(
+            upload.candidateReferenceCanonicalBytes,
+          ),
+        },
+        'environmentTargetId': ?environmentTargetId,
+        'runtimePlane': ?runtimePlane?.wireName,
+        'organizationId': ?organizationId,
+      },
+    );
+    try {
+      return MeasurementBoundSurfacePublicationUploadResult.fromWire(raw);
+    } on FormatException {
+      rethrow;
+    } on Object {
+      throw const FormatException(
+        'The Measurement publication response could not be decoded.',
+      );
+    }
+  }
+}
+
+String _encodeByteDataWire(List<int> bytes) =>
+    "decode('${base64Encode(bytes)}', 'base64')";
+
+Uint8List _decodeByteDataWire(Object? value) {
+  if (value is! String) {
+    throw const FormatException(
+      'The Measurement publication response omitted canonical bytes.',
+    );
+  }
+  final match = RegExp(
+    r"^decode\('([A-Za-z0-9+/]*={0,2})', 'base64'\)$",
+  ).firstMatch(value);
+  if (match == null) {
+    throw const FormatException(
+      'The Measurement publication response contained malformed bytes.',
+    );
+  }
+  try {
+    final encoded = match.group(1)!;
+    final bytes = base64Decode(encoded);
+    if (bytes.isEmpty || base64Encode(bytes) != encoded) {
+      throw const FormatException('noncanonical bytes');
+    }
+    return bytes;
+  } on FormatException {
+    throw const FormatException(
+      'The Measurement publication response contained malformed bytes.',
+    );
   }
 }

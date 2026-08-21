@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:path/path.dart' as p;
 import 'package:restage_shared/restage_shared.dart';
 
+import '../api/surface_publication_api.dart';
 import '../commands/surface_payload.dart';
+import '../measurement/measurement_publication_candidate_assembler.dart';
 import 'publication_errors.dart';
 import 'publication_bundle_reader.dart';
 import 'publication_manifest.dart';
@@ -20,23 +22,64 @@ final class AssembledSurfacePublication {
     required this.payload,
     required this.request,
     required Map<String, Uint8List> artifactBytes,
+    required Map<String, File> selectedBundleFilesByAssetPath,
+    this.measurementUpload,
     this.capabilityWarning,
   }) : artifactBytes = Map.unmodifiable({
          for (final item in artifactBytes.entries)
            item.key: Uint8List.fromList(item.value),
-       });
+       }),
+       _selectedBundleFilesByAssetPath = Map.unmodifiable(
+         selectedBundleFilesByAssetPath,
+       );
 
   /// The generated identity and declaration that were selected.
-  final SurfacePublicationManifestEntryV1 entry;
+  final SurfacePublicationManifestEntry entry;
 
   /// The canonical assembled payload frame.
   final SurfacePayload payload;
 
   /// The only request submitted by the publication command.
-  final SurfacePublicationUploadRequestV1 request;
+  final SurfacePublicationUploadRequest request;
 
   /// Exact bytes read for the declaration paths in [entry].
   final Map<String, Uint8List> artifactBytes;
+
+  /// Exact physical source-bundle closure that supplied [artifactBytes].
+  List<File> get selectedBundleFiles =>
+      List<File>.unmodifiable(_selectedBundleFilesByAssetPath.values);
+
+  /// Exact output-index asset keys for [selectedBundleFiles].
+  ///
+  /// The command retains these keys rather than inferring placement from a
+  /// source path or scanning the project filesystem after assembly.
+  List<String> get selectedBundleAssetPaths =>
+      List<String>.unmodifiable(_selectedBundleFilesByAssetPath.keys);
+
+  /// Whether the complete selected closure is usable by bundled Measurement.
+  ///
+  /// A package that did not select `bundled_runtime` can still publish its
+  /// hosted Measurement candidate; it has no target-profile asset to export.
+  bool get hasBundledMeasurementSourceClosure =>
+      _selectedBundleFilesByAssetPath.isNotEmpty &&
+      _selectedBundleFilesByAssetPath.keys.every(
+        isMeasurementBundledSourceOwnedBundleAssetPathV1,
+      );
+
+  /// Whether generated output incoherently mixes bundled and non-bundled
+  /// source bundle placements for one Measurement closure.
+  bool get hasMixedMeasurementSourceClosure {
+    final paths = _selectedBundleFilesByAssetPath.keys;
+    return paths.any(isMeasurementBundledSourceOwnedBundleAssetPathV1) &&
+        paths.any(
+          (path) => !isMeasurementBundledSourceOwnedBundleAssetPathV1(path),
+        );
+  }
+
+  final Map<String, File> _selectedBundleFilesByAssetPath;
+
+  /// Optional additive target-neutral Measurement upload.
+  final MeasurementBoundSurfacePublicationUploadWire? measurementUpload;
 
   /// Optional capability note suitable for command output.
   final String? capabilityWarning;
@@ -54,15 +97,17 @@ final class SurfacePublicationAssembler {
   /// Assemble [entry] from the fixed project root in [loaded].
   Future<AssembledSurfacePublication> assemble({
     required LoadedSurfacePublicationManifest loaded,
-    required SurfacePublicationManifestEntryV1 entry,
+    required SurfacePublicationManifestEntry entry,
   }) async {
     final bytesByPath = <String, Uint8List>{};
+    final bundleFilesByAssetPath = <String, File>{};
     for (final artifact in entry.artifacts) {
       final locator = loaded.outputIndex.locatorFor(artifact.path);
       final bundleFile = _resolveArtifactFile(
         loaded.projectRoot,
         locator.bundle,
       );
+      bundleFilesByAssetPath.putIfAbsent(locator.bundle, () => bundleFile);
       final PublicationBundleEntry bundleEntry;
       try {
         bundleEntry = await _bundleReader.readEntry(
@@ -93,9 +138,7 @@ final class SurfacePublicationAssembler {
       bytesByPath[artifact.path] = Uint8List.fromList(bundleEntry.bytes);
     }
 
-    final selectedManifest = SurfacePublicationManifestV1(
-      publications: [entry],
-    );
+    final selectedManifest = SurfacePublicationManifest(publications: [entry]);
     final closure = _validateDeclaredClosure(
       selectedManifest,
       bytesByPath,
@@ -108,13 +151,13 @@ final class SurfacePublicationAssembler {
       final sidecars = <String, CapabilitySidecar>{};
       for (final artifact in entry.artifacts) {
         switch (artifact.role) {
-          case SurfacePublicationArtifactRoleV1.flowDocument:
+          case SurfacePublicationArtifactRole.flowDocument:
             break;
-          case SurfacePublicationArtifactRoleV1.screenBlob:
+          case SurfacePublicationArtifactRole.screenBlob:
             final blob = bytesByPath[artifact.path]!;
             _validateBlob(blob);
             blobs[artifact.id!] = Uint8List.fromList(blob);
-          case SurfacePublicationArtifactRoleV1.capabilitySidecar:
+          case SurfacePublicationArtifactRole.capabilitySidecar:
             sidecars[artifact.id!] = _decodeSidecar(
               bytesByPath[artifact.path]!,
             );
@@ -141,7 +184,7 @@ final class SurfacePublicationAssembler {
         case SurfacePayloadKind.flow:
           final flowArtifact = _findArtifact(
             entry,
-            role: SurfacePublicationArtifactRoleV1.flowDocument,
+            role: SurfacePublicationArtifactRole.flowDocument,
           );
           final flowDocument = _decodeFlowDocument(
             bytesByPath[flowArtifact.path]!,
@@ -171,16 +214,25 @@ final class SurfacePublicationAssembler {
           );
       }
 
-      final request = SurfacePublicationUploadRequestV1(
+      final request = SurfacePublicationUploadRequest(
         publication: publication,
         payload: payload.canonicalBytes,
       );
       closure.validateAssembledPayload(payload.canonicalBytes);
+      final measurementUpload = await MeasurementPublicationCandidateAssembler()
+          .assemble(
+            loaded: loaded,
+            entry: entry,
+            request: request,
+            artifactBytes: bytesByPath,
+          );
       return AssembledSurfacePublication(
         entry: entry,
         payload: payload,
         request: request,
         artifactBytes: bytesByPath,
+        selectedBundleFilesByAssetPath: bundleFilesByAssetPath,
+        measurementUpload: measurementUpload,
         capabilityWarning: publishCapabilityWarning(capabilityManifest),
       );
     } on PublicationException {
@@ -201,10 +253,10 @@ final class SurfacePublicationAssembler {
   }
 }
 
-List<SurfacePublicationArtifactClosureV1> _validateDeclaredClosure(
-  SurfacePublicationManifestV1 manifest,
+List<SurfacePublicationArtifactClosure> _validateDeclaredClosure(
+  SurfacePublicationManifest manifest,
   Map<String, List<int>> bytesByPath,
-  SurfacePublicationManifestEntryV1 entry,
+  SurfacePublicationManifestEntry entry,
 ) {
   try {
     return manifest.validateArtifactClosure(bytesByPath);
@@ -237,10 +289,10 @@ File _resolveArtifactFile(Directory projectRoot, String packagePath) {
 }
 
 void _validateBundleEntry({
-  required SurfacePublicationArtifactV1 artifact,
+  required SurfacePublicationArtifact artifact,
   required RestageOutputIndexEntry locator,
   required PublicationBundleEntry bundleEntry,
-  required SurfacePublicationV1 publication,
+  required SurfacePublication publication,
 }) {
   if (bundleEntry.path != locator.entry || bundleEntry.path != artifact.path) {
     throw PublicationAssemblyException(
@@ -275,9 +327,9 @@ void _validateBundleEntry({
   }
 }
 
-SurfacePublicationArtifactV1 _findArtifact(
-  SurfacePublicationManifestEntryV1 entry, {
-  required SurfacePublicationArtifactRoleV1 role,
+SurfacePublicationArtifact _findArtifact(
+  SurfacePublicationManifestEntry entry, {
+  required SurfacePublicationArtifactRole role,
 }) {
   for (final artifact in entry.artifacts) {
     if (artifact.role == role) return artifact;

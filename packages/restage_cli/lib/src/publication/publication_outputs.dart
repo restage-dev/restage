@@ -263,8 +263,8 @@ final class RestageOutputIndex {
   }
 
   /// Verify the locator set preserves the canonical publication manifest.
-  void validateAgainstManifest(SurfacePublicationManifestV1 manifest) {
-    final artifactsByPath = <String, SurfacePublicationArtifactV1>{};
+  void validateAgainstManifest(SurfacePublicationManifest manifest) {
+    final artifactsByPath = <String, SurfacePublicationArtifact>{};
     for (final publication in manifest.publications) {
       for (final artifact in publication.artifacts) {
         final previous = artifactsByPath[artifact.path];

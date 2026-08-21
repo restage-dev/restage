@@ -24,8 +24,8 @@ void main() {
     });
   });
 
-  test('console renders the B4 operator shell', () async {
-    await testNocterm('console renders the B4 operator shell', (tester) async {
+  test('console renders the operator shell', () async {
+    await testNocterm('console renders the operator shell', (tester) async {
       final controller = ConsoleController(repository: FakeConsoleRepository());
       await tester.pumpComponent(RestageConsoleApp(controller: controller));
       await tester.pump();
@@ -200,7 +200,7 @@ void main() {
     });
   });
 
-  test('console keeps command preview compact in the B4 shell', () async {
+  test('console keeps command preview compact in the operator shell', () async {
     await testNocterm('console keeps command preview compact', (tester) async {
       final controller = ConsoleController(repository: FakeConsoleRepository());
       await tester.pumpComponent(RestageConsoleApp(controller: controller));

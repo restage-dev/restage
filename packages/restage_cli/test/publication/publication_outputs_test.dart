@@ -372,13 +372,13 @@ void main() {
       final loaded = await load();
       final artifact = entry.artifacts.singleWhere(
         (candidate) =>
-            candidate.role == SurfacePublicationArtifactRoleV1.screenBlob,
+            candidate.role == SurfacePublicationArtifactRole.screenBlob,
       );
       await rewriteBundleEntryRole(
         tempDir,
         bundlePath: loaded.outputIndex.locatorFor(artifact.path).bundle,
         entryPath: artifact.path,
-        role: RestageBundleEntryRoleV1.flowDocument,
+        role: RestageBundleEntryRole.flowDocument,
       );
 
       await expectLater(

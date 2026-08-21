@@ -1,0 +1,10 @@
+# Restage generated output.
+#
+# Portable build metadata and build-time intermediates are ignored by artifact
+# name: they are reproducible from the authored sources by
+# `dart run build_runner build`, and tracking them adds churn to every
+# generation. Generated Dart is NOT ignored — it is ordinary source the
+# analyzer and the compiler read.
+restage.outputs.json
+restage.publication.json
+surface_publication.compiler.json

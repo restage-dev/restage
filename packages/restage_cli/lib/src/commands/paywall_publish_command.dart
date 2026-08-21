@@ -163,6 +163,19 @@ class PaywallPublishCommand extends Command<int> {
         _stderr.writeln(publication.capabilityWarning);
       }
     }
+    // The closure guard is per entry, so it has to hold across a multi-entry
+    // set and not only the single-entry one.
+    for (final publication in assembled) {
+      if (publication.measurementUpload != null &&
+          publication.hasMixedMeasurementSourceClosure) {
+        _stderr.writeln(
+          'The generated Measurement closure mixes bundled and non-bundled '
+          'source bundle placements. Re-run `dart run build_runner build` and '
+          'retry.',
+        );
+        return 1;
+      }
+    }
 
     final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
     final credential = await store.read();
@@ -191,6 +204,7 @@ class PaywallPublishCommand extends Command<int> {
     return _runPipeline(
       credential: credential,
       apiEndpoint: apiEndpoint,
+      packageRoot: projectRoot,
       project: project,
       app: app,
       environment: environment,
@@ -205,6 +219,7 @@ class PaywallPublishCommand extends Command<int> {
   Future<int> _runPipeline({
     required Credential credential,
     required Uri apiEndpoint,
+    required Directory packageRoot,
     required String project,
     required String app,
     required String environment,
@@ -240,6 +255,7 @@ class PaywallPublishCommand extends Command<int> {
       return await runPublishRun(
         api: api,
         assembled: assembled,
+        packageRoot: packageRoot,
         project: project,
         app: app,
         environment: environment,

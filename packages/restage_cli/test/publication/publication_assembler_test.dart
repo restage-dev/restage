@@ -38,7 +38,45 @@ void main() {
     expect(assembled.payload, isA<BlobSurfacePayload>());
     expect(SurfacePayload.decode(assembled.request.payload), assembled.payload);
     expect(assembled.artifactBytes.keys, entry.artifacts.map((a) => a.path));
+    expect(
+      assembled.selectedBundleFiles.map((file) => file.path).toSet(),
+      <String>{
+        for (final artifact in entry.artifacts)
+          p.normalize(
+            p.join(
+              tempDir.path,
+              loaded.outputIndex.locatorFor(artifact.path).bundle,
+            ),
+          ),
+      },
+    );
+    expect(assembled.hasBundledMeasurementSourceClosure, isFalse);
   });
+
+  test(
+    'retains the exact bundled-runtime source closure for packaging',
+    () async {
+      final entry = await seedGeneratedPaywall(
+        tempDir,
+        slug: 'checkout',
+        layout: GeneratedOutputLayout.bundledRuntime,
+      );
+      final loaded = await SurfacePublicationManifestLoader().load(
+        projectRoot: tempDir,
+      );
+
+      final assembled = await SurfacePublicationAssembler().assemble(
+        loaded: loaded,
+        entry: entry,
+      );
+
+      expect(assembled.hasBundledMeasurementSourceClosure, isTrue);
+      expect(
+        assembled.selectedBundleAssetPaths,
+        everyElement(startsWith('assets/restage/bundles/')),
+      );
+    },
+  );
 
   test('assembles a flow and unions verified sidecar requirements', () async {
     final entry = await _seedGeneratedFlow(tempDir);
@@ -68,7 +106,7 @@ void main() {
       final entry = await seedGeneratedPaywall(tempDir, slug: 'checkout');
       final blobArtifact = entry.artifacts.singleWhere(
         (artifact) =>
-            artifact.role == SurfacePublicationArtifactRoleV1.screenBlob,
+            artifact.role == SurfacePublicationArtifactRole.screenBlob,
       );
       final loaded = await SurfacePublicationManifestLoader().load(
         projectRoot: tempDir,
@@ -136,7 +174,7 @@ void main() {
           fixtureLibraryPath,
         ),
         entryPath: 'assets/restage/generated/checkout/screen.rfwtxt',
-        role: RestageBundleEntryRoleV1.rfwText,
+        role: RestageBundleEntryRole.rfwText,
       );
       final loaded = await SurfacePublicationManifestLoader().load(
         projectRoot: tempDir,
@@ -168,13 +206,13 @@ void main() {
       );
       final artifact = entry.artifacts.singleWhere(
         (candidate) =>
-            candidate.role == SurfacePublicationArtifactRoleV1.screenBlob,
+            candidate.role == SurfacePublicationArtifactRole.screenBlob,
       );
       await rewriteBundleEntryRole(
         tempDir,
         bundlePath: loaded.outputIndex.locatorFor(artifact.path).bundle,
         entryPath: artifact.path,
-        role: RestageBundleEntryRoleV1.rfwText,
+        role: RestageBundleEntryRole.rfwText,
       );
 
       await expectLater(
@@ -199,7 +237,7 @@ void main() {
   );
 }
 
-Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
+Future<SurfacePublicationManifestEntry> _seedGeneratedFlow(
   Directory root,
 ) async {
   final flowPath = await seedSurfaceFlow(root, slug: 'first_run');
@@ -232,11 +270,11 @@ Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
   }
   final flowBytes = await File(flowPath).readAsBytes();
   final document = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
-  final artifacts = <SurfacePublicationArtifactV1>[
-    SurfacePublicationArtifactV1(
+  final artifacts = <SurfacePublicationArtifact>[
+    SurfacePublicationArtifact(
       contentHash: CapabilitySidecar.hashBlob(flowBytes),
       path: 'assets/onboarding/flows/first_run.flow.json',
-      role: SurfacePublicationArtifactRoleV1.flowDocument,
+      role: SurfacePublicationArtifactRole.flowDocument,
     ),
   ];
   final screenBlobs = <String, Uint8List>{};
@@ -255,10 +293,10 @@ Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
     screenBlobs[screen.key] = blob;
     sidecars[screen.key] = sidecar;
     artifacts.add(
-      SurfacePublicationArtifactV1(
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(blob),
         path: blobPath,
-        role: SurfacePublicationArtifactRoleV1.screenBlob,
+        role: SurfacePublicationArtifactRole.screenBlob,
         id: screen.key,
       ),
     );
@@ -266,10 +304,10 @@ Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
       p.join(root.path, sidecarPath),
     ).readAsBytes();
     artifacts.add(
-      SurfacePublicationArtifactV1(
+      SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
         path: sidecarPath,
-        role: SurfacePublicationArtifactRoleV1.capabilitySidecar,
+        role: SurfacePublicationArtifactRole.capabilitySidecar,
         id: screen.key,
       ),
     );
@@ -285,7 +323,7 @@ Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
     screenBlobs: screenBlobs,
     requiredLibraries: requiredLibraries,
   );
-  final publication = SurfacePublicationV1(
+  final publication = SurfacePublication(
     surface: Surface.onboarding,
     slug: document.flow,
     sourceKind: SurfaceSourceKind.flowGraph,
@@ -293,7 +331,7 @@ Future<SurfacePublicationManifestEntryV1> _seedGeneratedFlow(
     payloadContentHash: payload.contentHash,
     deliveryMode: document.deliveryMode,
   );
-  final entry = SurfacePublicationManifestEntryV1(
+  final entry = SurfacePublicationManifestEntry(
     artifacts: artifacts,
     publication: publication,
   );

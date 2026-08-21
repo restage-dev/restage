@@ -8,6 +8,9 @@ import 'package:meta/meta.dart';
 import 'package:restage_cli/api.dart';
 
 import 'api_runner.dart';
+import 'canonical_mutation_tool.dart';
+import 'experiment_activation_tool.dart';
+import 'experimental_gate.dart';
 
 /// Backend origin used for in-server login when no credential exists yet.
 /// Overridable at build time via `--define`; falls back to localhost.
@@ -50,6 +53,8 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     Future<void> Function(String)? openBrowser,
     Uri? loginEndpoint,
     DateTime Function()? now,
+    ExperimentActivationApi? experimentActivationApi,
+    Map<String, String>? environment,
   }) : _credentialStore = credentialStore,
        _httpClient = httpClient,
        _sleep = sleep ?? _defaultSleep,
@@ -106,6 +111,33 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     registerTool(_updateAppConfigTool, _scrubbed(_handleUpdateAppConfig));
     registerTool(_listApiKeysTool, _scrubbed(_handleListApiKeys));
     registerTool(_revokeApiKeyTool, _scrubbed(_handleRevokeApiKey));
+    // Experimental tools are registered only when the host opts in. They call
+    // routes production does not serve yet, so listing them by default would
+    // advertise an operation that cannot succeed — and an MCP client's only
+    // signal about what it may call is the tool list.
+    if (experimentalToolsEnabled(environment)) {
+      registerTool(
+        canonicalMutationTool,
+        _scrubbed(
+          (request) => handleCanonicalMutation(
+            request: request,
+            store: _store,
+            httpClient: _httpClient,
+          ),
+        ),
+      );
+      if (experimentActivationApi != null) {
+        registerTool(
+          experimentActivationTool,
+          _scrubbed(
+            (request) => handleExperimentActivation(
+              request: request,
+              api: experimentActivationApi,
+            ),
+          ),
+        );
+      }
+    }
   }
 
   /// Wrap [handler] so its result passes through the held-secret value funnel

@@ -47,7 +47,7 @@ void main() {
       // Shared surface and publication signatures remain nameable from the
       // public barrel without a second `package:restage_shared` import.
       expect(Surface.general.wireName, 'general');
-      expect(SurfacePublicationUploadRequestV1, isNotNull);
+      expect(SurfacePublicationUploadRequest, isNotNull);
       expect(
         const LibraryRequirement(namespace: 'restage.material', minVersion: 1),
         isA<LibraryRequirement>(),

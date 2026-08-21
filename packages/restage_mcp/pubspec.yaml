@@ -33,11 +33,12 @@ dependencies:
   # Resolved from the workspace (the local restage_cli member). Kept as a
   # version constraint rather than a path so this package stays publishable.
   restage_cli: ^0.1.0
+  restage_measurement_schema: ^0.1.0
 
 dev_dependencies:
   lints: ^6.0.0
   # Test-only: builds a canonical BlobSurfacePayload frame to exercise the
   # paywall get/unwrap path against the surface store. Workspace-resolved.
-  restage_shared: ^1.0.0
+  restage_shared: ^2.0.0
   stream_channel: ^2.1.4
   test: ^1.25.0
