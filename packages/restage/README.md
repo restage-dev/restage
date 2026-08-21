@@ -101,13 +101,13 @@ One host widget per surface kind:
 
 - **Screens**: any single surface you write with `@Screen`, such as a welcome
   page, a notice, or a settings card. Mount it with
-  `RestageSurfaceScreen(screen: welcomeScreenRef, ...)` wherever it should appear;
+  `RestageScreen(screen: welcomeScreenRef, ...)` wherever it should appear;
   the build generates `welcomeScreenRef`, and taps come back as typed Dart events.
 - **Paywalls**: a `@Paywall` surface with products, purchase, and restore built
   in. Mount it with `RestagePaywall(id: 'pro_upgrade', ...)`.
 - **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a survey,
   or a multi-step message. Mount it with
-  `RestageSurfaceFlow(flow: FirstRunFlowDescriptor.ref, ...)`; the build
+  `RestageFlowGraph(flow: firstRunFlowRef, ...)`; the build
   generates the descriptor. See [doc/flows.md](doc/flows.md)
   for the full example, host actions, and data minimization, and
   [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
@@ -134,6 +134,17 @@ Two more documents cover the rest of delivery:
 - [doc/bundled_native_purchases.md](doc/bundled_native_purchases.md): what the
   bundled StoreKit and Google Play gateway needs and guarantees.
 
+## Build
+
+Apps that depend on `restage` must build with `--no-tree-shake-icons`, because
+RFW builds `IconData` from runtime values:
+
+```sh
+flutter build ios --no-tree-shake-icons
+flutter build appbundle --no-tree-shake-icons
+flutter build web --wasm --no-tree-shake-icons
+```
+
 ## Telemetry and data
 
 Restage includes a conversion-analytics layer. It powers your dashboard, A/B
@@ -146,15 +157,22 @@ results, and revenue attribution. It's built to be boring and honest:
   (`<baseUrl>/analytics/events`), authenticated with your public key
   (`rs_pk_...`). Point it at Restage Cloud and your events power your dashboard
   and usage-based billing. Point it at your own backend and they go there.
-  There is no hidden Restage host in the SDK. Grep for it.
+  There is no hidden Restage host in the SDK.
 - **The identity is pseudonymous.** Each install gets a random UUID. It isn't
   derived from any device or advertising identifier, and it resets on
   uninstall or `Restage.reset()`. It's a pseudonymous identifier rather than
   an anonymous one. Treat it as personal data under GDPR and similar laws, as
-  we do. After a reset, the SDK treats future activity as a new user, so
-  experiment assignment may change on the next surface presentation. The SDK
-  never attaches a user identity of your own unless *you* pass one with
-  `Restage.identify(...)`.
+  we do. **The SDK attaches no user identity of your own.** No call binds
+  your account id to an event.
+- **What `Restage.reset()` does, and doesn't do.** It rotates the pseudonymous
+  id on the device and rotates the session. That id is also the experiment
+  assignment key, so the install becomes a new randomized unit: assignment is
+  re-drawn on the next surface presentation, and nothing records a link
+  between the old unit and the new one. It's a local call: it sends nothing
+  and tells the server nothing. It does **not** erase or amend events already
+  sent, and it does **not** clear the metering token described below. It isn't
+  a deletion request. Treat it as rotating an identifier going forward, not as
+  erasing a history.
 
 **What each event contains:** a dedup id; the event name and a UTC timestamp;
 which surface it was, with its id, version, and session; the pseudonymous
@@ -191,7 +209,7 @@ count them. How it works:
   analytics install id.
 - **It's sent only with surface fetches.** It goes in the body of the request
   to `<baseUrl>/sdk/v1/surface` and nowhere else. It never appears in
-  analytics events. Grep for `meteringKey`.
+  analytics events.
 - **It goes only to the server you configured.** There is no baked-in Restage
   endpoint. If your `baseUrl` is your own backend, the token goes there, and
   your server is free to ignore the field.
@@ -207,16 +225,27 @@ uninstalled. The implementation is in `lib/src/metering/` and it's short.
 All of this is BSD-3-Clause and readable: see `lib/src/analytics/` and
 `lib/src/billing/anonymous_token.dart`.
 
-## Build
+### Linking a signed-in user
 
-Apps that depend on `restage` must build with `--no-tree-shake-icons`, because
-RFW builds `IconData` from runtime values:
+By default, measurement knows no user. Events and experiment assignment key
+off the pseudonymous install id, and nothing ties them to an account.
 
-```sh
-flutter build ios --no-tree-shake-icons
-flutter build appbundle --no-tree-shake-icons
-flutter build web --wasm --no-tree-shake-icons
+If your app has signed-in users and you want measurement tied to a user or an
+account, you link one explicitly:
+
+```dart
+final result = await Restage.measurement.linkSubject(request);
+final reset = await Restage.measurement.resetSubject(resetRequest);
+final withdrawal = await Restage.measurement.withdrawConsent(withdrawalRequest);
 ```
+
+Linking is deliberately not a one-liner. A request carries proof from your own
+auth system that the user is signed in, the user's consent and region, and a
+challenge from the service, so a link can't happen by accident. You get back a
+receipt or a failure, and nothing you sent is ever echoed back.
+`resetSubject` unlinks; `withdrawConsent` blocks future linking. Until your
+app installs a verifier for these proofs, every call here fails closed and
+does nothing.
 
 ## License
 

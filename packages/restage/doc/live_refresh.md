@@ -33,7 +33,7 @@ Restage.configure(
 );
 
 // Per-widget override (wins over everything). An empty set opts this one out.
-RestageSurfaceFlow<FirstRunResult>(
+RestageFlowGraph<FirstRunResult>(
   flow: welcomeFlow,
   liveRefresh: const {SurfaceRefreshTrigger.updateChannel},
   unavailable: const FlowUnavailablePolicy.hide(),

@@ -1,12 +1,48 @@
 # Changelog
 
-## Unreleased — coordinated breaking release
+## 2.0.0
+
+**Breaking: one generated handle per annotated class.** The build now emits a
+single top-level `<className>Ref` for every annotated screen and flow, instead
+of two different shapes depending on which frontend produced it.
+
+| Source | Handle | Type |
+|---|---|---|
+| `@Screen(id:, surface:)` on `WelcomeScreen` | `welcomeScreenRef` | `SurfaceScreenRef<WelcomeScreenEvent>` |
+| `@Screen()` on `QuestionScreen` | `questionScreenRef` | `NeutralFlowScreenRef` |
+| `@FlowGraph(surface:)` on `FirstRunFlow` | `firstRunFlowRef` | `SurfaceFlowRef<FirstRunResult>` |
+
+For neutral `@Screen()` screens and for flows, the previous
+`<ClassName>Descriptor` holder is still emitted as a `@Deprecated` alias whose
+`ref` forwards to the new handle, so existing source compiles through 2.x. It
+is removed at 3.0.
+
+A **categorized** `@Screen(surface:)` is the exception: its holder is deleted
+outright rather than deprecated, because the reference it carried was the
+in-flow neutral one described below, which a categorized screen no longer
+generates at all.
+
+A flow's `buildFlow()` accepts either spelling for its screen references
+(`welcomeScreenRef` or the deprecated `WelcomeScreenDescriptor.ref`), and both
+resolve to the same screen.
+
+A categorized `@Screen(surface:)` no longer emits an in-flow neutral
+reference; a screen used as a flow step is a neutral `@Screen()`.
+
+The authored flow base class the compiler recognises is unchanged:
+`RestageFlow`. A source that extends the host widget `RestageFlowGraph` by
+mistake is already an analyzer error (the widget is a `final class`); the
+compiler detects that supertype specifically to say which class was wanted.
+
+Generated Dart changes; generated delivery artifacts do not.
+
+### Also in 2.0.0
 
 This section records the package side of a coordinated breaking release. The
 release version and publication timing are assigned separately.
 
 - Each generated output roster entry records the condition under which its
-  path is written — for every lowering of its source, or only when the lowering
+  path is written: for every lowering of its source, or only when the lowering
   produces one particular thing. Paths are reserved before the translator
   decides what a source lowers to, so this is how a consumer of the ledger
   tells which reservations are written together. Only paywall reservations are
@@ -20,6 +56,29 @@ release version and publication timing are assigned separately.
   zero arguments or one required positional payload in the target vocabulary.
   The exact callback property name is the event identity; no event declaration
   or rename annotation is used.
+- Resolve only the sources that can declare something. All seven builders
+  that scan a whole package (the five applied automatically, plus the A2UI
+  catalog and Widgetbook story builders you opt into) now read raw source
+  first and resolve just the files spelling a Restage annotation, so a package
+  that declares nothing pays no analysis for them, the difference that matters
+  on large codebases, where resolving every file also made every builder depend
+  on every file. What you write is discovered as before: an annotation written
+  on the declaration, behind an import prefix, in a `part`, or through a
+  `const` or `typedef` alias declared in another file in the same package all
+  reach the same place they always did. An alias declared in a *different*
+  package is the one shape that is not followed: these builders scan only the
+  package they are building, so they never see that declaration.
+- A syntax error in a file that spells no Restage annotation is no longer
+  reported by these builders. They no longer analyse such files; the Dart
+  toolchain reports the error either way. The deprecated screen path
+  `lib/<onboarding|message|survey>/screens/<id>.dart` keeps its diagnostics:
+  the per-file screen builders still analyse a library there annotated or not,
+  and the two opt-in package-wide builders still select it.
+- Write the two roster ledger files into a package only once it declares a
+  Restage source, or reports a problem with one, instead of into every
+  dependent.
+- Decode the surface publication compiler handoff once per package per build
+  rather than once per Dart library.
 - Consume `a2ui.Config` usage/write-back metadata.
 - Generate ordinary native Widgetbook v4 story source for customer widgets in
   the same `build_runner` invocation, including customer structured values and
@@ -27,8 +86,8 @@ release version and publication timing are assigned separately.
 - Emit the A2UI Dart catalog and standalone document together under
   `lib/generated/`, with no root-level compatibility aliases.
 - Derive every customer `Widget` and `List<Widget>` constructor input as an
-  independently named child-bearing property across RFW, A2UI, Widgetbook, and
-  editor consumers; several exact names may coexist on one class.
+  independently named child-bearing property across the RFW, A2UI, and
+  Widgetbook targets; several exact names may coexist on one class.
 - **Breaking generated A2UI layout:** nest every customer widget and opaque
   native-screen constructor input under one required `props` object while
   leaving protocol `id` and `component` on the envelope. Exact source names,
@@ -40,8 +99,8 @@ release version and publication timing are assigned separately.
   one safely omissible constructor input use `@Ignore` for selected targets,
   without suppressing diagnostics or properties in its siblings.
 - Fix `paywallPriceFor(productId: ...)` for real store ids: a product key that
-  is not a bare identifier — a reverse-DNS id such as `com.example.pro.annual`,
-  an all-digit id, or one containing a hyphen or space — is now emitted as a
+  is not a bare identifier (a reverse-DNS id such as `com.example.pro.annual`,
+  an all-digit id, or one containing a hyphen or space) is now emitted as a
   quoted reference part, so it stays a single key instead of splitting at each
   dot, decoding as an integer, or failing to parse. Identifier-shaped keys and
   slots are unchanged, so any output that previously parsed is byte-for-byte
@@ -97,7 +156,7 @@ release version and publication timing are assigned separately.
 - Infer a structured property's required-ness from the widget's default constructor, so a value the
   constructor requires is marked required even when the annotation omits it.
 - Exclude a customer widget carrying a structured property from the RFW catalog/factory build (a non-fatal,
-  logged exclusion) — it renders via the A2UI emit target; native (RFW) rendering of custom structured data
+  logged exclusion); it renders via the A2UI emit target; native (RFW) rendering of custom structured data
   is a tracked future capability.
 
 ## 1.0.2

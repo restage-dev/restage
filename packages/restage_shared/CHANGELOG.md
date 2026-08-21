@@ -1,12 +1,19 @@
 # Changelog
 
-## Unreleased — coordinated breaking release
+## 2.0.0
 
+- **Breaking:** the legacy behavioral-analytics event and wire vocabulary
+  (`AnalyticsEvent`, `AnalyticsAppContext`, the reserved-key and clock-skew
+  helpers, the taxonomy registry, and the wire enums) moves behind the
+  `legacy_analytics.dart` entrypoint and leaves the default export. Import
+  `package:restage_shared/legacy_analytics.dart` to keep using it. It retires
+  with the legacy analytics runtime. New code should measure through
+  `package:restage_measurement_schema/restage_measurement_schema.dart`.
+- **Breaking:** re-export catalog schema v5, where callback property names are
+  open event identities and the closed event-name enum is removed. Decoding a
+  v4 catalog still works.
 - Re-export the pure-Dart A2UI and RFW customer target annotations from the
   new `a2ui.dart` and `rfw.dart` entrypoints.
-- Re-export catalog schema v5, where callback property names are open event
-  identities and the closed event-name enum is removed; v4 catalog decoding
-  remains supported.
 
 ## 1.2.0
 

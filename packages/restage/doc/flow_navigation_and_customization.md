@@ -5,7 +5,7 @@ how flow navigation and back behave, how to choose between the high-level and
 low-level rendering surfaces, and the compliance boundary that holds however you
 compose them.
 
-This covers `RestageSurfaceFlow` (the normal full flow surface),
+This covers `RestageFlowGraph` (the normal full flow surface),
 `RestageFlowView` (the lower-level compositor), and `RestageScreenView` (the
 current-screen rendering surface). All of them render the same flow document
 driven by the same `RestageFlowController`.
@@ -46,8 +46,8 @@ layout. Every token is optional; an omitted token keeps the platform-appropriate
 default.
 
 ```dart
-RestageSurfaceFlow<FirstRunResult>(
-  flow: FirstRunFlowDescriptor.ref,
+RestageFlowGraph<FirstRunResult>(
+  flow: firstRunFlowRef,
   unavailable: FlowUnavailablePolicy.hide(),
   chromeTheme: const FlowChromeTheme(
     backIcon: Icons.chevron_left,
@@ -69,8 +69,8 @@ affordance widget; the SDK still positions it and supplies the persistent
 framing. `onAction` performs the affordance's intent (a back pop, or a skip).
 
 ```dart
-RestageSurfaceFlow<FirstRunResult>(
-  flow: FirstRunFlowDescriptor.ref,
+RestageFlowGraph<FirstRunResult>(
+  flow: firstRunFlowRef,
   unavailable: FlowUnavailablePolicy.hide(),
   backBuilder: (context, onAction) => IconButton(
     icon: const Icon(Icons.arrow_back_ios_new),
@@ -99,8 +99,8 @@ Two builder layers let you own the layout entirely. Both receive a
 Both may be set together (the frame composes around the per-screen result).
 
 ```dart
-RestageSurfaceFlow<FirstRunResult>(
-  flow: FirstRunFlowDescriptor.ref,
+RestageFlowGraph<FirstRunResult>(
+  flow: firstRunFlowRef,
   unavailable: FlowUnavailablePolicy.hide(),
   persistentChromeBuilder: (context, state, flowBody) => Column(
     children: [
@@ -135,7 +135,7 @@ content, which is why it is the default; `false` rides inside the animated slot.
 Supplying `chromeBuilder` / `persistentChromeBuilder` chooses the layer
 explicitly and supersedes the bool.
 
-`persistentChrome` is a parameter on `RestageSurfaceFlow` / `RestageFlowView`
+`persistentChrome` is a parameter on `RestageFlowGraph` / `RestageFlowView`
 (not on `FlowChromeTheme`, which stays purely visual). For an app-wide setting,
 pass the same value (or wrap the surface).
 
@@ -219,8 +219,8 @@ cannot back into onboarding from the paywall. Use this when onboarding and the
 paywall are distinct phases.
 
 ```dart
-RestageSurfaceFlow<FirstRunResult>(
-  flow: FirstRunFlowDescriptor.ref,
+RestageFlowGraph<FirstRunResult>(
+  flow: firstRunFlowRef,
   actions: FirstRunActions(/* ... */),
   unavailable: FlowUnavailablePolicy.hide(),
   onComplete: (result) => Navigator.of(context).pushReplacement(
@@ -274,19 +274,19 @@ The `@Paywall` source remains a specialized paywall even when it is a step in an
 onboarding flow. Codegen emits the generated flow descriptor and the exact
 screen-artifact closure recorded in
 `lib/generated/restage.publication.json`. At runtime, consume the
-generated `SurfaceFlowRef<R>` with `RestageSurfaceFlow<R>`. If the embedded
+generated `SurfaceFlowRef<R>` with `RestageFlowGraph<R>`. If the embedded
 paywall reads live prices, pass the same `priceQueries` map to the flow host
 that you would pass to `RestagePaywall`.
 
 ## Choosing a rendering surface
 
-`RestageSurfaceFlow` and `RestageScreenView` differ in how much of the
+`RestageFlowGraph` and `RestageScreenView` differ in how much of the
 presentation the SDK owns. `RestageFlowView` is the lower-level compositor used
 when the host needs to control the flow's stack transition visuals.
 
 ### `RestageFlowView`: the SDK owns the stack + transitions
 
-`RestageSurfaceFlow` owns the normal flow host, while `RestageFlowView` owns the
+`RestageFlowGraph` owns the normal flow host, while `RestageFlowView` owns the
 kept-mounted screen stack, the back-stack, the chrome ladder above, and a
 platform-adaptive transition. To fully customize the transition, supply a
 `transition` (`FlowTransitionBuilder`). That covers a **two-screens-visible**
@@ -312,7 +312,7 @@ incoming transition + an own back affordance.
 
 | You want… | Use |
 |---|---|
-| the full surface, default or themed chrome | `RestageSurfaceFlow` |
+| the full surface, default or themed chrome | `RestageFlowGraph` |
 | a fully custom two-screens-visible (opposing-slide) transition over the SDK stack | `RestageFlowView(transition:)` |
 | to own the whole driver: your own switcher timing, back, and incoming-style transitions | `RestageScreenView` |
 
