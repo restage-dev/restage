@@ -81,7 +81,6 @@ it as real Flutter widgets:
 ```dart
 RestagePaywall(
   id: 'pro_upgrade',
-  resolver: const AssetVariantResolver(),
   onEvent: (event) {
     if (event case PurchaseSucceeded()) {
       // unlock Pro
