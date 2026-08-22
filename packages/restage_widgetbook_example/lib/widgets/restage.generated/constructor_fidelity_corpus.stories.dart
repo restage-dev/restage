@@ -121,7 +121,7 @@ final $RestageCatalog = _Story(
     ),
     value: _RestageStringArg(
       "",
-      description: "Generic value inherited by the concrete customer widget.",
+      description: "Generic value inherited by the concrete widget.",
     ),
     ordinaryLabel: _RestageStringArg(
       "",
@@ -174,7 +174,7 @@ final $RestageCatalog = _Story(
     data: _RestageConstArg<_RestageValue10>(
       _RestageValue10(restage_source.ConstructorCorpusDefaults.publicData),
       description:
-          "Nested customer-structured default. Default: the widget constructor's Dart default.",
+          "Nested structured default. Default: the widget constructor's Dart default.",
     ),
     resetProof: _RestageEventArg(
       true,

@@ -16,8 +16,7 @@ final Catalog kUserCatalog = Catalog(
       name: 'BareCatalogCard',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       category: null,
-      description:
-          'A root-level customer card using only the ordinary Restage marker.',
+      description: 'A card registered with only the bare Restage marker.',
       flutterType:
           'package:restage_widgetbook_example/widgets/bare_catalog_card.dart#BareCatalogCard',
       childrenSlot: ChildrenSlot.none,
@@ -38,7 +37,7 @@ final Catalog kUserCatalog = Catalog(
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       category: WidgetCategory.input,
       description:
-          'A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
+          'A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
       flutterType:
           'package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcase',
       childrenSlot: ChildrenSlot.none,
@@ -47,14 +46,14 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0009'),
           name: 'title',
           type: PropertyType.string,
-          description: 'Visible customer title.',
+          description: 'Visible title.',
           required: true,
         ),
         PropertyEntry(
           wireId: WireId('p0010'),
           name: 'enabled',
           type: PropertyType.boolean,
-          description: 'Whether the customer control is enabled.',
+          description: 'Whether the control is enabled.',
           defaultSource: LiteralDefault(true),
           constructorDefault: DartConstScalar(true),
         ),
@@ -62,7 +61,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0011'),
           name: 'status',
           type: PropertyType.enumValue,
-          description: 'Current customer state.',
+          description: 'Current state.',
           required: true,
           enumType: 'CatalogShowcaseStatus',
           valueShape: EnumShape(
@@ -84,28 +83,28 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0043'),
           name: 'hero',
           type: PropertyType.widget,
-          description: 'Customer widget shown before the detail list.',
+          description: 'Custom widget shown before the detail list.',
           required: true,
         ),
         PropertyEntry(
           wireId: WireId('p0044'),
           name: 'details',
           type: PropertyType.widgetList,
-          description: 'Customer detail widgets shown in source order.',
+          description: 'Detail widgets shown in source order.',
           required: true,
         ),
         PropertyEntry(
           wireId: WireId('p0045'),
           name: 'footer',
           type: PropertyType.widget,
-          description: 'Optional customer widget shown after the detail list.',
+          description: 'Optional custom widget shown after the detail list.',
           constructorNullable: true,
         ),
         PropertyEntry(
           wireId: WireId('p0015'),
           name: 'data',
           type: PropertyType.structured,
-          description: 'Customer-owned structured information.',
+          description: 'Structured information.',
           required: true,
           structuredRef: WireIdRef(
               library: 'restage_widgetbook_example.widgets',
@@ -133,8 +132,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0025'),
           name: 'value',
           type: PropertyType.string,
-          description:
-              'Generic value inherited by the concrete customer widget.',
+          description: 'Generic value inherited by the concrete widget.',
           required: true,
         ),
         PropertyEntry(
@@ -231,7 +229,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0035'),
           name: 'data',
           type: PropertyType.structured,
-          description: 'Nested customer-structured default.',
+          description: 'Nested structured default.',
           constructorDefault: DartConstReference(
               libraryUri:
                   'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
@@ -363,8 +361,7 @@ final Catalog kUserCatalog = Catalog(
       name: 'FeaturePanel',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       category: WidgetCategory.layout,
-      description:
-          'A panel with a customer header and customer content widgets.',
+      description: 'A panel with an app-supplied header and content widgets.',
       flutterType:
           'package:restage_widgetbook_example/widgets/feature_panel.dart#FeaturePanel',
       childrenSlot: ChildrenSlot.none,
@@ -373,7 +370,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0007'),
           name: 'header',
           type: PropertyType.widget,
-          description: 'Customer widget shown as the panel header.',
+          description: 'Widget shown as the panel header.',
           required: true,
           constructorNullable: true,
         ),
@@ -381,7 +378,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0008'),
           name: 'children',
           type: PropertyType.widgetList,
-          description: 'Customer widgets shown in the panel body.',
+          description: 'Widgets shown in the panel body.',
           required: true,
         ),
       ],
@@ -521,8 +518,7 @@ final Catalog kUserCatalog = Catalog(
       wireId: WireId('s0001'),
       name: 'CatalogShowcaseData',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-      description:
-          'Customer-owned structured information displayed by a [CatalogShowcase].',
+      description: 'Structured information displayed by a [CatalogShowcase].',
       sourceType:
           'package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcaseData',
       fields: [
@@ -530,7 +526,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0016'),
           name: 'note',
           type: PropertyType.string,
-          description: 'Supporting customer text.',
+          description: 'Supporting text.',
           valueShape: ScalarShape(
               propertyType: PropertyType.string,
               dartTypeRef:
@@ -540,7 +536,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0017'),
           name: 'count',
           type: PropertyType.integer,
-          description: 'Customer-owned count.',
+          description: 'The displayed count.',
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -554,7 +550,7 @@ final Catalog kUserCatalog = Catalog(
             'count': ArgMapping(targetFields: [WireId('p0017')]),
             'note': ArgMapping(targetFields: [WireId('p0016')]),
           },
-          description: 'Creates customer-owned showcase information.',
+          description: 'Creates showcase information.',
         ),
       ],
     ),
@@ -562,7 +558,7 @@ final Catalog kUserCatalog = Catalog(
       wireId: WireId('s0002'),
       name: 'ConstructorCorpusData',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-      description: 'Customer-owned structured data with one nested object.',
+      description: 'Structured data with one nested object.',
       sourceType:
           'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart#ConstructorCorpusData',
       fields: [
@@ -570,7 +566,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0039'),
           name: 'nested',
           type: PropertyType.structured,
-          description: 'Nested customer object.',
+          description: 'Nested object.',
           structuredRef: WireIdRef(
               library: 'restage_widgetbook_example.widgets',
               wireId: WireId('s0003')),
@@ -584,7 +580,7 @@ final Catalog kUserCatalog = Catalog(
           wireId: WireId('p0040'),
           name: 'count',
           type: PropertyType.integer,
-          description: 'Customer-owned scalar nested beside the object.',
+          description: 'A scalar nested beside the object.',
           valueShape: ScalarShape(
               propertyType: PropertyType.integer,
               dartTypeRef:
@@ -606,7 +602,7 @@ final Catalog kUserCatalog = Catalog(
       wireId: WireId('s0003'),
       name: 'ConstructorCorpusNestedData',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-      description: 'Nested customer-owned immutable data.',
+      description: 'Nested immutable data.',
       sourceType:
           'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart#ConstructorCorpusNestedData',
       fields: [

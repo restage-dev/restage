@@ -2,10 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// A root-level customer card using only the ordinary Restage marker.
+/// A card registered with only the bare Restage marker.
 @RestageWidget()
 class BareCatalogCard extends StatelessWidget {
-  /// Creates a root-level customer catalog card.
+  /// Creates a root-level custom-widget catalog card.
   const BareCatalogCard({super.key, this.label = 'Bare catalog card'});
 
   /// Visible card label.

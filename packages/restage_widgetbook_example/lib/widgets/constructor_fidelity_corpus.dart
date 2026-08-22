@@ -3,7 +3,7 @@ import 'package:restage/a2ui.dart' as a2ui;
 import 'package:restage/restage.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart' show ignore;
 
-/// Finite customer state used by the constructor-fidelity corpus.
+/// Finite state used by the constructor-fidelity corpus.
 enum ConstructorCorpusMode {
   /// The fixture is ready.
   ready,
@@ -12,7 +12,7 @@ enum ConstructorCorpusMode {
   processing,
 }
 
-/// Nested customer-owned immutable data.
+/// Nested immutable data.
 class ConstructorCorpusNestedData {
   /// Creates nested corpus data.
   const ConstructorCorpusNestedData({required this.label});
@@ -21,15 +21,15 @@ class ConstructorCorpusNestedData {
   final String label;
 }
 
-/// Customer-owned structured data with one nested object.
+/// Structured data with one nested object.
 class ConstructorCorpusData {
   /// Creates structured corpus data.
   const ConstructorCorpusData({required this.nested, required this.count});
 
-  /// Nested customer object.
+  /// Nested object.
   final ConstructorCorpusNestedData nested;
 
-  /// Customer-owned scalar nested beside the object.
+  /// A scalar nested beside the object.
   final int count;
 }
 
@@ -38,7 +38,7 @@ abstract final class ConstructorCorpusDefaults {
   /// Public static Flutter constant.
   static const Color publicColor = Color(0xFF224466);
 
-  /// Public static customer-structured constant.
+  /// Public static structured constant.
   static const ConstructorCorpusData publicData = ConstructorCorpusData(
     nested: ConstructorCorpusNestedData(label: 'nested-default'),
     count: 2,
@@ -50,7 +50,7 @@ abstract class ConstructorCorpusBase<T> extends StatelessWidget {
   /// Creates a generic corpus base.
   const ConstructorCorpusBase({super.key, required this.value});
 
-  /// Generic value inherited by the concrete customer widget.
+  /// Generic value inherited by the concrete widget.
   final T value;
 }
 
@@ -120,7 +120,7 @@ class ConstructorFidelityCorpus extends ConstructorCorpusBase<String> {
   /// Public static constant reference default.
   final Color publicColor;
 
-  /// Nested customer-structured default.
+  /// Nested structured default.
   final ConstructorCorpusData data;
 
   /// Arbitrarily named zero-argument callback.

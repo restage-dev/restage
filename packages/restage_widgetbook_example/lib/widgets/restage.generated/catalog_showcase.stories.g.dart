@@ -22,9 +22,9 @@ final CatalogShowcaseComponent =
       path: component.path ?? 'widgets/restage.generated',
       docsBuilder: component.docsBuilder,
       docComment:
-          r'''A customer catalog widget proving one source can feed every enabled target.
+          r'''A catalog widget proving one source can feed every enabled target.
 It combines ordinary scalar state, an enum, callback write-back, native
-child-bearing inputs, and customer-owned structured data. The independently
+child-bearing inputs, and your own structured data. The independently
 named `hero`, `details`, and `footer` inputs require no slot annotation.
 
 The second paragraph is retained in generated property metadata so
@@ -73,14 +73,14 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
          'restageMetadataDescription',
          restageMetadataDescription,
          StringArg(
-           "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+           "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
          ),
        )!,
        this.restageMetadataUsageArg = $initArg(
          'restageMetadataUsage',
          restageMetadataUsage,
          StringArg(
-           "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+           "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
          ),
        )!,
        this.titleArg = $initArg('title', title, StringArg(""))!,
@@ -117,9 +117,9 @@ class CatalogShowcaseStoryInputArgs extends StoryArgs<CatalogShowcase> {
 
   CatalogShowcaseStoryInputArgs.fixed({
     String restageMetadataDescription =
-        "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+        "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
     String restageMetadataUsage =
-        "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+        "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
     String title = "",
     bool enabled = true,
     _RestageChoice2 status = _RestageChoice2.value0,

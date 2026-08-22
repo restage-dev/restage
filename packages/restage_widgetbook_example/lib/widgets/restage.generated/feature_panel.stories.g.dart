@@ -20,8 +20,7 @@ final FeaturePanelComponent = Component<FeaturePanel, StoryArgs<FeaturePanel>>(
   name: component.name ?? 'FeaturePanel',
   path: component.path ?? 'widgets/restage.generated',
   docsBuilder: component.docsBuilder,
-  docComment:
-      r'''A panel with a customer header and customer content widgets.''',
+  docComment: r'''A panel with an app-supplied header and content widgets.''',
   stories: [$RestageCatalog..$generatedName = 'RestageCatalog'],
 );
 typedef FeaturePanelScenario =
@@ -55,9 +54,7 @@ class FeaturePanelStoryInputArgs extends StoryArgs<FeaturePanel> {
   }) : this.restageMetadataDescriptionArg = $initArg(
          'restageMetadataDescription',
          restageMetadataDescription,
-         StringArg(
-           "A panel with a customer header and customer content widgets.",
-         ),
+         StringArg("A panel with an app-supplied header and content widgets."),
        )!,
        this.restageMetadataUsageArg = $initArg(
          'restageMetadataUsage',
@@ -77,7 +74,7 @@ class FeaturePanelStoryInputArgs extends StoryArgs<FeaturePanel> {
 
   FeaturePanelStoryInputArgs.fixed({
     String restageMetadataDescription =
-        "A panel with a customer header and customer content widgets.",
+        "A panel with an app-supplied header and content widgets.",
     String restageMetadataUsage = "Use to group a compact catalog summary.",
     _RestageValue0 header = const _RestageValue0.absent(),
     _RestageValue1 children = const _RestageValue1.absent(),
