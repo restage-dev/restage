@@ -8,7 +8,7 @@ export 'widgets/feature_row.dart';
 export 'widgets/price_badge.dart';
 export 'widgets/stat_tile.dart';
 
-/// The typed custom widget library used by the generated multi-target fixture.
+/// The typed custom widget library used by the example package.
 final class RestageWidgetbookLibrary extends WidgetLibrary {
   /// Creates the example custom widget library declaration.
   const RestageWidgetbookLibrary();
