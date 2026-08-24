@@ -19,7 +19,7 @@ void main() {
       products: kStubProducts,
       resolver: const AssetVariantResolver(),
     );
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
   });
 
   // Mounts the demo on [rung] and advances welcome → value so the flow has

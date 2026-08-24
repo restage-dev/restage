@@ -50,7 +50,8 @@ const List<String> _surfaceTokenNames = [
   'OnboardingFlow',
 ];
 
-/// One lane's annotation vocabulary: the names, and the question the scan asks
+/// One source family's annotation vocabulary: the names, and the question the
+/// scan asks
 /// of a file's raw text.
 ///
 /// The names are needed as names, not only as a pattern — the alias pass has to
@@ -59,7 +60,7 @@ const List<String> _surfaceTokenNames = [
 final class RestageTokenSet {
   RestageTokenSet._(this.names) : _pattern = _tokenPattern(names);
 
-  /// The annotation class names this lane admits.
+  /// The annotation class names this set admits.
   final List<String> names;
 
   final RegExp _pattern;
@@ -91,7 +92,7 @@ final RestageTokenSet restageWidgetSourceTokens =
 /// admitted different files for each would let the two disagree about what the
 /// package contains.
 ///
-/// Visible for testing only. The lane helpers below are the way in: a walk
+/// Visible for testing only. The public helpers below are the way in: a walk
 /// that took this set and chose its own `resolvable` could select different
 /// files from the walk it is meant to match, and the disagreement would show
 /// up as a surface missing from a green build. The annotation makes reaching
@@ -210,7 +211,8 @@ Future<List<AssetId>> _selectPackageWide(
 /// admits a file on something other than an annotation — a location, say —
 /// needs that admission to survive a filter keyed on annotations. It is the
 /// caller's job not to admit what it will not resolve; nothing here can tell
-/// a deliberate carve-out from a wiring mistake, so the lane that composes the
+/// a deliberate carve-out from a wiring mistake, so the caller that composes
+/// the
 /// two answers is where they are reconciled.
 ///
 /// [resolvable] is the caller's own view of what it will resolve, applied to
@@ -369,7 +371,7 @@ Future<List<AssetId>> selectRestageCandidateLibraries(
 }
 
 /// Selects the candidates that annotate a declaration with an alias of one of
-/// the lane's annotation names, iterating until no new alias is found.
+/// the set's annotation names, iterating until no new alias is found.
 ///
 /// An annotation can be reached through a name other than the class's own:
 /// `const card = RestageWidget(...)` in one file, `@card` in another; or

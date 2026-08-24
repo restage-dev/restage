@@ -27,6 +27,7 @@ class _CorruptResolver implements VariantResolver {
   }) async {
     return ResolvedVariant(
       bytes: Uint8List.fromList([0xFF, 0xFE, 0xFD]),
+      surfaceVersion: 'test',
       paywallId: id,
     );
   }

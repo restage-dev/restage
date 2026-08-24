@@ -127,6 +127,7 @@ Future<RestageWidgetCollection?> collectRestageWidgetsForPackage(
       library,
       assetId,
       packageFacts: packageFacts,
+      includeAnalyticsId: true,
     );
     widgets.addAll(result.widgets);
     issues.addAll(result.issues);

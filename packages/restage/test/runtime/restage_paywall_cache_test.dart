@@ -23,6 +23,7 @@ class _SwitchableResolver implements VariantResolver {
     }
     return ResolvedVariant(
       bytes: next!,
+      surfaceVersion: 'test',
       paywallId: id,
       experimentId: experimentId,
       variantId: variantId,

@@ -7,6 +7,7 @@ import 'package:restage_core/library_registration.dart' as restage_core;
 import 'package:restage_cupertino/library_registration.dart'
     as restage_cupertino;
 import 'package:restage_material/library_registration.dart' as restage_material;
+import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
@@ -46,8 +47,8 @@ import 'state_variables.dart';
 /// resolved document + screen blobs). Populated only when
 /// [RestagePaywall.cacheLastRender] is true at the time of a successful render.
 /// Cleared on [Restage.debugReset]. The sealed payload carries the served
-/// published version, so a cache-fallback render reports the version of the
-/// surface the user actually sees (or null for a bundled / custom resolution).
+/// content identity, so a cache-fallback render reports the version of the
+/// surface the user actually sees.
 final Map<String, ResolvedPaywallPayload> _lastSuccessfulPayloads =
     <String, ResolvedPaywallPayload>{};
 
@@ -195,12 +196,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// artifact. A later generation cannot replace it within this presentation.
   SurfaceAssignmentResolutionLease? _renderedAssignmentLease;
 
-  /// Content hash of the currently-rendered blob, used to skip an unchanged
-  /// re-apply when the resolution carries no published version (bundled /
-  /// custom). The canonical SHA-256 the rest of the delivery path uses; only
-  /// populated for versionless resolutions (the version compare covers the
-  /// rest). Null until a versionless blob has rendered.
-  FlowContentHash? _renderedContentHash;
+  /// Rendered-content identity of the currently visible blob. This is separate
+  /// from publication attribution, which continues to use the published
+  /// revision when one exists.
+  String? _renderedSurfaceVersion;
 
   /// The hosted flow controller when the resolved payload is flow-shaped (a
   /// lowered navigation paywall); null for a single-blob paywall. The paywall
@@ -430,6 +429,63 @@ class _RestagePaywallState extends State<RestagePaywall> {
     if (mounted) widget.onEvent?.call(event);
   }
 
+  bool _isPagerBlobStageCurrent(_BlobStage stage) {
+    return mounted &&
+        identical(_blobPresentation, stage) &&
+        stage.transaction.isCommitted &&
+        stage.analyticsPresentation.isActive;
+  }
+
+  RestagePagerEventSink _pagerSinkForBlobStage(_BlobStage stage) {
+    return RestagePagerEventSink(
+      stageToken: stage,
+      isCurrent: (token) =>
+          identical(token, stage) && _isPagerBlobStageCurrent(stage),
+      onPageChanged: (pageIndex, pageCount) {
+        if (!_isPagerBlobStageCurrent(stage)) return;
+        _fireEvent(
+          PagerPageChanged(pageIndex: pageIndex, pageCount: pageCount),
+          attribution: stage.analyticsPresentation,
+        );
+      },
+    );
+  }
+
+  bool _isPagerFlowStageCurrent(
+    RestageFlowController<void> controller,
+    FirstPaintLeaseTransaction? transaction,
+    RootAnalyticsPresentation presentation,
+  ) {
+    return mounted &&
+        identical(_flowController, controller) &&
+        identical(_flowTransaction, transaction) &&
+        identical(_flowPresentations[controller], presentation) &&
+        (transaction == null || transaction.isCommitted) &&
+        presentation.isActive;
+  }
+
+  RestagePagerEventSink _pagerSinkForFlowStage(
+    RestageFlowController<void> controller,
+    FirstPaintLeaseTransaction? transaction,
+    RootAnalyticsPresentation presentation,
+  ) {
+    return RestagePagerEventSink(
+      stageToken: controller,
+      isCurrent: (token) =>
+          identical(token, controller) &&
+          _isPagerFlowStageCurrent(controller, transaction, presentation),
+      onPageChanged: (pageIndex, pageCount) {
+        if (!_isPagerFlowStageCurrent(controller, transaction, presentation)) {
+          return;
+        }
+        _fireEvent(
+          PagerPageChanged(pageIndex: pageIndex, pageCount: pageCount),
+          attribution: presentation,
+        );
+      },
+    );
+  }
+
   /// Fire `PaywallDismissed` exactly once per mount, regardless of which
   /// path triggered the dismiss (controller dismiss + dispose race).
   void _fireDismissed(DismissReason reason) {
@@ -617,22 +673,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   /// Whether a freshly-resolved [variant] carries the same content as what is
-  /// currently rendered, so a live refresh should skip the swap. Prefers the
-  /// server-assigned published version; falls back to the blob content hash for
-  /// versionless (bundled / custom) resolutions.
+  /// currently rendered, so a live refresh should skip the swap.
   bool _isUnchangedBlob(ResolvedVariant variant) {
-    final freshVersion = variant.paywallPublishedVersion;
-    final renderedVersion = _resolvedPaywallPublishedVersion;
-    // When either side carries a published version, that is the identity: equal
-    // versions are unchanged; a mixed null/non-null pair means the delivery
-    // mode itself moved, so it counts as changed.
-    if (freshVersion != null || renderedVersion != null) {
-      return freshVersion == renderedVersion;
-    }
-    // Both versionless (bundled / custom): fall back to the content hash.
-    final rendered = _renderedContentHash;
-    return rendered != null &&
-        rendered.value == FlowContentHash.compute(variant.bytes).value;
+    return _renderedSurfaceVersion == variant.surfaceVersion;
   }
 
   /// Re-host a flow-shaped paywall from a freshly-resolved [payload]. Reached
@@ -877,7 +920,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _renderedExperimentVariantId = payload.variantId;
     _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
-    _renderedContentHash = null;
+    _renderedSurfaceVersion = null;
   }
 
   /// Publishes both resolver and widget last-good only after descendant paint
@@ -1380,7 +1423,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _renderedExperimentVariantId = payload.variantId;
     _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
-    _renderedContentHash = null;
+    _renderedSurfaceVersion = null;
   }
 
   void _stagePaywallAnalyticsPresentation(
@@ -1389,26 +1432,28 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) {
     final attribution = switch (payload) {
       BlobPaywallPayload(:final variant) => (
-          version: variant.paywallPublishedVersion,
+          version: variant.surfaceVersion,
           experimentId: variant.experimentId,
           variantId: variant.variantId,
           experimentEpoch: variant.experimentEpoch,
         ),
       FlowPaywallPayload(
+        :final flow,
         :final paywallPublishedVersion,
         :final experimentId,
         :final variantId,
         :final experimentEpoch,
       ) =>
         (
-          version: paywallPublishedVersion,
+          version:
+              (paywallPublishedVersion ?? flow.document.version).toString(),
           experimentId: experimentId,
           variantId: variantId,
           experimentEpoch: experimentEpoch,
         ),
     };
     presentation.stage(
-      surfaceVersion: attribution.version?.toString(),
+      surfaceVersion: attribution.version,
       experimentId: attribution.experimentId,
       variantId: attribution.variantId,
       experimentEpoch: attribution.experimentEpoch,
@@ -1945,9 +1990,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _renderedExperimentVariantId = variant.variantId;
     _renderedExperimentEpoch = variant.experimentEpoch;
     _renderedAssignmentLease = stage.payload.assignmentLease;
-    _renderedContentHash = variant.paywallPublishedVersion == null
-        ? FlowContentHash.compute(variant.bytes)
-        : null;
+    _renderedSurfaceVersion = variant.surfaceVersion;
   }
 
   void _finishCommittedBlobStage(_BlobStage stage) {
@@ -2568,6 +2611,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
         ),
       );
     }
+    final presentation = _flowPresentations[controller];
+    if (presentation != null) {
+      child = RestagePagerEventScope(
+        sink: _pagerSinkForFlowStage(controller, transaction, presentation),
+        child: child,
+      );
+    }
     return KeyedSubtree(
       key: ObjectKey(controller),
       child: ExcludeSemantics(
@@ -2596,43 +2646,48 @@ class _RestagePaywallState extends State<RestagePaywall> {
             child: FirstPaintLeaseGuard(
               transaction: stage.transaction,
               armed: true,
-              child: RestagePaywallEventDispatcher(
-                onEvent: (name, args) => _handleBlobRfwEvent(stage, name, args),
-                child: RuntimeErrorBoundary(
-                  onError: (error, _) {
-                    _handleBlobBuildFailure(stage, error);
-                  },
-                  errorReplacement: (context, _, __) {
-                    if (!stage.transaction.isCommitted) {
-                      return const SizedBox.shrink();
-                    }
-                    final eb = widget.errorBuilder;
-                    if (eb == null) return const SizedBox.shrink();
-                    return eb(
-                      context,
-                      const RestagePaywallError(
-                        code: RestageErrorCodes.renderError,
-                        message: 'A widget in the paywall threw during build.',
-                      ),
-                    );
-                  },
-                  child: stage.measurementSession.wrapRootSubtree(
-                    // The Measurement commit hook owns an inner first-paint
-                    // lease. Re-expose this candidate's lease at the actual
-                    // RFW boundary so a trapped build error rejects the
-                    // candidate rather than being mistaken for a successful
-                    // Measurement-only paint.
-                    FirstPaintLeaseScope(
-                      transaction: stage.transaction,
-                      child: RemoteWidget(
-                        runtime: stage.runtime,
-                        data: stage.data,
-                        widget: const FullyQualifiedWidgetName(
-                          _paywallLibrary,
-                          'Paywall',
+              child: RestagePagerEventScope(
+                sink: _pagerSinkForBlobStage(stage),
+                child: RestagePaywallEventDispatcher(
+                  onEvent: (name, args) =>
+                      _handleBlobRfwEvent(stage, name, args),
+                  child: RuntimeErrorBoundary(
+                    onError: (error, _) {
+                      _handleBlobBuildFailure(stage, error);
+                    },
+                    errorReplacement: (context, _, __) {
+                      if (!stage.transaction.isCommitted) {
+                        return const SizedBox.shrink();
+                      }
+                      final eb = widget.errorBuilder;
+                      if (eb == null) return const SizedBox.shrink();
+                      return eb(
+                        context,
+                        const RestagePaywallError(
+                          code: RestageErrorCodes.renderError,
+                          message:
+                              'A widget in the paywall threw during build.',
                         ),
-                        onEvent: (name, args) =>
-                            _handleBlobRfwEvent(stage, name, args),
+                      );
+                    },
+                    child: stage.measurementSession.wrapRootSubtree(
+                      // The Measurement commit hook owns an inner first-paint
+                      // lease. Re-expose this candidate's lease at the actual
+                      // RFW boundary so a trapped build error rejects the
+                      // candidate rather than being mistaken for a successful
+                      // Measurement-only paint.
+                      FirstPaintLeaseScope(
+                        transaction: stage.transaction,
+                        child: RemoteWidget(
+                          runtime: stage.runtime,
+                          data: stage.data,
+                          widget: const FullyQualifiedWidgetName(
+                            _paywallLibrary,
+                            'Paywall',
+                          ),
+                          onEvent: (name, args) =>
+                              _handleBlobRfwEvent(stage, name, args),
+                        ),
                       ),
                     ),
                   ),

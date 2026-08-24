@@ -25,19 +25,22 @@ void main() {
   tearDown(Restage.debugReset);
 
   Future<List<Object?>> firedEvents(void Function() fire) async {
-    http.Request? captured;
+    final captured = <http.Request>[];
     Restage.debugAnalyticsHttpClient = MockClient((req) async {
-      captured = req;
+      captured.add(req);
       return http.Response('', 200);
     });
     Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
     fire();
     await pumpEventQueue();
     await Restage.debugFlushAnalytics();
-    if (captured == null) return const [];
-    expect(captured!.headers['Authorization'], 'Bearer rs_pk_test');
-    final body = jsonDecode(captured!.body) as Map<String, Object?>;
-    return body['events']! as List;
+    final events = <Object?>[];
+    for (final request in captured) {
+      expect(request.headers['Authorization'], 'Bearer rs_pk_test');
+      final body = jsonDecode(request.body) as Map<String, Object?>;
+      events.addAll(body['events']! as List);
+    }
+    return events;
   }
 
   Future<List<Map<String, Object?>>> capturedEvents(
@@ -69,6 +72,76 @@ void main() {
     // Server-stamped fields are never on the client wire.
     expect(envelope.containsKey('tier'), isFalse);
     expect(envelope.containsKey('source'), isFalse);
+  });
+
+  test('the facade serializes the drop-off property contract exactly',
+      () async {
+    final events = await firedEvents(() {
+      Restage.fireEvent(
+        const OnboardingStepViewed(
+          flowId: 'first_run',
+          flowVersion: 1,
+          screenId: 'welcome',
+          stepIndex: 0,
+        ),
+      );
+      Restage.fireEvent(
+        const OnboardingSkipped(
+          flowId: 'first_run',
+          flowVersion: 1,
+          atScreenId: 'welcome',
+          stepIndex: 0,
+        ),
+      );
+      Restage.fireEvent(
+        const FlowCustomEvent(
+          flowId: 'first_run',
+          flowVersion: 1,
+          eventName: 'continue',
+          fields: <String, Object?>{},
+        ),
+      );
+      Restage.fireEvent(
+        const PaywallCustomEvent(
+          paywallId: 'upgrade',
+          eventName: 'continue',
+          args: <String, Object?>{},
+        ),
+      );
+      Restage.fireEvent(PagerPageChanged(pageIndex: 1, pageCount: 3));
+      Restage.fireEvent(
+        SurveyQuestionResponded(questionId: 'favoriteColor', questionIndex: 0),
+      );
+    });
+    final byName = <String, Map<String, Object?>>{
+      for (final raw in events)
+        (raw! as Map<String, Object?>)['name']! as String:
+            raw as Map<String, Object?>,
+    };
+
+    Map<String, Object?> propertiesFor(String name) =>
+        (byName[name]!['properties']! as Map).cast<String, Object?>();
+
+    expect(propertiesFor('onboarding_step_viewed'),
+        containsPair('screenId', 'welcome'));
+    expect(
+        propertiesFor('onboarding_step_viewed'), containsPair('stepIndex', 0));
+    expect(propertiesFor('onboarding_skipped'),
+        containsPair('atScreenId', 'welcome'));
+    expect(propertiesFor('flow_custom_event'),
+        containsPair('eventName', 'continue'));
+    expect(
+      propertiesFor('paywall_custom_event'),
+      containsPair('eventName', 'continue'),
+    );
+    expect(propertiesFor('page_changed'), <String, Object?>{
+      'pageIndex': 1,
+      'pageCount': 3,
+    });
+    expect(propertiesFor('paywall_survey_responded'), <String, Object?>{
+      'questionId': 'favoriteColor',
+      'questionIndex': 0,
+    });
   });
 
   test('paywall_viewed posts immediately without waiting for batch size',

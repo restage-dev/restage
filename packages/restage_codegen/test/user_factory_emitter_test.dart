@@ -31,6 +31,47 @@ void main() {
       expect(emitUserFactoriesDart(const []), isNull);
     });
 
+    test('does not forward analyticsId to a customer constructor', () {
+      final source = emitUserFactoriesDart([
+        _widgetEntry(
+          name: 'AcmeBadge',
+          properties: [
+            const PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'label',
+              type: PropertyType.string,
+              description: 'Visible label.',
+            ),
+            analyticsIdProperty(),
+          ],
+        ),
+      ]);
+
+      expect(source, isNotNull);
+      expect(source, isNot(contains('analyticsId:')));
+      expect(source, isNot(contains("['analyticsId']")));
+      expect(source, contains("source.v<String>(<Object>['label'])"));
+    });
+
+    test('fails closed for malformed customer analyticsId metadata', () {
+      final source = emitUserFactoriesDart([
+        _widgetEntry(
+          name: 'MalformedBadge',
+          properties: const [
+            PropertyEntry(
+              wireId: WireId.unallocatedProperty,
+              name: 'analyticsId',
+              type: PropertyType.string,
+              description: 'Malformed reserved field.',
+            ),
+          ],
+        ),
+      ]);
+
+      expect(source, isNull);
+      expect(source ?? '', isNot(contains('analyticsId:')));
+    });
+
     test('rejects preview-only namespace and constructor claims', () {
       expect(
         () => emitUserFactoriesDart([
@@ -95,7 +136,7 @@ void main() {
       expect(skipped, equals(<String>['Bad']));
     });
 
-    test('emits header, imports, and the customer-facing helper for one entry',
+    test('emits header, imports, and the registration helpers for one entry',
         () {
       final src = emitUserFactoriesDart([
         _widgetEntry(
@@ -129,7 +170,21 @@ void main() {
       // depend on rfw.
       expect(src, isNot(contains("import 'package:rfw/rfw.dart'")));
       expect(src, contains("import 'package:acme/widgets/acmebadge.dart'"));
-      expect(src, contains('void registerRestageCustomerWidgets()'));
+      expect(src, contains('void registerRestageWidgets() {'));
+      expect(
+        src,
+        contains("@Deprecated('Use registerRestageWidgets; removed in 3.0')"),
+      );
+      expect(
+        src,
+        contains(
+          'void registerRestageCustomerWidgets() => registerRestageWidgets();',
+        ),
+      );
+      expect(
+        RegExp(r'void registerRestageWidgets\(\) \{').allMatches(src!).length,
+        1,
+      );
       expect(
         src,
         contains("WidgetLibrary.custom('acme.design_system')"),

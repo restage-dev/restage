@@ -93,9 +93,7 @@ final class MeasurementSourceProvenance {
 /// external code-identity ledger. It combines resolved source/widget/slot
 /// facts; a collection ordinal is never sufficient identity by itself.
 ///
-/// A node is static discovery material, not a synthetic presentation point.
-/// The separately owned first-paint path decides whether and when a resolved
-/// node receives a `presented` capability.
+/// A node is static discovery material used to reconcile strict source events.
 final class MeasurementDiscoveredNode {
   MeasurementDiscoveredNode._({
     required this.sourceProvenance,
@@ -624,10 +622,15 @@ final class _MeasurementSourceDiscovery {
       // private Flutter implementation remains a terminal compiler boundary.
       return;
     }
+    final node = _recordNode(
+      context: context,
+      widgetIdentity: customIdentity,
+    );
     final bindings = _customWidgetBindings(expression, customClass);
     _visitWidgetExpression(
       blueprint.buildExpression,
       context.enterInline(
+        parentNodeKey: node.structuralOccurrenceKey,
         customIdentity: customIdentity,
         fieldBindings: bindings,
         inlinedDefinitions: blueprint.inlined,
@@ -976,6 +979,7 @@ final class _WidgetVisitContext {
       );
 
   _WidgetVisitContext enterInline({
+    required String parentNodeKey,
     required String customIdentity,
     required Map<FieldElement, Expression> fieldBindings,
     required InlinedDefinitions inlinedDefinitions,

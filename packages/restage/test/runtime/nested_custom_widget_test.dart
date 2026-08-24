@@ -31,7 +31,7 @@ class _StaticResolver implements VariantResolver {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: bytes, paywallId: id);
+      ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
 }
 
 const _kFixturesLibrary = WidgetLibrary.custom('acme.fixtures');

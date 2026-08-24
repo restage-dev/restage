@@ -9,7 +9,7 @@ import 'package:restage/restage.dart';
 /// PulseBadge is a categorical, non-inlineable custom widget: no
 /// transpiler increment can fold it into a delivered blob, ever. A surface
 /// references it by name and the SDK resolves it through the registered runtime
-/// factory (`registerRestageCustomerWidgets()`).
+/// factory (`registerRestageWidgets()`).
 ///
 /// Contrast [StreakBadge], whose non-inlineability rests only on a
 /// not-yet-lowered value computation (a `reducible` deferral) — and [StatBadge],

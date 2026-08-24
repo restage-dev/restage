@@ -1,4 +1,4 @@
-// Internal builder implementation is reached through documented factories.
+// Builder implementation is reached through documented factories.
 // ignore_for_file: public_member_api_docs
 
 import 'dart:async';
@@ -11,8 +11,10 @@ import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:build/build.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/analytics_id_lowering.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
@@ -81,14 +83,23 @@ final class CompiledResolvedScreen {
     required List<int> blob,
     required List<int> capabilitySidecar,
     required this.capabilities,
+    required this.rfwCatalogOccurrenceSet,
+    required Iterable<AnalyticsIdDeclaration> analyticsIdDeclarations,
   })  : blob = Uint8List.fromList(blob),
-        capabilitySidecar = Uint8List.fromList(capabilitySidecar);
+        capabilitySidecar = Uint8List.fromList(capabilitySidecar),
+        analyticsIdDeclarations = List.unmodifiable(analyticsIdDeclarations);
 
   final ResolvedScreenCompilationInput input;
   final String text;
   final Uint8List blob;
   final Uint8List capabilitySidecar;
   final CapabilityManifest capabilities;
+
+  /// Frozen resolved RFW catalog calls shared by both compiler passes.
+  final fmt.ResolvedRfwCatalogOccurrenceSet rfwCatalogOccurrenceSet;
+
+  /// Labels extracted before validation and canonical encoding.
+  final List<AnalyticsIdDeclaration> analyticsIdDeclarations;
 }
 
 @immutable
@@ -218,6 +229,8 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
   Iterable<ResolvedScreenCompilationInput> inputs, {
   Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans =
       const <String, MeasurementRouteEmissionPlan>{},
+  Map<String, fmt.ResolvedRfwCatalogOccurrenceSet> rfwCatalogOccurrenceSets =
+      const <String, fmt.ResolvedRfwCatalogOccurrenceSet>{},
 }) async {
   final ordered = inputs.toList()
     ..sort(
@@ -277,7 +290,54 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       customLibraryImports: translation.referencedCustomLibraries,
     );
     try {
-      final library = fmt.parseLibraryFile(text, sourceIdentifier: source.id);
+      final parsedLibrary = fmt.parseLibraryFile(
+        text,
+        sourceIdentifier: source.id,
+      );
+      final frozenOccurrenceSet =
+          rfwCatalogOccurrenceSets[source.declarationIdentity];
+      final measurementRoutePlan =
+          measurementRoutePlans[source.declarationIdentity];
+      if (measurementRoutePlan != null && frozenOccurrenceSet == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.missingScreenDescriptor,
+            message: 'Final Measurement screen emission requires its frozen '
+                'RFW occurrence evidence.',
+            location: '${source.assetId.path}#'
+                '${source.declaration.name ?? '<unnamed>'}',
+          ),
+        );
+        continue;
+      }
+      final resolvedOccurrenceSet = frozenOccurrenceSet ??
+          fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+            parsedLibrary: parsedLibrary,
+            input: translation.rfwCatalogOccurrenceResolutionInput(
+              artifactProvenance: _rfwOccurrenceSetKey(
+                declarationIdentity: source.declarationIdentity,
+                rootWidgetName: onboardingScreenRootWidgetName,
+              ),
+              sourceLibraryIdentity: source.declaration.library.identifier,
+              sourceDeclarationIdentity: source.declarationIdentity,
+              renderEntryNames: const [onboardingScreenRootWidgetName],
+            ),
+          );
+      final occurrenceRebinding =
+          frozenOccurrenceSet?.rebindFinalLibrary(parsedLibrary);
+      final lowering = lowerAnalyticsIds(
+        text: text,
+        library: parsedLibrary,
+        sourceIdentifier: source.id,
+        location: '${source.assetId.path}#'
+            '${source.declaration.name ?? '<unnamed>'}',
+        occurrenceSet:
+            frozenOccurrenceSet == null ? resolvedOccurrenceSet : null,
+        occurrenceRebinding: occurrenceRebinding,
+      );
+      issues.addAll(lowering.issues);
+      if (lowering.issues.isNotEmpty) continue;
+      final library = lowering.library;
       final validationIssues = validateModelAgainstCatalog(library, catalog);
       issues.addAll(validationIssues);
       if (validationIssues.isNotEmpty) continue;
@@ -296,10 +356,12 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       compiled.add(
         CompiledResolvedScreen(
           input: source,
-          text: text,
+          text: lowering.text,
           blob: blob,
           capabilitySidecar: sidecar,
           capabilities: derivation.manifest!,
+          rfwCatalogOccurrenceSet: resolvedOccurrenceSet,
+          analyticsIdDeclarations: lowering.declarations,
         ),
       );
     } on fmt.ParserException catch (error) {
@@ -318,6 +380,14 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
     screens: issues.isEmpty ? compiled : const [],
     issues: issues,
   );
+}
+
+String _rfwOccurrenceSetKey({
+  required String declarationIdentity,
+  required String rootWidgetName,
+}) {
+  final value = jsonEncode([declarationIdentity, rootWidgetName]);
+  return 'rfw-occurrence-v1:${crypto.sha256.convert(utf8.encode(value))}';
 }
 
 final class OnboardingScreenBuilder implements Builder {
@@ -466,7 +536,33 @@ final class OnboardingScreenBuilder implements Builder {
         customLibraryImports: translation.referencedCustomLibraries,
       );
       try {
-        final rfwLibrary = fmt.parseLibraryFile(text, sourceIdentifier: src.id);
+        final parsedLibrary = fmt.parseLibraryFile(
+          text,
+          sourceIdentifier: src.id,
+        );
+        final declarationIdentity = '${library.identifier}#${src.className}';
+        final occurrenceSet = fmt.ResolvedRfwCatalogOccurrenceSet.resolve(
+          parsedLibrary: parsedLibrary,
+          input: translation.rfwCatalogOccurrenceResolutionInput(
+            artifactProvenance: _rfwOccurrenceSetKey(
+              declarationIdentity: declarationIdentity,
+              rootWidgetName: onboardingScreenRootWidgetName,
+            ),
+            sourceLibraryIdentity: library.identifier,
+            sourceDeclarationIdentity: declarationIdentity,
+            renderEntryNames: const [onboardingScreenRootWidgetName],
+          ),
+        );
+        final lowering = lowerAnalyticsIds(
+          text: text,
+          library: parsedLibrary,
+          sourceIdentifier: src.id,
+          location: '${assetId.path}#${src.className}',
+          occurrenceSet: occurrenceSet,
+        );
+        issues.addAll(lowering.issues);
+        if (lowering.issues.isNotEmpty) continue;
+        final rfwLibrary = lowering.library;
         final validationIssues =
             validateModelAgainstCatalog(rfwLibrary, catalog);
         issues.addAll(validationIssues);
@@ -488,7 +584,7 @@ final class OnboardingScreenBuilder implements Builder {
         await Future.wait<void>([
           buildStep.writeAsString(
             AssetId(assetId.package, '$_outputDir/$stem.rfwtxt'),
-            text,
+            lowering.text,
           ),
           buildStep.writeAsBytes(
             AssetId(assetId.package, '$_outputDir/$stem.rfw'),

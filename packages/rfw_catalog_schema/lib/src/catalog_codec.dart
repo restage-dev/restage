@@ -130,8 +130,16 @@ void _validateWidget(WidgetEntry widget, String path) {
     '$widgetPath.wireId',
   );
   _validateSinceVersion(widget.sinceVersion, '$widgetPath.sinceVersion');
+  final propertyNames = <String>{};
   for (var i = 0; i < widget.properties.length; i++) {
-    _validateProperty(widget.properties[i], '$widgetPath.properties[$i]');
+    final property = widget.properties[i];
+    _validateProperty(property, '$widgetPath.properties[$i]');
+    if (!propertyNames.add(property.name)) {
+      throw CatalogSchemaException(
+        '$widgetPath.properties[$i].name: duplicate property name '
+        '`${property.name}`',
+      );
+    }
   }
   for (var i = 0; i < widget.decomposes.length; i++) {
     _validateDecomposition(
@@ -1387,7 +1395,7 @@ void _expectWireIdKind(WireId id, WireIdKind expectedKind, String path) {
 void _rejectUnallocated(WireId id, String path) {
   if (!id.isUnallocated) return;
   throw CatalogSchemaException(
-    '$path: unallocated sentinel wire ID ${id.value} is internal-only and '
+    '$path: unallocated sentinel wire ID ${id.value} is reserved and '
     'cannot appear in the canonical v$kSupportedSchemaVersion wire shape',
   );
 }

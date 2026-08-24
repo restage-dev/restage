@@ -109,7 +109,7 @@ Future<_MountedBundle> _mountBundle(
             flutterVersion: '3.47.0',
             renderer: 'skwasm',
           ),
-          registerCustomerWidgets: registerRestageCustomerWidgets,
+          registerCustomerWidgets: registerRestageWidgets,
           initialize: (_) {},
         ),
       ),

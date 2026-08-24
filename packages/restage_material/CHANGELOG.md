@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased — coordinated breaking release
+## 1.1.0
 
 - Regenerate the catalog as schema v5 with callback property names serving as
   open event identities.
+- Add an `@nodoc` runtime bridge used by the SDK to observe settled pager page
+  changes without changing authored callback delivery.
 
 ## 1.0.2
 

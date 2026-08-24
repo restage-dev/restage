@@ -21,6 +21,7 @@ import 'package:restage_codegen/src/helper_registry.dart'
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
+import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_rfw_route_composer.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
@@ -33,6 +34,7 @@ import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 
 const String _restageSdkOrigin = 'package:restage';
 
@@ -51,10 +53,15 @@ final class CompiledSurfaceArtifact {
     required this.flowArtifactPath,
     this.flowScreenId,
     this.paywallFacts,
+    Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+        rfwCatalogOccurrenceSetsByOutputRole = const {},
     List<int>? rfwText,
     List<int>? navigationPlan,
   })  : _blob = Uint8List.fromList(blob),
         _capabilitySidecar = Uint8List.fromList(capabilitySidecar),
+        rfwCatalogOccurrenceSetsByOutputRole = Map.unmodifiable(
+          Map.of(rfwCatalogOccurrenceSetsByOutputRole),
+        ),
         _rfwText = rfwText == null ? null : Uint8List.fromList(rfwText),
         _navigationPlan =
             navigationPlan == null ? null : Uint8List.fromList(navigationPlan);
@@ -67,6 +74,8 @@ final class CompiledSurfaceArtifact {
     required String flowArtifactPath,
     List<int>? rfwText,
     List<int>? navigationPlan,
+    Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+        rfwCatalogOccurrenceSetsByOutputRole = const {},
   }) =>
       CompiledSurfaceArtifact(
         declaration: declaration,
@@ -77,6 +86,8 @@ final class CompiledSurfaceArtifact {
         paywallFacts: facts,
         rfwText: rfwText,
         navigationPlan: navigationPlan,
+        rfwCatalogOccurrenceSetsByOutputRole:
+            rfwCatalogOccurrenceSetsByOutputRole,
       );
 
   /// The resolved authored `@Screen` or `@Paywall` class.
@@ -100,6 +111,13 @@ final class CompiledSurfaceArtifact {
 
   /// Complete specialized paywall family when this artifact is an adapter.
   final PaywallArtifactFacts? paywallFacts;
+
+  /// Frozen RFW catalog occurrences keyed by their roster-owned output role.
+  ///
+  /// A paywall can publish a standalone blob and an adapter blob with distinct
+  /// local declaration topology, so each role retains its own frozen set.
+  final Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+      rfwCatalogOccurrenceSetsByOutputRole;
 
   Uint8List get blob => Uint8List.fromList(_blob);
 
@@ -131,6 +149,10 @@ final class PackageSurfaceCompilationInput {
     Iterable<CompiledFlowArtifact> precompiledFlows = const [],
     Map<String, MeasurementPublicationRoutePlanV1>
         measurementRoutePlansByPublicationKey = const {},
+    Map<String, MeasurementRfwPresentationPublicationPlan>
+        measurementPresentationPlansByPublicationKey = const {},
+    Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+        rfwCatalogOccurrenceSetsByArtifactPath = const {},
     Map<String, String> generatedSourceCarrierDraftDigestsByPublicationKey =
         const {},
   })  : flows = List.unmodifiable(flows),
@@ -140,6 +162,12 @@ final class PackageSurfaceCompilationInput {
         precompiledFlows = List.unmodifiable(precompiledFlows),
         measurementRoutePlansByPublicationKey = Map.unmodifiable(
           measurementRoutePlansByPublicationKey,
+        ),
+        measurementPresentationPlansByPublicationKey = Map.unmodifiable(
+          measurementPresentationPlansByPublicationKey,
+        ),
+        rfwCatalogOccurrenceSetsByArtifactPath = Map.unmodifiable(
+          rfwCatalogOccurrenceSetsByArtifactPath,
         ),
         generatedSourceCarrierDraftDigestsByPublicationKey = Map.unmodifiable(
           generatedSourceCarrierDraftDigestsByPublicationKey,
@@ -168,6 +196,14 @@ final class PackageSurfaceCompilationInput {
   /// Carrier-independent route plans keyed by exact publication selector.
   final Map<String, MeasurementPublicationRoutePlanV1>
       measurementRoutePlansByPublicationKey;
+
+  /// Reconciled RFW presentation reservations keyed by publication selector.
+  final Map<String, MeasurementRfwPresentationPublicationPlan>
+      measurementPresentationPlansByPublicationKey;
+
+  /// Frozen RFW catalog occurrences keyed by exact emitted artifact path.
+  final Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+      rfwCatalogOccurrenceSetsByArtifactPath;
 
   /// Final draft digests the compiler attaches only to generated source
   /// descriptors after exact Measurement artifact finalization.
@@ -208,6 +244,8 @@ final class PackageSurfaceCompilationBundle {
     required Set<String> aggregateOwnedOutputPaths,
     required Map<String, String> artifactLibraryPaths,
     Iterable<MeasurementCompilerPublication> measurementPublications = const [],
+    Iterable<MeasurementRfwPresentationArtifactMaterialization>
+        measurementPresentationMaterializations = const [],
   })  : _outputFiles = _freezeFileMap(outputFiles),
         _aggregateOwnedOutputPaths = Set.unmodifiable(
           aggregateOwnedOutputPaths,
@@ -217,6 +255,9 @@ final class PackageSurfaceCompilationBundle {
         ),
         generatedParts = Map.unmodifiable(Map.of(generatedParts)),
         measurementPublications = List.unmodifiable(measurementPublications),
+        measurementPresentationMaterializations = List.unmodifiable(
+          measurementPresentationMaterializations,
+        ),
         manifestJson = SurfacePublicationManifestV1Codec.encodeCanonicalJson(
           manifest,
         );
@@ -307,6 +348,31 @@ final class PackageSurfaceCompilationBundle {
 
   /// Final target-neutral Measurement drafts produced from exact final bytes.
   final List<MeasurementCompilerPublication> measurementPublications;
+
+  /// Same-pass parsed RFW joins available to adjacent compiler lowering.
+  final List<MeasurementRfwPresentationArtifactMaterialization>
+      measurementPresentationMaterializations;
+
+  /// Resolves one captured RFW handle against an authoritative final manifest.
+  ///
+  /// Callers retain the typed handle from provisional discovery and select the
+  /// matching final materialization. No source text, RFW marker, or label is
+  /// used to rebuild the final reference.
+  GeneratedPresentationReferenceV1 requireFinalizedPresentationReference({
+    required MeasurementRfwPresentationArtifactMaterialization materialization,
+    required MeasurementPresentationOccurrenceHandle handle,
+    required CompleteMeasurementManifestV1 completeManifest,
+  }) {
+    if (!measurementPresentationMaterializations.contains(materialization)) {
+      throw ArgumentError(
+        'The presentation materialization does not belong to this package output',
+      );
+    }
+    return materialization.requireFinalizedPresentationReferenceForHandle(
+      handle: handle,
+      completeManifest: completeManifest,
+    );
+  }
 }
 
 /// Result of a fail-closed package compilation attempt.
@@ -1549,11 +1615,17 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
   if (issues.isNotEmpty) return _invalidResult(issues);
 
   final measurementPublications = <MeasurementCompilerPublication>[];
+  final measurementPresentationMaterializations =
+      <MeasurementRfwPresentationArtifactMaterialization>[];
   if (input.measurementRoutePlansByPublicationKey.isNotEmpty) {
     try {
       final finalized = _finalizeMeasurementAssemblies(
         inputs: manifestInputs,
         routePlansByPublicationKey: input.measurementRoutePlansByPublicationKey,
+        presentationPlansByPublicationKey:
+            input.measurementPresentationPlansByPublicationKey,
+        rfwCatalogOccurrenceSetsByArtifactPath:
+            input.rfwCatalogOccurrenceSetsByArtifactPath,
         sourcesByOutputPath: {
           for (final source in sourcesByIdentity.values)
             for (final output in source.outputs) output.path: source,
@@ -1595,6 +1667,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         ..clear()
         ..addAll(finalized.inputs);
       measurementPublications.addAll(finalized.publications);
+      measurementPresentationMaterializations
+          .addAll(finalized.presentationMaterializations);
       _stripMeasurementMarkersFromInspectionOutputs(outputFiles);
     } on Object catch (error) {
       _addIssue(
@@ -1726,6 +1800,8 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       aggregateOwnedOutputPaths: aggregateOwnedOutputPaths,
       artifactLibraryPaths: artifactLibraryPaths,
       measurementPublications: measurementPublications,
+      measurementPresentationMaterializations:
+          measurementPresentationMaterializations,
     ),
     issues: const [],
   );
@@ -3091,6 +3167,10 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
   required List<SurfacePublicationAssemblyInput> inputs,
   required Map<String, MeasurementPublicationRoutePlanV1>
       routePlansByPublicationKey,
+  required Map<String, MeasurementRfwPresentationPublicationPlan>
+      presentationPlansByPublicationKey,
+  required Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
+      rfwCatalogOccurrenceSetsByArtifactPath,
   required Map<String, RestageSourceDeclaration> sourcesByOutputPath,
 }) {
   final pathClaims = <String, int>{};
@@ -3102,6 +3182,8 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
   final finalizedInputs = <SurfacePublicationAssemblyInput>[];
   final finalizedArtifacts = <_FinalizedMeasurementArtifact>[];
   final publications = <MeasurementCompilerPublication>[];
+  final presentationMaterializations =
+      <MeasurementRfwPresentationArtifactMaterialization>[];
   final claimedPlans = <String>{};
 
   for (final input in inputs) {
@@ -3112,6 +3194,12 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       continue;
     }
     claimedPlans.add(selector.key);
+    final presentationPlan = presentationPlansByPublicationKey[selector.key];
+    if (routePlan.presentationRoutes.isNotEmpty && presentationPlan == null) {
+      throw const FormatException(
+        'Measurement finalization requires reconciled RFW presentation input',
+      );
+    }
     final bySlot = <String, SurfacePublicationArtifactInput>{
       for (final artifact in input.artifacts)
         _measurementArtifactSlot(artifact.role, artifact.id): artifact,
@@ -3121,13 +3209,55 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
         entry.key: Uint8List.fromList(entry.value.bytes),
     };
     final consumed = <String>{};
+    final consumedPresentations = <String>{};
     for (final entry in bySlot.entries.where(
       (entry) => entry.value.role == SurfacePublicationArtifactRole.screenBlob,
     )) {
-      final composition = MeasurementRfwRouteComposer.composeBlob(
-        blob: entry.value.bytes,
-        routePlan: routePlan,
+      final source = sourcesByOutputPath[entry.value.path];
+      if (source == null) {
+        throw FormatException(
+          'Measurement artifact ${entry.value.path} has no roster source owner.',
+        );
+      }
+      final artifactId = measurementArtifactIdForPublicationArtifactV1(
+        selector,
+        SurfacePublicationArtifact(
+          contentHash: CapabilitySidecar.hashBlob(entry.value.bytes),
+          path: entry.value.path,
+          role: entry.value.role,
+          id: entry.value.id,
+        ),
       );
+      final topology = routePlan.artifacts.singleWhere(
+        (candidate) => candidate.artifactId == artifactId,
+      );
+      final occurrenceSet =
+          rfwCatalogOccurrenceSetsByArtifactPath[entry.value.path];
+      final composition = switch ((presentationPlan, occurrenceSet)) {
+        (
+          final MeasurementRfwPresentationPublicationPlan presentationPlan,
+          final fmt.ResolvedRfwCatalogOccurrenceSet occurrenceSet,
+        ) =>
+          () {
+            final finalLibrary = fmt.decodeLibraryBlob(
+              Uint8List.fromList(entry.value.bytes),
+            );
+            final materialization = presentationPlan.materializeArtifact(
+              occurrenceSet: occurrenceSet,
+              finalLibrary: finalLibrary,
+              artifactOccurrenceEdgeToken: topology.occurrenceEdgeToken,
+            );
+            presentationMaterializations.add(materialization);
+            return MeasurementRfwRouteComposer.composeMaterializedLibrary(
+              routePlan: routePlan,
+              presentationMaterialization: materialization,
+            );
+          }(),
+        _ => MeasurementRfwRouteComposer.composeBlob(
+            blob: entry.value.bytes,
+            routePlan: routePlan,
+          ),
+      };
       final duplicate = consumed.intersection(composition.generatedReferences);
       if (duplicate.isNotEmpty) {
         throw FormatException(
@@ -3136,6 +3266,16 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
         );
       }
       consumed.addAll(composition.generatedReferences);
+      final duplicatePresentations = consumedPresentations.intersection(
+        composition.generatedPresentationReferences,
+      );
+      if (duplicatePresentations.isNotEmpty) {
+        throw FormatException(
+          'Measurement presentation references occurred in multiple '
+          'publication artifacts: ${duplicatePresentations.toList()..sort()}',
+        );
+      }
+      consumedPresentations.addAll(composition.generatedPresentationReferences);
       finalBytesBySlot[entry.key] = composition.blob;
       final sidecarSlot = _measurementArtifactSlot(
         SurfacePublicationArtifactRole.capabilitySidecar,
@@ -3154,6 +3294,10 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
     MeasurementRfwRouteComposer.requireCompleteRouteClosure(
       routePlan: routePlan,
       consumedReferences: consumed,
+    );
+    MeasurementRfwRouteComposer.requireCompletePresentationRouteClosure(
+      routePlan: routePlan,
+      consumedPresentationReferences: consumedPresentations,
     );
 
     if (input.payloadKind == SurfacePayloadKind.flow) {
@@ -3279,10 +3423,33 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       'Measurement route plans have no exact publication: $missingPlans',
     );
   }
+  final missingPresentationPlans = routePlansByPublicationKey.entries
+      .where((entry) => entry.value.presentationRoutes.isNotEmpty)
+      .map((entry) => entry.key)
+      .where((key) => !presentationPlansByPublicationKey.containsKey(key))
+      .toList()
+    ..sort();
+  if (missingPresentationPlans.isNotEmpty) {
+    throw FormatException(
+      'Measurement RFW presentation plans are missing: '
+      '$missingPresentationPlans',
+    );
+  }
+  final unclaimedPresentationPlans = presentationPlansByPublicationKey.keys
+      .where((key) => !claimedPlans.contains(key))
+      .toList()
+    ..sort();
+  if (unclaimedPresentationPlans.isNotEmpty) {
+    throw FormatException(
+      'Measurement RFW presentation plans have no exact publication: '
+      '$unclaimedPresentationPlans',
+    );
+  }
   return _FinalizedMeasurementAssemblies(
     inputs: finalizedInputs,
     artifacts: finalizedArtifacts,
     publications: publications,
+    presentationMaterializations: presentationMaterializations,
   );
 }
 
@@ -3302,7 +3469,9 @@ void _stripMeasurementMarkersFromInspectionOutputs(
   for (final entry in outputFiles.entries.toList()) {
     if (!entry.key.endsWith('.rfwtxt')) continue;
     final text = utf8.decode(entry.value);
-    if (!text.contains(kMeasurementRouteReferenceMarkerKeyV1)) continue;
+    if (!text.contains(kMeasurementRouteReferenceMarkerKeyV1)) {
+      continue;
+    }
     outputFiles[entry.key] = Uint8List.fromList(
       utf8.encode(
         MeasurementRfwRouteComposer.stripTransientMarkersFromText(text),
@@ -3338,11 +3507,14 @@ final class _FinalizedMeasurementAssemblies {
     required this.inputs,
     required this.artifacts,
     required this.publications,
+    required this.presentationMaterializations,
   });
 
   final List<SurfacePublicationAssemblyInput> inputs;
   final List<_FinalizedMeasurementArtifact> artifacts;
   final List<MeasurementCompilerPublication> publications;
+  final List<MeasurementRfwPresentationArtifactMaterialization>
+      presentationMaterializations;
 }
 
 final class _FinalizedMeasurementArtifact {

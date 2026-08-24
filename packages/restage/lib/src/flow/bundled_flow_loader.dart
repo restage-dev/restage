@@ -214,7 +214,7 @@ void _checkCompatibility({
           'version $expectedVersion.',
     );
   }
-  if (document.schemaVersion != 1) {
+  if (document.schemaVersion != 1 && document.schemaVersion != 2) {
     throw buildError(
       'unsupported_schema_version',
       'Unsupported flow schemaVersion ${document.schemaVersion}.',

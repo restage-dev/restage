@@ -25,7 +25,10 @@ class _MutableResolver implements VariantResolver {
     Locale? locale,
   }) async =>
       ResolvedVariant(
-          bytes: bytes, paywallId: id, paywallPublishedVersion: version);
+          bytes: bytes,
+          surfaceVersion: FlowContentHash.compute(bytes).value,
+          paywallId: id,
+          paywallPublishedVersion: version);
 }
 
 void main() {

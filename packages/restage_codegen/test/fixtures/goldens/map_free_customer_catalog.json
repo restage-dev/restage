@@ -42,6 +42,13 @@
               "wireId": "s0001"
             }
           }
+        },
+        {
+          "wireId": "p0003",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     }
@@ -55,7 +62,7 @@
       "sourceType": "package:apps_examples/widgets.dart#Plan",
       "fields": [
         {
-          "wireId": "p0003",
+          "wireId": "p0004",
           "name": "name",
           "type": "string",
           "description": "",
@@ -75,7 +82,7 @@
           "sourceKind": "constructor",
           "argMappings": {
             "name": [
-              "p0003"
+              "p0004"
             ]
           }
         }

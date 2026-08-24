@@ -17,12 +17,15 @@ class _StaticResolver implements VariantResolver {
     this.variantId,
     this.experimentEpoch,
     this.publishedVersion,
-  });
+    String? surfaceVersion,
+  }) : surfaceVersion =
+            surfaceVersion ?? publishedVersion?.toString() ?? 'test';
   final Uint8List bytes;
   final String? experimentId;
   final String? variantId;
   final int? experimentEpoch;
   final int? publishedVersion;
+  final String surfaceVersion;
 
   @override
   Future<ResolvedVariant> resolve(
@@ -32,6 +35,7 @@ class _StaticResolver implements VariantResolver {
   }) async =>
       ResolvedVariant(
         bytes: bytes,
+        surfaceVersion: surfaceVersion,
         paywallId: id,
         experimentId: experimentId,
         variantId: variantId,
@@ -185,6 +189,108 @@ void main() {
     expect(viewed['experimentEpoch'], 4);
   });
 
+  testWidgets('a custom blob version reaches the active root attribution',
+      (tester) async {
+    final requests = <http.Request>[];
+    Restage.debugAnalyticsHttpClient = MockClient((request) async {
+      requests.add(request);
+      return http.Response('', 200);
+    });
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'http://127.0.0.1:1',
+    );
+    final bytes = Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+      import restage.core;
+      widget Paywall = Text(text: "Custom version");
+    ''')));
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'custom-version',
+          resolver: _StaticResolver(
+            bytes,
+            surfaceVersion: 'custom-content-v2',
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await Restage.debugFlushAnalytics();
+
+    final events = await _capturedEvents(requests);
+    final presentation = events.singleWhere(
+      (event) => event['name'] == 'surface_presented',
+    );
+    final viewed = events.singleWhere(
+      (event) => event['name'] == 'paywall_viewed',
+    );
+    expect(presentation['surfaceVersion'], 'custom-content-v2');
+    expect(viewed['surfaceVersion'], 'custom-content-v2');
+  });
+
+  testWidgets('an active paywall reports settled pager changes',
+      (tester) async {
+    final requests = <http.Request>[];
+    final received = <RestageEvent>[];
+    Restage.debugAnalyticsHttpClient = MockClient((request) async {
+      requests.add(request);
+      return http.Response('', 200);
+    });
+    Restage.configure(
+      apiKey: 'rs_pk_test',
+      baseUrl: 'http://127.0.0.1:1',
+    );
+    final bytes = Uint8List.fromList(encodeLibraryBlob(parseLibraryFile('''
+      import restage.core;
+      import restage.material;
+      widget Paywall = SizedBox(
+        width: 240.0,
+        height: 160.0,
+        child: RestagePager(children: [
+          Text(text: "First page"),
+          Text(text: "Second page"),
+        ]),
+      );
+    ''')));
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: RestagePaywall(
+          id: 'pager-paywall',
+          resolver: _StaticResolver(bytes, surfaceVersion: 'pager-v1'),
+          onEvent: received.add,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(received.whereType<PagerPageChanged>(), isEmpty);
+
+    await tester.fling(find.byType(PageView), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    await Restage.debugFlushAnalytics();
+
+    expect(
+      received.whereType<PagerPageChanged>(),
+      <Matcher>[
+        isA<PagerPageChanged>()
+            .having((event) => event.pageIndex, 'pageIndex', 1)
+            .having((event) => event.pageCount, 'pageCount', 2),
+      ],
+    );
+    final events = await _capturedEvents(requests);
+    final pager =
+        events.singleWhere((event) => event['name'] == 'page_changed');
+    expect(pager['surface'], 'paywall');
+    expect(pager['surfaceId'], 'pager-paywall');
+    expect(pager['surfaceVersion'], 'pager-v1');
+    expect(pager['properties'], <String, Object?>{
+      'pageIndex': 1,
+      'pageCount': 2,
+    });
+  });
+
   testWidgets('prepaint paywall lifecycle is owner-bound', (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
@@ -214,6 +320,7 @@ void main() {
     resolver.response.complete(
       ResolvedVariant(
         bytes: _blob('Pending resolved'),
+        surfaceVersion: 'test',
         paywallId: 'pending',
       ),
     );

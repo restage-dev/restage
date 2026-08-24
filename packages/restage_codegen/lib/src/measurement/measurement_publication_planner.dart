@@ -1,4 +1,4 @@
-// Internal analyzer-to-publication planning seam.
+// Analyzer-to-publication assembly seam.
 // ignore_for_file: public_member_api_docs
 
 import 'dart:convert';
@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_rfw_presentation_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
 import 'package:restage_codegen/src/measurement/measurement_surface_identity.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
@@ -13,13 +14,36 @@ import 'package:restage_shared/restage_shared.dart';
 
 /// Exact discovered source assigned to one final publication blob artifact.
 final class MeasurementPublicationSourceArtifact {
-  const MeasurementPublicationSourceArtifact({
+  MeasurementPublicationSourceArtifact({
     required this.artifactPath,
     required this.discovery,
-  });
+    this.presentationAnchorStructuralOccurrenceKey = '',
+    Iterable<MeasurementRfwPresentationLocalDeclarationAnchor>
+        presentationLocalDeclarationAnchors = const [],
+    Iterable<MeasurementRfwPresentationOccurrence> presentationOccurrences =
+        const [],
+  })  : presentationLocalDeclarationAnchors = List.unmodifiable(
+          presentationLocalDeclarationAnchors,
+        ),
+        presentationOccurrences = List.unmodifiable(presentationOccurrences);
 
   final String artifactPath;
   final MeasurementSourceDiscoveryResult discovery;
+
+  /// Stable non-presentation ledger anchor for the parsed RFW artifact tree.
+  final String presentationAnchorStructuralOccurrenceKey;
+
+  /// Reachable ordinary local declaration anchors for RFW body occurrences.
+  final List<MeasurementRfwPresentationLocalDeclarationAnchor>
+      presentationLocalDeclarationAnchors;
+
+  /// Label-free provisional RFW occurrences for this exact source artifact.
+  final List<MeasurementRfwPresentationOccurrence> presentationOccurrences;
+
+  /// Ledger descriptors selected from [presentationOccurrences].
+  List<MeasurementRfwPresentationDescriptor> get presentationDescriptors => [
+        for (final occurrence in presentationOccurrences) occurrence.descriptor,
+      ];
 }
 
 /// Analyzer and surface publication closure for one target-neutral publication
@@ -45,11 +69,14 @@ final class MeasurementPublicationPlanningResult {
     required Iterable<MeasurementCompilerLedgerNode> ledgerNodes,
     required Iterable<MeasurementCompilerLedgerProposal> proposals,
     required Map<String, MeasurementPublicationRoutePlanV1> routePlansByKey,
+    required Map<String, MeasurementRfwPresentationPublicationPlan>
+        presentationPlansByKey,
     required Map<String, CodeIdentityId> codeIdentityByStructuralOccurrenceKey,
   })  : errors = List.unmodifiable(errors),
         ledgerNodes = List.unmodifiable(ledgerNodes),
         proposals = List.unmodifiable(proposals),
         routePlansByKey = Map.unmodifiable(routePlansByKey),
+        presentationPlansByKey = Map.unmodifiable(presentationPlansByKey),
         codeIdentityByStructuralOccurrenceKey =
             Map.unmodifiable(codeIdentityByStructuralOccurrenceKey);
 
@@ -58,6 +85,8 @@ final class MeasurementPublicationPlanningResult {
   final List<MeasurementCompilerLedgerNode> ledgerNodes;
   final List<MeasurementCompilerLedgerProposal> proposals;
   final Map<String, MeasurementPublicationRoutePlanV1> routePlansByKey;
+  final Map<String, MeasurementRfwPresentationPublicationPlan>
+      presentationPlansByKey;
   final Map<String, CodeIdentityId> codeIdentityByStructuralOccurrenceKey;
 
   bool get isValid => errors.isEmpty;
@@ -79,14 +108,23 @@ abstract final class MeasurementPublicationPlanner {
     );
     final errors = <String>[...reconciliation.errors];
     final plans = <String, MeasurementPublicationRoutePlanV1>{};
+    final presentationPlans =
+        <String, MeasurementRfwPresentationPublicationPlan>{};
     if (errors.isEmpty && policy != null) {
       for (final publication in orderedPublications) {
         try {
-          plans[publication.selector.key] = _routePlan(
+          final plan = _routePlan(
             publication,
             reconciliation: reconciliation,
             priorOutput: priorOutput,
             policy: policy,
+          );
+          plans[publication.selector.key] = plan;
+          presentationPlans[publication.selector.key] =
+              _presentationPublicationPlan(
+            publication,
+            routePlan: plan,
+            reconciliation: reconciliation,
           );
         } on Object catch (error) {
           errors.add(
@@ -103,6 +141,7 @@ abstract final class MeasurementPublicationPlanner {
       ledgerNodes: reconciliation.nodes,
       proposals: reconciliation.proposals,
       routePlansByKey: errors.isEmpty ? plans : const {},
+      presentationPlansByKey: errors.isEmpty ? presentationPlans : const {},
       codeIdentityByStructuralOccurrenceKey: {
         for (final node in reconciliation.nodes.where((node) => node.active))
           node.structuralOccurrenceKey: node.codeIdentityId,
@@ -139,7 +178,65 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
       }
       final provenance = discovery.sourceProvenance!;
       discoveries.putIfAbsent(
-          provenance.resolvedSourceIdentity, () => discovery);
+        provenance.resolvedSourceIdentity,
+        () => discovery,
+      );
+      if (sourceArtifact.presentationDescriptors.isEmpty) continue;
+      final anchor = sourceArtifact.presentationAnchorStructuralOccurrenceKey;
+      if (anchor.isEmpty) {
+        throw ArgumentError(
+          'RFW presentation descriptors require one ledger anchor',
+        );
+      }
+      descriptors.putIfAbsent(
+        anchor,
+        () => _CurrentNodeDescriptor(
+          structuralOccurrenceKey: anchor,
+          parentStructuralOccurrenceKey: null,
+          reconciliationFingerprint: _opaqueId(
+            prefix: 'fingerprint.v1.',
+            domain: 'restage-measurement-rfw-presentation-anchor-v1',
+            value: <String, Object?>{
+              'anchor': anchor,
+            },
+          ),
+          events: const [],
+        ),
+      );
+      for (final localAnchor
+          in sourceArtifact.presentationLocalDeclarationAnchors) {
+        descriptors.putIfAbsent(
+          localAnchor.structuralOccurrenceKey,
+          () => _CurrentNodeDescriptor(
+            structuralOccurrenceKey: localAnchor.structuralOccurrenceKey,
+            parentStructuralOccurrenceKey: anchor,
+            reconciliationFingerprint: _opaqueId(
+              prefix: 'fingerprint.v1.',
+              domain: 'restage-measurement-rfw-local-declaration-anchor-v1',
+              value: <String, Object?>{
+                'artifactAnchor': anchor,
+                'localName': localAnchor.localName,
+                'localAnchor': localAnchor.structuralOccurrenceKey,
+              },
+            ),
+            events: const [],
+          ),
+        );
+      }
+      for (final descriptor in sourceArtifact.presentationDescriptors) {
+        descriptors[descriptor.structuralOccurrenceKey] =
+            _CurrentNodeDescriptor(
+          structuralOccurrenceKey: descriptor.structuralOccurrenceKey,
+          parentStructuralOccurrenceKey:
+              descriptor.parentStructuralOccurrenceKey ?? anchor,
+          reconciliationFingerprint: _opaqueId(
+            prefix: 'fingerprint.v1.',
+            domain: 'restage-measurement-rfw-presentation-v1',
+            value: descriptor.reconciliationEvidence,
+          ),
+          events: const [],
+        );
+      }
     }
   }
   for (final discovery in discoveries.values) {
@@ -158,7 +255,7 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
       descriptors[node.structuralOccurrenceKey] = _CurrentNodeDescriptor(
         structuralOccurrenceKey: node.structuralOccurrenceKey,
         parentStructuralOccurrenceKey: node.parentStructuralOccurrenceKey,
-        reconciliationFingerprint: _privateId(
+        reconciliationFingerprint: _opaqueId(
           prefix: 'fingerprint.v1.',
           domain: 'restage-measurement-reconciliation-evidence-v1',
           value: {
@@ -192,7 +289,8 @@ _LedgerReconciliation _reconcile({
     if (priorByLocator.putIfAbsent(node.structuralOccurrenceKey, () => node) !=
         node) {
       throw const FormatException(
-          'Prior Measurement ledger repeats a locator.');
+        'Prior Measurement ledger repeats a locator.',
+      );
     }
     if (priorByCode.putIfAbsent(node.codeIdentityId.value, () => node) !=
         node) {
@@ -203,8 +301,10 @@ _LedgerReconciliation _reconcile({
   }
   final currentKeys = descriptors.keys.toSet();
   final removed = priorOutput.ledgerNodes
-      .where((node) =>
-          node.active && !currentKeys.contains(node.structuralOccurrenceKey))
+      .where(
+        (node) =>
+            node.active && !currentKeys.contains(node.structuralOccurrenceKey),
+      )
       .toList();
   final relocationsByTarget = <String, MeasurementCompilerLedgerRelocation>{};
   for (final relocation in priorOutput.acceptedRelocations) {
@@ -321,7 +421,9 @@ _LedgerReconciliation _reconcile({
         errors.add(
           'Measurement identity reconciliation requires review for '
           '${descriptor.structuralOccurrenceKey}; candidates='
-          '${candidates.map((candidate) => candidate.structuralOccurrenceKey).toList()}.',
+          '${candidates.map(
+                (candidate) => candidate.structuralOccurrenceKey,
+              ).toList()}.',
         );
         continue;
       }
@@ -401,6 +503,9 @@ MeasurementPublicationRoutePlanV1 _routePlan(
   final bindings = <CodeIdentityBindingV1>[];
   final events = <MeasurementPublicationDraftEventV1>[];
   final routeSeeds = <MeasurementPublicationDraftRouteSeedV1>[];
+  final presentations = <MeasurementPublicationDraftPresentationV1>[];
+  final presentationRouteSeeds =
+      <MeasurementPublicationDraftPresentationRouteSeedV1>[];
   if (host != null) {
     final rootEdge = routeArtifacts.singleWhere(
       (artifact) => artifact.parentOccurrenceEdgeToken == null,
@@ -495,6 +600,113 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     }
   }
 
+  for (final sourceArtifact in input.sourceArtifacts) {
+    if (sourceArtifact.presentationDescriptors.isEmpty) continue;
+    final edge = edgeByArtifactPath[sourceArtifact.artifactPath];
+    final anchorKey = sourceArtifact.presentationAnchorStructuralOccurrenceKey;
+    if (edge == null || anchorKey.isEmpty) {
+      throw StateError(
+        'An RFW presentation descriptor has no exact publication artifact.',
+      );
+    }
+    final anchor = ledgerByLocator[anchorKey];
+    if (anchor == null) {
+      throw StateError('An RFW presentation anchor has no ledger binding.');
+    }
+    final sourceRoots = sourceArtifact.discovery.nodes
+        .where((node) => node.parentStructuralOccurrenceKey == null)
+        .toList(growable: false);
+    if (sourceRoots.length > 1) {
+      throw StateError('One source artifact has multiple static root nodes.');
+    }
+    final anchorParent = sourceRoots.isEmpty
+        ? host?.codeIdentityId
+        : ledgerByLocator[sourceRoots.single.structuralOccurrenceKey]
+            ?.codeIdentityId;
+    bindings.add(
+      CodeIdentityBindingV1(
+        codeIdentityId: anchor.codeIdentityId,
+        canonicalNodeTokenId: anchor.canonicalNodeTokenId,
+      ),
+    );
+    nodes.add(
+      MeasurementPublicationDraftNodeV1(
+        codeIdentityId: anchor.codeIdentityId,
+        artifactOccurrenceEdgeToken: edge,
+        parentCodeIdentityId: anchorParent,
+      ),
+    );
+    for (final localAnchor
+        in sourceArtifact.presentationLocalDeclarationAnchors) {
+      final ledger = ledgerByLocator[localAnchor.structuralOccurrenceKey];
+      if (ledger == null) {
+        throw StateError(
+          'An RFW local declaration anchor has no ledger binding.',
+        );
+      }
+      bindings.add(
+        CodeIdentityBindingV1(
+          codeIdentityId: ledger.codeIdentityId,
+          canonicalNodeTokenId: ledger.canonicalNodeTokenId,
+        ),
+      );
+      nodes.add(
+        MeasurementPublicationDraftNodeV1(
+          codeIdentityId: ledger.codeIdentityId,
+          artifactOccurrenceEdgeToken: edge,
+          parentCodeIdentityId: anchor.codeIdentityId,
+        ),
+      );
+    }
+    for (final occurrence in sourceArtifact.presentationOccurrences) {
+      final descriptor = occurrence.descriptor;
+      final ledger = ledgerByLocator[descriptor.structuralOccurrenceKey];
+      if (ledger == null) {
+        throw StateError(
+            'An RFW presentation descriptor has no ledger binding.');
+      }
+      final parent = descriptor.parentStructuralOccurrenceKey == null
+          ? anchor.codeIdentityId
+          : ledgerByLocator[descriptor.parentStructuralOccurrenceKey]
+              ?.codeIdentityId;
+      if (parent == null) {
+        throw StateError(
+          'An RFW presentation descriptor parent has no ledger binding.',
+        );
+      }
+      final identity = _presentationIdentity(ledger.codeIdentityId, edge);
+      bindings.add(
+        CodeIdentityBindingV1(
+          codeIdentityId: ledger.codeIdentityId,
+          canonicalNodeTokenId: ledger.canonicalNodeTokenId,
+        ),
+      );
+      nodes.add(
+        MeasurementPublicationDraftNodeV1(
+          codeIdentityId: ledger.codeIdentityId,
+          artifactOccurrenceEdgeToken: edge,
+          parentCodeIdentityId: parent,
+        ),
+      );
+      presentations.add(
+        MeasurementPublicationDraftPresentationV1(
+          nodeCodeIdentityId: ledger.codeIdentityId,
+          lineageId: identity.lineageId,
+          generatedPresentationReferenceId: identity.referenceId,
+          displayMetadataRef: identity.displayMetadataRef,
+          privacyClass: MeasurementPrivacyClass.nonSensitive,
+          collectionClass: MeasurementCollectionClass.tier2Coalesced,
+        ),
+      );
+      presentationRouteSeeds.add(
+        MeasurementPublicationDraftPresentationRouteSeedV1(
+          generatedPresentationReferenceId: identity.referenceId,
+          artifactOccurrenceEdgeToken: edge,
+        ),
+      );
+    }
+  }
+
   final priorPublication = priorOutput.publications
       .where((publication) => publication.selector.key == selector.key)
       .firstOrNull;
@@ -512,7 +724,7 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     intents.add(
       MeasurementPublicationLineageIntentV1(
         transitionId: LineageTransitionId(
-          _privateId(
+          _opaqueId(
             prefix: 'transition.v1.',
             domain: 'restage-measurement-lineage-intent-v1',
             value: {
@@ -541,7 +753,7 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     intents.add(
       MeasurementPublicationLineageIntentV1(
         transitionId: LineageTransitionId(
-          _privateId(
+          _opaqueId(
             prefix: 'transition.v1.',
             domain: 'restage-measurement-lineage-intent-v1',
             value: {
@@ -566,12 +778,12 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     deliverySurfaceType: DeliverySurfaceTypeId(selector.surface.wireName),
     minimumMeasurementClient: policy.minimumMeasurementClient,
     completeManifestId: MeasurementManifestId(
-      _privateId(
+      _opaqueId(
         prefix: 'manifest.v1.',
         domain: 'restage-measurement-target-neutral-manifest-v1',
         value: {
           'artifacts': [
-            for (final artifact in routeArtifacts) artifact.toJson()
+            for (final artifact in routeArtifacts) artifact.toJson(),
           ],
           'surfaceId': measurementSurfaceIdForSelectorV1(selector).value,
         },
@@ -584,7 +796,111 @@ MeasurementPublicationRoutePlanV1 _routePlan(
     nodes: nodes,
     events: events,
     routeSeeds: routeSeeds,
+    presentations: presentations,
+    presentationRouteSeeds: presentationRouteSeeds,
     lineageIntents: intents,
+  );
+}
+
+MeasurementRfwPresentationPublicationPlan _presentationPublicationPlan(
+  MeasurementPublicationPlanningInput input, {
+  required MeasurementPublicationRoutePlanV1 routePlan,
+  required _LedgerReconciliation reconciliation,
+}) {
+  final selector = input.selector;
+  final edgeByArtifactPath = {
+    for (final artifact in input.entry.artifacts)
+      artifact.path: routePlan.artifacts
+          .singleWhere(
+            (candidate) =>
+                candidate.artifactId ==
+                measurementArtifactIdForPublicationArtifactV1(
+                    selector, artifact),
+          )
+          .occurrenceEdgeToken,
+  };
+  final codeByStructuralKey = {
+    for (final node in reconciliation.nodes.where((node) => node.active))
+      node.structuralOccurrenceKey: node.codeIdentityId,
+  };
+  final bindingByCode = {
+    for (final binding in routePlan.codeIdentityBindings)
+      binding.codeIdentityId.value: binding,
+  };
+  final nodeByCode = {
+    for (final node in routePlan.nodes) node.codeIdentityId.value: node,
+  };
+  final presentationByCode = {
+    for (final presentation in routePlan.presentations)
+      presentation.nodeCodeIdentityId.value: presentation,
+  };
+  final routeByReference = {
+    for (final route in routePlan.presentationRoutes)
+      route.generatedPresentationReferenceId.value: route,
+  };
+  final planned = <MeasurementRfwPresentationPlannedOccurrence>[];
+  for (final sourceArtifact in input.sourceArtifacts) {
+    final edge = edgeByArtifactPath[sourceArtifact.artifactPath];
+    if (edge == null) {
+      throw StateError(
+        'An RFW presentation reservation has no publication artifact edge.',
+      );
+    }
+    for (final occurrence in sourceArtifact.presentationOccurrences) {
+      final descriptor = occurrence.descriptor;
+      final codeIdentity =
+          codeByStructuralKey[descriptor.structuralOccurrenceKey];
+      if (codeIdentity == null) {
+        throw StateError(
+          'An RFW presentation descriptor has no reconciled code identity.',
+        );
+      }
+      final binding = bindingByCode[codeIdentity.value];
+      final node = nodeByCode[codeIdentity.value];
+      final presentation = presentationByCode[codeIdentity.value];
+      if (binding == null || node == null || presentation == null) {
+        throw StateError(
+          'An RFW presentation descriptor has no complete route witness.',
+        );
+      }
+      if (node.artifactOccurrenceEdgeToken != edge) {
+        throw StateError(
+          'An RFW presentation descriptor joined the wrong artifact edge.',
+        );
+      }
+      final route =
+          routeByReference[presentation.generatedPresentationReferenceId.value];
+      if (route == null) {
+        throw StateError(
+          'An RFW presentation descriptor has no derived presentation route.',
+        );
+      }
+      planned.add(
+        MeasurementRfwPresentationPlannedOccurrence(
+          handle: occurrence.handle,
+          structuralOccurrenceKey: descriptor.structuralOccurrenceKey,
+          measurementSurfaceId: routePlan.surfaceId,
+          routeDraftClosureDigest: routePlan.routeDraftClosureDigest,
+          nodeCodeIdentityId: codeIdentity,
+          canonicalNodeTokenId: binding.canonicalNodeTokenId,
+          artifactOccurrenceEdgeToken: edge,
+          presentationLineageId: presentation.lineageId,
+          presentationReferenceId:
+              presentation.generatedPresentationReferenceId,
+          presentationDisplayMetadataRef: presentation.displayMetadataRef,
+          presentationRoute: route,
+        ),
+      );
+    }
+  }
+  final presentationCodeByStructuralKey = <String, CodeIdentityId>{
+    for (final occurrence in planned)
+      occurrence.structuralOccurrenceKey: occurrence.nodeCodeIdentityId,
+  };
+  return MeasurementRfwPresentationPublicationPlan(
+    routePlan: routePlan,
+    codeIdentityByStructuralOccurrenceKey: presentationCodeByStructuralKey,
+    occurrences: planned,
   );
 }
 
@@ -615,7 +931,7 @@ List<MeasurementPublicationRouteArtifactV1> _routeArtifacts(
         artifactKind: _artifactKind(artifact.role),
         occurrenceEdgeToken: edgeById[_artifactSlot(artifact)]!,
         localManifestId: MeasurementManifestId(
-          _privateId(
+          _opaqueId(
             prefix: 'manifest.local.v1.',
             domain: 'restage-measurement-local-manifest-v1',
             value: {
@@ -642,7 +958,7 @@ ArtifactId measurementArtifactIdForPublicationArtifactV1(
   SurfacePublicationArtifact artifact,
 ) =>
     ArtifactId(
-      _privateId(
+      _opaqueId(
         prefix: 'artifact.v1.',
         domain: 'restage-measurement-artifact-definition-v1',
         value: {
@@ -657,7 +973,7 @@ ArtifactOccurrenceEdgeToken _artifactEdge(
   SurfacePublicationArtifact artifact,
 ) =>
     ArtifactOccurrenceEdgeToken(
-      _privateId(
+      _opaqueId(
         prefix: 'edge.v1.',
         domain: 'restage-measurement-artifact-occurrence-edge-v1',
         value: {
@@ -703,7 +1019,38 @@ _AutomaticTreatment _automaticTreatment(SourceEventIdentity event) {
   );
 }
 
-String _privateId({
+_PresentationIdentity _presentationIdentity(
+  CodeIdentityId codeIdentityId,
+  ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
+) {
+  final suffix = canonicalSha256(
+    CanonicalHashDomain.generatedPresentationReference,
+    CanonicalJsonCodec.encode({
+      'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
+      'codeIdentityId': codeIdentityId.value,
+    }),
+  ).hex;
+  return _PresentationIdentity(
+    referenceId:
+        GeneratedPresentationReferenceId('reference.presented.$suffix'),
+    lineageId: PointLineageId('lineage.presented.$suffix'),
+    displayMetadataRef: DisplayMetadataRef('display.presented.$suffix'),
+  );
+}
+
+final class _PresentationIdentity {
+  const _PresentationIdentity({
+    required this.referenceId,
+    required this.lineageId,
+    required this.displayMetadataRef,
+  });
+
+  final GeneratedPresentationReferenceId referenceId;
+  final PointLineageId lineageId;
+  final DisplayMetadataRef displayMetadataRef;
+}
+
+String _opaqueId({
   required String prefix,
   required String domain,
   required Object? value,

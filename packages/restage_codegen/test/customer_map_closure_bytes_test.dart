@@ -29,7 +29,8 @@ const _source = '''
 ''';
 
 void main() {
-  test('a map-free customer catalog records only its constructor facts',
+  test(
+      'a map-free customer catalog records constructor facts and synthetic metadata',
       () async {
     final rw =
         await readerWriterWithFilesystemSources(rootPackage: 'apps_examples');
@@ -58,8 +59,9 @@ void main() {
         .readAsStringSync();
 
     // This golden isolates map-value closure from constructor-fidelity facts.
-    // The only constructor addition is the nullable `title` input; no map
-    // shape or closure metadata may appear.
+    // The nullable `title` input is the only constructor addition; analyticsId
+    // is synthetic occurrence metadata, so no map shape or closure metadata
+    // may appear.
     expect(captured, golden.trimRight());
   });
 }

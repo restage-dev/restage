@@ -13,11 +13,17 @@ const int kMaximumMeasurementPublicationDraftArtifactCount = 1024;
 /// Maximum canonical nodes admitted to one target-neutral draft.
 const int kMaximumMeasurementPublicationDraftNodeCount = 65536;
 
-/// Frozen maximum for delivered runtime carrier routes.
+/// Maximum source-interaction carrier routes delivered at runtime.
 ///
-/// Canonical graph and node closures have independent, larger bounds. They do
-/// not enlarge this runtime delivery budget.
+/// This remains independent of the larger canonical-node closure.
 const int kMaximumMeasurementPublicationRuntimeRouteCount = 1024;
+
+/// Maximum presentation carrier routes delivered at runtime.
+///
+/// Presentation and source-interaction carriers share the one worker route
+/// budget. This individual bound therefore never expands the combined limit.
+const int kMaximumMeasurementPublicationPresentationRouteCount =
+    kMaximumMeasurementPublicationRuntimeRouteCount;
 
 /// Maximum runtime source-event slots admitted to one target-neutral draft.
 ///
@@ -27,9 +33,13 @@ const int kMaximumMeasurementPublicationRuntimeRouteCount = 1024;
 const int kMaximumMeasurementPublicationDraftEventCount =
     kMaximumMeasurementPublicationRuntimeRouteCount;
 
-/// Maximum derived runtime carrier routes admitted to one target-neutral draft.
+/// Maximum derived source and presentation routes in one target-neutral draft.
 const int kMaximumMeasurementPublicationDraftRouteCount =
     kMaximumMeasurementPublicationRuntimeRouteCount;
+
+/// Maximum presentation references retained in one target-neutral draft.
+const int kMaximumMeasurementPublicationDraftPresentationCount =
+    kMaximumMeasurementPublicationPresentationRouteCount;
 
 /// Maximum runtime lineage intents admitted to one target-neutral draft.
 const int kMaximumMeasurementPublicationDraftLineageIntentCount =
@@ -424,6 +434,113 @@ final class MeasurementPublicationDraftEventV1 extends CanonicalValue {
       };
 }
 
+/// One target-neutral presentation occurrence in a publication draft.
+///
+/// This form deliberately has no source-event selector or interaction
+/// normalization. It is the routeable presentation witness for one admitted
+/// catalog occurrence. The schema validates its closure and policy; the
+/// production compiler establishes catalog provenance before it creates this
+/// typed value.
+final class MeasurementPublicationDraftPresentationV1 extends CanonicalValue {
+  /// Creates one presentation occurrence in a target-neutral draft.
+  MeasurementPublicationDraftPresentationV1({
+    required this.nodeCodeIdentityId,
+    required this.lineageId,
+    required this.generatedPresentationReferenceId,
+    required this.displayMetadataRef,
+    required this.privacyClass,
+    required this.collectionClass,
+  }) {
+    if (privacyClass != MeasurementPrivacyClass.nonSensitive ||
+        collectionClass != MeasurementCollectionClass.tier2Coalesced) {
+      throw ArgumentError(
+        'A presentation occurrence must be non-sensitive and Tier-2',
+      );
+    }
+  }
+
+  /// Decodes one closed presentation occurrence.
+  factory MeasurementPublicationDraftPresentationV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'collectionClass',
+        'displayMetadataRef',
+        'generatedPresentationReferenceId',
+        'kind',
+        'lineageId',
+        'nodeCodeIdentityId',
+        'privacyClass',
+      },
+      requiredKeys: const {
+        'collectionClass',
+        'displayMetadataRef',
+        'generatedPresentationReferenceId',
+        'kind',
+        'lineageId',
+        'nodeCodeIdentityId',
+        'privacyClass',
+      },
+      path: 'measurementPublicationDraftPresentation',
+    );
+    if (reader.string('kind') != 'measurementPublicationDraftPresentation') {
+      throw const CanonicalFormatException(
+        'measurementPublicationDraftPresentation.kind must be '
+        '"measurementPublicationDraftPresentation"',
+      );
+    }
+    return _constructDraft(
+      'measurementPublicationDraftPresentation',
+      () => MeasurementPublicationDraftPresentationV1(
+        nodeCodeIdentityId: CodeIdentityId(reader.string('nodeCodeIdentityId')),
+        lineageId: PointLineageId(reader.string('lineageId')),
+        generatedPresentationReferenceId: GeneratedPresentationReferenceId(
+          reader.string('generatedPresentationReferenceId'),
+        ),
+        displayMetadataRef: DisplayMetadataRef(
+          reader.string('displayMetadataRef'),
+        ),
+        privacyClass: _privacyClassFromWire(reader.string('privacyClass')),
+        collectionClass: _collectionClassFromWire(
+          reader.string('collectionClass'),
+        ),
+      ),
+    );
+  }
+
+  /// Canonical node owning this presentation occurrence.
+  final CodeIdentityId nodeCodeIdentityId;
+
+  /// Stable continuity identity for the presentation occurrence.
+  final PointLineageId lineageId;
+
+  /// Generated reference selected by the presentation route.
+  final GeneratedPresentationReferenceId generatedPresentationReferenceId;
+
+  /// Stable display witness for the exact presentation occurrence.
+  final DisplayMetadataRef displayMetadataRef;
+
+  /// Compiler-resolved privacy treatment.
+  final MeasurementPrivacyClass privacyClass;
+
+  /// Compiler-resolved collection treatment.
+  final MeasurementCollectionClass collectionClass;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'collectionClass': collectionClass.wireName,
+        'displayMetadataRef': displayMetadataRef.value,
+        'generatedPresentationReferenceId':
+            generatedPresentationReferenceId.value,
+        'kind': 'measurementPublicationDraftPresentation',
+        'lineageId': lineageId.value,
+        'nodeCodeIdentityId': nodeCodeIdentityId.value,
+        'privacyClass': privacyClass.wireName,
+      };
+}
+
 /// One target-neutral request to derive a full private route carrier.
 final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
   /// Creates one route derivation seed.
@@ -480,6 +597,68 @@ final class MeasurementPublicationDraftRouteSeedV1 extends CanonicalValue {
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
         'generatedReferenceId': generatedReferenceId.value,
         'kind': 'measurementPublicationDraftRouteSeed',
+      };
+}
+
+/// One target-neutral request to derive a presentation route carrier.
+final class MeasurementPublicationDraftPresentationRouteSeedV1
+    extends CanonicalValue {
+  /// Creates one presentation route derivation seed.
+  const MeasurementPublicationDraftPresentationRouteSeedV1({
+    required this.generatedPresentationReferenceId,
+    required this.artifactOccurrenceEdgeToken,
+  });
+
+  /// Decodes one strict presentation route derivation seed.
+  factory MeasurementPublicationDraftPresentationRouteSeedV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'artifactOccurrenceEdgeToken',
+        'generatedPresentationReferenceId',
+        'kind',
+      },
+      requiredKeys: const {
+        'artifactOccurrenceEdgeToken',
+        'generatedPresentationReferenceId',
+        'kind',
+      },
+      path: 'measurementPublicationDraftPresentationRouteSeed',
+    );
+    if (reader.string('kind') !=
+        'measurementPublicationDraftPresentationRouteSeed') {
+      throw const CanonicalFormatException(
+        'measurementPublicationDraftPresentationRouteSeed.kind must be '
+        '"measurementPublicationDraftPresentationRouteSeed"',
+      );
+    }
+    return _constructDraft(
+      'measurementPublicationDraftPresentationRouteSeed',
+      () => MeasurementPublicationDraftPresentationRouteSeedV1(
+        generatedPresentationReferenceId: GeneratedPresentationReferenceId(
+          reader.string('generatedPresentationReferenceId'),
+        ),
+        artifactOccurrenceEdgeToken: ArtifactOccurrenceEdgeToken(
+          reader.string('artifactOccurrenceEdgeToken'),
+        ),
+      ),
+    );
+  }
+
+  /// Generated presentation reference selected by the carrier.
+  final GeneratedPresentationReferenceId generatedPresentationReferenceId;
+
+  /// Exact mounted artifact occurrence encoded into the carrier.
+  final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
+        'generatedPresentationReferenceId':
+            generatedPresentationReferenceId.value,
+        'kind': 'measurementPublicationDraftPresentationRouteSeed',
       };
 }
 
@@ -566,6 +745,96 @@ final class MeasurementPublicationDraftRouteV1 extends CanonicalValue {
         'carrier': carrier,
         'generatedReferenceId': generatedReferenceId.value,
         'kind': 'measurementPublicationDraftRoute',
+        'opaqueRouteToken': opaqueRouteToken.toJson(),
+      };
+}
+
+/// One derived presentation route retained in the generated draft.
+final class MeasurementPublicationDraftPresentationRouteV1
+    extends CanonicalValue {
+  /// Creates one fully derived presentation route.
+  MeasurementPublicationDraftPresentationRouteV1({
+    required this.generatedPresentationReferenceId,
+    required this.artifactOccurrenceEdgeToken,
+    required this.carrier,
+    required this.opaqueRouteToken,
+  }) {
+    final parsed = MeasurementPublicationRouteCarrierV1.parse(carrier);
+    if (parsed.artifactOccurrenceEdgeToken != artifactOccurrenceEdgeToken ||
+        OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(carrier) !=
+            opaqueRouteToken) {
+      throw ArgumentError(
+        'A presentation route must retain the exact carrier edge and '
+        'full-carrier fingerprint',
+      );
+    }
+  }
+
+  /// Decodes one strict derived presentation route.
+  factory MeasurementPublicationDraftPresentationRouteV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'artifactOccurrenceEdgeToken',
+        'carrier',
+        'generatedPresentationReferenceId',
+        'kind',
+        'opaqueRouteToken',
+      },
+      requiredKeys: const {
+        'artifactOccurrenceEdgeToken',
+        'carrier',
+        'generatedPresentationReferenceId',
+        'kind',
+        'opaqueRouteToken',
+      },
+      path: 'measurementPublicationDraftPresentationRoute',
+    );
+    if (reader.string('kind') !=
+        'measurementPublicationDraftPresentationRoute') {
+      throw const CanonicalFormatException(
+        'measurementPublicationDraftPresentationRoute.kind must be '
+        '"measurementPublicationDraftPresentationRoute"',
+      );
+    }
+    return _constructDraft(
+      'measurementPublicationDraftPresentationRoute',
+      () => MeasurementPublicationDraftPresentationRouteV1(
+        generatedPresentationReferenceId: GeneratedPresentationReferenceId(
+          reader.string('generatedPresentationReferenceId'),
+        ),
+        artifactOccurrenceEdgeToken: ArtifactOccurrenceEdgeToken(
+          reader.string('artifactOccurrenceEdgeToken'),
+        ),
+        carrier: reader.string('carrier'),
+        opaqueRouteToken: OpaqueMeasurementRouteTokenV1.fromJson(
+          reader.object('opaqueRouteToken'),
+        ),
+      ),
+    );
+  }
+
+  /// Generated presentation reference selected by the carrier.
+  final GeneratedPresentationReferenceId generatedPresentationReferenceId;
+
+  /// Exact mounted edge encoded into [carrier].
+  final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
+
+  /// Strict full carrier spelling inserted into generated artifact data.
+  final String carrier;
+
+  /// Domain-separated fingerprint of the complete carrier spelling.
+  final OpaqueMeasurementRouteTokenV1 opaqueRouteToken;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
+        'carrier': carrier,
+        'generatedPresentationReferenceId':
+            generatedPresentationReferenceId.value,
+        'kind': 'measurementPublicationDraftPresentationRoute',
         'opaqueRouteToken': opaqueRouteToken.toJson(),
       };
 }
@@ -781,6 +1050,9 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     required List<MeasurementPublicationDraftEventV1> events,
     required List<MeasurementPublicationDraftRouteSeedV1> routeSeeds,
     required List<MeasurementPublicationLineageIntentV1> lineageIntents,
+    List<MeasurementPublicationDraftPresentationV1> presentations = const [],
+    List<MeasurementPublicationDraftPresentationRouteSeedV1>
+        presentationRouteSeeds = const [],
   })  : artifacts = _sortedUniqueRouteArtifacts(artifacts),
         codeIdentityBindings = _sortedUniqueCodeIdentityBindings(
           codeIdentityBindings,
@@ -788,7 +1060,11 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         nodes = _sortedUniqueNodes(nodes),
         events = _sortedUniqueEvents(events),
         routeSeeds = _sortedUniqueRouteSeeds(routeSeeds),
-        lineageIntents = _sortedUniqueLineageIntents(lineageIntents) {
+        lineageIntents = _sortedUniqueLineageIntents(lineageIntents),
+        presentations = _sortedUniquePresentations(presentations),
+        presentationRouteSeeds = _sortedUniquePresentationRouteSeeds(
+          presentationRouteSeeds,
+        ) {
     if (minimumMeasurementClient <= 0 ||
         minimumMeasurementClient > kMaximumPortableJsonInteger) {
       throw ArgumentError.value(
@@ -799,6 +1075,10 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     }
     _validateStructuralClosure();
     routes = _deriveRoutes(routeSeeds, routeDraftClosureDigest);
+    presentationRoutes = _derivePresentationRoutes(
+      presentationRouteSeeds,
+      routeDraftClosureDigest,
+    );
     _validateRouteClosure();
   }
 
@@ -832,6 +1112,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         'lineageIntents',
         'minimumMeasurementClient',
         'nodes',
+        'presentationRouteSeeds',
+        'presentations',
         'privacyPolicyRevisionId',
         'routeSeeds',
         'schemaVersion',
@@ -865,6 +1147,10 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
     final nodes = reader.list('nodes');
     final events = reader.list('events');
     final routeSeeds = reader.list('routeSeeds');
+    final presentations =
+        reader.optionalList('presentations') ?? const <Object?>[];
+    final presentationRouteSeeds =
+        reader.optionalList('presentationRouteSeeds') ?? const <Object?>[];
     final lineageIntents = reader.list('lineageIntents');
     _validateRawRoutePlanListBounds(
       artifacts: artifacts,
@@ -872,6 +1158,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
       nodes: nodes,
       events: events,
       routeSeeds: routeSeeds,
+      presentations: presentations,
+      presentationRouteSeeds: presentationRouteSeeds,
       lineageIntents: lineageIntents,
     );
     return _constructDraft(
@@ -924,6 +1212,18 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
               requireCanonicalObject(value, 'routeSeeds[]'),
             ),
         ],
+        presentations: [
+          for (final value in presentations)
+            MeasurementPublicationDraftPresentationV1.fromJson(
+              requireCanonicalObject(value, 'presentations[]'),
+            ),
+        ],
+        presentationRouteSeeds: [
+          for (final value in presentationRouteSeeds)
+            MeasurementPublicationDraftPresentationRouteSeedV1.fromJson(
+              requireCanonicalObject(value, 'presentationRouteSeeds[]'),
+            ),
+        ],
         lineageIntents: [
           for (final value in lineageIntents)
             MeasurementPublicationLineageIntentV1.fromJson(
@@ -970,11 +1270,22 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
   /// Strict carrier derivation seeds.
   final List<MeasurementPublicationDraftRouteSeedV1> routeSeeds;
 
+  /// Complete compiler-resolved presentation closure.
+  final List<MeasurementPublicationDraftPresentationV1> presentations;
+
+  /// Strict presentation route derivation seeds.
+  final List<MeasurementPublicationDraftPresentationRouteSeedV1>
+      presentationRouteSeeds;
+
   /// Complete target-neutral lineage operation set.
   final List<MeasurementPublicationLineageIntentV1> lineageIntents;
 
   /// Fully derived carrier spellings and fingerprints.
   late final List<MeasurementPublicationDraftRouteV1> routes;
+
+  /// Fully derived presentation route spellings and fingerprints.
+  late final List<MeasurementPublicationDraftPresentationRouteV1>
+      presentationRoutes;
 
   /// Digest of this complete carrier-independent route preimage.
   CanonicalDigest get routeDraftClosureDigest => canonicalDigest;
@@ -1000,7 +1311,15 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         ],
         'minimumMeasurementClient': minimumMeasurementClient,
         'nodes': [for (final node in nodes) node.toJson()],
+        if (presentations.isNotEmpty)
+          'presentations': [
+            for (final presentation in presentations) presentation.toJson(),
+          ],
         'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
+        if (presentationRouteSeeds.isNotEmpty)
+          'presentationRouteSeeds': [
+            for (final routeSeed in presentationRouteSeeds) routeSeed.toJson(),
+          ],
         'routeSeeds': [for (final routeSeed in routeSeeds) routeSeed.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,
         'surfaceId': surfaceId.value,
@@ -1015,6 +1334,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
         nodes.isEmpty ||
         nodes.length > kMaximumMeasurementPublicationDraftNodeCount ||
         events.length > kMaximumMeasurementPublicationDraftEventCount ||
+        presentations.length >
+            kMaximumMeasurementPublicationDraftPresentationCount ||
         lineageIntents.length >
             kMaximumMeasurementPublicationDraftLineageIntentCount) {
       throw ArgumentError('The publication route plan exceeds one bound');
@@ -1110,6 +1431,29 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
       }
     }
 
+    final presentationReferences = <String>{};
+    final presentationLineages = <String>{};
+    final presentationNodes = <String>{};
+    for (final presentation in presentations) {
+      if (!nodesByCode.containsKey(presentation.nodeCodeIdentityId.value) ||
+          !presentationNodes.add(presentation.nodeCodeIdentityId.value) ||
+          !presentationReferences.add(
+            presentation.generatedPresentationReferenceId.value,
+          ) ||
+          !presentationLineages.add(presentation.lineageId.value) ||
+          eventReferences.contains(
+            presentation.generatedPresentationReferenceId.value,
+          ) ||
+          eventLineages.contains(presentation.lineageId.value) ||
+          presentation.privacyClass != MeasurementPrivacyClass.nonSensitive ||
+          presentation.collectionClass !=
+              MeasurementCollectionClass.tier2Coalesced) {
+        throw ArgumentError(
+          'Every presentation must join one node with a distinct Tier-2 '
+          'non-sensitive presentation identity',
+        );
+      }
+    }
     _validateAcyclicParentClosure(
       roots.single.occurrenceEdgeToken.value,
       artifacts.map(
@@ -1133,7 +1477,8 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
   }
 
   void _validateRouteClosure() {
-    if (routes.length > kMaximumMeasurementPublicationDraftRouteCount) {
+    if (routes.length + presentationRoutes.length >
+        kMaximumMeasurementPublicationDraftRouteCount) {
       throw ArgumentError('A route plan exceeds its bounded route closure');
     }
     final eventsByReference = {
@@ -1179,6 +1524,48 @@ final class MeasurementPublicationRoutePlanV1 extends CanonicalDocument {
       expected: requiredRouteReferences,
       actual: actualRouteReferences,
       label: 'admitted route-plan events and full route carriers',
+    );
+
+    final presentationsByReference = {
+      for (final presentation in presentations)
+        presentation.generatedPresentationReferenceId.value: presentation,
+    };
+    final requiredPresentationRouteReferences = <String>{
+      for (final presentation in presentations)
+        presentation.generatedPresentationReferenceId.value,
+    };
+    final actualPresentationRouteReferences = <String>{};
+    for (final route in presentationRoutes) {
+      final presentation = presentationsByReference[
+          route.generatedPresentationReferenceId.value];
+      if (presentation == null ||
+          nodesByCode[presentation.nodeCodeIdentityId.value]!
+                  .artifactOccurrenceEdgeToken !=
+              route.artifactOccurrenceEdgeToken) {
+        throw ArgumentError(
+          'Every presentation route must close one admitted presentation edge',
+        );
+      }
+      if (!actualPresentationRouteReferences.add(
+            route.generatedPresentationReferenceId.value,
+          ) ||
+          !fullFingerprints.add(route.opaqueRouteToken.fingerprint.hex)) {
+        throw ArgumentError('Full route-plan carriers must be unique');
+      }
+      final parsed = MeasurementPublicationRouteCarrierV1.parse(route.carrier);
+      final locals = localTokensByEdge.putIfAbsent(
+        parsed.artifactOccurrenceEdgeToken.value,
+        () => <String>{},
+      );
+      final local = base64Url.encode(parsed.localToken).replaceAll('=', '');
+      if (!locals.add(local)) {
+        throw ArgumentError('Local route tokens must be unique per edge');
+      }
+    }
+    _requireExactStringKeys(
+      expected: requiredPresentationRouteReferences,
+      actual: actualPresentationRouteReferences,
+      label: 'presentation references and full route carriers',
     );
 
     final nextReferences = <String>{};
@@ -1227,6 +1614,7 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
   }) : artifacts = _sortedUniqueArtifacts(artifacts) {
     _validateFinalArtifactClosure();
     routes = routePlan.routes;
+    presentationRoutes = routePlan.presentationRoutes;
   }
 
   /// Decodes byte-exact canonical target-neutral draft bytes.
@@ -1253,6 +1641,8 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
         'lineageIntents',
         'minimumMeasurementClient',
         'nodes',
+        'presentations',
+        'presentationRoutes',
         'privacyPolicyRevisionId',
         'routes',
         'schemaVersion',
@@ -1286,6 +1676,10 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
     final nodes = reader.list('nodes');
     final events = reader.list('events');
     final routes = reader.list('routes');
+    final presentations =
+        reader.optionalList('presentations') ?? const <Object?>[];
+    final presentationRoutes =
+        reader.optionalList('presentationRoutes') ?? const <Object?>[];
     final lineageIntents = reader.list('lineageIntents');
     _validateRawDraftListBounds(
       artifacts: artifacts,
@@ -1293,12 +1687,20 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
       nodes: nodes,
       events: events,
       routes: routes,
+      presentations: presentations,
+      presentationRoutes: presentationRoutes,
       lineageIntents: lineageIntents,
     );
     final encodedRoutes = [
       for (final value in routes)
         MeasurementPublicationDraftRouteV1.fromJson(
           requireCanonicalObject(value, 'routes[]'),
+        ),
+    ];
+    final encodedPresentationRoutes = [
+      for (final value in presentationRoutes)
+        MeasurementPublicationDraftPresentationRouteV1.fromJson(
+          requireCanonicalObject(value, 'presentationRoutes[]'),
         ),
     ];
     return _constructDraft(
@@ -1356,10 +1758,24 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
                 requireCanonicalObject(value, 'events[]'),
               ),
           ],
+          presentations: [
+            for (final value in presentations)
+              MeasurementPublicationDraftPresentationV1.fromJson(
+                requireCanonicalObject(value, 'presentations[]'),
+              ),
+          ],
           routeSeeds: [
             for (final route in encodedRoutes)
               MeasurementPublicationDraftRouteSeedV1(
                 generatedReferenceId: route.generatedReferenceId,
+                artifactOccurrenceEdgeToken: route.artifactOccurrenceEdgeToken,
+              ),
+          ],
+          presentationRouteSeeds: [
+            for (final route in encodedPresentationRoutes)
+              MeasurementPublicationDraftPresentationRouteSeedV1(
+                generatedPresentationReferenceId:
+                    route.generatedPresentationReferenceId,
                 artifactOccurrenceEdgeToken: route.artifactOccurrenceEdgeToken,
               ),
           ],
@@ -1378,6 +1794,15 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
           throw ArgumentError(
             'A decoded draft route must equal its derived full carrier and '
             'fingerprint',
+          );
+        }
+        if (!_samePresentationRoutes(
+          draft.presentationRoutes,
+          encodedPresentationRoutes,
+        )) {
+          throw ArgumentError(
+            'A decoded presentation route must equal its derived full carrier '
+            'and fingerprint',
           );
         }
         return draft;
@@ -1429,12 +1854,25 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
   List<MeasurementPublicationDraftRouteSeedV1> get routeSeeds =>
       routePlan.routeSeeds;
 
+  /// Complete compiler-resolved presentation closure.
+  List<MeasurementPublicationDraftPresentationV1> get presentations =>
+      routePlan.presentations;
+
+  /// Strict presentation route derivation seeds retained through routes on
+  /// wire.
+  List<MeasurementPublicationDraftPresentationRouteSeedV1>
+      get presentationRouteSeeds => routePlan.presentationRouteSeeds;
+
   /// Complete target-neutral lineage operation set.
   List<MeasurementPublicationLineageIntentV1> get lineageIntents =>
       routePlan.lineageIntents;
 
   /// Fully derived carrier spellings and fingerprints.
   late final List<MeasurementPublicationDraftRouteV1> routes;
+
+  /// Fully derived presentation route spellings and fingerprints.
+  late final List<MeasurementPublicationDraftPresentationRouteV1>
+      presentationRoutes;
 
   /// Digest of the explicit carrier-independent route projection.
   CanonicalDigest get routeDraftClosureDigest =>
@@ -1461,6 +1899,14 @@ final class MeasurementPublicationDraftV1 extends CanonicalDocument {
         ],
         'minimumMeasurementClient': minimumMeasurementClient,
         'nodes': [for (final node in nodes) node.toJson()],
+        if (presentations.isNotEmpty)
+          'presentations': [
+            for (final presentation in presentations) presentation.toJson(),
+          ],
+        if (presentationRoutes.isNotEmpty)
+          'presentationRoutes': [
+            for (final route in presentationRoutes) route.toJson(),
+          ],
         'privacyPolicyRevisionId': privacyPolicyRevisionId.value,
         'routes': [for (final route in routes) route.toJson()],
         'schemaVersion': kMeasurementSchemaVersion,
@@ -1608,7 +2054,7 @@ List<MeasurementPublicationDraftEventV1> _sortedUniqueEvents(
 List<MeasurementPublicationDraftRouteSeedV1> _sortedUniqueRouteSeeds(
   List<MeasurementPublicationDraftRouteSeedV1> values,
 ) {
-  if (values.length > kMaximumMeasurementPublicationDraftRouteCount) {
+  if (values.length > kMaximumMeasurementPublicationRuntimeRouteCount) {
     throw ArgumentError('A draft exceeds its bounded route closure');
   }
   final copy = values.toList()
@@ -1620,6 +2066,49 @@ List<MeasurementPublicationDraftRouteSeedV1> _sortedUniqueRouteSeeds(
   _rejectDuplicates(
     copy.map((route) => route.generatedReferenceId.value),
     'Draft route generated references',
+  );
+  return List.unmodifiable(copy);
+}
+
+List<MeasurementPublicationDraftPresentationV1> _sortedUniquePresentations(
+  List<MeasurementPublicationDraftPresentationV1> values,
+) {
+  if (values.length > kMaximumMeasurementPublicationDraftPresentationCount) {
+    throw ArgumentError('A draft exceeds its bounded presentation closure');
+  }
+  final copy = values.toList()
+    ..sort(
+      (left, right) => left.generatedPresentationReferenceId.value.compareTo(
+        right.generatedPresentationReferenceId.value,
+      ),
+    );
+  _rejectDuplicates(
+    copy.map(
+      (presentation) => presentation.generatedPresentationReferenceId.value,
+    ),
+    'Draft generated presentation references',
+  );
+  return List.unmodifiable(copy);
+}
+
+List<MeasurementPublicationDraftPresentationRouteSeedV1>
+    _sortedUniquePresentationRouteSeeds(
+  List<MeasurementPublicationDraftPresentationRouteSeedV1> values,
+) {
+  if (values.length > kMaximumMeasurementPublicationDraftPresentationCount) {
+    throw ArgumentError(
+      'A draft exceeds its bounded presentation route closure',
+    );
+  }
+  final copy = values.toList()
+    ..sort(
+      (left, right) => left.generatedPresentationReferenceId.value.compareTo(
+        right.generatedPresentationReferenceId.value,
+      ),
+    );
+  _rejectDuplicates(
+    copy.map((route) => route.generatedPresentationReferenceId.value),
+    'Draft presentation route generated references',
   );
   return List.unmodifiable(copy);
 }
@@ -1652,12 +2141,44 @@ MeasurementPublicationDraftRouteV1 _deriveRoute(
   );
 }
 
+List<MeasurementPublicationDraftPresentationRouteV1> _derivePresentationRoutes(
+  List<MeasurementPublicationDraftPresentationRouteSeedV1> routeSeeds,
+  CanonicalDigest routeDraftClosureDigest,
+) =>
+    List.unmodifiable([
+      for (final routeSeed in routeSeeds)
+        _derivePresentationRoute(routeSeed, routeDraftClosureDigest),
+    ]);
+
+MeasurementPublicationDraftPresentationRouteV1 _derivePresentationRoute(
+  MeasurementPublicationDraftPresentationRouteSeedV1 routeSeed,
+  CanonicalDigest routeDraftClosureDigest,
+) {
+  final carrier = MeasurementPublicationRouteCarrierV1.derivePresentation(
+    routeDraftClosureDigest: routeDraftClosureDigest,
+    artifactOccurrenceEdgeToken: routeSeed.artifactOccurrenceEdgeToken,
+    generatedPresentationReferenceId:
+        routeSeed.generatedPresentationReferenceId,
+  );
+  return MeasurementPublicationDraftPresentationRouteV1(
+    generatedPresentationReferenceId:
+        routeSeed.generatedPresentationReferenceId,
+    artifactOccurrenceEdgeToken: routeSeed.artifactOccurrenceEdgeToken,
+    carrier: carrier.value,
+    opaqueRouteToken: OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
+      carrier.value,
+    ),
+  );
+}
+
 void _validateRawDraftListBounds({
   required List<Object?> artifacts,
   required List<Object?> codeIdentityBindings,
   required List<Object?> nodes,
   required List<Object?> events,
   required List<Object?> routes,
+  required List<Object?> presentations,
+  required List<Object?> presentationRoutes,
   required List<Object?> lineageIntents,
 }) {
   if (artifacts.isEmpty ||
@@ -1668,7 +2189,13 @@ void _validateRawDraftListBounds({
       nodes.isEmpty ||
       nodes.length > kMaximumMeasurementPublicationDraftNodeCount ||
       events.length > kMaximumMeasurementPublicationDraftEventCount ||
-      routes.length > kMaximumMeasurementPublicationDraftRouteCount ||
+      presentations.length >
+          kMaximumMeasurementPublicationDraftPresentationCount ||
+      routes.length > kMaximumMeasurementPublicationRuntimeRouteCount ||
+      presentationRoutes.length >
+          kMaximumMeasurementPublicationPresentationRouteCount ||
+      routes.length + presentationRoutes.length >
+          kMaximumMeasurementPublicationDraftRouteCount ||
       lineageIntents.length >
           kMaximumMeasurementPublicationDraftLineageIntentCount) {
     throw const CanonicalFormatException(
@@ -1683,6 +2210,8 @@ void _validateRawRoutePlanListBounds({
   required List<Object?> nodes,
   required List<Object?> events,
   required List<Object?> routeSeeds,
+  required List<Object?> presentations,
+  required List<Object?> presentationRouteSeeds,
   required List<Object?> lineageIntents,
 }) {
   if (artifacts.isEmpty ||
@@ -1693,7 +2222,13 @@ void _validateRawRoutePlanListBounds({
       nodes.isEmpty ||
       nodes.length > kMaximumMeasurementPublicationDraftNodeCount ||
       events.length > kMaximumMeasurementPublicationDraftEventCount ||
-      routeSeeds.length > kMaximumMeasurementPublicationDraftRouteCount ||
+      presentations.length >
+          kMaximumMeasurementPublicationDraftPresentationCount ||
+      routeSeeds.length > kMaximumMeasurementPublicationRuntimeRouteCount ||
+      presentationRouteSeeds.length >
+          kMaximumMeasurementPublicationPresentationRouteCount ||
+      routeSeeds.length + presentationRouteSeeds.length >
+          kMaximumMeasurementPublicationDraftRouteCount ||
       lineageIntents.length >
           kMaximumMeasurementPublicationDraftLineageIntentCount) {
     throw const CanonicalFormatException(
@@ -1801,6 +2336,13 @@ void _rejectDuplicates(Iterable<String> values, String label) {
 bool _sameRoutes(
   List<MeasurementPublicationDraftRouteV1> left,
   List<MeasurementPublicationDraftRouteV1> right,
+) =>
+    left.length == right.length &&
+    left.indexed.every((entry) => entry.$2 == right[entry.$1]);
+
+bool _samePresentationRoutes(
+  List<MeasurementPublicationDraftPresentationRouteV1> left,
+  List<MeasurementPublicationDraftPresentationRouteV1> right,
 ) =>
     left.length == right.length &&
     left.indexed.every((entry) => entry.$2 == right[entry.$1]);

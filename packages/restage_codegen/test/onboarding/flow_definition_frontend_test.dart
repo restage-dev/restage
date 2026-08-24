@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
@@ -530,6 +532,18 @@ final setupSurvey = FlowDefinition(
         graph.outbound.surveyAnswers.fields['answer']!.ref,
         isA<StateFlowOutboundRef>(),
       );
+      final document = graph.toDocument({
+        for (final screenId in ['question', 'guided', 'explore'])
+          screenId: ScreenArtifact(
+            path: '$screenId.rfw',
+            version: 1,
+            schemaVersion: 1,
+            minClient: 3,
+            contentHash: FlowContentHash.compute(Uint8List(0)),
+          ),
+      });
+      expect(document.schemaVersion, 2);
+      expect(document.surveyQuestionOrder, ['answer']);
     });
 
     test('lowers a subflow and preserves typed child input identity', () async {

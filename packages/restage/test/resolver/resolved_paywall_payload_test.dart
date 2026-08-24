@@ -9,6 +9,7 @@ void main() {
   test('constructs a blob paywall payload', () {
     final variant = ResolvedVariant(
       bytes: Uint8List.fromList([1, 2, 3]),
+      surfaceVersion: 'test',
       paywallId: 'pro_upgrade',
       paywallPublishedVersion: 7,
     );
@@ -36,6 +37,7 @@ void main() {
     final blob = BlobPaywallPayload(
       ResolvedVariant(
         bytes: Uint8List.fromList([1]),
+        surfaceVersion: 'test',
         paywallId: 'blob_paywall',
       ),
     );

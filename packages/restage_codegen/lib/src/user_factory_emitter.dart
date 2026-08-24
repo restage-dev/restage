@@ -9,16 +9,17 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Emits a `user_factories.g.dart` source string containing one
 /// `LocalWidgetBuilder` per emittable `@RestageWidget` class, plus a
-/// top-level `registerRestageCustomerWidgets()` helper the customer calls
+/// top-level `registerRestageWidgets()` helper the app calls
 /// once at startup. Output is `dart format`-clean.
 ///
 /// Returns `null` when no entries are emittable so the builder can skip
 /// writing the output file rather than emit an empty registration helper.
 ///
-/// Reuses [emitFactoryFunction] for the per-widget body — built-in
-/// libraries and customer libraries share scalar, structured, and event
-/// lowering. Customer factories additionally lower every exact `Widget` and
-/// `List<Widget>` constructor property without requiring author metadata.
+/// Reuses [emitFactoryFunction] for the per-widget body — built-in widget
+/// libraries and app widget libraries share scalar, structured, and event
+/// lowering. Generated widget factories additionally lower every exact
+/// `Widget` and `List<Widget>` constructor property without requiring author
+/// metadata.
 ///
 /// [onSkip] fires once per entry the factory emitter can't produce
 /// mechanically (e.g. an unsupported `synthetic` strategy or malformed
@@ -54,7 +55,7 @@ String? emitUserFactoriesDart(
   );
   final aliasByUri = imports.prefixesBySourceUri;
 
-  // The build-time context for inline customer reconstruction: admitted
+  // The build-time context for inline app-widget reconstruction: admitted
   // structured types, slot-keyed map and record plans, nominal slot targets,
   // and import aliases. No allocated wire IDs are needed.
   final customer =
@@ -89,7 +90,7 @@ String? emitUserFactoriesDart(
   }
   if (emittable.isEmpty) return null;
 
-  // One import per referenced customer library: the source file of each
+  // One import per referenced app widget library: the source file of each
   // emittable `@RestageWidget`, the referenced structured types the inline
   // reconstructor NAMES, and every referenced enum's library (an
   // `RestageDecoders.enumByName<Tone>(...)` needs `Tone`'s library). Derived
@@ -130,12 +131,12 @@ String? emitUserFactoriesDart(
     ..writeln('// optional Restage overlays, then re-run build_runner.')
     ..writeln()
     // `widgets.dart` supplies `Widget` / `BuildContext` for the generated
-    // factory closures. Every identity used by customer constructors and
+    // factory closures. Every identity used by app widget constructors and
     // reconstruction is imported separately by the shared planner below.
     // The SDK re-exports `DataSource`, `ArgumentDecoders`, and
     // `LocalWidgetBuilder` from rfw, plus `RestageDecoders` for
     // property types not covered by rfw's helpers (e.g. `Duration`),
-    // so no direct rfw import is needed (and the customer package
+    // so no direct rfw import is needed (and the app package
     // isn't required to depend on rfw).
     ..writeln();
   imports.importDirectivesFor(referencedUris).forEach(buf.writeln);
@@ -147,7 +148,7 @@ String? emitUserFactoriesDart(
     ..writeln('/// startup, before any `RestagePaywall` mounts. Idempotent')
     ..writeln('/// after `Restage.debugReset`, so test setUps may call it')
     ..writeln('/// again between cases.')
-    ..writeln('void registerRestageCustomerWidgets() {');
+    ..writeln('void registerRestageWidgets() {');
   for (final library in orderedLibraries) {
     final entries = byLibrary[library]!;
     // A structured-admitting library carries its declared capabilityVersion so
@@ -172,6 +173,7 @@ String? emitUserFactoriesDart(
       ..writeln('  );');
   }
   buf.writeln('}');
+  _emitDeprecatedRegistrationAlias(buf);
   for (final (_, body) in emittable) {
     buf
       ..writeln()
@@ -187,9 +189,19 @@ String emitEmptyUserFactoriesDart() {
   writeGeneratedHeader(buf);
   buf
     ..writeln()
-    ..writeln('/// Registers the currently enabled customer RFW widgets.')
-    ..writeln('void registerRestageCustomerWidgets() {}');
+    ..writeln('/// Registers the currently enabled RFW widgets.')
+    ..writeln('void registerRestageWidgets() {}');
+  _emitDeprecatedRegistrationAlias(buf);
   return formatGeneratedDart(buf.toString());
+}
+
+void _emitDeprecatedRegistrationAlias(StringBuffer buf) {
+  buf
+    ..writeln()
+    ..writeln("@Deprecated('Use registerRestageWidgets; removed in 3.0')")
+    ..writeln(
+      'void registerRestageCustomerWidgets() => registerRestageWidgets();',
+    );
 }
 
 /// The import URI (the part before `#`) of a `<library-uri>#<name>` reference.

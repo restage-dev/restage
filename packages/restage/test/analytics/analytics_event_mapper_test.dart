@@ -292,6 +292,55 @@ void main() {
     });
   });
 
+  test('preserves the drop-off property contract in mapped envelopes', () {
+    final step = map(
+      const OnboardingStepViewed(
+        flowId: 'first_run',
+        flowVersion: 1,
+        screenId: 'welcome',
+        stepIndex: 0,
+      ),
+    );
+    final flowCustom = map(
+      const FlowCustomEvent(
+        flowId: 'first_run',
+        flowVersion: 1,
+        eventName: 'continue',
+        fields: <String, Object?>{},
+      ),
+    );
+    final paywallCustom = map(
+      const PaywallCustomEvent(
+        paywallId: 'upgrade',
+        eventName: 'continue',
+        args: <String, Object?>{},
+      ),
+    );
+    final skipped = map(
+      const OnboardingSkipped(
+        flowId: 'first_run',
+        flowVersion: 1,
+        atScreenId: 'welcome',
+        stepIndex: 0,
+      ),
+    );
+    final page = map(PagerPageChanged(pageIndex: 1, pageCount: 3));
+    final question = map(
+      SurveyQuestionResponded(questionId: 'favoriteColor', questionIndex: 0),
+    );
+
+    expect(step.properties, containsPair('screenId', 'welcome'));
+    expect(step.properties, containsPair('stepIndex', 0));
+    expect(flowCustom.properties, containsPair('eventName', 'continue'));
+    expect(paywallCustom.properties, containsPair('eventName', 'continue'));
+    expect(skipped.properties, containsPair('atScreenId', 'welcome'));
+    expect(page.properties, <String, Object?>{'pageIndex': 1, 'pageCount': 3});
+    expect(question.properties, <String, Object?>{
+      'questionId': 'favoriteColor',
+      'questionIndex': 0,
+    });
+  });
+
   group('production suppression (no zeroed session summary by default)', () {
     test('paywall_session_summary is suppressed; real events are not', () {
       expect(isProdSuppressedAnalyticsEvent('paywall_session_summary'), isTrue);

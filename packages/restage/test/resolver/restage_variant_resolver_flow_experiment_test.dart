@@ -853,6 +853,7 @@ final class _RecordingCustomFallback implements VariantResolver {
     calls += 1;
     return ResolvedVariant(
       bytes: Uint8List.fromList(<int>[1, 2, 3]),
+      surfaceVersion: 'test',
       paywallId: id,
     );
   }

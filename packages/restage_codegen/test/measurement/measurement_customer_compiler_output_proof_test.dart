@@ -62,6 +62,7 @@ void main() {
         (publication) => publication.selector.slug == _paywallSlug,
       );
       expect(screenPublication.routePlan.routes, hasLength(7));
+      expect(screenPublication.routePlan.presentationRoutes, hasLength(11));
       expect(paywallPublication.routePlan.routes, hasLength(1));
       expect(
         screenPublication.routePlan.routes
@@ -119,15 +120,15 @@ void main() {
           screenPublication.routePlan.routes.map((route) => route.carrier),
         ),
       );
-      expect(compactPointTokens, hasLength(7));
+      expect(compactPointTokens, hasLength(11));
       expect(
         compactPointTokens,
         unorderedEquals([
-          for (final carrier in carriers) _compactToken(carrier),
+          for (final route in screenPublication.routePlan.presentationRoutes)
+            _compactToken(route.carrier),
         ]),
-        reason:
-            'Ordinary Flutter callbacks receive compact tokens without author '
-            'metadata or wrapper syntax.',
+        reason: 'Every admitted catalog occurrence receives its own compact '
+            'presentation token without author metadata.',
       );
       for (final bytes in [
         ...handoff.artifacts.values,

@@ -41,6 +41,8 @@ class _StaticResolver implements VariantResolver {
   }) async =>
       ResolvedVariant(
         bytes: bytes,
+        surfaceVersion: publishedVersion?.toString() ??
+            FlowContentHash.compute(bytes).value,
         paywallId: id,
         paywallPublishedVersion: publishedVersion,
         experimentId: experimentId,
@@ -890,11 +892,13 @@ void main() {
     final resolver = _SeqResolver([
       ResolvedVariant(
         bytes: validBytes,
+        surfaceVersion: '5',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 5,
       ),
       ResolvedVariant(
         bytes: Uint8List.fromList([0, 1, 2, 3]), // undecodable .rfw
+        surfaceVersion: '6',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 6,
       ),

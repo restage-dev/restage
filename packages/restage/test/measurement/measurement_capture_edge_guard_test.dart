@@ -72,7 +72,7 @@ void main() {
     final source = File(
       'lib/src/measurement/measurement_rfw_presentation.dart',
     ).readAsStringSync();
-    final start = source.indexOf('Widget _buildMeasurementPresented(');
+    final start = source.indexOf('Widget _buildBoundMeasurementPresented(');
     final end = source.indexOf(
       'final class _MeasurementRfwPresentationPaintBoundary',
       start,
@@ -91,7 +91,7 @@ void main() {
       runtimeCapture,
       contains('MeasurementRfwPresentationBinderScope.maybeOf(context)'),
     );
-    expect(runtimeCapture, contains('?.bindPresentation('));
+    expect(runtimeCapture, contains('binder.bindPresentation('));
     expect(
       runtimeCapture,
       contains('edge.appendPresentationToken(pointToken)'),

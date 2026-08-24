@@ -30,6 +30,13 @@
           "type": "color",
           "description": "Border color. Defaults to the primary container.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0047",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -48,6 +55,13 @@
           "type": "widgetList",
           "description": "Overlay children, top-most last.",
           "required": true
+        },
+        {
+          "wireId": "p0048",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -89,6 +103,13 @@
               "symbolName": "Map"
             }
           }
+        },
+        {
+          "wireId": "p0049",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -119,6 +140,13 @@
               "wireId": "s0001"
             }
           }
+        },
+        {
+          "wireId": "p0050",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -149,6 +177,13 @@
               }
             }
           }
+        },
+        {
+          "wireId": "p0051",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -174,6 +209,13 @@
           "type": "color",
           "description": "Background color. Defaults to the primary container.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0052",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -199,6 +241,13 @@
           "type": "integer",
           "description": "Count shown after the caption.",
           "required": true
+        },
+        {
+          "wireId": "p0053",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -244,6 +293,13 @@
               "wireId": "s0005"
             }
           }
+        },
+        {
+          "wireId": "p0054",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -269,6 +325,13 @@
           "type": "string",
           "description": "The value, e.g. `'7 days'`.",
           "required": true
+        },
+        {
+          "wireId": "p0055",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -294,6 +357,13 @@
           "type": "integer",
           "description": "Streak count.",
           "required": true
+        },
+        {
+          "wireId": "p0056",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -343,6 +413,13 @@
               }
             }
           }
+        },
+        {
+          "wireId": "p0057",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     }

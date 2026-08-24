@@ -125,6 +125,7 @@ FlowDocument _freezeDocument(FlowDocument document) {
         entry.key: _freezeFlowStateDeclaration(entry.value),
     }),
     outbound: _freezeOutboundDeclarations(document.outbound),
+    surveyQuestionOrder: List.unmodifiable(document.surveyQuestionOrder),
     screenArtifacts: Map.unmodifiable(document.screenArtifacts),
     states: Map.unmodifiable({
       for (final entry in document.states.entries)

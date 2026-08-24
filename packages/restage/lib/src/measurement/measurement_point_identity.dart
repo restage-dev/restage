@@ -34,6 +34,7 @@ final class MeasurementPointIdentity {
     required this.ownerId,
     required this.publicationId,
     required this.routeIndex,
+    required this.capabilityKind,
   });
 
   /// Opaque owner scope for one mounted identity table.
@@ -45,9 +46,16 @@ final class MeasurementPointIdentity {
   /// Bounded table index for the exact occurrence and lineage route.
   final int routeIndex;
 
+  /// Capability accepted at this exact compact-token route.
+  final MeasurementCapabilityKind capabilityKind;
+
   /// Primitive isolate-transfer fields in their fixed order.
-  List<int> get isolateFields =>
-      List<int>.unmodifiable([ownerId, publicationId, routeIndex]);
+  List<int> get isolateFields => List<int>.unmodifiable([
+        ownerId,
+        publicationId,
+        routeIndex,
+        capabilityKind.index,
+      ]);
 }
 
 /// One already-resolved compact point token for a mounted RFW presentation.
@@ -98,35 +106,55 @@ final class MeasurementPointIdentityTable {
     required List<MeasurementEmittedPointToken> emittedTokens,
   }) {
     _requireExactPublicationContext(publicationContext, binding);
-    final mountedRoutes = binding.routesForMountedArtifact(
-      artifactOccurrenceEdgeToken,
-    );
-    if (mountedRoutes == null) {
+    final sourceRoutes =
+        binding.routesForMountedArtifact(artifactOccurrenceEdgeToken)?.routes;
+    final presentationRoutes = binding
+        .presentationRoutesForMountedArtifact(artifactOccurrenceEdgeToken)
+        ?.routes;
+    final expectedRouteCount =
+        (sourceRoutes?.length ?? 0) + (presentationRoutes?.length ?? 0);
+    if (expectedRouteCount == 0) {
       throw ArgumentError.value(
         artifactOccurrenceEdgeToken,
         'artifactOccurrenceEdgeToken',
         'Expected one exact mounted route closure',
       );
     }
-    if (emittedTokens.length != mountedRoutes.routes.length) {
+    if (expectedRouteCount > kMaximumMeasurementPublicationRuntimeRouteCount) {
+      throw ArgumentError.value(
+        expectedRouteCount,
+        'emittedTokens',
+        'Expected a bounded exact mounted route closure',
+      );
+    }
+    if (emittedTokens.length != expectedRouteCount) {
       throw ArgumentError.value(
         emittedTokens.length,
         'emittedTokens',
         'Expected the complete exact mounted route closure',
       );
     }
-    if (mountedRoutes.routes.length > _maximumPointIdentityFieldValue) {
+    if (expectedRouteCount > _maximumPointIdentityFieldValue) {
       throw ArgumentError.value(
-        mountedRoutes.routes.length,
+        expectedRouteCount,
         'emittedTokens',
         'Expected a bounded exact mounted route closure',
       );
     }
 
     final expectedRoutes = <String, _ExpectedRoute>{
-      for (final entry in mountedRoutes.routes.indexed)
+      for (final entry
+          in (sourceRoutes ?? const <MeasurementPublicationRouteV1>[]).indexed)
         entry.$2.opaqueRouteToken.fingerprint.hex: _ExpectedRoute(
           routeIndex: entry.$1,
+          capabilityKind: MeasurementCapabilityKind.sourceInteraction,
+        ),
+      for (final entry in (presentationRoutes ??
+              const <MeasurementPublicationPresentationRouteV1>[])
+          .indexed)
+        entry.$2.opaqueRouteToken.fingerprint.hex: _ExpectedRoute(
+          routeIndex: (sourceRoutes?.length ?? 0) + entry.$1,
+          capabilityKind: MeasurementCapabilityKind.presented,
         ),
     };
     final identitiesByCompactToken = <String, MeasurementPointIdentity>{};
@@ -170,6 +198,7 @@ final class MeasurementPointIdentityTable {
         ownerId: ownerId,
         publicationId: publicationId,
         routeIndex: expected.routeIndex,
+        capabilityKind: expected.capabilityKind,
       );
       if (identitiesByCompactToken.putIfAbsent(compactToken, () => identity) !=
           identity) {
@@ -193,7 +222,7 @@ final class MeasurementPointIdentityTable {
     }
 
     if (expectedRoutes.isNotEmpty ||
-        identitiesByRouteIndex.length != mountedRoutes.routes.length) {
+        identitiesByRouteIndex.length != expectedRouteCount) {
       throw ArgumentError.value(
         emittedTokens,
         'emittedTokens',
@@ -218,7 +247,8 @@ final class MeasurementPointIdentityTable {
   factory MeasurementPointIdentityTable.fromPreboundTokens({
     required List<MeasurementPreboundPointToken> tokens,
   }) {
-    if (tokens.isEmpty || tokens.length > _maximumPointIdentityFieldValue) {
+    if (tokens.isEmpty ||
+        tokens.length > kMaximumMeasurementPublicationRuntimeRouteCount) {
       throw ArgumentError.value(
         tokens.length,
         'tokens',
@@ -235,6 +265,7 @@ final class MeasurementPointIdentityTable {
         ownerId: ownerId,
         publicationId: publicationId,
         routeIndex: routeIndex,
+        capabilityKind: token.route.capabilityKind,
       );
       if (identitiesByCompactToken.putIfAbsent(
                 token.compactToken,
@@ -273,21 +304,27 @@ final class MeasurementPointIdentityTable {
     if (identity.ownerId != _ownerId ||
         identity.publicationId != _publicationId ||
         identity.routeIndex < 0 ||
-        identity.routeIndex > _maximumPointIdentityFieldValue) {
+        identity.routeIndex >=
+            kMaximumMeasurementPublicationRuntimeRouteCount) {
       return false;
     }
     final expected = _identitiesByRouteIndex[identity.routeIndex];
     return expected != null &&
         expected.ownerId == identity.ownerId &&
         expected.publicationId == identity.publicationId &&
-        expected.routeIndex == identity.routeIndex;
+        expected.routeIndex == identity.routeIndex &&
+        expected.capabilityKind == identity.capabilityKind;
   }
 }
 
 final class _ExpectedRoute {
-  const _ExpectedRoute({required this.routeIndex});
+  const _ExpectedRoute({
+    required this.routeIndex,
+    required this.capabilityKind,
+  });
 
   final int routeIndex;
+  final MeasurementCapabilityKind capabilityKind;
 }
 
 void _requireExactPublicationContext(

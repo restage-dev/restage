@@ -88,14 +88,14 @@ Builder restageOutputsBuilder(BuilderOptions options) =>
 Builder restageGeneratedDartBuilder(BuilderOptions options) =>
     RestageGeneratedDartBuilder(options);
 
-/// build_runner factory entry point for the package-wide customer-catalog
+/// build_runner factory entry point for the package-wide widget catalog
 /// emitter. Scans every `lib/**.dart` and walks the files that spell a
 /// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
 /// classes and emits a single `lib/user_catalog.g.dart` aggregating them.
 Builder userCatalogBuilder(BuilderOptions options) =>
     UserCatalogBuilder(options);
 
-/// build_runner factory entry point for the package-wide customer-catalog
+/// build_runner factory entry point for the package-wide widget catalog
 /// JSON emitter. Scans every `lib/**.dart` and walks the files that spell a
 /// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
 /// classes and emits `lib/src/widget_catalog/catalog.json` from the same
@@ -111,12 +111,12 @@ Builder userCatalogJsonBuilder(BuilderOptions options) =>
 Builder factoryFunctionBuilder(BuilderOptions options) =>
     FactoryFunctionBuilder(options);
 
-/// build_runner factory entry point for the package-wide customer-factory
+/// build_runner factory entry point for the package-wide widget factory
 /// emitter. Scans every `lib/**.dart` and walks the files that spell a
 /// Restage annotation (or an alias of one) for `@RestageWidget`-annotated
 /// classes, generates per-widget `LocalWidgetBuilder` closures, and emits
 /// a single `lib/user_factories.g.dart` exposing a
-/// `registerRestageCustomerWidgets()` helper the customer calls once at
+/// `registerRestageWidgets()` helper the app calls once at
 /// startup.
 Builder userFactoryBuilder(BuilderOptions options) =>
     UserFactoryBuilder(options);

@@ -37,7 +37,7 @@ void main() {
   // Register the example's custom widgets (incl. PlanBoard) so the delivered
   // blob's `PlanBoard(plans: ..., highlights: ...)` reference resolves to its
   // generated factory.
-  registerRestageCustomerWidgets();
+  registerRestageWidgets();
   Restage.configure(
     apiKey: 'rs_pk_test',
     resolver: const AssetVariantResolver(),

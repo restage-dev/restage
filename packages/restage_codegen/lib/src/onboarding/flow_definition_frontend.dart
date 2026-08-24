@@ -171,15 +171,23 @@ final class NormalizedFlowGraph {
   /// Materializes the proven wire model after the aggregate emitter supplies
   /// exact artifact hashes and paths for [artifacts].
   FlowDocument toDocument(Map<String, ScreenArtifact> artifacts) {
+    final surveyQuestionOrder = outbound.surveyAnswers.fields.keys.toList(
+      growable: false,
+    );
+    final schemaVersion =
+        delivery == FlowDeliveryMode.typed && surveyQuestionOrder.isNotEmpty
+            ? 2
+            : 1;
     final document = FlowDocument(
       flow: flow,
       version: version,
-      schemaVersion: 1,
+      schemaVersion: schemaVersion,
       minClient: minClient,
       initial: initial,
       actions: actions,
       flowState: flowState,
       outbound: outbound,
+      surveyQuestionOrder: surveyQuestionOrder,
       screenArtifacts: artifacts,
       states: states,
       deliveryMode: delivery,

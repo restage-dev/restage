@@ -21,7 +21,11 @@ import 'resolved_variant.dart';
 ///     Locale? locale,
 ///   }) async {
 ///     final bytes = await myHttpClient.fetchPaywall(id);
-///     return ResolvedVariant(bytes: bytes, paywallId: id);
+///     return ResolvedVariant(
+///       bytes: bytes,
+///       paywallId: id,
+///       surfaceVersion: 'cdn-revision-42',
+///     );
 ///   }
 /// }
 /// ```

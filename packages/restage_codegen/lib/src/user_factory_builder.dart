@@ -12,9 +12,9 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// package — scanning every `lib/**.dart` and walking the files that spell a
 /// Restage annotation (or an alias of one) — and emits a single
 /// `lib/user_factories.g.dart` containing per-widget `LocalWidgetBuilder`
-/// closures plus a one-call `registerRestageCustomerWidgets()` helper.
+/// closures plus a one-call `registerRestageWidgets()` helper.
 ///
-/// The customer's `main()` calls the generated helper once at startup;
+/// The app's `main()` calls the generated helper once at startup;
 /// every widget annotated in the package becomes available to RFW blobs
 /// without any hand-written factory plumbing.
 ///
@@ -40,8 +40,8 @@ final class UserFactoryBuilder implements Builder {
     final collection = await collectRestageWidgetsForPackage(buildStep);
     if (collection == null) return;
 
-    // The admitted customer structured graph is threaded to the inline
-    // reconstructor: a widget carrying a renderable customer structured
+    // The admitted structured graph is threaded to the inline reconstructor:
+    // a widget carrying a renderable structured
     // property is emitted to the catalog AND reconstructed here (admit + decode
     // together). An admitted widget the reconstructor can't handle is a
     // predicate gap (excluded upstream), never a factory skip.

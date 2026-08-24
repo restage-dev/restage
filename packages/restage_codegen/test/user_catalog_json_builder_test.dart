@@ -40,11 +40,14 @@ void main() {
       rootPackage: 'apps_examples',
       readerWriter: rw,
       outputs: {
-        'apps_examples|lib/src/widget_catalog/catalog.json':
-            decodedMatches(predicate<String>((s) {
-          captured = s;
-          return true;
-        })),
+        'apps_examples|lib/src/widget_catalog/catalog.json': decodedMatches(
+          predicate<String>(
+            (s) {
+              captured = s;
+              return true;
+            },
+          ),
+        ),
       },
       onLog: (_) {},
     );
@@ -62,6 +65,12 @@ void main() {
     for (final p in badge.properties) {
       expect(p.wireId.isUnallocated, isFalse);
     }
+    final analyticsId = badge.properties.singleWhere(
+      (property) => property.name == kAnalyticsIdPropertyName,
+    );
+    expect(analyticsId.type, PropertyType.string);
+    expect(analyticsId.synthetic, kAnalyticsIdSyntheticStrategy);
+    expect(analyticsId.wireId.isUnallocated, isFalse);
   });
 
   test(
@@ -81,18 +90,29 @@ void main() {
       rootPackage: 'apps_examples',
       readerWriter: rw,
       outputs: {
-        'apps_examples|lib/user_catalog.g.dart':
-            decodedMatches(predicate<String>((s) {
-          dartSource = s;
-          return true;
-        })),
+        'apps_examples|lib/user_catalog.g.dart': decodedMatches(
+          predicate<String>(
+            (s) {
+              dartSource = s;
+              return true;
+            },
+          ),
+        ),
       },
       onLog: (_) {},
     );
     expect(dartSource, contains(badge.wireId.value));
+    expect(dartSource, contains("name: '$kAnalyticsIdPropertyName'"));
+    expect(
+      dartSource,
+      contains("synthetic: '$kAnalyticsIdSyntheticStrategy'"),
+    );
     for (final p in badge.properties) {
-      expect(dartSource, contains(p.wireId.value),
-          reason: 'property ${p.name} wire id must match user_catalog.g.dart');
+      expect(
+        dartSource,
+        contains(p.wireId.value),
+        reason: 'property ${p.name} wire id must match user_catalog.g.dart',
+      );
     }
   });
 

@@ -24,7 +24,7 @@ class _StaticResolver implements VariantResolver {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: bytes, paywallId: id);
+      ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
 }
 
 /// A deterministic billing gateway for the interactive tests. The default
@@ -261,7 +261,7 @@ void main() {
       resolver: const AssetVariantResolver(),
       billingGateway: _TestBillingGateway(),
     );
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
   });
 
   group('gallery escape — a paywall close returns to the gallery', () {

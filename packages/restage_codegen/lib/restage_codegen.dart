@@ -63,6 +63,7 @@ export 'src/measurement/measurement_compiler_input.dart'
         MeasurementCompilerBoundaryResult,
         MeasurementCompilerEventInput,
         MeasurementCompilerNodeInput,
+        MeasurementCompilerPresentationInput,
         MeasurementCurrentEndpointClaim,
         MeasurementLineageTransitionDraft,
         PriorActiveLineageLedgerV1;

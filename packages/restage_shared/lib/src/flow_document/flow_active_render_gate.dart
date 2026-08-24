@@ -115,8 +115,9 @@ FlowActiveRenderRejected? _screenArtifactFloorRejection({
     final activeArtifact = active.screenArtifacts[entry.key];
     if (activeArtifact == null) continue;
 
-    // The runtime hardcodes `artifact.schemaVersion != 1`; the self-relative
-    // check here and that hardcoded check must move together at schema v2.
+    // The runtime admits flow-document schema versions 1 and 2 while artifacts
+    // remain schema version 1. Keep this self-relative check aligned with the
+    // artifact admission boundary when an artifact schema changes.
     if (activeArtifact.minClient > client.minClient ||
         activeArtifact.schemaVersion != entry.value.schemaVersion) {
       return FlowActiveRenderRejected(

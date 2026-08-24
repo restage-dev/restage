@@ -128,6 +128,7 @@ abstract final class FlowDocumentCompatibility {
     _diffActions(from, to, add);
     _diffFlowState(from, to, add);
     _diffOutbound(from, to, add);
+    _diffSurveyQuestionOrder(from, to, add);
     _diffScreenArtifacts(from, to, add);
     _diffStates(from, to, fromReachable, toReachable, add);
 
@@ -138,6 +139,33 @@ abstract final class FlowDocumentCompatibility {
       changes: List.unmodifiable(changes),
     );
   }
+}
+
+void _diffSurveyQuestionOrder(
+  FlowDocument from,
+  FlowDocument to,
+  _AddChange add,
+) {
+  if (from.surveyQuestionOrder.isEmpty || to.surveyQuestionOrder.isEmpty) {
+    return;
+  }
+  if (_sameStringList(from.surveyQuestionOrder, to.surveyQuestionOrder)) {
+    return;
+  }
+  add(
+    'surveyQuestionOrderChanged',
+    r'$.surveyQuestionOrder',
+    FlowCompatibilityClassification.breaking,
+    'Survey question order changed.',
+  );
+}
+
+bool _sameStringList(List<String> first, List<String> second) {
+  if (first.length != second.length) return false;
+  for (var index = 0; index < first.length; index += 1) {
+    if (first[index] != second[index]) return false;
+  }
+  return true;
 }
 
 typedef _AddChange = void Function(

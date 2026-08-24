@@ -38,6 +38,7 @@ FlowDocument _fullDoc() => FlowDocument(
           },
         ),
       ),
+      surveyQuestionOrder: const ['firstQuestion', 'secondQuestion'],
       legacyTerminalResultPassthrough: true,
       screenArtifacts: {
         'welcome': ScreenArtifact(
@@ -80,6 +81,7 @@ void main() {
       expect(copy.actions, same(doc.actions));
       expect(copy.flowState, same(doc.flowState));
       expect(copy.outbound, same(doc.outbound));
+      expect(copy.surveyQuestionOrder, same(doc.surveyQuestionOrder));
       expect(copy.screenArtifacts, same(doc.screenArtifacts));
       expect(copy.states, same(doc.states));
       expect(copy.unsupportedFeatures, same(doc.unsupportedFeatures));
@@ -103,6 +105,7 @@ void main() {
       expect(copy.actions, same(doc.actions));
       expect(copy.states, same(doc.states));
       expect(copy.outbound, same(doc.outbound));
+      expect(copy.surveyQuestionOrder, same(doc.surveyQuestionOrder));
     });
   });
 }

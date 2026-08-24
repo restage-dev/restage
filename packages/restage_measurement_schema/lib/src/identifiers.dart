@@ -152,6 +152,12 @@ final class GeneratedReferenceId extends MeasurementIdentifier {
   GeneratedReferenceId(super.value);
 }
 
+/// One compiler-owned generated presentation reference identity.
+final class GeneratedPresentationReferenceId extends MeasurementIdentifier {
+  /// Creates a generated presentation reference identity.
+  GeneratedPresentationReferenceId(super.value);
+}
+
 final class AuthorityRevisionId extends MeasurementIdentifier {
   AuthorityRevisionId(super.value);
 }

@@ -50,8 +50,7 @@ dependencies:
     path: ../restage_core
   restage_cupertino:
     path: ../restage_cupertino
-  restage_material:
-    path: ../restage_material
+  restage_material: ">=1.1.0 <2.0.0"
   restage_measurement_schema:
     path: ../restage_measurement_schema
   restage_shared:

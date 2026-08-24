@@ -10,6 +10,7 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
@@ -82,6 +83,20 @@ final class RestageOutputsBuilder implements Builder {
   ) async {
     final manifest = bundle.manifest;
     if (manifest == null) return;
+    final AnalyticsIdControlOutputV1? analyticsIdControl;
+    try {
+      analyticsIdControl = await readAnalyticsIdControlOutput(buildStep);
+    } on Object catch (error) {
+      throw StateError('Analytics label control output is invalid: $error');
+    }
+    if (analyticsIdControl != null &&
+        analyticsIdControl.packageName != buildStep.inputId.package) {
+      throw StateError(
+        'Analytics label control output names '
+        '${analyticsIdControl.packageName} instead of '
+        '${buildStep.inputId.package}.',
+      );
+    }
     final measurementAsset = AssetId(
       buildStep.inputId.package,
       kRestageMeasurementCompilerOutputPath,
@@ -164,6 +179,20 @@ final class RestageOutputsBuilder implements Builder {
       await buildStep.writeAsBytes(
         AssetId(buildStep.inputId.package, plan.measurementOutputIndexPath),
         measurementOutput.outputIndexBytes(buildStep.inputId.package),
+      );
+    }
+    if (analyticsIdControl != null) {
+      await buildStep.writeAsString(
+        AssetId(buildStep.inputId.package, plan.analyticsIdMetadataPath),
+        analyticsIdControl.encodeJson(),
+      );
+    } else {
+      await buildStep.writeAsString(
+        AssetId(buildStep.inputId.package, plan.analyticsIdMetadataPath),
+        AnalyticsIdControlOutputV1(
+          packageName: buildStep.inputId.package,
+          publications: const <AnalyticsIdControlPublication>[],
+        ).encodeJson(),
       );
     }
   }

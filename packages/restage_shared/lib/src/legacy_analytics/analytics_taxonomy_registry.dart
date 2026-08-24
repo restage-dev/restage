@@ -84,8 +84,14 @@ final Map<String, AnalyticsEventSpec> kAnalyticsRegistry =
   'restore_succeeded': _tier1,
   'restore_no_purchases': _tier1,
   'restore_failed': _tier1,
-  // Registered now, fires at a later milestone.
-  'paywall_survey_responded': _tier1,
+  'page_changed': AnalyticsEventSpec(
+    tier: AnalyticsTier.tier1,
+    requiredProperties: const <String>{'pageIndex', 'pageCount'},
+  ),
+  'paywall_survey_responded': AnalyticsEventSpec(
+    tier: AnalyticsTier.tier1,
+    requiredProperties: const <String>{'questionId', 'questionIndex'},
+  ),
 
   // --- Tier 1: entitlement / subscription lifecycle (server + client) ---
   'entitlement_granted': _tier1,

@@ -128,6 +128,41 @@ final class MeasurementCompilerEventInput {
       );
 }
 
+/// One explicit presentation occurrence selected from an emitted RFW call.
+///
+/// The producer must derive this input from the final RFW presentation
+/// discovery and its reconciled ledger node. This generic boundary does not
+/// infer presentation occurrences from arbitrary compiler nodes.
+final class MeasurementCompilerPresentationInput {
+  /// Creates one explicit RFW presentation occurrence.
+  MeasurementCompilerPresentationInput({
+    required this.nodeCodeIdentityId,
+    required this.lineageId,
+    required this.generatedPresentationReferenceId,
+    required this.displayMetadataRef,
+    required this.privacyClass,
+    required this.collectionClass,
+  });
+
+  /// Ledger-backed node selected by RFW presentation discovery.
+  final CodeIdentityId nodeCodeIdentityId;
+
+  /// Current continuity witness for the selected occurrence.
+  final PointLineageId lineageId;
+
+  /// Target-neutral reference reserved before final artifact encoding.
+  final GeneratedPresentationReferenceId generatedPresentationReferenceId;
+
+  /// Non-identity display witness.
+  final DisplayMetadataRef displayMetadataRef;
+
+  /// Policy-derived privacy classification.
+  final MeasurementPrivacyClass privacyClass;
+
+  /// Policy-derived bounded collection treatment.
+  final MeasurementCollectionClass collectionClass;
+}
+
 /// Typed prior-active endpoint ledger supplied by the compiler's prior state.
 ///
 /// The codegen package owns this boundary input rather than extending a
@@ -235,11 +270,13 @@ final class MeasurementCompilerBoundaryInput {
     required this.codeIdentityLedger,
     required List<MeasurementCompilerNodeInput> nodes,
     required List<MeasurementCompilerEventInput> events,
+    List<MeasurementCompilerPresentationInput> presentations = const [],
     required this.priorActiveLedger,
     required List<MeasurementLineageTransitionDraft> lineageTransitions,
   })  : artifacts = List.unmodifiable(artifacts),
         nodes = List.unmodifiable(nodes),
         events = List.unmodifiable(events),
+        presentations = List.unmodifiable(presentations),
         lineageTransitions = List.unmodifiable(lineageTransitions);
 
   /// Exact target authority for the resulting documents.
@@ -284,6 +321,9 @@ final class MeasurementCompilerBoundaryInput {
   /// Compiler-known static event slot inputs.
   final List<MeasurementCompilerEventInput> events;
 
+  /// Explicit RFW-derived presentation occurrence inputs.
+  final List<MeasurementCompilerPresentationInput> presentations;
+
   /// Complete active set from the prior revision.
   final PriorActiveLineageLedgerV1 priorActiveLedger;
 
@@ -296,6 +336,7 @@ final class MeasurementCompilerBoundaryInput {
     CodeIdentityLedgerV1? codeIdentityLedger,
     List<MeasurementCompilerNodeInput>? nodes,
     List<MeasurementCompilerEventInput>? events,
+    List<MeasurementCompilerPresentationInput>? presentations,
     PriorActiveLineageLedgerV1? priorActiveLedger,
     List<MeasurementLineageTransitionDraft>? lineageTransitions,
   }) =>
@@ -314,6 +355,7 @@ final class MeasurementCompilerBoundaryInput {
         codeIdentityLedger: codeIdentityLedger ?? this.codeIdentityLedger,
         nodes: nodes ?? this.nodes,
         events: events ?? this.events,
+        presentations: presentations ?? this.presentations,
         priorActiveLedger: priorActiveLedger ?? this.priorActiveLedger,
         lineageTransitions: lineageTransitions ?? this.lineageTransitions,
       );

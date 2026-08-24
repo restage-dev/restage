@@ -207,12 +207,19 @@ void main() {
       expect(_reason(_resolve(active, okBundled())), 'flow_mismatch');
     });
 
-    test('compatibility/schemaVersion rejects (unsupported_schema_version)',
+    test('schemaVersion 2 falls back when the bundled contract is version 1',
         () {
       final active = _active(_flowDoc(purchase, schemaVersion: 2), purchase);
+      expect(_reason(_resolve(active, okBundled())), 'render_gate');
+    });
+
+    test('schemaVersion 2 accepts a matching bundled contract', () {
+      final document = _flowDoc(purchase, schemaVersion: 2);
+      final active = _active(document, purchase);
+
       expect(
-        _reason(_resolve(active, okBundled())),
-        'unsupported_schema_version',
+        _resolve(active, _bundled(document, purchase)),
+        isA<FlowPaywallActiveAccepted>(),
       );
     });
 

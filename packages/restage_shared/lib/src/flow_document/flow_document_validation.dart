@@ -14,6 +14,8 @@ abstract final class FlowDocumentValidation {
     _validateIntValue(issues, r'$.schemaVersion', document.schemaVersion);
     _validateIntValue(issues, r'$.minClient', document.minClient);
 
+    _validateSurveyQuestionOrder(document, issues);
+
     for (final feature in document.unsupportedFeatures) {
       issues.add(
         FlowDocumentValidationIssue(
@@ -466,6 +468,74 @@ void _validateOutboundDeclarations(
     validatePayload(
       '\$.outbound.customEvents.${entry.key}.fields',
       entry.value,
+    );
+  }
+}
+
+void _validateSurveyQuestionOrder(
+  FlowDocument document,
+  List<FlowDocumentValidationIssue> issues,
+) {
+  final fields = document.outbound.surveyAnswers.fields;
+  final order = document.surveyQuestionOrder;
+  final orderedQuestionIds = order.toSet();
+  if (document.schemaVersion != 1 && document.schemaVersion != 2) {
+    issues.add(
+      FlowDocumentValidationIssue(
+        code: 'unsupportedSchemaVersion',
+        path: r'$.schemaVersion',
+        message: 'Supported schema versions are 1 and 2, got '
+            '${document.schemaVersion}.',
+      ),
+    );
+    return;
+  }
+  if (document.schemaVersion == 1) {
+    if (order.isNotEmpty) {
+      issues.add(
+        const FlowDocumentValidationIssue(
+          code: 'surveyQuestionOrderRequiresSchemaV2',
+          path: r'$.surveyQuestionOrder',
+          message: 'surveyQuestionOrder requires schemaVersion 2.',
+        ),
+      );
+    }
+    return;
+  }
+  if (fields.isEmpty) {
+    if (order.isNotEmpty) {
+      issues.add(
+        const FlowDocumentValidationIssue(
+          code: 'surveyQuestionOrderWithoutAnswers',
+          path: r'$.surveyQuestionOrder',
+          message: 'surveyQuestionOrder requires surveyAnswers declarations.',
+        ),
+      );
+    }
+    return;
+  }
+  if (order.isEmpty ||
+      order.length != fields.length ||
+      orderedQuestionIds.length != order.length ||
+      !orderedQuestionIds.containsAll(fields.keys)) {
+    issues.add(
+      const FlowDocumentValidationIssue(
+        code: 'invalidSurveyQuestionOrder',
+        path: r'$.surveyQuestionOrder',
+        message: 'surveyQuestionOrder must contain every surveyAnswers key '
+            'exactly once.',
+      ),
+    );
+  }
+  for (final entry in fields.entries) {
+    final ref = entry.value.ref;
+    if (ref is StateFlowOutboundRef && ref.path.isEmpty) continue;
+    issues.add(
+      FlowDocumentValidationIssue(
+        code: 'invalidSurveyAnswerReference',
+        path: '\$.outbound.surveyAnswers.fields.${entry.key}.ref',
+        message: 'Survey answers must reference one declared state value.',
+      ),
     );
   }
 }

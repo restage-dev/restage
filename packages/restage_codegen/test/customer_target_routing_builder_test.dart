@@ -128,9 +128,19 @@ void main() {
     );
     expect(disabled.catalogDart, isNot(contains('RoutedCard')));
     expect(disabled.factoryDart, isNot(contains('RoutedCard')));
+    expect(disabled.factoryDart, contains('void registerRestageWidgets() {}'));
     expect(
       disabled.factoryDart,
-      contains('void registerRestageCustomerWidgets() {}'),
+      contains(
+        "@Deprecated('Use registerRestageWidgets; removed in 3.0')\n"
+        'void registerRestageCustomerWidgets() => registerRestageWidgets();',
+      ),
+    );
+    expect(
+      RegExp(r'void registerRestageWidgets\(\) \{')
+          .allMatches(disabled.factoryDart)
+          .length,
+      1,
     );
     expect(
       readerWriter.testing.readString(

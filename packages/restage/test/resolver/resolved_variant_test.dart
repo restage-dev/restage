@@ -8,6 +8,7 @@ void main() {
   test('ResolvedVariant stores bytes + metadata', () {
     final v = ResolvedVariant(
       bytes: Uint8List.fromList([1, 2, 3]),
+      surfaceVersion: 'sha256:example',
       paywallId: 'pro_upgrade',
       variantId: 'variant-a',
       experimentId: 'exp1',
@@ -18,6 +19,7 @@ void main() {
     );
     expect(v.bytes.length, 3);
     expect(v.paywallId, 'pro_upgrade');
+    expect(v.surfaceVersion, 'sha256:example');
     expect(v.variantId, 'variant-a');
     expect(v.experimentId, 'exp1');
     expect(v.experimentEpoch, 3);
@@ -25,10 +27,22 @@ void main() {
     expect(v.cacheHit, isFalse);
   });
 
+  test('ResolvedVariant remains subclassable', () {
+    final variant = _ExtendedResolvedVariant(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      paywallId: 'pro_upgrade',
+      surfaceVersion: 'sha256:extended',
+    );
+
+    expect(variant, isA<ResolvedVariant>());
+    expect(variant.label, 'extended');
+  });
+
   group('ResolvedVariant value equality (identity tuple)', () {
     ResolvedVariant make({
       List<int> bytes = const [1, 2, 3],
       String paywallId = 'pro_upgrade',
+      String surfaceVersion = 'sha256:example',
       String? variantId = 'variant-a',
       String? experimentId = 'exp1',
       int? experimentEpoch = 3,
@@ -40,6 +54,7 @@ void main() {
         attachMeasurementPublicationBindingReference(
           ResolvedVariant(
             bytes: Uint8List.fromList(bytes),
+            surfaceVersion: surfaceVersion,
             paywallId: paywallId,
             variantId: variantId,
             experimentId: experimentId,
@@ -64,6 +79,10 @@ void main() {
 
     test('differs when any identity field differs', () {
       expect(make(paywallId: 'a'), isNot(equals(make(paywallId: 'b'))));
+      expect(
+        make(surfaceVersion: 'sha256:a'),
+        isNot(equals(make(surfaceVersion: 'sha256:b'))),
+      );
       expect(make(variantId: 'a'), isNot(equals(make(variantId: 'b'))));
       expect(make(experimentId: 'a'), isNot(equals(make(experimentId: 'b'))));
       expect(
@@ -113,6 +132,7 @@ void main() {
     final full = attachMeasurementPublicationBindingReference(
       ResolvedVariant(
         bytes: Uint8List.fromList([7, 8, 9]),
+        surfaceVersion: 'sha256:full',
         paywallId: 'pro_upgrade',
         variantId: 'variant-a',
         experimentId: 'exp1',
@@ -128,6 +148,7 @@ void main() {
       final copy = full.copyWith();
       expect(copy.bytes, full.bytes);
       expect(copy.paywallId, 'pro_upgrade');
+      expect(copy.surfaceVersion, 'sha256:full');
       expect(copy.variantId, 'variant-a');
       expect(copy.experimentId, 'exp1');
       expect(copy.experimentEpoch, 3);
@@ -145,6 +166,7 @@ void main() {
       expect(hit.cacheHit, isTrue);
       expect(hit.bytes, full.bytes);
       expect(hit.paywallId, 'pro_upgrade');
+      expect(hit.surfaceVersion, 'sha256:full');
       expect(hit.variantId, 'variant-a');
       expect(hit.experimentId, 'exp1');
       expect(hit.experimentEpoch, 3);
@@ -155,6 +177,10 @@ void main() {
 
     test('each override lands independently', () {
       expect(full.copyWith(paywallId: 'other').paywallId, 'other');
+      expect(
+        full.copyWith(surfaceVersion: 'sha256:next').surfaceVersion,
+        'sha256:next',
+      );
       expect(full.copyWith(variantId: 'v2').variantId, 'v2');
       expect(full.copyWith(experimentId: 'e2').experimentId, 'e2');
       expect(full.copyWith(experimentEpoch: 4).experimentEpoch, 4);
@@ -163,9 +189,25 @@ void main() {
         full.copyWith(paywallPublishedVersion: 42).paywallPublishedVersion,
         42,
       );
+      final replaced = full.copyWith(
+        bytes: Uint8List.fromList([1]),
+        surfaceVersion: 'sha256:replacement',
+      );
+      expect(replaced.bytes, Uint8List.fromList([1]));
+      expect(replaced.surfaceVersion, 'sha256:replacement');
+    });
+
+    test('copyWith() rejects replacement bytes without a new identity', () {
       expect(
-        full.copyWith(bytes: Uint8List.fromList([1])).bytes,
-        Uint8List.fromList([1]),
+        () => full.copyWith(bytes: Uint8List.fromList([1])),
+        throwsArgumentError,
+      );
+      expect(
+        () => full.copyWith(
+          bytes: Uint8List.fromList([1]),
+          surfaceVersion: full.surfaceVersion,
+        ),
+        throwsArgumentError,
       );
     });
   });
@@ -183,6 +225,7 @@ void main() {
   test('the private provenance carrier cannot rebind a resolved payload', () {
     final variant = ResolvedVariant(
       bytes: Uint8List.fromList([1, 2, 3]),
+      surfaceVersion: 'test',
       paywallId: 'pro_upgrade',
     );
     final original = _bindingReference('d');
@@ -196,6 +239,17 @@ void main() {
       throwsStateError,
     );
     expect(measurementPublicationBindingReferenceFor(variant), original);
+  });
+
+  test('ResolvedVariant rejects an empty surfaceVersion', () {
+    expect(
+      () => ResolvedVariant(
+        bytes: Uint8List.fromList([1]),
+        paywallId: 'pro_upgrade',
+        surfaceVersion: '',
+      ),
+      throwsArgumentError,
+    );
   });
 }
 
@@ -219,4 +273,18 @@ MeasurementPublicationBindingReferenceV1 _bindingReference(String seed) {
     ),
     bindingDigest: CanonicalDigest('0' * 64),
   );
+}
+
+final class _ExtendedResolvedVariant extends ResolvedVariant {
+  _ExtendedResolvedVariant({
+    required Uint8List bytes,
+    required String paywallId,
+    required String surfaceVersion,
+  }) : super(
+          bytes: bytes,
+          paywallId: paywallId,
+          surfaceVersion: surfaceVersion,
+        );
+
+  String get label => 'extended';
 }

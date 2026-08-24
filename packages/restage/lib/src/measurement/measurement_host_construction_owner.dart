@@ -588,11 +588,18 @@ final class MeasurementHostConstructionSession
     required List<String> pointTokens,
     required List<String> routeCarriers,
   }) {
+    if (pointTokens.length > kMaximumMeasurementRuntimeRouteCount ||
+        routeCarriers.length > kMaximumMeasurementRuntimeRouteCount) {
+      throw ArgumentError.value(
+        pointTokens.length,
+        'pointTokens',
+        'Measurement presentation wrapper exceeds route capacity',
+      );
+    }
     if (!_active ||
         !_owner._admissionRemainsUsable(_admission) ||
         pointTokens.isEmpty ||
-        pointTokens.length != routeCarriers.length ||
-        pointTokens.length > kMaximumMeasurementRuntimeRouteCount) {
+        pointTokens.length != routeCarriers.length) {
       return null;
     }
     try {

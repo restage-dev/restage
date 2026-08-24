@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
     show
@@ -11,6 +12,7 @@ import 'package:rfw/rfw.dart'
         decodeLibraryBlob;
 
 import '../analytics/root_analytics_context.dart';
+import '../events/restage_event.dart' show PagerPageChanged;
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
@@ -291,6 +293,26 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
     );
   }
 
+  bool _isPagerStageCurrent(_ScreenStage stage) {
+    return mounted && identical(_stage, stage) && stage.presentation.isActive;
+  }
+
+  RestagePagerEventSink _pagerSinkForStage(_ScreenStage stage) {
+    return RestagePagerEventSink(
+      stageToken: stage,
+      isCurrent: (token) =>
+          identical(token, stage) && _isPagerStageCurrent(stage),
+      onPageChanged: (pageIndex, pageCount) {
+        if (!_isPagerStageCurrent(stage)) return;
+        stage.presentation.runWithEventContext(
+          () => Restage.fireEvent(
+            PagerPageChanged(pageIndex: pageIndex, pageCount: pageCount),
+          ),
+        );
+      },
+    );
+  }
+
   void _fail(int epoch, SurfaceScreenUnavailableError error) {
     if (!_isCurrent(epoch)) return;
     _disposeStage();
@@ -327,11 +349,14 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       onError: (error, _) => _handleRenderFailure(stage, error),
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
       child: stage.wrapMeasuredRoot(
-        RemoteWidget(
-          runtime: stage.runtime,
-          data: stage.data,
-          widget: kFlowScreenWidget,
-          onEvent: (name, value) => _handleEvent(stage, name, value),
+        RestagePagerEventScope(
+          sink: _pagerSinkForStage(stage),
+          child: RemoteWidget(
+            runtime: stage.runtime,
+            data: stage.data,
+            widget: kFlowScreenWidget,
+            onEvent: (name, value) => _handleEvent(stage, name, value),
+          ),
         ),
       ),
     );

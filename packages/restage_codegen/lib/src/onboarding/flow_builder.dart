@@ -1,4 +1,4 @@
-// Internal builder implementation is reached through documented factories.
+// Builder implementation is reached through documented factories.
 // ignore_for_file: public_member_api_docs
 
 import 'dart:convert';
@@ -783,8 +783,8 @@ Future<MethodDeclaration?> _resolvedBuildFlow(
 /// contributes, from the screen source itself.
 ///
 /// The descriptors are read from the authored declaration rather than from a
-/// previously generated part, so this lane never depends on another builder
-/// having already written generated Dart, and never on a warm asset graph.
+/// previously generated part, so this builder does not require another builder
+/// to have written generated Dart or a warm asset graph.
 Future<Map<String, _ScreenDescriptor>> _loadImportedScreenDescriptors(
   BuildStep buildStep,
   AssetId flowAssetId,
@@ -1124,16 +1124,24 @@ Future<_LoweredFlow?> _lowerFlow(
   }
 
   if (issues.isNotEmpty) return null;
+  final surveyQuestionOrder = outbound.surveyAnswers.fields.keys.toList(
+    growable: false,
+  );
+  final schemaVersion =
+      flow.delivery == FlowDeliveryMode.typed && surveyQuestionOrder.isNotEmpty
+          ? 2
+          : 1;
   final document = FlowDocument(
     flow: flow.id,
     version: flow.version,
-    schemaVersion: 1,
+    schemaVersion: schemaVersion,
     minClient: flow.minClient,
     deliveryMode: flow.delivery,
     initial: initial.id,
     actions: usedActionContracts,
     flowState: flowState,
     outbound: outbound,
+    surveyQuestionOrder: surveyQuestionOrder,
     screenArtifacts: screenArtifacts,
     states: states,
   );
@@ -4189,7 +4197,7 @@ void _validateTypedTerminalResultShape({
 
         if (!usesGraphRuntime) {
           // The runtime's legacy state-ref fallback is enabled only for the
-          // non-graph lane, so the terminal literal must make the generated
+          // non-graph path, so the terminal literal must make the generated
           // non-null field safe when a host seed is absent.
           _validateTerminalResultFallback(
             outputKey: outputKey,

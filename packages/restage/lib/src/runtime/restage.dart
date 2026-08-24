@@ -313,9 +313,6 @@ abstract final class Restage {
       // `configure` re-schedule — supporting hosts that switch
       // environment / base-URL at runtime.
       scheduleMicrotask(() async {
-        try {
-          await _meteringTokenStore?.getOrCreate();
-        } on Object catch (_) {}
         // Warm the persisted pseudonymous id so events firing during cold start
         // carry it synchronously rather than racing the prefs read. Best-effort
         // — the bridge resolves it lazily, so a prefs fault never breaks boot.

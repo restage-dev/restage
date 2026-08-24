@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import '../runtime/restage_pager_event_scope.dart';
+
 /// Multi-page surface that hosts a swipeable sequence of child widgets.
 ///
 /// Wraps Flutter's `PageView` with a locally-owned `PageController` so
@@ -77,8 +79,19 @@ class _RestagePagerState extends State<RestagePager> {
       controller: _controller,
       scrollDirection: widget.scrollDirection,
       pageSnapping: widget.pageSnapping,
-      onPageChanged: widget.onPageChanged,
+      onPageChanged: _onPageChanged,
       children: widget.children,
     );
+  }
+
+  void _onPageChanged(int value) {
+    final sink = RestagePagerEventScope.maybeOf(context);
+    try {
+      sink?.reportPageChanged(value, widget.children.length);
+    } on Object {
+      // A presentation sink is observational and cannot affect the author
+      // callback's established behavior.
+    }
+    widget.onPageChanged?.call(value);
   }
 }

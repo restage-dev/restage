@@ -288,6 +288,10 @@ enum IssueCode {
   /// Property name not declared on catalog widget.
   unknownProperty,
 
+  /// A catalog occurrence supplies an invalid reserved `analyticsId` value,
+  /// or the parsed source cannot be safely rewritten without that value.
+  invalidAnalyticsId,
+
   /// A value bound to a property has a runtime type the property's declared
   /// catalog type cannot accept — e.g. a string bound to a numeric
   /// (length / real / integer) slot, or a colour-kind theme read bound to a
@@ -592,6 +596,7 @@ enum IssueCode {
         IssueCode.customLibraryMissingCapabilityVersion ||
         IssueCode.ambiguousWidgetName ||
         IssueCode.unknownProperty ||
+        IssueCode.invalidAnalyticsId ||
         // A wrong-typed literal the runtime decode would silently null — a real
         // build error, never informational.
         IssueCode.propertyValueTypeMismatch ||

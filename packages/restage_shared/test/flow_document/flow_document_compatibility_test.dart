@@ -394,6 +394,54 @@ void main() {
       );
     });
 
+    test('reordering declared survey questions is breaking', () {
+      const flowState = <String, FlowStateDeclaration>{
+        'favoriteColor': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.screen,
+        ),
+        'plan': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.screen,
+        ),
+      };
+      const outbound = FlowOutboundDeclarations(
+        surveyAnswers: FlowOutboundPayloadDeclaration(
+          fields: {
+            'favoriteColor': FlowOutboundField(
+              type: FlowDataType.string,
+              ref: StateFlowOutboundRef(key: 'favoriteColor'),
+            ),
+            'plan': FlowOutboundField(
+              type: FlowDataType.string,
+              ref: StateFlowOutboundRef(key: 'plan'),
+            ),
+          },
+        ),
+      );
+
+      final report = FlowDocumentCompatibility.diff(
+        from: _document(
+          schemaVersion: 2,
+          flowState: flowState,
+          outbound: outbound,
+          surveyQuestionOrder: const ['favoriteColor', 'plan'],
+        ),
+        to: _document(
+          schemaVersion: 2,
+          flowState: flowState,
+          outbound: outbound,
+          surveyQuestionOrder: const ['plan', 'favoriteColor'],
+        ),
+      );
+
+      expect(report.classification, FlowCompatibilityClassification.breaking);
+      expect(
+        report.changes.map((change) => change.code),
+        contains('surveyQuestionOrderChanged'),
+      );
+    });
+
     test('screen artifact changes are reported', () {
       final report = FlowDocumentCompatibility.diff(
         from: _document(),
@@ -597,6 +645,7 @@ FlowDocument _document({
   int minClient = 3,
   Map<String, FlowStateDeclaration> flowState = const {},
   FlowOutboundDeclarations outbound = const FlowOutboundDeclarations(),
+  List<String> surveyQuestionOrder = const [],
   Map<String, ScreenArtifact>? artifacts,
   Map<String, ScreenArtifact> extraArtifacts = const {},
   Map<String, FlowTransition>? welcomeTransitions,
@@ -625,6 +674,7 @@ FlowDocument _document({
     initial: initial,
     flowState: flowState,
     outbound: outbound,
+    surveyQuestionOrder: surveyQuestionOrder,
     screenArtifacts: {
       ...(artifacts ?? {'welcome': _artifact('welcome.rfw')}),
       ...extraArtifacts,

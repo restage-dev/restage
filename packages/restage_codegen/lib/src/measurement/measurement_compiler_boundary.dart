@@ -187,6 +187,67 @@ abstract final class MeasurementCompilerBoundary {
       ],
     );
 
+    final presentationsByNodeCode = <String, _ProducedPresentation>{};
+    final generatedPresentationReferenceIds = <String>{};
+    final presentationLineages = <String>{};
+    for (final presentation in input.presentations) {
+      final node = nodesByCode[presentation.nodeCodeIdentityId.value];
+      if (node == null) {
+        throw ArgumentError(
+          'Every presentation occurrence must join a ledger-backed node',
+        );
+      }
+      if (presentationsByNodeCode.containsKey(node.codeIdentityId.value)) {
+        throw ArgumentError(
+          'Each ledger-backed node may claim one presentation occurrence',
+        );
+      }
+      if (presentation.privacyClass != MeasurementPrivacyClass.nonSensitive ||
+          presentation.collectionClass !=
+              MeasurementCollectionClass.tier2Coalesced) {
+        throw ArgumentError(
+          'Presentation occurrences must use the admitted bounded policy',
+        );
+      }
+      final artifact = artifactsByEdge[node.artifactOccurrenceEdgeToken.value]!;
+      if (!generatedPresentationReferenceIds.add(
+            presentation.generatedPresentationReferenceId.value,
+          ) ||
+          !presentationLineages.add(presentation.lineageId.value)) {
+        throw ArgumentError('Generated presentation identities must be unique');
+      }
+      final point = MeasurementPointOccurrenceV1(
+        target: input.target,
+        surfaceRevisionId: input.surfaceRevisionId,
+        artifactGraphHash: exactArtifactGraph.canonicalDigest,
+        artifactId: artifact.artifactId,
+        artifactOccurrenceEdgeToken: artifact.occurrenceEdgeToken,
+        artifactContentHash: artifact.contentHash,
+        canonicalNodeToken:
+            canonicalTokensByCode[node.codeIdentityId.value]!.nodeTokenId,
+        capabilityKind: MeasurementCapabilityKind.presented,
+        privacyClass: presentation.privacyClass,
+        semanticValueClass: SemanticValueClass.none,
+        collectionClass: presentation.collectionClass,
+        lineageId: presentation.lineageId,
+        displayMetadataRef: presentation.displayMetadataRef,
+      );
+      presentationsByNodeCode[node.codeIdentityId.value] =
+          _ProducedPresentation(
+        artifactId: artifact.artifactId,
+        point: point,
+        reference: GeneratedPresentationReferenceV1(
+          referenceId: presentation.generatedPresentationReferenceId,
+          target: input.target,
+          surfaceRevisionId: input.surfaceRevisionId,
+          artifactGraphHash: exactArtifactGraph.canonicalDigest,
+          occurrenceId: point.occurrenceId,
+          lineageId: point.lineageId,
+          displayMetadataRef: point.displayMetadataRef,
+        ),
+      );
+    }
+
     final eventsByNodeCode = <String, List<_ProducedEvent>>{};
     final generatedReferenceIds = <String>{};
     final currentLineages = <String>{};
@@ -205,10 +266,14 @@ abstract final class MeasurementCompilerBoundary {
           'Each canonical node may claim one exact event slot once',
         );
       }
-      if (!generatedReferenceIds.add(event.generatedReferenceId.value)) {
+      if (!generatedReferenceIds.add(event.generatedReferenceId.value) ||
+          generatedPresentationReferenceIds.contains(
+            event.generatedReferenceId.value,
+          )) {
         throw ArgumentError('Generated point references must be unique');
       }
-      if (!currentLineages.add(event.lineageId.value)) {
+      if (!currentLineages.add(event.lineageId.value) ||
+          presentationLineages.contains(event.lineageId.value)) {
         throw ArgumentError(
           'The current compiler event set may claim a lineage once',
         );
@@ -275,6 +340,9 @@ abstract final class MeasurementCompilerBoundary {
           childArtifactIds:
               childArtifactIdsByParent[artifact.artifactId.value]!.toList(),
           points: [
+            for (final presentation in presentationsByNodeCode.values)
+              if (presentation.artifactId == artifact.artifactId)
+                presentation.point,
             for (final events in eventsByNodeCode.values)
               for (final event in events)
                 if (event.artifactId == artifact.artifactId) event.point,
@@ -283,6 +351,11 @@ abstract final class MeasurementCompilerBoundary {
             for (final events in eventsByNodeCode.values)
               for (final event in events)
                 if (event.artifactId == artifact.artifactId) event.reference,
+          ],
+          generatedPresentationReferences: [
+            for (final presentation in presentationsByNodeCode.values)
+              if (presentation.artifactId == artifact.artifactId)
+                presentation.reference,
           ],
           privacyPolicyRevisionId: input.privacyPolicyRevisionId,
           collectionBudgetRevisionId: input.collectionBudgetRevisionId,
@@ -358,10 +431,12 @@ abstract final class MeasurementCompilerBoundary {
       label: 'complete manifest and transition next endpoints',
       expected: [
         for (final point in completeMeasurementManifest.points)
-          LineageEndpointV1(
-            occurrenceId: point.occurrenceId,
-            lineageId: point.lineageId,
-          ),
+          if (point.capabilityKind ==
+              MeasurementCapabilityKind.sourceInteraction)
+            LineageEndpointV1(
+              occurrenceId: point.occurrenceId,
+              lineageId: point.lineageId,
+            ),
       ],
       actual: [
         for (final transition in lineageTransitions) ...transition.next,
@@ -501,6 +576,18 @@ final class _ProducedEvent {
   final ArtifactId artifactId;
   final MeasurementPointOccurrenceV1 point;
   final GeneratedPointReferenceV1 reference;
+}
+
+final class _ProducedPresentation {
+  const _ProducedPresentation({
+    required this.artifactId,
+    required this.point,
+    required this.reference,
+  });
+
+  final ArtifactId artifactId;
+  final MeasurementPointOccurrenceV1 point;
+  final GeneratedPresentationReferenceV1 reference;
 }
 
 Map<String, T> _uniqueBy<T>(

@@ -121,7 +121,7 @@ listed in the gallery: `main_plan_board_demo.dart`,
 ### Custom widgets (`lib/widgets/`)
 
 Three `@RestageWidget` custom widgets (`AcmeBorder`, `AcmeStack`, `PromoBadge`)
-show the custom-widget registration path. `registerRestageCustomerWidgets()`
+show the custom-widget registration path. `registerRestageWidgets()`
 (generated into `lib/user_factories.g.dart`) registers them with the SDK. They
 are standalone capability demos; the paywalls above do not use them.
 

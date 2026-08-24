@@ -13,6 +13,7 @@ import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
@@ -394,7 +395,10 @@ Future<_CorpusSnapshot> _buildCorpus(
           // because the generated-Dart owner reads them, and are neither
           // shipped nor frozen by this publication oracle.
           entry.key != kRestageSurfacePublicationCompilerBundlePath &&
-          entry.key != kRestageMeasurementCompilerOutputPath)
+          entry.key != kRestageMeasurementCompilerOutputPath &&
+          entry.key != kRestageAnalyticsIdControlOutputPath &&
+          entry.key !=
+              RestageOutputPlacementPlan.defaults.analyticsIdMetadataPath)
         entry.key: entry.value,
   };
   final snapshot = _CorpusSnapshot(corpus, bytesByPath);

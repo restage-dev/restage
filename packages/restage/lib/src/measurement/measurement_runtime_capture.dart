@@ -5,10 +5,19 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'presentation_commit.dart';
 
-/// Maximum opaque routes retained for one root mounted session.
+/// Maximum source-interaction routes retained for one root mounted session.
 ///
 /// This is an SDK-side state bound. It is not a canonical artifact field.
-const int kMaximumMeasurementRuntimeRouteCount = 1024;
+const int kMaximumMeasurementRuntimeSourceRouteCount =
+    kMaximumMeasurementPublicationRuntimeRouteCount;
+
+/// Maximum presentation routes retained for one root mounted session.
+const int kMaximumMeasurementRuntimePresentationRouteCount =
+    kMaximumMeasurementPublicationPresentationRouteCount;
+
+/// Maximum source and presentation routes retained for one mounted session.
+const int kMaximumMeasurementRuntimeRouteCount =
+    kMaximumMeasurementPublicationRuntimeRouteCount;
 
 /// Maximum distinct successful presentations retained by one capture session.
 const int kMaximumMeasurementPresentedPointCount = 1024;
@@ -153,6 +162,39 @@ final class MeasurementRuntimeRouteDeclaration {
   final PointLineageId lineageId;
 }
 
+/// Minimal Measurement-owned identity for one presented occurrence route.
+final class MeasurementRuntimePresentationRouteDeclaration {
+  /// Creates one pre-resolvable presentation route declaration.
+  const MeasurementRuntimePresentationRouteDeclaration({
+    required this.token,
+    required this.occurrenceId,
+    required this.lineageId,
+  });
+
+  /// Artifact-local carrier selected by the delivery owner.
+  final OpaqueMeasurementEventSlotToken token;
+
+  /// Exact presented occurrence identity.
+  final CanonicalDigest occurrenceId;
+
+  /// Exact durable continuity identity.
+  final PointLineageId lineageId;
+}
+
+final class _DeclaredMeasurementRuntimeRoute {
+  const _DeclaredMeasurementRuntimeRoute({
+    required this.token,
+    required this.occurrenceId,
+    required this.lineageId,
+    required this.capabilityKind,
+  });
+
+  final OpaqueMeasurementEventSlotToken token;
+  final CanonicalDigest occurrenceId;
+  final PointLineageId lineageId;
+  final MeasurementCapabilityKind capabilityKind;
+}
+
 /// Immutable bounded resolver for one root surface session.
 ///
 /// Resolution occurs before the capture sub-entry. Its returned handle cannot
@@ -162,9 +204,11 @@ final class MeasurementRuntimeRouteTable {
   MeasurementRuntimeRouteTable({
     required this.mountedArtifactContext,
     required List<MeasurementRuntimeRouteDeclaration> routes,
+    List<MeasurementRuntimePresentationRouteDeclaration> presentationRoutes =
+        const [],
     this.maximumRouteCount = kMaximumMeasurementRuntimeRouteCount,
   }) : _owner = Object() {
-    _initializeDeclaredRoutes(routes);
+    _initializeDeclaredRoutes(routes, presentationRoutes);
   }
 
   /// Builds one route table from an accepted publication binding's complete
@@ -208,12 +252,16 @@ final class MeasurementRuntimeRouteTable {
 
   void _initializeDeclaredRoutes(
     List<MeasurementRuntimeRouteDeclaration> routes,
+    List<MeasurementRuntimePresentationRouteDeclaration> presentationRoutes,
   ) {
     if (maximumRouteCount <= 0 ||
         maximumRouteCount > kMaximumMeasurementRuntimeRouteCount ||
-        routes.length > maximumRouteCount) {
+        routes.length > kMaximumMeasurementRuntimeSourceRouteCount ||
+        presentationRoutes.length >
+            kMaximumMeasurementRuntimePresentationRouteCount ||
+        routes.length + presentationRoutes.length > maximumRouteCount) {
       throw ArgumentError.value(
-        routes.length,
+        routes.length + presentationRoutes.length,
         'routes',
         'Expected at most $maximumRouteCount opaque routes',
       );
@@ -224,8 +272,24 @@ final class MeasurementRuntimeRouteTable {
     final handles = <MeasurementCaptureRouteHandle>[];
     final occurrenceIds = <CanonicalDigest>{};
     final lineageIds = <PointLineageId>{};
-    for (var index = 0; index < routes.length; index++) {
-      final route = routes[index];
+    final declarations = <_DeclaredMeasurementRuntimeRoute>[
+      for (final route in routes)
+        _DeclaredMeasurementRuntimeRoute(
+          token: route.token,
+          occurrenceId: route.occurrenceId,
+          lineageId: route.lineageId,
+          capabilityKind: MeasurementCapabilityKind.sourceInteraction,
+        ),
+      for (final route in presentationRoutes)
+        _DeclaredMeasurementRuntimeRoute(
+          token: route.token,
+          occurrenceId: route.occurrenceId,
+          lineageId: route.lineageId,
+          capabilityKind: MeasurementCapabilityKind.presented,
+        ),
+    ];
+    for (var index = 0; index < declarations.length; index++) {
+      final route = declarations[index];
       if (!occurrenceIds.add(route.occurrenceId)) {
         throw ArgumentError.value(
           route.occurrenceId,
@@ -245,6 +309,7 @@ final class MeasurementRuntimeRouteTable {
         index,
         occurrenceId: route.occurrenceId,
         lineageId: route.lineageId,
+        capabilityKind: route.capabilityKind,
       );
       if (byToken.containsKey(route.token)) {
         throw ArgumentError.value(
@@ -276,62 +341,129 @@ final class MeasurementRuntimeRouteTable {
         edge.edgeToken.value: <String, MeasurementCaptureRouteHandle>{},
     };
     final handles = <MeasurementCaptureRouteHandle>[];
-    final occurrenceIds = <CanonicalDigest>{};
-    final lineageIds = <PointLineageId>{};
+    final allOccurrenceIds = <CanonicalDigest>{};
+    final allLineageIds = <PointLineageId>{};
     final fullFingerprints = <String>{};
-    final mountedEdges = <String>{};
     var routeCount = 0;
-    for (final mountedRoutes in binding.mountedArtifactRoutes) {
-      final edge = mountedRoutes.artifactOccurrenceEdgeToken.value;
+    var sourceRouteCount = 0;
+    var presentationRouteCount = 0;
+    void addRoutes({
+      required ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
+      required Iterable<OpaqueMeasurementRouteTokenV1> routeTokens,
+      required Iterable<CanonicalDigest> occurrenceIdsForRoutes,
+      required Iterable<PointLineageId> lineageIdsForRoutes,
+      required MeasurementCapabilityKind capabilityKind,
+      required String argumentName,
+    }) {
+      final edge = artifactOccurrenceEdgeToken.value;
       final routesForEdge = routesByEdge[edge];
-      if (routesForEdge == null || !mountedEdges.add(edge)) {
+      if (routesForEdge == null) {
         throw ArgumentError.value(
-          mountedRoutes.artifactOccurrenceEdgeToken,
-          'binding.mountedArtifactRoutes',
-          'Each route set must name one distinct admitted graph edge',
+          artifactOccurrenceEdgeToken,
+          argumentName,
+          'Each route set must name one admitted graph edge',
         );
       }
-      routeCount += mountedRoutes.routes.length;
-      if (routeCount > maximumRouteCount) {
+      final routeTokensList = routeTokens.toList(growable: false);
+      final routeOccurrenceIds = occurrenceIdsForRoutes.toList(growable: false);
+      final lineageIdsForRoute = lineageIdsForRoutes.toList(growable: false);
+      if (routeTokensList.length != routeOccurrenceIds.length ||
+          routeTokensList.length != lineageIdsForRoute.length) {
+        throw ArgumentError.value(
+          artifactOccurrenceEdgeToken,
+          argumentName,
+          'Each route set must retain matching route identities',
+        );
+      }
+      routeCount += routeTokensList.length;
+      switch (capabilityKind) {
+        case MeasurementCapabilityKind.sourceInteraction:
+          sourceRouteCount += routeTokensList.length;
+          break;
+        case MeasurementCapabilityKind.presented:
+          presentationRouteCount += routeTokensList.length;
+          break;
+      }
+      if (routeCount > maximumRouteCount ||
+          sourceRouteCount > kMaximumMeasurementRuntimeSourceRouteCount ||
+          presentationRouteCount >
+              kMaximumMeasurementRuntimePresentationRouteCount) {
         throw ArgumentError.value(
           routeCount,
-          'binding.mountedArtifactRoutes',
+          argumentName,
           'Expected at most $maximumRouteCount opaque routes',
         );
       }
-      for (final route in mountedRoutes.routes) {
-        if (!occurrenceIds.add(route.occurrenceId)) {
+      for (var index = 0; index < routeTokensList.length; index += 1) {
+        final routeToken = routeTokensList[index];
+        final occurrenceId = routeOccurrenceIds[index];
+        final lineageId = lineageIdsForRoute[index];
+        if (!allOccurrenceIds.add(occurrenceId)) {
           throw ArgumentError.value(
-            route.occurrenceId,
-            'binding.mountedArtifactRoutes',
+            occurrenceId,
+            argumentName,
             'Each route must resolve one distinct occurrence',
           );
         }
-        if (!lineageIds.add(route.lineageId)) {
+        if (!allLineageIds.add(lineageId)) {
           throw ArgumentError.value(
-            route.lineageId,
-            'binding.mountedArtifactRoutes',
+            lineageId,
+            argumentName,
             'Each current route must claim one distinct lineage',
           );
         }
-        final fingerprint = route.opaqueRouteToken.fingerprint.hex;
+        final fingerprint = routeToken.fingerprint.hex;
         if (!fullFingerprints.add(fingerprint) ||
             routesForEdge.containsKey(fingerprint)) {
           throw ArgumentError.value(
-            route.opaqueRouteToken,
-            'binding.mountedArtifactRoutes',
+            routeToken,
+            argumentName,
             'Opaque route fingerprints must be unique in one binding',
           );
         }
         final handle = MeasurementCaptureRouteHandle._(
           _owner,
           handles.length,
-          occurrenceId: route.occurrenceId,
-          lineageId: route.lineageId,
+          occurrenceId: occurrenceId,
+          lineageId: lineageId,
+          capabilityKind: capabilityKind,
         );
         routesForEdge[fingerprint] = handle;
         handles.add(handle);
       }
+    }
+
+    for (final mountedRoutes in binding.mountedArtifactRoutes) {
+      addRoutes(
+        artifactOccurrenceEdgeToken: mountedRoutes.artifactOccurrenceEdgeToken,
+        routeTokens: [
+          for (final route in mountedRoutes.routes) route.opaqueRouteToken,
+        ],
+        occurrenceIdsForRoutes: [
+          for (final route in mountedRoutes.routes) route.occurrenceId,
+        ],
+        lineageIdsForRoutes: [
+          for (final route in mountedRoutes.routes) route.lineageId,
+        ],
+        capabilityKind: MeasurementCapabilityKind.sourceInteraction,
+        argumentName: 'binding.mountedArtifactRoutes',
+      );
+    }
+    for (final mountedRoutes in binding.mountedArtifactPresentationRoutes) {
+      addRoutes(
+        artifactOccurrenceEdgeToken: mountedRoutes.artifactOccurrenceEdgeToken,
+        routeTokens: [
+          for (final route in mountedRoutes.routes) route.opaqueRouteToken,
+        ],
+        occurrenceIdsForRoutes: [
+          for (final route in mountedRoutes.routes) route.occurrenceId,
+        ],
+        lineageIdsForRoutes: [
+          for (final route in mountedRoutes.routes) route.lineageId,
+        ],
+        capabilityKind: MeasurementCapabilityKind.presented,
+        argumentName: 'binding.mountedArtifactPresentationRoutes',
+      );
     }
     _routesByToken = null;
     _routesByPublicationEdge =
@@ -386,6 +518,7 @@ final class MeasurementCaptureRouteHandle {
     this._index, {
     required this.occurrenceId,
     required this.lineageId,
+    required this.capabilityKind,
   });
 
   final Object _owner;
@@ -403,6 +536,9 @@ final class MeasurementCaptureRouteHandle {
 
   /// Exact lineage selected before the capture sub-entry.
   final PointLineageId lineageId;
+
+  /// Capability selected by this exact route.
+  final MeasurementCapabilityKind capabilityKind;
 }
 
 /// Bounded frame limits for one capture session.
@@ -678,8 +814,16 @@ final class MeasurementRuntimeCaptureSession
   /// O(1) handle lookup and one bounded interaction update.
   MeasurementCaptureWriteDisposition recordInteraction(
     MeasurementCaptureRouteHandle route,
-  ) =>
-      _record(route, true);
+  ) {
+    if (route.capabilityKind != MeasurementCapabilityKind.sourceInteraction) {
+      throw ArgumentError.value(
+        route,
+        'route',
+        'Only source-interaction routes accept interaction observations',
+      );
+    }
+    return _record(route, true);
+  }
 
   /// O(1) handle lookup and one bounded presentation update.
   MeasurementCaptureWriteDisposition recordPresentation(

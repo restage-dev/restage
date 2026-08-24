@@ -76,6 +76,7 @@ final class FlowDocument {
     this.actions = const {},
     this.flowState = const {},
     this.outbound = const FlowOutboundDeclarations(),
+    this.surveyQuestionOrder = const [],
     this.legacyTerminalResultPassthrough = false,
     this.unsupportedFeatures = const {},
     this.deliveryMode = FlowDeliveryMode.typed,
@@ -89,6 +90,7 @@ final class FlowDocument {
   final Map<String, FlowActionContract> actions;
   final Map<String, FlowStateDeclaration> flowState;
   final FlowOutboundDeclarations outbound;
+  final List<String> surveyQuestionOrder;
   final bool legacyTerminalResultPassthrough;
   final Map<String, ScreenArtifact> screenArtifacts;
   final Map<String, FlowState> states;
@@ -110,6 +112,7 @@ final class FlowDocument {
     Map<String, FlowActionContract>? actions,
     Map<String, FlowStateDeclaration>? flowState,
     FlowOutboundDeclarations? outbound,
+    List<String>? surveyQuestionOrder,
     bool? legacyTerminalResultPassthrough,
     Map<String, ScreenArtifact>? screenArtifacts,
     Map<String, FlowState>? states,
@@ -125,6 +128,7 @@ final class FlowDocument {
       actions: actions ?? this.actions,
       flowState: flowState ?? this.flowState,
       outbound: outbound ?? this.outbound,
+      surveyQuestionOrder: surveyQuestionOrder ?? this.surveyQuestionOrder,
       legacyTerminalResultPassthrough: legacyTerminalResultPassthrough ??
           this.legacyTerminalResultPassthrough,
       screenArtifacts: screenArtifacts ?? this.screenArtifacts,

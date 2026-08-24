@@ -81,7 +81,7 @@ void main() {
         products: kStubProducts,
         resolver: const AssetVariantResolver(),
       );
-      registerRestageCustomerWidgets();
+      registerRestageWidgets();
 
       // ---- pulse_premium: dark, tri-state tier strip + monthly/annual plan ----
       final pulse = <RestageEvent>[];

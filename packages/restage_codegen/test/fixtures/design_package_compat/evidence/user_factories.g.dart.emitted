@@ -19,7 +19,7 @@ import 'package:restage/restage.dart';
 /// startup, before any `RestagePaywall` mounts. Idempotent
 /// after `Restage.debugReset`, so test setUps may call it
 /// again between cases.
-void registerRestageCustomerWidgets() {
+void registerRestageWidgets() {
   Restage.registerWidgetLibrary(
     WidgetLibrary.custom('probe.widgets'),
     capabilityVersion: 1,
@@ -28,6 +28,9 @@ void registerRestageCustomerWidgets() {
     ],
   );
 }
+
+@Deprecated('Use registerRestageWidgets; removed in 3.0')
+void registerRestageCustomerWidgets() => registerRestageWidgets();
 
 Widget _buildPromoBadge(BuildContext context, DataSource source) {
   final _restagePresenceBehavior = RestageRfwConstructorPresence.read(

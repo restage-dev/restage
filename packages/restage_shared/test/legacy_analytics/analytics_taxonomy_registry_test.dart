@@ -36,9 +36,21 @@ void main() {
       }
     });
 
-    test('the funnel terminator + survey event are registered Tier 1', () {
+    test('the pager and survey events are registered with their properties',
+        () {
       expect(tierForEvent('paywall_load_aborted'), AnalyticsTier.tier1);
-      expect(tierForEvent('paywall_survey_responded'), AnalyticsTier.tier1);
+      final page = lookupAnalyticsEvent('page_changed');
+      expect(page.tier, AnalyticsTier.tier1);
+      expect(
+        page.requiredProperties,
+        containsAll(<String>['pageIndex', 'pageCount']),
+      );
+      final question = lookupAnalyticsEvent('paywall_survey_responded');
+      expect(question.tier, AnalyticsTier.tier1);
+      expect(
+        question.requiredProperties,
+        containsAll(<String>['questionId', 'questionIndex']),
+      );
     });
 
     test('the blessed onboarding events carry their required properties', () {

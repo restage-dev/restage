@@ -18,7 +18,7 @@ Future<void> main() async {
     transport: transport,
     manifest: manifest,
     engine: RenderEngine(flutterVersion: '3.47.0', renderer: 'skwasm'),
-    registerCustomerWidgets: registerRestageCustomerWidgets,
+    registerCustomerWidgets: registerRestageWidgets,
     initialize: (_) {},
   );
 }
