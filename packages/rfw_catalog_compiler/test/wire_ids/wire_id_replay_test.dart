@@ -320,6 +320,861 @@ void main() {
       expect(builder.resolve(WireId('w0001'))!.name, 'Box');
     });
 
+    test('source-only rename preserves the wire ID', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/old.dart#StatusPanel.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      final entry = builder.resolve(WireId('w0001'))!;
+      expect(entry.id, WireId('w0001'));
+      expect(entry.name, 'StatusPanel');
+      expect(entry.source, 'package:acme/new.dart#StatusPanel');
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/new.dart#StatusPanel.label',
+      );
+    });
+
+    test('source-only rename rejects a duplicate live widget identity', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0002'),
+            name: 'StatusPanel',
+            source: 'package:acme/new.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        );
+
+      expect(
+        () => builder.apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        ),
+        throwsA(
+          predicate(
+            (error) =>
+                error is WireIdReplayException &&
+                error.toString().contains('duplicate active widget') &&
+                error.toString().contains('w0001') &&
+                error.toString().contains('w0002'),
+          ),
+        ),
+      );
+      expect(
+        builder.resolve(WireId('w0001'))!.source,
+        'package:acme/old.dart#StatusPanel',
+      );
+      expect(
+        builder.resolve(WireId('w0002'))!.source,
+        'package:acme/new.dart#StatusPanel',
+      );
+    });
+
+    test('source-only unnamed variant rename cascades to parameters', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.structured,
+            id: WireId('s0001'),
+            name: 'Palette',
+            source: 'package:acme/old.dart#Palette',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            owner: WireId('s0001'),
+            sourceKind: VariantSourceKind.constructor,
+            source: 'package:acme/old.dart#Palette.',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.parameter,
+            id: WireId('a0001'),
+            owner: WireId('v0001'),
+            name: 'color',
+            source: 'package:acme/old.dart#Palette.color',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            from: '<unnamed>',
+            to: '<unnamed>',
+            fromSource: 'package:acme/old.dart#Palette.',
+            toSource: 'package:acme/new.dart#Palette.',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      final variant = builder.resolve(WireId('v0001'))!;
+      expect(variant.namedConstructor, isNull);
+      expect(variant.source, 'package:acme/new.dart#Palette.');
+      expect(
+        builder.resolve(WireId('a0001'))!.source,
+        'package:acme/new.dart#Palette.color',
+      );
+    });
+
+    for (final target in const [
+      (
+        description: 'malformed target',
+        source: 'package:acme/new.dart#MovedPalette',
+      ),
+      (
+        description: 'multi-dot target',
+        source: 'package:acme/new.dart#Palette..',
+      ),
+    ]) {
+      test('unnamed variant rename rejects a ${target.description} atomically',
+          () {
+        final builder = WireIdReplayBuilder(
+          library: _library,
+          externalStates: const {},
+        )
+          ..apply(
+            AllocWireIdEvent(
+              type: WireIdKind.structured,
+              id: WireId('s0001'),
+              name: 'Palette',
+              source: 'package:acme/old.dart#Palette',
+              at: _at,
+              by: _by,
+            ),
+          )
+          ..apply(
+            AllocWireIdEvent(
+              type: WireIdKind.variant,
+              id: WireId('v0001'),
+              owner: WireId('s0001'),
+              sourceKind: VariantSourceKind.constructor,
+              source: 'package:acme/old.dart#Palette.',
+              at: _at,
+              by: _by,
+            ),
+          )
+          ..apply(
+            AllocWireIdEvent(
+              type: WireIdKind.parameter,
+              id: WireId('a0001'),
+              owner: WireId('v0001'),
+              name: 'color',
+              source: 'package:acme/old.dart#Palette.color',
+              at: _at,
+              by: _by,
+            ),
+          );
+
+        expect(
+          () => builder.apply(
+            RenameWireIdEvent(
+              type: WireIdKind.variant,
+              id: WireId('v0001'),
+              from: '<unnamed>',
+              to: '<unnamed>',
+              fromSource: 'package:acme/old.dart#Palette.',
+              toSource: target.source,
+              cascade: true,
+              at: '2026-05-11T12:01:00Z',
+              by: _by,
+            ),
+          ),
+          throwsA(
+            predicate(
+              (error) =>
+                  error is WireIdReplayException &&
+                  error.toString().contains(
+                        'unnamed constructor source must end in exactly one .',
+                      ),
+            ),
+          ),
+        );
+        expect(
+          builder.resolve(WireId('v0001'))!.source,
+          'package:acme/old.dart#Palette.',
+        );
+        expect(
+          builder.resolve(WireId('a0001'))!.source,
+          'package:acme/old.dart#Palette.color',
+        );
+      });
+    }
+
+    test('named variant rename to unnamed keeps one source delimiter', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.structured,
+            id: WireId('s0001'),
+            name: 'Palette',
+            source: 'package:acme/old.dart#Palette',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            owner: WireId('s0001'),
+            sourceKind: VariantSourceKind.constructor,
+            namedConstructor: 'fromColor',
+            source: 'package:acme/old.dart#Palette.fromColor',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.parameter,
+            id: WireId('a0001'),
+            owner: WireId('v0001'),
+            name: 'color',
+            source: 'package:acme/old.dart#Palette.fromColor.color',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            from: 'fromColor',
+            to: '<unnamed>',
+            fromSource: 'package:acme/old.dart#Palette.fromColor',
+            toSource: 'package:acme/new.dart#Palette.',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      final variant = builder.resolve(WireId('v0001'))!;
+      expect(variant.namedConstructor, isNull);
+      expect(variant.source, 'package:acme/new.dart#Palette.');
+      expect(
+        builder.resolve(WireId('a0001'))!.source,
+        'package:acme/new.dart#Palette.color',
+      );
+    });
+
+    test('unnamed variant rename to named keeps one source delimiter', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.structured,
+            id: WireId('s0001'),
+            name: 'Palette',
+            source: 'package:acme/old.dart#Palette',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            owner: WireId('s0001'),
+            sourceKind: VariantSourceKind.constructor,
+            source: 'package:acme/old.dart#Palette.',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.parameter,
+            id: WireId('a0001'),
+            owner: WireId('v0001'),
+            name: 'color',
+            source: 'package:acme/old.dart#Palette.color',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            from: '<unnamed>',
+            to: 'fromColor',
+            fromSource: 'package:acme/old.dart#Palette.',
+            toSource: 'package:acme/new.dart#Palette.fromColor',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      final variant = builder.resolve(WireId('v0001'))!;
+      expect(variant.namedConstructor, 'fromColor');
+      expect(variant.source, 'package:acme/new.dart#Palette.fromColor');
+      expect(
+        builder.resolve(WireId('a0001'))!.source,
+        'package:acme/new.dart#Palette.fromColor.color',
+      );
+    });
+
+    test('later cascade prefers the most specific legacy source prefix', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.structured,
+            id: WireId('s0001'),
+            name: 'Palette',
+            source: 'package:acme/palette.dart#Palette',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            owner: WireId('s0001'),
+            sourceKind: VariantSourceKind.constructor,
+            namedConstructor: 'fromColor',
+            source: 'package:acme/palette.dart#Palette.fromColor',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.parameter,
+            id: WireId('a0001'),
+            owner: WireId('v0001'),
+            name: 'color',
+            source: 'package:acme/palette.dart#Palette.fromColor.color',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            from: 'fromColor',
+            to: '<unnamed>',
+            fromSource: 'package:acme/palette.dart#Palette.fromColor',
+            toSource: 'package:acme/palette.dart#Palette.',
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            from: '<unnamed>',
+            to: '<unnamed>',
+            fromSource: 'package:acme/palette.dart#Palette.',
+            toSource: 'package:acme/new.dart#NewPalette.',
+            cascade: true,
+            at: '2026-05-11T12:02:00Z',
+            by: _by,
+          ),
+        );
+
+      expect(
+        builder.resolve(WireId('a0001'))!.source,
+        'package:acme/new.dart#NewPalette.color',
+      );
+    });
+
+    test('source rename does not move descendants unless cascade is set', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/old.dart#StatusPanel.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/old.dart#StatusPanel.label',
+      );
+    });
+
+    test('a later cascade moves descendants left under a legacy source', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/old.dart#StatusPanel.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/mid.dart#StatusPanel',
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/mid.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            cascade: true,
+            at: '2026-05-11T12:02:00Z',
+            by: _by,
+          ),
+        );
+
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/new.dart#StatusPanel.label',
+      );
+    });
+
+    test('a later cascade rejects duplicate live descendant identities', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/old.dart#StatusPanel.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/mid.dart#StatusPanel',
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0002'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/mid.dart#StatusPanel.label',
+            at: '2026-05-11T12:02:00Z',
+            by: _by,
+          ),
+        );
+
+      expect(
+        () => builder.apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/mid.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            cascade: true,
+            at: '2026-05-11T12:03:00Z',
+            by: _by,
+          ),
+        ),
+        throwsA(
+          predicate(
+            (error) =>
+                error is WireIdReplayException &&
+                error.toString().contains('duplicate active descendant') &&
+                error.toString().contains('p0001') &&
+                error.toString().contains('p0002'),
+          ),
+        ),
+      );
+      expect(
+        builder.resolve(WireId('w0001'))!.source,
+        'package:acme/mid.dart#StatusPanel',
+      );
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/old.dart#StatusPanel.label',
+      );
+      expect(
+        builder.resolve(WireId('p0002'))!.source,
+        'package:acme/mid.dart#StatusPanel.label',
+      );
+    });
+
+    test('cascade only moves descendants owned by the renamed entry', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/old.dart#StatusPanel.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0002'),
+            name: 'OtherPanel',
+            source: 'package:acme/other.dart#OtherPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0002'),
+            owner: WireId('w0002'),
+            name: 'misleading',
+            source: 'package:acme/old.dart#StatusPanel.misleading',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/new.dart#StatusPanel.label',
+      );
+      expect(
+        builder.resolve(WireId('p0002'))!.source,
+        'package:acme/old.dart#StatusPanel.misleading',
+      );
+    });
+
+    test('a malformed descendant makes cascade failure atomic', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            name: 'StatusPanel',
+            source: 'package:acme/old.dart#StatusPanel',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('w0001'),
+            name: 'label',
+            source: 'package:acme/old.dart#StatusPanel.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0002'),
+            owner: WireId('w0001'),
+            name: 'broken',
+            source: 'package:acme/unrelated.dart#Broken.value',
+            at: _at,
+            by: _by,
+          ),
+        );
+
+      expect(
+        () => builder.apply(
+          RenameWireIdEvent(
+            type: WireIdKind.widget,
+            id: WireId('w0001'),
+            from: 'StatusPanel',
+            to: 'StatusPanel',
+            fromSource: 'package:acme/old.dart#StatusPanel',
+            toSource: 'package:acme/new.dart#StatusPanel',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        ),
+        throwsA(isA<WireIdReplayException>()),
+      );
+      expect(
+        builder.resolve(WireId('w0001'))!.source,
+        'package:acme/old.dart#StatusPanel',
+      );
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/old.dart#StatusPanel.label',
+      );
+      expect(
+        builder.resolve(WireId('p0002'))!.source,
+        'package:acme/unrelated.dart#Broken.value',
+      );
+    });
+
+    test('structured source rename moves fields, variants, and parameters', () {
+      final builder = WireIdReplayBuilder(
+        library: _library,
+        externalStates: const {},
+      )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.structured,
+            id: WireId('s0001'),
+            name: 'OldData',
+            source: 'package:acme/data.dart#OldData',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.property,
+            id: WireId('p0001'),
+            owner: WireId('s0001'),
+            name: 'label',
+            source: 'package:acme/data.dart#OldData.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.variant,
+            id: WireId('v0001'),
+            owner: WireId('s0001'),
+            sourceKind: VariantSourceKind.constructor,
+            source: 'package:acme/data.dart#OldData.',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          AllocWireIdEvent(
+            type: WireIdKind.parameter,
+            id: WireId('a0001'),
+            owner: WireId('v0001'),
+            name: 'label',
+            source: 'package:acme/data.dart#OldData.label',
+            at: _at,
+            by: _by,
+          ),
+        )
+        ..apply(
+          RenameWireIdEvent(
+            type: WireIdKind.structured,
+            id: WireId('s0001'),
+            from: 'OldData',
+            to: 'NewData',
+            fromSource: 'package:acme/data.dart#OldData',
+            toSource: 'package:acme/data.dart#NewData',
+            cascade: true,
+            at: '2026-05-11T12:01:00Z',
+            by: _by,
+          ),
+        );
+
+      expect(
+        builder.resolve(WireId('s0001'))!.source,
+        'package:acme/data.dart#NewData',
+      );
+      expect(
+        builder.resolve(WireId('p0001'))!.source,
+        'package:acme/data.dart#NewData.label',
+      );
+      expect(
+        builder.resolve(WireId('v0001'))!.source,
+        'package:acme/data.dart#NewData.',
+      );
+      expect(
+        builder.resolve(WireId('a0001'))!.source,
+        'package:acme/data.dart#NewData.label',
+      );
+    });
+
     test('rejects non-monotonic and duplicate allocations', () {
       final first = AllocWireIdEvent(
         type: WireIdKind.widget,

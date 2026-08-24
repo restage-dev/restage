@@ -150,6 +150,70 @@ void main() {
       );
     });
 
+    test('accepts a source-only rename with an unchanged display label', () {
+      final event = parseWireIdEventsJsonl(
+        '{"kind":"rename","type":"widget","id":"w0001",'
+        '"from":"StatusPanel","to":"StatusPanel",'
+        '"fromSource":"package:acme/old.dart#StatusPanel",'
+        '"toSource":"package:acme/new.dart#StatusPanel",'
+        '"cascade":true,'
+        '"at":"2026-05-11T12:00:00Z","by":"test"}\n',
+      ).single as RenameWireIdEvent;
+
+      expect(event.from, event.to);
+      expect(event.fromSource, 'package:acme/old.dart#StatusPanel');
+      expect(event.toSource, 'package:acme/new.dart#StatusPanel');
+      expect(event.cascade, isTrue);
+      expect(
+        encodeWireIdEventsJsonl([event]),
+        '{"at":"2026-05-11T12:00:00Z","by":"test","cascade":true,'
+        '"from":"StatusPanel",'
+        '"fromSource":"package:acme/old.dart#StatusPanel","id":"w0001",'
+        '"kind":"rename","to":"StatusPanel",'
+        '"toSource":"package:acme/new.dart#StatusPanel","type":"widget"}\n',
+      );
+    });
+
+    test('rejects cascade on annotation-form renames', () {
+      for (final cascade in [false, true]) {
+        expect(
+          () => parseWireIdEventsJsonl(
+            '{"kind":"rename","type":"widget","id":"w0001",'
+            '"from":"StatusPanel","to":"Panel","source":'
+            '"package:acme/panel.dart#StatusPanel","cascade":$cascade,'
+            '"at":"2026-05-11T12:00:00Z","by":"test"}\n',
+          ),
+          throwsA(
+            isA<WireIdEventException>().having(
+              (error) => error.message,
+              'message',
+              contains('rename cascade requires fromSource + toSource'),
+            ),
+          ),
+          reason: 'cascade: $cascade',
+        );
+      }
+    });
+
+    test('rejects a rename that changes neither label nor source', () {
+      expect(
+        () => parseWireIdEventsJsonl(
+          '{"kind":"rename","type":"widget","id":"w0001",'
+          '"from":"StatusPanel","to":"StatusPanel",'
+          '"fromSource":"package:acme/panel.dart#StatusPanel",'
+          '"toSource":"package:acme/panel.dart#StatusPanel",'
+          '"at":"2026-05-11T12:00:00Z","by":"test"}\n',
+        ),
+        throwsA(
+          isA<WireIdEventException>().having(
+            (error) => error.message,
+            'message',
+            contains('must change the display label or source'),
+          ),
+        ),
+      );
+    });
+
     test('accepts zero-padded replace transitions and rejects bad forms', () {
       final event = parseWireIdEventsJsonl(
         '{"kind":"replace","type":"widget","from":"w0001","to":"w0002",'

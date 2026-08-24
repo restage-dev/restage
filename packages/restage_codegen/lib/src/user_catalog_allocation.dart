@@ -36,8 +36,8 @@ final class UserCatalogAllocation {
 ///
 /// The package-root `wire_ids.events.jsonl` is treated as one append-only
 /// source of truth for the generated `user_catalog.g.dart` surface. Entries
-/// replay by exact source/name match; a rename or source move therefore mints
-/// a new ID unless the log is explicitly edited with a rename event.
+/// replay by exact source/name match. A likely rename or source move fails
+/// before allocation and supplies the `rename` event that preserves its ID.
 UserCatalogAllocation allocateUserCatalogFromWidgets({
   required String package,
   required List<WidgetEntry> widgets,
@@ -70,12 +70,12 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
   );
   final seeded = allocator.currentState;
   final seededWidgets = _indexBy(
-    seeded.widgets.values,
+    seeded.widgets.values.where((entry) => !entry.deprecated),
     (entry) => (entry.name!, entry.source!),
     (key) => 'widget name=${key.$1} source=${key.$2}',
   );
   final seededProperties = _indexBy(
-    seeded.properties.values,
+    seeded.properties.values.where((entry) => !entry.deprecated),
     (entry) => (entry.owner!, entry.name!, entry.source!),
     (key) => 'property owner=${key.$1.value} name=${key.$2} source=${key.$3}',
   );
@@ -84,24 +84,27 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
   // source-inclusive widget/property replay model — NOT the built-in backfill's
   // name-only key. Name-only would collide two same-name customer data classes
   // in different files onto one wire ID (a rebuild crash / mis-render); keying
-  // by the unique sourceType gives them distinct IDs and both render, and a
-  // source move forks a new ID exactly as a widget source move already does.
+  // by the unique sourceType gives them distinct IDs and both render. A likely
+  // source move is diagnosed before allocation so callers can preserve the ID.
   // Fields/variants/parameters stay owner-keyed — their owning structured ID is
   // already source-disambiguated, so no collision reaches them.
   final seededStructured = _indexBy(
-    seeded.structuredTypes.values,
+    seeded.structuredTypes.values.where((entry) => !entry.deprecated),
     (entry) => entry.source!,
     (key) => 'structured source=$key',
   );
   final seededStructuredFields = _indexBy(
     seeded.properties.values.where(
-      (e) => e.owner != null && e.owner!.kind == WireIdKind.structured,
+      (entry) =>
+          !entry.deprecated &&
+          entry.owner != null &&
+          entry.owner!.kind == WireIdKind.structured,
     ),
     (entry) => (entry.owner!, entry.name!),
     (key) => 'structured field owner=${key.$1.value} name=${key.$2}',
   );
   final seededVariants = _indexBy(
-    seeded.variants.values,
+    seeded.variants.values.where((entry) => !entry.deprecated),
     (entry) => (
       entry.owner!,
       entry.sourceKind!,
@@ -112,10 +115,26 @@ UserCatalogAllocation allocateUserCatalogFromWidgets({
         'named=${key.$3} static=${key.$4}',
   );
   final seededParameters = _indexBy(
-    seeded.parameters.values,
+    seeded.parameters.values.where((entry) => !entry.deprecated),
     (entry) => (entry.owner!, entry.name!),
     (key) => 'parameter owner=${key.$1.value} name=${key.$2}',
   );
+
+  final potentialRenames = <_PotentialClassRename>[
+    ..._potentialWidgetRenames(
+      widgets: baseCatalog.widgets,
+      seededWidgets: seededWidgets,
+      seededProperties: seeded.properties.values,
+    ),
+    ..._potentialStructuredRenames(
+      structuredTypes: baseCatalog.structuredTypes,
+      seededStructured: seededStructured,
+      seededProperties: seeded.properties.values,
+    ),
+  ];
+  if (potentialRenames.isNotEmpty) {
+    throw _PotentialClassRenameException(potentialRenames);
+  }
 
   final newEvents = <WireIdEvent>[];
   final allocatedWidgets = <WidgetEntry>[];
@@ -297,6 +316,240 @@ final class RootEventLogContents {
 
   /// Parse source label used in error messages.
   final String sourceDescription;
+}
+
+List<_PotentialClassRename> _potentialWidgetRenames({
+  required Iterable<WidgetEntry> widgets,
+  required Map<(String, String), WireIdEntryState> seededWidgets,
+  required Iterable<WireIdEntryState> seededProperties,
+}) {
+  final current = widgets.where((widget) => widget.wireId.isUnallocated);
+  final currentKeys = {
+    for (final widget in current) (widget.name, widget.flutterType),
+  };
+  final stale = seededWidgets.values.where(
+    (entry) => !currentKeys.contains((entry.name!, entry.source!)),
+  );
+  final unmatched = current.where(
+    (widget) => !seededWidgets.containsKey((widget.name, widget.flutterType)),
+  );
+  final propertiesByOwner = _activePropertiesByOwner(seededProperties);
+  return _potentialClassRenames(
+    stale: stale,
+    unmatched: unmatched,
+    currentName: (widget) => widget.name,
+    currentSource: (widget) => widget.flutterType,
+    priorShape: (entry) =>
+        propertiesByOwner[entry.id]?.map((field) => field.name!) ?? [],
+    currentShape: (widget) =>
+        widget.properties.map((property) => property.name),
+  );
+}
+
+List<_PotentialClassRename> _potentialStructuredRenames({
+  required Iterable<StructuredEntry> structuredTypes,
+  required Map<String, WireIdEntryState> seededStructured,
+  required Iterable<WireIdEntryState> seededProperties,
+}) {
+  final current = structuredTypes.where(
+    (structured) => structured.wireId.isUnallocated,
+  );
+  final currentSources = {
+    for (final structured in current) structured.sourceType,
+  };
+  final stale = seededStructured.values.where(
+    (entry) => !currentSources.contains(entry.source),
+  );
+  final unmatched = current.where(
+    (structured) => !seededStructured.containsKey(structured.sourceType),
+  );
+  final propertiesByOwner = _activePropertiesByOwner(seededProperties);
+  return _potentialClassRenames(
+    stale: stale,
+    unmatched: unmatched,
+    currentName: (structured) => structured.name,
+    currentSource: (structured) => structured.sourceType,
+    priorShape: (entry) =>
+        propertiesByOwner[entry.id]?.map((field) => field.name!) ?? [],
+    currentShape: (structured) => structured.fields.map((field) => field.name),
+  );
+}
+
+Map<WireId, List<WireIdEntryState>> _activePropertiesByOwner(
+  Iterable<WireIdEntryState> properties,
+) {
+  final result = <WireId, List<WireIdEntryState>>{};
+  for (final property in properties) {
+    if (property.deprecated) continue;
+    (result[property.owner!] ??= []).add(property);
+  }
+  return result;
+}
+
+Map<String, List<T>> _groupByKey<T>(
+  Iterable<T> entries,
+  String Function(T entry) keyOf,
+) {
+  final result = <String, List<T>>{};
+  for (final entry in entries) {
+    (result[keyOf(entry)] ??= []).add(entry);
+  }
+  return result;
+}
+
+List<_PotentialClassRename> _potentialClassRenames<T>({
+  required Iterable<WireIdEntryState> stale,
+  required Iterable<T> unmatched,
+  required String Function(T entry) currentName,
+  required String Function(T entry) currentSource,
+  required Iterable<String> Function(WireIdEntryState entry) priorShape,
+  required Iterable<String> Function(T entry) currentShape,
+}) {
+  final remainingPrior = stale.toList();
+  final remainingCurrent = unmatched.toList();
+  final matches = <(WireIdEntryState, T)>[];
+
+  void pairUnique(
+    String Function(WireIdEntryState entry) priorKey,
+    String Function(T entry) currentKey,
+  ) {
+    final pairs = _uniquePairsByKey(
+      prior: remainingPrior,
+      current: remainingCurrent,
+      priorKey: priorKey,
+      currentKey: currentKey,
+    );
+    matches.addAll(pairs);
+    for (final (before, after) in pairs) {
+      remainingPrior.removeWhere((entry) => identical(entry, before));
+      remainingCurrent.removeWhere((entry) => identical(entry, after));
+    }
+  }
+
+  pairUnique((entry) => entry.source!, currentSource);
+  pairUnique((entry) => entry.name!, currentName);
+  pairUnique(
+    (entry) => _assetSource(entry.source!),
+    (entry) => _assetSource(currentSource(entry)),
+  );
+  pairUnique(
+    (entry) => _shapeKey(priorShape(entry)),
+    (entry) => _shapeKey(currentShape(entry)),
+  );
+
+  final result = <_PotentialClassRename>[];
+  for (final (before, after) in matches) {
+    result.add(
+      _PotentialClassRename(
+        type: before.kind,
+        id: before.id,
+        from: before.name!,
+        to: currentName(after),
+        fromSource: before.source!,
+        toSource: currentSource(after),
+      ),
+    );
+  }
+  result.sort((left, right) => left.id.value.compareTo(right.id.value));
+  return result;
+}
+
+List<(WireIdEntryState, T)> _uniquePairsByKey<T>({
+  required Iterable<WireIdEntryState> prior,
+  required Iterable<T> current,
+  required String Function(WireIdEntryState entry) priorKey,
+  required String Function(T entry) currentKey,
+}) {
+  final priorByKey = _groupByKey(prior, priorKey);
+  final currentByKey = _groupByKey(current, currentKey);
+  return [
+    for (final key in priorByKey.keys)
+      if (priorByKey[key]!.length == 1 && currentByKey[key]?.length == 1)
+        (priorByKey[key]!.single, currentByKey[key]!.single),
+  ];
+}
+
+String _assetSource(String source) {
+  final fragment = source.indexOf('#');
+  return fragment == -1 ? source : source.substring(0, fragment);
+}
+
+String _shapeKey(Iterable<String> names) {
+  final sorted = names.toList()..sort();
+  return sorted.join('\u0000');
+}
+
+final class _PotentialClassRename {
+  const _PotentialClassRename({
+    required this.type,
+    required this.id,
+    required this.from,
+    required this.to,
+    required this.fromSource,
+    required this.toSource,
+  });
+
+  final WireIdKind type;
+  final WireId id;
+  final String from;
+  final String to;
+  final String fromSource;
+  final String toSource;
+
+  RenameWireIdEvent get renameEvent {
+    final sourceMoved = fromSource != toSource;
+    return RenameWireIdEvent(
+      type: type,
+      id: id,
+      from: from,
+      to: to,
+      source: sourceMoved ? null : fromSource,
+      fromSource: sourceMoved ? fromSource : null,
+      toSource: sourceMoved ? toSource : null,
+      cascade: sourceMoved,
+      at: _kUserCatalogAllocationTimestamp,
+      by: _kUserCatalogAllocationActor,
+    );
+  }
+
+  DeprecateWireIdEvent get deprecateEvent => DeprecateWireIdEvent(
+        type: type,
+        id: id,
+        reason: 'Replaced by $to',
+        at: _kUserCatalogAllocationTimestamp,
+        by: _kUserCatalogAllocationActor,
+      );
+}
+
+final class _PotentialClassRenameException implements Exception {
+  const _PotentialClassRenameException(this.renames);
+
+  final List<_PotentialClassRename> renames;
+
+  @override
+  String toString() {
+    final buffer = StringBuffer(
+      'Potential @RestageWidget rename or source move detected. '
+      'No wire IDs were allocated.\n',
+    );
+    for (final rename in renames) {
+      buffer
+        ..writeln(
+          '${rename.id.value}: ${rename.fromSource} -> ${rename.toSource}',
+        )
+        ..writeln(
+          'If this is the same class, append this line to '
+          'wire_ids.events.jsonl and rerun:',
+        )
+        ..write(encodeWireIdEventsJsonl([rename.renameEvent]))
+        ..writeln(
+          'If this is a replacement, append this deprecate event instead '
+          'and rerun:',
+        )
+        ..write(encodeWireIdEventsJsonl([rename.deprecateEvent]));
+    }
+    return buffer.toString().trimRight();
+  }
 }
 
 WireId _resolveOrAllocateWidget({
