@@ -10,8 +10,8 @@ import 'package:rfw/rfw.dart';
 
 import '../measurement/measurement_rfw_presentation.dart';
 import '../runtime/library_runtime_registry.dart';
-import '../runtime/restage.dart';
-import '../runtime/state_variables.dart';
+import '../runtime/state_variables.dart'
+    show currentDevicePlatform, populateDeviceData, populateThemeData;
 
 /// RFW library names a flow screen runtime imports.
 const LibraryName kFlowCoreLibrary = LibraryName(<String>['restage', 'core']);
@@ -46,64 +46,31 @@ Map<String, Object?> normalizeEventArgs(Object? args) {
 
 /// Populates the RFW data namespaces every flow-screen rendering surface uses.
 ///
-/// [placeholderKeys] is the screen being populated's memoized
-/// `data.products.*` reference set (`referencedProductSlots`, walked once by
-/// the caller when its library was set — each mounted screen, including a
-/// kept-mounted back-stack entry, retains and passes its own), used only
-/// when `Restage.hasCommerceContext` is false. [shouldLogPlaceholder]
-/// additionally gates whether that no-context branch logs on this call —
-/// the caller owns "at most once per screen lifetime" via its own sticky
-/// flag, which it should only set after a `true` return, so a call that
-/// happened to take the context-present branch first never pre-emptively
-/// suppresses the screen's one legitimate placeholder log.
-///
-/// Returns true iff the no-context (placeholder) branch ran this call.
-///
 /// [includeInheritedData] is false before a `State` has reached
 /// `didChangeDependencies`, because the ambient device/theme values depend on
-/// inherited widgets. Product data does not, so it is always published.
-bool populateFlowScreenData(
+/// inherited widgets.
+void populateFlowScreenData(
   BuildContext context,
   DynamicContent target, {
-  required Map<String, PriceInfo> priceQueries,
   required bool includeInheritedData,
-  required Set<String> placeholderKeys,
-  required bool shouldLogPlaceholder,
 }) {
-  final hasCommerceContext =
-      Restage.hasCommerceContext(priceQueries: priceQueries);
-  if (hasCommerceContext) {
-    populateProductData(
+  if (!includeInheritedData) return;
+  final mediaQuery = MediaQuery.maybeOf(context);
+  if (mediaQuery != null) {
+    populateDeviceData(
       target,
-      products: Restage.configuredProducts,
-      priceQueries: priceQueries,
-    );
-  } else {
-    populatePlaceholderProductData(
-      target,
-      placeholderKeys,
-      shouldLog: shouldLogPlaceholder,
+      locale: Localizations.maybeLocaleOf(context) ?? const Locale('en'),
+      mediaQuery: mediaQuery,
+      platform: currentDevicePlatform(),
     );
   }
-  if (includeInheritedData) {
-    final mediaQuery = MediaQuery.maybeOf(context);
-    if (mediaQuery != null) {
-      populateDeviceData(
-        target,
-        locale: Localizations.maybeLocaleOf(context) ?? const Locale('en'),
-        mediaQuery: mediaQuery,
-        platform: currentDevicePlatform(),
-      );
-    }
-    final theme = Theme.of(context);
-    populateThemeData(
-      target,
-      colorScheme: theme.colorScheme,
-      iconTheme: theme.iconTheme,
-      defaultTextStyle: DefaultTextStyle.of(context).style,
-    );
-  }
-  return !hasCommerceContext;
+  final theme = Theme.of(context);
+  populateThemeData(
+    target,
+    colorScheme: theme.colorScheme,
+    iconTheme: theme.iconTheme,
+    defaultTextStyle: DefaultTextStyle.of(context).style,
+  );
 }
 
 /// The immutable base widget libraries (core / material / cupertino) a flow

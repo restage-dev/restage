@@ -23,13 +23,12 @@ import 'package:path/path.dart' as p;
 
 /// Default version constraints for the wired-in dependencies.
 ///
-/// These pin against the currently-published shape of the SDK packages.
-/// Once those packages are on pub.dev, bumping the constraints here is a
-/// single-file change.
-const Map<String, String> _defaultRuntimeDeps = {'restage': '^0.1.0'};
+/// These pin against the current package contract. Bumping the constraints
+/// here keeps newly initialized projects on the same SDK/toolchain release.
+const Map<String, String> _defaultRuntimeDeps = {'restage': '^2.0.0'};
 const Map<String, String> _defaultDevDeps = {
   'build_runner': '>=2.4.0 <3.0.0',
-  'restage_codegen': '^0.1.0',
+  'restage_codegen': '^2.0.0',
 };
 
 /// Bootstrap a Flutter project for Restage.

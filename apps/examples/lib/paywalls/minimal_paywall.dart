@@ -5,9 +5,8 @@ import 'package:restage/restage.dart';
 ///
 /// A `@Paywall` is just a `StatefulWidget` written in ordinary Flutter.
 /// The selected plan lives in plain `State` (`annualSelected`); tapping a row
-/// calls `setState`; the CTA buys whatever is selected via
-/// `paywallPurchase(slot:)`. Prices come from the host app's configured
-/// products via `paywallPriceFor(slot:)`.
+/// calls `setState`; the CTA reports whatever is selected. Prices are authored
+/// literals.
 ///
 /// It reads the ambient `ColorScheme` (no hard-coded palette), so it repaints
 /// with the app theme — flip the gallery's light/dark toggle to see it.
@@ -18,7 +17,7 @@ import 'package:restage/restage.dart';
 /// surface, with no host code on the selection.
 ///
 /// To tailor it: rename it, restyle the rows, and point the two slots
-/// (`annual` / `monthly`) at your own products in `Restage.configure(products:)`.
+/// (`annual` / `monthly`) directly in the paywall.
 @Paywall()
 class MinimalPaywall extends StatefulWidget {
   /// Const constructor.
@@ -104,7 +103,7 @@ class _MinimalPaywallState extends State<MinimalPaywall> {
                         ),
                       ),
                       Text(
-                        paywallPriceFor(slot: 'annual'),
+                        r'$59.99',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -143,7 +142,7 @@ class _MinimalPaywallState extends State<MinimalPaywall> {
                         ),
                       ),
                       Text(
-                        paywallPriceFor(slot: 'monthly'),
+                        r'$6.99',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -155,10 +154,14 @@ class _MinimalPaywallState extends State<MinimalPaywall> {
                 ),
               ),
               const Spacer(),
-              // Purchase CTA — buys the selected plan's slot.
+              // Continue CTA — reports the selected plan.
               GestureDetector(
-                onTap: paywallPurchase(
-                    slot: annualSelected ? 'annual' : 'monthly'),
+                onTap: paywallEvent(
+                  'continue',
+                  args: {
+                    'plan': annualSelected ? 'annual' : 'monthly',
+                  },
+                ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

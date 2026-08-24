@@ -4,12 +4,11 @@ import 'package:meta/meta.dart';
 
 /// Public GitHub repository URL used for one-click capability-gap issue links.
 ///
-/// This intentionally ships empty until the extracted public repository exists.
-/// Set it to the repository root URL, for example
-/// `https://github.com/restage/restage`, during extraction/publication.
-const String kRestageCodegenGapIssueRepositoryUrl = '';
+/// Keep this aligned with the package `repository` metadata.
+const String kRestageCodegenGapIssueRepositoryUrl =
+    'https://github.com/restage-dev/restage';
 
-const String _restageSdkVersion = '0.1.0';
+const String _restageSdkVersion = '2.0.0';
 const int _capabilityGapDetailLimit = 240;
 const JsonEncoder _jsonEncoder = JsonEncoder.withIndent('  ');
 
@@ -99,6 +98,9 @@ enum IssueCode {
 
   /// Helper used in a position its return type doesn't fit.
   unsupportedHelperPosition,
+
+  /// Authored purchase, restore, or product-data behavior is unsupported.
+  unsupportedCommerceAuthoring,
 
   // Idiom auto-substitution
   /// Codegen recognised a customer's imperative formatting idiom — e.g.
@@ -579,6 +581,7 @@ enum IssueCode {
         IssueCode.unsupportedCollectionFlow ||
         IssueCode.unsupportedInterpolation ||
         IssueCode.unsupportedHelperPosition ||
+        IssueCode.unsupportedCommerceAuthoring ||
         IssueCode.unknownWidget ||
         IssueCode.namedConstructorUnsupported ||
         // Not a capability gap: nothing about the source needs to change, the

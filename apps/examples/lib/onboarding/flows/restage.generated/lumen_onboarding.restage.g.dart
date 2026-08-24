@@ -11,14 +11,14 @@ const lumenOnboardingFlowRef = SurfaceFlowRef<LumenOnboardingResult>(
 
 LumenOnboardingResult _decodeLumenOnboardingFlowResult(
     Map<String, Object?> result) {
-  if (result.length != 1 || !result.containsKey('subscribed')) {
+  if (result.length != 1 || !result.containsKey('completed')) {
     throw const FormatException('Unexpected flow result keys.');
   }
-  final subscribed = result['subscribed'];
-  if (subscribed is! bool) {
-    throw const FormatException('Expected result field subscribed to be bool.');
+  final completed = result['completed'];
+  if (completed is! bool) {
+    throw const FormatException('Expected result field completed to be bool.');
   }
-  return LumenOnboardingResult(subscribed: subscribed);
+  return LumenOnboardingResult(completed: completed);
 }
 
 @Deprecated('Use lumenOnboardingFlowRef')
@@ -30,8 +30,8 @@ abstract final class LumenOnboardingFlowDescriptor {
 }
 
 final class LumenOnboardingResult {
-  const LumenOnboardingResult({required this.subscribed});
-  final bool subscribed;
+  const LumenOnboardingResult({required this.completed});
+  final bool completed;
 }
 
 final class LumenOnboardingActions implements FlowActionRegistry {

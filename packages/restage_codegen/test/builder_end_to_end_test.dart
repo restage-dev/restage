@@ -849,113 +849,54 @@ widget Paywall = AcmeBanner();
       );
     });
 
-    test('interpolated price string emits TextRich spans, style byte-stable',
-        () async {
-      const source = '''
-        import 'package:flutter/material.dart';
-        import 'package:restage/restage.dart';
-        $kStubAnnotationsAndBases
+    test('withdrawn commerce helpers fail codegen without outputs', () async {
+      final cases = <String, String>{
+        'paywallPurchase':
+            "GestureDetector(onTap: paywallPurchase(slot: 'primary'))",
+        'paywallPriceFor': "Text(paywallPriceFor(slot: 'primary'))",
+      };
 
-        @PaywallSource(id: 'price_string')
-        class PriceStringPaywall extends StatelessWidget {
-          const PriceStringPaywall();
-          Widget build(BuildContext context) => Text(
-            'Only \${paywallPriceFor(slot: 'pro')}/month',
-            style: const TextStyle(
-              color: Color(0xFF111111),
-              fontSize: 18.0,
-              fontWeight: FontWeight.w700,
-            ),
-          );
-        }
-      ''';
+      for (final entry in cases.entries) {
+        final id = 'withdrawn_${entry.key}';
+        final source = '''
+          import 'package:flutter/material.dart';
+          import 'package:restage/restage.dart';
+          $kStubAnnotationsAndBases
 
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/price_string.dart'),
-        source,
-      );
+          @PaywallSource(id: '$id')
+          class WithdrawnHelperPaywall extends StatelessWidget {
+            const WithdrawnHelperPaywall();
+            Widget build(BuildContext context) => ${entry.value};
+          }
+        ''';
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+          includeFlutter: true,
+        );
+        final path = 'lib/paywalls/$id.dart';
+        readerWriter.testing
+            .writeString(AssetId('apps_examples', path), source);
+        final logs = <String>[];
 
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/price_string.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/price_string.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/price_string.rfwtxt': decodedMatches(
-            allOf(
-              contains('TextRich('),
-              contains('textSpan:'),
-              contains('data.products.pro.localizedPrice'),
-              contains('fontSize: 18.0'),
-              contains('fontWeight: "w700"'),
-              isNot(contains('RichText(')),
-              isNot(contains('__rfw_interp')),
-            ),
+        final result = await testBuilder(
+          restageCodegenBuilder(BuilderOptions.empty),
+          {'apps_examples|$path': source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          onLog: (record) => logs.add(record.message),
+          outputs: const {},
+        );
+
+        expect(result.succeeded, isFalse, reason: entry.key);
+        expect(
+          logs.join('\n'),
+          allOf(
+            contains('[unsupportedCommerceAuthoring]'),
+            contains(entry.key),
           ),
-          'apps_examples|assets/paywalls/price_string.rfw':
-              const _TextRichPriceStringMatcher(),
-          'apps_examples|assets/paywalls/screens/paywall_price_string.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_price_string.rfw':
-              const _RootWidgetMatcher('OnboardingScreen'),
-        },
-      );
-    });
-
-    test('a reverse-DNS productId stays ONE reference part through the blob',
-        () async {
-      // A real store id is dotted, and a bare dotted reference part splits at
-      // every dot — six parts instead of three, which the runtime's
-      // whole-id-keyed product map can never resolve. The id is emitted quoted
-      // so it survives as a single part all the way into the binary blob.
-      const source = '''
-        import 'package:flutter/material.dart';
-        import 'package:restage/restage.dart';
-        $kStubAnnotationsAndBases
-
-        @PaywallSource(id: 'store_id')
-        class StoreIdPaywall extends StatelessWidget {
-          const StoreIdPaywall();
-          Widget build(BuildContext context) =>
-            Text(paywallPriceFor(productId: 'com.example.pro.annual'));
-        }
-      ''';
-
-      final readerWriter = await readerWriterWithFilesystemSources(
-        rootPackage: 'apps_examples',
-        includeFlutter: true,
-      );
-      readerWriter.testing.writeString(
-        AssetId('apps_examples', 'lib/paywalls/store_id.dart'),
-        source,
-      );
-
-      await testBuilder(
-        restageCodegenBuilder(BuilderOptions.empty),
-        {'apps_examples|lib/paywalls/store_id.dart': source},
-        rootPackage: 'apps_examples',
-        readerWriter: readerWriter,
-        outputs: {
-          'apps_examples|assets/paywalls/store_id.capability.json': anything,
-          'apps_examples|assets/paywalls/store_id.rfwtxt': decodedMatches(
-            contains('data.products."com.example.pro.annual".localizedPrice'),
-          ),
-          // The byte proof: the emitted BINARY blob decodes to a three-part
-          // reference whose middle part is the whole store id.
-          'apps_examples|assets/paywalls/store_id.rfw':
-              const _DottedProductIdMatcher(),
-          'apps_examples|assets/paywalls/screens/paywall_store_id.capability.json':
-              anything,
-          'apps_examples|assets/paywalls/screens/paywall_store_id.rfw':
-              const _RootWidgetMatcher('OnboardingScreen'),
-        },
-      );
+          reason: entry.key,
+        );
+      }
     });
 
     test(
@@ -2476,129 +2417,6 @@ class _PagerMatcher extends Matcher {
         mismatchDescription,
         matchState,
         fallback: 'did not decode to the expected RestagePager',
-      );
-}
-
-/// Matches a `.rfw` blob whose body root is a `Text` bound to the product
-/// price of a reverse-DNS store id, carried as a SINGLE reference part.
-class _DottedProductIdMatcher extends Matcher {
-  const _DottedProductIdMatcher();
-
-  @override
-  bool matches(dynamic item, Map<dynamic, dynamic> matchState) {
-    if (item is! List<int>) return false;
-    final fmt.RemoteWidgetLibrary decoded;
-    try {
-      decoded = fmt.decodeLibraryBlob(Uint8List.fromList(item));
-    } on fmt.ParserException catch (e) {
-      matchState['decodeError'] = e;
-      return false;
-    }
-    if (decoded.widgets.length != 1) {
-      matchState['shape'] = 'expected 1 widget, got ${decoded.widgets.length}';
-      return false;
-    }
-    final root = decoded.widgets.single.root;
-    if (root is! fmt.ConstructorCall || root.name != 'Text') {
-      matchState['shape'] = 'expected body root Text, got $root';
-      return false;
-    }
-    final price = root.arguments['text'];
-    if (price is! fmt.DataReference ||
-        !const ListEquality<Object>().equals(
-          price.parts,
-          ['products', 'com.example.pro.annual', 'localizedPrice'],
-        )) {
-      matchState['shape'] = 'expected a three-part product price data ref '
-          'keyed by the whole store id, got $price';
-      return false;
-    }
-    return true;
-  }
-
-  @override
-  Description describe(Description description) => description.add(
-        'a .rfw blob binding the price of a dotted store id as one part',
-      );
-
-  @override
-  Description describeMismatch(
-    dynamic item,
-    Description mismatchDescription,
-    Map<dynamic, dynamic> matchState,
-    bool verbose,
-  ) =>
-      _describeBlobMismatch(
-        mismatchDescription,
-        matchState,
-        fallback: 'did not decode to the expected dotted-id price reference',
-      );
-}
-
-class _TextRichPriceStringMatcher extends Matcher {
-  const _TextRichPriceStringMatcher();
-
-  @override
-  bool matches(dynamic item, Map<dynamic, dynamic> matchState) {
-    if (item is! List<int>) return false;
-    final fmt.RemoteWidgetLibrary decoded;
-    try {
-      decoded = fmt.decodeLibraryBlob(Uint8List.fromList(item));
-    } on fmt.ParserException catch (e) {
-      matchState['decodeError'] = e;
-      return false;
-    }
-    final root = decoded.widgets.single.root;
-    if (root is! fmt.ConstructorCall || root.name != 'TextRich') {
-      matchState['shape'] = 'expected body root TextRich, got $root';
-      return false;
-    }
-    if (root.arguments['fontSize'] != 18.0 ||
-        root.arguments['fontWeight'] != 'w700' ||
-        root.arguments['color'] != 0xFF111111) {
-      matchState['shape'] = 'expected carried Text style props, got '
-          '${root.arguments}';
-      return false;
-    }
-    final children = _textSpanChildren(root, matchState);
-    if (children == null || children.length != 3) return false;
-    if (_spanText(children[0]) != 'Only ') {
-      matchState['shape'] = 'expected first literal span, got ${children[0]}';
-      return false;
-    }
-    final price = _spanText(children[1]);
-    if (price is! fmt.DataReference ||
-        !const ListEquality<Object>().equals(
-          price.parts,
-          ['products', 'pro', 'localizedPrice'],
-        )) {
-      matchState['shape'] = 'expected product price data ref, got $price';
-      return false;
-    }
-    if (_spanText(children[2]) != '/month') {
-      matchState['shape'] = 'expected trailing literal span, got '
-          '${children[2]}';
-      return false;
-    }
-    return true;
-  }
-
-  @override
-  Description describe(Description description) => description.add(
-        'a .rfw blob whose body root is TextRich with price data-ref spans',
-      );
-
-  @override
-  Description describeMismatch(
-    dynamic item,
-    Description mismatchDescription,
-    Map<dynamic, dynamic> matchState,
-    bool verbose,
-  ) =>
-      _describeBlobMismatch(
-        mismatchDescription,
-        matchState,
-        fallback: 'did not decode to the expected TextRich',
       );
 }
 

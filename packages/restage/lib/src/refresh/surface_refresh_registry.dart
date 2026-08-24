@@ -27,8 +27,8 @@ final class SurfaceRefreshHandle {
   /// The effective ambient triggers for this surface (already resolved).
   final Set<SurfaceRefreshTrigger> triggers;
 
-  /// The swap-safety gate: false while the surface holds user-contributed
-  /// state, a store op is in flight, or the render is experiment-assigned.
+  /// The swap-safety gate: false while the surface has user interaction or
+  /// contributed state, is busy, or has a locked assignment.
   final bool Function() canSwap;
 
   /// Re-resolve and (when content changed) re-render. Must never throw into

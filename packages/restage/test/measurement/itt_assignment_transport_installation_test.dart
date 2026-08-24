@@ -19,7 +19,6 @@ void main() {
         Restage.configure(
           apiKey: 'rs_pk_itt_install',
           baseUrl: 'https://itt-install.example.com',
-          billingGateway: const _InertBillingGateway(),
         );
 
         expect(Restage.debugRestageRpcClient, isNotNull);
@@ -52,7 +51,7 @@ void main() {
                 200,
               );
             }
-            return http.Response('{"entitlements":[]}', 200);
+            return http.Response('', 404);
           }),
         );
         const request = IttAssignmentRpcRequest(
@@ -65,7 +64,6 @@ void main() {
         Restage.configure(
           apiKey: 'rs_pk_itt_initial',
           baseUrl: 'https://itt-initial.example.com',
-          billingGateway: const _InertBillingGateway(),
         );
         Restage.debugRestageRpcClient = client;
 
@@ -95,7 +93,7 @@ void main() {
       },
     );
 
-    test('reconfigure replaces a stale internal assignment adapter', () async {
+    test('reconfigure replaces a stale assignment adapter', () async {
       final stale = _StaleAdapter();
       MeasurementAssignmentTransportRegistry.debugInstall(stale);
 
@@ -108,7 +106,6 @@ void main() {
       Restage.configure(
         apiKey: 'rs_pk_itt_second',
         baseUrl: 'https://itt-second.example.com',
-        billingGateway: const _InertBillingGateway(),
       );
 
       final diagnostic = await _transport().deliver(_invalidRequest());
@@ -136,7 +133,6 @@ void main() {
         Restage.configure(
           apiKey: 'rs_pk_itt_before_disable',
           baseUrl: 'https://itt-before-disable.example.com',
-          billingGateway: const _InertBillingGateway(),
         );
         Restage.debugRestageRpcClient = client;
 
@@ -146,10 +142,7 @@ void main() {
         );
         expect(assignmentRequests, hasLength(1));
 
-        Restage.configure(
-          apiKey: 'rs_pk_itt_base_url_off',
-          billingGateway: const _InertBillingGateway(),
-        );
+        Restage.configure(apiKey: 'rs_pk_itt_base_url_off');
 
         final diagnostic = await _transport().deliver(_request());
 
@@ -178,10 +171,7 @@ void main() {
           ),
         );
 
-        Restage.configure(
-          apiKey: 'rs_pk_itt_base_url_off',
-          billingGateway: const _InertBillingGateway(),
-        );
+        Restage.configure(apiKey: 'rs_pk_itt_base_url_off');
         final baseUrlOff = await _transport().deliver(_request());
         expect(
           baseUrlOff,
@@ -195,7 +185,6 @@ void main() {
         Restage.configure(
           apiKey: 'rs_pk_itt_auth',
           baseUrl: 'https://itt-auth.example.com',
-          billingGateway: const _InertBillingGateway(),
         );
         Restage.debugRestageRpcClient = RestageRpcClient(
           baseUrl: 'https://itt-auth.example.com',
@@ -204,7 +193,7 @@ void main() {
             if (request.url.path == '/sdk/v1/measurement-assignment') {
               return http.Response('', 401);
             }
-            return http.Response('{"entitlements":[]}', 200);
+            return http.Response('', 404);
           }),
         );
 
@@ -227,7 +216,6 @@ void main() {
         Restage.configure(
           apiKey: 'rs_pk_itt_reset',
           baseUrl: 'https://itt-reset.example.com',
-          billingGateway: const _InertBillingGateway(),
         );
         Restage.debugRestageRpcClient = _assignmentClient(
           baseUrl: 'https://itt-reset.example.com',
@@ -307,7 +295,7 @@ RestageRpcClient _assignmentClient({
             200,
           );
         }
-        return http.Response('{"entitlements":[]}', 200);
+        return http.Response('', 404);
       }),
     );
 
@@ -343,22 +331,4 @@ final class _StaleAdapter
         candidateDelivery:
             MeasurementAssignmentCandidateDeliveryDiagnostic.rendered,
       );
-}
-
-final class _InertBillingGateway implements BillingGateway {
-  const _InertBillingGateway();
-
-  @override
-  Future<PurchaseOutcome> purchase(
-    String productId, {
-    String? basePlanId,
-  }) async =>
-      PurchaseOutcome.failed(
-        productId: productId,
-        errorCode: 'unused',
-        message: 'unused',
-      );
-
-  @override
-  Future<RestoreOutcome> restore() async => RestoreOutcome.noPurchases();
 }

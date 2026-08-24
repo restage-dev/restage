@@ -30,6 +30,13 @@ class _TranspileResult {
   final fmt.RemoteWidgetLibrary? decoded;
 }
 
+final _hostTextHelper = HelperDefinition(
+  name: 'hostText',
+  libraryOrigin: 'package:apps_examples',
+  returnCategory: HelperReturnCategory.string,
+  translate: (_) => 'data.context.label',
+);
+
 void main() {
   group('custom-widget transpilation end-to-end', () {
     test('a pure-composition custom widget transpiles and round-trips',
@@ -2216,7 +2223,7 @@ Object x() => const Meter(other: 2.0);
 
     test(
         'gate 3 (data-ref passed value): a value lowering to a '
-        'possibly-missing data ref (a price helper) passed to a coalesced '
+        'possibly-missing data ref (a host-data helper) passed to a coalesced '
         'property defers — the fallback would be lost at runtime', () async {
       final result = await _transpile(
         '''
@@ -2243,7 +2250,9 @@ class Price extends StatelessWidget {
   Widget build(BuildContext context) => Label(text: label ?? "Free");
 }
 
-Object x() => Price(label: paywallPriceFor(slot: 'annual'));
+String hostText() => '';
+
+Object x() => Price(label: hostText());
 ''',
         catalogWith([
           _entry(
@@ -2253,13 +2262,12 @@ Object x() => Price(label: paywallPriceFor(slot: 'annual'));
           ),
         ]),
         rootPackage: 'apps_examples',
+        extraHelpers: [_hostTextHelper],
       );
 
-      // `paywallPriceFor(...)` is a non-null String but lowers to
-      // `data.products.annual.localizedPrice`, populated only for priced
-      // products. Completing the coalesced `label` with it (row 4) would, for
-      // an unpriced product, fall to the factory default instead of "Free" —
-      // a silent-wrong the static-nullability gate misses. So it defers.
+      // The non-null String lowers to host-provided data that can be absent.
+      // Completing the coalesced `label` with it would use the factory default
+      // instead of "Free", so the static-nullability gate defers.
       expect(result.decoded, isNull);
       expect(
         result.issues
@@ -2984,24 +2992,9 @@ Object x() => AcmeMixed();
     });
 
     test(
-        'a State method that BOTH mutates state and fires a purchase does NOT '
-        'lower to a combined handler — it defers with stateShapeUnsupported '
-        '(the select-and-purchase staleness tripwire)', () async {
-      // TRIPWIRE — do not loosen the rejection below without reading this.
-      // RFW resolves an EventHandler's arguments at FETCH/build time and
-      // caches them; it does NOT re-resolve the arg switch inside the fired
-      // callback (rfw-1.1.3 runtime.dart `_fix`/`_resolveFrom`). So a SINGLE
-      // handler that mutates `state.X` and THEN fires
-      // `event "restage.purchase" { slot: switch state.X {...} }` in the same
-      // callback would charge the PRE-mutation slot. Codegen avoids this by
-      // emitting exactly one handler per onTap and rejecting any State method
-      // that is not a single setState — so the toggle and the purchase are
-      // always SEPARATE handlers/buttons. If a future increment ever supports
-      // a richer "select this plan AND buy in one tap" action, it MUST NOT
-      // emit a single handler list with the purchase event resolving against
-      // pre-mutation state (re-order, read the post-mutation value, or
-      // reject) — tracked as a follow-up: RFW event-arg switches are
-      // resolved at fetch-time, not in-callback.
+        'a State method that both mutates state and invokes a callback defers '
+        'with stateShapeUnsupported', () async {
+      // A multi-statement handler cannot lower as a single state update.
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -3013,7 +3006,7 @@ class GestureDetector extends StatelessWidget {
   Widget build(BuildContext context) => const Widget();
 }
 
-void Function() paywallPurchase({String? slot}) => () {};
+void Function() notifySelection({String? choice}) => () {};
 
 @RestageWidget(
   name: 'AcmeSelectAndBuy',
@@ -3030,7 +3023,7 @@ class _AcmeSelectAndBuyState extends State<AcmeSelectAndBuy> {
   bool annual = true;
   void selectAndBuy() {
     setState(() => annual = !annual);
-    paywallPurchase(slot: annual ? 'annual' : 'monthly')();
+    notifySelection(choice: annual ? 'annual' : 'monthly')();
   }
   Widget build(BuildContext context) =>
       GestureDetector(onTap: selectAndBuy);
@@ -3046,13 +3039,12 @@ Object x() => AcmeSelectAndBuy();
       expect(
         result.decoded,
         isNull,
-        reason: 'a combined mutate+purchase handler must not emit a blob',
+        reason: 'a combined state-and-callback handler must not emit a blob',
       );
       expect(
         result.issues.any((i) => i.code == IssueCode.stateShapeUnsupported),
         isTrue,
-        reason: 'the combined body is not a single setState — must defer with '
-            'stateShapeUnsupported, never emit a stale-prone combined handler',
+        reason: 'the combined body is not a single setState and must defer',
       );
     });
 
@@ -3355,6 +3347,7 @@ Future<_TranspileResult> _transpile(
   String source,
   Catalog catalog, {
   String rootPackage = 'restage_codegen',
+  Iterable<HelperDefinition> extraHelpers = const [],
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: rootPackage,
@@ -3364,7 +3357,11 @@ Future<_TranspileResult> _transpile(
 
   _TranspileResult? result;
   await testBuilder(
-    _TranspileProbeBuilder(catalog, (r) => result = r),
+    _TranspileProbeBuilder(
+      catalog,
+      (r) => result = r,
+      extraHelpers: extraHelpers,
+    ),
     {assetKey: source},
     rootPackage: rootPackage,
     readerWriter: readerWriter,
@@ -3378,10 +3375,15 @@ Future<_TranspileResult> _transpile(
 
 /// Builder that runs the full transpile chain over the e2e probe library.
 class _TranspileProbeBuilder implements Builder {
-  _TranspileProbeBuilder(this.catalog, this.onResult);
+  _TranspileProbeBuilder(
+    this.catalog,
+    this.onResult, {
+    this.extraHelpers = const [],
+  });
 
   final Catalog catalog;
   final void Function(_TranspileResult) onResult;
+  final Iterable<HelperDefinition> extraHelpers;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -3406,7 +3408,9 @@ class _TranspileProbeBuilder implements Builder {
     }
     final root = body.expression;
 
-    final helpers = HelperRegistry()..registerAll(paywallHelpers);
+    final helpers = HelperRegistry()
+      ..registerAll(paywallHelpers)
+      ..registerAll(extraHelpers);
     final classification = await classifyReferencedCustomWidgets(
       rootExpressions: [root],
       catalog: catalog,

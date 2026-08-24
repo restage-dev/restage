@@ -13,8 +13,8 @@ part 'restage.generated/lumen_onboarding.restage.g.dart';
 /// The shape: welcome → two linear personalization questions (experience, goal)
 /// → a reminder **host-action gate** (the one conditional the flow runtime
 /// offers — advance only on a granted result) → a recap → the meditation
-/// paywall as the final flow screen via `paywallScreen(...)`, whose purchase
-/// ends the flow.
+/// paywall as the final flow screen via `paywallScreen(...)`, whose continue
+/// action ends the flow.
 ///
 /// The questions are linear by design: the flow runtime authors exactly one
 /// forward transition per screen, so a personalization answer tailors the
@@ -27,6 +27,9 @@ final class LumenOnboardingFlow extends RestageFlow {
   static const enableReminders =
       FlowActionRef<void, ReminderDecision>('enableReminders');
 
+  /// Continues from the embedded plan selector.
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   const LumenOnboardingFlow();
 
   @override
@@ -38,9 +41,9 @@ final class LumenOnboardingFlow extends RestageFlow {
       outbound: const FlowOutboundDeclarations(
         terminalResult: FlowOutboundPayloadDeclaration(
           fields: {
-            'subscribed': FlowOutboundField(
+            'completed': FlowOutboundField(
               type: FlowDataType.bool,
-              ref: EventFlowOutboundRef(key: 'subscribed'),
+              ref: EventFlowOutboundRef(key: 'completed'),
             ),
           },
         ),
@@ -64,9 +67,9 @@ final class LumenOnboardingFlow extends RestageFlow {
             .on(LumenRecapScreen.next)
             .goTo(paywallScreen('lumen_premium')),
         screen(paywallScreen('lumen_premium'))
-            .on(PaywallEvents.purchase)
+            .on(LumenOnboardingFlow.continueFlow)
             .goTo(done),
-        end(done, result: {'subscribed': true}),
+        end(done, result: {'completed': true}),
       ],
     );
   }

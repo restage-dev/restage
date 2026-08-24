@@ -44,7 +44,7 @@ class _CustomBadgePaywallState extends State<CustomBadgePaywall> {
               const Center(child: StreakBadge(label: 'Saved', count: 3)),
               const Spacer(),
               GestureDetector(
-                onTap: paywallPurchase(slot: 'annual'),
+                onTap: paywallEvent('continue'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

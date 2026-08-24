@@ -7,49 +7,49 @@
       "path": "assets/paywalls/fluent_pro.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:75205cce5d87b4081dcd0c3ca1ebaac717cd864f1a308baedd9734bebcc66f16"
+      "sha256": "sha256:df29136dd92c4b5fa6b64f61d0e8cac0d179e6ea595ec4eb93fa83c12810db09"
     },
     {
       "path": "assets/paywalls/fluent_pro.flow.json",
       "kind": "canonical-flow-json",
       "byteLength": 861,
-      "sha256": "sha256:596e21031fc5a7b072a07ebfe58eedeebc8e47b36c5941b6bd0fcea1d3fcf1b9"
+      "sha256": "sha256:a482199e253b98cd42298e66e208121dc9b99a7c8be3b59a7bc25a254ce8b9ce"
     },
     {
       "path": "assets/paywalls/fluent_pro.rfw",
       "kind": "rfw-binary",
-      "byteLength": 8688,
-      "sha256": "sha256:b4e8ee40be5246609a483ef5f19bdde72e4a08525f5f150a3646efd944713158"
+      "byteLength": 8630,
+      "sha256": "sha256:924f355e8fb1b2172bf11387f387233bffb8700c3ac672df18b15cd6e1a99ff9"
     },
     {
       "path": "assets/paywalls/fluent_pro.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 5240,
-      "sha256": "sha256:d746dcad89201d8147574f611e92743e82c8ffd263b3aa379c8de108ff825025"
+      "byteLength": 5204,
+      "sha256": "sha256:e843237cd4346f8689ef80b8c2ce57b605fb491f1b709a9536fc05077dcc4b82"
     },
     {
       "path": "assets/paywalls/screens/paywall_fluent_pro.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:bee63b48dba33151eadaa85ea83ebdb885ce833da284356c7c53b396c37050ee"
+      "sha256": "sha256:8b9394d429bcc6e07fb3e02eaeedc223614fa873d3e2ee0b7bda6f234a7e413f"
     },
     {
       "path": "assets/paywalls/screens/paywall_fluent_pro.rfw",
       "kind": "rfw-binary",
-      "byteLength": 8697,
-      "sha256": "sha256:6280c312af6de1567e5b5f5f9e0febb4aa0c829a5c91c44d5c361ffb7b19b96c"
+      "byteLength": 8639,
+      "sha256": "sha256:a7c4b900859c54485f6b813917f7bdaf373f378f2153fc1fd5ea50a1bce07a49"
     },
     {
       "path": "assets/paywalls/screens/paywall_fluent_pro_choose_plan.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:0e2ecc7720b1325ff2abbed72fad178b57ebf165a1818aab339f4cd9a9a349df"
+      "sha256": "sha256:0614424936cb4d9b1fcbf1d12f8e3c3363f2c4ccd4a918ec16b06b888ccaf30b"
     },
     {
       "path": "assets/paywalls/screens/paywall_fluent_pro_choose_plan.rfw",
       "kind": "rfw-binary",
-      "byteLength": 10691,
-      "sha256": "sha256:8e947813093002fc03e18ce58ee54ccca76c4e5e5bd81fddd99b5d6a5556d716"
+      "byteLength": 10685,
+      "sha256": "sha256:d89d87cf6e83b00405492de94711ffce26a65206055ace6730fe281e781865fc"
     }
   ],
   "absentOutputPaths": [

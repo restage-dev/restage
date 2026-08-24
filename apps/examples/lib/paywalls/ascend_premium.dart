@@ -27,7 +27,7 @@ import 'package:restage/restage.dart';
 /// are the sheet's built-in behavior.
 ///
 /// Two within-screen selection states lower into the render blob: `plansExpanded`
-/// (the See-All-Plans swap) and `annualSelected` (the plan radios + the purchase
+/// (the See-All-Plans swap) and `annualSelected` (the plan radios + the continue
 /// target). Both are plain `bool` fields that lower to `switch state.…`, so the
 /// whole interaction travels with the delivered paywall, no host code.
 ///
@@ -35,8 +35,8 @@ import 'package:restage/restage.dart';
 /// `builder`, no extracted helper); the sheet's `builder` names its param `_` and
 /// reads no `BuildContext` (fixed colour literals — a deliberate single-brightness
 /// brand surface); the down-arrow is pushed to the rail's bottom with
-/// `mainAxisAlignment.end`. Prices bind live via `paywallPriceFor(slot:)`; the
-/// "Save 44%" flash is a literal marketing flag.
+/// `mainAxisAlignment.end`. Prices are authored literals; the "Save 44%" flash
+/// is a literal marketing flag.
 @Paywall()
 class AscendPremiumPaywall extends StatefulWidget {
   const AscendPremiumPaywall({super.key});
@@ -518,10 +518,7 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                                                                 ),
                                                               ),
                                                               Text(
-                                                                paywallPriceFor(
-                                                                  slot:
-                                                                      'annual',
-                                                                ),
+                                                                r'$119.99',
                                                                 style:
                                                                     const TextStyle(
                                                                   color: Color(
@@ -640,10 +637,7 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                                                                 ),
                                                               ),
                                                               Text(
-                                                                paywallPriceFor(
-                                                                  slot:
-                                                                      'monthly',
-                                                                ),
+                                                                r'$19.99',
                                                                 style:
                                                                     const TextStyle(
                                                                   color: Color(
@@ -753,7 +747,7 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                                       Row(
                                         children: [
                                           Text(
-                                            paywallPriceFor(slot: 'annual'),
+                                            r'$119.99',
                                             style: const TextStyle(
                                               color: Color(0xFF1A1A1A),
                                               fontSize: 15,
@@ -801,12 +795,15 @@ class _AscendPremiumPaywallState extends State<AscendPremiumPaywall> {
                                     ],
                                   ),
                             const SizedBox(height: 12),
-                            // Start free trial CTA — purchases the selected plan.
+                            // Start free trial CTA — reports the selected plan.
                             // Pinned last so it stays at the sheet bottom as the
                             // expanded card grows the sheet.
                             GestureDetector(
-                              onTap: paywallPurchase(
-                                slot: annualSelected ? 'annual' : 'monthly',
+                              onTap: paywallEvent(
+                                'continue',
+                                args: {
+                                  'term': annualSelected ? 'annual' : 'monthly',
+                                },
                               ),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(

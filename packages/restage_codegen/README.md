@@ -21,7 +21,7 @@ Add the package as a dev dependency and run the build:
 
 ```yaml
 dev_dependencies:
-  restage_codegen: ^1.0.0
+  restage_codegen: ^2.0.0
   build_runner: ">=2.4.0 <3.0.0"
 ```
 

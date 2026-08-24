@@ -86,13 +86,8 @@ final class SurveyQuestionResponded extends RestageEvent {
       };
 }
 
-/// Editor- or `paywallEvent`-fired event. The [eventName] is whatever the
-/// author wrote in `paywallEvent('subscribe', ...)` or
-/// `event 'subscribe' { ... }`.
-///
-/// SDK-owned events (e.g. `restage.purchase`, `restage.restore`) are
-/// translated by the runtime to their typed subclass and never arrive as a
-/// `PaywallCustomEvent`.
+/// Author-fired paywall event. The [eventName] and [args] preserve the values
+/// supplied by the application.
 final class PaywallCustomEvent extends RestageEvent {
   /// Const constructor.
   const PaywallCustomEvent({

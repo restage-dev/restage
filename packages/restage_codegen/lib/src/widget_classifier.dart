@@ -4,6 +4,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/build_body.dart';
+import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
@@ -893,7 +894,7 @@ class _Walk {
     // that cannot be emitted as a blob primitive — the chained form is
     // handled at _propertyAccess. So an unchained Flutter `.of(c)` call is
     // a Dart call from the blob's perspective, just like any other.
-    if (_isRegisteredHelper(expr)) {
+    if (isUnsupportedCommerceHelperCall(expr) || _isRegisteredHelper(expr)) {
       // A recognised paywall helper — composition, not a Dart call.
       return;
     }
@@ -954,8 +955,8 @@ class _Walk {
     final element = expr.methodName.element;
     if (element is! ExecutableElement || element.name == 'build') return null;
     // Scope: only a Widget-/value-RETURNING helper inlines. A function whose
-    // return is a callback (a `FunctionType`, e.g. an event-handler factory
-    // like a customer `paywallPurchase`) or `void`/`dynamic` is a Dart call,
+    // return is a callback (a `FunctionType`, e.g. an event-handler factory)
+    // or `void`/`dynamic` is a Dart call,
     // not a composition helper — it must defer as a `dartCall`, not be pulled
     // into the inline path (which would then fail to classify its body). A
     // Widget or a value type is an `InterfaceType`.

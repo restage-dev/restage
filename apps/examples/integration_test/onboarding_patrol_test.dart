@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_example/onboarding/flows/first_run.dart';
-import 'package:restage_example/stub_products.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage/restage.dart';
 import 'package:patrol/patrol.dart';
@@ -45,7 +44,6 @@ void main() {
       Restage.debugReset();
       Restage.configure(
         apiKey: 'rs_pk_smoke',
-        products: kStubProducts,
         resolver: const AssetVariantResolver(),
       );
       registerRestageWidgets();

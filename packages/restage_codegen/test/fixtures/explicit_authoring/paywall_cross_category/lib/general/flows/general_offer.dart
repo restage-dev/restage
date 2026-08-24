@@ -10,9 +10,6 @@ const generalOffer = FlowDefinition(
   start: GeneralOfferScreen,
   transitions: [
     Transition(GeneralOfferScreen.showPaywall, to: GeneralPaywall),
-    Transition.complete(
-      PaywallEvents.purchase,
-      from: GeneralPaywall,
-    ),
+    Transition.complete(GeneralPaywall.complete),
   ],
 );

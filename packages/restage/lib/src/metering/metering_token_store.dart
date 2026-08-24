@@ -1,5 +1,6 @@
-import 'package:restage/src/billing/anonymous_token.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../restage_rpc_client/uuid_v4.dart' as uuid_v4;
 
 /// Persists a pseudonymous, metering-only identifier used to count distinct
 /// delivery/serve activity per app. It is sent ONLY to the surface-serve
@@ -37,10 +38,8 @@ final class MeteringTokenStore {
     return token;
   }
 
-  /// Delegates to the shared UUIDv4 helpers so the metering token and the
-  /// billing anonymous token can never validate/mint by divergent rules.
-  static bool isValidUuid(String value) =>
-      AnonymousTokenStore.isValidUuid(value);
+  /// Uses the shared UUIDv4 helpers so persisted identifiers follow one rule.
+  static bool isValidUuid(String value) => uuid_v4.isValidUuidV4(value);
 
-  static String generateUuidV4() => AnonymousTokenStore.generateUuidV4();
+  static String generateUuidV4() => uuid_v4.generateUuidV4();
 }

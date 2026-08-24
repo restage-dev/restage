@@ -20,7 +20,6 @@ import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
 import '../runtime/restage.dart';
 import '../runtime/first_paint_lease_guard.dart';
-import '../runtime/state_variables.dart';
 import 'flow_chrome.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
@@ -97,7 +96,6 @@ final class RestageFlowGraph<R> extends StatefulWidget {
     this.skipBuilder,
     this.chromeBuilder,
     this.persistentChromeBuilder,
-    this.priceQueries = const {},
     this.liveRefresh,
   });
 
@@ -181,10 +179,6 @@ final class RestageFlowGraph<R> extends StatefulWidget {
   /// Frames the whole flow (the *Layout* rung). Null uses the built-in
   /// persistent chrome.
   final FlowPersistentChromeBuilder? persistentChromeBuilder;
-
-  /// Map of productId -> live [PriceInfo] for paywall blobs rendered as flow
-  /// screens.
-  final Map<String, PriceInfo> priceQueries;
 
   /// Per-widget live-refresh override. Null inherits the app-level
   /// configuration (`Restage.configure`); a provided set replaces it wholesale
@@ -986,7 +980,6 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         skipBuilder: widget.skipBuilder,
         chromeBuilder: widget.chromeBuilder,
         persistentChromeBuilder: widget.persistentChromeBuilder,
-        priceQueries: widget.priceQueries,
       ),
     );
     final session = _measurementSessions[controller];

@@ -637,7 +637,7 @@ final class OnboardingSource {
 
     test('paywall helper calls reject outputs in onboarding screens', () async {
       final cases = <String, String>{
-        'paywallEvent': '''
+        'restore': '''
 ElevatedButton(
   onPressed: paywallEvent('restore'),
   child: const Text('Continue'),

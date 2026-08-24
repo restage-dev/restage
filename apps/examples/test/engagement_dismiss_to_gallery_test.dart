@@ -6,7 +6,6 @@ import 'package:restage_example/onboarding/chrome_ladder_demo.dart';
 import 'package:restage_example/onboarding/crave_permission_demo.dart';
 import 'package:restage_example/onboarding/lumen_onboarding_demo.dart';
 import 'package:restage_example/onboarding/reel_cancel_demo.dart';
-import 'package:restage_example/stub_products.dart';
 import 'package:restage_example/user_factories.g.dart';
 
 /// Drive-and-assert proof that every engagement surface — and every host-owned
@@ -25,7 +24,6 @@ void main() {
     Restage.debugReset();
     Restage.configure(
       apiKey: 'rs_pk_test',
-      products: kStubProducts,
       resolver: const AssetVariantResolver(),
     );
     registerRestageWidgets();
@@ -83,7 +81,7 @@ void main() {
     testWidgets('the terminal completion screen returns to the gallery',
         (tester) async {
       await pushSurface(tester, const LumenOnboardingDemo());
-      // Drive the whole flow to the "Subscription started" terminal.
+      // Drive the whole flow to the "Onboarding complete" terminal.
       await tester.tap(find.text('Get started'));
       await tester.pumpAndSettle();
       await tester.tap(find.text("I'm new to meditation"));
@@ -96,11 +94,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Start free trial'));
       await tester.pumpAndSettle();
-      expect(find.text('Subscription started'), findsOneWidget);
+      expect(find.text('Onboarding complete'), findsOneWidget);
 
       await tapDismiss(tester);
 
-      expect(find.text('Subscription started'), findsNothing);
+      expect(find.text('Onboarding complete'), findsNothing);
       expect(find.text(galleryMarker), findsOneWidget);
     });
   });

@@ -9,7 +9,7 @@ final class CustomerMeasurementUpgrade extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallPurchase(slot: 'primary'),
+        onPressed: paywallEvent('upgrade'),
         child: const Text('Upgrade'),
       );
 }

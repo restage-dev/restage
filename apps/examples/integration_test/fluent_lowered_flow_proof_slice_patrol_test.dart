@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_example/stub_products.dart';
 
 /// Proof slice for the **screen-navigation lowering** — drives the load-bearing
 /// walk of a paywall whose `Navigator.push` to a second `@Paywall` screen
@@ -21,31 +20,25 @@ import 'package:restage_example/stub_products.dart';
 ///   paywall flow).
 /// - State 3: back at the entry after the in-flow back.
 ///
-/// The two HARD STOPs are asserted by events: a plan on the pushed screen is
-/// select-then-subscribe (tapping a tier SELECTS it — no charge — and the CTA
-/// charges the selected tier), and the entry CTA CHARGES.
+/// The interactions are asserted by events: a plan on the pushed screen is
+/// selected before the CTA reports it, and the entry CTA reports its default.
 const _dwell = Duration(milliseconds: 1500);
 
 void main() {
   patrolTest(
-    'screen-navigation lowering — entry -> choose a plan -> back -> charge',
+    'screen-navigation lowering — entry -> choose a plan -> back -> continue',
     ($) async {
       final events = <RestageEvent>[];
       Restage.debugReset();
       Restage.configure(
         apiKey: 'rs_pk_example',
-        products: kStubProducts,
         resolver: const AssetVariantResolver(),
       );
 
       await $.pumpWidgetAndSettle(
         MaterialApp(
           debugShowCheckedModeBanner: false,
-          home: RestagePaywall(
-            id: 'fluent_pro',
-            priceQueries: kStubPriceQueries,
-            onEvent: events.add,
-          ),
+          home: RestagePaywall(id: 'fluent_pro', onEvent: events.add),
         ),
       );
 
@@ -64,24 +57,28 @@ void main() {
       await $('Family Plan').waitUntilVisible();
       await Future<void>.delayed(_dwell);
 
-      // HARD STOP — tapping a tier on the pushed screen SELECTS it (no charge,
-      // no navigation); the pinned CTA then charges the selected tier's slot.
+      // Tapping a tier selects it without navigating; the pinned CTA then
+      // reports the selected tier.
       await $('Family Plan').tap();
       await $.pumpAndSettle();
       expect(
-        events.whereType<PurchaseInitiated>(),
+        events.whereType<PaywallCustomEvent>().where(
+              (event) => event.eventName == 'continue',
+            ),
         isEmpty,
-        reason: 'tapping a tier selects it; it must not charge',
+        reason: 'tapping a tier only changes selection',
       );
       await $('Choose a plan').waitUntilVisible(); // did not advance the flow
       await $('START MY FREE WEEK').tap();
       await $.pumpAndSettle();
       expect(
-        events.whereType<PurchaseInitiated>().where(
-              (e) => e.productId == 'com.restage.pro.family',
+        events.whereType<PaywallCustomEvent>().where(
+              (event) =>
+                  event.eventName == 'continue' &&
+                  event.args['plan'] == 'family',
             ),
         isNotEmpty,
-        reason: 'the CTA must charge the selected tier',
+        reason: 'the CTA must report the selected tier',
       );
       await Future<void>.delayed(_dwell);
 
@@ -99,15 +96,17 @@ void main() {
       expect($('Choose a plan'), findsNothing);
       await Future<void>.delayed(_dwell);
 
-      // HARD STOP — the entry CTA CHARGES (the default Personal plan -> monthly).
+      // The entry CTA reports its default Personal plan.
       await $('START MY FREE WEEK').tap();
       await $.pumpAndSettle();
       expect(
-        events.whereType<PurchaseInitiated>().where(
-              (e) => e.productId == 'com.restage.pro.monthly',
+        events.whereType<PaywallCustomEvent>().where(
+              (event) =>
+                  event.eventName == 'continue' &&
+                  event.args['plan'] == 'personal',
             ),
         isNotEmpty,
-        reason: 'the entry CTA must charge',
+        reason: 'the entry CTA must report the default plan',
       );
       await Future<void>.delayed(_dwell);
     },

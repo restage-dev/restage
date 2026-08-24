@@ -734,16 +734,16 @@ void main() {
         'retained check (unsupported minClient floor)', () async {
       // The active document requires a higher client than installed — a retained
       // check rejects it and the resolver falls back to the bundled flow. (A
-      // rewired *charge control* is NOT a rejection cause — that's blob-OTA
-      // parity, served ungated; only structural/floor checks fail closed here.)
+      // a rewired event is not a rejection cause — that's blob-OTA parity,
+      // served ungated; only structural/floor checks fail closed here.)
       final hostedFlowEnvelope = _flowEnvelope(
         surfaceType: Surface.paywall,
         slug: 'pro_upgrade',
         version: 9,
         minClient: _supportedVersion + 1,
-        screenBytes: _purchaseScreen('Subscribe now'),
+        screenBytes: _reservedCommerceEventScreen('Subscribe now'),
       );
-      final bundledScreen = _purchaseScreen('Subscribe');
+      final bundledScreen = _reservedCommerceEventScreen('Subscribe');
       final bundle = _PaywallAssetBundle()
         ..writeFlow(
           'pro_upgrade',
@@ -778,8 +778,10 @@ void main() {
     test(
         'resolves a compatible hosted flow via the active arm '
         '(served version + experiment)', () async {
-      final bundledScreen = _purchaseScreen('Subscribe');
-      final hostedScreen = _purchaseScreen('Subscribe now'); // content-only
+      final bundledScreen = _reservedCommerceEventScreen('Subscribe');
+      final hostedScreen = _reservedCommerceEventScreen(
+        'Subscribe now',
+      ); // content-only
       final bundle = _PaywallAssetBundle()
         ..writeFlow(
           'pro_upgrade',
@@ -815,8 +817,8 @@ void main() {
 
     test('holds the last-good active flow when a later fetch fails, re-gated',
         () async {
-      final bundledScreen = _purchaseScreen('Subscribe');
-      final hostedScreen = _purchaseScreen('Subscribe now');
+      final bundledScreen = _reservedCommerceEventScreen('Subscribe');
+      final hostedScreen = _reservedCommerceEventScreen('Subscribe now');
       final bindingReference = _bindingReference('b');
       final bundle = _PaywallAssetBundle()
         ..writeFlow(
@@ -1083,8 +1085,8 @@ FlowDocument _flowDocument({
   );
 }
 
-/// A valid RFW paywall-flow screen blob whose single control fires a purchase.
-Uint8List _purchaseScreen(String label) {
+/// A valid RFW paywall-flow screen whose control fires a reserved event.
+Uint8List _reservedCommerceEventScreen(String label) {
   final source = '''
     import restage.core;
     widget OnboardingScreen = GestureDetector(

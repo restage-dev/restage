@@ -9,8 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
 import '../runtime/error_boundary.dart';
-import '../runtime/product_reference_walk.dart';
-import '../runtime/state_variables.dart';
+import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 import 'flow_chrome.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
@@ -66,7 +65,6 @@ final class RestageFlowView<R> extends StatefulWidget {
     this.skipBuilder,
     this.chromeBuilder,
     this.persistentChromeBuilder,
-    this.priceQueries = const {},
   });
 
   /// The flow brain whose current screen this view renders.
@@ -89,10 +87,9 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// When supplied and it returns `true`, the event is treated as consumed and
   /// is **not** forwarded to [RestageFlowController.handleEvent] — the owner has
   /// handled it out-of-band. When it returns `false` (or is null), the event is
-  /// forwarded to the controller exactly as before. This is the seam a paywall
-  /// host uses to intercept purchase/restore initiation (running billing rather
-  /// than a graph transition) while still forwarding navigation events to the
-  /// flow. Null keeps the default behavior verbatim, so onboarding is untouched.
+  /// forwarded to the controller exactly as before. This lets a host handle an
+  /// app-owned action while still forwarding navigation events to the flow.
+  /// Null keeps the default behavior verbatim, so onboarding is untouched.
   ///
   /// > **This is an UNCAPPED, host-owned escape hatch.** It receives the screen
   /// > event name *before* the controller's capped path — so it is NOT
@@ -151,10 +148,6 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// while screens animate beneath. When supplied it supersedes the built-in
   /// persistent chrome.
   final FlowPersistentChromeBuilder? persistentChromeBuilder;
-
-  /// Map of productId -> live [PriceInfo] for paywall blobs rendered as flow
-  /// screens.
-  final Map<String, PriceInfo> priceQueries;
 
   @override
   State<RestageFlowView<R>> createState() => _RestageFlowViewState<R>();
@@ -241,9 +234,6 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       _clearStack();
       _syncFromController();
     }
-    if (!identical(oldWidget.priceQueries, widget.priceQueries)) {
-      _populateAllData();
-    }
   }
 
   @override
@@ -318,7 +308,6 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       entryId: entryId,
       runtime: _libraries.runtimeFor(library),
       data: DynamicContent(),
-      library: library,
     );
     _stack.add(mounted);
     _populateData(mounted);
@@ -337,15 +326,11 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   }
 
   void _populateData(_MountedScreen screen) {
-    final tookPlaceholderLane = populateFlowScreenData(
+    populateFlowScreenData(
       context,
       screen.data,
-      priceQueries: widget.priceQueries,
       includeInheritedData: _dependenciesReady,
-      placeholderKeys: screen.placeholderLane.keys,
-      shouldLogPlaceholder: !screen.placeholderLane.logged,
     );
-    if (tookPlaceholderLane) screen.placeholderLane.logged = true;
   }
 
   /// Drops mounted screens the controller no longer lists as reachable (e.g. a
@@ -801,14 +786,14 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
         data: screen.data,
         widget: kFlowScreenWidget,
         onEvent: (name, args) {
+          if (isReservedCommerceEventName(name)) return;
           // Inert unless this is the owning controller's current screen.
           if (screen.entryId != controller.currentScreenEntryId) return;
           final normalized = normalizeEventArgs(
             sanitizeAndRecordHostFlowEvent(controller, args),
           );
-          // The owner's interceptor runs first: if it consumes the event
-          // (e.g. a paywall host running billing for purchase/restore), the
-          // controller never sees it — no speculative graph transition.
+          // The owner's interceptor runs first. If it consumes the event, the
+          // controller never sees it.
           if (widget.onScreenEvent?.call(name, normalized) ?? false) return;
           controller.handleEvent(name, normalized);
         },
@@ -879,20 +864,11 @@ class _MountedScreen {
     required this.entryId,
     required this.runtime,
     required this.data,
-    required WidgetLibrary library,
-  }) : placeholderLane = PlaceholderProductLane(library);
+  });
 
   final int entryId;
   final Runtime runtime;
   final DynamicContent data;
-
-  /// This screen's placeholder-lane state (memoized referenced keys + sticky
-  /// log flag), walked once at construction from the screen's decoded widget
-  /// library — a later data re-population (e.g. a `priceQueries` change)
-  /// reuses it without re-deriving the library from the controller, which
-  /// only tracks the *current* screen (a kept-mounted back-stack entry needs
-  /// its own).
-  final PlaceholderProductLane placeholderLane;
 
   /// A stable key for this screen's RFW content subtree. When a cover→reveal
   /// episode rebuilds the transition wrapper fresh (see [episode]), the content

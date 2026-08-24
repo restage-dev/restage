@@ -22,17 +22,16 @@ import 'package:restage/restage.dart';
 /// the cards in the lower-middle, and the summary + CTA + privacy near the
 /// bottom, with the CTA always on-screen (it fits the smallest device
 /// unscrolled). For a long value body, prefer the pinned-CTA layout (an
-/// `Expanded(SingleChildScrollView(...))` over a pinned offer) so the buy button
+/// `Expanded(SingleChildScrollView(...))` over a pinned offer) so the primary action
 /// never falls below the fold.
 ///
 /// One piece of selection state lives at the root: `yearSelected` (the 1-year
 /// plan is the default). Tapping a card moves the radio and re-targets the
-/// purchase inside the delivered blob.
+/// continue action inside the delivered blob.
 ///
 /// The discount story (the struck `$99.99 → $49.99`, the `Save 50%` badge, the
 /// `$4.17/month` equivalent) is authored as literal text so it stays internally
-/// consistent; the standalone 1-month price binds to the live monthly slot. The
-/// purchase is live-bound per plan via `paywallPurchase(slot:)`.
+/// consistent; the standalone 1-month price is illustrative display copy.
 @Paywall()
 class SentinelProtectionPaywall extends StatefulWidget {
   const SentinelProtectionPaywall({super.key});
@@ -333,7 +332,7 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
                         ),
                       ),
                       Text(
-                        '${paywallPriceFor(slot: 'monthly')}/month',
+                        r'$12.99/month',
                         style: const TextStyle(
                           color: Color(0xFF6B6B76),
                           fontSize: 16,
@@ -356,10 +355,11 @@ class _SentinelProtectionPaywallState extends State<SentinelProtectionPaywall> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Start subscription CTA — teal pill; purchases the selected plan.
+              // Start subscription CTA — teal pill.
               GestureDetector(
-                onTap: paywallPurchase(
-                  slot: yearSelected ? 'annual' : 'monthly',
+                onTap: paywallEvent(
+                  'continue',
+                  args: {'plan': yearSelected ? 'annual' : 'monthly'},
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),

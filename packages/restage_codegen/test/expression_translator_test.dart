@@ -42,40 +42,16 @@ final List<HelperDefinition> _testHelpers = [
       return 'event "$name" $body';
     },
   ),
-  HelperDefinition(
-    name: 'paywallPurchase',
-    libraryOrigin: _kTestLibraryOrigin,
-    returnCategory: HelperReturnCategory.voidCallback,
-    translate: (args) {
-      final slot = args.named['slot'];
-      final productId = args.named['productId'];
-      if ((slot == null) == (productId == null)) {
-        throw ArgumentError(
-          'paywallPurchase requires exactly one of slot: or productId:',
-        );
-      }
-      final body =
-          slot != null ? '{ slot: $slot }' : '{ productId: $productId }';
-      return 'event "restage.purchase" $body';
-    },
-  ),
-  _priceHelper(_kTestLibraryOrigin),
+  _hostTextHelper(_kTestLibraryOrigin),
 ];
 
-HelperDefinition _priceHelper(String libraryOrigin) => HelperDefinition(
-      name: 'paywallPriceFor',
+HelperDefinition _hostTextHelper(String libraryOrigin) => HelperDefinition(
+      name: 'hostText',
       libraryOrigin: libraryOrigin,
       returnCategory: HelperReturnCategory.string,
       translate: (args) {
-        final slot = args.named['slot'];
-        final productId = args.named['productId'];
-        if ((slot == null) == (productId == null)) {
-          throw ArgumentError(
-            'paywallPriceFor requires exactly one of slot: or productId:',
-          );
-        }
-        final id = _stripTestQuotes(slot ?? productId!);
-        return 'data.products.$id.localizedPrice';
+        final key = _stripTestQuotes(args.named['key']!);
+        return 'data.context.$key';
       },
     );
 
@@ -1142,8 +1118,8 @@ DropdownButton<String>(
     });
 
     // A single-select translator that ALSO knows a host-data helper, so an
-    // option `value:` can lower to a runtime reference (`paywallPriceFor(...)`
-    // → `data.products.<id>.localizedPrice`) rather than a folded string
+    // option `value:` can lower to a runtime reference (`hostText(...)`
+    // → `data.context.<key>`) rather than a folded string
     // literal. The duplicate-value gate must catch two IDENTICAL runtime refs
     // (not only string literals); two DISTINCT runtime refs are left to the
     // runtime de-dupe. The helper is registered under the `apps_examples`
@@ -1154,12 +1130,12 @@ DropdownButton<String>(
       helpers: HelperRegistry()
         ..registerAll([
           HelperDefinition(
-            name: 'paywallPriceFor',
+            name: 'hostText',
             libraryOrigin: 'package:apps_examples',
             returnCategory: HelperReturnCategory.string,
             translate: (args) {
-              final slot = _stripTestQuotes(args.named['slot']!);
-              return 'data.products.$slot.localizedPrice';
+              final key = _stripTestQuotes(args.named['key']!);
+              return 'data.context.$key';
             },
           ),
         ]),
@@ -1170,7 +1146,7 @@ DropdownButton<String>(
         '''
         import 'package:flutter/material.dart';
 
-        String paywallPriceFor({String? slot, String? productId}) => "";
+        String hostText({String? key}) => "";
         Object x() => $body;
         ''',
         rootPackage: 'apps_examples',
@@ -1182,7 +1158,7 @@ DropdownButton<String>(
         'two options with the SAME runtime-ref value defer (post-lower dup), '
         'named', () async {
       // Both options' `value:` lower to the IDENTICAL runtime ref
-      // `data.products.pro.localizedPrice`. The recogniser's raw-literal dup
+      // `data.context.pro`. The recogniser's raw-literal dup
       // check does not see them (they are not SimpleStringLiterals), and the
       // OLD emitter gate only deduped string literals — leaving this exact
       // duplicate to the compiled widget, which would silently de-dupe (drop)
@@ -1192,9 +1168,9 @@ DropdownButton<String>(
   value: 'pro',
   items: [
     DropdownMenuItem<String>(
-      value: paywallPriceFor(slot: "pro"), child: Text('Pro')),
+      value: hostText(key: "pro"), child: Text('Pro')),
     DropdownMenuItem<String>(
-      value: paywallPriceFor(slot: "pro"), child: Text('Pro 2')),
+      value: hostText(key: "pro"), child: Text('Pro 2')),
   ],
 )
 ''');
@@ -1213,24 +1189,22 @@ DropdownButton<String>(
         'two options with DISTINCT runtime-ref values still emit (not '
         'over-deferred)', () async {
       // The two `value:` expressions lower to DIFFERENT runtime refs
-      // (`data.products.pro...` vs `data.products.plus...`). Distinct DSL is
+      // (`data.context.pro` vs `data.context.plus`). Distinct DSL is
       // not a duplicate — the group emits both options; a genuine runtime
       // collision (if any) is the runtime's job, not a build-time defer.
       final r = await aliasWithHelpers('''
 DropdownButton<String>(
   items: [
     DropdownMenuItem<String>(
-      value: paywallPriceFor(slot: "pro"), child: Text('Pro')),
+      value: hostText(key: "pro"), child: Text('Pro')),
     DropdownMenuItem<String>(
-      value: paywallPriceFor(slot: "plus"), child: Text('Plus')),
+      value: hostText(key: "plus"), child: Text('Plus')),
   ],
 )
 ''');
       expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      const proItem =
-          '{ value: data.products.pro.localizedPrice, label: "Pro" }';
-      const plusItem =
-          '{ value: data.products.plus.localizedPrice, label: "Plus" }';
+      const proItem = '{ value: data.context.pro, label: "Pro" }';
+      const plusItem = '{ value: data.context.plus, label: "Plus" }';
       expect(
         r.dsl,
         'RestageDropdownString(items: [$proItem, $plusItem])',
@@ -3411,10 +3385,10 @@ Object x() => Column(
       helpers: HelperRegistry(),
     );
 
-    // Same catalog as `stateTranslator`, but with the build's paywall helpers
-    // registered — so a `paywallPurchase(...)` action helper is recognised
-    // exactly as the production build recognises it.
-    final purchaseTranslator = ExpressionTranslator(
+    // Same catalog as `stateTranslator`, with the production helper registry
+    // installed so withdrawn commerce authoring takes the normal rejection
+    // path.
+    final commerceTranslator = ExpressionTranslator(
       catalog: catalogWith([
         entry(
           name: 'GestureDetector',
@@ -3427,16 +3401,13 @@ Object x() => Column(
       helpers: HelperRegistry()..registerAll(paywallHelpers),
     );
 
-    test(
-        'a state-conditional paywallPurchase slot lowers to a switch INSIDE '
-        'the purchase event — the fired slot follows state, never a frozen '
-        'literal', () async {
+    test('a state-conditional paywallPurchase call is rejected', () async {
       final expr = await parseExpressionForTest(
         'GestureDetector(onTap: '
         "paywallPurchase(slot: annual ? 'annual' : 'monthly'))",
       );
 
-      final result = purchaseTranslator.translate(
+      final result = commerceTranslator.translate(
         expr,
         rootState: [
           const CustomWidgetStateField(
@@ -3447,13 +3418,13 @@ Object x() => Column(
         ],
       );
 
-      expect(result.issues, isEmpty);
+      expect(
+        result.issues.map((issue) => issue.code),
+        [IssueCode.unsupportedCommerceAuthoring],
+      );
       expect(
         result.dsl,
-        contains(
-          'onTap: event "restage.purchase" '
-          '{ slot: switch state.annual { true: "annual", false: "monthly" } }',
-        ),
+        isNot(contains('restage.purchase')),
       );
     });
 
@@ -3585,42 +3556,25 @@ Object x() => Column(
       helpers: HelperRegistry()..registerAll(_testHelpers),
     );
 
-    test('paywallEvent("restore") → event "restore" {}', () async {
-      // The stub declaration ensures the analyzer resolves the call to
-      // `package:restage_codegen/lib/_expr_probe.dart`.
-      const source = '''
-        void paywallEvent(String name, {Object? args}) {}
-        Object x() => paywallEvent("restore");
-      ''';
-      final expr = await parseExpressionFromSourceForTest(source);
+    test('paywallEvent("restore") is rejected', () async {
+      final expr = await parseExpressionForTest('paywallEvent("restore")');
       final r = tHelpers.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'event "restore" {}');
+      expect(
+        r.issues.map((issue) => issue.code),
+        [IssueCode.unsupportedCommerceAuthoring],
+      );
+      expect(r.dsl, isEmpty);
     });
 
-    test(
-        'paywallPurchase(slot: "pro") → event "restage.purchase" { slot: ... }',
-        () async {
+    test('hostText(key: "basic") → data.context.basic', () async {
       const source = '''
-        void paywallPurchase({String? slot, String? productId}) {}
-        Object x() => paywallPurchase(slot: "pro");
+        String hostText({String? key}) => "";
+        Object x() => hostText(key: "basic");
       ''';
       final expr = await parseExpressionFromSourceForTest(source);
       final r = tHelpers.translate(expr);
       expect(r.issues, isEmpty);
-      expect(r.dsl, 'event "restage.purchase" { slot: "pro" }');
-    });
-
-    test('paywallPriceFor(slot: "basic") → data.products.basic.localizedPrice',
-        () async {
-      const source = '''
-        String paywallPriceFor({String? slot, String? productId}) => "";
-        Object x() => paywallPriceFor(slot: "basic");
-      ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = tHelpers.translate(expr);
-      expect(r.issues, isEmpty);
-      expect(r.dsl, 'data.products.basic.localizedPrice');
+      expect(r.dsl, 'data.context.basic');
     });
 
     test('unregistered free function falls through to catalog lookup',
@@ -3633,23 +3587,6 @@ Object x() => Column(
       expect(
         r.issues.map((i) => i.code),
         contains(IssueCode.unknownWidget),
-      );
-    });
-
-    test(
-        'paywallPurchase with both slot: and productId: surfaces as '
-        'unrecognizedMethodCall', () async {
-      // Both slot and productId provided → translate() throws ArgumentError.
-      // Confirm the catch path surfaces an Issue rather than propagating.
-      const source = '''
-        void paywallPurchase({String? slot, String? productId}) {}
-        Object x() => paywallPurchase(slot: "a", productId: "b");
-      ''';
-      final expr = await parseExpressionFromSourceForTest(source);
-      final r = tHelpers.translate(expr);
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unrecognizedMethodCall),
       );
     });
 
@@ -3723,7 +3660,7 @@ Object x() => surfaceEvent(Probe.next);
       helpers: HelperRegistry()
         ..registerAll([
           ..._testHelpers,
-          _priceHelper('package:apps_examples'),
+          _hostTextHelper('package:apps_examples'),
         ]),
     );
     const trialLabel = CustomWidgetStateField(
@@ -3764,8 +3701,7 @@ Object x() => surfaceEvent(Probe.next);
       // paywallEvent returns voidCallback, not a String — must be rejected.
       const source = r'''
         void paywallEvent(String name, {Object? args}) {}
-        String paywallPriceFor({String? slot, String? productId}) => "";
-        Object x() => Text(text: 'action: ${paywallEvent("restore")}');
+        Object x() => Text(text: 'action: ${paywallEvent("continue")}');
       ''';
       final expr = await parseExpressionFromSourceForTest(source);
       final r = tInterp.translate(expr);
@@ -3775,22 +3711,22 @@ Object x() => surfaceEvent(Probe.next);
       );
     });
 
-    test('pure single paywallPriceFor in Text drops sentinel', () async {
+    test('pure single hostText in Text drops sentinel', () async {
       const source = r'''
-        String paywallPriceFor({String? slot, String? productId}) => "";
-        Object x() => Text(text: '${paywallPriceFor(slot: "pro")}');
+        String hostText({String? key}) => "";
+        Object x() => Text(text: '${hostText(key: "pro")}');
       ''';
       final expr = await parseExpressionFromSourceForTest(source);
       final r = tInterp.translate(expr);
       expect(r.issues, isEmpty);
-      expect(r.dsl, 'Text(text: data.products.pro.localizedPrice)');
+      expect(r.dsl, 'Text(text: data.context.pro)');
     });
 
     test('interpolation with literal segments lowers to TextRich spans',
         () async {
       const source = r'''
-        String paywallPriceFor({String? slot, String? productId}) => "";
-        Object x() => Text(text: 'Only ${paywallPriceFor(slot: "pro")}/mo');
+        String hostText({String? key}) => "";
+        Object x() => Text(text: 'Only ${hostText(key: "pro")}/mo');
       ''';
       final expr = await parseExpressionFromSourceForTest(source);
       final r = tInterp.translate(expr);
@@ -3798,11 +3734,11 @@ Object x() => surfaceEvent(Probe.next);
       expect(
         r.dsl,
         'TextRich(textSpan: { children: [{ text: "Only " }, '
-        '{ text: data.products.pro.localizedPrice }, { text: "/mo" }] })',
+        '{ text: data.context.pro }, { text: "/mo" }] })',
       );
     });
 
-    test('styled interpolated price string carries Text props to TextRich',
+    test('styled interpolated host text carries Text props to TextRich',
         () async {
       const source = r'''
         import 'package:flutter/painting.dart' show Color, FontWeight;
@@ -3818,9 +3754,9 @@ Object x() => surfaceEvent(Probe.next);
           final double? fontSize;
           final FontWeight? fontWeight;
         }
-        String paywallPriceFor({String? slot, String? productId}) => "";
+        String hostText({String? key}) => "";
         Object x() => Text(
-          text: 'Only ${paywallPriceFor(slot: "ent")}/month',
+          text: 'Only ${hostText(key: "ent")}/month',
           color: Color(0xFF111111),
           fontSize: 18.0,
           fontWeight: FontWeight.w700,
@@ -3835,7 +3771,7 @@ Object x() => surfaceEvent(Probe.next);
       expect(
         r.dsl,
         'TextRich(textSpan: { children: [{ text: "Only " }, '
-        '{ text: data.products.ent.localizedPrice }, { text: "/month" }] }, '
+        '{ text: data.context.ent }, { text: "/month" }] }, '
         'color: 0xFF111111, fontSize: 18.0, fontWeight: "w700")',
       );
     });
@@ -3856,9 +3792,9 @@ Object x() => surfaceEvent(Probe.next);
     test('interpolated Text with uncarried prop defers whole rewrite',
         () async {
       const source = r'''
-        String paywallPriceFor({String? slot, String? productId}) => "";
+        String hostText({String? key}) => "";
         Object x() => Text(
-          text: 'Only ${paywallPriceFor(slot: "pro")}/mo',
+          text: 'Only ${hostText(key: "pro")}/mo',
           semanticsLabel: 'price',
         );
       ''';
@@ -3877,9 +3813,9 @@ Object x() => surfaceEvent(Probe.next);
 
     test('single helper interpolation keeps plain Text fast path', () async {
       const source = r'''
-        String paywallPriceFor({String? slot, String? productId}) => "";
+        String hostText({String? key}) => "";
         Object x() => Text(
-          text: '${paywallPriceFor(slot: "ent")}',
+          text: '${hostText(key: "ent")}',
           fontSize: 18.0,
         );
       ''';
@@ -3888,7 +3824,7 @@ Object x() => surfaceEvent(Probe.next);
       expect(r.issues, isEmpty);
       expect(
         r.dsl,
-        'Text(text: data.products.ent.localizedPrice, fontSize: 18.0)',
+        'Text(text: data.context.ent, fontSize: 18.0)',
       );
     });
   });
@@ -3899,7 +3835,7 @@ Object x() => surfaceEvent(Probe.next);
       helpers: HelperRegistry()
         ..registerAll([
           ..._testHelpers,
-          _priceHelper('package:apps_examples'),
+          _hostTextHelper('package:apps_examples'),
         ]),
     );
     const annualBilling = CustomWidgetStateField(
@@ -3908,19 +3844,20 @@ Object x() => surfaceEvent(Probe.next);
       initialValue: true,
     );
 
-    test('Notion price row emits a structured inlineSpan tree', () async {
+    test('Text.rich host-data span emits a structured inlineSpan tree',
+        () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
         import 'package:flutter/material.dart';
-        String paywallPriceFor({String? slot, String? productId}) => '';
+        String hostText({String? key}) => '';
         bool annualBilling = true;
         Object x() =>
         Text.rich(
           TextSpan(
             children: [
               TextSpan(
-                text: paywallPriceFor(
-                  slot: annualBilling ? 'plus_annual' : 'plus_monthly',
+                text: hostText(
+                  key: annualBilling ? 'plus_annual' : 'plus_monthly',
                 ),
                 style: const TextStyle(
                   color: Color(0xFF191918),
@@ -3951,8 +3888,8 @@ Object x() => surfaceEvent(Probe.next);
       expect(
         r.dsl,
         'TextRich(textSpan: { children: [{ text: switch state.annualBilling '
-        '{ true: data.products.plus_annual.localizedPrice, '
-        'false: data.products.plus_monthly.localizedPrice }, '
+        '{ true: data.context.plus_annual, '
+        'false: data.context.plus_monthly }, '
         'style: { color: 0xFF191918, fontSize: 24.0, '
         'fontWeight: "w700" } }, { text: "  per member / month", '
         'style: { color: 0xFF787774, fontSize: 13.0 } }] })',

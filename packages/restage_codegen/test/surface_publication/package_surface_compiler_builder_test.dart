@@ -1521,12 +1521,16 @@ import 'package:restage/restage.dart';
 final class PremiumOffer extends StatelessWidget {
   const PremiumOffer({super.key});
 
+  static const complete = SurfaceEvent<void>('complete');
+
   @override
   Widget build(BuildContext context) => const Text('Premium offer');
 }
 ''';
     const flow = '''
 import 'package:restage/restage.dart';
+
+import '../arbitrary/commerce/premium_offer.dart';
 
 part 'restage.generated/offer_gate.restage.g.dart';
 
@@ -1541,7 +1545,7 @@ final class OfferGate extends RestageFlow {
       initial: paywallScreen('premium_offer'),
       states: [
         screen(paywallScreen('premium_offer'))
-            .on(PaywallFlowEvents.purchase)
+            .on(PremiumOffer.complete)
             .goTo(done),
         end(done, result: {}),
       ],

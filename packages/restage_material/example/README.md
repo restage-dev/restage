@@ -13,22 +13,18 @@ step lowers it against the catalog into an inert render blob.
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@Paywall(id: 'pro')
-final class ProSurface extends StatelessWidget {
-  const ProSurface({super.key});
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Go Pro'),
-          FilledButton(
-            onPressed: paywallPurchase(slot: 'annual'),
-            child: const Text('Start free trial'),
-          ),
-        ],
+    return Scaffold(
+      appBar: AppBar(title: const Text('Welcome')),
+      body: const Center(
+        child: Text('A simple Material surface.'),
       ),
     );
   }
@@ -46,10 +42,10 @@ The generated manifest at
 and exact artifact closure. Publish by surface id:
 
 ```sh
-restage surface publish pro
+restage surface publish welcome
 ```
 
-The same widgets compose any surface: paywalls, onboarding, messages, or
-surveys. See the [package README](../README.md) for the full widget set, and
+The same widgets compose any surface: onboarding, messages, surveys, or
+screens. See the [package README](../README.md) for the full widget set, and
 [`apps/examples`](https://github.com/restage-dev/restage/tree/main/apps/examples)
 for complete, runnable surfaces.

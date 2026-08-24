@@ -15,16 +15,10 @@ void main() {
       expect(h.returnCategory, HelperReturnCategory.voidCallback);
     });
 
-    test('recognizes paywallPurchase', () {
-      final h = registry.find('paywallPurchase', 'package:restage');
-      expect(h, isNotNull);
-      expect(h!.returnCategory, HelperReturnCategory.voidCallback);
-    });
-
-    test('recognizes paywallPriceFor as String-returning', () {
-      final h = registry.find('paywallPriceFor', 'package:restage');
-      expect(h, isNotNull);
-      expect(h!.returnCategory, HelperReturnCategory.string);
+    test('does not register withdrawn commerce helpers', () {
+      for (final name in const ['paywallPurchase', 'paywallPriceFor']) {
+        expect(registry.find(name, 'package:restage'), isNull, reason: name);
+      }
     });
 
     test('returns null for unrecognized name', () {
@@ -70,11 +64,11 @@ void main() {
       final h = paywallHelpers.firstWhere((d) => d.name == 'paywallEvent');
       final out = h.translate(
         const HelperCallArgs(
-          positional: ['"restore"'],
+          positional: ['"continue"'],
           named: {},
         ),
       );
-      expect(out, 'event "restore" {}');
+      expect(out, 'event "continue" {}');
     });
 
     test('paywallEvent with args', () {
@@ -86,70 +80,6 @@ void main() {
         ),
       );
       expect(out, 'event "foo" { k: 1 }');
-    });
-
-    test('paywallPurchase(slot:) → restage.purchase event', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallPurchase');
-      final out = h.translate(
-        const HelperCallArgs(
-          positional: [],
-          named: {'slot': '"primary"'},
-        ),
-      );
-      expect(out, 'event "restage.purchase" { slot: "primary" }');
-    });
-
-    test('paywallPurchase(productId:)', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallPurchase');
-      final out = h.translate(
-        const HelperCallArgs(
-          positional: [],
-          named: {'productId': '"sku.foo"'},
-        ),
-      );
-      expect(out, 'event "restage.purchase" { productId: "sku.foo" }');
-    });
-
-    test('paywallPurchase rejects neither/both slot+productId', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallPurchase');
-      expect(
-        () => h.translate(const HelperCallArgs(positional: [], named: {})),
-        throwsArgumentError,
-      );
-      expect(
-        () => h.translate(
-          const HelperCallArgs(
-            positional: [],
-            named: {'slot': '"a"', 'productId': '"b"'},
-          ),
-        ),
-        throwsArgumentError,
-      );
-    });
-
-    test('paywallPriceFor(slot:) → data.products.<slot>.localizedPrice', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallPriceFor');
-      final out = h.translate(
-        const HelperCallArgs(
-          positional: [],
-          named: {'slot': '"primary"'},
-        ),
-      );
-      expect(out, 'data.products.primary.localizedPrice');
-    });
-
-    test('paywallPriceFor(productId:) → data.products.<id>.localizedPrice', () {
-      final h = paywallHelpers.firstWhere((d) => d.name == 'paywallPriceFor');
-      final out = h.translate(
-        const HelperCallArgs(
-          positional: [],
-          named: {'productId': '"sku.foo"'},
-        ),
-      );
-      // A dotted id is quoted so it stays a single reference part; bare, the
-      // parser would split it at the dot. Shape coverage for every id form
-      // lives in `paywall_price_id_quoting_test.dart`.
-      expect(out, 'data.products."sku.foo".localizedPrice');
     });
   });
 

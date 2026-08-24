@@ -13,9 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // A fast-failing entitlement endpoint (no DNS) — the analytics POST is
-  // intercepted by the injected MockClient, so only the (best-effort, fail-safe)
-  // entitlement sync touches this and harmlessly returns null.
+  // A fast-failing host: the analytics POST is intercepted by the injected
+  // MockClient.
   const baseUrl = 'http://127.0.0.1:1';
 
   setUp(() {
@@ -58,9 +57,7 @@ void main() {
 
   test('a fired paywall event posts a mapped envelope to ingest', () async {
     final events = await firedEvents(() {
-      Restage.fireEvent(
-        const PaywallViewed(paywallId: 'pw-1', productIds: ['product-1']),
-      );
+      Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
     });
     expect(events, hasLength(1));
     final envelope = events.single! as Map<String, Object?>;
@@ -153,9 +150,7 @@ void main() {
     });
     Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
 
-    Restage.fireEvent(
-      const PaywallViewed(paywallId: 'pw-1', productIds: []),
-    );
+    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
     await pumpEventQueue();
 
     expect(captured, isNotNull);
@@ -193,9 +188,7 @@ void main() {
     });
     Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
 
-    Restage.fireEvent(
-      const PaywallViewed(paywallId: 'pw-1', productIds: []),
-    );
+    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
     await pumpEventQueue();
 
     expect(calls, 1);
@@ -234,9 +227,7 @@ void main() {
       fail('analytics must not POST when no baseUrl is configured');
     });
     Restage.configure(apiKey: 'rs_pk_test');
-    Restage.fireEvent(
-      const PaywallViewed(paywallId: 'pw-1', productIds: []),
-    );
+    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
     await pumpEventQueue();
     await Restage.debugFlushAnalytics();
   });
@@ -250,9 +241,7 @@ void main() {
       baseUrl: baseUrl,
       analyticsEnabled: false,
     );
-    Restage.fireEvent(
-      const PaywallViewed(paywallId: 'pw-1', productIds: []),
-    );
+    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
     await pumpEventQueue();
     await Restage.debugFlushAnalytics();
   });
@@ -479,19 +468,17 @@ void main() {
     Restage.reset();
     deferred.runWithEventContext(() {
       Restage.fireEvent(
-        const PurchaseSucceeded(
+        const PaywallDismissed(
           paywallId: 'upgrade',
-          productId: 'premium',
-          transactionId: 'txn-1',
-          priceMicros: 9990000,
-          currency: 'USD',
+          reason: DismissReason.userClose,
+          timeOnPaywall: Duration(seconds: 1),
         ),
       );
     });
 
     final events = await capturedEvents(requests);
     final envelope = events.singleWhere(
-      (event) => event['name'] == 'purchase_succeeded',
+      (event) => event['name'] == 'paywall_dismissed',
     );
     expect(envelope['surface'], 'paywall');
     expect(envelope['surfaceId'], 'upgrade');
@@ -570,19 +557,17 @@ void main() {
 
       deferred.runWithEventContext(() {
         Restage.fireEvent(
-          const PurchaseSucceeded(
+          const PaywallDismissed(
             paywallId: 'upgrade',
-            productId: 'premium',
-            transactionId: 'txn-retired',
-            priceMicros: 9990000,
-            currency: 'USD',
+            reason: DismissReason.userClose,
+            timeOnPaywall: Duration(seconds: 1),
           ),
         );
       });
 
       final events = await capturedEvents(requests);
       final envelope = events.singleWhere(
-        (event) => event['name'] == 'purchase_succeeded',
+        (event) => event['name'] == 'paywall_dismissed',
       );
       expect(envelope['surface'], 'paywall');
       expect(envelope['surfaceId'], 'upgrade');

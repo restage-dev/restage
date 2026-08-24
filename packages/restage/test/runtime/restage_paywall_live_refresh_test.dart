@@ -362,30 +362,39 @@ void main() {
     expect(find.text('B'), findsNothing);
   });
 
-  testWidgets('a purchase in flight blocks the swap', (tester) async {
-    final gate = Completer<PurchaseOutcome>();
-    Restage.configure(
-      apiKey: 'pk',
-      products: const [
-        RestageProduct(id: 'pro', slot: 'primary', entitlement: 'pro'),
-      ],
-      billingGateway: _CompleterGateway(gate),
+  for (final name in const <String>['purchase', 'restage.purchase']) {
+    testWidgets(
+      'a reserved raw "$name" event does not reach host callbacks or mark a '
+      'paywall as interacted',
+      (tester) async {
+        var hostCallbackCount = 0;
+        final resolver = _MutableResolver(_tappableBlob('A', name), version: 1);
+        await _pump(
+          tester,
+          RestagePaywall(
+            id: 'p',
+            resolver: resolver,
+            onEvent: (_) => hostCallbackCount += 1,
+          ),
+        );
+        hostCallbackCount = 0;
+
+        await tester.tap(find.text('A'));
+        await tester.pumpAndSettle();
+
+        expect(hostCallbackCount, 0, reason: name);
+
+        resolver
+          ..bytes = _tappableBlob('B', 'poke')
+          ..version = 2;
+        await Restage.reloadSurfaces();
+        await tester.pumpAndSettle();
+
+        expect(find.text('B'), findsOneWidget);
+        expect(find.text('A'), findsNothing);
+      },
     );
-    final resolver = _MutableResolver(_buyBlob('A'), version: 1);
-    await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
-    await tester.tap(find.text('A'));
-    await tester.pump(); // purchase now in flight (future unresolved)
-
-    resolver
-      ..bytes = _buyBlob('B')
-      ..version = 2;
-    await Restage.reloadSurfaces();
-    await tester.pump();
-    expect(find.text('A'), findsOneWidget); // blocked while billing in flight
-
-    gate.complete(PurchaseOutcome.cancelled(productId: 'pro'));
-    await tester.pumpAndSettle();
-  });
+  }
 
   testWidgets('an experiment-assigned render never live-swaps', (tester) async {
     final resolver =
@@ -947,7 +956,7 @@ void main() {
           stampCalls++;
           return http.Response('{"version":7}', 200);
         }
-        return http.Response('{"entitlements":[]}', 200);
+        return http.Response('', 404);
       }),
     );
     await _pump(tester, const RestagePaywall(id: 'p'));
@@ -978,7 +987,7 @@ void main() {
           stampCalls++;
           return http.Response('{"version":$stampVersion}', 200);
         }
-        return http.Response('{"entitlements":[]}', 200);
+        return http.Response('', 404);
       }),
     );
     await _pump(tester, const RestagePaywall(id: 'p'));
@@ -1032,18 +1041,6 @@ void main() {
     expect(find.text('A'), findsOneWidget);
     expect(find.text('B'), findsNothing);
   });
-}
-
-Uint8List _buyBlob(String text) {
-  final source = '''
-    import restage.core;
-    import restage.material;
-    widget Paywall = ElevatedButton(
-      onPressed: event 'restage.purchase' { slot: "primary" },
-      child: Text(text: "$text"),
-    );
-  ''';
-  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
 
 /// A flow whose document is valid but whose entry-screen bytes don't match the
@@ -1296,15 +1293,3 @@ List<Map<String, Object?>> _canonicalEvents(
   List<Map<String, Object?>> events,
 ) =>
     events.where((event) => event['name'] == 'surface_presented').toList();
-
-class _CompleterGateway implements BillingGateway {
-  _CompleterGateway(this._gate);
-  final Completer<PurchaseOutcome> _gate;
-
-  @override
-  Future<PurchaseOutcome> purchase(String productId, {String? basePlanId}) =>
-      _gate.future;
-
-  @override
-  Future<RestoreOutcome> restore() async => RestoreOutcome.noPurchases();
-}

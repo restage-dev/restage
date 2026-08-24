@@ -619,3 +619,12 @@
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0456","kind":"alloc","name":"analyticsId","owner":"w0037","source":"package:flutter/src/material/tabs.dart#Tab.analyticsId","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0457","kind":"alloc","name":"analyticsId","owner":"w0038","source":"package:flutter/src/material/text_field.dart#TextField.analyticsId","type":"property"}
 {"at":"2026-05-14T00:00:00.000Z","by":"curation-build-allocator","id":"p0458","kind":"alloc","name":"analyticsId","owner":"w0039","source":"package:flutter/src/material/tooltip.dart#Tooltip.analyticsId","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"w0015","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"widget"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0070","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0071","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0072","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0428","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"w0029","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"widget"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0136","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0137","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}
+{"at":"2026-08-23T00:00:00.000Z","by":"restage-catalog","id":"p0448","kind":"deprecate","reason":"Withdrawn from the public widget catalog.","type":"property"}

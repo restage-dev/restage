@@ -131,15 +131,15 @@ void main() {
   });
 
   test('a content-only screen change is accepted', () {
-    Uint8List purchaseScreen(String label) => Uint8List.fromList(
+    Uint8List reservedCommerceEventScreen(String label) => Uint8List.fromList(
           encodeLibraryBlob(parseLibraryFile(
             "import restage.core; widget OnboardingScreen = GestureDetector("
             "onTap: event 'restage.purchase' { slot: \"primary\" }, "
             'child: Text(text: "$label"));',
           )),
         );
-    final bundledScreen = purchaseScreen('Subscribe');
-    final activeScreen = purchaseScreen('Subscribe now');
+    final bundledScreen = reservedCommerceEventScreen('Subscribe');
+    final activeScreen = reservedCommerceEventScreen('Subscribe now');
     final bundled = _bundled(_flowDoc(bundledScreen), bundledScreen);
     final active = _active(_flowDoc(activeScreen), activeScreen);
     expect(_resolve(active, bundled), isA<FlowPaywallActiveAccepted>());
@@ -152,14 +152,11 @@ void main() {
     expect(_resolve(active, bundled), isA<FlowPaywallActiveRejected>());
   });
 
-  test('a purchase -> nav rewrite in a content OTA is ACCEPTED (blob parity)',
+  test('a reserved-commerce-event -> nav rewrite is ACCEPTED (blob parity)',
       () {
-    // The active screen blob rewires the Subscribe control from purchase to
-    // nav. This is NOT gated at delivery — parity with the blob-OTA path: a
-    // rewired control simply doesn't charge (entitlement is granted only on a
-    // real purchase success), exactly like a customer content bug in a bundled
-    // paywall. The runtime charge/entitlement invariant is proven separately
-    // (restage_variant_resolver_test.dart / the entitlement-backstop test).
+    // The active screen blob rewires the Subscribe control from the reserved
+    // commerce event to navigation. This is not gated at delivery, matching
+    // the blob-OTA path: delivered content controls which event fires.
     final bundledScreen = _screen('restage.purchase');
     final activeScreen = _screen('restageNav0');
     final bundled = _bundled(_flowDoc(bundledScreen), bundledScreen);
@@ -199,49 +196,63 @@ void main() {
   // check-specific reject reason. If ServerFlowResolver's retained-check set
   // changes, RE-CENSUS here.
   group('retained-check census — parity with ServerFlowResolver', () {
-    final purchase = _screen('restage.purchase');
-    BundledFlowArtifacts okBundled() => _bundled(_flowDoc(purchase), purchase);
+    final reservedCommerceEventScreen = _screen('restage.purchase');
+    BundledFlowArtifacts okBundled() => _bundled(
+          _flowDoc(reservedCommerceEventScreen),
+          reservedCommerceEventScreen,
+        );
 
     test('compatibility/flow-id mismatch rejects (flow_mismatch)', () {
-      final active = _active(_flowDoc(purchase, flowId: 'other'), purchase);
+      final active = _active(
+        _flowDoc(reservedCommerceEventScreen, flowId: 'other'),
+        reservedCommerceEventScreen,
+      );
       expect(_reason(_resolve(active, okBundled())), 'flow_mismatch');
     });
 
     test('schemaVersion 2 falls back when the bundled contract is version 1',
         () {
-      final active = _active(_flowDoc(purchase, schemaVersion: 2), purchase);
+      final active = _active(
+        _flowDoc(reservedCommerceEventScreen, schemaVersion: 2),
+        reservedCommerceEventScreen,
+      );
       expect(_reason(_resolve(active, okBundled())), 'render_gate');
     });
 
     test('schemaVersion 2 accepts a matching bundled contract', () {
-      final document = _flowDoc(purchase, schemaVersion: 2);
-      final active = _active(document, purchase);
+      final document = _flowDoc(reservedCommerceEventScreen, schemaVersion: 2);
+      final active = _active(document, reservedCommerceEventScreen);
 
       expect(
-        _resolve(active, _bundled(document, purchase)),
+        _resolve(active, _bundled(document, reservedCommerceEventScreen)),
         isA<FlowPaywallActiveAccepted>(),
       );
     });
 
     test('compatibility/doc floor rejects (unsupported_min_client)', () {
-      final active =
-          _active(_flowDoc(purchase, minClient: _installed + 1), purchase);
+      final active = _active(
+        _flowDoc(reservedCommerceEventScreen, minClient: _installed + 1),
+        reservedCommerceEventScreen,
+      );
       expect(_reason(_resolve(active, okBundled())), 'unsupported_min_client');
     });
 
     test('compatibility/per-artifact floor rejects (unsupported_min_client)',
         () {
       final active = _active(
-        _flowDoc(purchase, artifactMinClient: _installed + 1),
-        purchase,
+        _flowDoc(
+          reservedCommerceEventScreen,
+          artifactMinClient: _installed + 1,
+        ),
+        reservedCommerceEventScreen,
       );
       expect(_reason(_resolve(active, okBundled())), 'unsupported_min_client');
     });
 
     test('requiredLibraries rejects (unsupported_required_library)', () {
       final active = _active(
-        _flowDoc(purchase),
-        purchase,
+        _flowDoc(reservedCommerceEventScreen),
+        reservedCommerceEventScreen,
         requiredLibraries: const [
           LibraryRequirement(namespace: 'com.acme.widgets', minVersion: 1),
         ],
@@ -263,7 +274,10 @@ void main() {
       // active-flow path likewise does not unit-test _checkValidation
       // directly).
       expect(
-        () => _active(_flowDoc(purchase, danglingTarget: true), purchase),
+        () => _active(
+          _flowDoc(reservedCommerceEventScreen, danglingTarget: true),
+          reservedCommerceEventScreen,
+        ),
         throwsA(anything),
       );
     });

@@ -6,8 +6,8 @@
     {
       "path": "assets/onboarding/flows/hs_onboarding.flow.json",
       "kind": "canonical-flow-json",
-      "byteLength": 2551,
-      "sha256": "sha256:ea74aeebc2d4bf5fb6516a2b7c9b8d7b26c6cf1ca54c3689f3e221e2ccd783b7"
+      "byteLength": 2548,
+      "sha256": "sha256:bf653ad1528a19b0600a830d72834c8437956c71cff1521d92bf5c9e5ce91600"
     },
     {
       "path": "assets/onboarding/screens/hs_experience.capability.json",
@@ -103,31 +103,31 @@
       "path": "assets/paywalls/headspace_premium.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:2c1dcc70e2c94a5d9a19239af08eda81e363a0cede54552131091452f3e711e9"
+      "sha256": "sha256:551303b2be356c625bc3965ae6849df8ce5b3c6ad0c55695fb143514bacf293a"
     },
     {
       "path": "assets/paywalls/headspace_premium.rfw",
       "kind": "rfw-binary",
-      "byteLength": 8266,
-      "sha256": "sha256:fdd12f83bfda99a42a47aa6770ec87a6801550211c740f53cdd372fc5f7e66ea"
+      "byteLength": 7494,
+      "sha256": "sha256:67065f8926cdf14b62a57a9af71c412d5485463b9d45cecd550623a7b5fbddac"
     },
     {
       "path": "assets/paywalls/headspace_premium.rfwtxt",
       "kind": "rfw-text",
-      "byteLength": 5047,
-      "sha256": "sha256:870f5ebf464e74f6f58c063f913f6434c56886761a125e10204592d40a2bfbe1"
+      "byteLength": 4610,
+      "sha256": "sha256:e0b035130bd787cf0be91b44ce67acfbf15231bd552c45c29eaa3571f90b4f9c"
     },
     {
       "path": "assets/paywalls/screens/paywall_headspace_premium.capability.json",
       "kind": "capability-sidecar",
       "byteLength": 165,
-      "sha256": "sha256:d0d7382fdc7ce181b67682c82cb06554aa53bc0624c1e24e1b5e964f2cd76100"
+      "sha256": "sha256:294a6ad2c1ee62d38b87ede6da652bee3324a1d7a29fecd9369fdba93c71f449"
     },
     {
       "path": "assets/paywalls/screens/paywall_headspace_premium.rfw",
       "kind": "rfw-binary",
-      "byteLength": 8275,
-      "sha256": "sha256:05a29357685cc45c55ddc7bcbf946b786898e896cb9bc7d31289a8fde58576da"
+      "byteLength": 7503,
+      "sha256": "sha256:e0c88d4fb09cb5c8aa57bcc0043634ccb6769196742c7de40edec1379ed93dbc"
     },
     {
       "path": "lib/onboarding/flows/hs_onboarding.rsflow.g.dart",

@@ -77,7 +77,6 @@ const Map<String, String> _curatedMinimalRfwSource = <String, String>{
   'Chip': 'Chip(label: Text(text: "smoke"))',
   'ChoiceChip': 'ChoiceChip(label: Text(text: "smoke"), selected: false)',
   'ElevatedButton': 'ElevatedButton(child: Text(text: "smoke"))',
-  'ExpressCheckoutButton': 'ExpressCheckoutButton()',
   'ExpansionTile': 'ExpansionTile(title: Text(text: "smoke"))',
   'FilledButton': 'FilledButton(child: Text(text: "smoke"))',
   'FilledButtonTonal': 'FilledButtonTonal(child: Text(text: "smoke"))',
@@ -137,7 +136,6 @@ const Map<String, String> _curatedMinimalRfwSource = <String, String>{
   'OutlinedButton': 'OutlinedButton(child: Text(text: "smoke"))',
   'OutlinedButtonIcon': 'OutlinedButtonIcon(icon: Icon(iconCodepoint: 0xe87d), '
       'label: Text(text: "smoke"))',
-  'Package': 'Package(slot: "primary", child: Text(text: "smoke"))',
   // Scrollbar's Stack-based layout asks for unbounded space; wrap in a
   // finite-sized SizedBox and give the inner child finite dims too.
   'Scrollbar': 'SizedBox(width: 100.0, height: 50.0, '
@@ -207,8 +205,6 @@ Type _flutterTypeFor(String entryName) {
       return ElevatedButton;
     case 'ExpansionTile':
       return ExpansionTile;
-    case 'ExpressCheckoutButton':
-      return ExpressCheckoutButton;
     case 'FilledButton':
     case 'FilledButtonTonal':
       return FilledButton;
@@ -245,8 +241,6 @@ Type _flutterTypeFor(String entryName) {
     case 'OutlinedButton':
     case 'OutlinedButtonIcon':
       return OutlinedButton;
-    case 'Package':
-      return Package;
     case 'Scaffold':
       return Scaffold;
     case 'Scrollbar':

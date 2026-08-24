@@ -60,10 +60,7 @@ class ProUpgradePaywall extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('Go Pro', style: Theme.of(context).textTheme.headlineMedium),
-          FilledButton(
-            onPressed: paywallPurchase(slot: 'annual'),
-            child: const Text('Start free trial'),
-          ),
+          const Text('Choose the plan that fits your needs.'),
         ],
       );
 }
@@ -79,14 +76,7 @@ Render it anywhere in your app. The SDK loads the compiled artifact and draws
 it as real Flutter widgets:
 
 ```dart
-RestagePaywall(
-  id: 'pro_upgrade',
-  onEvent: (event) {
-    if (event case PurchaseSucceeded()) {
-      // unlock Pro
-    }
-  },
-)
+RestagePaywall(id: 'pro_upgrade')
 ```
 
 Change the widget, rebuild, and the surface updates. Publish it with
@@ -102,8 +92,8 @@ One host widget per surface kind:
   page, a notice, or a settings card. Mount it with
   `RestageScreen(screen: welcomeScreenRef, ...)` wherever it should appear;
   the build generates `welcomeScreenRef`, and taps come back as typed Dart events.
-- **Paywalls**: a `@Paywall` surface with products, purchase, and restore built
-  in. Mount it with `RestagePaywall(id: 'pro_upgrade', ...)`.
+- **Paywalls**: a `@Paywall` surface for upgrade or subscription content. Mount
+  it with `RestagePaywall(id: 'pro_upgrade', ...)`.
 - **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a survey,
   or a multi-step message. Mount it with
   `RestageFlowGraph(flow: firstRunFlowRef, ...)`; the build
@@ -111,6 +101,21 @@ One host widget per surface kind:
   for the full example, host actions, and data minimization, and
   [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
   for back and skip chrome.
+
+### Commerce
+
+`Restage.commerce` is the inert typed commerce seam. Using the facade with its
+typed request and result types requires both imports:
+
+```dart
+import 'package:restage/commerce.dart' as commerce;
+import 'package:restage/restage.dart' show Restage;
+```
+
+Commerce is inert in 2.0 and has no configuration hook. Any implementation
+requires explicit host opt-in; a package update alone never activates
+purchasing. Authored surfaces cannot initiate purchases or restores; explicit
+host-controlled code invokes the typed boundary.
 
 ### Delivery
 
@@ -126,12 +131,8 @@ fails, the SDK renders your bundled copy. For flows, `FlowUnavailablePolicy`
 is required, so a flow that can't run falls back or hides instead of running
 partway.
 
-Two more documents cover the rest of delivery:
-
-- [doc/live_refresh.md](doc/live_refresh.md): opt-in in-place updates for
-  surfaces that are already on screen.
-- [doc/bundled_native_purchases.md](doc/bundled_native_purchases.md): what the
-  bundled StoreKit and Google Play gateway needs and guarantees.
+See [doc/live_refresh.md](doc/live_refresh.md) for opt-in in-place updates to
+surfaces that are already on screen.
 
 ## Build
 
@@ -146,8 +147,8 @@ flutter build web --wasm --no-tree-shake-icons
 
 ## Telemetry and data
 
-Restage includes a conversion-analytics layer. It powers your dashboard, A/B
-results, and revenue attribution. It's built to be boring and honest:
+Restage includes a conversion-analytics layer for surface and experiment
+results. It's built to be boring and honest:
 
 - **It's off until you connect a backend.** Analytics activates only when you
   pass `baseUrl` to `Restage.configure(...)`. In local mode (no `baseUrl`) the
@@ -176,9 +177,9 @@ results, and revenue attribution. It's built to be boring and honest:
 **What each event contains:** a dedup id; the event name and a UTC timestamp;
 which surface it was, with its id, version, and session; the pseudonymous
 install id and an app-session id; an app context of `platform`, `locale`, SDK
-version, and optional app version or build; conversion dimensions (product,
-offer, variant, experiment) where they apply; and the event's own typed fields,
-after a scrub that keeps render and host context out of analytics.
+version, and optional app version or build; conversion dimensions (variant and
+experiment) where they apply; and the event's own typed fields, after a scrub
+that keeps render and host context out of analytics.
 
 **What it never collects:** advertising identifiers (IDFA/GAID), device
 fingerprints, location, contacts, or screen content. Beyond the fields listed
@@ -191,8 +192,8 @@ never throw into your app.
 
 **Turning it off:** run in local mode (omit `baseUrl`) for zero telemetry, or
 pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted
-delivery and entitlement sync and disable analytics. If you use the hosted
-service, surface fetches still include the metering token described below.
+delivery and disable analytics. If you use the hosted service, surface fetches
+still include the metering token described below.
 
 ### The metering token
 
@@ -213,16 +214,16 @@ count them. How it works:
   endpoint. If your `baseUrl` is your own backend, the token goes there, and
   your server is free to ignore the field.
 - **`analyticsEnabled: false` doesn't remove it.** That flag turns off
-  analytics. The metering token is how use of the hosted service is counted
-  for billing, so it stays as long as you fetch surfaces from the server. Run
-  without a `baseUrl` and the SDK sends nothing at all.
+analytics. The metering token is how use of the hosted service is counted,
+so it stays as long as you fetch surfaces from the server. Run without a
+`baseUrl` and the SDK sends nothing at all.
 
 If you need to describe it in your own privacy policy: a random per-install
 identifier, used only to count active users for billing, reset when the app is
 uninstalled. The implementation is in `lib/src/metering/` and it's short.
 
 All of this is BSD-3-Clause and readable: see `lib/src/analytics/` and
-`lib/src/billing/anonymous_token.dart`.
+`lib/src/metering/`.
 
 ### Linking a signed-in user
 

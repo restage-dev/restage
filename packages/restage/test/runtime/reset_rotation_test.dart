@@ -285,7 +285,7 @@ AnalyticsEvent _event(
   required String sessionId,
 }) =>
     mapRestageEventToEnvelope(
-      const PaywallViewed(paywallId: 'pricing', productIds: []),
+      const PaywallViewed(paywallId: 'pricing'),
       eventId: identity.newEventId(),
       anonymousId: anonymousId,
       sessionId: sessionId,
@@ -309,7 +309,7 @@ Future<AnalyticsEvent> _queuedEvent(
   final anonymousId =
       identity.cachedAnonymousId ?? await identity.anonymousId();
   return mapRestageEventToEnvelope(
-    const PaywallViewed(paywallId: 'pricing', productIds: []),
+    const PaywallViewed(paywallId: 'pricing'),
     eventId: eventId,
     anonymousId: anonymousId,
     sessionId: sessionId,

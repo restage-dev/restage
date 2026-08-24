@@ -7,10 +7,12 @@ part 'restage.generated/premium.restage.g.dart';
 final class PremiumPaywall extends StatelessWidget {
   const PremiumPaywall({super.key});
 
+  static const complete = SurfaceEvent<void>('complete');
+
   @override
   Widget build(BuildContext context) {
     return FilledButton(
-      onPressed: paywallPurchase(slot: 'primary'),
+      onPressed: paywallEvent('complete'),
       child: const Text('Upgrade'),
     );
   }

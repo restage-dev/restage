@@ -6,6 +6,7 @@ import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:logging/logging.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -562,7 +563,7 @@ void main() {
       );
     });
 
-    test('lowers a paywall screen ref into a flow screen state', () async {
+    test('rejects the purchase transition on a paywall screen', () async {
       final sources = _paywallStepFlowSources();
       final readerWriter = await _readerWriterWith(sources);
       final paywallBytes = Uint8List.fromList([1, 2, 3, 4]);
@@ -574,6 +575,7 @@ void main() {
         paywallBytes,
       );
 
+      final logs = <LogRecord>[];
       final result = await testBuilders(
         [
           onboardingScreenBuilder(BuilderOptions.empty),
@@ -583,25 +585,22 @@ void main() {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         flattenOutput: true,
+        onLog: logs.add,
       );
 
-      final flowBytes = result.readerWriter.testing.readBytes(
-        AssetId('apps_examples', 'assets/onboarding/flows/first_run.flow.json'),
-      );
-      final decoded = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
-      final welcome = decoded.states['welcome']! as ScreenFlowState;
-      final paywall = decoded.states['paywall_serene']! as ScreenFlowState;
-
-      expect(welcome.on['next']?.target, 'paywall_serene');
-      expect(paywall.screen, 'paywall_serene');
-      expect(paywall.on['purchase']?.target, 'done');
+      expect(result.succeeded, isFalse);
       expect(
-        decoded.screenArtifacts['paywall_serene']?.path,
-        'paywall_serene.rfw',
+        logs.map((record) => record.message).join('\n'),
+        contains('[${IssueCode.unsupportedCommerceAuthoring.name}]'),
       );
       expect(
-        decoded.screenArtifacts['paywall_serene']?.contentHash,
-        FlowContentHash.compute(paywallBytes),
+        await result.readerWriter.canRead(
+          AssetId(
+            'apps_examples',
+            'assets/onboarding/flows/first_run.flow.json',
+          ),
+        ),
+        isFalse,
       );
     });
 
@@ -3047,12 +3046,16 @@ final class FirstRunFlow extends RestageFlow {
             .on(WelcomeScreen.next)
             .goTo(paywallScreen('serene')),
         screen(paywallScreen('serene'))
-            .on(PaywallFlowEvents.purchase)
+            .on(CommerceFlowEvents.purchase)
             .goTo(done),
         end(done, result: {'completed': true}),
       ],
     );
   }
+}
+
+abstract final class CommerceFlowEvents {
+  static const purchase = SurfaceEvent<Map<String, Object?>>('purchase');
 }
 ''',
     };

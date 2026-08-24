@@ -8,6 +8,7 @@ import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/capability_derivation.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
+import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -636,6 +637,9 @@ _NavigationPlan _decodeNavigationPlan(
   final entryId = _stringField(decoded, 'entryId', sourceId, issues);
   final terminatingEvent =
       _stringField(decoded, 'terminatingEvent', sourceId, issues);
+  if (unsupportedCommerceEventNames.contains(terminatingEvent)) {
+    issues.add(unsupportedCommerceEventIssue(terminatingEvent, sourceId.path));
+  }
   final transitionsValue = decoded['transitions'];
   final transitions = <_NavigationTransition>[];
   if (transitionsValue is List<Object?>) {
@@ -652,6 +656,9 @@ _NavigationPlan _decodeNavigationPlan(
       }
       final event = _stringField(value, 'event', sourceId, issues);
       final pushedId = _stringField(value, 'pushedId', sourceId, issues);
+      if (unsupportedCommerceEventNames.contains(event)) {
+        issues.add(unsupportedCommerceEventIssue(event, sourceId.path));
+      }
       transitions.add(_NavigationTransition(event: event, pushedId: pushedId));
     }
   } else {

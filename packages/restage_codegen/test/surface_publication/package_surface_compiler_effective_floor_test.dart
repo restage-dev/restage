@@ -451,6 +451,8 @@ final class Welcome extends StatelessWidget {
 final class Premium extends StatelessWidget {
   const Premium({super.key});
 
+  static const complete = SurfaceEvent<void>('complete');
+
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
@@ -460,7 +462,7 @@ const effectiveFloorTyped = FlowDefinition(
   start: Welcome,
   transitions: [
     Transition(Welcome.continueFlow, to: Premium),
-    Transition.complete(PaywallEvents.purchase, from: Premium),
+    Transition.complete(Premium.complete),
   ],
 );
 
@@ -474,7 +476,7 @@ const effectiveFloorGeneral = FlowDefinition(
   start: Welcome,
   transitions: [
     Transition(Welcome.continueFlow, to: Premium),
-    Transition.complete(PaywallEvents.purchase, from: Premium),
+    Transition.complete(Premium.complete),
   ],
 );
 ''';

@@ -22,7 +22,6 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:restage_material/src/decomposition_recipes.dart';
-import 'package:restage_material/src/widgets/express_checkout_button.dart';
 import 'package:restage_material/src/widgets/restage_draggable_sheet.dart';
 import 'package:restage_material/src/widgets/restage_dropdown.dart';
 import 'package:restage_material/src/widgets/restage_modal_sheet.dart';
@@ -30,7 +29,6 @@ import 'package:restage_material/src/widgets/restage_pager.dart';
 import 'package:restage_material/src/widgets/restage_radio_group.dart';
 import 'package:restage_material/src/widgets/restage_segmented_button.dart';
 import 'package:restage_material/src/widgets/restage_toggle_buttons.dart';
-import 'package:restage_material/src/widgets/package.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Constructor parameters every Material button shares
@@ -619,13 +617,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       ),
     },
   ),
-  // Conversion-CTA button for platform-native express-checkout flows
-  // (Apple Pay / Google Pay / neutral fallback). The widget renders
-  // a styled Material button while billing-channel integration is in
-  // flight; the catalog API surface is locked at end-state.
-  BuiltinWidgetCuration<ExpressCheckoutButton>(
-    category: WidgetCategory.action,
-  ),
   BuiltinWidgetCuration<FilledButton>(
     category: WidgetCategory.action,
     excludeParams: _kSharedButtonExcludeParams,
@@ -1205,14 +1196,6 @@ const List<BuiltinWidgetCuration> kCuration = [
       _kButtonDisabledSynthetic,
     ],
     nativeDecomposes: [kTransparentButtonStyleNativeDecompose],
-  ),
-  // Slot binding for paywall product surfaces — pairs an opaque slot
-  // identifier with a child UI tree. The slot is resolved at runtime
-  // against the host app's product configuration; the child renders
-  // verbatim and reads the matched product's price + metadata via the
-  // standard helpers. Both `slot` and `child` are required.
-  BuiltinWidgetCuration<Package>(
-    category: WidgetCategory.action,
   ),
   BuiltinWidgetCuration<Scaffold>(
     category: WidgetCategory.layout,

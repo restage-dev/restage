@@ -1,12 +1,13 @@
-/// Thrown when a configured network origin would transmit credentials or
-/// purchaser data over an insecure (cleartext) connection.
+/// Thrown when a configured network origin would transmit credentials or SDK
+/// request data over an insecure (cleartext) connection.
 ///
-/// The SDK sends a public API key, an anonymous purchaser token, receipt /
-/// transaction data, and the analytics stream to the configured origin. Those
-/// must travel over TLS, so a non-`https` origin is rejected at configuration
-/// time rather than silently leaking in cleartext. The single exception is a
-/// loopback host (`localhost` / `127.0.0.1` / `::1`), which never leaves the
-/// developer's machine and is allowed over `http` for local development.
+/// The SDK uses configured origins for its public API key, surface-delivery
+/// requests and artifacts, analytics, assignment, metering, and measurement
+/// traffic. Those must travel over TLS, so a non-`https` origin is rejected at
+/// configuration time rather than silently leaking in cleartext. The single
+/// exception is a loopback host (`localhost` / `127.0.0.1` / `::1`), which
+/// never leaves the developer's machine and is allowed over `http` for local
+/// development.
 class InsecureBaseUrlException implements Exception {
   /// Creates the exception for the offending [url] with an explanatory
   /// [message].
@@ -22,7 +23,7 @@ class InsecureBaseUrlException implements Exception {
   String toString() => 'InsecureBaseUrlException($url): $message';
 }
 
-/// Asserts that [url] is safe to transmit credentials and purchaser data over.
+/// Asserts that [url] is safe for credentials and SDK request data.
 ///
 /// Requires an `https` scheme. Allows `http` only when the host is a loopback
 /// address (`localhost`, `127.0.0.1`, `::1`) for local development. Any other

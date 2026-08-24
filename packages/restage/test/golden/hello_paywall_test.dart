@@ -52,12 +52,12 @@ void main() {
               ),
               SizedBox(height: 40.0),
               ElevatedButton(
-                onPressed: event "restage.purchase" { slot: "primary" },
+                onPressed: event "cta_tapped" { action: "continue" },
                 child: Text(text: "Continue"),
               ),
               SizedBox(height: 12.0),
               TextButton(
-                onPressed: event "restage.restore" { },
+                onPressed: event "cta_tapped" { action: "learn_more" },
                 child: Text(text: "Restore purchases"),
               ),
             ],

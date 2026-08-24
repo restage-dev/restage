@@ -43,6 +43,26 @@ variant resolvers must provide a new value when their resolved bytes change.
 Event firing routes through the recording listener rather than calling the
 bridge directly, preserving the existing public behavior.
 
+**Breaking. Commerce is reset to a provider-neutral contract.** Legacy billing
+gateways, products, native purchase helpers, and commerce events are removed.
+`Restage.configure` no longer accepts `products` or `billingGateway`, and there
+are no compatibility aliases.
+
+Import `package:restage/commerce.dart` for the inert, provider-neutral typed
+request and response surface. `Restage.commerce` is the only commerce addition
+to the root `Restage` API. Using the facade with typed request and result types
+requires both `package:restage/restage.dart` and
+`package:restage/commerce.dart`. Commerce is inert in 2.0 and has no
+configuration hook. Any implementation requires explicit host opt-in; a
+package update alone never activates purchasing.
+
+Offering, quote, localization, refund, consumable handling and fulfillment,
+value, and customer-management capabilities are not included in 2.0. Unknown
+availability capabilities report `CommerceFailureCode.unsupportedCapability`.
+An offer on a known non-purchase capability reports
+`CommerceFailureCode.invalidRequest`. Other known valid availability requests
+report `CommerceFailureCode.notActivated`.
+
 **New. `Restage.measurement` and `Restage.privacy`.** `Restage.measurement`
 carries the explicit subject operations: issue a link challenge, link a subject,
 reset a subject, withdraw consent. `Restage.privacy` carries privacy requests.
@@ -106,18 +126,6 @@ release.
 
 ### Also in 2.0.0
 
-**Breaking.** `transactionId` is now nullable (`String?`) on `BillingGateway`'s
-purchase result and on `PurchasePlatformAdapter`. Some store purchases have no
-transaction identity (a Google Play promotional-code purchase has no order ID),
-and the field is now absent in those cases rather than carrying an invented
-value.
-
-If you read `transactionId` off a purchase result, handle null. If you
-*implement* `BillingGateway` and pass a non-null value, no change is required:
-the parameter widened, so existing calls still type-check.
-
-`RestageConversionEvent.transactionId` was already nullable and is unchanged.
-
 **Breaking.** The closed event-name export is removed. Customer callback
 constructor properties now use their exact Dart names as event identities.
 
@@ -136,28 +144,10 @@ Other changes:
   entrypoints for target-specific customer catalog configuration.
 - Add the Widgetbook configuration entrypoint and typed per-widget/per-input
   emit-target routing annotations.
-- Purchase results carry the store-issued transaction identifier where one
-  exists: the StoreKit transaction ID on Apple, the Google Play order ID on
-  Android. For an external-provider gateway it is the per-transaction id that
-  provider surfaces.
-- Native purchases carry a durable purchase intent, so a purchase keeps its
-  association with the surface that initiated it even if the app dies between
-  the store call and the receipt arriving.
 - Experiment attribution is surface-general: onboarding, message and survey
   surfaces attribute an experiment the same way a paywall does. Experiment
   dimensions come only from an authoritative root binding; payload-claimed
   assignments are scrubbed and never trusted.
-- Google Play prepaid base plans are not accepted through the bundled gateway.
-  Direct gateway calls keep their existing product behavior.
-- A surface with a `paywallPriceFor` price binding and no commerce context
-  configured (no products, no `billingGateway`, no `priceQueries`) now
-  renders the same `$X.XX` placeholder the plain-Dart authoring path already
-  shows, instead of a blank surface. Whenever any commerce context exists,
-  a missing price still fails closed exactly as before. **Caveat:**
-  `PaywallLoadFailed` with `render_error` no longer fires for a price-bound
-  surface in the no-commerce-context case, since the surface now renders
-  successfully — a host that relied on that event to trigger fallback UI in
-  a storeless demo will see the new placeholder behavior instead.
 
 ## 1.3.0
 

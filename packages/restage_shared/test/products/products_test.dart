@@ -1,4 +1,5 @@
-import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/src/products/restage_entitlement.dart';
+import 'package:restage_shared/src/products/restage_product.dart';
 import 'package:test/test.dart';
 
 void main() {

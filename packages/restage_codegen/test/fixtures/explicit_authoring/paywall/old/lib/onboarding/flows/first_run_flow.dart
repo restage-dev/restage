@@ -19,9 +19,7 @@ final class FirstRunFlow extends RestageFlow {
         screen(offerIntroScreenRef)
             .on(OfferIntroScreen.next)
             .goTo(paywallScreen('premium')),
-        screen(paywallScreen('premium'))
-            .on(PaywallFlowEvents.purchase)
-            .goTo(done),
+        screen(paywallScreen('premium')).on(PremiumPaywall.complete).goTo(done),
         end(done, result: {}),
       ],
     );

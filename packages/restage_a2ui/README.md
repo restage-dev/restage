@@ -53,7 +53,7 @@ dependencies:
   # restage_a2ui: ^0.1.6
 
 dev_dependencies:
-  restage_codegen: ^1.3.0       # the build-time A2UI emitter
+  restage_codegen: ^2.0.0       # the build-time A2UI emitter
   build_runner: ^2.4.0
 ```
 

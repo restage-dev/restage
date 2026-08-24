@@ -12,6 +12,45 @@ import '../helpers.dart';
 
 void main() {
   group('flow definition frontend', () {
+    test('rejects commerce transition event IDs', () async {
+      const names = <String>[
+        'purchase',
+        'restore',
+        'restage.purchase',
+        'restage.restore',
+        'restage.purchase.succeeded',
+        'restage.purchase.pending',
+        'restage.purchase.cancelled',
+        'restage.purchase.failed',
+        'restage.restore.succeeded',
+        'restage.restore.noPurchases',
+        'restage.restore.failed',
+      ];
+      for (final name in names) {
+        final result = await _inspect({
+          'lib/onboarding/screens/start.dart': _screenSource(
+            'StartScreen',
+            "static const blocked = SurfaceEvent<void>('$name');",
+          ),
+          'lib/onboarding/flows/blocked.dart': '''
+import 'package:restage/restage.dart';
+import '../screens/start.dart';
+
+@FlowGraph(surface: Surface.onboarding)
+final blocked = FlowDefinition(
+  start: StartScreen,
+  transitions: [Transition.complete(StartScreen.blocked)],
+);
+''',
+        });
+        expect(
+          result.issues.map((issue) => issue.code),
+          contains(IssueCode.unsupportedCommerceAuthoring),
+          reason: name,
+        );
+      }
+    });
+
     test('a source extending the host widget is told which class it wanted',
         () async {
       // `RestageFlowGraph` mounts a flow; `RestageFlow` is what a flow source

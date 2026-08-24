@@ -10,14 +10,13 @@ import 'package:restage/restage.dart';
 /// and the `() => Navigator.pop(context)` back chevron lowers to the runtime's
 /// in-flow back.
 ///
-/// **Select-then-subscribe** (faithful to the entry, which has its own
+/// **Select-then-continue** (faithful to the entry, which has its own
 /// `personalSelected` state): one piece of selection state lives at the root,
 /// `selectedPlan` (0 = Family, 1 = Personal — the MOST POPULAR default,
 /// 2 = Student, 3 = Monthly). Tapping a tier card SELECTS it — an in-row
 /// trailing check moves to the chosen tier and the chosen card highlights — all
-/// inside the delivered blob; no tier charges on tap. The pinned
-/// "START MY FREE WEEK" CTA charges the SELECTED tier's slot via
-/// `paywallPurchase(slot:)`.
+/// inside the delivered blob; no continue action fires on tap. The pinned
+/// "START MY FREE WEEK" CTA reports the selected tier.
 ///
 /// A two-group all-tiers picker: a dark indigo → violet vertical gradient canvas
 /// (matching the entry), a "Choose a plan" title, a "7 DAY FREE TRIAL" group
@@ -31,13 +30,11 @@ import 'package:restage/restage.dart';
 ///
 /// Pinned-offer layout: the four plan cards scroll in an
 /// `Expanded(SingleChildScrollView(...))`; the offer zone (the cancel line + the
-/// CTA) is pinned below, so the buy button is always on screen.
+/// CTA) is pinned below, so the continue action is always on screen.
 ///
 /// Prices are literal: the tiers are annual-billed shown as a per-month figure
 /// whose /MO and 12-mo total agree ($9.99×12 ≈ $119.99, $7.99×12 ≈ $95.99,
-/// $3.99×12 ≈ $47.99), which binding to the demo's monthly / annual price slots
-/// would distort. The purchase is live-bound to the selected tier via
-/// `paywallPurchase(slot:)`.
+/// $3.99×12 ≈ $47.99). The action reports the selected tier.
 ///
 /// Fixed-brand, single-brightness surface authored with explicit colour
 /// literals, so it never reads the ambient theme. Transpilable-authoring rules:
@@ -54,7 +51,7 @@ class FluentProChoosePlanScreen extends StatefulWidget {
 class _FluentProChoosePlanScreenState extends State<FluentProChoosePlanScreen> {
   /// The chosen tier: 0 = Family, 1 = Personal (the MOST POPULAR default),
   /// 2 = Student, 3 = Monthly. Tapping a card moves the selection; the pinned
-  /// CTA charges this tier's slot.
+  /// CTA reports this tier in its action payload.
   int selectedPlan = 1;
 
   void selectFamily() => setState(() => selectedPlan = 0);
@@ -574,8 +571,8 @@ class _FluentProChoosePlanScreenState extends State<FluentProChoosePlanScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                // Pinned offer zone — the cancel line + the CTA (charges the
-                // selected tier's slot).
+                // Pinned offer zone — the cancel line + the CTA, which reports
+                // the selected tier in its action payload.
                 const Text(
                   'Cancel anytime in the App Store',
                   textAlign: TextAlign.center,
@@ -587,14 +584,17 @@ class _FluentProChoosePlanScreenState extends State<FluentProChoosePlanScreen> {
                 ),
                 const SizedBox(height: 10),
                 GestureDetector(
-                  onTap: paywallPurchase(
-                    slot: selectedPlan == 0
-                        ? 'family'
-                        : selectedPlan == 1
-                            ? 'annual'
-                            : selectedPlan == 2
-                                ? 'student'
-                                : 'monthly',
+                  onTap: paywallEvent(
+                    'continue',
+                    args: {
+                      'plan': selectedPlan == 0
+                          ? 'family'
+                          : selectedPlan == 1
+                              ? 'personal'
+                              : selectedPlan == 2
+                                  ? 'student'
+                                  : 'monthly',
+                    },
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),

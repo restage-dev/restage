@@ -5,27 +5,15 @@ void main() {
   test('DismissReason enum stable', () {
     expect(DismissReason.values.toSet(), {
       DismissReason.userClose,
-      DismissReason.purchaseCompleted,
-      DismissReason.purchasePending,
-      DismissReason.restoreCompleted,
       DismissReason.programmatic,
     });
   });
 
-  test('PendingReason enum stable', () {
-    expect(PendingReason.values.toSet(), {
-      PendingReason.askToBuy,
-      PendingReason.paymentPending,
-      PendingReason.unknown,
-    });
-  });
-
-  test('RevokeReason enum stable', () {
-    expect(RevokeReason.values.toSet(), {
-      RevokeReason.expired,
-      RevokeReason.refunded,
-      RevokeReason.revoked,
-      RevokeReason.upgraded,
-    });
+  test('DismissReason parses known wire names', () {
+    expect(DismissReasonWire.fromWire('user_close'), DismissReason.userClose);
+    expect(
+      DismissReasonWire.fromWire('unsupported'),
+      DismissReason.programmatic,
+    );
   });
 }

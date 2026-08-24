@@ -620,9 +620,11 @@ part 'restage.generated/premium.restage.g.dart';
 final class PremiumPaywall extends StatelessWidget {
   const PremiumPaywall({super.key});
 
+  static const complete = SurfaceEvent<void>('complete');
+
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallPurchase(slot: 'primary'),
+        onPressed: paywallEvent('complete'),
         child: const Text('Upgrade'),
       );
 }
@@ -656,7 +658,7 @@ const offer = FlowDefinition(
   start: IntroScreen,
   transitions: [
     Transition(IntroScreen.next, to: PremiumPaywall),
-    Transition.complete(PaywallEvents.purchase, from: PremiumPaywall),
+    Transition.complete(PremiumPaywall.complete),
   ],
 );
 ''';

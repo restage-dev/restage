@@ -8,7 +8,6 @@ import 'package:restage_shared/flow_experiment.dart'
     show kFlowExperimentClientContractVersionV1, kFlowExperimentContractKind;
 import 'package:restage_shared/restage_shared.dart';
 
-import '../billing/purchase_token_digest.dart';
 import '../resolver/surface_metering_key_provider.dart';
 import '../secure_transport.dart';
 import 'surface_artifact_assembly.dart';
@@ -504,19 +503,6 @@ final class MeasurementPublicationBindingReadRpcUnavailable
 }
 
 /// HTTP/JSON client for the SDK's `/sdk/v1` endpoints.
-///
-/// The SDK's shared `/sdk/v1` RPC client: it syncs entitlements, reports
-/// transactions, and mints native promotional-offer signatures.
-///
-/// Transport failure mode: on a network error, malformed body, or non-2xx
-/// response, both methods log a diagnostic and return `null` — distinct
-/// from a server response that successfully returned no entitlements
-/// (an empty `List<EntitlementSummary>`). Callers use the null vs empty
-/// distinction to preserve local state on transport failure rather than
-/// confusing it with "server says nothing's entitled". Transaction retry and
-/// native-store replay are owned by the configure-installed purchase
-/// coordinator; entitlement sync only reconciles the resulting entitlement
-/// view.
 class RestageRpcClient {
   /// Creates a client targeting [baseUrl] and authenticating as [apiKey].
   ///
@@ -526,13 +512,9 @@ class RestageRpcClient {
     required String baseUrl,
     required String apiKey,
     http.Client? httpClient,
-    @visibleForTesting bool? debugFailTransactionReports,
   })  : _baseUrl = baseUrl,
         _apiKey = apiKey,
-        _client = httpClient ?? http.Client(),
-        _debugFailTransactionReports = _debugTransactionReportOutageEnabled(
-          debugFailTransactionReports,
-        ) {
+        _client = httpClient ?? http.Client() {
     if (baseUrl.isEmpty) {
       throw ArgumentError.value(baseUrl, 'baseUrl', 'must not be empty');
     }
@@ -543,8 +525,8 @@ class RestageRpcClient {
         'must not end with a trailing slash',
       );
     }
-    // Credentials, the anonymous purchaser token, and receipt data ride this
-    // origin — require TLS (loopback excepted for local development).
+    // Credentials ride this origin, so require TLS except for loopback
+    // development endpoints.
     assertSecureUrl(baseUrl, label: 'baseUrl');
     if (apiKey.isEmpty) {
       throw ArgumentError.value(apiKey, 'apiKey', 'must not be empty');
@@ -554,7 +536,6 @@ class RestageRpcClient {
   final String _baseUrl;
   final String _apiKey;
   final http.Client _client;
-  final bool _debugFailTransactionReports;
 
   /// Artifacts fetched and verified by this client, by identity.
   ///
@@ -578,112 +559,6 @@ class RestageRpcClient {
   static const int _maxHeldArtifactBytes = 8 * 1024 * 1024;
 
   int _heldArtifactBytes = 0;
-
-  /// Durably creates or exactly replays an immutable purchase intent.
-  ///
-  /// Returns the correlated response only when the server echoes the exact
-  /// client-generated intent UUID. Any transport or shape failure returns
-  /// `null`, which callers treat as a hard stop before opening store UI.
-  Future<CreatePurchaseIntentResponse?> createPurchaseIntent(
-    CreatePurchaseIntentRequest request,
-  ) async {
-    final json = await _postJsonObject(
-      path: '/sdk/v1/purchase-intent',
-      body: request.toJson(),
-    );
-    if (json == null) return null;
-    try {
-      final response = CreatePurchaseIntentResponse.fromJson(json);
-      if (response.purchaseIntentId != request.purchaseIntentId) {
-        debugPrint('[restage] purchase intent response did not correlate');
-        return null;
-      }
-      return response;
-    } on Object {
-      debugPrint('[restage] purchase intent response was malformed');
-      return null;
-    }
-  }
-
-  /// Reports a store transaction. Returns explicit durable acceptance, or
-  /// `null` when transport, parsing, correlation, or acceptance validation
-  /// fails.
-  Future<ReportTransactionResponse?> reportTransaction(
-    ReportTransactionRequest request,
-  ) async {
-    if (_debugFailTransactionReports) {
-      debugPrint(
-        '[restage] transaction report blocked by local debug outage injection',
-      );
-      return null;
-    }
-    final reportId = request.reportId;
-    if (reportId == null) {
-      debugPrint('[restage] transaction report is missing reportId');
-      return null;
-    }
-    final json = await _postJsonObject(
-      path: '/sdk/v1/reportTransaction',
-      body: request.toJson(),
-    );
-    if (json == null) return null;
-    try {
-      final response = ReportTransactionResponse.fromJson(json);
-      if (!response.accepted ||
-          response.reportId != reportId ||
-          !_evidenceMatchesRequest(response.evidence, request)) {
-        debugPrint(
-          '[restage] transaction report response was not completion-safe',
-        );
-        return null;
-      }
-      return response;
-    } on Object {
-      // Parser exceptions may retain malformed wire values. Do not interpolate
-      // them here because a hostile response could reflect a purchase token.
-      debugPrint('[restage] transaction report response was malformed');
-      return null;
-    }
-  }
-
-  /// Reports paywall attribution for a **receipt-less** purchase — one made
-  /// through an external billing provider (e.g. RevenueCat) that keeps the
-  /// receipt. This carries the store transaction id + paywall id as an
-  /// attribution hint only; it is never a verified signal and never returns an
-  /// entitlement set (unlike [reportTransaction], whose receipt the server can
-  /// validate).
-  ///
-  /// The attribution endpoint is not yet wired, so this method intentionally
-  /// does not POST. It mirrors the no-op posture the runtime already applies
-  /// when no `baseUrl` is configured; the attribution-only report becomes a
-  /// live call when the route lands.
-  Future<void> reportAttribution({
-    required String store,
-    required String storeProductId,
-    required String storeTransactionId,
-    String? paywallId,
-    int? paywallPublishedVersion,
-  }) async {
-    // Intentionally a no-op until the attribution endpoint is wired. Kept as
-    // the typed routing seam so the runtime branches receipt-less successes
-    // here (never down the receipt-validation path) from day one. The
-    // [paywallPublishedVersion] is carried here so MAR attribution stays
-    // version-complete across the external-provider path; it serializes onto
-    // the request when the attribution endpoint lands.
-  }
-
-  /// Asks the server for the authoritative entitlement set. Returns the
-  /// list, or `null` when the request fails — the SDK keeps its local
-  /// state until the next sync succeeds. An empty list (non-null) is
-  /// the server's explicit "nothing entitled" answer and reconciles
-  /// normally.
-  Future<List<EntitlementSummary>?> syncEntitlements(
-    EntitlementSyncRequest request,
-  ) =>
-      _postEntitlements(
-        path: '/sdk/v1/syncEntitlements',
-        body: request.toJson(),
-      );
 
   /// Sends one canonical Measurement request through the SDK HTTP session.
   ///
@@ -1305,71 +1180,11 @@ class RestageRpcClient {
     );
   }
 
-  /// Mints a native promotional-offer signature for [request]. Returns the
-  /// typed response, or `null` when the request fails — a network error, a
-  /// non-2xx status (e.g. the server declined to authorize the offer), or a
-  /// malformed body. This is the same fail-closed transport posture as
-  /// [reportTransaction]: a `null` is the SDK's signal to treat the offer as
-  /// unavailable, never to fall back to a silent full-price purchase.
-  Future<OfferSignatureResponse?> mintOfferSignature(
-    OfferSignatureRequest request,
-  ) async {
-    final json = await _postJsonObject(
-      path: '/sdk/v1/offer-signature',
-      body: request.toJson(),
-    );
-    if (json == null) return null;
-    try {
-      return OfferSignatureResponse.fromJson(json);
-    } on Object {
-      debugPrint('[restage] offer-signature response was malformed');
-      return null;
-    }
-  }
-
-  /// Mints an Apple promotional-offer signature from a durable intent.
-  ///
-  /// The server derives the immutable product, offer, and account-token tuple
-  /// from [request], so no caller-supplied tuple can drift after intent commit.
-  Future<OfferSignatureResponse?> mintIntentBoundOfferSignature(
-    IntentBoundOfferSignatureRequest request,
-  ) async {
-    final json = await _postJsonObject(
-      path: '/sdk/v1/offer-signature',
-      body: request.toJson(),
-    );
-    if (json == null) return null;
-    try {
-      return OfferSignatureResponse.fromJson(json);
-    } on Object {
-      debugPrint('[restage] offer-signature response was malformed');
-      return null;
-    }
-  }
-
   /// Releases the underlying HTTP resources. Callers that constructed
   /// the client should invoke this when they're done with it; callers
   /// that supplied a custom [http.Client] in the constructor own its
   /// lifecycle and should not call this method.
   void close() => _client.close();
-
-  Future<List<EntitlementSummary>?> _postEntitlements({
-    required String path,
-    required Map<String, dynamic> body,
-  }) async {
-    final json = await _postJsonObject(path: path, body: body);
-    if (json == null) return null;
-    try {
-      return _parseEntitlements(json);
-    } on Object catch (error) {
-      // A 200 with a malformed entitlement entry (the fail-loud
-      // EntitlementSummary.fromJson throws) degrades to null rather than
-      // throwing out of the call, preserving the transport's fail-closed
-      // posture — the SDK keeps local state until the next sync.
-      debugPrint('[restage] entitlements from $path were malformed: $error');
-      return null;
-    }
-  }
 
   /// POSTs [body] as JSON to [path] with bearer auth and returns the decoded
   /// JSON object, or `null` on any failure (network throw, non-2xx status, or a
@@ -1415,24 +1230,10 @@ class RestageRpcClient {
       );
     } on Object {
       // Transport exceptions can include request details. Keep diagnostics
-      // shape-only because transaction requests may carry receipts or tokens.
+      // shape-only.
       debugPrint('[restage] request to $path failed before a response');
       return null;
     }
-  }
-
-  static List<EntitlementSummary> _parseEntitlements(
-    Map<String, dynamic> json,
-  ) {
-    final raw = json['entitlements'];
-    if (raw is! List) return const [];
-    final out = <EntitlementSummary>[];
-    for (final entry in raw) {
-      if (entry is Map) {
-        out.add(EntitlementSummary.fromJson(entry.cast<String, dynamic>()));
-      }
-    }
-    return out;
   }
 }
 
@@ -1675,40 +1476,6 @@ bool _isRetryableSurfaceScreenDeliveryStatus(int statusCode) =>
       408 || 429 || 500 || 502 || 503 || 504 => true,
       _ => false,
     };
-
-const bool _debugTransactionReportOutageRequested = bool.fromEnvironment(
-  'RESTAGE_DEBUG_FAIL_TRANSACTION_REPORTS',
-);
-
-bool _debugTransactionReportOutageEnabled(bool? testOverride) {
-  var enabled = false;
-  assert(() {
-    enabled = testOverride ?? _debugTransactionReportOutageRequested;
-    return true;
-  }());
-  return enabled;
-}
-
-bool _evidenceMatchesRequest(
-  AcceptedStoreEvidence evidence,
-  ReportTransactionRequest request,
-) {
-  return switch (evidence) {
-    AppleAcceptedStoreEvidence(:final submittedTransactionId) =>
-      request.store == 'appStore' &&
-          submittedTransactionId == request.storeTransactionId,
-    GoogleAcceptedStoreEvidence(
-      :final submittedOrderId,
-      :final acceptedPurchaseTokenDigest,
-    ) =>
-      request.store == 'playStore' &&
-          acceptedPurchaseTokenDigest ==
-              googlePurchaseTokenDigest(request.storeVerificationData) &&
-          // Deliberately symmetric: an order id present on only one side is a
-          // correlation failure, not a bonus.
-          submittedOrderId == request.storeTransactionId,
-  };
-}
 
 final class _SurfaceAssignmentMetadata {
   const _SurfaceAssignmentMetadata({

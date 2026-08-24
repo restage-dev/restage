@@ -1,5 +1,6 @@
-import 'package:restage/src/billing/anonymous_token.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../restage_rpc_client/uuid_v4.dart';
 
 /// The SDK-owned four-level analytics identity.
 ///
@@ -11,9 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///   surface host.
 /// - [userId] — opt-in, set via [identify], cleared on [reset].
 ///
-/// Persistence mirrors the SDK's existing anonymous-token store: best-effort
-/// `shared_preferences`, re-minted on uninstall. The [prefsProvider] and [newId]
-/// seams are injected by tests.
+/// Persistence is best-effort through `shared_preferences` and re-mints on
+/// uninstall. The [prefsProvider] and [newId] seams are injected by tests.
 class AnalyticsIdentity {
   /// Creates an identity. [prefsProvider] defaults to
   /// [SharedPreferences.getInstance]; [newId] defaults to a UUIDv4 generator.
@@ -21,10 +21,9 @@ class AnalyticsIdentity {
     Future<SharedPreferences> Function()? prefsProvider,
     String Function()? newId,
   })  : _prefsProvider = prefsProvider ?? SharedPreferences.getInstance,
-        _newId = newId ?? AnonymousTokenStore.generateUuidV4;
+        _newId = newId ?? generateUuidV4;
 
-  /// `shared_preferences` key for the persisted pseudonymous id. Distinct from
-  /// the billing anonymous-token key — this is the analytics cohort actor.
+  /// `shared_preferences` key for the persisted pseudonymous id.
   static const _anonymousIdKey = 'restage.analytics.anonymous_id';
 
   final Future<SharedPreferences> Function() _prefsProvider;

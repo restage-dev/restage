@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -31,17 +29,23 @@ void main() {
     Restage.debugReset();
   });
 
-  test('configure sets apiKey, environment, products', () {
+  test('configure sets apiKey and environment', () {
     Restage.configure(
       apiKey: 'rs_pk_test',
       environment: RestageEnvironment.sandbox,
-      products: const [
-        RestageProduct(id: 'pro_monthly', slot: 'primary', entitlement: 'pro'),
-      ],
     );
     expect(Restage.debugApiKey, 'rs_pk_test');
     expect(Restage.debugEnvironment, RestageEnvironment.sandbox);
-    expect(Restage.debugProducts.length, 1);
+  });
+
+  test('commerce is stable across runtime resets', () {
+    final commerce = Restage.commerce;
+
+    expect(commerce, isA<RestageCommerce>());
+
+    Restage.debugReset();
+
+    expect(Restage.commerce, same(commerce));
   });
 
   test('configure with apiKey installs RestageVariantResolver as default', () {
@@ -50,10 +54,8 @@ void main() {
   });
 
   test('configure threads apiKey + environment into the default resolver', () {
-    // No baseUrl on configure: a configured baseUrl would kick off the
-    // unrelated cold-start entitlement-sync network path. apiKey + environment
-    // are the observable threading; baseUrl rides the same ctor call (it is
-    // wrapped privately into the hosted-fetch client).
+    // apiKey + environment are the observable threading; baseUrl rides the
+    // same constructor call and is wrapped into the hosted-fetch client.
     Restage.configure(
       apiKey: 'rs_pk_live_xyz',
       environment: RestageEnvironment.production,
@@ -112,20 +114,6 @@ void main() {
     await sub2.cancel();
   });
 
-  test('debugEntitlementClient aliases debugRestageRpcClient', () {
-    final client = RestageRpcClient(
-      baseUrl: 'https://api.example.com',
-      apiKey: 'rs_pk_test',
-    );
-
-    // ignore: deprecated_member_use_from_same_package
-    Restage.debugEntitlementClient = client;
-
-    expect(Restage.debugRestageRpcClient, same(client));
-    // ignore: deprecated_member_use_from_same_package
-    expect(Restage.debugEntitlementClient, same(client));
-  });
-
   test('registerWidgetLibrary records the library in the runtime registry', () {
     Restage.configure(apiKey: 'rs_pk_test');
     Restage.registerWidgetLibrary(
@@ -172,7 +160,7 @@ void main() {
   });
 
   test(
-      'configure with baseUrl and analytics enabled installs the internal '
+      'configure with baseUrl and analytics enabled installs the '
       'assignment-key provider', () async {
     Restage.configure(
       apiKey: 'rs_pk_test',
@@ -240,10 +228,7 @@ void _installNoopRpcClient() {
     baseUrl: 'https://api.example.com',
     apiKey: 'rs_pk_test',
     httpClient: MockClient(
-      (_) async => http.Response(
-        jsonEncode(<String, Object?>{'entitlements': <Object?>[]}),
-        200,
-      ),
+      (_) async => http.Response('', 404),
     ),
   );
 }

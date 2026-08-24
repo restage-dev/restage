@@ -2,6 +2,11 @@
 
 ## 2.0.0
 
+- **Breaking:** the default `restage_shared.dart` export no longer exposes the
+  former commerce types: purchase intents, entitlement synchronization,
+  transaction reporting, offer signatures, `RestageProduct`,
+  `RestageEntitlement`, and `EntitlementSource`. For new provider-neutral
+  requests and responses, import `package:restage/commerce.dart`.
 - **Breaking:** flow documents now support schema version 2 for typed survey
   declarations. Version 2 carries the ordered `surveyQuestionOrder` field;
   version 1 remains accepted without that field.

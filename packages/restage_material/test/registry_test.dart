@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_material/registry.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -171,6 +174,66 @@ void main() {
           w!.properties.where((p) => p.name == 'backgroundColor').toList();
       expect(prop, hasLength(1));
       expect(prop.single.type, PropertyType.color);
+    });
+
+    test('removed entries retain their identifier reservations', () {
+      const removedIds = <String>{
+        'w0015',
+        'p0070',
+        'p0071',
+        'p0072',
+        'p0428',
+        'w0029',
+        'p0136',
+        'p0137',
+        'p0448',
+      };
+
+      final encoded = encodeCatalog(kRegistry);
+      for (final id in removedIds) {
+        expect(encoded, isNot(contains('"$id"')));
+      }
+
+      final eventLog = <File>[
+        File('wire_ids.events.jsonl'),
+        File('packages/restage_material/wire_ids.events.jsonl'),
+      ].firstWhere(
+        (file) => file.existsSync(),
+        orElse: () => throw StateError(
+          'Could not locate restage_material/wire_ids.events.jsonl.',
+        ),
+      );
+      final events = eventLog
+          .readAsLinesSync()
+          .map((line) => jsonDecode(line) as Map<String, Object?>)
+          .where(
+            (event) =>
+                event['kind'] == 'deprecate' &&
+                removedIds.contains(event['id']),
+          )
+          .toList(growable: false);
+
+      Map<String, Object?> expectedDeprecation(String id, String type) =>
+          <String, Object?>{
+            'at': '2026-08-23T00:00:00.000Z',
+            'by': 'restage-catalog',
+            'id': id,
+            'kind': 'deprecate',
+            'reason': 'Withdrawn from the public widget catalog.',
+            'type': type,
+          };
+
+      expect(events, <Map<String, Object?>>[
+        expectedDeprecation('w0015', 'widget'),
+        expectedDeprecation('p0070', 'property'),
+        expectedDeprecation('p0071', 'property'),
+        expectedDeprecation('p0072', 'property'),
+        expectedDeprecation('p0428', 'property'),
+        expectedDeprecation('w0029', 'widget'),
+        expectedDeprecation('p0136', 'property'),
+        expectedDeprecation('p0137', 'property'),
+        expectedDeprecation('p0448', 'property'),
+      ]);
     });
   });
 }

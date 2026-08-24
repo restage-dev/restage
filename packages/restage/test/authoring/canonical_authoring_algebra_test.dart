@@ -57,6 +57,10 @@ final class ExploreScreen extends StatelessWidget {
 final class UpgradePaywall extends StatelessWidget {
   const UpgradePaywall({super.key});
 
+  static const planSelected = SurfaceEvent<Map<String, Object?>>(
+    'plan_selected',
+  );
+
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
@@ -75,7 +79,7 @@ const embeddedPaywallFlow = FlowDefinition(
   start: WelcomeScreen,
   transitions: [
     Transition(WelcomeScreen.next, to: UpgradePaywall),
-    Transition.complete(PaywallEvents.purchase, from: UpgradePaywall),
+    Transition.complete(UpgradePaywall.planSelected, from: UpgradePaywall),
   ],
 );
 

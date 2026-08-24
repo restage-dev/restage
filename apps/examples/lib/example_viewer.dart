@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 ///
 /// The example paywalls and engagement screens are intentionally full-bleed —
 /// real paywalls fill the screen and have no app bar (they're dismissed by a
-/// purchase / restore / close, not a navigation back arrow). The gallery is a
+/// continue / close, not a navigation back arrow). The gallery is a
 /// browser for those surfaces, so it overlays a small, unobtrusive back control
 /// rather than putting an app bar on top of each example (which would spoil the
 /// full-screen presentation the templates are demonstrating).

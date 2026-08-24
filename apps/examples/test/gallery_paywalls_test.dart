@@ -8,7 +8,6 @@ import 'package:restage_example/paywalls/fluent_pro.dart';
 import 'package:restage_example/paywalls/narrate_membership.dart';
 import 'package:restage_example/paywalls/pulse_premium.dart';
 import 'package:restage_example/paywalls/sentinel_protection.dart';
-import 'package:restage_example/stub_products.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage/restage.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
@@ -25,29 +24,6 @@ class _StaticResolver implements VariantResolver {
     Locale? locale,
   }) async =>
       ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
-}
-
-/// A deterministic billing gateway for the interactive tests. The default
-/// gateway is the real [InAppPurchaseGateway], whose `purchase()` awaits a
-/// store purchase stream that never delivers a terminal status under
-/// `flutter_test` — so the SDK's (correct) in-flight billing guard, which
-/// releases only when a purchase completes, would stay held and silently drop a
-/// second purchase tap. This stub completes immediately, so the guard releases
-/// between taps and each plan tap re-targets as it would on a real device. The
-/// purchase-initiated events these tests assert fire before billing, so the
-/// outcome is irrelevant.
-class _TestBillingGateway implements BillingGateway {
-  @override
-  Future<PurchaseOutcome> purchase(String productId,
-          {String? basePlanId}) async =>
-      PurchaseOutcome.failed(
-        productId: productId,
-        errorCode: 'test_no_store',
-        message: 'No real store gateway under flutter_test.',
-      );
-
-  @override
-  Future<RestoreOutcome> restore() async => RestoreOutcome.noPurchases();
 }
 
 /// A resolver that always fails — mirrors [_StaticResolver]'s shape but throws
@@ -121,7 +97,6 @@ Future<List<RestageEvent>> _pumpInteractivePaywall(
         body: RestagePaywall(
           id: paywallId,
           resolver: _StaticResolver(bytes),
-          priceQueries: kStubPriceQueries,
           onEvent: events.add,
         ),
       ),
@@ -170,11 +145,13 @@ Future<void> _tapSheetText(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
-/// The product id of the most recent purchase the paywall fired, or null.
-String? _lastPurchasedProductId(List<RestageEvent> events) {
-  final ids =
-      events.whereType<PurchaseInitiated>().map((e) => e.productId).toList();
-  return ids.isEmpty ? null : ids.last;
+Map<String, Object?>? _lastContinueArgs(List<RestageEvent> events) {
+  final actions = events
+      .whereType<PaywallCustomEvent>()
+      .where((event) => event.eventName == 'continue')
+      .map((event) => event.args)
+      .toList();
+  return actions.isEmpty ? null : actions.last;
 }
 
 /// Gives the test a tall canvas so a fit-to-display (bounded, unscrolled)
@@ -194,13 +171,12 @@ void _useTallSurface(WidgetTester tester) {
 
 /// The standard interactive-plan-selection group for [paywallId]: the
 /// [defaultPlan] (`'annual'` or `'monthly'`) is the pre-selected plan, so the
-/// CTA buys it when nothing is tapped; tapping the other plan row re-targets
-/// the CTA, and re-selecting the default flips it back. [ctaLabel] is the
-/// purchase button's text.
+/// CTA reports it when nothing is tapped; tapping the other plan row re-targets
+/// the CTA, and re-selecting the default flips it back.
 ///
 /// This drives the *delivered blob* — the same state/`set`/`switch` the runtime
-/// decodes — and asserts the purchase fires for the selected product, not a
-/// fixed slot. It does not touch the (intentionally per-paywall) selector
+/// decodes — and asserts the action reports the selected plan. It does not
+/// touch the (intentionally per-paywall) selector
 /// widgets; it pins their shared observable contract.
 void _interactivePlanSelectionGroup({
   required String paywallId,
@@ -211,34 +187,28 @@ void _interactivePlanSelectionGroup({
   // (e.g. 'Personal'/'Family', '1-year plan'/'1-month plan').
   String? defaultPlanLabel,
   String? otherPlanLabel,
-  // The product the *other* plan buys. Defaults to the monthly/annual
-  // complement of [defaultPlan]; override when the other plan is neither
-  // (e.g. Fluent Pro's Family row buys the family product).
-  String? otherProduct,
+  String? otherPlan,
 }) {
-  // The pre-selected plan and its complement, with the products they buy.
   final defaultIsAnnual = defaultPlan == 'annual';
   final defaultLabel =
       defaultPlanLabel ?? (defaultIsAnnual ? 'Annual' : 'Monthly');
   final otherLabel = otherPlanLabel ?? (defaultIsAnnual ? 'Monthly' : 'Annual');
-  final defaultProduct = 'com.restage.pro.$defaultPlan';
-  final resolvedOtherProduct = otherProduct ??
-      (defaultIsAnnual ? 'com.restage.pro.monthly' : 'com.restage.pro.annual');
+  final resolvedOtherPlan =
+      otherPlan ?? (defaultIsAnnual ? 'monthly' : 'annual');
 
   group('interactive plan selection — $paywallId', () {
     testWidgets('defaults to the $defaultLabel plan when nothing is tapped',
         (tester) async {
       final events = await _pumpInteractivePaywall(tester, paywallId);
       await _tapText(tester, ctaLabel);
-      expect(_lastPurchasedProductId(events), defaultProduct);
+      expect(_lastContinueArgs(events)?['plan'], defaultPlan);
     });
 
-    testWidgets('selecting $otherLabel re-targets the CTA to that product',
-        (tester) async {
+    testWidgets('selecting $otherLabel re-targets the CTA', (tester) async {
       final events = await _pumpInteractivePaywall(tester, paywallId);
       await _tapPlanRow(tester, otherLabel);
       await _tapText(tester, ctaLabel);
-      expect(_lastPurchasedProductId(events), resolvedOtherProduct);
+      expect(_lastContinueArgs(events)?['plan'], resolvedOtherPlan);
     });
 
     testWidgets('selecting $otherLabel then $defaultLabel re-targets back',
@@ -247,7 +217,7 @@ void _interactivePlanSelectionGroup({
       await _tapPlanRow(tester, otherLabel);
       await _tapPlanRow(tester, defaultLabel);
       await _tapText(tester, ctaLabel);
-      expect(_lastPurchasedProductId(events), defaultProduct);
+      expect(_lastContinueArgs(events)?['plan'], defaultPlan);
     });
   });
 }
@@ -257,9 +227,7 @@ void main() {
     Restage.debugReset();
     Restage.configure(
       apiKey: 'rs_pk_test',
-      products: kStubProducts,
       resolver: const AssetVariantResolver(),
-      billingGateway: _TestBillingGateway(),
     );
     registerRestageWidgets();
   });
@@ -285,23 +253,6 @@ void main() {
       expect(find.text('Personal'), findsOneWidget);
 
       // The paywall's own back affordance fires `close` -> returns to gallery.
-      await tester.tap(backArrow);
-      await tester.pumpAndSettle();
-      expect(find.text('Restage SDK Examples'), findsOneWidget);
-      expect(find.text('Personal'), findsNothing);
-    });
-
-    testWidgets('delivered blob: the close affordance pops back to the gallery',
-        (tester) async {
-      _useTallSurface(tester);
-      await tester.pumpWidget(const RestageExampleApp());
-      await tester.pumpAndSettle();
-
-      await _tapText(tester, 'Fluent Pro — live');
-      expect(find.text('Personal'), findsOneWidget);
-
-      // In the blob the `close` event surfaces as a PaywallCustomEvent, which
-      // the host maps to a gallery return.
       await tester.tap(backArrow);
       await tester.pumpAndSettle();
       expect(find.text('Restage SDK Examples'), findsOneWidget);
@@ -343,7 +294,7 @@ void main() {
     testWidgets(
         'default asset resolver loads the committed blob from rootBundle',
         (tester) async {
-      // The gallery's "live prices" tiles mount RestagePaywall(id:) with no
+      // The gallery's bundled tiles mount RestagePaywall(id:) with no
       // explicit resolver, falling back to the configured default — here
       // AssetVariantResolver (set in setUp), which loads
       // assets/paywalls/<id>.rfw from rootBundle. Pinning that path (rather
@@ -353,17 +304,14 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
-            body: RestagePaywall(
-              id: 'pulse_premium',
-              priceQueries: kStubPriceQueries,
-            ),
+            body: RestagePaywall(id: 'pulse_premium'),
           ),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Pulse'), findsOneWidget);
       // The default tier (Premium) annual price the committed blob renders.
-      expect(find.text(r'$83.99'), findsOneWidget);
+      expect(find.text(r'$69.99'), findsOneWidget);
     });
   });
 
@@ -389,7 +337,6 @@ void main() {
           body: RestagePaywall(
             id: 'fluent_pro',
             resolver: _StaticResolver(bytes),
-            priceQueries: kStubPriceQueries,
             onEvent: (e) {
               if (e is PaywallLoadFailed) failures.add(e);
             },
@@ -433,7 +380,6 @@ void main() {
           body: RestagePaywall(
             id: 'sentinel_protection',
             resolver: _StaticResolver(bytes),
-            priceQueries: kStubPriceQueries,
             onEvent: (e) {
               if (e is PaywallLoadFailed) failures.add(e);
             },
@@ -478,7 +424,6 @@ void main() {
           body: RestagePaywall(
             id: 'narrate_membership',
             resolver: _StaticResolver(bytes),
-            priceQueries: kStubPriceQueries,
             onEvent: (e) {
               if (e is PaywallLoadFailed) failures.add(e);
             },
@@ -494,9 +439,8 @@ void main() {
       expect(find.text('Try Standard free'), findsOneWidget);
     });
 
-    testWidgets(
-        'selecting a card expands it (and collapses the other) + re-targets '
-        'the purchase inside the blob', (tester) async {
+    testWidgets('selecting a card expands it and re-targets the action',
+        (tester) async {
       final events =
           await _pumpInteractivePaywall(tester, 'narrate_membership');
 
@@ -504,20 +448,20 @@ void main() {
       expect(find.text('Try Standard free'), findsOneWidget);
       expect(find.text('Try Premium Plus free'), findsNothing);
       await _tapText(tester, 'Try Standard free');
-      expect(_lastPurchasedProductId(events), 'com.restage.pro.monthly');
+      expect(_lastContinueArgs(events)?['plan'], 'standard');
 
       // Selecting Premium Plus expands it (and collapses Standard).
       await _tapPlanRow(tester, 'Premium Plus');
       expect(find.text('Try Standard free'), findsNothing);
       expect(find.text('Try Premium Plus free'), findsOneWidget);
       await _tapText(tester, 'Try Premium Plus free');
-      expect(_lastPurchasedProductId(events), 'com.restage.pro.annual');
+      expect(_lastContinueArgs(events)?['plan'], 'premium');
 
       // Re-selecting Standard flips it back.
       await _tapPlanRow(tester, 'Standard');
       expect(find.text('Try Standard free'), findsOneWidget);
       await _tapText(tester, 'Try Standard free');
-      expect(_lastPurchasedProductId(events), 'com.restage.pro.monthly');
+      expect(_lastContinueArgs(events)?['plan'], 'standard');
     });
   });
 
@@ -551,11 +495,9 @@ void main() {
     });
   });
 
-  group('design-state enumeration — brightness × price', () {
+  group('design-state enumeration — brightness × render path', () {
     // The full design-state matrix: each template, both
-    // brightnesses, both price states. Price state maps to the render path —
-    // local render shows the binding placeholder ($X.XX); the delivered blob
-    // resolves live prices from the stub product config.
+    // brightnesses and through both the direct and bundled render paths.
     Future<void> pumpLocal(
       WidgetTester tester,
       Widget paywall,
@@ -583,7 +525,6 @@ void main() {
             body: RestagePaywall(
               id: id,
               resolver: _StaticResolver(bytes),
-              priceQueries: kStubPriceQueries,
               onEvent: (e) {
                 if (e is PaywallLoadFailed) failures.add(e);
               },
@@ -598,9 +539,9 @@ void main() {
     // Each template, identified by its id, local-mount builder, and the
     // heading that pins it on screen. The local and remote cases are uniform
     // across templates, so they enumerate from this one table.
-    // The live (delivered-blob) annual + monthly prices each template shows by
-    // default. pulse_premium's tier strip drives a per-tier price, so its
-    // default (Premium tier) shows the Premium slot prices.
+    // The annual and monthly display prices each template shows by default.
+    // pulse_premium's tier strip drives a per-tier price, so its default
+    // (Premium tier) shows the Premium prices.
     final templates = <({
       String id,
       Widget Function() build,
@@ -612,7 +553,7 @@ void main() {
         id: 'pulse_premium',
         build: PulsePremiumPaywall.new,
         heading: 'Pulse',
-        annualPrice: r'$83.99',
+        annualPrice: r'$69.99',
         monthlyPrice: r'$7.99',
       ),
     ];
@@ -620,15 +561,14 @@ void main() {
     for (final brightness in [Brightness.light, Brightness.dark]) {
       final label = brightness.name;
       for (final t in templates) {
-        testWidgets('${t.id} · local · placeholder prices · $label',
-            (tester) async {
+        testWidgets('${t.id} · direct render · $label', (tester) async {
           await pumpLocal(tester, t.build(), brightness);
           expect(find.text(t.heading), findsOneWidget);
-          // Both plan rows show the binding placeholder on the local path.
-          expect(find.text(r'$X.XX'), findsNWidgets(2));
+          expect(find.text(t.annualPrice), findsOneWidget);
+          expect(find.text(t.monthlyPrice), findsOneWidget);
         });
 
-        testWidgets('${t.id} · remote · live prices · $label', (tester) async {
+        testWidgets('${t.id} · bundled render · $label', (tester) async {
           final failures = await pumpRemote(tester, t.id, brightness);
           expect(failures, isEmpty);
           expect(find.text(t.heading), findsOneWidget);
@@ -645,21 +585,19 @@ void main() {
   // ascend_flow_test.dart.
 
   // pulse_premium drives BOTH a tier strip AND a period toggle into a single
-  // tier x period charge, so it doesn't fit the shared single-axis contract;
-  // its tier + period + feature-list behaviour is covered in the dedicated
-  // group below.
+  // tier x period action payload, so it doesn't fit the shared single-axis
+  // contract; its tier + period + feature-list behaviour is covered in the
+  // dedicated group below.
 
-  // Fluent Pro names its rows Personal (the default, monthly) / Family; its
+  // Fluent Pro names its rows Personal (the default) / Family; its
   // hero + render are covered in the 'Fluent Pro' group above.
   _interactivePlanSelectionGroup(
     paywallId: 'fluent_pro',
     ctaLabel: 'START MY FREE WEEK',
-    defaultPlan: 'monthly',
+    defaultPlan: 'personal',
     defaultPlanLabel: 'Personal',
     otherPlanLabel: 'Family',
-    // The Family row buys the family product (the $119.99 plan it displays),
-    // not the annual product.
-    otherProduct: 'com.restage.pro.family',
+    otherPlan: 'family',
   );
 
   // Sentinel Protection names its rows '1-year plan' (the default, annual) /
@@ -672,9 +610,7 @@ void main() {
   );
 
   // Lumen Premium — the meditation paywall that climaxes the onboarding flow.
-  // Annual is the default; tapping 'Monthly' re-targets the purchase (the
-  // paywall library dead-control guard: the plan choice must actually move the
-  // money path).
+  // Annual is the default; tapping 'Monthly' re-targets the action.
   _interactivePlanSelectionGroup(
     paywallId: 'lumen_premium',
     ctaLabel: 'Start free trial',
@@ -725,33 +661,24 @@ void main() {
       final events = await _pumpInteractivePaywall(tester, 'pulse_premium');
       // Default: the Premium tier (index 1) + Monthly.
       await _tapText(tester, 'Subscribe & pay');
-      expect(
-        _lastPurchasedProductId(events),
-        'com.restage.tier.premium.monthly',
-      );
+      expect(_lastContinueArgs(events), {'tier': 'premium', 'term': 'monthly'});
 
       // The period cards re-target within the tier.
       await _tapPlanRow(tester, 'Annual');
       await _tapText(tester, 'Subscribe & pay');
-      expect(
-        _lastPurchasedProductId(events),
-        'com.restage.tier.premium.annual',
-      );
+      expect(_lastContinueArgs(events), {'tier': 'premium', 'term': 'annual'});
 
       // The tier strip re-targets too (period stays Annual).
       await _tapText(tester, 'Basic');
       await _tapText(tester, 'Subscribe & pay');
-      expect(
-        _lastPurchasedProductId(events),
-        'com.restage.tier.basic.annual',
-      );
+      expect(_lastContinueArgs(events), {'tier': 'basic', 'term': 'annual'});
 
       await _tapText(tester, 'Premium+');
       await _tapText(tester, 'Subscribe & pay');
-      expect(
-        _lastPurchasedProductId(events),
-        'com.restage.tier.premiumplus.annual',
-      );
+      expect(_lastContinueArgs(events), {
+        'tier': 'premium_plus',
+        'term': 'annual',
+      });
     });
 
     testWidgets('the tier strip drives the feature list', (tester) async {
@@ -807,7 +734,6 @@ void main() {
           body: RestagePaywall(
             id: id,
             resolver: _StaticResolver(_encodePaywall(id)),
-            priceQueries: kStubPriceQueries,
             onEvent: (e) {
               if (e is PaywallLoadFailed) failures.add(e);
             },
@@ -859,45 +785,6 @@ void main() {
     });
   });
 
-  group('delivered-blob host feedback (affordance audit)', () {
-    // The gallery's delivered-paywall host wires onEvent to
-    // showDemoPaywallEventFeedback, so a tap on Restore (which fires a host
-    // event, not in-blob behavior) has a visible result instead of silently
-    // doing nothing. This pins that wiring end-to-end: tapping the
-    // pulse_premium blob's Restore affordance surfaces its feedback SnackBar —
-    // proving the delivered-blob → host event → SnackBar path.
-    Future<void> pumpPulseWithFeedback(WidgetTester tester) async {
-      _useTallSurface(tester);
-      final bytes = _encodePaywall('pulse_premium');
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: _exampleTheme(Brightness.light),
-          home: Builder(
-            builder: (context) => RestagePaywall(
-              id: 'pulse_premium',
-              resolver: _StaticResolver(bytes),
-              priceQueries: kStubPriceQueries,
-              onEvent: (event) => showDemoPaywallEventFeedback(context, event),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets('tapping Restore surfaces a feedback SnackBar', (tester) async {
-      await pumpPulseWithFeedback(tester);
-
-      await tester.ensureVisible(find.text('Restore'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Restore'));
-      await tester.pump(); // start the SnackBar animation
-      await tester.pump(const Duration(milliseconds: 300));
-
-      expect(find.text('Restore requested'), findsOneWidget);
-    });
-  });
-
   group('delivered-blob load failure (errorBuilder fallback)', () {
     // The gallery's delivered-paywall host gives RestagePaywall an errorBuilder
     // that paints a plain "unavailable" surface (not a blank/crashed screen)
@@ -920,7 +807,6 @@ void main() {
               // appear.
               id: 'pulse_premium',
               resolver: const _FailingResolver(),
-              priceQueries: kStubPriceQueries,
               // Same wiring as the gallery host: feedback SnackBars for taps,
               // load failures handled by errorBuilder below — never a SnackBar.
               onEvent: (event) {
@@ -1078,7 +964,7 @@ void main() {
   // ascend_premium opens its plan selection inside a modal sheet (the lowered
   // showModalBottomSheet), so the standard plan-selection group (which expects
   // visible plan rows) does not apply. This drives the three modal states on
-  // the DELIVERED blob and asserts the purchase re-targets — the same
+  // the DELIVERED blob and asserts the action re-targets — the same
   // modal-sheet mechanics the trial-timeline template pins, proven on the
   // delivered blob.
   group('modal plan sheet — ascend_premium', () {
@@ -1099,9 +985,9 @@ void main() {
       expect(find.text('See All Plans'), findsOneWidget);
       expect(find.text('Monthly'), findsNothing);
 
-      // The collapsed CTA (inside the sheet) buys the default (annual) plan.
+      // The collapsed CTA (inside the sheet) reports the default annual term.
       await _tapSheetText(tester, 'Start free trial');
-      expect(_lastPurchasedProductId(events), 'com.restage.pro.annual');
+      expect(_lastContinueArgs(events)?['term'], 'annual');
 
       // State 3 — See All Plans swaps the content in place: the plan list
       // appears and the See-All-Plans button is removed.
@@ -1112,7 +998,7 @@ void main() {
       // Selecting Monthly re-targets the sheet CTA.
       await _tapPlanRow(tester, 'Monthly');
       await _tapSheetText(tester, 'Start free trial');
-      expect(_lastPurchasedProductId(events), 'com.restage.pro.monthly');
+      expect(_lastContinueArgs(events)?['term'], 'monthly');
     });
   });
 }

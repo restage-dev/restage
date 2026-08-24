@@ -14,8 +14,6 @@ dependencies:
     sdk: flutter
   restage:
     path: ../../packages/restage
-  # First-party paywall widgets (Package, RestagePager,
-  # ExpressCheckoutButton) used by the gallery paywalls.
   restage_material:
     path: ../../packages/restage_material
   # Used directly by the single-select device-smoke demo (RestageSelectionOption).

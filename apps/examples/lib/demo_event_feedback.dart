@@ -5,21 +5,15 @@ import 'package:restage/restage.dart';
 /// so every tappable element in a *delivered* paywall gives visible feedback
 /// instead of silently doing nothing.
 ///
-/// This is demo affordance feedback, not real behavior: a production app starts
-/// an actual purchase flow, restores entitlements, or opens the Terms / Privacy
-/// page here. The example only confirms the tap was received so the surface
-/// never reads as broken.
+/// This is demo affordance feedback, not real behavior. The example only
+/// confirms the tap was received so the surface never reads as broken.
 ///
 /// Returns `null` for events the host handles elsewhere (a [PaywallLoadFailed]
 /// is shown through the paywall's `errorBuilder`, not a SnackBar) or does not
 /// surface, so the caller can skip the SnackBar for those.
 String? demoPaywallEventLabel(RestageEvent event) {
-  if (event is PurchaseInitiated) {
-    return 'Starting purchase: ${event.productId}';
-  }
   if (event is PaywallCustomEvent) {
     return switch (event.eventName) {
-      'restore' => 'Restore requested',
       'terms' || 'terms_of_service' => 'Would open the Terms of Service',
       'privacy' || 'privacy_policy' => 'Would open the Privacy Policy',
       'subscription_info' => 'Would open the subscription details',

@@ -24,13 +24,8 @@ widget Paywall = Scaffold(
         ),
         SizedBox(height: 40.0),
         ElevatedButton(
-          onPressed: event "restage.purchase" { slot: "primary" },
+          onPressed: event "continue" { },
           child: Text(text: "Continue"),
-        ),
-        SizedBox(height: 12.0),
-        TextButton(
-          onPressed: event "restage.restore" { },
-          child: Text(text: "Restore purchases"),
         ),
       ],
     ),

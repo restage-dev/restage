@@ -1287,38 +1287,40 @@ class AcmeListed extends StatelessWidget {
       expect(result, isA<UnclassifiableWidget>());
     });
 
-    test('a registered paywall-helper call classifies as composition',
-        () async {
+    test('a registered event-helper call classifies as composition', () async {
       final result = await classifyFixture(
         {
-          'lib/priced.dart': '''
+          'lib/event.dart': '''
+import 'package:restage/restage.dart' show paywallEvent;
+
 $kClassifierStubs
 
-class Text extends StatelessWidget {
-  const Text(this.data);
-  final String? data;
+class GestureDetector extends StatelessWidget {
+  const GestureDetector({this.onTap});
+  final void Function()? onTap;
   Widget build(BuildContext context) => const Widget();
 }
 
 @RestageWidget(
-  name: 'AcmePriced',
+  name: 'AcmeEvent',
   library: WidgetLibrary.custom('acme.ds'),
-  category: WidgetCategory.display,
-  description: 'priced',
+  category: WidgetCategory.action,
+  description: 'event',
 )
-class AcmePriced extends StatelessWidget {
-  const AcmePriced();
-  Widget build(BuildContext context) => Text(paywallPriceFor(slot: 'pro'));
+class AcmeEvent extends StatelessWidget {
+  const AcmeEvent();
+  Widget build(BuildContext context) =>
+      GestureDetector(onTap: paywallEvent('continue'));
 }
 ''',
         },
-        inputPath: 'lib/priced.dart',
-        widgetName: 'AcmePriced',
+        inputPath: 'lib/event.dart',
+        widgetName: 'AcmeEvent',
         catalog: catalogWith([
           entry(
-            name: 'Text',
-            properties: const [],
-            flutterType: 'package:apps_examples/priced.dart#Text',
+            name: 'GestureDetector',
+            properties: [prop('onTap', PropertyType.event)],
+            flutterType: 'package:apps_examples/event.dart#GestureDetector',
           ),
         ]),
         helpers: HelperRegistry()..registerAll(paywallHelpers),
@@ -1328,13 +1330,13 @@ class AcmePriced extends StatelessWidget {
     });
 
     test(
-        'a customer paywallPurchase look-alike (a non-SDK library) is NOT '
+        'a customer paywallEvent look-alike (a non-SDK library) is NOT '
         'recognised as the build helper — the (name, libraryOrigin) gate '
         'holds', () async {
-      // The build registers `paywallPurchase` from the SDK library. A customer
+      // The build registers `paywallEvent` from the SDK library. A customer
       // function of the SAME NAME, resolved to the customer's own
       // library, must NOT be mistaken for it (the look-alike-safe rule): it
-      // defers as a `dartCall`, never lowering to a `restage.purchase` event.
+      // defers as a `dartCall`, never lowering to an SDK event.
       // This pins the (name, libraryOrigin) gate so registering the build's
       // helpers in the scanner can never widen recognition to name-only.
       final result = await classifyFixture(
@@ -1342,8 +1344,8 @@ class AcmePriced extends StatelessWidget {
           'lib/lookalike.dart': '''
 $kClassifierStubs
 
-// The customer's OWN paywallPurchase — same name, different library.
-void Function() paywallPurchase({String? slot}) => () {};
+// The customer's own paywallEvent — same name, different library.
+void Function() paywallEvent(String name) => () {};
 
 class GestureDetector extends StatelessWidget {
   const GestureDetector({this.onTap});
@@ -1360,7 +1362,7 @@ class GestureDetector extends StatelessWidget {
 class AcmeLookalike extends StatelessWidget {
   const AcmeLookalike();
   Widget build(BuildContext context) =>
-      GestureDetector(onTap: paywallPurchase(slot: 'pro'));
+      GestureDetector(onTap: paywallEvent('continue'));
 }
 ''',
         },
@@ -1382,10 +1384,10 @@ class AcmeLookalike extends StatelessWidget {
         contains(
           isA<Blocker>()
               .having((b) => b.kind, 'kind', BlockerKind.dartCall)
-              .having((b) => b.detail, 'detail', contains('paywallPurchase')),
+              .having((b) => b.detail, 'detail', contains('paywallEvent')),
         ),
         reason: 'the customer look-alike must defer as a dartCall naming '
-            'paywallPurchase, never lower as the SDK purchase event',
+            'paywallEvent, never lower as an SDK event',
       );
     });
   });
