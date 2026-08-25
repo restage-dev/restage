@@ -4,7 +4,7 @@ import 'package:restage/a2ui.dart' as a2ui;
 import 'package:restage/restage.dart';
 import 'package:restage/widgetbook.dart' as wb;
 
-part 'restage.generated/opaque_screen_proof.restage.g.dart';
+part 'restage.generated/get_started_screen.restage.g.dart';
 
 /// Native screen used to verify opaque A2UI and Widgetbook integration.
 ///

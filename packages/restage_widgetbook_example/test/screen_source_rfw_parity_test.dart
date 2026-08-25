@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_shared/restage_shared.dart';
-import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart';
+import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart';
 
 void main() {
   test(
@@ -19,13 +19,13 @@ void main() {
         sha256
             .convert(
               File(
-                'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
+                'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
               ).readAsBytesSync(),
             )
             .toString(),
-        'a9272cac5f3e4fac613b4f1156bcd9cf5832833b5248c369a0b37cc2c340156f',
+        'c6fb2b5f325716f7911af3dc9dae0e75cb7a9034dd4afb8d7bc43d2c3836e238',
         reason:
-            'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
+            'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       );
 
       const delivery = <String, String>{

@@ -5,11 +5,11 @@
 import 'package:widgetbook/widgetbook.dart' as widgetbook;
 import 'package:widgetbook/widgetbook.dart';
 import 'package:restage/restage.dart' as restage_runtime;
-import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart'
+import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart'
     as restage_source;
-import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart'
+import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart'
     show OpaqueScreenProof;
-import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart'
+import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart'
     show OpaqueScreenProofTone;
 
 part 'opaque_screen_proof.stories.g.dart';

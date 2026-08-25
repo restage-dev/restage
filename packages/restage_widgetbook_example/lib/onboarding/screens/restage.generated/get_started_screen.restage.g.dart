@@ -1,4 +1,4 @@
-part of '../opaque_screen_proof.dart';
+part of '../get_started_screen.dart';
 
 sealed class OpaqueScreenProofEvent {
   const OpaqueScreenProofEvent();
@@ -29,9 +29,9 @@ final _opaqueScreenProofProvenance = SurfaceScreenRuntimeProvenance.generated(
       "{\"schemaVersion\":1,\"events\":[{\"id\":\"continue\",\"arguments\":{\"encoding\":\"value\",\"shape\":{\"kind\":\"string\"}}}]}",
   bundle: SurfaceScreenBundleLocator(
     assetKey:
-        "assets/restage/bundles/lib/onboarding/screens/opaque_screen_proof.rsbundle",
+        "assets/restage/bundles/lib/onboarding/screens/get_started_screen.rsbundle",
     packageName: "restage_widgetbook_example",
-    authoredLibraryPath: "lib/onboarding/screens/opaque_screen_proof.dart",
+    authoredLibraryPath: "lib/onboarding/screens/get_started_screen.dart",
     entries: [
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/onboarding/screens/opaque_screen_proof.rfw",

@@ -32,25 +32,25 @@ final Catalog kUserCatalog = Catalog(
       ],
     ),
     WidgetEntry(
-      wireId: WireId('w0005'),
+      wireId: WireId('w0011'),
       name: 'CatalogShowcase',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
       category: WidgetCategory.input,
       description:
           'A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
       flutterType:
-          'package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcase',
+          'package:restage_widgetbook_example/widgets/status_panel.dart#CatalogShowcase',
       childrenSlot: ChildrenSlot.none,
       properties: [
         PropertyEntry(
-          wireId: WireId('p0009'),
+          wireId: WireId('p0050'),
           name: 'title',
           type: PropertyType.string,
           description: 'Visible title.',
           required: true,
         ),
         PropertyEntry(
-          wireId: WireId('p0010'),
+          wireId: WireId('p0051'),
           name: 'enabled',
           type: PropertyType.boolean,
           description: 'Whether the control is enabled.',
@@ -58,21 +58,23 @@ final Catalog kUserCatalog = Catalog(
           constructorDefault: DartConstScalar(true),
         ),
         PropertyEntry(
-          wireId: WireId('p0011'),
+          wireId: WireId('p0052'),
           name: 'status',
           type: PropertyType.enumValue,
           description: 'Current state.',
           required: true,
           enumType: 'CatalogShowcaseStatus',
           valueShape: EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                  libraryUri:
-                      'package:restage_widgetbook_example/widgets/catalog_showcase.dart',
-                  symbolName: 'CatalogShowcaseStatus')),
+            propertyType: PropertyType.enumValue,
+            enumRef: DartTypeRef(
+              libraryUri:
+                  'package:restage_widgetbook_example/widgets/status_panel.dart',
+              symbolName: 'CatalogShowcaseStatus',
+            ),
+          ),
         ),
         PropertyEntry(
-          wireId: WireId('p0012'),
+          wireId: WireId('p0053'),
           name: 'onChanged',
           type: PropertyType.event,
           description: 'Reports changes to [enabled].',
@@ -80,40 +82,43 @@ final Catalog kUserCatalog = Catalog(
           callbackSignature: 'ValueChanged<bool>',
         ),
         PropertyEntry(
-          wireId: WireId('p0043'),
+          wireId: WireId('p0054'),
           name: 'hero',
           type: PropertyType.widget,
           description: 'Custom widget shown before the detail list.',
           required: true,
         ),
         PropertyEntry(
-          wireId: WireId('p0044'),
+          wireId: WireId('p0055'),
           name: 'details',
           type: PropertyType.widgetList,
           description: 'Detail widgets shown in source order.',
           required: true,
         ),
         PropertyEntry(
-          wireId: WireId('p0045'),
+          wireId: WireId('p0056'),
           name: 'footer',
           type: PropertyType.widget,
           description: 'Optional custom widget shown after the detail list.',
           constructorNullable: true,
         ),
         PropertyEntry(
-          wireId: WireId('p0015'),
+          wireId: WireId('p0057'),
           name: 'data',
           type: PropertyType.structured,
           description: 'Structured information.',
           required: true,
           structuredRef: WireIdRef(
-              library: 'restage_widgetbook_example.widgets',
-              wireId: WireId('s0001')),
+            library: 'restage_widgetbook_example.widgets',
+            wireId: WireId('s0004'),
+          ),
           valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef: WireIdRef(
-                  library: 'restage_widgetbook_example.widgets',
-                  wireId: WireId('s0001'))),
+            propertyType: PropertyType.structured,
+            structuredRef: WireIdRef(
+              library: 'restage_widgetbook_example.widgets',
+              wireId: WireId('s0004'),
+            ),
+          ),
         ),
       ],
     ),
@@ -191,16 +196,19 @@ final Catalog kUserCatalog = Catalog(
           enumType: 'ConstructorCorpusMode',
           defaultSource: LiteralDefault('ready'),
           constructorDefault: DartConstReference(
+            libraryUri:
+                'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
+            owner: 'ConstructorCorpusMode',
+            member: 'ready',
+          ),
+          valueShape: EnumShape(
+            propertyType: PropertyType.enumValue,
+            enumRef: DartTypeRef(
               libraryUri:
                   'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
-              owner: 'ConstructorCorpusMode',
-              member: 'ready'),
-          valueShape: EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                  libraryUri:
-                      'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
-                  symbolName: 'ConstructorCorpusMode')),
+              symbolName: 'ConstructorCorpusMode',
+            ),
+          ),
         ),
         PropertyEntry(
           wireId: WireId('p0033'),
@@ -208,11 +216,11 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.color,
           description: 'Direct const invocation default.',
           constructorDefault: DartConstInvocation(
-              type:
-                  DartTypeIdentity(libraryUri: 'dart:ui', symbolName: 'Color'),
-              constructorName: 'new',
-              positional: [DartConstScalar(4279312947)],
-              named: []),
+            type: DartTypeIdentity(libraryUri: 'dart:ui', symbolName: 'Color'),
+            constructorName: 'new',
+            positional: [DartConstScalar(4279312947)],
+            named: [],
+          ),
         ),
         PropertyEntry(
           wireId: WireId('p0034'),
@@ -220,10 +228,11 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.color,
           description: 'Public static constant reference default.',
           constructorDefault: DartConstReference(
-              libraryUri:
-                  'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
-              owner: 'ConstructorCorpusDefaults',
-              member: 'publicColor'),
+            libraryUri:
+                'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
+            owner: 'ConstructorCorpusDefaults',
+            member: 'publicColor',
+          ),
         ),
         PropertyEntry(
           wireId: WireId('p0035'),
@@ -231,18 +240,22 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.structured,
           description: 'Nested structured default.',
           constructorDefault: DartConstReference(
-              libraryUri:
-                  'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
-              owner: 'ConstructorCorpusDefaults',
-              member: 'publicData'),
+            libraryUri:
+                'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart',
+            owner: 'ConstructorCorpusDefaults',
+            member: 'publicData',
+          ),
           structuredRef: WireIdRef(
-              library: 'restage_widgetbook_example.widgets',
-              wireId: WireId('s0002')),
+            library: 'restage_widgetbook_example.widgets',
+            wireId: WireId('s0002'),
+          ),
           valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef: WireIdRef(
-                  library: 'restage_widgetbook_example.widgets',
-                  wireId: WireId('s0002'))),
+            propertyType: PropertyType.structured,
+            structuredRef: WireIdRef(
+              library: 'restage_widgetbook_example.widgets',
+              wireId: WireId('s0002'),
+            ),
+          ),
         ),
         PropertyEntry(
           wireId: WireId('p0036'),
@@ -515,46 +528,6 @@ final Catalog kUserCatalog = Catalog(
   ],
   structuredTypes: [
     StructuredEntry(
-      wireId: WireId('s0001'),
-      name: 'CatalogShowcaseData',
-      library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
-      description: 'Structured information displayed by a [CatalogShowcase].',
-      sourceType:
-          'package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcaseData',
-      fields: [
-        StructuredField(
-          wireId: WireId('p0016'),
-          name: 'note',
-          type: PropertyType.string,
-          description: 'Supporting text.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.string,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
-        ),
-        StructuredField(
-          wireId: WireId('p0017'),
-          name: 'count',
-          type: PropertyType.integer,
-          description: 'The displayed count.',
-          valueShape: ScalarShape(
-              propertyType: PropertyType.integer,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
-        ),
-      ],
-      variants: [
-        ConstructorVariant(
-          wireId: WireId('v0001'),
-          argMappings: {
-            'count': ArgMapping(targetFields: [WireId('p0017')]),
-            'note': ArgMapping(targetFields: [WireId('p0016')]),
-          },
-          description: 'Creates showcase information.',
-        ),
-      ],
-    ),
-    StructuredEntry(
       wireId: WireId('s0002'),
       name: 'ConstructorCorpusData',
       library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
@@ -568,13 +541,16 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.structured,
           description: 'Nested object.',
           structuredRef: WireIdRef(
-              library: 'restage_widgetbook_example.widgets',
-              wireId: WireId('s0003')),
+            library: 'restage_widgetbook_example.widgets',
+            wireId: WireId('s0003'),
+          ),
           valueShape: StructuredShape(
-              propertyType: PropertyType.structured,
-              structuredRef: WireIdRef(
-                  library: 'restage_widgetbook_example.widgets',
-                  wireId: WireId('s0003'))),
+            propertyType: PropertyType.structured,
+            structuredRef: WireIdRef(
+              library: 'restage_widgetbook_example.widgets',
+              wireId: WireId('s0003'),
+            ),
+          ),
         ),
         StructuredField(
           wireId: WireId('p0040'),
@@ -582,9 +558,12 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.integer,
           description: 'A scalar nested beside the object.',
           valueShape: ScalarShape(
-              propertyType: PropertyType.integer,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+            propertyType: PropertyType.integer,
+            dartTypeRef: DartTypeRef(
+              libraryUri: 'dart:core',
+              symbolName: 'int',
+            ),
+          ),
         ),
       ],
       variants: [
@@ -612,9 +591,12 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.string,
           description: 'Nested label.',
           valueShape: ScalarShape(
-              propertyType: PropertyType.string,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
+            propertyType: PropertyType.string,
+            dartTypeRef: DartTypeRef(
+              libraryUri: 'dart:core',
+              symbolName: 'String',
+            ),
+          ),
         ),
       ],
       variants: [
@@ -624,6 +606,52 @@ final Catalog kUserCatalog = Catalog(
             'label': ArgMapping(targetFields: [WireId('p0041')]),
           },
           description: 'Creates nested corpus data.',
+        ),
+      ],
+    ),
+    StructuredEntry(
+      wireId: WireId('s0004'),
+      name: 'CatalogShowcaseData',
+      library: WidgetLibrary.custom('restage_widgetbook_example.widgets'),
+      description: 'Structured information displayed by a [CatalogShowcase].',
+      sourceType:
+          'package:restage_widgetbook_example/widgets/status_panel.dart#CatalogShowcaseData',
+      fields: [
+        StructuredField(
+          wireId: WireId('p0058'),
+          name: 'note',
+          type: PropertyType.string,
+          description: 'Supporting text.',
+          valueShape: ScalarShape(
+            propertyType: PropertyType.string,
+            dartTypeRef: DartTypeRef(
+              libraryUri: 'dart:core',
+              symbolName: 'String',
+            ),
+          ),
+        ),
+        StructuredField(
+          wireId: WireId('p0059'),
+          name: 'count',
+          type: PropertyType.integer,
+          description: 'The displayed count.',
+          valueShape: ScalarShape(
+            propertyType: PropertyType.integer,
+            dartTypeRef: DartTypeRef(
+              libraryUri: 'dart:core',
+              symbolName: 'int',
+            ),
+          ),
+        ),
+      ],
+      variants: [
+        ConstructorVariant(
+          wireId: WireId('v0004'),
+          argMappings: {
+            'count': ArgMapping(targetFields: [WireId('p0059')]),
+            'note': ArgMapping(targetFields: [WireId('p0058')]),
+          },
+          description: 'Creates showcase information.',
         ),
       ],
     ),

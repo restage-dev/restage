@@ -13,7 +13,7 @@ import 'package:restage_widgetbook_example/widgets/restage.generated/constructor
 import 'package:restage_widgetbook_example/generated/restage_a2ui_catalog.g.dart';
 import 'package:restage_widgetbook_example/user_factories.g.dart';
 import 'package:restage_widgetbook_example/widgets/bare_catalog_card.dart';
-import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart';
+import 'package:restage_widgetbook_example/widgets/status_panel.dart';
 import 'package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart';
 import 'package:restage_widgetbook_example/widgets/constructor_fidelity_proof.dart';
 import 'package:rfw/formats.dart';
