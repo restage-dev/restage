@@ -537,7 +537,7 @@ void main() {
     );
   });
 
-  test('fails closed for an unsupported document schemaVersion', () async {
+  test('admits document schemaVersion 2', () async {
     final screenBytes = Uint8List.fromList([1, 2, 3]);
     final envelope = _envelope(
       _validDocument(schemaVersion: 2, screenBytes: screenBytes),
@@ -549,10 +549,9 @@ void main() {
       httpClient: _server(envelope),
     );
 
-    await expectLater(
-      resolver.resolve(flowRef),
-      throwsA(_flowUnavailable('unsupported_schema_version')),
-    );
+    final resolved = await resolver.resolve(flowRef);
+
+    expect(resolved.document.schemaVersion, 2);
   });
 
   test('fails closed below the client capability floor (document minClient)',

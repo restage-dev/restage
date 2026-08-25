@@ -216,6 +216,9 @@ enum CanonicalHashDomain {
   /// Generated typed source reference.
   generatedReference('generated-reference'),
 
+  /// Generated typed presentation reference.
+  generatedPresentationReference('generated-presentation-reference'),
+
   /// Attempted semantic intent binding.
   intentBinding('intent-binding'),
 

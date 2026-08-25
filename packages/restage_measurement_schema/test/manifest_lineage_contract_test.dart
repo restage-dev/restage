@@ -153,6 +153,57 @@ void main() {
     );
   });
 
+  test('source interaction still requires an exact source event', () {
+    expect(
+      () => _copyOccurrence(
+        occurrence,
+        clearSourceEventIdentity: true,
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('presented points require non-sensitive Tier-2 value-free policy', () {
+    final presentation = _copyOccurrence(
+      occurrence,
+      capabilityKind: MeasurementCapabilityKind.presented,
+      clearSourceEventIdentity: true,
+      clearNormalizedInteractionKind: true,
+      semanticValueClass: SemanticValueClass.none,
+      collectionClass: MeasurementCollectionClass.tier2Coalesced,
+      lineageId: PointLineageId('lineage.checkout-policy'),
+      displayMetadataRef: DisplayMetadataRef('display.checkout-policy'),
+    );
+
+    for (final invalid in <MeasurementPointOccurrenceV1 Function()>[
+      () => _copyOccurrence(
+            presentation,
+            privacyClass: MeasurementPrivacyClass.sensitive,
+          ),
+      () => _copyOccurrence(
+            presentation,
+            collectionClass: MeasurementCollectionClass.tier1KeepAll,
+          ),
+      () => _copyOccurrence(
+            presentation,
+            semanticValueClass: SemanticValueClass.activityOnly,
+          ),
+    ]) {
+      expect(invalid, throwsArgumentError);
+    }
+
+    final invalidJson = <String, Object?>{
+      ...presentation.toJson(),
+      'privacyClass': MeasurementPrivacyClass.sensitive.wireName,
+    };
+    expect(
+      () => MeasurementPointOccurrenceV1.fromCanonicalBytes(
+        CanonicalJsonCodec.encode(invalidJson),
+      ),
+      throwsA(isA<CanonicalFormatException>()),
+    );
+  });
+
   test('local and complete manifests freeze exact closure', () {
     final reference = GeneratedPointReferenceV1(
       referenceId: GeneratedReferenceId('reference.checkout-button'),
@@ -196,6 +247,151 @@ void main() {
     expect(complete.generatedReferences.single, reference);
   });
 
+  test('presentation references close presentation points without an event',
+      () {
+    final presentation = _copyOccurrence(
+      occurrence,
+      capabilityKind: MeasurementCapabilityKind.presented,
+      clearSourceEventIdentity: true,
+      clearNormalizedInteractionKind: true,
+      semanticValueClass: SemanticValueClass.none,
+      lineageId: PointLineageId('lineage.checkout-presented'),
+      displayMetadataRef: DisplayMetadataRef('display.checkout-presented'),
+    );
+    final reference = GeneratedPresentationReferenceV1(
+      referenceId: GeneratedPresentationReferenceId(
+        'presentation-reference.checkout',
+      ),
+      target: target,
+      surfaceRevisionId: presentation.surfaceRevisionId,
+      artifactGraphHash: presentation.artifactGraphHash,
+      occurrenceId: presentation.occurrenceId,
+      lineageId: presentation.lineageId,
+      displayMetadataRef: presentation.displayMetadataRef,
+    );
+    final local = LocalMeasurementManifestV1(
+      manifestId: MeasurementManifestId('manifest.checkout-presented'),
+      target: target,
+      surfaceRevisionId: presentation.surfaceRevisionId,
+      artifactGraphHash: presentation.artifactGraphHash,
+      artifactId: presentation.artifactId,
+      artifactContentHash: presentation.artifactContentHash,
+      childArtifactIds: const [],
+      points: [presentation],
+      generatedReferences: const [],
+      privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
+      collectionBudgetRevisionId: AuthorityRevisionId('collection.v1'),
+      generatedPresentationReferences: [reference],
+    );
+
+    expect(presentation.sourceEventIdentity, isNull);
+    expect(reference.toJson(), isNot(contains('sourceEventIdentity')));
+    expect(local.generatedPresentationReferences, [reference]);
+    expect(
+      () => LocalMeasurementManifestV1(
+        manifestId: MeasurementManifestId('manifest.checkout-invalid'),
+        target: target,
+        surfaceRevisionId: occurrence.surfaceRevisionId,
+        artifactGraphHash: occurrence.artifactGraphHash,
+        artifactId: occurrence.artifactId,
+        artifactContentHash: occurrence.artifactContentHash,
+        childArtifactIds: const [],
+        points: [occurrence],
+        generatedReferences: const [],
+        privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
+        collectionBudgetRevisionId: AuthorityRevisionId('collection.v1'),
+        generatedPresentationReferences: [reference],
+      ),
+      throwsArgumentError,
+    );
+  });
+
+  test('presentation references are bounded and one-to-one with occurrences',
+      () {
+    final presentation = _copyOccurrence(
+      occurrence,
+      capabilityKind: MeasurementCapabilityKind.presented,
+      clearSourceEventIdentity: true,
+      clearNormalizedInteractionKind: true,
+      semanticValueClass: SemanticValueClass.none,
+      lineageId: PointLineageId('lineage.checkout-reference'),
+      displayMetadataRef: DisplayMetadataRef('display.checkout-reference'),
+    );
+    final reference = GeneratedPresentationReferenceV1(
+      referenceId: GeneratedPresentationReferenceId(
+        'presentation-reference.checkout-one',
+      ),
+      target: presentation.target,
+      surfaceRevisionId: presentation.surfaceRevisionId,
+      artifactGraphHash: presentation.artifactGraphHash,
+      occurrenceId: presentation.occurrenceId,
+      lineageId: presentation.lineageId,
+      displayMetadataRef: presentation.displayMetadataRef,
+    );
+    final secondReference = GeneratedPresentationReferenceV1(
+      referenceId: GeneratedPresentationReferenceId(
+        'presentation-reference.checkout-two',
+      ),
+      target: presentation.target,
+      surfaceRevisionId: presentation.surfaceRevisionId,
+      artifactGraphHash: presentation.artifactGraphHash,
+      occurrenceId: presentation.occurrenceId,
+      lineageId: presentation.lineageId,
+      displayMetadataRef: presentation.displayMetadataRef,
+    );
+
+    expect(
+      () => _localManifest(
+        presentation,
+        generatedPresentationReferences: [reference, secondReference],
+      ),
+      throwsArgumentError,
+    );
+
+    final local = _localManifest(
+      presentation,
+      generatedPresentationReferences: [reference],
+    );
+    final localJson = local.toJson();
+    expect(
+      () => LocalMeasurementManifestV1.fromCanonicalBytes(
+        CanonicalJsonCodec.encode(<String, Object?>{
+          ...localJson,
+          'generatedPresentationReferences': [
+            reference.toJson(),
+            secondReference.toJson(),
+          ],
+        }),
+      ),
+      throwsA(isA<CanonicalFormatException>()),
+    );
+    expect(
+      () => LocalMeasurementManifestV1.fromCanonicalBytes(
+        CanonicalJsonCodec.encode(<String, Object?>{
+          ...localJson,
+          'generatedPresentationReferences': List<Object?>.filled(
+            kMaximumGeneratedPresentationReferenceCount + 1,
+            reference.toJson(),
+          ),
+        }),
+      ),
+      throwsA(isA<CanonicalFormatException>()),
+    );
+  });
+
+  test('legacy local-manifest fixture remains byte exact', () {
+    final bytes = File(
+      'test/fixtures/compiler/local_measurement_manifest_v1.json',
+    ).readAsBytesSync();
+
+    final decoded = LocalMeasurementManifestV1.fromCanonicalBytes(bytes);
+
+    expect(decoded.canonicalBytes, bytes);
+    expect(decoded.generatedPresentationReferences, isEmpty);
+    expect(
+        decoded.toJson(), isNot(contains('generatedPresentationReferences')));
+  });
+
   test('manifest admits presentation and interaction slots on one node', () {
     final presentation = _copyOccurrence(
       occurrence,
@@ -206,9 +402,28 @@ void main() {
       lineageId: PointLineageId('lineage.checkout-presentation'),
       displayMetadataRef: DisplayMetadataRef('display.checkout-presentation'),
     );
+    expect(
+      () => _localManifest(
+        occurrence,
+        points: [occurrence, presentation],
+      ),
+      throwsArgumentError,
+    );
+    final presentationReference = GeneratedPresentationReferenceV1(
+      referenceId: GeneratedPresentationReferenceId(
+        'presentation-reference.checkout-combined',
+      ),
+      target: presentation.target,
+      surfaceRevisionId: presentation.surfaceRevisionId,
+      artifactGraphHash: presentation.artifactGraphHash,
+      occurrenceId: presentation.occurrenceId,
+      lineageId: presentation.lineageId,
+      displayMetadataRef: presentation.displayMetadataRef,
+    );
     final local = _localManifest(
       occurrence,
       points: [occurrence, presentation],
+      generatedPresentationReferences: [presentationReference],
     );
     final complete = _completeManifest(occurrence, [local]);
 
@@ -754,6 +969,8 @@ LocalMeasurementManifestV1 _localManifest(
   MeasurementManifestId? manifestId,
   List<ArtifactId> childArtifactIds = const [],
   List<MeasurementPointOccurrenceV1>? points,
+  List<GeneratedPresentationReferenceV1> generatedPresentationReferences =
+      const [],
 }) =>
     LocalMeasurementManifestV1(
       manifestId: manifestId ?? MeasurementManifestId('manifest.checkout-root'),
@@ -765,6 +982,7 @@ LocalMeasurementManifestV1 _localManifest(
       childArtifactIds: childArtifactIds,
       points: points ?? [occurrence],
       generatedReferences: const [],
+      generatedPresentationReferences: generatedPresentationReferences,
       privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
       collectionBudgetRevisionId: AuthorityRevisionId('collection.v1'),
     );

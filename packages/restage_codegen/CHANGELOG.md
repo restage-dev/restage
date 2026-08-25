@@ -2,6 +2,10 @@
 
 ## 2.0.0
 
+**Breaking: typed survey flows emit schema version 2.** Their generated flow
+documents include `surveyQuestionOrder`, preserving the authored order of
+declared survey answer identifiers.
+
 **Breaking: one generated handle per annotated class.** The build now emits a
 single top-level `<className>Ref` for every annotated screen and flow, instead
 of two different shapes depending on which frontend produced it.
@@ -41,6 +45,9 @@ Generated Dart changes; generated delivery artifacts do not.
 This section records the package side of a coordinated breaking release. The
 release version and publication timing are assigned separately.
 
+- Generate `registerRestageWidgets()` as the app startup helper.
+  `registerRestageCustomerWidgets()` remains a deprecated forwarding alias
+  through 2.x and is removed at 3.0.
 - Each generated output roster entry records the condition under which its
   path is written: for every lowering of its source, or only when the lowering
   produces one particular thing. Paths are reserved before the translator

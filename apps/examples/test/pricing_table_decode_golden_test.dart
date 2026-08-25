@@ -21,7 +21,7 @@ import 'package:rfw/formats.dart' hide WidgetLibrary;
 void main() {
   setUp(() {
     Restage.debugReset();
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
   });
 
   Future<void> pumpBlob(WidgetTester tester, String blob) async {
@@ -129,5 +129,5 @@ class _StaticResolver implements VariantResolver {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: bytes, paywallId: id);
+      ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
 }

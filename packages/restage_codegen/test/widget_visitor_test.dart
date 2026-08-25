@@ -34,6 +34,74 @@ void main() {
       expect(w.childrenSlot, ChildrenSlot.none);
     });
 
+    test('adds the reserved analyticsId descriptor for an RFW catalog',
+        () async {
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/foo.dart': '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+            @RestageWidget(
+              name: 'Foo',
+              library: WidgetLibrary.custom('acme.design_system'),
+              category: WidgetCategory.layout,
+              description: 'A foo widget.',
+            )
+            class Foo {
+              const Foo({this.title});
+              @RestageProperty(description: 'Title.')
+              final String? title;
+            }
+          ''',
+        },
+        includeAnalyticsId: true,
+      );
+
+      expect(result.issues, isEmpty);
+      final property = result.widgets.single.properties.singleWhere(
+        (entry) => entry.name == kAnalyticsIdPropertyName,
+      );
+      expect(property.type, PropertyType.string);
+      expect(property.synthetic, kAnalyticsIdSyntheticStrategy);
+      expect(property.required, isFalse);
+    });
+
+    test('rejects a customer constructor collision with analyticsId', () async {
+      final result = await runWidgetVisitorOn(
+        {
+          'lib/foo.dart': '''
+            import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+            @RestageWidget(
+              name: 'Foo',
+              library: WidgetLibrary.custom('acme.design_system'),
+              category: WidgetCategory.layout,
+              description: 'A foo widget.',
+            )
+            class Foo {
+              const Foo({this.analyticsId});
+              @RestageProperty(description: 'Constructor input.')
+              final String? analyticsId;
+            }
+          ''',
+        },
+        includeAnalyticsId: true,
+      );
+
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.invalidSynthetic,
+      ]);
+      expect(
+        result.widgets.single.properties
+            .where((entry) => entry.name == kAnalyticsIdPropertyName),
+        hasLength(1),
+      );
+      expect(
+        result.widgets.single.properties.single.synthetic,
+        isNull,
+      );
+    });
+
     test('skips classes without the annotation', () async {
       final result = await runWidgetVisitorOn({
         'lib/foo.dart': '''
@@ -670,18 +738,18 @@ void main() {
       );
     });
 
-    test('rejects private @RestageWidget classes', () async {
+    test('rejects underscored @RestageWidget classes', () async {
       final result = await runWidgetVisitorOn({
         'lib/foo.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
           @RestageWidget(
-            name: 'Private',
+            name: 'FileLocal',
             library: WidgetLibrary.custom('acme.design_system'),
             category: WidgetCategory.layout,
-            description: 'private to this file',
+            description: 'only within this source file',
           )
-          class _Private { const _Private(); }
+          class _FileLocal { const _FileLocal(); }
         ''',
       });
       expect(result.widgets, isEmpty);

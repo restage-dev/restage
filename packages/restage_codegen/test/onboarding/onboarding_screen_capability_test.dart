@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -63,12 +64,41 @@ final class WelcomeScreen extends StatelessWidget {
     final sources = {
       'apps_examples|lib/onboarding/screens/welcome.dart': source,
     };
+    final catalogReaderWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    catalogReaderWriter.testing.writeString(
+      AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
+      source,
+    );
+
+    String? catalogJson;
+    await testBuilder(
+      const UserCatalogJsonBuilder(BuilderOptions.empty),
+      sources,
+      rootPackage: 'apps_examples',
+      readerWriter: catalogReaderWriter,
+      outputs: {
+        'apps_examples|lib/src/widget_catalog/catalog.json':
+            decodedMatches(predicate<String>((value) {
+          catalogJson = value;
+          return true;
+        })),
+      },
+      onLog: (_) {},
+    );
+    expect(catalogJson, isNotNull);
+
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
     readerWriter.testing.writeString(
       AssetId('apps_examples', 'lib/onboarding/screens/welcome.dart'),
       source,
+    );
+    readerWriter.testing.writeString(
+      AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
+      catalogJson!,
     );
 
     final result = await testBuilders(

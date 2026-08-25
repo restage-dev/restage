@@ -41,22 +41,10 @@ abstract final class FlowDocumentCodec {
 }
 
 FlowDocument _decodeDocument(Map<String, Object?> json) {
+  final schemaVersion = _requiredInt(json, 'schemaVersion');
   _rejectUnknownKeys(
     json,
-    const {
-      'actions',
-      'deliveryMode',
-      'features',
-      'flow',
-      'flowState',
-      'initial',
-      'minClient',
-      'outbound',
-      'schemaVersion',
-      'screenArtifacts',
-      'states',
-      'version',
-    },
+    _documentKeysForSchemaVersion(schemaVersion),
     r'$',
   );
 
@@ -82,7 +70,7 @@ FlowDocument _decodeDocument(Map<String, Object?> json) {
   final document = FlowDocument(
     flow: _requiredString(json, 'flow'),
     version: _requiredInt(json, 'version'),
-    schemaVersion: _requiredInt(json, 'schemaVersion'),
+    schemaVersion: schemaVersion,
     minClient: _requiredInt(json, 'minClient'),
     initial: _requiredString(json, 'initial'),
     actions: _decodeActions(_optionalObject(json, 'actions'), r'$.actions'),
@@ -94,6 +82,12 @@ FlowDocument _decodeDocument(Map<String, Object?> json) {
       _optionalObject(json, 'outbound'),
       r'$.outbound',
     ),
+    surveyQuestionOrder: schemaVersion == 2
+        ? _decodeStringList(
+            json['surveyQuestionOrder'],
+            r'$.surveyQuestionOrder',
+          )
+        : const [],
     legacyTerminalResultPassthrough: !hasFlowState && !hasOutbound,
     screenArtifacts: _decodeArtifacts(
       _requiredObject(json, 'screenArtifacts'),
@@ -104,7 +98,65 @@ FlowDocument _decodeDocument(Map<String, Object?> json) {
     unsupportedFeatures: unsupportedFeatures,
   );
   _checkDecodedActionInvariants(document);
+  _checkDecodedSurveyQuestionOrder(document);
   return document;
+}
+
+Set<String> _documentKeysForSchemaVersion(int schemaVersion) {
+  const common = <String>{
+    'actions',
+    'deliveryMode',
+    'features',
+    'flow',
+    'flowState',
+    'initial',
+    'minClient',
+    'outbound',
+    'schemaVersion',
+    'screenArtifacts',
+    'states',
+    'version',
+  };
+  return switch (schemaVersion) {
+    1 => common,
+    2 => <String>{...common, 'surveyQuestionOrder'},
+    _ => throw FormatException(
+        'Unsupported flow schemaVersion $schemaVersion.',
+      ),
+  };
+}
+
+void _checkDecodedSurveyQuestionOrder(FlowDocument document) {
+  final fields = document.outbound.surveyAnswers.fields;
+  final order = document.surveyQuestionOrder;
+  final orderedQuestionIds = order.toSet();
+  if (document.schemaVersion == 1) {
+    return;
+  }
+  if (fields.isEmpty) {
+    if (order.isNotEmpty) {
+      throw const FormatException(
+        'surveyQuestionOrder requires surveyAnswers declarations.',
+      );
+    }
+    return;
+  }
+  if (order.isEmpty ||
+      order.length != fields.length ||
+      orderedQuestionIds.length != order.length ||
+      !orderedQuestionIds.containsAll(fields.keys)) {
+    throw const FormatException(
+      'surveyQuestionOrder must contain every surveyAnswers key exactly once.',
+    );
+  }
+  for (final questionId in order) {
+    final ref = fields[questionId]!.ref;
+    if (ref is! StateFlowOutboundRef || ref.path.isNotEmpty) {
+      throw FormatException(
+        'Survey answer "$questionId" must reference one declared state value.',
+      );
+    }
+  }
 }
 
 Map<String, FlowStateDeclaration> _decodeFlowState(
@@ -879,6 +931,9 @@ Map<String, Object?> _encodeDocument(FlowDocument document) {
       (!document.legacyTerminalResultPassthrough && document.flowState.isEmpty);
   if (shouldEncodeOutbound) {
     json['outbound'] = _encodeOutbound(document.outbound);
+  }
+  if (document.surveyQuestionOrder.isNotEmpty) {
+    json['surveyQuestionOrder'] = document.surveyQuestionOrder;
   }
   return json;
 }

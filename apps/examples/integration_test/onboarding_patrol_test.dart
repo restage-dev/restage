@@ -48,7 +48,7 @@ void main() {
         products: kStubProducts,
         resolver: const AssetVariantResolver(),
       );
-      registerRestageCustomerWidgets();
+      registerRestageWidgets();
 
       for (final brightness in [Brightness.light, Brightness.dark]) {
         await $.pumpWidgetAndSettle(

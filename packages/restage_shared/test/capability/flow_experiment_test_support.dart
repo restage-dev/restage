@@ -7,6 +7,7 @@ const _boolSchema = FlowActionSchema.bool();
 FlowDocument experimentDocument({
   String flow = 'first_run',
   int version = 1,
+  int schemaVersion = 1,
   int minClient = 3,
   FlowDeliveryMode deliveryMode = FlowDeliveryMode.typed,
   Map<String, FlowActionContract> actions = const {},
@@ -17,7 +18,7 @@ FlowDocument experimentDocument({
   return FlowDocument(
     flow: flow,
     version: version,
-    schemaVersion: 1,
+    schemaVersion: schemaVersion,
     minClient: minClient,
     initial: states == null ? 'done' : states.keys.first,
     actions: actions,

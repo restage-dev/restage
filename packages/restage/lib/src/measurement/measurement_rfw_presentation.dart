@@ -14,6 +14,8 @@ const LibraryName kMeasurementRfwPresentationLibrary = LibraryName(<String>[
 ]);
 
 const String _measurementPresentedConstructor = 'MeasurementPresented';
+const String _measurementSourcePresentedConstructor =
+    'MeasurementSourcePresented';
 const String _pointTokensArgument = 'pointTokens';
 const String _carriersArgument = 'carriers';
 const String _childArgument = 'child';
@@ -127,7 +129,8 @@ final class MeasurementRfwPresentationBinderScope extends InheritedWidget {
 @internal
 LocalWidgetLibrary buildMeasurementRfwPresentationLocalWidgetLibrary() =>
     LocalWidgetLibrary(<String, LocalWidgetBuilder>{
-      _measurementPresentedConstructor: _buildMeasurementPresented,
+      _measurementPresentedConstructor: _buildBoundMeasurementPresented,
+      _measurementSourcePresentedConstructor: _buildBoundMeasurementPresented,
     });
 
 /// Installs the private presentation library on one renderer runtime.
@@ -143,15 +146,25 @@ void installMeasurementRfwPresentationLibrary(Runtime runtime) {
   );
 }
 
-Widget _buildMeasurementPresented(BuildContext context, DataSource source) {
+Widget _buildBoundMeasurementPresented(
+  BuildContext context,
+  DataSource source,
+) {
   final child = source.child(const <Object>[_childArgument]);
   final pointTokens = _validPointTokens(source);
   if (pointTokens.isEmpty) return child;
-  final edge = MeasurementRfwPresentationCaptureScope.maybeOf(context) ??
-      MeasurementRfwPresentationBinderScope.maybeOf(context)?.bindPresentation(
-        pointTokens: pointTokens,
-        routeCarriers: _validRouteCarriers(source),
-      );
+  final binder = MeasurementRfwPresentationBinderScope.maybeOf(context);
+  MeasurementCaptureEdge? edge;
+  if (binder == null) {
+    edge = MeasurementRfwPresentationCaptureScope.maybeOf(context);
+  } else {
+    final routeCarriers = _validRouteCarriers(source);
+    if (pointTokens.length != routeCarriers.length) return child;
+    edge = binder.bindPresentation(
+      pointTokens: pointTokens,
+      routeCarriers: routeCarriers,
+    );
+  }
   if (edge == null) return child;
   return MeasurementRfwPresentationCaptureScope(
     edge: edge,
@@ -162,37 +175,27 @@ Widget _buildMeasurementPresented(BuildContext context, DataSource source) {
   );
 }
 
-List<String> _validPointTokens(DataSource source) {
-  const path = <Object>[_pointTokensArgument];
+List<String> _validPointTokens(DataSource source) =>
+    _validStringList(source, _pointTokensArgument);
+
+List<String> _validRouteCarriers(DataSource source) =>
+    _validStringList(source, _carriersArgument);
+
+List<String> _validStringList(DataSource source, String argument) {
+  final path = <Object>[argument];
   if (!source.isList(path)) return const <String>[];
   final length = source.length(path);
   if (length == 0 || length > kMeasurementWorkerMaximumRouteCount) {
     return const <String>[];
   }
 
-  final pointTokens = <String>[];
+  final values = <String>[];
   for (var index = 0; index < length; index += 1) {
-    final pointToken = source.v<String>(<Object>[_pointTokensArgument, index]);
-    if (pointToken != null) pointTokens.add(pointToken);
+    final value = source.v<String>(<Object>[argument, index]);
+    if (value == null) return const <String>[];
+    values.add(value);
   }
-  return List<String>.unmodifiable(pointTokens);
-}
-
-List<String> _validRouteCarriers(DataSource source) {
-  const path = <Object>[_carriersArgument];
-  if (!source.isList(path)) return const <String>[];
-  final length = source.length(path);
-  if (length == 0 || length > kMeasurementWorkerMaximumRouteCount) {
-    return const <String>[];
-  }
-
-  final carriers = <String>[];
-  for (var index = 0; index < length; index += 1) {
-    final carrier = source.v<String>(<Object>[_carriersArgument, index]);
-    if (carrier == null) return const <String>[];
-    carriers.add(carrier);
-  }
-  return List<String>.unmodifiable(carriers);
+  return List<String>.unmodifiable(values);
 }
 
 final class _MeasurementRfwPresentationProbe extends StatefulWidget {

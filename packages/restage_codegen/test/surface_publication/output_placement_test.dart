@@ -19,6 +19,10 @@ void main() {
         'lib/features/onboarding/restage.generated/welcome.rsbundle',
       );
       expect(source.inspectionReportPath, isNull);
+      expect(
+        plan.analyticsIdMetadataPath,
+        'lib/generated/restage.analytics-id.metadata.json',
+      );
 
       final extensions = plan.portableBuildExtensions;
       expect(
@@ -140,6 +144,10 @@ void main() {
       expect(
         plan.publicationManifestPath,
         'tool/restage/metadata/restage.publication.json',
+      );
+      expect(
+        plan.analyticsIdMetadataPath,
+        'tool/restage/metadata/restage.analytics-id.metadata.json',
       );
       expect(
         plan.a2uiCatalogPath,

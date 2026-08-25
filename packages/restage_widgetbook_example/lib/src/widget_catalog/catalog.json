@@ -29,6 +29,13 @@
             "kind": "scalar",
             "value": "Bare catalog card"
           }
+        },
+        {
+          "wireId": "p0060",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -125,6 +132,13 @@
               "wireId": "s0004"
             }
           }
+        },
+        {
+          "wireId": "p0061",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -314,6 +328,13 @@
           "description": "Arbitrarily named one-argument integer callback.",
           "required": true,
           "callbackSignature": "ValueChanged<int>"
+        },
+        {
+          "wireId": "p0062",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -369,6 +390,13 @@
           "description": "Arbitrarily named one-argument callback paired with [enabled].",
           "required": true,
           "callbackSignature": "ValueChanged<bool>"
+        },
+        {
+          "wireId": "p0063",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -418,6 +446,13 @@
             "kind": "scalar",
             "value": "trailing-default"
           }
+        },
+        {
+          "wireId": "p0064",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -444,6 +479,13 @@
           "type": "widgetList",
           "description": "Widgets shown in the panel body.",
           "required": true
+        },
+        {
+          "wireId": "p0065",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -477,6 +519,13 @@
             "kind": "literal",
             "value": "No caps on what you ship."
           }
+        },
+        {
+          "wireId": "p0066",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -510,6 +559,13 @@
             "kind": "literal",
             "value": "mo"
           }
+        },
+        {
+          "wireId": "p0067",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -553,6 +609,13 @@
           "type": "widget",
           "description": "Required non-nullable named control.",
           "required": true
+        },
+        {
+          "wireId": "p0068",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -586,6 +649,13 @@
             "kind": "literal",
             "value": "1,204"
           }
+        },
+        {
+          "wireId": "p0069",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     }

@@ -249,6 +249,21 @@ void main() {
       }
     });
 
+    test('rejects a schema version 2 document', () {
+      final document = experimentDocument(schemaVersion: 2);
+
+      expect(
+        () => experimentDocumentContract(document: document),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('Unsupported flow document schemaVersion 2.'),
+          ),
+        ),
+      );
+    });
+
     test('rejects duplicate semantic identities', () {
       final rootDocument = experimentDocument(
         states: {

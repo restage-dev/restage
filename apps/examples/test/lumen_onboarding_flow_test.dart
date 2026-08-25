@@ -23,7 +23,7 @@ void main() {
       products: kStubProducts,
       resolver: const AssetVariantResolver(),
     );
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
   });
 
   testWidgets(

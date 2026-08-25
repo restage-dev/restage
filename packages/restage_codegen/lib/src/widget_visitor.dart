@@ -206,11 +206,13 @@ WidgetVisitorResult visitRestageWidgets(
   LibraryElement library,
   AssetId assetId, {
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
+  bool includeAnalyticsId = false,
 }) =>
     _visitRestageWidgets(
       library,
       assetId,
       target: target,
+      includeAnalyticsId: includeAnalyticsId,
     );
 
 /// Package-aware variant used by sibling builders after they have indexed all
@@ -220,11 +222,13 @@ WidgetVisitorResult visitRestageWidgetsInPackage(
   AssetId assetId, {
   required RestageWidgetPackageFacts packageFacts,
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
+  bool includeAnalyticsId = false,
 }) =>
     _visitRestageWidgets(
       library,
       assetId,
       target: target,
+      includeAnalyticsId: includeAnalyticsId,
       ownershipByWidget: packageFacts.ownershipByWidget,
     );
 
@@ -350,6 +354,7 @@ WidgetVisitorResult _visitRestageWidgets(
   LibraryElement library,
   AssetId assetId, {
   required WidgetVisitorTarget target,
+  required bool includeAnalyticsId,
   Map<String, List<WidgetLibrary>>? ownershipByWidget,
 }) {
   final widgets = <WidgetEntry>[];
@@ -438,6 +443,7 @@ WidgetVisitorResult _visitRestageWidgets(
       widgetUnrenderable: widgetUnrenderable,
       exclusions: exclusions,
       target: target,
+      includeAnalyticsId: includeAnalyticsId,
       mapPlans: mapPlans,
       recordPlans: recordPlans,
       constructorFacts: constructorFacts[cls]!,
@@ -511,6 +517,7 @@ WidgetEntry? _readWidgetAnnotation(
   required Map<String, String> widgetUnrenderable,
   required List<PropertyExclusion> exclusions,
   required WidgetVisitorTarget target,
+  required bool includeAnalyticsId,
   required Map<String, MapPlan> mapPlans,
   required Map<String, RecordPlan> recordPlans,
   required WidgetConstructorFacts constructorFacts,
@@ -529,6 +536,21 @@ WidgetEntry? _readWidgetAnnotation(
   final category = metadata.category;
   final description = metadata.description;
   final flutterType = _flutterTypeOf(cls);
+  final hasAnalyticsIdCollision = includeAnalyticsId &&
+      target == WidgetVisitorTarget.rfw &&
+      constructorFacts.allInputs.any(
+        (input) => input.name == kAnalyticsIdPropertyName,
+      );
+  if (hasAnalyticsIdCollision) {
+    issues.add(
+      Issue(
+        code: IssueCode.invalidSynthetic,
+        message: 'Reserved catalog property "$kAnalyticsIdPropertyName" '
+            'conflicts with a customer constructor property.',
+        location: widgetLocation,
+      ),
+    );
+  }
 
   final properties = <PropertyEntry>[];
   final exclusionStart = exclusions.length;
@@ -548,6 +570,15 @@ WidgetEntry? _readWidgetAnnotation(
     );
     if (p == null) continue;
     properties.add(p);
+  }
+  if (includeAnalyticsId &&
+      target == WidgetVisitorTarget.rfw &&
+      !hasAnalyticsIdCollision) {
+    _appendAnalyticsIdProperty(
+      properties,
+      location: widgetLocation,
+      issues: issues,
+    );
   }
   _validateTargetPositionalExclusions(
     className: className,
@@ -578,6 +609,25 @@ WidgetEntry? _readWidgetAnnotation(
     childrenSlot: ChildrenSlot.none,
     properties: properties,
   );
+}
+
+void _appendAnalyticsIdProperty(
+  List<PropertyEntry> properties, {
+  required String location,
+  required List<Issue> issues,
+}) {
+  if (properties.any((property) => property.name == kAnalyticsIdPropertyName)) {
+    issues.add(
+      Issue(
+        code: IssueCode.invalidSynthetic,
+        message: 'Reserved catalog property "$kAnalyticsIdPropertyName" '
+            'conflicts with a customer constructor property.',
+        location: location,
+      ),
+    );
+    return;
+  }
+  properties.add(analyticsIdProperty());
 }
 
 final class _ResolvedWidgetMetadata {

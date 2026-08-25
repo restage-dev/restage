@@ -21,7 +21,7 @@ class _StaticResolver implements VariantResolver {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: bytes, paywallId: id);
+      ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
 }
 
 Future<List<PaywallLoadFailed>> _mountCustomBadgePaywall(
@@ -68,7 +68,7 @@ Future<List<PaywallLoadFailed>> _mountCustomBadgePaywall(
 void main() {
   setUp(() {
     Restage.debugReset();
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
   });
 
   testWidgets(

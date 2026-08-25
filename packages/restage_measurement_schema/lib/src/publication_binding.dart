@@ -16,15 +16,16 @@ const int kMaximumMeasurementPublicationBindingArtifactCount = 1024;
 /// Maximum mounted artifact occurrences carried by one binding.
 const int kMaximumMeasurementPublicationBindingMountedArtifactCount = 1024;
 
-/// Maximum opaque event routes carried by one mounted artifact occurrence.
+/// Maximum source-interaction routes carried by one mounted artifact.
 const int kMaximumMeasurementPublicationBindingRoutesPerMountedArtifact =
     kMaximumMeasurementPublicationRuntimeRouteCount;
 
-/// Maximum opaque event routes carried by one binding across all mounts.
-///
-/// This is the frozen runtime-route accepted set. The independent artifact
-/// graph and canonical-node limits may be larger; they do not widen the
-/// number of delivered carrier routes.
+/// Maximum presentation routes carried by one mounted artifact.
+const int
+    kMaximumMeasurementPublicationBindingPresentationRoutesPerMountedArtifact =
+    kMaximumMeasurementPublicationPresentationRouteCount;
+
+/// Maximum source and presentation routes carried by one binding.
 const int kMaximumMeasurementPublicationBindingRouteCount =
     kMaximumMeasurementPublicationRuntimeRouteCount;
 
@@ -221,6 +222,74 @@ final class MeasurementPublicationRouteV1 extends CanonicalValue {
       };
 }
 
+/// One artifact-local opaque route to a presented occurrence and lineage.
+///
+/// This form is distinct from [MeasurementPublicationRouteV1] because a
+/// presented occurrence has no source-event selector.
+final class MeasurementPublicationPresentationRouteV1 extends CanonicalValue {
+  /// Creates one exact opaque presentation route.
+  const MeasurementPublicationPresentationRouteV1({
+    required this.opaqueRouteToken,
+    required this.occurrenceId,
+    required this.lineageId,
+  });
+
+  /// Decodes one strict opaque presentation route.
+  factory MeasurementPublicationPresentationRouteV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'kind',
+        'lineageId',
+        'occurrenceId',
+        'opaqueRouteToken',
+      },
+      requiredKeys: const {
+        'kind',
+        'lineageId',
+        'occurrenceId',
+        'opaqueRouteToken',
+      },
+      path: 'measurementPublicationPresentationRoute',
+    );
+    if (reader.string('kind') != 'measurementPublicationPresentationRoute') {
+      throw const CanonicalFormatException(
+        'measurementPublicationPresentationRoute.kind must be '
+        '"measurementPublicationPresentationRoute"',
+      );
+    }
+    return _constructBinding(
+      'measurementPublicationPresentationRoute',
+      () => MeasurementPublicationPresentationRouteV1(
+        opaqueRouteToken: OpaqueMeasurementRouteTokenV1.fromJson(
+          reader.object('opaqueRouteToken'),
+        ),
+        occurrenceId: CanonicalDigest(reader.string('occurrenceId')),
+        lineageId: PointLineageId(reader.string('lineageId')),
+      ),
+    );
+  }
+
+  /// Fingerprint of the host-delivered opaque carrier.
+  final OpaqueMeasurementRouteTokenV1 opaqueRouteToken;
+
+  /// Exact published presented occurrence selected by the carrier.
+  final CanonicalDigest occurrenceId;
+
+  /// Exact published continuity identity selected by the carrier.
+  final PointLineageId lineageId;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'kind': 'measurementPublicationPresentationRoute',
+        'lineageId': lineageId.value,
+        'occurrenceId': occurrenceId.hex,
+        'opaqueRouteToken': opaqueRouteToken.toJson(),
+      };
+}
+
 /// Complete opaque route set for one exact mounted artifact occurrence.
 final class MeasurementPublicationMountedArtifactRoutesV1
     extends CanonicalValue {
@@ -282,6 +351,71 @@ final class MeasurementPublicationMountedArtifactRoutesV1
   Map<String, Object?> toJson() => {
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
         'kind': 'measurementPublicationMountedArtifactRoutes',
+        'routes': [for (final route in routes) route.toJson()],
+      };
+}
+
+/// Complete presentation route set for one exact mounted artifact occurrence.
+final class MeasurementPublicationMountedArtifactPresentationRoutesV1
+    extends CanonicalValue {
+  /// Creates a bounded, sorted presentation route set for one graph edge.
+  MeasurementPublicationMountedArtifactPresentationRoutesV1({
+    required this.artifactOccurrenceEdgeToken,
+    required List<MeasurementPublicationPresentationRouteV1> routes,
+  }) : routes = _sortedUniqueMountedPresentationRoutes(routes);
+
+  /// Decodes one strict bounded mounted presentation route set.
+  factory MeasurementPublicationMountedArtifactPresentationRoutesV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {'artifactOccurrenceEdgeToken', 'kind', 'routes'},
+      requiredKeys: const {'artifactOccurrenceEdgeToken', 'kind', 'routes'},
+      path: 'measurementPublicationMountedArtifactPresentationRoutes',
+    );
+    if (reader.string('kind') !=
+        'measurementPublicationMountedArtifactPresentationRoutes') {
+      throw const CanonicalFormatException(
+        'measurementPublicationMountedArtifactPresentationRoutes.kind must be '
+        '"measurementPublicationMountedArtifactPresentationRoutes"',
+      );
+    }
+    final routes = reader.list('routes');
+    if (routes.isEmpty ||
+        routes.length >
+            kMaximumMeasurementPublicationBindingPresentationRoutesPerMountedArtifact) {
+      throw const CanonicalFormatException(
+        'measurementPublicationMountedArtifactPresentationRoutes.routes '
+        'exceeds its raw input bound',
+      );
+    }
+    return _constructBinding(
+      'measurementPublicationMountedArtifactPresentationRoutes',
+      () => MeasurementPublicationMountedArtifactPresentationRoutesV1(
+        artifactOccurrenceEdgeToken: ArtifactOccurrenceEdgeToken(
+          reader.string('artifactOccurrenceEdgeToken'),
+        ),
+        routes: [
+          for (final route in routes)
+            MeasurementPublicationPresentationRouteV1.fromJson(
+              requireCanonicalObject(route, 'routes[]'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Exact graph occurrence that owns these artifact-local carrier routes.
+  final ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken;
+
+  /// Sorted, unique opaque presentation routes for this mounted occurrence.
+  final List<MeasurementPublicationPresentationRouteV1> routes;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
+        'kind': 'measurementPublicationMountedArtifactPresentationRoutes',
         'routes': [for (final route in routes) route.toJson()],
       };
 }
@@ -477,11 +611,17 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     required this.completeMeasurementManifest,
     required List<MeasurementPublicationMountedArtifactRoutesV1>
         mountedArtifactRoutes,
+    List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
+        mountedArtifactPresentationRoutes = const [],
   })  : publishedArtifacts = _sortedUniqueBindingPublishedArtifacts(
           publishedArtifacts,
         ),
         mountedArtifactRoutes = _sortedUniqueMountedArtifactRoutes(
           mountedArtifactRoutes,
+        ),
+        mountedArtifactPresentationRoutes =
+            _sortedUniqueMountedArtifactPresentationRoutes(
+          mountedArtifactPresentationRoutes,
         ) {
     _validateBundleBounds();
     validatePublishedMeasurementBundleV1(
@@ -511,6 +651,7 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'completeMeasurementManifest',
         'exactArtifactGraph',
         'kind',
+        'mountedArtifactPresentationRoutes',
         'mountedArtifactRoutes',
         'publicationAuthorityReference',
         'publishedArtifacts',
@@ -550,22 +691,29 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'input bound',
       );
     }
-    var rawRouteCount = 0;
-    for (final mounted in mountedArtifactRoutes) {
-      final mountedObject = requireCanonicalObject(
-        mounted,
-        'mountedArtifactRoutes[]',
+    final mountedArtifactPresentationRoutes =
+        reader.optionalList('mountedArtifactPresentationRoutes') ??
+            const <Object?>[];
+    if (mountedArtifactPresentationRoutes.length >
+        kMaximumMeasurementPublicationBindingMountedArtifactCount) {
+      throw const CanonicalFormatException(
+        'measurementPublicationBinding.mountedArtifactPresentationRoutes '
+        'exceeds its raw input bound',
       );
-      final rawRoutes = mountedObject['routes'];
-      if (rawRoutes is List) {
-        rawRouteCount += rawRoutes.length;
-        if (rawRouteCount > kMaximumMeasurementPublicationBindingRouteCount) {
-          throw const CanonicalFormatException(
-            'measurementPublicationBinding.mountedArtifactRoutes exceeds its '
-            'raw publication-wide route bound',
-          );
-        }
-      }
+    }
+    final rawRouteCount = _rawMountedRouteCount(
+          mountedArtifactRoutes,
+          'mountedArtifactRoutes[]',
+        ) +
+        _rawMountedRouteCount(
+          mountedArtifactPresentationRoutes,
+          'mountedArtifactPresentationRoutes[]',
+        );
+    if (rawRouteCount > kMaximumMeasurementPublicationBindingRouteCount) {
+      throw const CanonicalFormatException(
+        'measurementPublicationBinding route sets exceed the raw '
+        'publication-wide route bound',
+      );
     }
     return _constructBinding(
       'measurementPublicationBinding',
@@ -595,6 +743,15 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
               requireCanonicalObject(mounted, 'mountedArtifactRoutes[]'),
             ),
         ],
+        mountedArtifactPresentationRoutes: [
+          for (final mounted in mountedArtifactPresentationRoutes)
+            MeasurementPublicationMountedArtifactPresentationRoutesV1.fromJson(
+              requireCanonicalObject(
+                mounted,
+                'mountedArtifactPresentationRoutes[]',
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -618,6 +775,10 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
   final List<MeasurementPublicationMountedArtifactRoutesV1>
       mountedArtifactRoutes;
 
+  /// Opaque presentation route fingerprints grouped by mounted occurrence.
+  final List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
+      mountedArtifactPresentationRoutes;
+
   /// Exact immutable handle for this one binding.
   MeasurementPublicationBindingReferenceV1 get reference =>
       MeasurementPublicationBindingReferenceV1(
@@ -630,6 +791,19 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
   ) {
     for (final routes in mountedArtifactRoutes) {
+      if (routes.artifactOccurrenceEdgeToken == artifactOccurrenceEdgeToken) {
+        return routes;
+      }
+    }
+    return null;
+  }
+
+  /// Finds the presentation route declarations for one graph occurrence edge.
+  MeasurementPublicationMountedArtifactPresentationRoutesV1?
+      presentationRoutesForMountedArtifact(
+    ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
+  ) {
+    for (final routes in mountedArtifactPresentationRoutes) {
       if (routes.artifactOccurrenceEdgeToken == artifactOccurrenceEdgeToken) {
         return routes;
       }
@@ -652,6 +826,11 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         'completeMeasurementManifest': completeMeasurementManifest.toJson(),
         'exactArtifactGraph': exactArtifactGraph.toJson(),
         'kind': 'measurementPublicationBinding',
+        if (mountedArtifactPresentationRoutes.isNotEmpty)
+          'mountedArtifactPresentationRoutes': [
+            for (final routes in mountedArtifactPresentationRoutes)
+              routes.toJson(),
+          ],
         'mountedArtifactRoutes': [
           for (final routes in mountedArtifactRoutes) routes.toJson(),
         ],
@@ -672,6 +851,8 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
         completeMeasurementManifest.localManifests.length >
             kMaximumMeasurementPublicationBindingArtifactCount ||
         exactArtifactGraph.occurrenceEdges.length >
+            kMaximumMeasurementPublicationBindingMountedArtifactCount ||
+        mountedArtifactPresentationRoutes.length >
             kMaximumMeasurementPublicationBindingMountedArtifactCount) {
       throw ArgumentError(
         'The binding exceeds its bounded artifact or mounted-occurrence '
@@ -682,9 +863,13 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
 
   void _validateExactRouteClosure() {
     final totalRouteCount = mountedArtifactRoutes.fold<int>(
-      0,
-      (sum, mounted) => sum + mounted.routes.length,
-    );
+          0,
+          (sum, mounted) => sum + mounted.routes.length,
+        ) +
+        mountedArtifactPresentationRoutes.fold<int>(
+          0,
+          (sum, mounted) => sum + mounted.routes.length,
+        );
     if (totalRouteCount > kMaximumMeasurementPublicationBindingRouteCount) {
       throw ArgumentError('The binding exceeds its total opaque-route bound');
     }
@@ -695,6 +880,21 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     };
     final pointsByOccurrence = <String, MeasurementPointOccurrenceV1>{};
     final requiredOccurrenceIds = <String>{};
+    final requiredPresentationOccurrenceIds = <String>{};
+    final presentationReferencesByOccurrence =
+        <String, GeneratedPresentationReferenceV1>{};
+    for (final reference
+        in completeMeasurementManifest.generatedPresentationReferences) {
+      if (presentationReferencesByOccurrence.putIfAbsent(
+            reference.occurrenceId.hex,
+            () => reference,
+          ) !=
+          reference) {
+        throw ArgumentError(
+          'The complete manifest cannot repeat one presentation reference',
+        );
+      }
+    }
     for (final point in completeMeasurementManifest.points) {
       final prior = pointsByOccurrence[point.occurrenceId.hex];
       if (prior != null) {
@@ -706,6 +906,24 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
       if (point.capabilityKind == MeasurementCapabilityKind.sourceInteraction &&
           point.collectionClass != MeasurementCollectionClass.prohibited) {
         requiredOccurrenceIds.add(point.occurrenceId.hex);
+      }
+      if (point.capabilityKind == MeasurementCapabilityKind.presented &&
+          point.collectionClass != MeasurementCollectionClass.prohibited) {
+        final reference =
+            presentationReferencesByOccurrence[point.occurrenceId.hex];
+        if (reference == null ||
+            point.privacyClass != MeasurementPrivacyClass.nonSensitive ||
+            point.collectionClass !=
+                MeasurementCollectionClass.tier2Coalesced ||
+            point.semanticValueClass != SemanticValueClass.none ||
+            reference.lineageId != point.lineageId ||
+            reference.displayMetadataRef != point.displayMetadataRef) {
+          throw ArgumentError(
+            'Every admitted presentation occurrence requires one exact '
+            'non-sensitive Tier-2 presentation reference',
+          );
+        }
+        requiredPresentationOccurrenceIds.add(point.occurrenceId.hex);
       }
     }
 
@@ -754,6 +972,60 @@ final class MeasurementPublicationBindingV1 extends CanonicalDocument {
     if (!_sameStringSet(requiredOccurrenceIds, routedOccurrenceIds)) {
       throw ArgumentError(
         'Opaque routes must exactly close all admitted source occurrences',
+      );
+    }
+
+    final routedPresentationOccurrenceIds = <String>{};
+    final presentationMountedEdges = <String>{};
+    for (final mounted in mountedArtifactPresentationRoutes) {
+      if (!graphEdges.containsKey(mounted.artifactOccurrenceEdgeToken.value) ||
+          !presentationMountedEdges.add(
+            mounted.artifactOccurrenceEdgeToken.value,
+          )) {
+        throw ArgumentError(
+          'Every mounted presentation route set must name one exact artifact '
+          'graph edge',
+        );
+      }
+      for (final route in mounted.routes) {
+        final point = pointsByOccurrence[route.occurrenceId.hex];
+        if (point == null ||
+            point.capabilityKind != MeasurementCapabilityKind.presented ||
+            point.collectionClass == MeasurementCollectionClass.prohibited ||
+            point.lineageId != route.lineageId ||
+            point.artifactOccurrenceEdgeToken !=
+                mounted.artifactOccurrenceEdgeToken) {
+          throw ArgumentError(
+            'Every opaque presentation route must close one admitted exact '
+            'presented occurrence in its mounted artifact context',
+          );
+        }
+        if (!routedPresentationOccurrenceIds.add(route.occurrenceId.hex)) {
+          throw ArgumentError(
+            'One exact presented occurrence cannot be routed more than once',
+          );
+        }
+        if (!routedLineageIds.add(route.lineageId.value)) {
+          throw ArgumentError(
+            'One current lineage cannot be routed more than once',
+          );
+        }
+        if (!routedFullCarrierFingerprints.add(
+          route.opaqueRouteToken.fingerprint.hex,
+        )) {
+          throw ArgumentError(
+            'One full opaque route carrier fingerprint cannot occur twice',
+          );
+        }
+      }
+    }
+    if (!_sameStringSet(
+      requiredPresentationOccurrenceIds,
+      routedPresentationOccurrenceIds,
+    )) {
+      throw ArgumentError(
+        'Opaque presentation routes must exactly close all admitted '
+        'presentation occurrences',
       );
     }
   }
@@ -948,6 +1220,48 @@ List<MeasurementPublicationRouteV1> _sortedUniqueMountedRoutes(
   return List.unmodifiable(copy);
 }
 
+List<MeasurementPublicationPresentationRouteV1>
+    _sortedUniqueMountedPresentationRoutes(
+  List<MeasurementPublicationPresentationRouteV1> values,
+) {
+  if (values.isEmpty ||
+      values.length >
+          kMaximumMeasurementPublicationBindingPresentationRoutesPerMountedArtifact) {
+    throw ArgumentError(
+      'A mounted presentation route set requires 1..'
+      '$kMaximumMeasurementPublicationBindingPresentationRoutesPerMountedArtifact routes',
+    );
+  }
+  final copy = values.toList()
+    ..sort(
+      (left, right) => left.opaqueRouteToken.fingerprint.hex.compareTo(
+        right.opaqueRouteToken.fingerprint.hex,
+      ),
+    );
+  final tokens = <String>{};
+  final occurrences = <String>{};
+  final lineages = <String>{};
+  for (final route in copy) {
+    if (!tokens.add(route.opaqueRouteToken.fingerprint.hex)) {
+      throw ArgumentError(
+        'Opaque presentation route fingerprints must be unique per mounted '
+        'artifact',
+      );
+    }
+    if (!occurrences.add(route.occurrenceId.hex)) {
+      throw ArgumentError(
+        'One mounted artifact cannot route one presented occurrence twice',
+      );
+    }
+    if (!lineages.add(route.lineageId.value)) {
+      throw ArgumentError(
+        'One mounted artifact cannot route one presented lineage twice',
+      );
+    }
+  }
+  return List.unmodifiable(copy);
+}
+
 List<PublishedArtifactV1> _sortedUniqueBindingPublishedArtifacts(
   List<PublishedArtifactV1> values,
 ) {
@@ -995,6 +1309,41 @@ List<MeasurementPublicationMountedArtifactRoutesV1>
     'Mounted artifact occurrence edges',
   );
   return List.unmodifiable(copy);
+}
+
+List<MeasurementPublicationMountedArtifactPresentationRoutesV1>
+    _sortedUniqueMountedArtifactPresentationRoutes(
+  List<MeasurementPublicationMountedArtifactPresentationRoutesV1> values,
+) {
+  if (values.length >
+      kMaximumMeasurementPublicationBindingMountedArtifactCount) {
+    throw ArgumentError(
+      'A binding permits at most '
+      '$kMaximumMeasurementPublicationBindingMountedArtifactCount mounted '
+      'presentation route sets',
+    );
+  }
+  final copy = values.toList()
+    ..sort(
+      (left, right) => left.artifactOccurrenceEdgeToken.value.compareTo(
+        right.artifactOccurrenceEdgeToken.value,
+      ),
+    );
+  _rejectAdjacentDuplicateStrings(
+    copy.map((routes) => routes.artifactOccurrenceEdgeToken.value),
+    'Mounted presentation artifact occurrence edges',
+  );
+  return List.unmodifiable(copy);
+}
+
+int _rawMountedRouteCount(List<Object?> mountedSets, String path) {
+  var count = 0;
+  for (final mounted in mountedSets) {
+    final mountedObject = requireCanonicalObject(mounted, path);
+    final rawRoutes = mountedObject['routes'];
+    if (rawRoutes is List) count += rawRoutes.length;
+  }
+  return count;
 }
 
 bool _sameStringSet(Set<String> left, Set<String> right) =>

@@ -66,6 +66,90 @@ void main() {
       _expectUnsupportedFieldDecodeFailure(json, r'$.operationIds');
     });
 
+    test('schema version 2 preserves declared survey question order', () {
+      final document = _surveyDocument();
+      final encoded = FlowDocumentCodec.encodePrettyJson(document);
+      final decoded = FlowDocumentCodec.decodeJson(encoded);
+
+      expect(decoded.schemaVersion, 2);
+      expect(decoded.surveyQuestionOrder, <String>['favoriteColor', 'plan']);
+      expect(
+        jsonDecode(encoded),
+        containsPair('surveyQuestionOrder', <String>['favoriteColor', 'plan']),
+      );
+    });
+
+    test('schema version 1 rejects the schema version 2 question-order key',
+        () {
+      final json = _firstRunJson()
+        ..['surveyQuestionOrder'] = <String>['favoriteColor'];
+
+      _expectUnsupportedFieldDecodeFailure(json, r'$.surveyQuestionOrder');
+    });
+
+    test('rejects unsupported schema versions before decoding document fields',
+        () {
+      final json = _firstRunJson()..['schemaVersion'] = 3;
+
+      expect(
+        () => FlowDocumentCodec.decodeJson(jsonEncode(json)),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('Unsupported flow schemaVersion 3.'),
+          ),
+        ),
+      );
+    });
+
+    test('schema version 2 rejects absent or invalid question order', () {
+      final valid = jsonDecode(
+        FlowDocumentCodec.encodePrettyJson(_surveyDocument()),
+      ) as Map<String, Object?>;
+      final absent = Map<String, Object?>.from(valid)
+        ..remove('surveyQuestionOrder');
+      final duplicate = Map<String, Object?>.from(valid)
+        ..['surveyQuestionOrder'] = <String>['favoriteColor', 'favoriteColor'];
+      final eventReference = Map<String, Object?>.from(valid)
+        ..['outbound'] = {
+          'surveyAnswers': {
+            'favoriteColor': {
+              'type': 'string',
+              'ref': {'event': 'value'},
+            },
+            'plan': {
+              'type': 'string',
+              'ref': {'state': 'plan'},
+            },
+          },
+        };
+
+      expect(
+        () => FlowDocumentCodec.decodeJson(jsonEncode(absent)),
+        throwsFormatException,
+      );
+      expect(
+        () => FlowDocumentCodec.decodeJson(jsonEncode(duplicate)),
+        throwsFormatException,
+      );
+      expect(
+        () => FlowDocumentCodec.decodeJson(jsonEncode(eventReference)),
+        throwsFormatException,
+      );
+    });
+
+    test('validation rejects an invalid programmatic question order', () {
+      final invalid = _surveyDocument().copyWith(
+        surveyQuestionOrder: const ['favoriteColor', 'favoriteColor'],
+      );
+
+      expect(
+        FlowDocumentValidation.validate(invalid),
+        _containsIssueCode('invalidSurveyQuestionOrder'),
+      );
+    });
+
     test('unknown screen artifact fields fail closed at decode time', () {
       final json = _firstRunJson();
       _object(_object(json['screenArtifacts'])['welcome'])['predicate'] = true;
@@ -1317,8 +1401,10 @@ FlowDocument _firstRunDocument({
   String target = 'permissions',
   FlowTransition? transition,
   Map<String, FlowActionContract>? actions,
+  int schemaVersion = 1,
   Map<String, FlowStateDeclaration> flowState = const {},
   FlowOutboundDeclarations outbound = const FlowOutboundDeclarations(),
+  List<String> surveyQuestionOrder = const [],
   bool legacyTerminalResultPassthrough = false,
   Map<String, FlowState> extraStates = const {},
 }) {
@@ -1337,12 +1423,13 @@ FlowDocument _firstRunDocument({
   return FlowDocument(
     flow: flow,
     version: 1,
-    schemaVersion: 1,
+    schemaVersion: schemaVersion,
     minClient: 3,
     initial: initial,
     actions: actionContracts,
     flowState: flowState,
     outbound: outbound,
+    surveyQuestionOrder: surveyQuestionOrder,
     legacyTerminalResultPassthrough: legacyTerminalResultPassthrough,
     screenArtifacts: {
       'permissions': ScreenArtifact(
@@ -1406,6 +1493,37 @@ FlowDocument _firstRunDocument({
       ),
       ...extraStates,
     },
+  );
+}
+
+FlowDocument _surveyDocument() {
+  return _firstRunDocument(
+    schemaVersion: 2,
+    flowState: const {
+      'favoriteColor': FlowStateDeclaration(
+        type: FlowDataType.string,
+        classification: FlowStateClassification.screen,
+      ),
+      'plan': FlowStateDeclaration(
+        type: FlowDataType.string,
+        classification: FlowStateClassification.screen,
+      ),
+    },
+    outbound: const FlowOutboundDeclarations(
+      surveyAnswers: FlowOutboundPayloadDeclaration(
+        fields: {
+          'favoriteColor': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'favoriteColor'),
+          ),
+          'plan': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'plan'),
+          ),
+        },
+      ),
+    ),
+    surveyQuestionOrder: const ['favoriteColor', 'plan'],
   );
 }
 

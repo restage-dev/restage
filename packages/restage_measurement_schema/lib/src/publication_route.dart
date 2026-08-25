@@ -177,12 +177,25 @@ final class MeasurementPublicationRouteCarrierV1 extends CanonicalValue {
     required CanonicalDigest routeDraftClosureDigest,
     required ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
     required GeneratedReferenceId generatedReferenceId,
+  }) =>
+      _deriveSourceRouteCarrier(
+        routeDraftClosureDigest: routeDraftClosureDigest,
+        artifactOccurrenceEdgeToken: artifactOccurrenceEdgeToken,
+        generatedReferenceId: generatedReferenceId.value,
+      );
+
+  /// Derives one presentation route carrier from the same bounded closure.
+  factory MeasurementPublicationRouteCarrierV1.derivePresentation({
+    required CanonicalDigest routeDraftClosureDigest,
+    required ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
+    required GeneratedPresentationReferenceId generatedPresentationReferenceId,
   }) {
     final localDigest = sha256.convert(<int>[
       ...CanonicalHashDomain.measurementPublicationRouteLocalToken.prefixBytes,
       ...CanonicalJsonCodec.encode({
         'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
-        'generatedReferenceId': generatedReferenceId.value,
+        'generatedPresentationReferenceId':
+            generatedPresentationReferenceId.value,
         'routeDraftClosureDigest': routeDraftClosureDigest.hex,
       }),
     ]).bytes;
@@ -216,6 +229,32 @@ final class MeasurementPublicationRouteCarrierV1 extends CanonicalValue {
         'kind': 'measurementPublicationRouteCarrier',
         'value': value,
       };
+}
+
+MeasurementPublicationRouteCarrierV1 _deriveSourceRouteCarrier({
+  required CanonicalDigest routeDraftClosureDigest,
+  required ArtifactOccurrenceEdgeToken artifactOccurrenceEdgeToken,
+  required String generatedReferenceId,
+}) {
+  final localDigest = sha256.convert(<int>[
+    ...CanonicalHashDomain.measurementPublicationRouteLocalToken.prefixBytes,
+    ...CanonicalJsonCodec.encode({
+      'artifactOccurrenceEdgeToken': artifactOccurrenceEdgeToken.value,
+      'generatedReferenceId': generatedReferenceId,
+      'routeDraftClosureDigest': routeDraftClosureDigest.hex,
+    }),
+  ]).bytes;
+  final localToken = Uint8List.fromList(
+    localDigest.sublist(
+      0,
+      kMeasurementPublicationRouteCarrierLocalTokenBytes,
+    ),
+  );
+  return MeasurementPublicationRouteCarrierV1.parse(
+    '$kMeasurementPublicationRouteCarrierPrefixV1.'
+    '${_base64UrlNoPadding(utf8.encode(artifactOccurrenceEdgeToken.value))}.'
+    '${_base64UrlNoPadding(localToken)}',
+  );
 }
 
 /// Canonical fingerprint of one strict full route-carrier spelling.

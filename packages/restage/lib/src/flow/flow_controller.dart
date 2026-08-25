@@ -141,8 +141,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// so the cap does not rely on load-ordering to stay engaged.
   bool get _signalCapApplies => _surfaceMode != FlowDeliveryMode.typed;
   Object? _activeActionToken;
+  _SurveyAnswerTransaction? _activeSurveyTransaction;
   int _nextOperationId = 0;
   int? _currentScreenEntryId;
+  int _hostCallbackDepth = 0;
   bool _isChangingState = false;
   bool _isUnavailable = false;
   bool _isComplete = false;
@@ -183,14 +185,20 @@ final class RestageFlowController<R> extends ChangeNotifier {
   bool get isComplete => _isComplete;
 
   /// Whether an interaction would currently be a no-op because the controller
-  /// is mid-work — a state transition is being applied ([isChangingState]) or a
-  /// host action is in flight.
+  /// is mid-work — a state transition is being applied ([isChangingState]), a
+  /// host action is in flight, or a survey answer transaction is settling.
   ///
   /// [handleEvent] / [back] / [skip] are all gated on this same condition, so a
   /// rendering surface uses it to keep a back/skip affordance inert while the
   /// flow is busy, rather than presenting a live control whose tap silently does
   /// nothing.
-  bool get isBusy => _isChangingState || _activeActionToken != null;
+  bool get isBusy =>
+      _isChangingState ||
+      _activeActionToken != null ||
+      _activeSurveyTransaction != null;
+
+  bool get _isInteractionBlocked =>
+      _isDisposed || _isUnavailable || _isComplete || isBusy;
 
   /// Whether there is a prior screen in the current sub-flow to navigate back
   /// to. Reflects history availability (the affordance is shown when true); the
@@ -350,13 +358,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Routes an RFW event through the flow transition table.
   void handleEvent(String name, Object? args) {
-    if (_isDisposed ||
-        _isUnavailable ||
-        _isComplete ||
-        _isChangingState ||
-        _activeActionToken != null) {
-      return;
-    }
+    if (_isInteractionBlocked) return;
     final frame = _currentFrame;
     final current = frame?.currentStateId;
     if (frame == null || current == null) return;
@@ -377,7 +379,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // [canSkip] single-sources the skip-destination predicate (its other guards
     // are already satisfied here).
     if (flowEventName == _skipEventName && canSkip) {
-      onEvent(OnboardingSkipped(
+      _emitEvent(OnboardingSkipped(
         flowId: frame.flowId,
         flowVersion: frame.flowVersion,
         resolvedVersion: frame.resolvedVersion,
@@ -388,13 +390,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       // The host's synchronous `onEvent` can re-enter and fail the controller
       // closed / disposed / busy; re-check the same gate as the method entry so
       // the skip's transition or custom event never runs on a closed controller.
-      if (_isDisposed ||
-          _isUnavailable ||
-          _isComplete ||
-          _isChangingState ||
-          _activeActionToken != null) {
-        return;
-      }
+      if (_isInteractionBlocked) return;
     }
     if (transition == null) {
       // The reserved `back` event falls back to the default history pop when the
@@ -414,11 +410,15 @@ final class RestageFlowController<R> extends ChangeNotifier {
     }
     switch (transition) {
       case GotoFlowTransition(:final target, :final stateWrites):
-        unawaited(_goToWithWrites(
-          frame,
-          target,
-          stateWrites,
-          eventSource: args,
+        final surveyTransaction = _beginSurveyTransaction();
+        unawaited(_runSurveyTransaction(
+          surveyTransaction,
+          () => _goToWithWrites(
+            frame,
+            target,
+            stateWrites,
+            eventSource: args,
+          ),
         ));
       case ActionFlowTransition(:final action):
         final binding = frame.actionBindings[action];
@@ -428,7 +428,11 @@ final class RestageFlowController<R> extends ChangeNotifier {
           ));
           return;
         }
-        unawaited(_invokeAction(frame, transition, binding, args));
+        final surveyTransaction = _beginSurveyTransaction();
+        unawaited(_runSurveyTransaction(
+          surveyTransaction,
+          () => _invokeAction(frame, transition, binding, args),
+        ));
     }
   }
 
@@ -437,6 +441,235 @@ final class RestageFlowController<R> extends ChangeNotifier {
       RestageEventNames.purchase => _purchaseEventName,
       _ => name,
     };
+  }
+
+  T _invokeHostCallback<T>(T Function() callback) {
+    _hostCallbackDepth += 1;
+    try {
+      return callback();
+    } catch (_) {
+      _activeSurveyTransaction?.callbackFailed = true;
+      rethrow;
+    } finally {
+      _hostCallbackDepth -= 1;
+    }
+  }
+
+  void _emitEvent(RestageEvent event) {
+    _invokeHostCallback<void>(() {
+      onEvent(event);
+    });
+  }
+
+  void _notifyHostListeners() {
+    _invokeHostCallback<void>(notifyListeners);
+  }
+
+  void _notifyCompletion(R result) {
+    _invokeHostCallback<void>(() {
+      onComplete(result);
+    });
+  }
+
+  void _notifyUnavailable(FlowUnavailableError error) {
+    _invokeHostCallback<void>(() {
+      onUnavailable(error);
+    });
+  }
+
+  _SurveyAnswerTransaction? _beginSurveyTransaction() {
+    if (_activeSurveyTransaction != null || _frames.isEmpty) return null;
+    final rootFrame = _frames.first;
+    final document = rootFrame.resolved.document;
+    if (flow.surface != Surface.survey ||
+        document.schemaVersion != 2 ||
+        document.surveyQuestionOrder.isEmpty) {
+      return null;
+    }
+
+    final before = <String, _SurveyAnswerValue>{};
+    for (final questionId in document.surveyQuestionOrder) {
+      final field = document.outbound.surveyAnswers.fields[questionId];
+      final ref = field?.ref;
+      if (ref is! StateFlowOutboundRef || ref.path.isNotEmpty) {
+        return null;
+      }
+      before[questionId] =
+          _SurveyAnswerValue.read(rootFrame.flowState, ref.key);
+    }
+
+    final transaction = _SurveyAnswerTransaction(
+      rootFrame: rootFrame,
+      document: document,
+      before: Map.unmodifiable(before),
+    );
+    _activeSurveyTransaction = transaction;
+    _notifyHostListeners();
+    return transaction;
+  }
+
+  Future<void> _runSurveyTransaction(
+    _SurveyAnswerTransaction? transaction,
+    Future<void> Function() operation,
+  ) async {
+    if (transaction == null) {
+      await operation();
+      return;
+    }
+    try {
+      if (!_isSurveyTransactionReadyToRun(transaction)) return;
+      transaction.stage = _SurveyTransactionStage.runningTrigger;
+      await operation();
+    } finally {
+      if (identical(_activeSurveyTransaction, transaction)) {
+        final emission = _captureSurveyAnswerEmission(transaction);
+        try {
+          if (emission != null) {
+            transaction.stage = _SurveyTransactionStage.reportingAnswers;
+            _emitChangedSurveyAnswers(transaction, emission);
+          }
+        } finally {
+          _finishSurveyTransaction(transaction, emission);
+        }
+      }
+    }
+  }
+
+  _SurveyAnswerEmission? _captureSurveyAnswerEmission(
+    _SurveyAnswerTransaction transaction,
+  ) {
+    if (_isSurveyTransactionReadyToRun(transaction)) {
+      return _SurveyAnswerEmission(
+        kind: _SurveyAnswerEmissionKind.activeController,
+        reports: _snapshotChangedSurveyAnswers(transaction),
+      );
+    }
+    if (_isTriggerCompletedSurveyTransactionReadyToReport(transaction)) {
+      return _SurveyAnswerEmission(
+        kind: _SurveyAnswerEmissionKind.triggerCompleted,
+        reports: _snapshotChangedSurveyAnswers(transaction),
+      );
+    }
+    if (transaction.unavailabilityOrigin ==
+            _SurveyUnavailabilityOrigin.trigger &&
+        _isUnavailable &&
+        !_isDisposed &&
+        !_isComplete &&
+        !transaction.callbackFailed &&
+        identical(_activeSurveyTransaction, transaction)) {
+      return _SurveyAnswerEmission(
+        kind: _SurveyAnswerEmissionKind.triggerUnavailable,
+        reports: _snapshotChangedSurveyAnswers(transaction),
+      );
+    }
+    return null;
+  }
+
+  List<_SurveyAnswerReport> _snapshotChangedSurveyAnswers(
+    _SurveyAnswerTransaction transaction,
+  ) {
+    final reports = <_SurveyAnswerReport>[];
+    for (var index = 0;
+        index < transaction.document.surveyQuestionOrder.length;
+        index += 1) {
+      final questionId = transaction.document.surveyQuestionOrder[index];
+      final field =
+          transaction.document.outbound.surveyAnswers.fields[questionId]!;
+      final ref = field.ref as StateFlowOutboundRef;
+      final before = transaction.before[questionId]!;
+      final after = _SurveyAnswerValue.read(
+        transaction.rootFrame.flowState,
+        ref.key,
+      );
+      if (before != after) {
+        reports.add(
+          _SurveyAnswerReport(questionId: questionId, questionIndex: index),
+        );
+      }
+    }
+    return List.unmodifiable(reports);
+  }
+
+  void _emitChangedSurveyAnswers(
+    _SurveyAnswerTransaction transaction,
+    _SurveyAnswerEmission emission,
+  ) {
+    for (final report in emission.reports) {
+      if (!_canReportSurveyAnswers(transaction, emission)) return;
+      _emitEvent(SurveyQuestionResponded(
+        questionId: report.questionId,
+        questionIndex: report.questionIndex,
+      ));
+      if (!_canReportSurveyAnswers(transaction, emission)) return;
+    }
+  }
+
+  bool _isSurveyTransactionReadyToRun(_SurveyAnswerTransaction transaction) {
+    return !_isDisposed &&
+        !_isUnavailable &&
+        !_isComplete &&
+        !transaction.callbackFailed &&
+        identical(_activeSurveyTransaction, transaction) &&
+        _frames.isNotEmpty &&
+        identical(_frames.first, transaction.rootFrame) &&
+        identical(_frames.first.resolved.document, transaction.document);
+  }
+
+  bool _isTriggerCompletedSurveyTransactionReadyToReport(
+    _SurveyAnswerTransaction transaction,
+  ) {
+    return !_isDisposed &&
+        !_isUnavailable &&
+        _isComplete &&
+        !transaction.callbackFailed &&
+        transaction.completionOrigin == _SurveyCompletionOrigin.trigger &&
+        identical(_activeSurveyTransaction, transaction) &&
+        _frames.isNotEmpty &&
+        identical(_frames.first, transaction.rootFrame) &&
+        identical(_frames.first.resolved.document, transaction.document);
+  }
+
+  void _markSurveyTransactionTriggerCompletion(_FlowFrame frame) {
+    final transaction = _activeSurveyTransaction;
+    if (transaction == null ||
+        transaction.stage != _SurveyTransactionStage.runningTrigger ||
+        !identical(transaction.rootFrame, frame) ||
+        !identical(transaction.document, frame.resolved.document)) {
+      return;
+    }
+    transaction.completionOrigin = _SurveyCompletionOrigin.trigger;
+  }
+
+  bool _canReportSurveyAnswers(
+    _SurveyAnswerTransaction transaction,
+    _SurveyAnswerEmission emission,
+  ) {
+    if (!identical(_activeSurveyTransaction, transaction) ||
+        _isDisposed ||
+        transaction.callbackFailed) {
+      return false;
+    }
+    return switch (emission.kind) {
+      _SurveyAnswerEmissionKind.activeController =>
+        _isSurveyTransactionReadyToRun(transaction),
+      _SurveyAnswerEmissionKind.triggerUnavailable => _isUnavailable &&
+          !_isComplete &&
+          transaction.unavailabilityOrigin ==
+              _SurveyUnavailabilityOrigin.trigger,
+      _SurveyAnswerEmissionKind.triggerCompleted =>
+        _isTriggerCompletedSurveyTransactionReadyToReport(transaction),
+    };
+  }
+
+  void _finishSurveyTransaction(
+    _SurveyAnswerTransaction transaction,
+    _SurveyAnswerEmission? emission,
+  ) {
+    if (!identical(_activeSurveyTransaction, transaction)) return;
+    final shouldNotify =
+        emission != null && _canReportSurveyAnswers(transaction, emission);
+    _activeSurveyTransaction = null;
+    if (shouldNotify) _notifyHostListeners();
   }
 
   /// Fails the flow closed in response to a screen that threw while rendering.
@@ -476,7 +709,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // the resolved root artifact.
     _renderedAssignment = _frames.first.resolved.assignment;
     _hasRenderedContent = true;
-    notifyListeners();
+    _notifyHostListeners();
   }
 
   /// Returns to the previous screen in the current sub-flow, if any.
@@ -488,18 +721,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// structurally skips them and never re-runs a transition or re-fires an
   /// action.
   ///
-  /// A no-op while a transition or action is in flight (the same re-entrancy
-  /// gate as [handleEvent]), after the flow has failed closed or completed, and
-  /// at a sub-flow boundary (no prior screen in this frame — a barrier). It does
-  /// not roll back flow state: back is a navigation, not a transaction rollback.
+  /// A no-op while a transition, action, or survey answer transaction is in
+  /// flight (the same re-entrancy gate as [handleEvent]), after the flow has
+  /// failed closed or completed, and at a sub-flow boundary (no prior screen in
+  /// this frame — a barrier). It does not roll back flow state: back is a
+  /// navigation, not a transaction rollback.
   void back() {
-    if (_isDisposed ||
-        _isUnavailable ||
-        _isComplete ||
-        _isChangingState ||
-        _activeActionToken != null) {
-      return;
-    }
+    if (_isInteractionBlocked) return;
     final frame = _currentFrame;
     if (frame == null || frame.screenHistory.length <= 1) return;
     frame.screenHistory.removeLast();
@@ -507,7 +735,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     frame.currentStateId = prior.stateId;
     frame.currentLibrary = prior.library;
     _currentScreenEntryId = prior.entryId;
-    notifyListeners();
+    _notifyHostListeners();
   }
 
   /// Requests the reserved `skip` action for the current screen.
@@ -553,6 +781,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     _isDisposed = true;
     RootAnalyticsArtifactRegistry.forget(this);
     _activeActionToken = null;
+    _activeSurveyTransaction = null;
     _currentScreenEntryId = null;
     _frames.clear();
     super.dispose();
@@ -581,7 +810,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
             'version ${flow.version}.',
       );
     }
-    if (document.schemaVersion != 1) {
+    if (document.schemaVersion != 1 && document.schemaVersion != 2) {
       throw _error(
         'unsupported_schema_version',
         'Unsupported flow schemaVersion ${document.schemaVersion}.',
@@ -622,6 +851,24 @@ final class RestageFlowController<R> extends ChangeNotifier {
       throw _error(
         reason,
         'Flow document failed validation: ${issues.join('; ')}.',
+      );
+    }
+    _validateRootSurveyAnswers(document);
+  }
+
+  void _validateRootSurveyAnswers(FlowDocument document) {
+    if (document.outbound.surveyAnswers.isEmpty) return;
+    if (flow.surface != Surface.survey ||
+        document.deliveryMode != FlowDeliveryMode.typed) {
+      throw _error(
+        'survey_answers_unsupported',
+        'Survey answer declarations require a typed survey surface.',
+      );
+    }
+    if (document.schemaVersion != 2 || document.surveyQuestionOrder.isEmpty) {
+      throw _error(
+        'unsupported_schema_version',
+        'Survey answer declarations require flow schemaVersion 2.',
       );
     }
   }
@@ -935,7 +1182,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     parentFrame.currentStateId = null;
     parentFrame.currentLibrary = null;
     _currentScreenEntryId = null;
-    notifyListeners();
+    _notifyHostListeners();
 
     final childRef = OnboardingFlowRef<Map<String, Object?>>(
       id: state.flow,
@@ -1053,6 +1300,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
         state,
         reason: 'validation_failed',
         message: 'Sub-flow document failed validation: ${issues.join('; ')}.',
+      );
+    }
+    if (!document.outbound.surveyAnswers.isEmpty) {
+      throw _subFlowUnavailableError(
+        state,
+        reason: 'survey_answers_not_allowed_in_subflow',
+        message: 'Sub-flows cannot declare survey answers.',
       );
     }
     for (final key in state.input.keys) {
@@ -1191,7 +1445,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // should run for a screen the host just tore down.
     if (!_isActiveFrame(frame)) return;
     _emitStepViewed(frame, stateId);
-    notifyListeners();
+    _notifyHostListeners();
   }
 
   /// Bounds the frame's screen back-stack, dropping the oldest visit past the
@@ -1262,9 +1516,10 @@ final class RestageFlowController<R> extends ChangeNotifier {
     if (!_frames.contains(frame)) return;
     final filteredResult = _terminalResultForDecode(frame, result);
     _emitFlowStarted(frame);
+    if (!_isActiveFrame(frame)) return;
     final parent = frame.parent;
     if (parent != null) {
-      onEvent(FlowCompleted(
+      _emitEvent(FlowCompleted(
         flowId: frame.flowId,
         flowVersion: frame.flowVersion,
         resolvedVersion: frame.resolvedVersion,
@@ -1285,21 +1540,24 @@ final class RestageFlowController<R> extends ChangeNotifier {
       ));
       return;
     }
-    onEvent(FlowCompleted(
+    _emitEvent(FlowCompleted(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
       resolvedVersion: frame.resolvedVersion,
       flowSessionId: frame.flowSessionId,
       parentFlowSessionId: frame.parentFlowSessionId,
     ));
+    if (!_isActiveFrame(frame)) return;
     _isComplete = true;
+    _markSurveyTransactionTriggerCompletion(frame);
     // Announce completion before the host callback: a completed flow no longer
     // navigates (`canBack`/`canSkip` are false), so a rendering surface rebuilds
     // and collapses its chrome. Notifying *before* `onComplete` keeps it safe if
     // the host disposes the controller inside that callback. The current screen
     // entry is unchanged, so the view's screen reconciliation is a no-op.
-    notifyListeners();
-    onComplete(decoded);
+    _notifyHostListeners();
+    if (_isDisposed) return;
+    _notifyCompletion(decoded);
   }
 
   Future<void> _completeSubFlow(
@@ -1348,7 +1606,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
   void _emitFlowStarted(_FlowFrame frame) {
     if (frame.hasStarted) return;
     frame.hasStarted = true;
-    onEvent(FlowStarted(
+    _emitEvent(FlowStarted(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
       resolvedVersion: frame.resolvedVersion,
@@ -1362,7 +1620,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// does not call [_showScreen]); [OnboardingStepViewed.stepIndex] is the
   /// screen's 0-based depth in the frame's retained back-stack.
   void _emitStepViewed(_FlowFrame frame, String screenId) {
-    onEvent(OnboardingStepViewed(
+    _emitEvent(OnboardingStepViewed(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
       resolvedVersion: frame.resolvedVersion,
@@ -1390,7 +1648,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     if (encodedResult is! Map) return;
     final granted = encodedResult['granted'];
     if (granted is! bool) return;
-    onEvent(OnboardingPermissionResponse(
+    _emitEvent(OnboardingPermissionResponse(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
       resolvedVersion: frame.resolvedVersion,
@@ -1453,7 +1711,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       allowLegacyStateRefFallback: false,
       diagnosticSurface: 'custom event "$eventName"',
     );
-    onEvent(FlowCustomEvent(
+    _emitEvent(FlowCustomEvent(
       flowId: frame.flowId,
       flowVersion: frame.flowVersion,
       resolvedVersion: frame.resolvedVersion,
@@ -1556,18 +1814,25 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // A completed flow already delivered its result; it can never retroactively
     // fail closed (e.g. a late render error from a lingering completed screen).
     if (_isDisposed || _isUnavailable || _isComplete) return;
+    final surveyTransaction = _activeSurveyTransaction;
+    if (surveyTransaction != null &&
+        surveyTransaction.stage == _SurveyTransactionStage.runningTrigger) {
+      surveyTransaction.unavailabilityOrigin = _hostCallbackDepth == 0
+          ? _SurveyUnavailabilityOrigin.trigger
+          : _SurveyUnavailabilityOrigin.callback;
+    }
     _isUnavailable = true;
     _activeActionToken = null;
     _currentScreenEntryId = null;
     _frames.clear();
-    onEvent(FlowUnavailable(
+    _emitEvent(FlowUnavailable(
       flowId: error.flowId,
       flowVersion: error.flowVersion,
       reason: error.reason,
       message: error.message,
     ));
-    onUnavailable(error);
-    notifyListeners();
+    _notifyUnavailable(error);
+    _notifyHostListeners();
   }
 
   FlowUnavailableError _error(String reason, String message) {
@@ -1638,7 +1903,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // surface can reflect [isBusy] — e.g. hold the back/skip chrome inert while
     // the action runs. This is purely a listener ping; it does not change the
     // current screen, so the view's screen reconciliation is a no-op.
-    notifyListeners();
+    _notifyHostListeners();
     try {
       // A listener re-entering the action-start notify above can have failed the
       // controller closed (`reportRenderFailure`) or disposed it — neither is
@@ -1706,7 +1971,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       // the token).
       if (identical(_activeActionToken, token)) {
         _activeActionToken = null;
-        if (!_isDisposed) notifyListeners();
+        if (!_isDisposed) _notifyHostListeners();
       }
     }
   }
@@ -2109,6 +2374,87 @@ final class _FlowFrame {
   /// order. The last entry is the current screen. Scoped to this frame so a
   /// sub-flow boundary is an automatic back barrier.
   final List<_ScreenEntry> screenHistory = <_ScreenEntry>[];
+}
+
+final class _SurveyAnswerTransaction {
+  _SurveyAnswerTransaction({
+    required this.rootFrame,
+    required this.document,
+    required this.before,
+  });
+
+  final _FlowFrame rootFrame;
+  final FlowDocument document;
+  final Map<String, _SurveyAnswerValue> before;
+  _SurveyTransactionStage stage = _SurveyTransactionStage.awaitingTrigger;
+  _SurveyUnavailabilityOrigin unavailabilityOrigin =
+      _SurveyUnavailabilityOrigin.none;
+  _SurveyCompletionOrigin completionOrigin = _SurveyCompletionOrigin.none;
+  bool callbackFailed = false;
+}
+
+enum _SurveyTransactionStage {
+  awaitingTrigger,
+  runningTrigger,
+  reportingAnswers,
+}
+
+enum _SurveyUnavailabilityOrigin {
+  none,
+  trigger,
+  callback,
+}
+
+enum _SurveyCompletionOrigin {
+  none,
+  trigger,
+}
+
+enum _SurveyAnswerEmissionKind {
+  activeController,
+  triggerUnavailable,
+  triggerCompleted,
+}
+
+final class _SurveyAnswerEmission {
+  const _SurveyAnswerEmission({required this.kind, required this.reports});
+
+  final _SurveyAnswerEmissionKind kind;
+  final List<_SurveyAnswerReport> reports;
+}
+
+final class _SurveyAnswerReport {
+  const _SurveyAnswerReport({
+    required this.questionId,
+    required this.questionIndex,
+  });
+
+  final String questionId;
+  final int questionIndex;
+}
+
+final class _SurveyAnswerValue {
+  const _SurveyAnswerValue({required this.isPresent, required this.value});
+
+  factory _SurveyAnswerValue.read(Map<String, Object?> state, String key) {
+    return _SurveyAnswerValue(
+      isPresent: state.containsKey(key),
+      value: state[key],
+    );
+  }
+
+  final bool isPresent;
+  final Object? value;
+
+  @override
+  bool operator ==(Object other) {
+    return other is _SurveyAnswerValue &&
+        other.isPresent == isPresent &&
+        other.value == value;
+  }
+
+  @override
+  int get hashCode => Object.hash(isPresent, value);
 }
 
 /// One recorded screen visit on a frame's back-stack. Holds the minted entry id

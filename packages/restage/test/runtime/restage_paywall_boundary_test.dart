@@ -21,7 +21,7 @@ class _BadLayoutResolver implements VariantResolver {
     ''';
     final bytes =
         Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-    return ResolvedVariant(bytes: bytes, paywallId: id);
+    return ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
   }
 }
 
@@ -38,7 +38,7 @@ class _TextResolver implements VariantResolver {
     ''';
     final bytes =
         Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-    return ResolvedVariant(bytes: bytes, paywallId: id);
+    return ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
   }
 }
 

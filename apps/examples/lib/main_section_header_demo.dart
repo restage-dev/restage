@@ -37,7 +37,7 @@ void main() {
   // Register the example's custom widgets (incl. SectionHeader) so the
   // delivered blob's `SectionHeader(heading: ..., entry: ...)` reference
   // resolves to its generated factory.
-  registerRestageCustomerWidgets();
+  registerRestageWidgets();
   Restage.configure(
     apiKey: 'rs_pk_test',
     resolver: const AssetVariantResolver(),

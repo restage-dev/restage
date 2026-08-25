@@ -119,23 +119,26 @@ void main() {
     }
   });
 
-  testWidgets('bare marker executes its generated RFW factory', (tester) async {
-    registerRestageCustomerWidgets();
-    final registration = Restage.widgetLibraryRegistrations.singleWhere(
-      (candidate) =>
-          candidate.library.namespace == 'restage_widgetbook_example.widgets',
-    );
-    final runtime = Runtime()
-      ..update(
-        _customerLibrary,
-        LocalWidgetLibrary(<String, LocalWidgetBuilder>{
-          for (final factory in registration.widgets)
-            factory.name: factory.builder,
-        }),
-      )
-      ..update(
-        _remoteLibrary,
-        parseLibraryFile(r'''
+  testWidgets(
+    'deprecated registration helper executes a generated RFW factory',
+    (tester) async {
+      // ignore: deprecated_member_use_from_same_package
+      registerRestageCustomerWidgets();
+      final registration = Restage.widgetLibraryRegistrations.singleWhere(
+        (candidate) =>
+            candidate.library.namespace == 'restage_widgetbook_example.widgets',
+      );
+      final runtime = Runtime()
+        ..update(
+          _customerLibrary,
+          LocalWidgetLibrary(<String, LocalWidgetBuilder>{
+            for (final factory in registration.widgets)
+              factory.name: factory.builder,
+          }),
+        )
+        ..update(
+          _remoteLibrary,
+          parseLibraryFile(r'''
 import restage_widgetbook_example.widgets;
 widget Root = BareCatalogCard(
   label: {
@@ -144,23 +147,24 @@ widget Root = BareCatalogCard(
   },
 );
 '''),
-      );
+        );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RemoteWidget(
-          runtime: runtime,
-          data: DynamicContent(),
-          widget: const FullyQualifiedWidgetName(_remoteLibrary, 'Root'),
-          onEvent: (_, _) {},
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RemoteWidget(
+            runtime: runtime,
+            data: DynamicContent(),
+            widget: const FullyQualifiedWidgetName(_remoteLibrary, 'Root'),
+            onEvent: (_, _) {},
+          ),
         ),
-      ),
-    );
-    await tester.pump();
+      );
+      await tester.pump();
 
-    expect(find.byType(BareCatalogCard), findsOneWidget);
-    expect(find.text('rfw bare'), findsOneWidget);
-  });
+      expect(find.byType(BareCatalogCard), findsOneWidget);
+      expect(find.text('rfw bare'), findsOneWidget);
+    },
+  );
 
   testWidgets('bare marker executes its generated A2UI component', (
     tester,
@@ -318,7 +322,7 @@ widget Root = BareCatalogCard(
   testWidgets('RFW binds and invokes the generated customer factory', (
     tester,
   ) async {
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
     final registration = Restage.widgetLibraryRegistrations.singleWhere(
       (candidate) =>
           candidate.library.namespace == 'restage_widgetbook_example.widgets',
@@ -375,7 +379,7 @@ widget Root = ConstructorFidelityProof(
   testWidgets('RFW preserves an omitted optional positional hole', (
     tester,
   ) async {
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
     final registration = Restage.widgetLibraryRegistrations.singleWhere(
       (candidate) =>
           candidate.library.namespace == 'restage_widgetbook_example.widgets',
@@ -427,7 +431,7 @@ widget Root = ConstructorPositionalCorpus(
   testWidgets(
     'RFW preserves explicit null for required named and positional Widget?',
     (tester) async {
-      registerRestageCustomerWidgets();
+      registerRestageWidgets();
       final registration = Restage.widgetLibraryRegistrations.singleWhere(
         (candidate) =>
             candidate.library.namespace == 'restage_widgetbook_example.widgets',

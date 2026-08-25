@@ -1283,6 +1283,9 @@ const String _borderRadiusCircularSynthetic = 'borderRadiusCircular';
 /// reconstruction owner and the entry is rejected by the eligibility gate.
 const String _borderRadiusCornerSynthetic = 'borderRadiusCorner';
 
+/// Strategy identifier for the catalog-only occurrence identifier property.
+const String _analyticsIdSynthetic = kAnalyticsIdSyntheticStrategy;
+
 /// The four corner property names, in Flutter `BorderRadius.only` ctor
 /// order, paired with the `Radius` ctor parameter each one feeds.
 const List<({String property, String corner})> _kBorderRadiusCorners = [
@@ -1306,9 +1309,10 @@ const Set<String> kSupportedSyntheticStrategies = {
   _imageFilterBlurSynthetic,
   _borderRadiusCircularSynthetic,
   _borderRadiusCornerSynthetic,
+  _analyticsIdSynthetic,
 };
 
-/// Returns the private function identifier for [entry]'s factory closure.
+/// Returns the non-exported function identifier for [entry]'s factory closure.
 ///
 /// Built from the catalog `name` field (`'Center'` → `_buildCenter`,
 /// `'CardFilled'` → `_buildCardFilled`). The catalog already
@@ -1350,6 +1354,22 @@ bool _isMechanicallyEmittable(
   required bool customerChildProperties,
   CustomerReconstruction? customer,
 }) {
+  if (entry.properties.map((property) => property.name).toSet().length !=
+      entry.properties.length) {
+    return false;
+  }
+
+  // The reserved occurrence label is never a Flutter constructor argument.
+  // A malformed catalog record must therefore make this whole entry
+  // ineligible instead of reaching either positional or named emission.
+  if (entry.properties.any(
+    (property) =>
+        property.name == kAnalyticsIdPropertyName &&
+        !_isAnalyticsIdSynthetic(property),
+  )) {
+    return false;
+  }
+
   // Curated single/list slots must point at a canonically named widget /
   // widgetList property. Customer entries carry `ChildrenSlot.none` and derive
   // structural properties directly from constructor-reflected types.
@@ -1701,10 +1721,21 @@ bool _isSupportedSynthetic(PropertyEntry prop, WidgetEntry entry) {
       return entry.properties.any(
         (p) => p.synthetic == _borderRadiusCircularSynthetic,
       );
+    case _analyticsIdSynthetic:
+      return prop.name == kAnalyticsIdPropertyName &&
+          prop.type == PropertyType.string &&
+          !prop.required &&
+          !prop.positional;
     default:
       return false;
   }
 }
+
+bool _isAnalyticsIdSynthetic(PropertyEntry property) =>
+    property.synthetic == _analyticsIdSynthetic &&
+    property.type == PropertyType.string &&
+    !property.required &&
+    !property.positional;
 
 /// Returns the property that fills [entry]'s `ChildrenSlot.single` /
 /// `ChildrenSlot.list` slot when one exists, or `null` otherwise.

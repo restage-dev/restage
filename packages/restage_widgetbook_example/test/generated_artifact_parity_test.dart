@@ -241,13 +241,13 @@ void main() {
       'lib/generated/restage_a2ui_catalog.a2ui.json':
           'd87ed0601571f76401fce3d530a60eda52df2a70100945c8fafcd1abdeea77b4',
       'lib/generated/restage_a2ui_catalog.g.dart':
-          '42203fa2760a2b5283091d11d4ed8f864984f7da2fdc00f33b4b33547ab85c31',
+          '6a3270e027db5464686b77cc4f4afa9b68ee34c60fee641477cc7d89910aa46c',
       'lib/src/widget_catalog/catalog.json':
-          '16f473e0326e003f4e22c081c948b272e27fe2d593a1e1adf61f8da9cf9776c0',
+          '03a943575e512c595bba461e6cf6961f6e0039bdac8861718627916d64f48356',
       'lib/user_catalog.g.dart':
-          '7ea1eb6179af9f48e609d943c0da15f6dbc679dc8a458697c807c011595285fa',
+          '5f5514778ef5fc3c45e2df7617cb7706d5b87fe8ccbb0a29c652c73d12f631ad',
       'lib/user_factories.g.dart':
-          'f2d7ead0fab2f0fd06948de0a93f792a378d6d88d4420d9402cd214f867caa4f',
+          '48fc26111eee74d5edf80b1924435a7fada47e52b59ec27b50c614c4a5ddba7b',
     };
 
     for (final entry in expected.entries) {

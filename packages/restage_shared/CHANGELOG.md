@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- **Breaking:** flow documents now support schema version 2 for typed survey
+  declarations. Version 2 carries the ordered `surveyQuestionOrder` field;
+  version 1 remains accepted without that field.
 - **Breaking:** the legacy behavioral-analytics event and wire vocabulary
   (`AnalyticsEvent`, `AnalyticsAppContext`, the reserved-key and clock-skew
   helpers, the taxonomy registry, and the wire enums) moves behind the

@@ -51,6 +51,18 @@ void main() {
     expect(binding.context!.experimentEpoch, 4);
   });
 
+  test('stage rejects an empty surface version', () {
+    final presentation = RootAnalyticsRuntime.createPresentation(
+      surface: 'survey',
+      surfaceId: 'survey-root',
+    );
+
+    expect(
+      () => presentation.stage(surfaceVersion: ''),
+      throwsArgumentError,
+    );
+  });
+
   test('retains source and payload kind through active and deferred bindings',
       () async {
     final presented = <RootAnalyticsEventContext>[];

@@ -2,11 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
+import 'package:restage_material/restage_material_runtime.dart';
 
 import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart';
 import '../events/restage_event.dart'
-    show FlowStarted, FlowUnavailable, OnboardingStepViewed, RestageEvent;
+    show
+        FlowStarted,
+        FlowUnavailable,
+        OnboardingStepViewed,
+        PagerPageChanged,
+        RestageEvent;
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
 import '../refresh/surface_refresh_registry.dart';
@@ -845,6 +851,19 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     presentation.runWithEventContext(() => Restage.fireEvent(event));
   }
 
+  bool _isPagerPresentationCurrent(
+    RestageFlowController<R> controller,
+    FirstPaintLeaseTransaction? transaction,
+    RootAnalyticsPresentation presentation,
+  ) {
+    return mounted &&
+        identical(_controller, controller) &&
+        identical(_transaction, transaction) &&
+        identical(_presentation, presentation) &&
+        (transaction == null || transaction.isCommitted) &&
+        presentation.isActive;
+  }
+
   Future<void> _openMeasurementSessionForResolvedRoot(
     RestageFlowController<R> controller,
     Object resolvedOrPayload,
@@ -972,6 +991,41 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     );
     final session = _measurementSessions[controller];
     if (session != null) child = session.wrapRootSubtree(child);
+    final presentation = identical(_pendingController, controller)
+        ? _pendingPresentation
+        : _presentation;
+    if (presentation != null) {
+      final stageToken = Object();
+      child = RestagePagerEventScope(
+        sink: RestagePagerEventSink(
+          stageToken: stageToken,
+          isCurrent: (token) =>
+              identical(token, stageToken) &&
+              _isPagerPresentationCurrent(
+                controller,
+                transaction,
+                presentation,
+              ),
+          onPageChanged: (pageIndex, pageCount) {
+            if (!_isPagerPresentationCurrent(
+              controller,
+              transaction,
+              presentation,
+            )) {
+              return;
+            }
+            _fireControllerEvent(
+              controller,
+              PagerPageChanged(
+                pageIndex: pageIndex,
+                pageCount: pageCount,
+              ),
+            );
+          },
+        ),
+        child: child,
+      );
+    }
     if (transaction != null) {
       child = FirstPaintLeaseScope(
         transaction: transaction,

@@ -35,11 +35,13 @@ the metering token, and is not a server-side erasure request. Nothing about its
 behavior changed, only the description, which could have led you to answer a
 deletion request with it.
 
-`Restage.events`, `Restage.fireEvent`, `RestageEvent` and every typed event are
-unchanged. Internally, firing an event no longer calls the recording bridge
-directly; the recording layer registers for events instead, so the event stream
-and the recording path can be reasoned about separately. This is not a visible
-change to the event API.
+`Restage.events` and `Restage.fireEvent` retain their existing behavior. The
+sealed `RestageEvent` family adds `PagerPageChanged` and
+`SurveyQuestionResponded`, and `ResolvedVariant.surfaceVersion` is now required
+and non-empty so every rendered paywall has a stable content version. Custom
+variant resolvers must provide a new value when their resolved bytes change.
+Event firing routes through the recording listener rather than calling the
+bridge directly, preserving the existing public behavior.
 
 **New. `Restage.measurement` and `Restage.privacy`.** `Restage.measurement`
 carries the explicit subject operations: issue a link challenge, link a subject,

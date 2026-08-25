@@ -4,8 +4,13 @@ import 'dart:typed_data';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/codegen_builder.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
+import 'package:restage_codegen/src/onboarding/screen_builder.dart';
+import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
@@ -121,6 +126,78 @@ final class MeasuredScreen extends StatelessWidget {
 }
 ''';
 
+const _aliasSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('acme.alias'),
+  capabilityVersion: 1,
+)
+const aliasLibrary = 0;
+
+@RestageWidget(
+  name: 'AliasCatalogMarker',
+  library: WidgetLibrary.custom('acme.alias'),
+  category: WidgetCategory.decoration,
+  description: 'Catalog contributor for alias coverage.',
+)
+final class AliasCatalogMarker {
+  const AliasCatalogMarker();
+}
+
+@Screen(id: 'measured', surface: Surface.general)
+final class MeasuredScreen extends StatelessWidget {
+  const MeasuredScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          PageView(children: const [SizedBox()]),
+          DraggableScrollableSheet(
+            initialChildSize: 0.4,
+            builder: (context, scrollController) => SingleChildScrollView(
+              controller: scrollController,
+              child: const SizedBox(),
+            ),
+          ),
+          DropdownButton<String>(
+            value: 'usd',
+            items: const [
+              DropdownMenuItem<String>(value: 'usd', child: Text('US Dollar')),
+            ],
+          ),
+          ToggleButtons(
+            isSelected: const [true],
+            children: const [Text('Bold')],
+          ),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment<String>(value: 'day', label: Text('Day')),
+            ],
+            selected: const {'day'},
+          ),
+        ],
+      );
+}
+''';
+
+const _frozenWitnessPaywallSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@Paywall(id: 'witness_offer')
+final class WitnessOffer extends StatelessWidget {
+  const WitnessOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Offer');
+}
+''';
+
 void main() {
   test(
     'default tracked builder emits ordinary, inline, opaque, repeated, and '
@@ -167,6 +244,7 @@ void main() {
       expect(compilerOutput.publications, hasLength(1));
       final publication = compilerOutput.publications.single;
       expect(publication.routePlan.routes, hasLength(7));
+      expect(publication.routePlan.presentationRoutes, hasLength(11));
       expect(
         publication.routePlan.routes
             .map((route) => route.generatedReferenceId.value)
@@ -192,8 +270,35 @@ void main() {
       );
       final blob = handoff.artifacts[blobArtifact.path]!;
       expect(CapabilitySidecar.hashBlob(blob), blobArtifact.contentHash);
+      final decodedBlob = fmt.decodeLibraryBlob(Uint8List.fromList(blob));
+      expect(
+        _presentationWrappedNames(decodedBlob),
+        unorderedEquals([
+          'Column',
+          'FilledButton',
+          'FilledButton',
+          'FilledButton',
+          'GestureDetector',
+          'InlineAction',
+          'OpaqueAction',
+          'Text',
+          'Text',
+          'Text',
+          'Text',
+        ]),
+        reason: 'only final RFW catalog occurrences are presented: outer '
+            'customer calls stay distinct, repeated sibling calls stay '
+            'distinct, and the generated InlineAction body remains opaque',
+      );
+      expect(
+        _presentationWrappedNamesForWidget(decodedBlob, 'InlineAction'),
+        isEmpty,
+        reason:
+            'the generated local definition is not an independent presentation '
+            'occurrence; only the outer InlineAction call is wrapped',
+      );
       final carriers = _eventHandlers(
-        fmt.decodeLibraryBlob(Uint8List.fromList(blob)),
+        decodedBlob,
       )
           .map(
             (handler) => handler.eventArguments[kMeasurementRouteArgumentKeyV1],
@@ -387,6 +492,87 @@ void main() {
   );
 
   test(
+      'records exact alias targets through analyzer translation and frozen '
+      'RFW resolution', () async {
+    final screen = await _compileAliasOccurrenceScreen();
+    final occurrenceSet = screen.rfwCatalogOccurrenceSet;
+
+    const expectedTargets = <String, (String, String)>{
+      'RestagePager': ('restage.material', 'w0026'),
+      'RestageDraggableSheet': ('restage.material', 'w0041'),
+      'RestageDropdownString': ('restage.material', 'w0043'),
+      'RestageToggleButtons': ('restage.material', 'w0044'),
+      'RestageSegmentedButtonString': ('restage.material', 'w0045'),
+    };
+    for (final target in expectedTargets.entries) {
+      final occurrence = occurrenceSet.occurrences.singleWhere(
+        (occurrence) => occurrence.constructorCall.name == target.key,
+      );
+      expect(
+        occurrence.descriptor.catalogLibraryNamespace,
+        target.value.$1,
+      );
+      expect(
+        occurrence.descriptor.catalogWidgetWireId.value,
+        target.value.$2,
+      );
+    }
+    expect(
+      occurrenceSet.occurrences
+          .map((occurrence) => occurrence.constructorCall.name),
+      isNot(contains('PageView')),
+    );
+    expect(
+      occurrenceSet
+          .rebindFinalLibrary(
+            fmt.decodeLibraryBlob(screen.blob),
+          )
+          .bindings,
+      hasLength(occurrenceSet.occurrences.length),
+    );
+  });
+
+  test('final screen emission requires frozen occurrence evidence', () async {
+    final result = await _compileScreenWithoutFrozenOccurrenceEvidence();
+
+    expect(result.screens, isEmpty);
+    expect(
+      result.issues.map((issue) => issue.code),
+      contains(IssueCode.missingScreenDescriptor),
+    );
+    expect(
+      result.issues.map((issue) => issue.message).join('\n'),
+      contains('frozen RFW occurrence evidence'),
+    );
+  });
+
+  test('final paywall forms require their own frozen occurrence evidence',
+      () async {
+    final standalone = await _compilePaywallWithoutFrozenOccurrenceEvidence(
+      adapter: false,
+    );
+    final adapter = await _compilePaywallWithoutFrozenOccurrenceEvidence(
+      adapter: true,
+    );
+
+    for (final result in [standalone, adapter]) {
+      expect(result.paywalls, isEmpty);
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.missingScreenDescriptor),
+      );
+    }
+    expect(
+      standalone.issues.map((issue) => issue.message).join('\n'),
+      contains('standalone paywall'),
+    );
+    expect(
+      adapter.issues.map((issue) => issue.message).join('\n'),
+      contains('adapter paywall'),
+    );
+  });
+
+  test(
     'finalized generated source carriers rebuild byte-identically and track '
     'the exact final draft closure',
     () async {
@@ -421,8 +607,8 @@ void main() {
   );
 
   test(
-    'paywall standalone and flow forms each receive their publication carrier '
-    'exactly once',
+    'paywall standalone and flow forms retain distinct frozen occurrence '
+    'ownership through final composition',
     () async {
       const paywall = '''
 import 'package:flutter/material.dart';
@@ -529,6 +715,77 @@ const offer = FlowDefinition(
             ),
           ),
         ),
+      );
+      final paywallManifestEntry = handoff.manifest!.publications.singleWhere(
+        (entry) => entry.publication.sourceKind == SurfaceSourceKind.paywall,
+      );
+      final flowManifestEntry = handoff.manifest!.publications.singleWhere(
+        (entry) => entry.publication.slug == 'offer',
+      );
+      final paywallBlobArtifact = paywallManifestEntry.artifacts.singleWhere(
+        (artifact) =>
+            artifact.role == SurfacePublicationArtifactRole.screenBlob &&
+            artifact.id == 'premium',
+      );
+      final flowBlobArtifact = flowManifestEntry.artifacts.singleWhere(
+        (artifact) =>
+            artifact.role == SurfacePublicationArtifactRole.screenBlob &&
+            artifact.id == 'paywall_premium',
+      );
+      final paywallBlob = handoff.artifacts[paywallBlobArtifact.path] ??
+          handoff.borrowedArtifacts[paywallBlobArtifact.path]!;
+      final flowBlob = handoff.artifacts[flowBlobArtifact.path] ??
+          handoff.borrowedArtifacts[flowBlobArtifact.path]!;
+      final paywallBlobEdge = paywallPublication.routePlan.artifacts
+          .singleWhere(
+            (artifact) =>
+                artifact.artifactId ==
+                measurementArtifactIdForPublicationArtifactV1(
+                  paywallPublication.selector,
+                  paywallBlobArtifact,
+                ),
+          )
+          .occurrenceEdgeToken;
+      final flowBlobEdge = flowPublication.routePlan.artifacts
+          .singleWhere(
+            (artifact) =>
+                artifact.artifactId ==
+                measurementArtifactIdForPublicationArtifactV1(
+                  flowPublication.selector,
+                  flowBlobArtifact,
+                ),
+          )
+          .occurrenceEdgeToken;
+      final paywallPresentationCarriers = _presentationRouteCarriers(
+        fmt.decodeLibraryBlob(Uint8List.fromList(paywallBlob)),
+      );
+      final flowPresentationCarriers = _presentationRouteCarriers(
+        fmt.decodeLibraryBlob(Uint8List.fromList(flowBlob)),
+      );
+      expect(
+        paywallPresentationCarriers,
+        {
+          for (final route
+              in paywallPublication.routePlan.presentationRoutes.where(
+            (route) => route.artifactOccurrenceEdgeToken == paywallBlobEdge,
+          ))
+            route.carrier,
+        },
+      );
+      expect(
+        flowPresentationCarriers,
+        {
+          for (final route in flowPublication.routePlan.presentationRoutes
+              .where(
+                  (route) => route.artifactOccurrenceEdgeToken == flowBlobEdge))
+            route.carrier,
+        },
+      );
+      expect(
+        paywallPresentationCarriers,
+        isNot(equals(flowPresentationCarriers)),
+        reason: 'the standalone and flow-adapter blobs must compose their own '
+            'frozen RFW occurrence sets, not rebind one form against the other',
       );
       final emittedCarriers = <String>[];
       for (final entry in {
@@ -745,6 +1002,191 @@ final class WelcomeFlow extends RestageFlow {
           contains('generatedWithMeasurementPublicationDraftDigest'),
           contains(flowPublication.draft.canonicalDigest.hex),
         ),
+      );
+    },
+  );
+
+  test(
+    'presentation-only legacy screen and flow carry finalized draft digests',
+    () async {
+      const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/quiet.restage.g.dart';
+
+@ScreenSource(id: 'quiet')
+final class QuietScreen extends StatelessWidget {
+  const QuietScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('Quiet');
+}
+''';
+      const flow = '''
+import 'package:restage/restage.dart';
+
+import '../screens/quiet.dart';
+
+part 'restage.generated/quiet_flow.restage.g.dart';
+
+@FlowSource(id: 'quiet_flow', version: 1, minClient: 1)
+final class QuietFlow extends RestageFlow {
+  const QuietFlow();
+
+  @override
+  FlowDef buildFlow() {
+    return flow(
+      initial: QuietScreenDescriptor.ref,
+      states: [screen(QuietScreenDescriptor.ref)],
+    );
+  }
+}
+''';
+      final sources = <String, String>{
+        'apps_examples|lib/onboarding/screens/quiet.dart': screen,
+        'apps_examples|lib/onboarding/flows/quiet_flow.dart': flow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final screenResult = await testBuilder(
+        onboardingScreenBuilder(BuilderOptions.empty),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        screenResult.succeeded,
+        isTrue,
+        reason: screenResult.errors.join('\n'),
+      );
+      final flowResult = await testBuilder(
+        onboardingFlowBuilder(BuilderOptions.empty),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        flowResult.succeeded,
+        isTrue,
+        reason: flowResult.errors.join('\n'),
+      );
+      final compilerResult = await testBuilder(
+        const PackageSurfaceCompilerBuilder(_policyOptions),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        compilerResult.succeeded,
+        isTrue,
+        reason: compilerResult.errors.join('\n'),
+      );
+
+      final measurement = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            kRestageMeasurementCompilerOutputPath,
+          ),
+        ),
+      );
+      final screenPublication = measurement.publications.singleWhere(
+        (publication) =>
+            publication.selector.sourceKind == SurfaceSourceKind.screen,
+      );
+      final flowPublication = measurement.publications.singleWhere(
+        (publication) =>
+            publication.selector.sourceKind == SurfaceSourceKind.flowGraph,
+      );
+      for (final publication in [screenPublication, flowPublication]) {
+        expect(publication.routePlan.routes, isEmpty);
+        expect(publication.routePlan.presentationRoutes, isNotEmpty);
+      }
+
+      final handoff = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(
+          readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
+        ),
+      );
+      final screenManifestEntry = handoff.manifest!.publications.singleWhere(
+        (entry) => entry.publication.sourceKind == SurfaceSourceKind.screen,
+      );
+      final flowManifestEntry = handoff.manifest!.publications.singleWhere(
+        (entry) => entry.publication.sourceKind == SurfaceSourceKind.flowGraph,
+      );
+      Set<String> presentationCarriersFor(
+        SurfacePublicationManifestEntry entry,
+      ) =>
+          {
+            for (final artifact in entry.artifacts.where(
+              (artifact) =>
+                  artifact.role == SurfacePublicationArtifactRole.screenBlob,
+            ))
+              ..._presentationRouteCarriers(
+                fmt.decodeLibraryBlob(
+                  Uint8List.fromList(
+                    handoff.artifacts[artifact.path] ??
+                        handoff.borrowedArtifacts[artifact.path]!,
+                  ),
+                ),
+              ),
+          };
+      expect(
+        presentationCarriersFor(screenManifestEntry),
+        {
+          for (final route in screenPublication.routePlan.presentationRoutes)
+            route.carrier,
+        },
+      );
+      expect(
+        presentationCarriersFor(flowManifestEntry),
+        {
+          for (final route in flowPublication.routePlan.presentationRoutes)
+            route.carrier,
+        },
+      );
+
+      final generatedParts = [
+        for (final entry in handoff.ownedOutputs.entries)
+          if (entry.key.endsWith('.g.dart')) utf8.decode(entry.value),
+      ];
+      void expectGeneratedCarrier(
+        String descriptor,
+        String expectedDigest,
+      ) {
+        final part =
+            generatedParts.where((part) => part.contains(descriptor)).single;
+        expect(
+          part,
+          contains('generatedWithMeasurementPublicationDraftDigest'),
+        );
+        final embeddedDigests = RegExp(
+          'measurementPublicationDraftDigest:\\s*[\'"]([^\'"]+)[\'"],',
+        )
+            .allMatches(part)
+            .map((match) => match.group(1))
+            .whereType<String>()
+            .toList();
+        expect(embeddedDigests, [expectedDigest]);
+      }
+
+      expectGeneratedCarrier(
+        'QuietScreenDescriptor',
+        screenPublication.draft.canonicalDigest.hex,
+      );
+      expectGeneratedCarrier(
+        'QuietFlowDescriptor',
+        flowPublication.draft.canonicalDigest.hex,
       );
     },
   );
@@ -1038,6 +1480,212 @@ Future<
   );
 }
 
+Future<CompiledResolvedScreen> _compileAliasOccurrenceScreen() async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  ResolvedScreenInspectionResult? inspection;
+  ResolvedScreenCompilationResult? compilation;
+  await testBuilder(
+    _AliasOccurrenceProbeBuilder((candidateInspection, candidateCompilation) {
+      inspection = candidateInspection;
+      compilation = candidateCompilation;
+    }),
+    const <String, String>{_sourceAsset: _aliasSource},
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+  );
+  final resolvedInspection = inspection;
+  final resolvedCompilation = compilation;
+  if (resolvedInspection == null || resolvedCompilation == null) {
+    throw StateError('The alias occurrence probe did not produce a result');
+  }
+  expect(
+    resolvedInspection.issues,
+    isEmpty,
+    reason: resolvedInspection.issues.map((issue) => issue.message).join('\n'),
+  );
+  expect(
+    resolvedCompilation.issues,
+    isEmpty,
+    reason: resolvedCompilation.issues.map((issue) => issue.message).join('\n'),
+  );
+  expect(resolvedCompilation.screens, hasLength(1));
+  return resolvedCompilation.screens.single;
+}
+
+Future<ResolvedScreenCompilationResult>
+    _compileScreenWithoutFrozenOccurrenceEvidence() async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  final catalogBuild = await testBuilder(
+    const UserCatalogJsonBuilder(BuilderOptions.empty),
+    const <String, String>{_sourceAsset: _source},
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+    flattenOutput: true,
+  );
+  expect(catalogBuild.succeeded, isTrue,
+      reason: catalogBuild.errors.join('\n'));
+  ResolvedScreenCompilationResult? compilation;
+  await testBuilder(
+    _MissingFrozenScreenProbeBuilder((candidate) {
+      compilation = candidate;
+    }),
+    const <String, String>{_sourceAsset: _source},
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+  );
+  final resolvedCompilation = compilation;
+  if (resolvedCompilation == null) {
+    throw StateError('The screen frozen-occurrence probe did not run');
+  }
+  return resolvedCompilation;
+}
+
+Future<ResolvedPaywallCompilationResult>
+    _compilePaywallWithoutFrozenOccurrenceEvidence({
+  required bool adapter,
+}) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  ResolvedPaywallCompilationResult? compilation;
+  await testBuilder(
+    _MissingFrozenPaywallProbeBuilder(
+      adapter: adapter,
+      onResult: (candidate) {
+        compilation = candidate;
+      },
+    ),
+    const <String, String>{
+      'apps_examples|lib/paywalls/witness_offer.dart':
+          _frozenWitnessPaywallSource,
+    },
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+  );
+  final resolvedCompilation = compilation;
+  if (resolvedCompilation == null) {
+    throw StateError('The paywall frozen-occurrence probe did not run');
+  }
+  return resolvedCompilation;
+}
+
+final class _AliasOccurrenceProbeBuilder implements Builder {
+  _AliasOccurrenceProbeBuilder(this.onResult);
+
+  final void Function(
+    ResolvedScreenInspectionResult inspection,
+    ResolvedScreenCompilationResult? compilation,
+  ) onResult;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const <String, List<String>>{
+        '.dart': <String>['.alias_occurrence_probe'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    if (buildStep.inputId.path != 'lib/features/measured.dart') return;
+    final inspection = await inspectCanonicalScreenDeclarations(
+      await buildStep.inputLibrary,
+      buildStep.inputId,
+    );
+    if (inspection.issues.isNotEmpty) {
+      onResult(inspection, null);
+      return;
+    }
+    onResult(
+      inspection,
+      await compileResolvedScreens(buildStep, inspection.screens),
+    );
+  }
+}
+
+final class _MissingFrozenScreenProbeBuilder implements Builder {
+  _MissingFrozenScreenProbeBuilder(this.onResult);
+
+  final void Function(ResolvedScreenCompilationResult compilation) onResult;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const <String, List<String>>{
+        '.dart': <String>['.missing_frozen_screen_probe'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    if (buildStep.inputId.path != 'lib/features/measured.dart') return;
+    final inspection = await inspectCanonicalScreenDeclarations(
+      await buildStep.inputLibrary,
+      buildStep.inputId,
+    );
+    if (inspection.issues.isNotEmpty) {
+      throw StateError('The screen frozen-occurrence probe found bad input');
+    }
+    final input = inspection.screens.single;
+    onResult(
+      await compileResolvedScreens(
+        buildStep,
+        inspection.screens,
+        measurementRoutePlans: <String, MeasurementRouteEmissionPlan>{
+          input.declarationIdentity: MeasurementRouteEmissionPlan(
+              const <MeasurementRouteEmissionBinding>[]),
+        },
+      ),
+    );
+  }
+}
+
+final class _MissingFrozenPaywallProbeBuilder implements Builder {
+  _MissingFrozenPaywallProbeBuilder({
+    required this.adapter,
+    required this.onResult,
+  });
+
+  final bool adapter;
+  final void Function(ResolvedPaywallCompilationResult compilation) onResult;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const <String, List<String>>{
+        '.dart': <String>['.missing_frozen_paywall_probe'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    if (buildStep.inputId.path != 'lib/paywalls/witness_offer.dart') return;
+    final library = await buildStep.inputLibrary;
+    final visited = await visitPaywallSources(library, buildStep.inputId);
+    if (visited.issues.isNotEmpty || visited.sources.length != 1) {
+      throw StateError('The paywall frozen-occurrence probe found bad input');
+    }
+    final source = visited.sources.single;
+    final declarationIdentity = '${library.identifier}#${source.className}';
+    final routePlans = <String, MeasurementRouteEmissionPlan>{
+      declarationIdentity: MeasurementRouteEmissionPlan(
+          const <MeasurementRouteEmissionBinding>[]),
+    };
+    onResult(
+      await compileResolvedPaywalls(
+        buildStep,
+        library: library,
+        assetId: buildStep.inputId,
+        sources: visited.sources,
+        canonicalPaywallIdFor: (_) => source.id,
+        measurementRoutePlans: routePlans,
+        measurementRouteOwnership: <String,
+            MeasurementPaywallRouteEmissionOwnership>{
+          declarationIdentity: MeasurementPaywallRouteEmissionOwnership(
+            standalone: !adapter,
+            adapter: adapter,
+          ),
+        },
+      ),
+    );
+  }
+}
+
 String _generatedCarrierPart(RestageSurfacePublicationBundle handoff) =>
     utf8.decode(
       handoff.ownedOutputs.entries
@@ -1089,6 +1737,118 @@ List<fmt.EventHandler> _eventHandlers(fmt.RemoteWidgetLibrary library) {
 
   visit(library);
   return handlers;
+}
+
+List<String> _presentationWrappedNames(fmt.RemoteWidgetLibrary library) {
+  final result = <String>[];
+
+  void visit(Object? value) {
+    switch (value) {
+      case fmt.RemoteWidgetLibrary library:
+        for (final widget in library.widgets) {
+          visit(widget);
+        }
+      case fmt.WidgetDeclaration declaration:
+        visit(declaration.initialState);
+        visit(declaration.root);
+      case fmt.ConstructorCall call:
+        if (call.name == 'MeasurementPresented') {
+          var child = call.arguments['child'];
+          while (child is fmt.ConstructorCall &&
+              child.name == 'MeasurementSourcePresented') {
+            child = child.arguments['child'];
+          }
+          if (child is fmt.ConstructorCall) result.add(child.name);
+        }
+        visit(call.arguments);
+      case fmt.EventHandler handler:
+        visit(handler.eventArguments);
+      case fmt.WidgetBuilderDeclaration builder:
+        visit(builder.widget);
+      case fmt.Loop loop:
+        visit(loop.input);
+        visit(loop.output);
+      case fmt.Switch switchNode:
+        visit(switchNode.input);
+        for (final output in switchNode.outputs.values) {
+          visit(output);
+        }
+      case Map<Object?, Object?> map:
+        for (final value in map.values) {
+          visit(value);
+        }
+      case List<Object?> list:
+        for (final value in list) {
+          visit(value);
+        }
+      default:
+        break;
+    }
+  }
+
+  visit(library);
+  return result;
+}
+
+List<String> _presentationWrappedNamesForWidget(
+  fmt.RemoteWidgetLibrary library,
+  String widgetName,
+) {
+  final declaration = library.widgets.singleWhere(
+    (candidate) => candidate.name == widgetName,
+  );
+  return _presentationWrappedNames(
+    fmt.RemoteWidgetLibrary(library.imports, [declaration]),
+  );
+}
+
+Set<String> _presentationRouteCarriers(fmt.RemoteWidgetLibrary library) {
+  final carriers = <String>{};
+
+  void visit(Object? value) {
+    switch (value) {
+      case fmt.RemoteWidgetLibrary library:
+        for (final widget in library.widgets) {
+          visit(widget);
+        }
+      case fmt.WidgetDeclaration declaration:
+        visit(declaration.initialState);
+        visit(declaration.root);
+      case fmt.ConstructorCall call:
+        if (call.name == 'MeasurementPresented') {
+          final routeCarriers = call.arguments['carriers'];
+          if (routeCarriers is List<Object?>) {
+            carriers.addAll(routeCarriers.whereType<String>());
+          }
+        }
+        visit(call.arguments);
+      case fmt.EventHandler handler:
+        visit(handler.eventArguments);
+      case fmt.WidgetBuilderDeclaration builder:
+        visit(builder.widget);
+      case fmt.Loop loop:
+        visit(loop.input);
+        visit(loop.output);
+      case fmt.Switch switchNode:
+        visit(switchNode.input);
+        for (final output in switchNode.outputs.values) {
+          visit(output);
+        }
+      case Map<Object?, Object?> map:
+        for (final value in map.values) {
+          visit(value);
+        }
+      case List<Object?> list:
+        for (final value in list) {
+          visit(value);
+        }
+      default:
+        break;
+    }
+  }
+
+  visit(library);
+  return carriers;
 }
 
 Set<String> _allJsonKeys(Object? value) => switch (value) {

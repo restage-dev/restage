@@ -73,6 +73,8 @@ class _MutableResolver implements VariantResolver {
     }
     return ResolvedVariant(
       bytes: bytes,
+      surfaceVersion:
+          version?.toString() ?? FlowContentHash.compute(bytes).value,
       paywallId: id,
       experimentId: experimentId,
       paywallPublishedVersion: version,
@@ -442,6 +444,7 @@ void main() {
     await tester.pump();
     resolver.responses.single.complete(ResolvedVariant(
       bytes: _blob('Last good blob'),
+      surfaceVersion: '1',
       paywallId: 'p',
       paywallPublishedVersion: 1,
     ));
@@ -452,6 +455,7 @@ void main() {
     await tester.pump();
     resolver.responses[1].complete(ResolvedVariant(
       bytes: _throwingBlob(),
+      surfaceVersion: '2',
       paywallId: 'p',
       paywallPublishedVersion: 2,
     ));
@@ -1256,6 +1260,7 @@ class _ShapeResolver implements VariantResolver, FlowCapableVariantResolver {
     return BlobPaywallPayload(
       ResolvedVariant(
         bytes: _bytes!,
+        surfaceVersion: FlowContentHash.compute(_bytes!).value,
         paywallId: id,
         paywallPublishedVersion: version,
         experimentId: experimentId,

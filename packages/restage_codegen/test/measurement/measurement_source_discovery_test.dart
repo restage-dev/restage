@@ -303,7 +303,7 @@ void main() {
         reason: discovery.rejectionReason,
       );
       expect(discovery.events, hasLength(1));
-      expect(discovery.nodes, hasLength(2));
+      expect(discovery.nodes, hasLength(3));
       expect(
         discovery.events.single.node.structuralOccurrenceKey,
         contains('helper:'),

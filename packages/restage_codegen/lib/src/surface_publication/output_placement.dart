@@ -6,6 +6,8 @@
 
 import 'package:build/build.dart';
 import 'package:path/path.dart' as p;
+import 'package:restage_codegen/src/analytics_id_control.dart'
+    show kRestageAnalyticsIdMetadataFileName;
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart'
     show kRestageMeasurementOutputIndexFileName;
 
@@ -194,6 +196,10 @@ final class RestageOutputPlacementPlan {
   String get measurementOutputIndexPath =>
       _packageWidePath(kRestageMeasurementOutputIndexFileName);
 
+  /// The package-wide current-label metadata path.
+  String get analyticsIdMetadataPath =>
+      _packageWidePath(kRestageAnalyticsIdMetadataFileName);
+
   /// The package-wide producer-facing A2UI catalog document path.
   String get a2uiCatalogPath => _packageWidePath(_kA2uiCatalogFileName);
 
@@ -233,6 +239,7 @@ final class RestageOutputPlacementPlan {
       outputIndexPath,
       publicationManifestPath,
       measurementOutputIndexPath,
+      analyticsIdMetadataPath,
     ];
     return extensions;
   }

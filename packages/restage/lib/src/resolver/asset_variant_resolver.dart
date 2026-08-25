@@ -4,7 +4,10 @@ import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart' show AssetBundle;
 import 'package:meta/meta.dart';
 import 'package:restage_shared/restage_shared.dart'
-    show SurfacePublicationArtifactRole, kPaywallScreensAssetDir;
+    show
+        FlowContentHash,
+        SurfacePublicationArtifactRole,
+        kPaywallScreensAssetDir;
 
 import '../assets/bundled_asset_source.dart';
 import '../flow/bundled_flow_loader.dart';
@@ -128,7 +131,11 @@ final class AssetVariantResolver
         data.lengthInBytes,
       );
       return await attachMeasurementBundledGeneratedArtifactClosureCarrier(
-        ResolvedVariant(bytes: bytes, paywallId: id),
+        ResolvedVariant(
+          bytes: bytes,
+          paywallId: id,
+          surfaceVersion: FlowContentHash.compute(bytes).value,
+        ),
         MeasurementBundledGeneratedArtifactClosureCarrier(
           artifacts: <MeasurementBundledGeneratedArtifact>[
             MeasurementBundledGeneratedArtifact.fromBytes(

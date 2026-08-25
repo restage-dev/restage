@@ -473,6 +473,7 @@ final class RestageVariantResolver
         ResolvedVariant(
           bytes: payload.blob,
           paywallId: id,
+          surfaceVersion: document.version.toString(),
           variantId: result.variantId,
           experimentId: result.experimentId,
           experimentEpoch: result.experimentEpoch,
@@ -951,7 +952,7 @@ final class _RestagePaywallExperimentPresentation
     final document = payload.flowDocument;
     if (document.flow != requestedFlow.id ||
         (exactVersion && document.version != requestedFlow.version) ||
-        document.schemaVersion != 1 ||
+        (document.schemaVersion != 1 && document.schemaVersion != 2) ||
         document.deliveryMode != flow.deliveryMode ||
         document.minClient > flow.minClient ||
         document.minClient > RestageBuiltInCatalogCapabilities.currentVersion) {

@@ -43,7 +43,7 @@ Future<void> _walkLadder(
     products: kStubProducts,
     resolver: const AssetVariantResolver(),
   );
-  registerRestageCustomerWidgets();
+  registerRestageWidgets();
 
   await $.pumpWidgetAndSettle(
     MaterialApp(

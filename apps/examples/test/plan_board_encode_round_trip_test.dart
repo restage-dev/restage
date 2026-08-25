@@ -25,7 +25,7 @@ import 'package:restage_example/widgets/pricing_card.dart' show PlanTier;
 void main() {
   setUp(() {
     Restage.debugReset();
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
     Restage.configure(
       apiKey: 'rs_pk_test',
       resolver: const AssetVariantResolver(),

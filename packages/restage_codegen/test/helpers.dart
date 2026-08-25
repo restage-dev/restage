@@ -480,6 +480,7 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
   Map<String, String> sources, {
   String packageName = 'apps_examples',
   WidgetVisitorTarget target = WidgetVisitorTarget.rfw,
+  bool includeAnalyticsId = false,
 }) async {
   final results = await _runOnLibraries<WidgetVisitorResult>(
     sources,
@@ -488,6 +489,7 @@ Future<WidgetVisitorResult> runWidgetVisitorOn(
       library,
       assetId,
       target: target,
+      includeAnalyticsId: includeAnalyticsId,
     ),
   );
   return results.fold<WidgetVisitorResult>(

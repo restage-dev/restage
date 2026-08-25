@@ -9,14 +9,13 @@ import 'package:meta/meta.dart';
 /// attribution (which paywall, which variant, which experiment, which version).
 ///
 /// Equality is defined over the **identity tuple** — [paywallId], [variantId],
-/// [experimentId], [experimentEpoch], [paywallVersion], and
-/// [paywallPublishedVersion] — so two
+/// [experimentId], [experimentEpoch], [paywallVersion],
+/// [paywallPublishedVersion], and [surfaceVersion] — so two
 /// resolutions of the same variant compare equal, and a host caching layer can
 /// use `==` for a "same variant, skip re-render" check. Two fields are
 /// deliberately **excluded** from equality:
-///   - [bytes]: the blob is fully determined by the identity tuple equality
-///     already compares (paywall id + variant + version), so a deep O(n) byte
-///     compare would add nothing and is not what "same variant" means.
+///   - [bytes]: the rendered-content [surfaceVersion] changes whenever the
+///     resolved bytes change, so a deep O(n) byte compare would add nothing.
 ///   - [cacheHit]: delivery metadata — a cache hit and a fresh fetch of the
 ///     same variant are the same variant, so including it would reintroduce
 ///     the false-inequality this equality is meant to avoid.
@@ -30,23 +29,40 @@ import 'package:meta/meta.dart';
 @immutable
 class ResolvedVariant {
   /// Creates a [ResolvedVariant]. Custom [VariantResolver] implementations
-  /// construct this directly.
-  const ResolvedVariant({
+  /// construct this directly and provide a new [surfaceVersion] whenever their
+  /// resolved bytes change.
+  ResolvedVariant({
     required this.bytes,
     required this.paywallId,
+    required this.surfaceVersion,
     this.variantId,
     this.experimentId,
     this.experimentEpoch,
     this.paywallVersion,
     this.paywallPublishedVersion,
     this.cacheHit = false,
-  });
+  }) {
+    if (surfaceVersion.isEmpty) {
+      throw ArgumentError.value(
+        surfaceVersion,
+        'surfaceVersion',
+        'must not be empty',
+      );
+    }
+  }
 
   /// The `.rfw` blob bytes.
   final Uint8List bytes;
 
   /// Stable identifier for the paywall (e.g. `'pro_upgrade'`).
   final String paywallId;
+
+  /// Stable rendered-content identity for this exact blob.
+  ///
+  /// Hosted resolution uses the served publication revision. Bundled resolution
+  /// uses a deterministic content hash. Custom resolvers must change this value
+  /// whenever they return different bytes.
+  final String surfaceVersion;
 
   /// Variant identifier when an experiment assigned a specific arm.
   final String? variantId;
@@ -75,9 +91,8 @@ class ResolvedVariant {
   final bool cacheHit;
 
   /// Returns a copy with the given fields overridden; every un-passed field is
-  /// preserved. Adding a field to [ResolvedVariant] carries it through here
-  /// automatically, so a re-emit (e.g. marking a cache hit) can never silently
-  /// drop a field.
+  /// preserved. Replacing [bytes] also requires a different [surfaceVersion],
+  /// so a changed blob cannot retain the identity of the previous content.
   ///
   /// Override-or-preserve: a nullable field cannot be *cleared* to null through
   /// this method (a passed null reads as "not overridden"). That is not needed —
@@ -86,30 +101,42 @@ class ResolvedVariant {
   ResolvedVariant copyWith({
     Uint8List? bytes,
     String? paywallId,
+    String? surfaceVersion,
     String? variantId,
     String? experimentId,
     int? experimentEpoch,
     String? paywallVersion,
     int? paywallPublishedVersion,
     bool? cacheHit,
-  }) =>
-      ResolvedVariant(
-        bytes: bytes ?? this.bytes,
-        paywallId: paywallId ?? this.paywallId,
-        variantId: variantId ?? this.variantId,
-        experimentId: experimentId ?? this.experimentId,
-        experimentEpoch: experimentEpoch ?? this.experimentEpoch,
-        paywallVersion: paywallVersion ?? this.paywallVersion,
-        paywallPublishedVersion:
-            paywallPublishedVersion ?? this.paywallPublishedVersion,
-        cacheHit: cacheHit ?? this.cacheHit,
+  }) {
+    if (bytes != null &&
+        (surfaceVersion == null || surfaceVersion == this.surfaceVersion)) {
+      throw ArgumentError.value(
+        surfaceVersion,
+        'surfaceVersion',
+        'must change when bytes are replaced',
       );
+    }
+    return ResolvedVariant(
+      bytes: bytes ?? this.bytes,
+      paywallId: paywallId ?? this.paywallId,
+      surfaceVersion: surfaceVersion ?? this.surfaceVersion,
+      variantId: variantId ?? this.variantId,
+      experimentId: experimentId ?? this.experimentId,
+      experimentEpoch: experimentEpoch ?? this.experimentEpoch,
+      paywallVersion: paywallVersion ?? this.paywallVersion,
+      paywallPublishedVersion:
+          paywallPublishedVersion ?? this.paywallPublishedVersion,
+      cacheHit: cacheHit ?? this.cacheHit,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ResolvedVariant &&
           other.paywallId == paywallId &&
+          other.surfaceVersion == surfaceVersion &&
           other.variantId == variantId &&
           other.experimentId == experimentId &&
           other.experimentEpoch == experimentEpoch &&
@@ -119,6 +146,7 @@ class ResolvedVariant {
   @override
   int get hashCode => Object.hash(
         paywallId,
+        surfaceVersion,
         variantId,
         experimentId,
         experimentEpoch,

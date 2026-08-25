@@ -132,7 +132,9 @@ String? _retainedCheckReject({
   if (active.flow != paywallId) return 'flow_mismatch';
 
   // Schema version.
-  if (active.schemaVersion != 1) return 'unsupported_schema_version';
+  if (active.schemaVersion != 1 && active.schemaVersion != 2) {
+    return 'unsupported_schema_version';
+  }
 
   // Document capability floor: at or below both the client ref (bundled) AND the
   // installed built-in catalog version.

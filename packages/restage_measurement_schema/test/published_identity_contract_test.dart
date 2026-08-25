@@ -535,7 +535,7 @@ _Bundle _bundle(
     capabilityKind: MeasurementCapabilityKind.presented,
     privacyClass: MeasurementPrivacyClass.nonSensitive,
     semanticValueClass: SemanticValueClass.none,
-    collectionClass: MeasurementCollectionClass.tier1KeepAll,
+    collectionClass: MeasurementCollectionClass.tier2Coalesced,
     lineageId: PointLineageId('lineage.root'),
     displayMetadataRef: DisplayMetadataRef('display.root'),
   );
@@ -618,6 +618,19 @@ LocalMeasurementManifestV1 _localManifest(
       childArtifactIds: const [],
       points: [occurrence],
       generatedReferences: const [],
+      generatedPresentationReferences: [
+        GeneratedPresentationReferenceV1(
+          referenceId: GeneratedPresentationReferenceId(
+            'reference.presentation.root',
+          ),
+          target: occurrence.target,
+          surfaceRevisionId: occurrence.surfaceRevisionId,
+          artifactGraphHash: occurrence.artifactGraphHash,
+          occurrenceId: occurrence.occurrenceId,
+          lineageId: occurrence.lineageId,
+          displayMetadataRef: occurrence.displayMetadataRef,
+        ),
+      ],
       privacyPolicyRevisionId: AuthorityRevisionId('privacy.v1'),
       collectionBudgetRevisionId: AuthorityRevisionId('budget.v1'),
     );

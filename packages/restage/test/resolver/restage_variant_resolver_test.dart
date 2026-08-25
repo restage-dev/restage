@@ -529,6 +529,7 @@ void main() {
       expect(first.variantId, 'variant_a');
       expect(first.experimentEpoch, 3);
       expect(first.paywallPublishedVersion, 5);
+      expect(first.surfaceVersion, '5');
       expect(
         measurementPublicationBindingReferenceFor(first),
         bindingReference,
@@ -542,6 +543,7 @@ void main() {
       expect(second.variantId, 'variant_a');
       expect(second.experimentEpoch, 3);
       expect(second.paywallPublishedVersion, 5);
+      expect(second.surfaceVersion, '5');
       expect(
         measurementPublicationBindingReferenceFor(second),
         bindingReference,
@@ -575,12 +577,14 @@ void main() {
       expect(second.cacheHit, isTrue);
       expect(second.bytes, blob);
       expect(second.paywallPublishedVersion, 5);
+      expect(second.surfaceVersion, '5');
     });
 
     test('falls back to the bundled asset when the fetch fails + no cache',
         () async {
       final assetVariant = ResolvedVariant(
         bytes: Uint8List.fromList([1, 1, 1]),
+        surfaceVersion: 'test',
         paywallId: 'pro_upgrade',
       );
       final resolver = RestageVariantResolver(
@@ -596,6 +600,7 @@ void main() {
       final variant = await resolver.resolve('pro_upgrade');
       expect(variant.bytes, assetVariant.bytes);
       expect(variant.paywallPublishedVersion, isNull);
+      expect(variant.surfaceVersion, assetVariant.surfaceVersion);
     });
 
     test('rethrows a typed error when fetch fails + no cache + no asset',
@@ -625,6 +630,7 @@ void main() {
         () async {
       final assetVariant = ResolvedVariant(
         bytes: Uint8List.fromList([2, 2, 2]),
+        surfaceVersion: 'test',
         paywallId: 'pro_upgrade',
       );
       final resolver = RestageVariantResolver(
@@ -697,12 +703,14 @@ void main() {
       expect(secondBlob.variant.variantId, 'variant_a');
       expect(secondBlob.variant.experimentEpoch, 3);
       expect(secondBlob.variant.paywallPublishedVersion, 5);
+      expect(secondBlob.variant.surfaceVersion, '5');
     });
 
     test('falls back to a blob-only asset resolver as BlobPaywallPayload',
         () async {
       final assetVariant = ResolvedVariant(
         bytes: Uint8List.fromList([1, 1, 1]),
+        surfaceVersion: 'test',
         paywallId: 'pro_upgrade',
       );
       final resolver = RestageVariantResolver(

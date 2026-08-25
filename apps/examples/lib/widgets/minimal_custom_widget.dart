@@ -18,7 +18,7 @@ import 'package:restage/restage.dart';
 /// Keep a `@RestageWidget`'s `build` declarative to stay blob-expressible:
 /// no `Color.withValues(...)`, no `?? fallback` on an optional property in a
 /// value position, no other runtime computation. Anything irreducibly imperative
-/// is registered as a runtime factory instead (`registerRestageCustomerWidgets()`
+/// is registered as a runtime factory instead (`registerRestageWidgets()`
 /// in `lib/user_factories.g.dart`) and rendered in the host app.
 @RestageWidget(
   name: 'StatBadge',

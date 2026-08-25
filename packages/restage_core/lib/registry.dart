@@ -72,6 +72,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0589'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -162,6 +169,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
           category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0590'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -437,6 +451,13 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.real,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0591'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
       decomposes: [
@@ -912,6 +933,13 @@ final Catalog kRegistry = Catalog(
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0592'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
       decomposes: [
         DecompositionRecipe(
@@ -1138,6 +1166,13 @@ final Catalog kRegistry = Catalog(
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0593'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1202,6 +1237,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
           category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0594'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -1326,6 +1368,13 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
+        PropertyEntry(
+          wireId: WireId('p0595'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1404,6 +1453,13 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
+        PropertyEntry(
+          wireId: WireId('p0596'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1481,6 +1537,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
           category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0597'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -1573,6 +1636,13 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
+        PropertyEntry(
+          wireId: WireId('p0598'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1639,6 +1709,13 @@ final Catalog kRegistry = Catalog(
           constructorNullable: true,
           category: PropertyCategory.behavior,
         ),
+        PropertyEntry(
+          wireId: WireId('p0599'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1669,6 +1746,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0600'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -1728,6 +1812,13 @@ final Catalog kRegistry = Catalog(
           description: 'Gaussian blur sigma along the Y axis.',
           synthetic: 'imageFilterBlur',
         ),
+        PropertyEntry(
+          wireId: WireId('p0601'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1768,6 +1859,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0602'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1796,6 +1894,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0603'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -1861,6 +1966,13 @@ final Catalog kRegistry = Catalog(
           description: 'Bottom-right corner radius (Radius.circular).',
           synthetic: 'borderRadiusCorner',
         ),
+        PropertyEntry(
+          wireId: WireId('p0604'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -1889,6 +2001,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0605'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -1920,6 +2039,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0606'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
       sinceVersion: 5,
@@ -1991,6 +2117,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widgetList,
           description: '',
         ),
+        PropertyEntry(
+          wireId: WireId('p0607'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -2048,6 +2181,13 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.real,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0608'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
       decomposes: [
@@ -2326,6 +2466,13 @@ final Catalog kRegistry = Catalog(
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0609'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
       decomposes: [
         DecompositionRecipe(
@@ -2465,6 +2612,13 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.color,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Color')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0610'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
       decomposes: [
@@ -2832,6 +2986,13 @@ final Catalog kRegistry = Catalog(
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0611'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
       decomposes: [
         DecompositionRecipe(
@@ -3013,6 +3174,13 @@ final Catalog kRegistry = Catalog(
           required: true,
           priority: PropertyPriority.primary,
         ),
+        PropertyEntry(
+          wireId: WireId('p0612'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3123,6 +3291,13 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'dart:ui', symbolName: 'FilterQuality')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0613'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3180,6 +3355,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0614'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3224,6 +3406,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           required: true,
           priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0615'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -3283,6 +3472,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0616'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3327,6 +3523,13 @@ final Catalog kRegistry = Catalog(
               'Called when a long press gesture with a primary button has been recognized.',
           constructorNullable: true,
           category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0617'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -3467,6 +3670,13 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'dart:ui', symbolName: 'FilterQuality')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0618'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3606,6 +3816,13 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'dart:ui', symbolName: 'FilterQuality')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0619'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3624,6 +3841,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0620'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -3668,6 +3892,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0621'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -3711,6 +3942,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0622'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -3799,6 +4037,13 @@ final Catalog kRegistry = Catalog(
           valueShape: EnumShape(
               propertyType: PropertyType.enumValue,
               enumRef: DartTypeRef(libraryUri: 'dart:ui', symbolName: 'Clip')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0623'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -3889,6 +4134,13 @@ final Catalog kRegistry = Catalog(
               'Fires once when the fade settles. Never fires if the widget is disposed before settling.',
           constructorNullable: true,
           category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0624'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -4223,6 +4475,13 @@ final Catalog kRegistry = Catalog(
                   libraryUri: 'package:flutter/src/painting/text_painter.dart',
                   symbolName: 'TextOverflow')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0625'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
       decomposes: [
         DecompositionRecipe(
@@ -4488,6 +4747,13 @@ final Catalog kRegistry = Catalog(
               'Fires once when the entrance settles. Never fires if the widget is disposed before settling.',
           constructorNullable: true,
           category: PropertyCategory.behavior,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0626'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -4846,6 +5112,13 @@ final Catalog kRegistry = Catalog(
                   libraryUri: 'package:flutter/src/painting/text_painter.dart',
                   symbolName: 'TextOverflow')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0627'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
       decomposes: [
         DecompositionRecipe(
@@ -5066,6 +5339,13 @@ final Catalog kRegistry = Catalog(
                   libraryUri: 'package:flutter/src/animation/curves.dart',
                   symbolName: 'Curve')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0628'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5150,6 +5430,13 @@ final Catalog kRegistry = Catalog(
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'double')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0629'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5178,6 +5465,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0630'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
       sinceVersion: 5,
@@ -5222,6 +5516,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0631'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5252,6 +5553,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0632'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -5343,6 +5651,13 @@ final Catalog kRegistry = Catalog(
           required: true,
           priority: PropertyPriority.primary,
         ),
+        PropertyEntry(
+          wireId: WireId('p0633'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5412,6 +5727,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widgetList,
           description: '',
         ),
+        PropertyEntry(
+          wireId: WireId('p0634'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5443,6 +5765,13 @@ final Catalog kRegistry = Catalog(
           type: PropertyType.widget,
           description: '',
           constructorNullable: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0635'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -5521,6 +5850,13 @@ final Catalog kRegistry = Catalog(
           description: 'The widget below this widget in the tree.',
           required: true,
           priority: PropertyPriority.primary,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0636'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -5603,6 +5939,13 @@ final Catalog kRegistry = Catalog(
                   libraryUri: 'package:flutter/src/widgets/scroll_view.dart',
                   symbolName: 'ScrollViewKeyboardDismissBehavior')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0637'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5645,6 +5988,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0638'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -5668,6 +6018,13 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.integer,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'int')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0639'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -5724,6 +6081,13 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0640'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -6088,6 +6452,13 @@ final Catalog kRegistry = Catalog(
               enumRef: DartTypeRef(
                   libraryUri: 'package:flutter/src/painting/text_painter.dart',
                   symbolName: 'TextOverflow')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0641'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
       decomposes: [
@@ -6600,6 +6971,13 @@ final Catalog kRegistry = Catalog(
                   libraryUri: 'package:flutter/src/painting/text_painter.dart',
                   symbolName: 'TextOverflow')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0642'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
       decomposes: [
         DecompositionRecipe(
@@ -6833,6 +7211,13 @@ final Catalog kRegistry = Catalog(
           description: '',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0643'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -6875,6 +7260,13 @@ final Catalog kRegistry = Catalog(
               propertyType: PropertyType.boolean,
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'bool')),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0644'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -7012,6 +7404,13 @@ final Catalog kRegistry = Catalog(
           name: 'children',
           type: PropertyType.widgetList,
           description: '',
+        ),
+        PropertyEntry(
+          wireId: WireId('p0645'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),

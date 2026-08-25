@@ -394,7 +394,7 @@ void main() {
     final document = FlowDocument(
       flow: 'first_run',
       version: 7,
-      schemaVersion: 1,
+      schemaVersion: 2,
       minClient: 5,
       initial: 'welcome',
       actions: {
@@ -424,7 +424,16 @@ void main() {
             ),
           },
         ),
+        surveyAnswers: FlowOutboundPayloadDeclaration(
+          fields: {
+            'inviteCode': FlowOutboundField(
+              type: FlowDataType.string,
+              ref: StateFlowOutboundRef(key: 'inviteCode'),
+            ),
+          },
+        ),
       ),
+      surveyQuestionOrder: const ['inviteCode'],
       legacyTerminalResultPassthrough: true,
       screenArtifacts: {
         'welcome': ScreenArtifact(
@@ -455,7 +464,7 @@ void main() {
     // Every scalar / enum field survives the freeze.
     expect(frozen.flow, 'first_run');
     expect(frozen.version, 7);
-    expect(frozen.schemaVersion, 1);
+    expect(frozen.schemaVersion, 2);
     expect(frozen.minClient, 5);
     expect(frozen.initial, 'welcome');
     expect(frozen.legacyTerminalResultPassthrough, isTrue);
@@ -465,6 +474,7 @@ void main() {
     expect(frozen.actions.keys, contains('submit'));
     expect(frozen.flowState.keys, contains('inviteCode'));
     expect(frozen.outbound.terminalResult.fields.keys, contains('done'));
+    expect(frozen.surveyQuestionOrder, const ['inviteCode']);
     expect(frozen.screenArtifacts.keys, contains('welcome'));
     expect(frozen.states.keys.toSet(), {'welcome', 'done'});
     expect(frozen.unsupportedFeatures, {'futureThing'});
@@ -472,6 +482,7 @@ void main() {
     // The reconstructed collections are still deep-frozen (unmodifiable).
     expect(() => frozen.actions.clear(), throwsUnsupportedError);
     expect(() => frozen.states.clear(), throwsUnsupportedError);
+    expect(() => frozen.surveyQuestionOrder.clear(), throwsUnsupportedError);
     expect(() => frozen.unsupportedFeatures.clear(), throwsUnsupportedError);
   });
 
@@ -607,7 +618,7 @@ void main() {
     );
   });
 
-  test('fails closed for unsupported document schemaVersion', () async {
+  test('admits document schemaVersion 2', () async {
     final screenBytes = Uint8List.fromList([1, 2, 3]);
     final bundle = _FlowAssetBundle.withFlow(
       flowRef,
@@ -616,10 +627,9 @@ void main() {
     );
     final resolver = AssetFlowResolver(bundle: bundle);
 
-    await expectLater(
-      resolver.resolve(flowRef),
-      throwsA(_flowUnavailable('unsupported_schema_version')),
-    );
+    final resolved = await resolver.resolve(flowRef);
+
+    expect(resolved.document.schemaVersion, 2);
   });
 
   test('fails closed for unsupported screen artifact schemaVersion', () async {

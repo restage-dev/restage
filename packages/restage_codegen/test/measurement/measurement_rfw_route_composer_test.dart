@@ -30,7 +30,7 @@ void main() {
       final wrapper = root.arguments['child']! as fmt.ConstructorCall;
 
       expect(root.name, 'Container');
-      expect(wrapper.name, 'MeasurementPresented');
+      expect(wrapper.name, 'MeasurementSourcePresented');
       final child = wrapper.arguments['child']! as fmt.ConstructorCall;
       expect(child.name, 'Button');
       expect(
@@ -70,7 +70,7 @@ void main() {
     final wrapper = composed.widgets.single.root as fmt.ConstructorCall;
     final child = wrapper.arguments['child']! as fmt.ConstructorCall;
 
-    expect(wrapper.name, 'MeasurementPresented');
+    expect(wrapper.name, 'MeasurementSourcePresented');
     expect(child.name, 'GestureDetector');
     expect(
       wrapper.arguments['carriers'],
@@ -89,7 +89,7 @@ void main() {
   });
 
   test(
-    'keeps a presentation wrapper inside the selected conditional branch',
+    'keeps a source-route wrapper inside the selected conditional branch',
     () {
       final routePlan = _routePlan(const [
         'reference.presentation.conditional',
@@ -115,7 +115,7 @@ void main() {
       final unselected = root.outputs[false]! as fmt.ConstructorCall;
 
       expect(root, isA<fmt.Switch>());
-      expect(selected.name, 'MeasurementPresented');
+      expect(selected.name, 'MeasurementSourcePresented');
       expect(
         (selected.arguments['child']! as fmt.ConstructorCall).name,
         'Button',
@@ -155,8 +155,7 @@ void main() {
     },
   );
 
-  test('does not reserve the presentation namespace when no wrapper is needed',
-      () {
+  test('leaves an unused measurement import unchanged', () {
     const source = fmt.RemoteWidgetLibrary(
       [
         fmt.Import(fmt.LibraryName(<String>['restage', 'measurement'])),
@@ -231,7 +230,7 @@ void main() {
     );
   });
 
-  test('rejects an ambiguous private presentation library spelling', () {
+  test('rejects an ambiguous measurement library spelling', () {
     final routePlan = _routePlan(const ['reference.presentation.conflict']);
     final source = fmt.RemoteWidgetLibrary(
       const [
@@ -261,7 +260,7 @@ void main() {
     );
   });
 
-  test('rejects a conflicting local presentation constructor spelling', () {
+  test('rejects a conflicting local measurement constructor spelling', () {
     final routePlan = _routePlan(const ['reference.presentation.constructor']);
     final source = fmt.RemoteWidgetLibrary(
       const [

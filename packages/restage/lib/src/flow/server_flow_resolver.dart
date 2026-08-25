@@ -666,7 +666,7 @@ final class ServerFlowResolver
             'version ${flow.version}.',
       );
     }
-    if (document.schemaVersion != 1) {
+    if (document.schemaVersion != 1 && document.schemaVersion != 2) {
       throw _error(
         flow,
         'unsupported_schema_version',

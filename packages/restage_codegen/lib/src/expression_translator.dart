@@ -44,6 +44,7 @@ import 'package:restage_shared/restage_shared.dart'
         kSupportedCurveNames,
         kThemeContractPathKinds,
         kThemeContractPaths;
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
     show
         RecordAdmitted,
@@ -109,11 +110,16 @@ final class TranslationResult {
     Map<String, Map<String, String>> widgetDefinitionStates = const {},
     Map<String, String> rootWidgetState = const {},
     Set<String> referencedCustomLibraries = const {},
+    Iterable<fmt.RfwCatalogConstructorProvenance> rfwCatalogConstructorOrigins =
+        const [],
   })  : issues = List.unmodifiable(issues),
         widgetDefinitions = Map.unmodifiable(widgetDefinitions),
         widgetDefinitionStates = Map.unmodifiable(widgetDefinitionStates),
         rootWidgetState = Map.unmodifiable(rootWidgetState),
-        referencedCustomLibraries = Set.unmodifiable(referencedCustomLibraries);
+        referencedCustomLibraries = Set.unmodifiable(referencedCustomLibraries),
+        rfwCatalogConstructorOrigins = List.unmodifiable(
+          rfwCatalogConstructorOrigins,
+        );
 
   /// The DSL fragment, e.g. `"42"` or `'event "name" {}'`. Empty string if
   /// translation failed and one or more [issues] were collected.
@@ -150,6 +156,60 @@ final class TranslationResult {
   /// imports each so the reference resolves at runtime. Empty when the surface
   /// references only built-in and inlined widgets.
   final Set<String> referencedCustomLibraries;
+
+  /// Typed catalog origins for RFW calls emitted during this translation.
+  final List<fmt.RfwCatalogConstructorProvenance> rfwCatalogConstructorOrigins;
+
+  /// Creates the closed typed input used to resolve emitted RFW calls.
+  fmt.RfwCatalogOccurrenceResolutionInput rfwCatalogOccurrenceResolutionInput({
+    required String artifactProvenance,
+    required String sourceLibraryIdentity,
+    required String sourceDeclarationIdentity,
+    required Iterable<String> renderEntryNames,
+  }) {
+    final roots = renderEntryNames.toSet();
+    final catalogOriginsByName =
+        <String, fmt.RfwCatalogConstructorProvenance>{};
+    for (final origin in rfwCatalogConstructorOrigins) {
+      final previous = catalogOriginsByName.putIfAbsent(
+        origin.constructorName,
+        () => origin,
+      );
+      if (!previous.matches(origin)) {
+        throw StateError(
+          'One emitted RFW constructor spelling has conflicting catalog '
+          'origins',
+        );
+      }
+    }
+    final generatedLocalSymbols = <fmt.RfwCatalogLocalSymbol>[];
+    for (final name in widgetDefinitions.keys) {
+      final origin = catalogOriginsByName[name];
+      if (origin == null || origin.constructorName != name) {
+        throw StateError(
+          'An emitted RFW widget definition requires one exact catalog '
+          'origin',
+        );
+      }
+      generatedLocalSymbols.add(
+        fmt.RfwCatalogLocalSymbol(
+          name: name,
+          generatedCatalogOrigin: origin,
+        ),
+      );
+    }
+    return fmt.RfwCatalogOccurrenceResolutionInput(
+      artifactProvenance: artifactProvenance,
+      sourceLibraryIdentity: sourceLibraryIdentity,
+      sourceDeclarationIdentity: sourceDeclarationIdentity,
+      renderEntryNames: roots,
+      catalogConstructors: rfwCatalogConstructorOrigins,
+      localSymbols: [
+        for (final name in roots) fmt.RfwCatalogLocalSymbol(name: name),
+        ...generatedLocalSymbols,
+      ],
+    );
+  }
 }
 
 /// Internal build artifact describing a lowered paywall-root navigation flow.
@@ -395,6 +455,12 @@ final class ExpressionTranslator {
   // current translate() call — the emitter imports each. Null outside a call.
   Set<String>? _currentReferencedCustomLibraries;
 
+  // Typed catalog selections for RFW constructors emitted during one
+  // translation. The aggregate compiler reuses these selections to bind the
+  // parsed calls without resolving their names again.
+  Map<String, fmt.RfwCatalogConstructorProvenance>?
+      _currentRfwCatalogConstructorOrigins;
+
   // Lowered coalesce fallbacks discovered while translating a definition body,
   // keyed by classKey then property name: the value a call site that omits (or
   // passes explicit null) the property is completed with. Populated once per
@@ -510,10 +576,13 @@ final class ExpressionTranslator {
     final rootWidgetState = <String, String>{};
     final definitionOwners = <String, String>{};
     final referencedCustomLibraries = <String>{};
+    final rfwCatalogConstructorOrigins =
+        <String, fmt.RfwCatalogConstructorProvenance>{};
     _currentWidgetDefinitions = widgetDefinitions;
     _currentWidgetDefinitionStates = widgetDefinitionStates;
     _currentDefinitionOwners = definitionOwners;
     _currentReferencedCustomLibraries = referencedCustomLibraries;
+    _currentRfwCatalogConstructorOrigins = rfwCatalogConstructorOrigins;
     var dsl = '';
     var suppressed = false;
     NavigationLowering? navigationLowering;
@@ -600,6 +669,7 @@ final class ExpressionTranslator {
       _currentWidgetDefinitionStates = null;
       _currentDefinitionOwners = null;
       _currentReferencedCustomLibraries = null;
+      _currentRfwCatalogConstructorOrigins = null;
       // Clear the per-call source context so it never lingers past this call —
       // a helper invoked directly (not through `translate`) would otherwise
       // read a stale source path / line info from a previous translation.
@@ -615,6 +685,11 @@ final class ExpressionTranslator {
       widgetDefinitionStates: widgetDefinitionStates,
       rootWidgetState: rootWidgetState,
       referencedCustomLibraries: referencedCustomLibraries,
+      rfwCatalogConstructorOrigins: rfwCatalogConstructorOrigins.values.toList()
+        ..sort(
+          (left, right) =>
+              left.constructorName.compareTo(right.constructorName),
+        ),
     );
   }
 
@@ -3842,6 +3917,7 @@ final class ExpressionTranslator {
       return '';
     }
 
+    _recordRfwCatalogConstructorOrigin(pager);
     return 'RestagePager(${emitted.join(', ')})';
   }
 
@@ -4058,6 +4134,7 @@ final class ExpressionTranslator {
       }
     }
 
+    _recordRfwCatalogConstructorOrigin(sheet);
     return 'RestageDraggableSheet(${emitted.join(', ')})';
   }
 
@@ -4221,6 +4298,7 @@ final class ExpressionTranslator {
       parts.add('onChanged: $value');
     }
 
+    _recordRfwCatalogConstructorOrigin(target);
     return '${target.name}(${parts.join(', ')})';
   }
 
@@ -4327,6 +4405,7 @@ final class ExpressionTranslator {
       if (!emit('onPressed', onPressed)) return '';
     }
 
+    _recordRfwCatalogConstructorOrigin(target);
     return '${target.name}(${emitted.join(', ')})';
   }
 
@@ -4507,6 +4586,7 @@ final class ExpressionTranslator {
       parts.add('$name: $value');
     }
 
+    _recordRfwCatalogConstructorOrigin(target);
     return '${target.name}(${parts.join(', ')})';
   }
 
@@ -4615,6 +4695,7 @@ final class ExpressionTranslator {
         return '';
       }
     }
+    if (entry != null) _recordRfwCatalogConstructorOrigin(entry);
     // A registered customer widget that can inline still inlines —
     // its composition travels in the blob and renders with no runtime factory.
     // One that cannot inline (imperative or not yet supported) falls
@@ -4947,6 +5028,22 @@ final class ExpressionTranslator {
     return '${entry.name}(${emitted.join(', ')})';
   }
 
+  void _recordRfwCatalogConstructorOrigin(WidgetEntry entry) {
+    final calls = _currentRfwCatalogConstructorOrigins;
+    if (calls == null) return;
+    final next = fmt.RfwCatalogConstructorProvenance(
+      constructorName: entry.name,
+      catalogLibraryNamespace: entry.library.namespace,
+      catalogWidgetWireId: entry.wireId,
+    );
+    final previous = calls.putIfAbsent(entry.name, () => next);
+    if (!previous.matches(next)) {
+      throw StateError(
+        'One emitted RFW constructor spelling has conflicting catalog origins',
+      );
+    }
+  }
+
   String? _rewriteInterpolatedText(
     List<String> emitted,
     Expression anchor,
@@ -4991,6 +5088,7 @@ final class ExpressionTranslator {
         );
         return '';
       }
+      _recordRfwCatalogConstructorOrigin(textRich);
       final textSpanProp = textRich.properties.firstWhereOrNull(
         (p) => p.name == 'textSpan' && p.type == PropertyType.inlineSpan,
       );

@@ -28,7 +28,7 @@ import 'package:restage/restage.dart';
 /// startup, before any `RestagePaywall` mounts. Idempotent
 /// after `Restage.debugReset`, so test setUps may call it
 /// again between cases.
-void registerRestageCustomerWidgets() {
+void registerRestageWidgets() {
   Restage.registerWidgetLibrary(
     WidgetLibrary.custom('restage_example.widgets'),
     capabilityVersion: 3,
@@ -47,6 +47,9 @@ void registerRestageCustomerWidgets() {
     ],
   );
 }
+
+@Deprecated('Use registerRestageWidgets; removed in 3.0')
+void registerRestageCustomerWidgets() => registerRestageWidgets();
 
 Widget _buildAcmeBorder(BuildContext context, DataSource source) {
   return s0.AcmeBorder(

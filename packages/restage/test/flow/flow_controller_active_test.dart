@@ -68,20 +68,17 @@ void main() {
     expect(error?.reason, 'version_mismatch');
   });
 
-  test(
-      'backstop (controller): a gate-bypassing active doc with schemaVersion 2 '
-      'is still rejected (retained check C)', () async {
-    FlowUnavailableError? error;
+  test('backstop (controller): admits an active schemaVersion 2 document',
+      () async {
     final controller = controllerFor(
       _FakeActiveResolver(_resolved(_doc(schemaVersion: 2))),
-      onUnavailable: (e) => error = e,
     );
     addTearDown(controller.dispose);
 
     await controller.load();
 
-    expect(controller.isUnavailable, isTrue);
-    expect(error?.reason, 'unsupported_schema_version');
+    expect(controller.currentScreenId, 'welcome');
+    expect(controller.isUnavailable, isFalse);
   });
 
   test(

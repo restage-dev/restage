@@ -102,8 +102,7 @@ final class MeasurementRouteEmissionPlan {
     return MeasurementRouteEmissionPlan._(markerByExpression);
   }
 
-  const MeasurementRouteEmissionPlan._(Map<Expression, String> markers)
-      : _markerByExpression = markers;
+  const MeasurementRouteEmissionPlan._(this._markerByExpression);
 
   /// Builds a plan by reconciling resolved source discovery to the exact
   /// target-neutral publication draft.
@@ -288,24 +287,32 @@ abstract final class MeasurementRouteEventMarkerEmitter {
           (body[index].trim().isEmpty || body[index] == ',')) {
         index++;
       }
-      if (index >= body.length) break;
+      if (index >= body.length) {
+        break;
+      }
       final keyStart = index;
       String key;
       if (body[index] == '"') {
         final end = _quotedEnd(body, index);
-        if (end < 0) break;
+        if (end < 0) {
+          break;
+        }
         key = body.substring(index + 1, end);
         index = end + 1;
       } else {
         while (index < body.length &&
             body[index] != ':' &&
-            !body[index].trim().isEmpty) {
+            body[index].trim().isNotEmpty) {
           index++;
         }
         key = body.substring(keyStart, index);
       }
-      while (index < body.length && body[index].trim().isEmpty) index++;
-      if (index >= body.length || body[index] != ':') break;
+      while (index < body.length && body[index].trim().isEmpty) {
+        index++;
+      }
+      if (index >= body.length || body[index] != ':') {
+        break;
+      }
       keys.add(key);
       index = _nextTopLevelComma(body, index + 1);
     }
@@ -375,8 +382,11 @@ abstract final class MeasurementRouteEventMarkerEmitter {
 
 @immutable
 final class _EventMap {
-  const _EventMap(
-      {required this.open, required this.close, required this.body});
+  const _EventMap({
+    required this.open,
+    required this.close,
+    required this.body,
+  });
 
   final int open;
   final int close;

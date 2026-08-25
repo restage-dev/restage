@@ -7,6 +7,13 @@ import 'package:restage_measurement_schema/src/target.dart';
 /// Maximum number of direct-parent entries in one canonical ancestry index.
 const int kMaximumCanonicalNodeParentEdges = 65536;
 
+/// Maximum explicit presentation references in one local manifest.
+///
+/// This is the shared worker route budget. A reference is emitted only for an
+/// admitted presentation route, so a larger raw list must fail before item
+/// normalization can hide the overage.
+const int kMaximumGeneratedPresentationReferenceCount = 1024;
+
 /// Capability represented by one measurement point.
 enum MeasurementCapabilityKind {
   /// Synthetic presentation capability for a canonical node.
@@ -273,6 +280,13 @@ final class MeasurementPointOccurrenceV1 extends CanonicalValue {
         'A synthetic presentation has no semantic callback value',
       );
     }
+    if (capabilityKind == MeasurementCapabilityKind.presented &&
+        (privacyClass != MeasurementPrivacyClass.nonSensitive ||
+            collectionClass != MeasurementCollectionClass.tier2Coalesced)) {
+      throw ArgumentError(
+        'A synthetic presentation must be non-sensitive and Tier-2',
+      );
+    }
     if (privacyClass == MeasurementPrivacyClass.prohibited &&
         collectionClass != MeasurementCollectionClass.prohibited) {
       throw ArgumentError(
@@ -506,6 +520,128 @@ final class GeneratedPointReferenceV1 extends CanonicalDocument {
       };
 }
 
+/// Generated presentation reference to one exact occurrence and lineage.
+///
+/// Unlike [GeneratedPointReferenceV1], this reference has no source-event
+/// selector. It is the explicit route witness for a presented catalog
+/// occurrence, whether or not that occurrence owns a callback.
+final class GeneratedPresentationReferenceV1 extends CanonicalDocument {
+  /// Creates a generated presentation-reference contract.
+  const GeneratedPresentationReferenceV1({
+    required this.referenceId,
+    required this.target,
+    required this.surfaceRevisionId,
+    required this.artifactGraphHash,
+    required this.occurrenceId,
+    required this.lineageId,
+    required this.displayMetadataRef,
+  });
+
+  /// Decodes byte-exact canonical generated-presentation-reference JSON.
+  factory GeneratedPresentationReferenceV1.fromCanonicalBytes(
+    List<int> bytes,
+  ) =>
+      verifyCanonicalRoundTrip(
+        GeneratedPresentationReferenceV1.fromJson(decodeCanonicalObject(bytes)),
+        bytes,
+        path: 'generatedPresentationReference',
+      );
+
+  /// Decodes one strict generated-presentation-reference object.
+  factory GeneratedPresentationReferenceV1.fromJson(
+    Map<String, Object?> json,
+  ) {
+    final reader = CanonicalObjectReader(
+      json,
+      allowedKeys: const {
+        'artifactGraphHash',
+        'displayMetadataRef',
+        'kind',
+        'lineageId',
+        'occurrenceId',
+        'referenceId',
+        'schemaVersion',
+        'surfaceRevisionId',
+        'target',
+      },
+      requiredKeys: const {
+        'artifactGraphHash',
+        'displayMetadataRef',
+        'kind',
+        'lineageId',
+        'occurrenceId',
+        'referenceId',
+        'schemaVersion',
+        'surfaceRevisionId',
+        'target',
+      },
+      path: 'generatedPresentationReference',
+    );
+    validateCanonicalDocument(
+      reader,
+      expectedKind: 'generatedPresentationReference',
+    );
+    return _constructManifest(
+      'generatedPresentationReference',
+      () => GeneratedPresentationReferenceV1(
+        referenceId: GeneratedPresentationReferenceId(
+          reader.string('referenceId'),
+        ),
+        target: TargetCoordinate.fromJson(reader.object('target')),
+        surfaceRevisionId: SurfaceRevisionId(
+          reader.string('surfaceRevisionId'),
+        ),
+        artifactGraphHash: CanonicalDigest(
+          reader.string('artifactGraphHash'),
+        ),
+        occurrenceId: CanonicalDigest(reader.string('occurrenceId')),
+        lineageId: PointLineageId(reader.string('lineageId')),
+        displayMetadataRef: DisplayMetadataRef(
+          reader.string('displayMetadataRef'),
+        ),
+      ),
+    );
+  }
+
+  /// Generated reference selected for this presentation occurrence.
+  final GeneratedPresentationReferenceId referenceId;
+
+  /// Delivery target that owns the presentation occurrence.
+  final TargetCoordinate target;
+
+  /// Immutable surface revision that owns the occurrence.
+  final SurfaceRevisionId surfaceRevisionId;
+
+  /// Canonical artifact-graph digest for the occurrence.
+  final CanonicalDigest artifactGraphHash;
+
+  /// Exact presentation-point occurrence digest.
+  final CanonicalDigest occurrenceId;
+
+  /// Stable lineage witness for the presentation point.
+  final PointLineageId lineageId;
+
+  /// Display witness selected for the presentation point.
+  final DisplayMetadataRef displayMetadataRef;
+
+  @override
+  CanonicalHashDomain get hashDomain =>
+      CanonicalHashDomain.generatedPresentationReference;
+
+  @override
+  Map<String, Object?> toJson() => {
+        'artifactGraphHash': artifactGraphHash.hex,
+        'displayMetadataRef': displayMetadataRef.value,
+        'kind': 'generatedPresentationReference',
+        'lineageId': lineageId.value,
+        'occurrenceId': occurrenceId.hex,
+        'referenceId': referenceId.value,
+        'schemaVersion': kMeasurementSchemaVersion,
+        'surfaceRevisionId': surfaceRevisionId.value,
+        'target': target.toJson(),
+      };
+}
+
 /// Manifest emitted for one immutable local artifact.
 final class LocalMeasurementManifestV1 extends CanonicalDocument {
   /// Creates one local manifest and validates its internal identity joins.
@@ -521,12 +657,17 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
     required List<GeneratedPointReferenceV1> generatedReferences,
     required this.privacyPolicyRevisionId,
     required this.collectionBudgetRevisionId,
+    List<GeneratedPresentationReferenceV1> generatedPresentationReferences =
+        const [],
   })  : childArtifactIds = _sortedUniqueIds(
           childArtifactIds,
           label: 'child artifact IDs',
         ),
         points = _sortedUniquePoints(points),
-        generatedReferences = _sortedUniqueReferences(generatedReferences) {
+        generatedReferences = _sortedUniqueReferences(generatedReferences),
+        generatedPresentationReferences = _sortedUniquePresentationReferences(
+          generatedPresentationReferences,
+        ) {
     if (this.childArtifactIds.contains(artifactId)) {
       throw ArgumentError('An artifact cannot list itself as a child');
     }
@@ -557,6 +698,57 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
         );
       }
     }
+    for (final reference in this.generatedPresentationReferences) {
+      final point = pointById[reference.occurrenceId.hex];
+      if (reference.target != target ||
+          reference.surfaceRevisionId != surfaceRevisionId ||
+          reference.artifactGraphHash != artifactGraphHash ||
+          point == null ||
+          point.capabilityKind != MeasurementCapabilityKind.presented ||
+          point.lineageId != reference.lineageId ||
+          point.displayMetadataRef != reference.displayMetadataRef) {
+        throw ArgumentError(
+          'Every generated presentation reference must join an exact '
+          'presentation point',
+        );
+      }
+    }
+    final presentationOccurrences = <String>{
+      for (final point in this.points)
+        if (point.capabilityKind == MeasurementCapabilityKind.presented)
+          point.occurrenceId.hex,
+    };
+    final presentationReferenceCountsByOccurrence = <String, int>{};
+    for (final reference in this.generatedPresentationReferences) {
+      presentationReferenceCountsByOccurrence.update(
+        reference.occurrenceId.hex,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    if (presentationReferenceCountsByOccurrence.values.any(
+      (count) => count != 1,
+    )) {
+      throw ArgumentError(
+        'Each presented occurrence requires exactly one presentation reference',
+      );
+    }
+    final referencedPresentationOccurrences = <String>{
+      for (final reference in this.generatedPresentationReferences)
+        reference.occurrenceId.hex,
+    };
+    if (presentationOccurrences.length !=
+            referencedPresentationOccurrences.length ||
+        !presentationOccurrences.containsAll(
+          referencedPresentationOccurrences,
+        ) ||
+        !referencedPresentationOccurrences.containsAll(
+          presentationOccurrences,
+        )) {
+      throw ArgumentError(
+        'Presentation references must exactly close presented occurrences',
+      );
+    }
   }
 
   /// Decodes byte-exact canonical local-manifest JSON.
@@ -578,6 +770,7 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
         'childArtifactIds',
         'collectionBudgetRevisionId',
         'generatedReferences',
+        'generatedPresentationReferences',
         'kind',
         'manifestId',
         'points',
@@ -607,6 +800,17 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
       reader,
       expectedKind: 'localMeasurementManifest',
     );
+    final generatedPresentationReferences = reader.optionalList(
+          'generatedPresentationReferences',
+        ) ??
+        const <Object?>[];
+    if (generatedPresentationReferences.length >
+        kMaximumGeneratedPresentationReferenceCount) {
+      throw const CanonicalFormatException(
+        'localMeasurementManifest.generatedPresentationReferences exceeds its '
+        'raw input bound',
+      );
+    }
     return _constructManifest(
       'localMeasurementManifest',
       () => LocalMeasurementManifestV1(
@@ -646,6 +850,15 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
               ),
             )
             .toList(),
+        generatedPresentationReferences: [
+          for (final value in generatedPresentationReferences)
+            GeneratedPresentationReferenceV1.fromJson(
+              requireCanonicalObject(
+                value,
+                'generatedPresentationReferences[]',
+              ),
+            ),
+        ],
         privacyPolicyRevisionId: AuthorityRevisionId(
           reader.string('privacyPolicyRevisionId'),
         ),
@@ -665,6 +878,9 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
   final List<ArtifactId> childArtifactIds;
   final List<MeasurementPointOccurrenceV1> points;
   final List<GeneratedPointReferenceV1> generatedReferences;
+
+  /// Exact presentation references emitted for local presented occurrences.
+  final List<GeneratedPresentationReferenceV1> generatedPresentationReferences;
   final AuthorityRevisionId privacyPolicyRevisionId;
   final AuthorityRevisionId collectionBudgetRevisionId;
 
@@ -681,6 +897,11 @@ final class LocalMeasurementManifestV1 extends CanonicalDocument {
         'generatedReferences': [
           for (final reference in generatedReferences) reference.toJson(),
         ],
+        if (generatedPresentationReferences.isNotEmpty)
+          'generatedPresentationReferences': [
+            for (final reference in generatedPresentationReferences)
+              reference.toJson(),
+          ],
         'kind': 'localMeasurementManifest',
         'manifestId': manifestId.value,
         'points': [for (final point in points) point.toJson()],
@@ -916,6 +1137,20 @@ final class CompleteMeasurementManifestV1 extends CanonicalDocument {
         );
       }
     }
+    if (generatedPresentationReferences.length >
+        kMaximumGeneratedPresentationReferenceCount) {
+      throw ArgumentError(
+        'A complete manifest exceeds its bounded presentation reference closure',
+      );
+    }
+    final presentationReferenceOccurrences = <String>{};
+    for (final reference in generatedPresentationReferences) {
+      if (!presentationReferenceOccurrences.add(reference.occurrenceId.hex)) {
+        throw ArgumentError(
+          'A complete manifest cannot repeat a presentation occurrence reference',
+        );
+      }
+    }
     final currentOccurrenceByLineage = <String, String>{};
     for (final manifest in this.localManifests) {
       for (final point in manifest.points) {
@@ -1065,6 +1300,15 @@ final class CompleteMeasurementManifestV1 extends CanonicalDocument {
         ],
       );
 
+  /// All generated presentation references in deterministic artifact order.
+  List<GeneratedPresentationReferenceV1> get generatedPresentationReferences =>
+      UnmodifiableListView(
+        [
+          for (final manifest in localManifests)
+            ...manifest.generatedPresentationReferences,
+        ],
+      );
+
   @override
   CanonicalHashDomain get hashDomain => CanonicalHashDomain.completeManifest;
 
@@ -1117,6 +1361,31 @@ List<GeneratedPointReferenceV1> _sortedUniqueReferences(
     copy.map((value) => value.referenceId.value),
     'generated reference IDs',
   );
+  return List.unmodifiable(copy);
+}
+
+List<GeneratedPresentationReferenceV1> _sortedUniquePresentationReferences(
+  List<GeneratedPresentationReferenceV1> values,
+) {
+  if (values.length > kMaximumGeneratedPresentationReferenceCount) {
+    throw ArgumentError(
+      'A local manifest exceeds its bounded presentation reference closure',
+    );
+  }
+  final copy = values.toList()
+    ..sort((a, b) => a.referenceId.value.compareTo(b.referenceId.value));
+  _rejectAdjacentDuplicates(
+    copy.map((value) => value.referenceId.value),
+    'generated presentation reference IDs',
+  );
+  final occurrences = <String>{};
+  for (final reference in copy) {
+    if (!occurrences.add(reference.occurrenceId.hex)) {
+      throw ArgumentError(
+        'Generated presentation references must be one-to-one with occurrences',
+      );
+    }
+  }
   return List.unmodifiable(copy);
 }
 

@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/resolver/surface_assignment_key_provider.dart';
 import 'package:restage/src/resolver/surface_metering_key_provider.dart';
+import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// How the metering identity is wired by `Restage.configure`.
@@ -53,6 +54,33 @@ void main() {
       reason: 'the experiment-assignment identity DOES follow the opt-out — '
           'the two are deliberately different',
     );
+  });
+
+  test('configure does not persist a metering identity before a surface fetch',
+      () async {
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+
+    await pumpEventQueue();
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.containsKey('restage.metering_token'), isFalse);
+  });
+
+  test('the first surface fetch persists the metering identity', () async {
+    Restage.configure(apiKey: 'rs_pk_test', baseUrl: baseUrl);
+    final client = RestageRpcClient(
+      baseUrl: baseUrl,
+      apiKey: 'rs_pk_test',
+      httpClient: MockClient((_) async => http.Response('', 500)),
+    );
+
+    await client.fetchSurface(
+      surfaceType: 'paywall',
+      surfaceSlug: 'pro_upgrade',
+    );
+
+    final preferences = await SharedPreferences.getInstance();
+    expect(preferences.getString('restage.metering_token'), isNotNull);
   });
 
   test('configure without a base URL installs no metering identity', () {

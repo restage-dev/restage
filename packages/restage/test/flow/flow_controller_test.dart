@@ -3735,6 +3735,551 @@ void main() {
     });
   });
 
+  group('RestageFlowController survey answers', () {
+    test('emits changed answers once in declared order after a trigger settles',
+        () async {
+      final events = <RestageEvent>[];
+      final controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _surveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: events.add,
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+
+      controller.handleEvent(
+        'answer',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      expect(controller.isBusy, isTrue);
+      controller.handleEvent(
+        'answer',
+        const <String, Object?>{kCapturedEventValueKey: 'green'},
+      );
+      await _drainFlowTasks();
+
+      expect(
+        events.whereType<SurveyQuestionResponded>().map((event) => (
+              event.questionId,
+              event.questionIndex,
+            )),
+        <(String, int)>[('plan', 0), ('favoriteColor', 1)],
+      );
+
+      controller.handleEvent(
+        'again',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+      expect(events.whereType<SurveyQuestionResponded>(), hasLength(2));
+
+      controller.handleEvent(
+        'again',
+        const <String, Object?>{kCapturedEventValueKey: 'green'},
+      );
+      await _drainFlowTasks();
+      expect(
+        events.whereType<SurveyQuestionResponded>().last,
+        isA<SurveyQuestionResponded>()
+            .having((event) => event.questionId, 'questionId', 'favoriteColor')
+            .having((event) => event.questionIndex, 'questionIndex', 1),
+      );
+
+      final emittedBeforeBack =
+          events.whereType<SurveyQuestionResponded>().length;
+      controller.back();
+      await _drainFlowTasks();
+      expect(events.whereType<SurveyQuestionResponded>(),
+          hasLength(emittedBeforeBack));
+    });
+
+    test('emits persisted terminal answers in declared order after completion',
+        () async {
+      final events = <RestageEvent>[];
+      var completions = 0;
+      final controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _terminalSurveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: events.add,
+        onComplete: (_) => completions += 1,
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+
+      controller.handleEvent(
+        'finish',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(controller.isComplete, isTrue);
+      expect(completions, 1);
+      expect(
+        events.map((event) => event.runtimeType),
+        <Type>[FlowCompleted, SurveyQuestionResponded, SurveyQuestionResponded],
+      );
+      expect(
+        events.whereType<SurveyQuestionResponded>().map((event) => (
+              event.questionId,
+              event.questionIndex,
+            )),
+        <(String, int)>[('plan', 0), ('favoriteColor', 1)],
+      );
+
+      controller.handleEvent(
+        'finish',
+        const <String, Object?>{kCapturedEventValueKey: 'green'},
+      );
+      await _drainFlowTasks();
+
+      expect(completions, 1);
+      expect(events.whereType<SurveyQuestionResponded>(), hasLength(2));
+    });
+
+    test('stops terminal answer reports when an answer callback disposes',
+        () async {
+      final events = <RestageEvent>[];
+      var completions = 0;
+      late final RestageFlowController<Map<String, Object?>> controller;
+      controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _terminalSurveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: (event) {
+          events.add(event);
+          if (event is SurveyQuestionResponded) controller.dispose();
+        },
+        onComplete: (_) => completions += 1,
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+
+      controller.handleEvent(
+        'finish',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(controller.isComplete, isTrue);
+      expect(completions, 1);
+      expect(
+        events.whereType<SurveyQuestionResponded>().map((event) => (
+              event.questionId,
+              event.questionIndex,
+            )),
+        <(String, int)>[('plan', 0)],
+      );
+    });
+
+    test('does not report terminal answers when a listener fails before run',
+        () async {
+      final events = <RestageEvent>[];
+      var completions = 0;
+      var failed = false;
+      late final RestageFlowController<Map<String, Object?>> controller;
+      controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _terminalSurveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: events.add,
+        onComplete: (_) => completions += 1,
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+      controller.addListener(() {
+        if (!failed && controller.isBusy) {
+          failed = true;
+          controller.reportRenderFailure(StateError('listener failure'));
+        }
+      });
+
+      controller.handleEvent(
+        'finish',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(controller.isUnavailable, isTrue);
+      expect(controller.isComplete, isFalse);
+      expect(completions, 0);
+      expect(events.whereType<SurveyQuestionResponded>(), isEmpty);
+    });
+
+    test('does not report terminal answers after a completion callback fails',
+        () async {
+      final events = <RestageEvent>[];
+      var completions = 0;
+      late final RestageFlowController<Map<String, Object?>> controller;
+      controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _terminalSurveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: (event) {
+          events.add(event);
+          if (event is FlowCompleted) {
+            controller.reportRenderFailure(
+              StateError('completion callback failure'),
+            );
+          }
+        },
+        onComplete: (_) => completions += 1,
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+
+      controller.handleEvent(
+        'finish',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(controller.isUnavailable, isTrue);
+      expect(controller.isComplete, isFalse);
+      expect(completions, 0);
+      expect(events.whereType<SurveyQuestionResponded>(), isEmpty);
+    });
+
+    test('rejects version 1 survey declarations before rendering', () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+              document: _surveyDocumentForController(schemaVersion: 1)),
+        ),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+
+      expect(unavailable?.reason, 'unsupported_schema_version');
+      expect(controller.currentScreenId, isNull);
+    });
+
+    test('rejects survey declarations on a general delivery document',
+        () async {
+      FlowUnavailableError? unavailable;
+      final controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(
+            document: _surveyDocumentForController(
+              deliveryMode: FlowDeliveryMode.general,
+            ),
+          ),
+        ),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+
+      expect(unavailable?.reason, 'survey_answers_unsupported');
+      expect(controller.currentScreenId, isNull);
+    });
+
+    test('does not start a survey action after a listener fails the controller',
+        () async {
+      var actionCalls = 0;
+      var notifications = 0;
+      FlowUnavailableError? unavailable;
+      final events = <RestageEvent>[];
+      final surveyDocument = _surveyDocumentForController();
+      final document = surveyDocument.copyWith(
+        actions: {'requestNotifications': _actionContract()},
+        states: {
+          ...surveyDocument.states,
+          'welcome': ScreenFlowState(
+            screen: 'welcome',
+            on: {
+              'submit': ActionFlowTransition(
+                action: 'requestNotifications',
+                resultPredicate: const BoolEqualsActionResultPredicate(
+                  value: true,
+                ),
+                target: 'route',
+              ),
+            },
+          ),
+        },
+      );
+      late final RestageFlowController<Map<String, Object?>> controller;
+      controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(_resolvedFlow(document: document)),
+        actions: _MatchingActionRegistry(
+          handler: (_, __) {
+            actionCalls += 1;
+            return true;
+          },
+        ),
+        onEvent: events.add,
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      expect(unavailable, isNull);
+      events.clear();
+      controller.addListener(() {
+        notifications += 1;
+        if (notifications == 1) {
+          controller.reportRenderFailure(StateError('listener failure'));
+        }
+      });
+
+      controller.handleEvent('submit', const <String, Object?>{});
+      await _drainFlowTasks();
+
+      expect(actionCalls, 0);
+      expect(notifications, 2);
+      expect(controller.isUnavailable, isTrue);
+      expect(events.whereType<SurveyQuestionResponded>(), isEmpty);
+      expect(events.whereType<FlowUnavailable>(), hasLength(1));
+    });
+
+    test('stops ordered reports when a survey event disposes the controller',
+        () async {
+      final events = <RestageEvent>[];
+      late final RestageFlowController<Map<String, Object?>> controller;
+      controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _surveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: (event) {
+          events.add(event);
+          if (event is SurveyQuestionResponded) {
+            controller.dispose();
+          }
+        },
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+      controller.handleEvent(
+        'answer',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(
+        events.whereType<SurveyQuestionResponded>().map((event) => (
+              event.questionId,
+              event.questionIndex,
+            )),
+        <(String, int)>[('plan', 0)],
+      );
+    });
+
+    test('stops ordered reports when a survey event fails the controller',
+        () async {
+      final events = <RestageEvent>[];
+      late final RestageFlowController<Map<String, Object?>> controller;
+      controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _StaticFlowResolver(
+          _resolvedFlow(document: _surveyDocumentForController()),
+        ),
+        actions: null,
+        onEvent: (event) {
+          events.add(event);
+          if (event is SurveyQuestionResponded) {
+            controller.reportRenderFailure(
+              StateError('answer reporting failed'),
+            );
+          }
+        },
+        onComplete: (_) {},
+        onUnavailable: (_) {},
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+      controller.handleEvent(
+        'answer',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(
+        events.whereType<SurveyQuestionResponded>().map((event) => (
+              event.questionId,
+              event.questionIndex,
+            )),
+        <(String, int)>[('plan', 0)],
+      );
+      expect(controller.isUnavailable, isTrue);
+    });
+
+    test('reports persisted answers after a trigger becomes unavailable',
+        () async {
+      final events = <RestageEvent>[];
+      FlowUnavailableError? unavailable;
+      final parentDocument = _surveyDocumentForController().copyWith(
+        states: {
+          'welcome': const ScreenFlowState(
+            screen: 'welcome',
+            on: {
+              'answer': GotoFlowTransition(
+                'route',
+                stateWrites: {
+                  'favoriteColor': FlowStateWrite(
+                    type: FlowDataType.string,
+                    value: EventFlowValueSource(key: kCapturedEventValueKey),
+                  ),
+                },
+              ),
+            },
+          ),
+          'route': const DecisionFlowState(
+            branches: [],
+            defaultBranch: FlowBranchTarget(
+              target: 'child',
+              stateWrites: {
+                'plan': FlowStateWrite(
+                  type: FlowDataType.string,
+                  value: LiteralFlowValueSource(
+                    type: FlowDataType.string,
+                    value: 'starter',
+                  ),
+                ),
+              },
+            ),
+          ),
+          'child': SubFlowState(
+            flow: 'missing_survey_child',
+            version: 1,
+            schemaVersion: 2,
+            minClient: 3,
+            contentHash: _missingFlowHash,
+            input: const {},
+            onComplete: const [],
+            defaultBranch: const FlowBranchTarget(target: 'done'),
+          ),
+          'done': const EndFlowState(result: <String, Object?>{}),
+        },
+      );
+      final controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _MapFlowResolver({
+          'first_run': _resolvedFlow(document: parentDocument),
+        }),
+        actions: null,
+        onEvent: events.add,
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      events.clear();
+      controller.handleEvent(
+        'answer',
+        const <String, Object?>{kCapturedEventValueKey: 'blue'},
+      );
+      await _drainFlowTasks();
+
+      expect(unavailable?.reason, 'sub_flow_unavailable');
+      expect(
+        events.whereType<SurveyQuestionResponded>().map((event) => (
+              event.questionId,
+              event.questionIndex,
+            )),
+        <(String, int)>[('plan', 0), ('favoriteColor', 1)],
+      );
+    });
+
+    test('rejects survey declarations in a child flow', () async {
+      FlowUnavailableError? unavailable;
+      final childDocument = _surveyDocumentForController(flow: 'survey_child');
+      final childHash = _documentHash(childDocument);
+      final parentDocument = _document(
+        schemaVersion: 2,
+        states: {
+          'welcome': const ScreenFlowState(
+            screen: 'welcome',
+            on: {'next': GotoFlowTransition('child')},
+          ),
+          'child': SubFlowState(
+            flow: 'survey_child',
+            version: 1,
+            schemaVersion: 2,
+            minClient: 3,
+            contentHash: childHash,
+            input: const {},
+            onComplete: const [],
+            defaultBranch: const FlowBranchTarget(target: 'done'),
+          ),
+          'done': const EndFlowState(result: <String, Object?>{}),
+        },
+      );
+      final controller = RestageFlowController<Map<String, Object?>>(
+        flow: _surveyFlowRef,
+        resolver: _MapFlowResolver({
+          'first_run': _resolvedFlow(document: parentDocument),
+          'survey_child': _resolvedFlow(
+            document: childDocument,
+            contentHash: childHash,
+          ),
+        }),
+        actions: null,
+        onEvent: (_) {},
+        onComplete: (_) {},
+        onUnavailable: (error) => unavailable = error,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.load();
+      controller.handleEvent('next', const <String, Object?>{});
+      await _drainFlowTasks();
+
+      expect(unavailable?.reason, 'sub_flow_unavailable');
+      expect(controller.currentScreenId, isNull);
+    });
+  });
+
   group('RestageFlowController back navigation', () {
     test('canBack reflects the per-frame screen history', () async {
       final controller = RestageFlowController<_FirstRunResult>(
@@ -4169,6 +4714,16 @@ const _flowRef = OnboardingFlowRef<_FirstRunResult>(
   decodeResult: _FirstRunResult.decode,
 );
 
+const _surveyFlowRef = OnboardingFlowRef<Map<String, Object?>>(
+  id: 'first_run',
+  version: 1,
+  minClient: 3,
+  surface: Surface.survey,
+  decodeResult: _decodeSurveyResult,
+);
+
+Map<String, Object?> _decodeSurveyResult(Map<String, Object?> result) => result;
+
 final class _FirstRunResult {
   const _FirstRunResult({required this.completed});
 
@@ -4509,8 +5064,10 @@ FlowDocument _hostSeedDecisionDocument({
 FlowDocument _document({
   String flow = 'first_run',
   String initial = 'welcome',
+  int schemaVersion = 1,
   Map<String, FlowActionContract>? actions,
   FlowOutboundDeclarations outbound = const FlowOutboundDeclarations(),
+  List<String> surveyQuestionOrder = const [],
   bool legacyTerminalResultPassthrough = false,
   Map<String, FlowState>? states,
   Map<String, FlowStateDeclaration> flowState = const {},
@@ -4526,12 +5083,13 @@ FlowDocument _document({
   return FlowDocument(
     flow: flow,
     version: 1,
-    schemaVersion: 1,
+    schemaVersion: schemaVersion,
     minClient: 3,
     initial: initial,
     actions: actions ?? const {},
     flowState: flowState,
     outbound: outbound,
+    surveyQuestionOrder: surveyQuestionOrder,
     deliveryMode: deliveryMode,
     legacyTerminalResultPassthrough: legacyTerminalResultPassthrough,
     screenArtifacts: {
@@ -4563,6 +5121,121 @@ FlowDocument _document({
           'done': EndFlowState(result: {'completed': true}),
         },
     unsupportedFeatures: unsupportedFeatures,
+  );
+}
+
+FlowDocument _surveyDocumentForController({
+  String flow = 'first_run',
+  int schemaVersion = 2,
+  FlowDeliveryMode deliveryMode = FlowDeliveryMode.typed,
+}) {
+  return _document(
+    flow: flow,
+    schemaVersion: schemaVersion,
+    deliveryMode: deliveryMode,
+    flowState: const {
+      'favoriteColor': FlowStateDeclaration(
+        type: FlowDataType.string,
+        classification: FlowStateClassification.screen,
+      ),
+      'plan': FlowStateDeclaration(
+        type: FlowDataType.string,
+        classification: FlowStateClassification.screen,
+      ),
+    },
+    outbound: const FlowOutboundDeclarations(
+      surveyAnswers: FlowOutboundPayloadDeclaration(
+        fields: {
+          'favoriteColor': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'favoriteColor'),
+          ),
+          'plan': FlowOutboundField(
+            type: FlowDataType.string,
+            ref: StateFlowOutboundRef(key: 'plan'),
+          ),
+        },
+      ),
+    ),
+    surveyQuestionOrder:
+        schemaVersion == 2 ? const ['plan', 'favoriteColor'] : const [],
+    states: const {
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {
+          'answer': GotoFlowTransition(
+            'route',
+            stateWrites: {
+              'favoriteColor': FlowStateWrite(
+                type: FlowDataType.string,
+                value: EventFlowValueSource(key: kCapturedEventValueKey),
+              ),
+            },
+          ),
+        },
+      ),
+      'route': DecisionFlowState(
+        branches: [],
+        defaultBranch: FlowBranchTarget(
+          target: 'questions',
+          stateWrites: {
+            'plan': FlowStateWrite(
+              type: FlowDataType.string,
+              value: LiteralFlowValueSource(
+                type: FlowDataType.string,
+                value: 'starter',
+              ),
+            ),
+          },
+        ),
+      ),
+      'questions': ScreenFlowState(
+        screen: 'profile',
+        on: {
+          'again': GotoFlowTransition(
+            'questions',
+            stateWrites: {
+              'favoriteColor': FlowStateWrite(
+                type: FlowDataType.string,
+                value: EventFlowValueSource(key: kCapturedEventValueKey),
+              ),
+            },
+          ),
+          'finish': FlowTransition.goto('done'),
+        },
+      ),
+      'done': EndFlowState(result: {'completed': true}),
+    },
+  );
+}
+
+FlowDocument _terminalSurveyDocumentForController() {
+  final surveyDocument = _surveyDocumentForController();
+  return surveyDocument.copyWith(
+    states: const {
+      'welcome': ScreenFlowState(
+        screen: 'welcome',
+        on: {
+          'finish': GotoFlowTransition(
+            'done',
+            stateWrites: {
+              'favoriteColor': FlowStateWrite(
+                type: FlowDataType.string,
+                value: EventFlowValueSource(key: kCapturedEventValueKey),
+              ),
+              'plan': FlowStateWrite(
+                type: FlowDataType.string,
+                value: LiteralFlowValueSource(
+                  type: FlowDataType.string,
+                  value: 'starter',
+                ),
+              ),
+            },
+          ),
+        },
+      ),
+      'done': EndFlowState(result: {'completed': true}),
+    },
   );
 }
 

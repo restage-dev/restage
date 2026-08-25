@@ -361,5 +361,5 @@ final class _TextResolver implements VariantResolver {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: _bytes, paywallId: id);
+      ResolvedVariant(bytes: _bytes, surfaceVersion: 'test', paywallId: id);
 }

@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
 import 'measurement_point_identity.dart';
 import 'measurement_worker.dart';
@@ -101,6 +102,10 @@ final class MeasurementCaptureEdge {
       if (!_pointIdentityTable.accepts(identity)) {
         return MeasurementWorkerAppendOutcome.invalid;
       }
+      if (identity.capabilityKind !=
+          MeasurementCapabilityKind.sourceInteraction) {
+        return MeasurementWorkerAppendOutcome.invalid;
+      }
       return _appendAcceptedIdentity(
         identity,
         MeasurementWorkerAppendValue.interaction,
@@ -119,6 +124,11 @@ final class MeasurementCaptureEdge {
       if (!_available) return MeasurementWorkerAppendOutcome.unavailable;
       final identity = _pointIdentityTable.resolve(compactToken);
       if (identity == null || !_pointIdentityTable.accepts(identity)) {
+        return MeasurementWorkerAppendOutcome.invalid;
+      }
+      if (value == MeasurementWorkerAppendValue.interaction &&
+          identity.capabilityKind !=
+              MeasurementCapabilityKind.sourceInteraction) {
         return MeasurementWorkerAppendOutcome.invalid;
       }
       return _appendAcceptedIdentity(identity, value);

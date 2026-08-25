@@ -36,6 +36,13 @@ final Catalog kUserCatalog = Catalog(
           defaultBrandToken: 'primary',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0047'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -53,6 +60,13 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.widgetList,
           description: 'Overlay children, top-most last.',
           required: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0048'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -88,6 +102,13 @@ final Catalog kUserCatalog = Catalog(
               dartTypeRef:
                   DartTypeRef(libraryUri: 'dart:core', symbolName: 'Map')),
         ),
+        PropertyEntry(
+          wireId: WireId('p0049'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -113,6 +134,13 @@ final Catalog kUserCatalog = Catalog(
               propertyType: PropertyType.structured,
               structuredRef: WireIdRef(
                   library: 'restage_example.widgets', wireId: WireId('s0001'))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0050'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -141,6 +169,13 @@ final Catalog kUserCatalog = Catalog(
                       library: 'restage_example.widgets',
                       wireId: WireId('s0001')))),
         ),
+        PropertyEntry(
+          wireId: WireId('p0051'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -168,6 +203,13 @@ final Catalog kUserCatalog = Catalog(
           defaultBrandToken: 'primary',
           constructorNullable: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0052'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -193,6 +235,13 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.integer,
           description: 'Count shown after the caption.',
           required: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0053'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -230,6 +279,13 @@ final Catalog kUserCatalog = Catalog(
               structuredRef: WireIdRef(
                   library: 'restage_example.widgets', wireId: WireId('s0005'))),
         ),
+        PropertyEntry(
+          wireId: WireId('p0054'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -256,6 +312,13 @@ final Catalog kUserCatalog = Catalog(
           description: 'The value, e.g. `\'7 days\'`.',
           required: true,
         ),
+        PropertyEntry(
+          wireId: WireId('p0055'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
+        ),
       ],
     ),
     WidgetEntry(
@@ -281,6 +344,13 @@ final Catalog kUserCatalog = Catalog(
           type: PropertyType.integer,
           description: 'Streak count.',
           required: true,
+        ),
+        PropertyEntry(
+          wireId: WireId('p0056'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),
@@ -321,6 +391,13 @@ final Catalog kUserCatalog = Catalog(
                   structuredRef: WireIdRef(
                       library: 'restage_example.widgets',
                       wireId: WireId('s0003')))),
+        ),
+        PropertyEntry(
+          wireId: WireId('p0057'),
+          name: 'analyticsId',
+          type: PropertyType.string,
+          description: 'Optional identifier for this widget occurrence.',
+          synthetic: 'analyticsId',
         ),
       ],
     ),

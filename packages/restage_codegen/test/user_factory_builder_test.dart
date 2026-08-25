@@ -57,7 +57,22 @@ void main() {
               contains(
                 "import 'package:apps_examples/widgets/acme_badge.dart'",
               ),
-              contains('void registerRestageCustomerWidgets()'),
+              contains('void registerRestageWidgets() {'),
+              contains(
+                "@Deprecated('Use registerRestageWidgets; removed in 3.0')",
+              ),
+              contains(
+                'void registerRestageCustomerWidgets() => '
+                'registerRestageWidgets();',
+              ),
+              predicate<String>(
+                (source) =>
+                    RegExp(r'void registerRestageWidgets\(\) \{')
+                        .allMatches(source)
+                        .length ==
+                    1,
+                'contains one registration implementation body',
+              ),
               contains("WidgetLibrary.custom('acme.design_system')"),
               contains(
                 "RestageWidgetFactory(name: 'AcmeBadge', "

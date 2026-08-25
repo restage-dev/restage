@@ -71,6 +71,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0589",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -182,6 +189,13 @@
           "description": "",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0590",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -526,6 +540,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0591",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -1188,6 +1209,13 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0592",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -1499,6 +1527,13 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0593",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1575,6 +1610,13 @@
           "description": "",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0594",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1726,6 +1768,13 @@
           "description": "",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0595",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1821,6 +1870,13 @@
           "description": "",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0596",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1916,6 +1972,13 @@
           "description": "",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0597",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2029,6 +2092,13 @@
           "description": "Called every time an animation completes.",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0598",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2109,6 +2179,13 @@
           "description": "",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0599",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2143,6 +2220,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0600",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2212,6 +2296,13 @@
           "type": "real",
           "description": "Gaussian blur sigma along the Y axis.",
           "synthetic": "imageFilterBlur"
+        },
+        {
+          "wireId": "p0601",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2260,6 +2351,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0602",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2297,6 +2395,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0603",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2369,6 +2474,13 @@
           "type": "real",
           "description": "Bottom-right corner radius (Radius.circular).",
           "synthetic": "borderRadiusCorner"
+        },
+        {
+          "wireId": "p0604",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2406,6 +2518,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0605",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2441,6 +2560,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0606",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "sinceVersion": 5
@@ -2536,6 +2662,13 @@
           "name": "children",
           "type": "widgetList",
           "description": ""
+        },
+        {
+          "wireId": "p0607",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2610,6 +2743,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0608",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -2962,6 +3102,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0609",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -3156,6 +3303,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0610",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -3662,6 +3816,13 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0611",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -3916,6 +4077,13 @@
           "description": "",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0612",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4055,6 +4223,13 @@
               "symbolName": "FilterQuality"
             }
           }
+        },
+        {
+          "wireId": "p0613",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4130,6 +4305,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0614",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4186,6 +4368,13 @@
           "description": "",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0615",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4253,6 +4442,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0616",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4295,6 +4491,13 @@
           "description": "Called when a long press gesture with a primary button has been recognized.",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0617",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4474,6 +4677,13 @@
               "symbolName": "FilterQuality"
             }
           }
+        },
+        {
+          "wireId": "p0618",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4653,6 +4863,13 @@
               "symbolName": "FilterQuality"
             }
           }
+        },
+        {
+          "wireId": "p0619",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4671,6 +4888,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0620",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4719,6 +4943,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0621",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4769,6 +5000,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0622",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4891,6 +5129,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0623",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -5002,6 +5247,13 @@
           "description": "Fires once when the fade settles. Never fires if the widget is disposed before settling.",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0624",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -5460,6 +5712,13 @@
               "symbolName": "TextOverflow"
             }
           }
+        },
+        {
+          "wireId": "p0625",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -5822,6 +6081,13 @@
           "description": "Fires once when the entrance settles. Never fires if the widget is disposed before settling.",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0626",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -6310,6 +6576,13 @@
               "symbolName": "TextOverflow"
             }
           }
+        },
+        {
+          "wireId": "p0627",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -6615,6 +6888,13 @@
               "symbolName": "Curve"
             }
           }
+        },
+        {
+          "wireId": "p0628",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -6722,6 +7002,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0629",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -6758,6 +7045,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0630",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "sinceVersion": 5
@@ -6811,6 +7105,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0631",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -6845,6 +7146,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0632",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -6954,6 +7262,13 @@
           "description": "",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0633",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7048,6 +7363,13 @@
           "name": "children",
           "type": "widgetList",
           "description": ""
+        },
+        {
+          "wireId": "p0634",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7082,6 +7404,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0635",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7191,6 +7520,13 @@
           "description": "The widget below this widget in the tree.",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0636",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7296,6 +7632,13 @@
               "symbolName": "ScrollViewKeyboardDismissBehavior"
             }
           }
+        },
+        {
+          "wireId": "p0637",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7344,6 +7687,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0638",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7373,6 +7723,13 @@
               "symbolName": "int"
             }
           }
+        },
+        {
+          "wireId": "p0639",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7447,6 +7804,13 @@
           "name": "children",
           "type": "widgetList",
           "description": ""
+        },
+        {
+          "wireId": "p0640",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -7951,6 +8315,13 @@
               "symbolName": "TextOverflow"
             }
           }
+        },
+        {
+          "wireId": "p0641",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -8664,6 +9035,13 @@
               "symbolName": "TextOverflow"
             }
           }
+        },
+        {
+          "wireId": "p0642",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -8984,6 +9362,13 @@
           "type": "widget",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0643",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -9039,6 +9424,13 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0644",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -9224,6 +9616,13 @@
           "name": "children",
           "type": "widgetList",
           "description": ""
+        },
+        {
+          "wireId": "p0645",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     }

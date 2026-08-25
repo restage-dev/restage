@@ -91,6 +91,7 @@ void main() {
     resolver.responses.single.complete(BlobPaywallPayload(
       ResolvedVariant(
         bytes: _blob('Actor A after validation'),
+        surfaceVersion: '1',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 1,
       ),
@@ -106,6 +107,7 @@ void main() {
       resolver.responses[1].complete(BlobPaywallPayload(
         ResolvedVariant(
           bytes: _blob('Actor B after validation'),
+          surfaceVersion: '2',
           paywallId: 'pro_upgrade',
           paywallPublishedVersion: 2,
         ),
@@ -138,6 +140,7 @@ void main() {
     resolver.responses.single.complete(BlobPaywallPayload(
       ResolvedVariant(
         bytes: _resettingBlob(),
+        surfaceVersion: '1',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 1,
       ),
@@ -150,6 +153,7 @@ void main() {
       resolver.responses[1].complete(BlobPaywallPayload(
         ResolvedVariant(
           bytes: _blob('Actor B blob'),
+          surfaceVersion: '2',
           paywallId: 'pro_upgrade',
           paywallPublishedVersion: 2,
         ),
@@ -786,6 +790,7 @@ void main() {
     resolver.responses.single.complete(BlobPaywallPayload(
       ResolvedVariant(
         bytes: _resetThenThrowBlob(),
+        surfaceVersion: '1',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 1,
       ),
@@ -797,6 +802,7 @@ void main() {
       resolver.responses[1].complete(BlobPaywallPayload(
         ResolvedVariant(
           bytes: _blob('Actor B after blob failure'),
+          surfaceVersion: '2',
           paywallId: 'pro_upgrade',
           paywallPublishedVersion: 2,
         ),
@@ -1061,6 +1067,7 @@ void main() {
       fallback.complete(
         ResolvedVariant(
           bytes: _blob('Bundled'),
+          surfaceVersion: FlowContentHash.compute(_blob('Bundled')).value,
           paywallId: 'pro_upgrade',
         ),
       );
@@ -1352,6 +1359,7 @@ void main() {
     resolver.responses.single.complete(BlobPaywallPayload(
       ResolvedVariant(
         bytes: _sizedBlob('Last good size', width: 80, height: 40),
+        surfaceVersion: '1',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 1,
       ),
@@ -1364,6 +1372,7 @@ void main() {
     resolver.responses[1].complete(BlobPaywallPayload(
       ResolvedVariant(
         bytes: _layoutResetBlob(),
+        surfaceVersion: '2',
         paywallId: 'pro_upgrade',
         paywallPublishedVersion: 2,
       ),
@@ -1383,6 +1392,7 @@ void main() {
       resolver.responses[2].complete(BlobPaywallPayload(
         ResolvedVariant(
           bytes: _sizedBlob('Actor B size', width: 90, height: 50),
+          surfaceVersion: '3',
           paywallId: 'pro_upgrade',
           paywallPublishedVersion: 3,
         ),
@@ -1431,6 +1441,8 @@ void main() {
     blobResolver.responses.single.complete(BlobPaywallPayload(
       ResolvedVariant(
         bytes: _blob('Never painted blob'),
+        surfaceVersion:
+            FlowContentHash.compute(_blob('Never painted blob')).value,
         paywallId: 'pending_blob',
       ),
       assignmentLease: lease,

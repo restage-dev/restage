@@ -61,12 +61,12 @@ void main() {
 
     expect(result.issues, isEmpty);
     expect(result.dsl, contains('event "activate"'));
+    final marker = MeasurementRouteEmissionPlan.markerForGeneratedReference(
+      generatedReferenceId,
+    );
     expect(
       result.dsl,
-      contains(
-        '${kMeasurementRouteReferenceMarkerKeyV1}: "'
-        '${MeasurementRouteEmissionPlan.markerForGeneratedReference(generatedReferenceId)}"',
-      ),
+      contains('$kMeasurementRouteReferenceMarkerKeyV1: "$marker"'),
     );
   });
 

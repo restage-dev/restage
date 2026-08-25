@@ -215,7 +215,7 @@ void main() {
   );
 
   testWidgets(
-    'RestageSurfaceFlow defensively strips local authored-event values before '
+    'RestageFlowGraph defensively strips local authored-event values before '
     'normalization and capture',
     (tester) async {
       Restage.registerWidgetLibrary(
@@ -236,7 +236,7 @@ widget OnboardingScreen = AuthoredProbe();
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
-          child: RestageSurfaceFlow<Map<String, Object?>>(
+          child: RestageFlowGraph<Map<String, Object?>>(
             flow: _flowRef,
             resolver: StaticFlowResolver(
               _resolvedCaptureFlow(blob, captureKey: 'business'),
@@ -335,7 +335,7 @@ Widget _screenHost({
 }) =>
     MaterialApp(
       home: Scaffold(
-        body: RestageSurfaceScreen<String>(
+        body: RestageScreen<String>(
           screen: fixture.ref,
           resolver: FixedScreenResolver(fixture.bundled()),
           unavailable: SurfaceScreenUnavailablePolicy.fallback(
@@ -563,7 +563,7 @@ final class _StaticPaywallResolver implements VariantResolver {
     String? placementId,
     Locale? locale,
   }) async =>
-      ResolvedVariant(bytes: bytes, paywallId: id);
+      ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
 }
 
 final class _RecordingGateway implements BillingGateway {

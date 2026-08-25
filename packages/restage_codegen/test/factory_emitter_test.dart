@@ -3,6 +3,11 @@ import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
+String _radiusCircularSource(String property) => <String>[
+      'Radius.circular(source.v<double>(<Object>[',
+      "'$property']) ?? 0.0)",
+    ].join();
+
 void main() {
   group('emitFactoryFunction', () {
     test('emits a closure for a real-catalog scalar-only widget', () {
@@ -236,6 +241,77 @@ void main() {
       // The throwing element-decode is gone — a malformed element must NOT
       // crash the render.
       expect(source, isNot(contains('must be a string')));
+    });
+
+    test('does not forward analyticsId to the Flutter constructor', () {
+      final entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'CatalogLabelProbe',
+        library: WidgetLibrary.core,
+        category: WidgetCategory.decoration,
+        description: 'Verifies catalog-only occurrence metadata.',
+        flutterType: 'package:test_pkg/widget.dart#CatalogLabelProbe',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          analyticsIdProperty(),
+          const PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'label',
+            type: PropertyType.string,
+            description: 'Visible label.',
+          ),
+        ],
+      );
+
+      final source = emitFactoryFunction(entry);
+
+      expect(source, isNotNull);
+      expect(source, contains("source.v<String>(<Object>['label'])"));
+      expect(source, isNot(contains('analyticsId:')));
+      expect(source, isNot(contains("['analyticsId']")));
+    });
+
+    test('fails closed when a malformed catalog names analyticsId', () {
+      const entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'MalformedLabelProbe',
+        library: WidgetLibrary.core,
+        category: WidgetCategory.decoration,
+        description: 'Reserved field safety probe.',
+        flutterType: 'package:test_pkg/widget.dart#MalformedLabelProbe',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'analyticsId',
+            type: PropertyType.string,
+            description: 'Malformed reserved field.',
+          ),
+        ],
+      );
+
+      final source = emitFactoryFunction(entry);
+
+      expect(source, isNull);
+      expect(source ?? '', isNot(contains('analyticsId:')));
+    });
+
+    test('fails closed when analyticsId is declared twice', () {
+      final entry = WidgetEntry(
+        wireId: WireId.unallocatedWidget,
+        name: 'DuplicateLabelProbe',
+        library: WidgetLibrary.core,
+        category: WidgetCategory.decoration,
+        description: 'Duplicate reserved field safety probe.',
+        flutterType: 'package:test_pkg/widget.dart#DuplicateLabelProbe',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          analyticsIdProperty(),
+          analyticsIdProperty(),
+        ],
+      );
+
+      expect(emitFactoryFunction(entry), isNull);
     });
 
     test('a shapeBorder circle default emits a CircleBorder fallback', () {
@@ -1812,11 +1888,11 @@ void main() {
             "source.v<double>(<Object>['borderRadiusBottomRight'])",
             ') != null',
             'BorderRadius.only(',
-            "topLeft: Radius.circular(source.v<double>(<Object>['borderRadiusTopLeft']) ?? 0.0)",
-            "topRight: Radius.circular(source.v<double>(<Object>['borderRadiusTopRight']) ?? 0.0)",
-            "bottomLeft: Radius.circular(source.v<double>(<Object>['borderRadiusBottomLeft']) ?? 0.0)",
-            "bottomRight: Radius.circular(source.v<double>(<Object>['borderRadiusBottomRight']) ?? 0.0)",
-            "BorderRadius.circular(source.v<double>(<Object>['borderRadius']) ?? 0.0)",
+            "topLeft: ${_radiusCircularSource('borderRadiusTopLeft')}",
+            "topRight: ${_radiusCircularSource('borderRadiusTopRight')}",
+            "bottomLeft: ${_radiusCircularSource('borderRadiusBottomLeft')}",
+            "bottomRight: ${_radiusCircularSource('borderRadiusBottomRight')}",
+            _radiusCircularSource('borderRadius'),
           ]),
         );
       },

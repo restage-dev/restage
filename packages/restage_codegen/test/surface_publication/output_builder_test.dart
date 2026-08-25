@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
+import 'package:restage_codegen/src/analytics_id_control.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -67,6 +69,18 @@ const launch = FlowDefinition(
       isTrue,
       reason: compilerResult.errors.join('\n'),
     );
+    final compilerControl = AnalyticsIdControlOutputV1.fromJson(
+      jsonDecode(
+        readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            kRestageAnalyticsIdControlOutputPath,
+          ),
+        ),
+      ),
+    );
+    expect(compilerControl.packageName, 'apps_examples');
+    expect(compilerControl.publications, isEmpty);
 
     final outputsResult = await testBuilder(
       RestageOutputsBuilder(BuilderOptions.empty),
@@ -206,6 +220,17 @@ const launch = FlowDefinition(
         entry['path']! as String,
     ];
     expect(indexPaths, orderedEquals(indexPaths.toList()..sort()));
+    final materializedControl = AnalyticsIdControlOutputV1.fromJson(
+      jsonDecode(
+        readerWriter.testing.readString(
+          AssetId(
+            'apps_examples',
+            'lib/generated/restage.analytics-id.metadata.json',
+          ),
+        ),
+      ),
+    );
+    expect(materializedControl.encodeJson(), compilerControl.encodeJson());
   });
 
   test(
@@ -565,4 +590,239 @@ final class FeatureAnnouncement extends StatelessWidget {
     );
     expect(manifest.publications, isEmpty);
   });
+
+  test('materializes label metadata outside all publication outputs', () async {
+    final original = await _materializeLabelMetadata('checkout.primary');
+    final renamed = await _materializeLabelMetadata('checkout.confirm');
+
+    expect(original.metadata, isNot(renamed.metadata));
+    expect(original.manifest, renamed.manifest);
+    expect(original.outputIndex, renamed.outputIndex);
+    expect(original.measurementIndex, renamed.measurementIndex);
+    expect(original.manifest, isNot(contains('checkout.primary')));
+    expect(original.outputIndex, isNot(contains('checkout.primary')));
+    expect(original.measurementIndex, isNot(contains('checkout.primary')));
+    expect(
+      original.outputIndex,
+      isNot(contains(kRestageAnalyticsIdMetadataFileName)),
+    );
+    expect(original.metadata, contains('checkout.primary'));
+    expect(original.metadata, contains('"generatedPresentationReferenceId"'));
+    expect(original.metadata, contains('"presentationRouteCarrier"'));
+    expect(original.metadata, contains('"presentationRouteFingerprint"'));
+  });
+
+  test('rejects malformed existing label control before any outputs', () async {
+    final build = await _buildPackageOutputsWithControl(
+      controlJson: '''
+{
+  "kind": "restageAnalyticsIdControl",
+  "package": "apps_examples",
+  "publications": ["checkout.stale"]
+}
+''',
+    );
+
+    expect(build.result.succeeded, isFalse);
+    expect(
+      build.result.errors.join('\n'),
+      contains('Analytics label control output is invalid'),
+    );
+    _expectNoPackageOutputs(build.readerWriter);
+  });
+
+  test('rejects package-mismatched existing label control before any outputs',
+      () async {
+    final build = await _buildPackageOutputsWithControl(
+      controlJson: AnalyticsIdControlOutputV1(
+        packageName: 'stale_package',
+        publications: const <AnalyticsIdControlPublication>[],
+      ).encodeJson(),
+    );
+
+    expect(build.result.succeeded, isFalse);
+    expect(build.result.errors.join('\n'), contains('stale_package'));
+    _expectNoPackageOutputs(build.readerWriter);
+  });
+
+  test('materializes empty label metadata for valid and absent control',
+      () async {
+    final valid = AnalyticsIdControlOutputV1(
+      packageName: 'apps_examples',
+      publications: const <AnalyticsIdControlPublication>[],
+    ).encodeJson();
+
+    for (final controlJson in <String?>[null, valid]) {
+      final build = await _buildPackageOutputsWithControl(
+        controlJson: controlJson,
+      );
+
+      expect(
+        build.result.succeeded,
+        isTrue,
+        reason: build.result.errors.join('\n'),
+      );
+      for (final path in _packageOutputPaths) {
+        expect(
+          build.readerWriter.testing.exists(AssetId('apps_examples', path)),
+          isTrue,
+          reason: '${controlJson == null ? 'absent' : 'valid'}: $path',
+        );
+      }
+      final metadata = AnalyticsIdControlOutputV1.fromJson(
+        jsonDecode(
+          build.readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              'lib/generated/restage.analytics-id.metadata.json',
+            ),
+          ),
+        ),
+      );
+      expect(metadata.packageName, 'apps_examples');
+      expect(metadata.publications, isEmpty);
+    }
+  });
+}
+
+const _packageOutputPaths = <String>[
+  'lib/generated/restage.publication.json',
+  'lib/generated/restage.outputs.json',
+  'lib/generated/restage.measurement.index.json',
+  'lib/generated/restage.analytics-id.metadata.json',
+];
+
+Future<({TestBuilderResult result, TestReaderWriter readerWriter})>
+    _buildPackageOutputsWithControl({String? controlJson}) async {
+  final bundle = RestageSurfacePublicationBundle.valid(
+    manifest: SurfacePublicationManifest(publications: const []),
+    artifacts: const {},
+  );
+  final sources = <String, String>{
+    'apps_examples|lib/features/empty.dart': '// no delivery declarations\n',
+    'apps_examples|lib/src/surface_publication/surface_publication.compiler.json':
+        bundle.encodeCanonicalJson(),
+    'apps_examples|$kRestageMeasurementCompilerOutputPath':
+        RestageMeasurementCompilerOutputV1.empty().encodeCanonicalJson(),
+    if (controlJson != null)
+      'apps_examples|$kRestageAnalyticsIdControlOutputPath': controlJson,
+  };
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  final result = await testBuilder(
+    RestageOutputsBuilder(BuilderOptions.empty),
+    sources,
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+    flattenOutput: true,
+  );
+  return (result: result, readerWriter: readerWriter);
+}
+
+void _expectNoPackageOutputs(TestReaderWriter readerWriter) {
+  for (final path in _packageOutputPaths) {
+    final asset = AssetId('apps_examples', path);
+    expect(readerWriter.testing.exists(asset), isFalse, reason: path);
+    expect(readerWriter.testing.assetsWritten, isNot(contains(asset)));
+  }
+}
+
+Future<
+    ({
+      String metadata,
+      String manifest,
+      String outputIndex,
+      String measurementIndex
+    })> _materializeLabelMetadata(String analyticsId) async {
+  final bundle = RestageSurfacePublicationBundle.valid(
+    manifest: SurfacePublicationManifest(publications: const []),
+    artifacts: const {},
+  );
+  final selector = MeasurementPublicationSelectorV1(
+    surface: Surface.general,
+    slug: 'checkout',
+    sourceKind: SurfaceSourceKind.screen,
+    contractVersion: 1,
+  );
+  final scope = AnalyticsIdControlPublicationScope(
+    selector: selector,
+    measurementSurfaceId: selector.stableSurfaceId,
+    routePlanClosureDigest: CanonicalDigest(
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    ),
+    finalTargetNeutralDraftDigest: CanonicalDigest(
+      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    ),
+  );
+  final edge = ArtifactOccurrenceEdgeToken('edge.checkout');
+  final presentationReferenceId =
+      GeneratedPresentationReferenceId('reference.checkout');
+  final carrier = MeasurementPublicationRouteCarrierV1.derivePresentation(
+    routeDraftClosureDigest: scope.routePlanClosureDigest,
+    artifactOccurrenceEdgeToken: edge,
+    generatedPresentationReferenceId: presentationReferenceId,
+  ).value;
+  final control = AnalyticsIdControlOutputV1(
+    packageName: 'apps_examples',
+    publications: [
+      AnalyticsIdControlPublication(
+        scope: scope,
+        entries: [
+          AnalyticsIdControlEntry(
+            analyticsId: analyticsId,
+            presentationReservation: AnalyticsIdPresentationReservation(
+              generatedPresentationReferenceId: presentationReferenceId,
+              nodeCodeIdentityId: CodeIdentityId('node.checkout'),
+              canonicalNodeTokenId: NodeTokenId('token.checkout'),
+              artifactOccurrenceEdgeToken: edge,
+              presentationLineageId: PointLineageId('lineage.checkout'),
+              displayMetadataRef: DisplayMetadataRef('display.checkout'),
+              presentationRouteCarrier: carrier,
+              presentationRouteFingerprint:
+                  OpaqueMeasurementRouteTokenV1.fromRuntimeCarrier(
+                carrier,
+              ).fingerprint,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+  final sources = <String, String>{
+    'apps_examples|lib/features/empty.dart': '// no delivery declarations\n',
+    'apps_examples|lib/src/surface_publication/surface_publication.compiler.json':
+        bundle.encodeCanonicalJson(),
+    'apps_examples|$kRestageMeasurementCompilerOutputPath':
+        RestageMeasurementCompilerOutputV1.empty().encodeCanonicalJson(),
+    'apps_examples|$kRestageAnalyticsIdControlOutputPath': control.encodeJson(),
+  };
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  final result = await testBuilder(
+    RestageOutputsBuilder(BuilderOptions.empty),
+    sources,
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+    flattenOutput: true,
+  );
+  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  return (
+    metadata: readerWriter.testing.readString(
+      AssetId(
+        'apps_examples',
+        'lib/generated/restage.analytics-id.metadata.json',
+      ),
+    ),
+    manifest: readerWriter.testing.readString(
+      AssetId('apps_examples', 'lib/generated/restage.publication.json'),
+    ),
+    outputIndex: readerWriter.testing.readString(
+      AssetId('apps_examples', 'lib/generated/restage.outputs.json'),
+    ),
+    measurementIndex: readerWriter.testing.readString(
+      AssetId('apps_examples', 'lib/generated/restage.measurement.index.json'),
+    ),
+  );
 }

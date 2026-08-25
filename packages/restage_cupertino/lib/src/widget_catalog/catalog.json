@@ -67,6 +67,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0157",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -136,6 +143,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0158",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -205,6 +219,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0159",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -256,6 +277,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0160",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -307,6 +335,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0161",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -371,6 +406,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0162",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -419,6 +461,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0163",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -454,6 +503,13 @@
           "description": "Widget to show in the main content area.",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0164",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -505,6 +561,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0165",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -620,6 +683,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0166",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -722,6 +792,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0167",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -936,6 +1013,13 @@
               "symbolName": "ChangeReportingBehavior"
             }
           }
+        },
+        {
+          "wireId": "p0168",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1084,6 +1168,13 @@
               "symbolName": "ChangeReportingBehavior"
             }
           }
+        },
+        {
+          "wireId": "p0169",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1273,6 +1364,13 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0170",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1351,6 +1449,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0171",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1452,6 +1557,13 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0172",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     }

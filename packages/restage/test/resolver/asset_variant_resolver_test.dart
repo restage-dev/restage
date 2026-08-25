@@ -23,6 +23,10 @@ void main() {
 
     expect(variant.bytes, [1, 2, 3]);
     expect(variant.paywallId, 'test');
+    expect(
+      variant.surfaceVersion,
+      FlowContentHash.compute(Uint8List.fromList([1, 2, 3])).value,
+    );
     expect(bundle.loadedKeys, ['assets/paywalls/test.rfw']);
   });
 
@@ -76,6 +80,10 @@ void main() {
       final blobPayload = payload as BlobPaywallPayload;
       expect(blobPayload.variant.bytes, [1, 2, 3]);
       expect(blobPayload.variant.paywallId, 'pro_upgrade');
+      expect(
+        blobPayload.variant.surfaceVersion,
+        FlowContentHash.compute(Uint8List.fromList([1, 2, 3])).value,
+      );
       expect(bundle.loadedKeys, [
         'assets/paywalls/pro_upgrade.flow.json',
         'assets/paywalls/pro_upgrade.rfw',

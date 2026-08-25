@@ -31,7 +31,7 @@ final class RootAnalyticsEventContext {
   final int identityGeneration;
   final String surface;
   final String surfaceId;
-  final String? surfaceVersion;
+  final String surfaceVersion;
   final String surfaceSessionId;
   final String? experimentId;
   final String? variantId;
@@ -145,8 +145,13 @@ abstract final class RootAnalyticsArtifactRegistry {
     );
   }
 
-  static String? surfaceVersionFor(Object owner) =>
-      _artifacts[owner]?.surfaceVersion;
+  static String surfaceVersionFor(Object owner) {
+    final artifact = _artifacts[owner];
+    if (artifact == null) {
+      throw StateError('A root artifact must be recorded before presentation.');
+    }
+    return artifact.surfaceVersion;
+  }
 
   static bool isSameArtifact(Object firstOwner, Object secondOwner) {
     final first = _artifacts[firstOwner];
@@ -343,12 +348,21 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
             _authorityEpoch,
           ));
 
+  bool get isActive => _active != null && isIdentityCurrent;
+
   void stage({
-    required String? surfaceVersion,
+    required String surfaceVersion,
     String? experimentId,
     String? variantId,
     int? experimentEpoch,
   }) {
+    if (surfaceVersion.isEmpty) {
+      throw ArgumentError.value(
+        surfaceVersion,
+        'surfaceVersion',
+        'must not be empty',
+      );
+    }
     if (_disposed ||
         _identity == null ||
         _staged != null ||

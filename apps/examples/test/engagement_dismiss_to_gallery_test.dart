@@ -28,7 +28,7 @@ void main() {
       products: kStubProducts,
       resolver: const AssetVariantResolver(),
     );
-    registerRestageCustomerWidgets();
+    registerRestageWidgets();
   });
 
   void useTallSurface(WidgetTester tester) {

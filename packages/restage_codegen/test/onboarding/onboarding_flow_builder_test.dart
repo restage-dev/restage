@@ -533,6 +533,35 @@ void main() {
       await _assertGeneratedResultDecoderRuns(generated);
     });
 
+    test('emits ordered survey answers with schema version 2', () async {
+      final sources = _surveySourcesWithAnswers();
+      final readerWriter = await _readerWriterWith(sources);
+
+      final result = await testBuilders(
+        [
+          surveyScreenBuilder(BuilderOptions.empty),
+          surveyFlowBuilder(BuilderOptions.empty),
+        ],
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+
+      expect(result.succeeded, isTrue);
+      final flowBytes = result.readerWriter.testing.readBytes(
+        AssetId('apps_examples', 'assets/survey/flows/setup_survey.flow.json'),
+      );
+      final document = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
+
+      expect(document.schemaVersion, 2);
+      expect(document.surveyQuestionOrder, ['favoriteColor', 'plan']);
+      expect(
+        document.outbound.surveyAnswers.fields.keys,
+        ['favoriteColor', 'plan'],
+      );
+    });
+
     test('lowers a paywall screen ref into a flow screen state', () async {
       final sources = _paywallStepFlowSources();
       final readerWriter = await _readerWriterWith(sources);
@@ -2872,6 +2901,60 @@ final class FirstRunFlow extends RestageFlow {
             .on(ReadyScreen.start)
             .goTo(done),
         end(done, result: {'completed': true, 'secret': 'do-not-emit'}),
+      ],
+    );
+  }
+}
+''',
+    };
+
+Map<String, String> _surveySourcesWithAnswers() => {
+      'apps_examples|lib/survey/screens/question.dart':
+          _screenSource('question', 'QuestionScreen', 'next'),
+      'apps_examples|lib/survey/flows/setup_survey.dart': '''
+import 'package:restage/restage.dart';
+
+import '../screens/question.dart';
+
+part 'restage.generated/setup_survey.restage.g.dart';
+
+@OnboardingFlow(id: 'setup_survey', version: 1, minClient: 3)
+final class SetupSurveyFlow extends RestageFlow {
+  const SetupSurveyFlow();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+
+    return flow(
+      initial: questionScreenRef,
+      flowState: const {
+        'favoriteColor': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.exportable,
+        ),
+        'plan': FlowStateDeclaration(
+          type: FlowDataType.string,
+          classification: FlowStateClassification.exportable,
+        ),
+      },
+      outbound: const FlowOutboundDeclarations(
+        surveyAnswers: FlowOutboundPayloadDeclaration(
+          fields: {
+            'favoriteColor': FlowOutboundField(
+              type: FlowDataType.string,
+              ref: StateFlowOutboundRef(key: 'favoriteColor'),
+            ),
+            'plan': FlowOutboundField(
+              type: FlowDataType.string,
+              ref: StateFlowOutboundRef(key: 'plan'),
+            ),
+          },
+        ),
+      ),
+      states: [
+        screen(questionScreenRef).on(QuestionScreen.next).goTo(done),
+        end(done, result: {}),
       ],
     );
   }

@@ -16,5 +16,6 @@
 // sublibrary is vendored so it can be used from pure Dart (where rfw's Flutter
 // SDK dependency would otherwise block resolution).
 
+export 'src/rfw_catalog_occurrence.dart';
 export 'src/rfw_formats.dart';
 export 'src/rfw_preview_reservation.dart';

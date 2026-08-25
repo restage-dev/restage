@@ -41,6 +41,7 @@ builders:
       $package$:
         - "lib/src/surface_publication/surface_publication.compiler.json"
         - "lib/src/measurement/restage.measurement.compiler.json"
+        - "lib/src/measurement/restage.analytics-id.control.json"
     auto_apply: dependents
     build_to: source
     runs_before:
@@ -81,6 +82,7 @@ builders:
         - "lib/generated/restage.outputs.json"
         - "lib/generated/restage.publication.json"
         - "lib/generated/restage.measurement.index.json"
+        - "lib/generated/restage.analytics-id.metadata.json"
     auto_apply: dependents
     build_to: source
     runs_before: []

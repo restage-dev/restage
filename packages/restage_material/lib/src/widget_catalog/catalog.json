@@ -88,6 +88,13 @@
               "symbolName": "EdgeInsetsGeometry"
             }
           }
+        },
+        {
+          "wireId": "p0414",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -195,6 +202,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0415",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -315,6 +329,13 @@
           "type": "widget",
           "description": "The widget that the badge is stacked on top of.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0416",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -406,6 +427,13 @@
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0417",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -497,6 +525,13 @@
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0418",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -588,6 +623,13 @@
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0419",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -642,6 +684,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0420",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -742,6 +791,13 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0421",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -818,6 +874,13 @@
               "symbolName": "EdgeInsetsGeometry"
             }
           }
+        },
+        {
+          "wireId": "p0422",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -929,6 +992,13 @@
             "kind": "literal",
             "value": "circle"
           }
+        },
+        {
+          "wireId": "p0423",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -990,6 +1060,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0424",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1055,6 +1132,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0425",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1254,6 +1338,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0426",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -1442,6 +1533,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0427",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1495,6 +1593,13 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0428",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -1698,6 +1803,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0429",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -1968,6 +2080,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0430",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -2159,6 +2278,13 @@
             "kind": "literal",
             "value": "circle"
           }
+        },
+        {
+          "wireId": "p0431",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2291,6 +2417,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0432",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2355,6 +2488,13 @@
           "synthetic": "iconData",
           "positional": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0433",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2434,6 +2574,13 @@
           "description": "The icon to display inside the button.",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0434",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2467,6 +2614,13 @@
           "type": "shapeBorder",
           "description": "",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0435",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2540,6 +2694,13 @@
               "symbolName": "double"
             }
           }
+        },
+        {
+          "wireId": "p0436",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2594,6 +2755,13 @@
           "description": "Called when the user taps this list tile.",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0437",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2631,6 +2799,13 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0438",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -2979,6 +3154,13 @@
           "description": "Fires when the sheet is dismissed by a downward drag or a scrim tap. Distinct from the paywall-level dismiss: this is the *sheet* closing, not the surface that hosts it. Wire it back to `open = false`.",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0439",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -3080,6 +3262,13 @@
           "callbackSignature": "ValueChanged<int>",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0440",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -3123,6 +3312,13 @@
           "callbackSignature": "ValueChanged<String?>",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0441",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "sinceVersion": 2
@@ -3167,6 +3363,13 @@
           "callbackSignature": "ValueChanged<String?>",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0442",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "sinceVersion": 2
@@ -3204,6 +3407,13 @@
           "callbackSignature": "ValueChanged<int>",
           "constructorNullable": true,
           "category": "behavior"
+        },
+        {
+          "wireId": "p0443",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "sinceVersion": 3
@@ -3306,6 +3516,13 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0444",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "sinceVersion": 4
@@ -3479,6 +3696,13 @@
               "symbolName": "Curve"
             }
           }
+        },
+        {
+          "wireId": "p0445",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -3645,6 +3869,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0446",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -3890,6 +4121,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0447",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -3996,6 +4234,13 @@
           "description": "UI bound to the resolved product. Descendants may read price and metadata via the standard product-resolution helpers.",
           "required": true,
           "priority": "primary"
+        },
+        {
+          "wireId": "p0448",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4030,6 +4275,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0449",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4109,6 +4361,13 @@
               "symbolName": "bool"
             }
           }
+        },
+        {
+          "wireId": "p0450",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4226,6 +4485,13 @@
               "symbolName": "String"
             }
           }
+        },
+        {
+          "wireId": "p0451",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4279,6 +4545,13 @@
               "symbolName": "Color"
             }
           }
+        },
+        {
+          "wireId": "p0452",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4360,6 +4633,13 @@
           "type": "shapeBorder",
           "description": "{@macro flutter.material.ListTile.shape}",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0453",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -4525,6 +4805,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0454",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -4774,6 +5061,13 @@
             "kind": "literal",
             "value": false
           }
+        },
+        {
+          "wireId": "p0455",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ],
       "decomposes": [
@@ -4915,6 +5209,13 @@
           "type": "widget",
           "description": "The widget to be used as the tab's label.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0456",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -5015,6 +5316,13 @@
               "symbolName": "Clip"
             }
           }
+        },
+        {
+          "wireId": "p0457",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     },
@@ -5095,6 +5403,13 @@
           "type": "widget",
           "description": "The widget below this widget in the tree.",
           "constructorNullable": true
+        },
+        {
+          "wireId": "p0458",
+          "name": "analyticsId",
+          "type": "string",
+          "description": "Optional identifier for this widget occurrence.",
+          "synthetic": "analyticsId"
         }
       ]
     }

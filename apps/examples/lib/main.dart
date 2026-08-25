@@ -26,7 +26,7 @@ import 'user_factories.g.dart';
 import 'widgets/minimal_custom_widget_demo.dart';
 
 void main() {
-  registerRestageCustomerWidgets();
+  registerRestageWidgets();
   // Configure a stub product set so the "live prices" gallery tiles resolve
   // realistic prices through the remote-render path. A real app passes its
   // own store product IDs here and lets the billing gateway fill in prices.
