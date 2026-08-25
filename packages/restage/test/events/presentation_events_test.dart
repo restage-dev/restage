@@ -35,20 +35,15 @@ void main() {
   test('PaywallViewed includes assignment metadata when present', () {
     const e = PaywallViewed(
       paywallId: 'pro_upgrade',
-      productIds: ['pro_monthly', 'pro_yearly'],
       variantId: 'variant-b',
       experimentId: 'exp1',
       experimentEpoch: 3,
     );
-    expect(e.toMap()['productIds'], ['pro_monthly', 'pro_yearly']);
     expect(e.toMap()['variantId'], 'variant-b');
     expect(e.toMap()['experimentId'], 'exp1');
     expect(e.toMap()['experimentEpoch'], 3);
 
-    const withoutAssignment = PaywallViewed(
-      paywallId: 'pro_upgrade',
-      productIds: [],
-    );
+    const withoutAssignment = PaywallViewed(paywallId: 'pro_upgrade');
     expect(withoutAssignment.toMap().containsKey('experimentEpoch'), isFalse);
   });
 
@@ -56,16 +51,12 @@ void main() {
       () {
     const withVersion = PaywallViewed(
       paywallId: 'pro_upgrade',
-      productIds: ['pro_monthly'],
       publishedVersion: 5,
     );
     expect(withVersion.publishedVersion, 5);
     expect(withVersion.toMap()['publishedVersion'], 5);
 
-    const withoutVersion = PaywallViewed(
-      paywallId: 'pro_upgrade',
-      productIds: ['pro_monthly'],
-    );
+    const withoutVersion = PaywallViewed(paywallId: 'pro_upgrade');
     expect(withoutVersion.publishedVersion, isNull);
     expect(withoutVersion.toMap().containsKey('publishedVersion'), isFalse);
   });

@@ -343,9 +343,6 @@ typedef OnboardingEvent<T> = SurfaceEvent<T>;
 /// Flow event names commonly emitted by paywall blobs when they are rendered
 /// as flow screens.
 abstract final class PaywallEvents {
-  /// A paywall purchase CTA was tapped.
-  static const purchase = SurfaceEvent<Map<String, Object?>>('purchase');
-
   /// A paywall skipped or dismissed itself through an authored `skip` event.
   static const skip = SurfaceEvent<Map<String, Object?>>('skip');
 }
@@ -353,9 +350,6 @@ abstract final class PaywallEvents {
 /// Deprecated compatibility spelling for [PaywallEvents].
 @Deprecated('Use PaywallEvents instead.')
 abstract final class PaywallFlowEvents {
-  /// A paywall purchase CTA was tapped.
-  static const purchase = PaywallEvents.purchase;
-
   /// A paywall skipped or dismissed itself through an authored `skip` event.
   static const skip = PaywallEvents.skip;
 }

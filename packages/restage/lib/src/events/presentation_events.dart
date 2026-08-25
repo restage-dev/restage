@@ -84,16 +84,12 @@ final class PaywallViewed extends RestageEvent {
   /// Const constructor.
   const PaywallViewed({
     required String super.paywallId,
-    required this.productIds,
     this.variantId,
     this.experimentId,
     this.experimentEpoch,
     this.publishedVersion,
     super.firedAt,
   });
-
-  /// Product IDs configured on the paywall (snapshot at view time).
-  final List<String> productIds;
 
   /// A/B variant identifier; null if not part of an experiment.
   final String? variantId;
@@ -122,7 +118,6 @@ final class PaywallViewed extends RestageEvent {
   Map<String, Object?> toMap() => {
         'name': name,
         'paywallId': paywallId,
-        'productIds': productIds,
         if (variantId != null) 'variantId': variantId,
         if (experimentId != null) 'experimentId': experimentId,
         if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,

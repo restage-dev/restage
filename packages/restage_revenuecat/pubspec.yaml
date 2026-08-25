@@ -1,9 +1,6 @@
 name: restage_revenuecat
 description: >-
-  Keep RevenueCat underneath Restage paywalls. A Restage BillingGateway that
-  delegates Buy/Restore taps to the host app's existing RevenueCat
-  configuration, so a Restage paywall renders the surface while RevenueCat
-  stays the subscription substrate.
+  An unpublished Restage package with no public integration API.
 version: 0.2.0
 repository: https://github.com/restage-dev/restage
 homepage: https://restage.dev
@@ -16,19 +13,8 @@ publish_to: none
 
 environment:
   sdk: ^3.5.0
-  flutter: ">=3.41.0"
 
 resolution: workspace
 
-dependencies:
-  flutter:
-    sdk: flutter
-  meta: ^1.15.0
-  restage:
-    path: ../restage
-  purchases_flutter: ^10.2.2
-
 dev_dependencies:
   flutter_lints: ^6.0.0
-  flutter_test:
-    sdk: flutter

@@ -21,16 +21,11 @@ import 'paywalls/lumen_premium.dart';
 import 'paywalls/narrate_membership.dart';
 import 'paywalls/pulse_premium.dart';
 import 'paywalls/sentinel_protection.dart';
-import 'stub_products.dart';
 import 'user_factories.g.dart';
 import 'widgets/minimal_custom_widget_demo.dart';
 
 void main() {
   registerRestageWidgets();
-  // Configure a stub product set so the "live prices" gallery tiles resolve
-  // realistic prices through the remote-render path. A real app passes its
-  // own store product IDs here and lets the billing gateway fill in prices.
-  //
   // This example ships its demo paywalls as bundled `.rfw` assets, so it pins
   // `AssetVariantResolver` as the default. If you omit `resolver:` and pass a
   // `baseUrl`, `configure` installs `RestageVariantResolver` for Restage-hosted
@@ -39,7 +34,6 @@ void main() {
   // `AssetVariantResolver` (here, or per `RestagePaywall`).
   Restage.configure(
     apiKey: 'rs_pk_example',
-    products: kStubProducts,
     resolver: const AssetVariantResolver(),
   );
   runApp(const RestageExampleApp());
@@ -201,9 +195,8 @@ class ThemeToggleScope extends StatelessWidget {
 /// Demo gallery — picks an example surface to mount full-screen.
 ///
 /// Each authored paywall (see `lib/paywalls/`) appears twice: once via direct
-/// local render (the authoring preview, with placeholder prices) and once
-/// via the delivered render blob (`RestagePaywall(id:)` decoding the bundled
-/// `.rfw`, with live prices resolved from the stub product config). The
+/// local render and once via the delivered render blob (`RestagePaywall(id:)`
+/// decoding the bundled `.rfw`). The
 /// brightness toggle in the app bar flips the whole app between light and
 /// dark so the theme-adaptive template can be seen repainting — and the
 /// fixed-brand template can be seen holding its palette — in both.
@@ -262,12 +255,9 @@ class _GalleryHome extends StatelessWidget {
               _ExampleTile(
                 title: 'Minimal paywall',
                 subtitle: 'The smallest plan-select paywall: tap a plan, the '
-                    'CTA re-targets, buy. Theme-adaptive (delivered blob).',
+                    'CTA re-targets. Theme-adaptive (delivered blob).',
                 leading: const Icon(Icons.lock_open_outlined),
-                destination: const _RemotePaywallScreen(
-                  id: 'minimal_paywall',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination: const _RemotePaywallScreen(id: 'minimal_paywall'),
                 showThemeToggle: true,
               ),
               _ExampleTile(
@@ -370,77 +360,65 @@ class _GalleryHome extends StatelessWidget {
                 surfaceBrightness: Brightness.light,
               ),
               const Divider(height: 32),
-              const _SectionHeader('Delivered render blob (live prices)'),
+              const _SectionHeader('Delivered render blob'),
               _ExampleTile(
-                title: 'Pulse Premium — live',
+                title: 'Pulse Premium — bundled',
                 subtitle: 'Bundled .rfw with the tri-state tier + plan '
                     'selection — the tap state travels inside the blob.',
                 leading: const Icon(Icons.graphic_eq_outlined),
-                destination: const _RemotePaywallScreen(
-                  id: 'pulse_premium',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination: const _RemotePaywallScreen(id: 'pulse_premium'),
                 // Same fixed near-black canvas as the authored Pulse Premium.
                 surfaceBrightness: Brightness.dark,
               ),
               _ExampleTile(
-                title: 'Ascend — Free 30-Day Trial — live',
+                title: 'Ascend — Free 30-Day Trial — bundled',
                 subtitle: 'Bundled .rfw with the modal sheet + See-All-Plans '
                     'swap — the open/expand/select state travels in the blob.',
                 leading: const Icon(Icons.terrain_outlined),
-                destination: const _RemotePaywallScreen(
-                  id: 'ascend_premium',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination: const _RemotePaywallScreen(id: 'ascend_premium'),
                 // Same fixed white canvas as the authored Ascend.
                 surfaceBrightness: Brightness.light,
               ),
               _ExampleTile(
-                title: 'Fluent Pro — live',
-                subtitle: 'Bundled .rfw with the two-plan selection + a '
+                title: 'Fluent Pro — bundled fixture',
+                subtitle:
+                    'Bundled .rfw fixture with the two-plan selection + a '
                     'Navigator.push lowered to a flow: "View all plans" → pick '
-                    'a tier → back; every plan charges, inside the blob.',
+                    'a tier → back; the selected tier is reported inside the blob.',
                 leading: const Icon(Icons.auto_awesome),
-                destination: const _RemotePaywallScreen(
-                  id: 'fluent_pro',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination: const _RemotePaywallScreen(id: 'fluent_pro'),
                 // Same fixed dark-gradient canvas as the authored Fluent Pro.
                 surfaceBrightness: Brightness.dark,
               ),
               _ExampleTile(
-                title: 'Sentinel Protection — live',
-                subtitle: 'Bundled .rfw with the savings-badge selector — the '
+                title: 'Sentinel Protection — bundled fixture',
+                subtitle:
+                    'Bundled .rfw fixture with the savings-badge selector — the '
                     'selected plan travels inside the blob.',
                 leading: const Icon(Icons.verified_user),
-                destination: const _RemotePaywallScreen(
-                  id: 'sentinel_protection',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination:
+                    const _RemotePaywallScreen(id: 'sentinel_protection'),
                 // Same fixed light canvas as the authored Sentinel Protection.
                 surfaceBrightness: Brightness.light,
               ),
               _ExampleTile(
-                title: 'Narrate Membership — live',
-                subtitle: 'Bundled .rfw with the expandable plan cards — the '
+                title: 'Narrate Membership — bundled fixture',
+                subtitle:
+                    'Bundled .rfw fixture with the expandable plan cards — the '
                     'expand/collapse + selection travels inside the blob.',
                 leading: const Icon(Icons.headphones),
-                destination: const _RemotePaywallScreen(
-                  id: 'narrate_membership',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination:
+                    const _RemotePaywallScreen(id: 'narrate_membership'),
                 // Same fixed white canvas as the authored Narrate Membership.
                 surfaceBrightness: Brightness.light,
               ),
               _ExampleTile(
-                title: 'Lumen Premium — live',
-                subtitle: 'Bundled .rfw with the meditation plan-selector — '
+                title: 'Lumen Premium — bundled fixture',
+                subtitle:
+                    'Bundled .rfw fixture with the meditation plan-selector — '
                     'the selected plan travels inside the blob.',
                 leading: const Icon(Icons.self_improvement),
-                destination: const _RemotePaywallScreen(
-                  id: 'lumen_premium',
-                  priceQueries: kStubPriceQueries,
-                ),
+                destination: const _RemotePaywallScreen(id: 'lumen_premium'),
                 // Same fixed light calm canvas as the authored Lumen Premium.
                 surfaceBrightness: Brightness.light,
               ),
@@ -460,12 +438,12 @@ class _GalleryHome extends StatelessWidget {
               // onboarding that ends on the embedded Lumen paywall. Welcome →
               // two personalization questions → a reminder host-action gate
               // (advance on a granted result) → recap → the paywall step;
-              // purchasing ends the flow.
+              // continuing ends the flow.
               _ExampleTile(
                 title: 'Meditation onboarding → paywall',
                 subtitle: 'A calm multi-screen flow: welcome → two questions → '
                     'enable reminders (a host-action gate) → your plan → the '
-                    'meditation paywall. Purchase ends the flow.',
+                    'meditation paywall. Continue ends the flow.',
                 leading: const Icon(Icons.spa_outlined),
                 destination: const LumenOnboardingDemo(),
                 showEscapeButton: false,
@@ -668,9 +646,8 @@ class _ExampleTile extends StatelessWidget {
             showBackButton: showEscapeButton,
             surfaceBrightness: surfaceBrightness,
             // A local preview runs the authored paywall directly (outside
-            // codegen), so its author-fired taps (`paywallEvent` /
-            // `paywallPurchase`) need a dispatcher in scope. The delivered-blob
-            // path brings its own via RestagePaywall; mounting one here too is
+            // codegen), so its author-fired taps need a dispatcher in scope.
+            // The delivered-blob path brings its own via RestagePaywall; mounting one here too is
             // harmless (events resolve to the topmost dispatcher).
             child: RestagePaywallEventDispatcher(
               onEvent: (name, args) {
@@ -705,23 +682,15 @@ bool _returnsToGallery(RestageEvent event) =>
 /// Mounts a bundled `.rfw` asset via `RestagePaywall(id:)`.
 ///
 /// The default resolver loads `assets/paywalls/<id>.rfw` from `rootBundle`.
-/// Any [priceQueries] are handed to the runtime so
-/// `data.products.<slot>.localizedPrice` resolves to a real string; with the
-/// empty default the price slots read back empty and the layout shows the
-/// binding placeholder. Tapping a purchase button fires the paywall's events;
-/// with the stub (non-billing) configuration these resolve to no-op
-/// purchase-initiated events.
 class _RemotePaywallScreen extends StatelessWidget {
-  const _RemotePaywallScreen({required this.id, this.priceQueries = const {}});
+  const _RemotePaywallScreen({required this.id});
 
   final String id;
-  final Map<String, PriceInfo> priceQueries;
 
   @override
   Widget build(BuildContext context) {
     return RestagePaywall(
       id: id,
-      priceQueries: priceQueries,
       onEvent: (event) {
         debugPrint('paywall event: ${event.toMap()}');
         // The paywall's own close / skip (or a lowered flow's skip terminator)
@@ -732,10 +701,8 @@ class _RemotePaywallScreen extends StatelessWidget {
           return;
         }
         // Give every other delivered-paywall tap a visible result so no
-        // affordance reads as broken in the demo. A real app performs the
-        // actual action (start a purchase, restore entitlements, open Terms /
-        // Privacy) here; the example just confirms the tap was received. Load
-        // failures are surfaced by errorBuilder below, not as a SnackBar.
+        // affordance reads as broken in the demo. Load failures are surfaced
+        // by errorBuilder below, not as a SnackBar.
         showDemoPaywallEventFeedback(context, event);
       },
       // Model graceful failure: if the blob can't be resolved or decoded, show

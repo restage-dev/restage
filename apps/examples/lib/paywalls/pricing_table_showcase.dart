@@ -67,7 +67,7 @@ class PricingTableShowcase extends StatelessWidget {
               ),
               const Spacer(),
               GestureDetector(
-                onTap: paywallPurchase(slot: 'annual'),
+                onTap: paywallEvent('continue'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

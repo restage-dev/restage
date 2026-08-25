@@ -47,10 +47,8 @@ final class FlowPaywallActiveRejected extends FlowPaywallActiveResolution {
 ///
 /// Fail-closed: a retained-check failure or a render-gate rejection returns a
 /// [FlowPaywallActiveRejected] so the caller falls back to the bundled flow — an
-/// unsafe active document is NEVER rendered. (Content that rewires a charge
-/// control is not gated here — parity with the blob-OTA path: entitlement is
-/// granted only on a real purchase success, so a rewired control simply doesn't
-/// charge, exactly like a customer content bug in a bundled paywall.)
+/// unsafe active document is NEVER rendered. Event rewrites are not gated here,
+/// matching the blob-OTA path; delivered content controls which event fires.
 ///
 /// The paywall path synthesizes its flow ref FROM the active document, so the
 /// flow controller provides no independent backstop — this arm is the SOLE line

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-import '../stub_products.dart';
 import 'flows/lumen_onboarding.dart';
 import 'gallery_dismiss.dart';
 
@@ -12,27 +11,19 @@ import 'gallery_dismiss.dart';
 /// This is the *host* side: the small amount of app code that gives the flow
 /// somewhere to run. It composes the public flow primitives directly — a
 /// [RestageFlowController] (the brain) under a [RestageFlowView] (the rendering
-/// surface) — rather than the convenience `RestageFlowGraph` widget, because
-/// the embedded paywall step needs the view's `onScreenEvent` seam to route the
-/// purchase **through billing**: the flow advances to the subscribed state only
-/// on a successful purchase outcome, never on a bare tap.
+/// surface) rather than the convenience `RestageFlowGraph` widget.
 ///
 /// It does three things a real app would do:
 /// 1. **Supplies the reminder host action.** A real app shows the OS permission
 ///    dialog and returns the user's answer; this demo returns a fixed
 ///    [grantReminders] decision so both branches are exercisable.
-/// 2. **Routes the purchase through a billing gateway** (the [billingGateway]
-///    integration point). When the embedded paywall fires `purchase`, the host
-///    purchases the selected product and only advances the flow on success.
-///    This demo's default gateway simulates a successful purchase; a real app
-///    passes its own `BillingGateway` (the bundled `InAppPurchaseGateway`, …).
-/// 3. **Fails closed.** An unavailable flow shows a plain fallback, never a
+/// 2. **Fails closed.** An unavailable flow shows a plain fallback, never a
 ///    broken or partial flow.
 ///
 /// Like the other examples this ships its flow as a bundled asset (no backend).
 /// A production app delivers onboarding over the air by injecting a
-/// `ServerFlowResolver` once at startup — the host action, billing, fail-closed,
-/// and completion wiring are identical either way.
+/// `ServerFlowResolver` once at startup; the host action, fail-closed, and
+/// completion wiring are identical either way.
 class LumenOnboardingDemo extends StatefulWidget {
   /// Creates the onboarding host.
   ///
@@ -41,21 +32,10 @@ class LumenOnboardingDemo extends StatefulWidget {
   /// paywall); `false` walks the declined path (the gate holds on the priming
   /// screen — the flow never proceeds on behaviour it did not get).
   ///
-  /// [billingGateway] is the **billing integration point**: the embedded
-  /// paywall's purchase is routed through it, and the flow completes only on a
-  /// successful outcome. Defaults to a gateway that simulates success; a real
-  /// app passes its own.
-  const LumenOnboardingDemo({
-    super.key,
-    this.grantReminders = true,
-    this.billingGateway = const _SimulatedSuccessGateway(),
-  });
+  const LumenOnboardingDemo({super.key, this.grantReminders = true});
 
   /// The fixed reminder decision this demo returns from the host action.
   final bool grantReminders;
-
-  /// The billing gateway the embedded paywall's purchase routes through.
-  final BillingGateway billingGateway;
 
   @override
   State<LumenOnboardingDemo> createState() => _LumenOnboardingDemoState();
@@ -66,7 +46,6 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
   RestageFlowController<LumenOnboardingResult>? _controller;
   FlowUnavailableError? _unavailableError;
   bool _completed = false;
-  bool _purchasing = false;
 
   @override
   void initState() {
@@ -94,7 +73,7 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
       },
       onComplete: (result) {
         if (!mounted || !identical(_controller, controller)) return;
-        setState(() => _completed = result.subscribed);
+        setState(() => _completed = result.completed);
       },
       onUnavailable: (error) {
         if (!mounted || !identical(_controller, controller)) return;
@@ -110,49 +89,6 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
     _controller?.dispose();
     _controller = null;
     super.dispose();
-  }
-
-  /// Intercepts the embedded paywall's `purchase` before it advances the graph,
-  /// so the flow completes only on a successful billing outcome. Every other
-  /// screen event flows through to the controller unchanged.
-  bool _onScreenEvent(String name, Object? args) {
-    // The view passes the RAW rfw event name (`restage.purchase`); the
-    // controller normalizes it to the flow event when it isn't intercepted.
-    if (name == RestageEventNames.purchase) {
-      unawaited(_completePurchase(args));
-      return true; // consumed — advance happens on a billing success only
-    }
-    return false;
-  }
-
-  Future<void> _completePurchase(Object? args) async {
-    final controller = _controller;
-    if (controller == null || _purchasing) return;
-    _purchasing = true;
-    try {
-      // The billing INTEGRATION POINT. A real app purchases the user's selected
-      // product through its billing gateway here; the flow advances to the
-      // subscribed state ONLY on a successful outcome — never on a bare tap.
-      final slot =
-          args is Map && args['slot'] is String ? args['slot'] as String : null;
-      final outcome = await widget.billingGateway.purchase(_productFor(slot));
-      if (!mounted || !identical(_controller, controller)) return;
-      if (outcome is PurchaseOutcomeSucceeded) {
-        controller.handleEvent(RestageEventNames.purchase, args);
-      }
-      // A failed / cancelled / pending outcome leaves the user on the paywall;
-      // a real app would surface the error and let them retry.
-    } finally {
-      _purchasing = false;
-    }
-  }
-
-  /// Resolves the selected plan slot to a configured store product id.
-  String _productFor(String? slot) {
-    for (final product in kStubProducts) {
-      if (product.slot == slot) return product.id;
-    }
-    return slot ?? 'unknown';
   }
 
   @override
@@ -181,10 +117,8 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
       onEvent: controller.handleEvent,
       child: RestageFlowView<LumenOnboardingResult>(
         controller: controller,
-        onScreenEvent: _onScreenEvent,
         loadingBuilder: (context) => const ColoredBox(color: Color(0xFFF7F5FB)),
         chromeBuilder: _chrome,
-        priceQueries: kStubPriceQueries,
       ),
     );
   }
@@ -250,36 +184,13 @@ class _LumenOnboardingDemoState extends State<LumenOnboardingDemo> {
   }
 }
 
-/// A billing gateway that simulates a successful purchase — the demo's stand-in
-/// for a real `BillingGateway`. A production app swaps in its own (the bundled
-/// `InAppPurchaseGateway`, …).
-class _SimulatedSuccessGateway implements BillingGateway {
-  const _SimulatedSuccessGateway();
-
-  @override
-  Future<PurchaseOutcome> purchase(String productId,
-      {String? basePlanId}) async {
-    return PurchaseOutcome.succeeded(
-      productId: productId,
-      transactionId: 'demo-transaction',
-      verificationData: null,
-      priceMicros: 0,
-      currency: 'USD',
-    );
-  }
-
-  @override
-  Future<RestoreOutcome> restore() async => RestoreOutcome.noPurchases();
-}
-
 class _CompletionScreen extends StatelessWidget {
   const _CompletionScreen();
 
   @override
   Widget build(BuildContext context) {
-    // The terminal "you subscribed" hand-off. In a real app this is the app
-    // itself; in the gallery it needs a way back, so it carries the same
-    // close-to-gallery affordance as the flow.
+    // The terminal hand-off. In the gallery it needs a way back, so it carries
+    // the same close-to-gallery affordance as the flow.
     return const Scaffold(
       backgroundColor: Color(0xFFF7F5FB),
       body: Stack(
@@ -287,7 +198,7 @@ class _CompletionScreen extends StatelessWidget {
           SafeArea(
             child: Center(
               child: Text(
-                'Subscription started',
+                'Onboarding complete',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Color(0xFF2A2833),

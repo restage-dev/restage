@@ -7,6 +7,7 @@ import 'package:analyzer/source/line_info.dart';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
+import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/customer_structured_value_emitter.dart';
@@ -1204,6 +1205,10 @@ final class ExpressionTranslator {
     Expression inner,
     List<Issue> issues,
   ) {
+    if (inner is MethodInvocation && isUnsupportedCommerceHelperCall(inner)) {
+      issues.add(unsupportedCommerceHelperIssue(inner, _locationOf(inner)));
+      return null;
+    }
     if (inner is MethodInvocation && inner.target == null) {
       final resolvedElement = inner.methodName.element;
       HelperDefinition? helper;
@@ -2865,6 +2870,18 @@ final class ExpressionTranslator {
     final method = expr.methodName.name;
     final args = expr.argumentList.arguments;
 
+    if (isUnsupportedCommerceHelperCall(expr)) {
+      issues.add(unsupportedCommerceHelperIssue(expr, _locationOf(expr)));
+      return '';
+    }
+    if (isRestagePaywallEventCall(expr)) {
+      final eventName = _unsupportedCommerceEventName(expr);
+      if (eventName != null) {
+        issues.add(unsupportedCommerceEventIssue(eventName, _locationOf(expr)));
+        return '';
+      }
+    }
+
     // Named-intermediate inlining: a call whose method element the classifier
     // captured for THIS definition body is inlined to the helper's body —
     // element-resolved identity, never name (a customer / different-library
@@ -2987,8 +3004,7 @@ final class ExpressionTranslator {
     // Helper-call recognition: a free-function call with no target whose name
     // and declaring library are both registered in the helper table. This runs
     // BEFORE the catalog widget construction path so that recognized helpers
-    // (paywallEvent / paywallPurchase / paywallPriceFor) are never accidentally
-    // routed as widget lookups.
+    // are never accidentally routed as widget lookups.
     if (target == null) {
       final element = expr.methodName.element;
       HelperDefinition? helper;
@@ -3153,6 +3169,25 @@ final class ExpressionTranslator {
     return current;
   }
 
+  String? _unsupportedCommerceEventName(MethodInvocation expression) {
+    final args = expression.argumentList.arguments;
+    if (args.isEmpty || args.first is NamedExpression) return null;
+
+    String? blockedName(Expression eventName) {
+      final stripped = _stripParens(eventName);
+      if (stripped is ConditionalExpression) {
+        return blockedName(stripped.thenExpression) ??
+            blockedName(stripped.elseExpression);
+      }
+      final folded = tryFoldScalarConstant(stripped);
+      return folded is String && unsupportedCommerceEventNames.contains(folded)
+          ? folded
+          : null;
+    }
+
+    return blockedName(args.first);
+  }
+
   /// Distributes a single conditional argument over a value-reference
   /// (`string`-category) helper call, lowering `helper(slot: cond ? a : b)` to
   /// `switch cond { true: helper(slot: a), false: helper(slot: b) }` — the
@@ -3261,6 +3296,12 @@ final class ExpressionTranslator {
                   'got ${arg.toSource()}.',
               location: _locationOf(arg),
             ),
+          );
+          return null;
+        }
+        if (unsupportedCommerceEventNames.contains(descriptorId)) {
+          issues.add(
+            unsupportedCommerceEventIssue(descriptorId, _locationOf(arg)),
           );
           return null;
         }
@@ -3413,9 +3454,8 @@ final class ExpressionTranslator {
       issues.add(
         _navigationUnsupportedIssue(
           'a screen-navigation paywall lowers to a flow that needs a '
-          'non-purchase dismiss to terminate; add a skip affordance '
-          "(paywallEvent('skip')); purchase-based termination lands in a "
-          'later increment',
+          'dismiss event to terminate; add a skip affordance '
+          "(paywallEvent('skip'))",
           expr,
         ),
       );
@@ -5416,10 +5456,10 @@ final class ExpressionTranslator {
                   _lowersToMissableRef(lowered))) {
             // Gate 3: a passed value that can be MISSING at runtime — a
             // nullable-typed expression, OR one that lowers to a
-            // possibly-missing data reference (`data.products.*` priced-only,
-            // `data.context.*` host-omittable) — would fall to the factory
-            // default instead of the author's fallback (the body's `??` is
-            // rewritten away). Diagnosed defer, never a silent miss.
+            // possibly-missing `data.context.*` host reference — would fall
+            // to the factory default instead of the author's fallback (the
+            // body's `??` is rewritten away). Diagnosed defer, never a silent
+            // miss.
             issues.add(
               Issue(
                 code: IssueCode.customWidgetUnsupportedReducible,
@@ -5472,14 +5512,12 @@ final class ExpressionTranslator {
   }
 
   /// Whether [lowered] is an RFW reference into a namespace whose value can be
-  /// MISSING at render time: `data.products.*` (the SDK populates only priced
-  /// products) and `data.context.*` (host-supplied, omittable). `data.theme.*`
-  /// is always published, so it is present. Gate 3 defers a
+  /// missing at render time. `data.context.*` is host-supplied and omittable;
+  /// `data.theme.*` is always published. Gate 3 defers a
   /// non-nullable-typed passed value that lowers to one of these — completing
   /// it into a coalesced property would resolve to the factory default instead
   /// of the author's fallback when the reference is absent.
   bool _lowersToMissableRef(String lowered) =>
-      lowered.startsWith('data.products.') ||
       lowered.startsWith('data.context.');
 
   /// Translates a call-site value bound to [param] with the parameter's

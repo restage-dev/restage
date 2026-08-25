@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage_example/onboarding/chrome_ladder_demo.dart';
-import 'package:restage_example/stub_products.dart';
 import 'package:restage_example/user_factories.g.dart';
 import 'package:restage/restage.dart';
 import 'package:patrol/patrol.dart';
@@ -40,7 +39,6 @@ Future<void> _walkLadder(
   Restage.debugReset();
   Restage.configure(
     apiKey: 'rs_pk_smoke',
-    products: kStubProducts,
     resolver: const AssetVariantResolver(),
   );
   registerRestageWidgets();

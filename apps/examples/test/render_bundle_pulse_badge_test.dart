@@ -157,10 +157,10 @@ void main() {
 
   test('uses the exact canonical PulseBadge blob', () {
     final blob = readDeliveryArtifact('assets/paywalls/pulse_paywall.rfw');
-    expect(blob, hasLength(1428));
+    expect(blob, hasLength(1393));
     expect(
       sha256.convert(blob).toString(),
-      '78225f0f1ee1e11584a4a07b89ebdbf52c94b7f13ae510037041065101695bc6',
+      'eff5702d81976903c6bf8ab7236f66a5b95323257187438e7bb8c57c4a0c1482',
     );
     expect(
       decodeLibraryBlob(Uint8List.fromList(blob))

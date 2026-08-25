@@ -5,9 +5,11 @@ import 'package:restage/restage.dart';
 final class UpgradeOffer extends StatelessWidget {
   const UpgradeOffer({super.key});
 
+  static const continueFlow = SurfaceEvent<Map<String, Object?>>('continue');
+
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallPurchase(slot: 'primary'),
+        onPressed: paywallEvent('continue'),
         child: const Text('Upgrade'),
       );
 }

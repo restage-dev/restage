@@ -14,11 +14,11 @@ dependencies:
   http: ^1.2.0
 ''';
 
-      final result = addDependencies(src, deps: const {'restage': '^0.1.0'});
+      final result = addDependencies(src, deps: const {'restage': '^2.0.0'});
 
       expect(result.added, ['restage']);
       expect(result.kept, isEmpty);
-      expect(result.source, contains('restage: ^0.1.0'));
+      expect(result.source, contains('restage: ^2.0.0'));
       expect(result.source, contains('http: ^1.2.0'));
     });
 
@@ -50,14 +50,14 @@ dependencies:
         src,
         devDeps: const {
           'build_runner': '>=2.4.0 <3.0.0',
-          'restage_codegen': '^0.1.0',
+          'restage_codegen': '^2.0.0',
         },
       );
 
       expect(result.added, containsAll(['build_runner', 'restage_codegen']));
       expect(result.source, contains('dev_dependencies:'));
       expect(result.source, contains('build_runner: '));
-      expect(result.source, contains('restage_codegen: ^0.1.0'));
+      expect(result.source, contains('restage_codegen: ^2.0.0'));
     });
 
     test('mixed additions report added vs kept correctly', () {
@@ -74,7 +74,7 @@ dev_dependencies:
 
       final result = addDependencies(
         src,
-        deps: const {'restage': '^0.1.0'},
+        deps: const {'restage': '^2.0.0'},
         devDeps: const {'build_runner': '>=2.4.0 <3.0.0', 'test': '^1.25.0'},
       );
 
@@ -92,11 +92,11 @@ dependencies:
 
       final plan = planAddDependencies(
         src,
-        deps: const {'restage': '^0.1.0'},
+        deps: const {'restage': '^2.0.0'},
         devDeps: const {'build_runner': '>=2.4.0 <3.0.0'},
       );
 
-      expect(plan.dependenciesToAdd['restage'], '^0.1.0');
+      expect(plan.dependenciesToAdd['restage'], '^2.0.0');
       expect(plan.devDependenciesToAdd['build_runner'], '>=2.4.0 <3.0.0');
       expect(plan.dependenciesToKeep, isEmpty);
       expect(plan.devDependenciesToKeep, isEmpty);

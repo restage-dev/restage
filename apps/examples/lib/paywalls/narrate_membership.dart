@@ -20,14 +20,12 @@ import 'package:restage/restage.dart';
 ///
 /// One piece of selection state lives at the root: `standardSelected` (the
 /// Standard plan is the default). Tapping a card moves the radio, expands that
-/// card (and collapses the other), and re-targets the purchase inside the
+/// card (and collapses the other), and re-targets the action inside the
 /// delivered blob.
 ///
 /// The whole tree is inlined flat (no extracted helper widget / method) so the
 /// transpiler follows it — a helper that returns a widget is not a catalog
-/// widget and does not lower. The Standard auto-renew line binds its price to
-/// the live monthly slot; the Premium price is literal. The purchase is
-/// live-bound per plan via `paywallPurchase(slot:)`.
+/// widget and does not lower. Display prices are illustrative copy.
 @Paywall()
 class NarrateMembershipPaywall extends StatefulWidget {
   const NarrateMembershipPaywall({super.key});
@@ -235,7 +233,7 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                       const SizedBox(height: 8),
                       Text(
                         // ignore: lines_longer_than_80_chars
-                        'Auto-renews at ${paywallPriceFor(slot: 'monthly')}/mo after 1-month trial',
+                        r'Auto-renews at $14.95/mo after 1-month trial',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: Color(0xFF4A5A6E),
@@ -359,7 +357,10 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                                 ),
                                 const SizedBox(height: 4),
                                 GestureDetector(
-                                  onTap: paywallPurchase(slot: 'monthly'),
+                                  onTap: paywallEvent(
+                                    'continue',
+                                    args: {'plan': 'standard'},
+                                  ),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 15,
@@ -584,7 +585,10 @@ class _NarrateMembershipPaywallState extends State<NarrateMembershipPaywall> {
                                 ),
                                 const SizedBox(height: 4),
                                 GestureDetector(
-                                  onTap: paywallPurchase(slot: 'annual'),
+                                  onTap: paywallEvent(
+                                    'continue',
+                                    args: {'plan': 'premium'},
+                                  ),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 15,

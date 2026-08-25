@@ -2,14 +2,14 @@
 
 Every surface picks up new content the next time it is shown. That is the default, and it covers most changes: publish a new version, and the next onboarding run, paywall view, or survey render uses it.
 
-Live refresh is the opt-in accelerator on top of that. When you turn it on, a surface that is already on screen updates itself in place, with no navigation and no app restart. It works the same for every surface. An onboarding screen re-themes while the user is looking at it, a paywall swaps its offer, an in-app message updates its copy. Same lane, same rules.
+Live refresh is the opt-in accelerator on top of that. When you turn it on, a surface that is already on screen updates itself in place, with no navigation and no app restart. It works the same for every surface. An onboarding screen re-themes while the user is looking at it, a paywall updates its copy, an in-app message changes its call to action. Same mechanism, same rules.
 
 Two things are worth stating plainly:
 
 - Content updates on the next view by default. Live refresh live-updates on-screen surfaces when you opt in. It does not claim instant delivery everywhere.
-- It never weakens delivery. A live refresh re-resolves through the same fail-safe path your first render uses, skips unchanged content, and applies a change only when the surface is safe to swap: not mid-interaction, not mid-purchase, not enrolled in an experiment. If the realtime lane is unavailable, the surface keeps rendering what it already has. Live refresh accelerates delivery. It is never a bypass.
+- It never weakens delivery. A live refresh re-resolves through the same fail-safe path your first render uses, skips unchanged content, and applies a change only to idle surfaces outside an experiment. If the realtime connection is unavailable, the surface keeps rendering what it already has. Live refresh accelerates delivery. It is never a bypass.
 
-There are no timers. The realtime lane runs only while a surface is mounted and foregrounded. A resume check covers anything published while the app was backgrounded.
+There are no timers. The realtime connection runs only while a surface is mounted and foregrounded. A resume check covers anything published while the app was backgrounded.
 
 ## Turning it on
 

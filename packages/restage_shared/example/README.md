@@ -29,10 +29,8 @@ void main(List<String> args) {
 }
 ```
 
-The package also carries the shared value types (`RestageProduct`,
-`RestageEntitlement`, `EntitlementSource`), the `SurfaceDocument` /
-`FlowDocument` wire formats, and the analytics event taxonomy. Both sides read
-the same definitions, so a surface authored on one decodes byte-for-byte on the
-other.
+The package also carries the `SurfaceDocument` / `FlowDocument` wire formats
+and the analytics event taxonomy. Both sides read the same definitions, so a
+surface authored on one decodes byte-for-byte on the other.
 
 See the [package README](../README.md) for the full type inventory.

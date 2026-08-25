@@ -6,8 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:restage/restage.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-import 'stub_products.dart';
-
 /// Dev-only entrypoint that renders a paywall via **Restage-hosted delivery** —
 /// fetched through `RestageVariantResolver`, exactly as a production app would.
 ///
@@ -49,7 +47,6 @@ Future<void> main() async {
     Restage.configure(
       apiKey: _apiKey,
       baseUrl: _fakeBaseUrl,
-      products: kStubProducts,
       resolver: RestageVariantResolver(
         apiKey: _apiKey,
         environment: RestageEnvironment.sandbox,
@@ -65,7 +62,6 @@ Future<void> main() async {
       apiKey: _apiKey,
       baseUrl: _baseUrl,
       environment: RestageEnvironment.production,
-      products: kStubProducts,
     );
   }
 
@@ -103,7 +99,6 @@ class _HostedPaywallDemoApp extends StatelessWidget {
       home: Scaffold(
         body: RestagePaywall(
           id: _paywallId,
-          priceQueries: kStubPriceQueries,
           onEvent: (event) => debugPrint('paywall event: ${event.toMap()}'),
           loadingBuilder: (context) =>
               const Center(child: CircularProgressIndicator()),
@@ -190,7 +185,6 @@ class _HostedPaywallDemoState extends State<HostedPaywallDemo> {
             // A per-instance resolver — the fake-server hosted path — so the
             // gallery's app-wide AssetVariantResolver is left untouched.
             resolver: snapshot.data,
-            priceQueries: kStubPriceQueries,
             onEvent: (event) {
               debugPrint('paywall event: ${event.toMap()}');
               // The served paywall (Narrate) carries its own close affordance,

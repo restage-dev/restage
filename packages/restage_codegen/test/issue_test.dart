@@ -107,7 +107,7 @@ void main() {
   });
 
   group('Issue capability-gap support links', () {
-    const repoUrl = 'https://github.com/restage/restage';
+    const repoUrl = 'https://github.com/restage-dev/restage';
 
     Issue issueWith({
       required IssueCode code,
@@ -129,11 +129,21 @@ void main() {
       return Uri.parse(rendered.split(marker).last.trim());
     }
 
-    test('ships dark when no public issue repository URL is configured', () {
+    test('uses the package repository URL by default', () {
       final issue = issueWith(code: IssueCode.unrecognizedMethodCall);
 
-      expect(issue.toLogString(), issue.toString());
-      expect(issue.toLogString(), isNot(contains('/issues/new')));
+      final uri = supportUriFrom(issue.toLogString());
+      expect(uri.path, '/restage-dev/restage/issues/new');
+    });
+
+    test('omits issue URLs when no repository URL is configured', () {
+      final issue = issueWith(code: IssueCode.unrecognizedMethodCall);
+
+      expect(issue.toLogString(issueRepositoryUrl: ''), issue.toString());
+      expect(
+        issue.toLogString(issueRepositoryUrl: ''),
+        isNot(contains('/issues/new')),
+      );
     });
 
     test('appends a pre-filled GitHub issue URL for capability gaps', () {
@@ -152,7 +162,7 @@ void main() {
       expect(rendered, startsWith(issue.toString()));
       expect(uri.scheme, 'https');
       expect(uri.host, 'github.com');
-      expect(uri.path, '/restage/restage/issues/new');
+      expect(uri.path, '/restage-dev/restage/issues/new');
       expect(
         uri.queryParameters['title'],
         '[restage_codegen] Capability gap: unrecognizedMethodCall',
@@ -168,7 +178,7 @@ void main() {
           'schema': 'restage.codegen.capability_gap.v1',
           'code': 'unrecognizedMethodCall',
           'subject': 'NumberFormat.currency.format',
-          'sdkVersion': '0.1.0',
+          'sdkVersion': '2.0.0',
         }),
       );
       expect(
@@ -176,7 +186,7 @@ void main() {
         allOf(
           contains('Issue code: `unrecognizedMethodCall`'),
           contains('Gap subject: `NumberFormat.currency.format`'),
-          contains('SDK version: `0.1.0`'),
+          contains('SDK version: `2.0.0`'),
           contains(r'NumberFormat.currency(symbol: "$").format(price)'),
           isNot(contains('secret_paywall.dart')),
         ),

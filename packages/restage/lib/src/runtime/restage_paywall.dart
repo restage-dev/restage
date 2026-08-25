@@ -13,8 +13,6 @@ import 'package:rfw/rfw.dart';
 
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
-import '../billing/billing_gateway.dart';
-import '../billing/purchase_attribution.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_controller.dart';
@@ -36,7 +34,6 @@ import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
 import 'library_runtime_registry.dart';
-import 'product_reference_walk.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
 import 'paywall_error.dart';
@@ -83,7 +80,7 @@ void debugClearRestagePaywallCache() => resetRestagePaywallCache();
 /// RestagePaywall(
 ///   id: 'pro_upgrade',
 ///   onEvent: (event) {
-///     if (event is PurchaseSucceeded) unlockPro();
+///     if (event is PaywallCustomEvent) handlePaywallEvent(event);
 ///   },
 /// )
 /// ```
@@ -106,7 +103,6 @@ class RestagePaywall extends StatefulWidget {
     this.loadingBuilder,
     this.errorBuilder,
     this.locale,
-    this.priceQueries = const {},
     this.liveRefresh,
   });
 
@@ -141,11 +137,6 @@ class RestagePaywall extends StatefulWidget {
   /// Locale to use when resolving and rendering the paywall.
   final Locale? locale;
 
-  /// Map of productId -> live [PriceInfo] resolved from StoreKit / Play.
-  /// Host apps supply this map (or leave it empty); the SDK reads it when
-  /// populating product data.
-  final Map<String, PriceInfo> priceQueries;
-
   /// Per-widget live-refresh override. Null inherits the app-level
   /// configuration (`Restage.configure`); a provided set replaces it wholesale
   /// (an empty set opts this surface out entirely).
@@ -171,8 +162,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   late final RootAnalyticsAnonymousContext _anonymousAnalyticsOwner;
 
   /// The server-assigned published version of the last successfully-resolved
-  /// variant, captured at load so a later purchase attributes its conversion to
-  /// the exact served version (MAR). Null for bundled / custom resolutions.
+  /// variant. Null for bundled or custom resolutions.
   int? _resolvedPaywallPublishedVersion;
 
   /// This surface's live-refresh participation handle, registered at mount and
@@ -180,7 +170,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   SurfaceRefreshHandle? _refreshHandle;
 
   /// True once any authored event has been dispatched from the rendered
-  /// content (a tap, an input, a purchase). Deliberately broad: any interaction
+  /// content (a tap or input). Deliberately broad: any interaction
   /// makes the surface dirty for the rest of this mount so a live swap never
   /// pulls the rug from under a user who has started engaging.
   bool _userInteracted = false;
@@ -189,8 +179,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// served under an A/B arm. Non-null locks the surface out of live swaps so
   /// exposure accounting stays clean (a remount re-resolves fresh).
   String? _renderedExperimentId;
-  String? _renderedExperimentVariantId;
-  int? _renderedExperimentEpoch;
 
   /// The anonymous-identity generation that selected the rendered hosted
   /// artifact. A later generation cannot replace it within this presentation.
@@ -202,10 +190,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   String? _renderedSurfaceVersion;
 
   /// The hosted flow controller when the resolved payload is flow-shaped (a
-  /// lowered navigation paywall); null for a single-blob paywall. The paywall
-  /// intercepts this controller's purchase/restore events out-of-band so they
-  /// bill instead of driving a graph transition (see
-  /// [_interceptFlowScreenEvent]).
+  /// lowered navigation paywall); null for a single-blob paywall.
   RestageFlowController<void>? _flowController;
   FirstPaintLeaseTransaction? _flowTransaction;
   int? _flowEpoch;
@@ -240,14 +225,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   int? _pendingFlowEpoch;
   RestageFlowController<void>? _flowToDisposeAfterPromotion;
   _BlobStage? _blobToDisposeAfterPromotion;
-
-  /// Guards a native purchase/restore so a double-tap cannot start a second
-  /// billing call while one is already in flight. Shared by the blob and flow
-  /// paths — both route through [_runPurchase] / [_runRestore] — and released
-  /// on EVERY outcome (success/pending/cancelled/failed/error), so a legitimate
-  /// sequential purchase or retry is never blocked; it is a pure
-  /// concurrent-re-entrancy guard, transparent to sequential purchases.
-  bool _billingInFlight = false;
 
   /// Whether the paywall lifecycle (`PaywallLoadCompleted` + `PaywallViewed`)
   /// has been announced for a flow-hosted paywall. The flow runtime fires its
@@ -305,8 +282,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
     SurfaceRefreshRegistry.instance.register(handle);
   }
 
-  /// The swap-safety gate. A surface is safe to live-swap only when no store
-  /// operation is in flight, the user has not interacted, the render is not
+  /// The swap-safety gate. A surface is safe to live-swap only when the user
+  /// has not interacted, the render is not
   /// experiment-assigned, and any hosted flow is pristine and idle.
   bool _payloadPresentationIsCurrent(
     ResolvedPaywallPayload payload,
@@ -325,7 +302,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   bool _canSwap() =>
-      !_billingInFlight &&
       !_userInteracted &&
       _renderedExperimentId == null &&
       (_renderedAssignmentLease?.isCurrent ?? true) &&
@@ -349,21 +325,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   @override
-  void didUpdateWidget(RestagePaywall oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // A fresh priceQueries map is the documented way a host supplies newly
-    // resolved prices after mount. Re-running the product lane here is what
-    // lets a surface that started with no commerce context (rendering the
-    // placeholder) heal to live prices once the host has them, instead of
-    // being frozen in the placeholder lane for its whole lifetime.
-    if (identical(oldWidget.priceQueries, widget.priceQueries)) return;
-    for (final stage in <_BlobStage?>[_blobPresentation, _pendingBlobStage]) {
-      if (stage == null) continue;
-      _populateBlobProductLane(stage);
-    }
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Publish the host theme into `data.theme.*` — once at mount, then on
@@ -371,11 +332,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     // registers the dependency, so this re-fires when either changes.
     // `themeChanged` gates the theme republish only (an unrelated dependency
     // change, or a fresh-but-equal ThemeData instance, must not re-publish
-    // unchanged theme data) — it does NOT gate the product lane below, which
-    // re-runs on every dependency-change opportunity so commerce context
-    // that arrives after the initial render (e.g. `Restage.configure()`
-    // racing a fast load) heals off the placeholder, mirroring the flow
-    // lanes' population site.
+    // unchanged theme data).
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final iconTheme = theme.iconTheme;
@@ -393,7 +350,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       _pendingBlobStage,
     ]) {
       if (stage == null) continue;
-      _populateBlobProductLane(stage);
       if (themeChanged) {
         populateThemeData(
           stage.data,
@@ -409,8 +365,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// and the app-wide [Restage.events] stream.
   ///
   /// The global stream is unconditional: events fired after this widget
-  /// unmounts (e.g. a purchase outcome that resolves after the user
-  /// navigates away) still reach app-wide listeners. The per-paywall
+  /// unmounts still reach app-wide listeners. The per-paywall
   /// callback is mounted-guarded so the host doesn't receive callbacks
   /// for a widget that no longer exists.
   RootAnalyticsPresentation? get _activeAnalyticsPresentation {
@@ -538,9 +493,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
         return;
       }
       // A flow-shaped payload (a lowered navigation paywall) is hosted by the
-      // flow runtime; a purchase on any of its screens is intercepted to bill
-      // (see [_startFlow] / [_interceptFlowScreenEvent]). The blob path below is
-      // unchanged — the sealed demux only adds the flow branch.
+      // flow runtime. The blob path below uses the same event demux boundary.
       if (payload is FlowPaywallPayload) {
         if (!mounted) {
           payload.abandonHostedLastGood();
@@ -587,9 +540,9 @@ class _RestagePaywallState extends State<RestagePaywall> {
           payload.abandonHostedLastGood();
           return;
         }
-        // A user interaction or store op that began during the async resolve
-        // makes the surface dirty; abort the swap (defer = drop — the next
-        // remount is fresh-first anyway).
+        // User interaction, flow activity, or an assignment change during the
+        // async resolve makes the surface unsafe; abort the swap (defer =
+        // drop — the next remount is fresh-first anyway).
         if (!_canSwap()) {
           payload.abandonHostedLastGood();
           return;
@@ -917,8 +870,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _blobPresentation = null;
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
     _renderedExperimentId = payload.experimentId;
-    _renderedExperimentVariantId = payload.variantId;
-    _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedSurfaceVersion = null;
   }
@@ -1101,10 +1052,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// a flow controller over the already-resolved document + a synthesized
   /// descriptor, rendered via [RestageFlowView] in [build].
   ///
-  /// The paywall runtime contract is preserved on every screen: purchase/restore
-  /// initiation is intercepted to bill (never to drive a graph transition, see
-  /// [_interceptFlowScreenEvent]), and the flow's onboarding-shaped lifecycle is
-  /// suppressed in favor of paywall lifecycle keyed on [RestagePaywall.id].
+  /// The flow's onboarding-shaped lifecycle is suppressed in favor of paywall
+  /// lifecycle keyed on [RestagePaywall.id].
   void _startFlow(
     FlowPaywallPayload payload,
     Stopwatch stopwatch, {
@@ -1420,8 +1369,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ) {
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
     _renderedExperimentId = payload.experimentId;
-    _renderedExperimentVariantId = payload.variantId;
-    _renderedExperimentEpoch = payload.experimentEpoch;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedSurfaceVersion = null;
   }
@@ -1594,18 +1541,14 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   /// Routes a screen-fired event for a flow-hosted paywall. Navigation events
   /// (the synthetic `restageNav<N>`, the reserved `back` / `skip`) flow through
-  /// to the controller's graph. Everything else — purchase/restore initiation
-  /// and custom events — is handled by the paywall demux out-of-band and
-  /// consumed, so the controller never drives a speculative transition and a
-  /// custom event surfaces as a paywall-keyed [PaywallCustomEvent], not a
-  /// flowId-bearing FlowCustomEvent. Returns true when consumed.
+  /// to the controller's graph. Other events are handled by the paywall demux
+  /// and consumed, so a custom event is keyed to the paywall rather than the
+  /// flow. Returns true when consumed.
   bool _interceptFlowScreenEvent(String name, Map<String, Object?> args) {
     if (_isFlowNavigationEvent(name)) return false;
-    // Mirror the controller's own event gate (flow_controller.handleEvent): a
-    // purchase/restore from a screen whose flow is mid-transition, complete, or
-    // failed must NOT bill — a stale tap during a skip/back/nav transition, or
-    // after the flow has ended, must never charge. Consume-and-drop so the
-    // event still never reaches the graph.
+    // Mirror the controller's own event gate. A stale event during a
+    // transition or after the flow has ended is consumed rather than reaching
+    // the graph.
     final controller = _flowController;
     if (controller != null &&
         (controller.isBusy ||
@@ -1735,8 +1678,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }) {
     final event = PaywallViewed(
       paywallId: widget.id,
-      productIds:
-          Restage.configuredProducts.map((p) => p.id).toList(growable: false),
       variantId: variantId,
       experimentId: experimentId,
       experimentEpoch: experimentEpoch,
@@ -1759,9 +1700,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   /// The flow reached its end state (the entry screen's skip/dismiss → end): the
   /// user backed out of the paywall. Surface a paywall dismiss keyed on
-  /// paywallId — NOT an onboarding completion. (A successful purchase does NOT
-  /// route here; per the paywall contract the host owns dismissal, identical to
-  /// a blob paywall.)
+  /// paywallId — not an onboarding completion.
   void _handleFlowComplete(RestageFlowController<void> controller) {
     if (!mounted || !identical(_flowController, controller)) return;
     _finalizeMeasurementSessionForFlow(controller);
@@ -1802,16 +1741,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       message: err.message,
       retryable: false,
     ));
-  }
-
-  /// Feeds a synthesized purchase/restore OUTCOME event to a hosted flow
-  /// controller after billing resolves, so a flow screen can transition on a
-  /// CONFIRMED outcome — never on `PaywallFlowEvents.purchase`, which would
-  /// navigate on initiation, before charging. A flow screen with no transition
-  /// on the outcome event simply ignores it (and a blob paywall has no flow
-  /// controller, so this is always a no-op there).
-  void _feedFlowOutcome(String outcomeEvent) {
-    _flowController?.handleEvent(outcomeEvent, const <String, Object?>{});
   }
 
   /// Stages a decoded blob in an isolated runtime. The current presentation
@@ -1880,7 +1809,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       transaction: transaction,
       analyticsPresentation: analyticsPresentation,
       measurementSession: measurementSession,
-      library: library,
     );
     _populateBlobData(stage);
 
@@ -1914,7 +1842,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   void _populateBlobData(_BlobStage stage) {
-    _populateBlobProductLane(stage);
     final mq = MediaQuery.maybeOf(context);
     if (mq != null) {
       populateDeviceData(
@@ -1934,33 +1861,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
         iconTheme: iconTheme,
         defaultTextStyle: textStyle,
       );
-    }
-  }
-
-  /// Populates `data.products.*` on [stage], selected by
-  /// `Restage.hasCommerceContext`: context present uses live resolved prices
-  /// (unchanged fail-closed semantics); no context uses the shared
-  /// placeholder for [stage]'s memoized [_BlobStage.placeholderLane].
-  ///
-  /// Called at initial stage construction (via [_populateBlobData]) and again
-  /// from [didUpdateWidget] (a `priceQueries` change) and
-  /// [didChangeDependencies] (any dependency change) — the two seams that
-  /// let commerce context arriving after the initial render heal a surface
-  /// off the placeholder instead of freezing it there for its lifetime.
-  void _populateBlobProductLane(_BlobStage stage) {
-    if (Restage.hasCommerceContext(priceQueries: widget.priceQueries)) {
-      populateProductData(
-        stage.data,
-        products: Restage.configuredProducts,
-        priceQueries: widget.priceQueries,
-      );
-    } else {
-      populatePlaceholderProductData(
-        stage.data,
-        stage.placeholderLane.keys,
-        shouldLog: !stage.placeholderLane.logged,
-      );
-      stage.placeholderLane.logged = true;
     }
   }
 
@@ -1987,8 +1887,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _flowEpoch = null;
     _resolvedPaywallPublishedVersion = variant.paywallPublishedVersion;
     _renderedExperimentId = variant.experimentId;
-    _renderedExperimentVariantId = variant.variantId;
-    _renderedExperimentEpoch = variant.experimentEpoch;
     _renderedAssignmentLease = stage.payload.assignmentLease;
     _renderedSurfaceVersion = variant.surfaceVersion;
   }
@@ -2241,27 +2139,22 @@ class _RestagePaywallState extends State<RestagePaywall> {
     super.dispose();
   }
 
-  /// Single helper that translates RFW events into [RestageEvent]s.
+  /// Translates RFW events into [RestageEvent]s.
   ///
-  /// SDK-owned events (`restage.purchase`, `restage.restore`) become typed
-  /// `PurchaseInitiated` / `RestoreInitiated`; everything else flows through
-  /// as [PaywallCustomEvent]. See [demuxRfwEvent].
-  ///
-  /// When the demuxed event is [PurchaseInitiated] / [RestoreInitiated] the
-  /// SDK also invokes [Restage.billingGateway] and fires the resulting
-  /// follow-up event (`PurchaseSucceeded`, `PurchasePending`, etc.).
+  /// Reserved commerce event names are ignored. Other events remain available
+  /// to host apps as [PaywallCustomEvent]s.
   void _handleRfwEvent(
     String name,
     Object? args, {
     MeasurementHostSessionController? measurementSession,
   }) {
+    if (isReservedCommerceEventName(name)) return;
     final businessArgs = measurementSession == null
         ? MeasurementEventSanitizer.sanitize(args).businessValue
         : measurementSession.sanitizeAndRecordEvent(args);
     // Any authored event from the rendered content marks the surface dirty for
-    // the swap-safety gate. Deliberately broad — taps, inputs, purchases — so a
-    // live swap never lands under an engaged user. Only reached for authored
-    // content events (theme/system changes flow through didChangeDependencies).
+    // the swap-safety gate. Deliberately broad, so a live swap never lands
+    // under an engaged user. Theme and system changes use dependencies instead.
     _userInteracted = true;
     final argsMap = businessArgs is Map<String, Object?>
         ? businessArgs
@@ -2273,238 +2166,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
       name: name,
       args: argsMap,
     );
-
-    // Reserve the in-flight billing guard BEFORE firing the initiation event,
-    // so a double-tap (or a synchronous re-entrant `onEvent` listener) fires the
-    // initiation AND bills exactly once — a second concurrent initiation is
-    // dropped whole (no duplicate `PurchaseInitiated`/`RestoreInitiated`, no
-    // second charge). Billing is dispatched before the event fires so its
-    // `finally` owns the guard release even if the synchronous event fire throws
-    // (a host `onEvent` could). _runPurchase/_runRestore only RELEASE the guard.
-    if (event is PurchaseInitiated && event.productId.isNotEmpty) {
-      if (_billingInFlight) return;
-      _billingInFlight = true;
-      final attribution =
-          _activeAnalyticsPresentation?.captureDeferredContext();
-      unawaited(_runPurchase(
-        event.productId,
-        offerId: event.offerId,
-        attribution: attribution,
-      ));
-      _fireEvent(event);
-      return;
-    }
-    if (event is RestoreInitiated) {
-      if (_billingInFlight) return;
-      _billingInFlight = true;
-      final attribution =
-          _activeAnalyticsPresentation?.captureDeferredContext();
-      unawaited(_runRestore(attribution: attribution));
-      _fireEvent(event);
-      return;
-    }
-    _fireEvent(event);
-  }
-
-  Future<void> _runPurchase(
-    String productId, {
-    String? offerId,
-    RootAnalyticsDeferredContext? attribution,
-  }) async {
-    // The in-flight billing guard is reserved by the caller (_handleRfwEvent)
-    // before the initiation event fires; here we only RELEASE it in the
-    // `finally` on EVERY outcome (success/pending/cancelled/failed/thrown
-    // error), so a legitimate sequential purchase or retry is never blocked.
-    try {
-      final gateway = Restage.billingGateway;
-      final coordinatorOwned = BundledPurchaseOwnership.isInstalled(gateway);
-      final purchaseAttribution = _capturePurchaseAttribution(
-        offerId,
-        rootAnalyticsContext: attribution,
-      );
-      final purchase = PurchaseAttributionScope.run(
-        purchaseAttribution,
-        () => Restage.purchaseProduct(productId, offerId: offerId),
-      );
-      final outcome = await purchase;
-      // Don't early-return on !mounted: the global event stream + entitlement
-      // grant must run even when the user has navigated away mid-flow,
-      // otherwise a user who taps Buy and then dismisses gets charged but
-      // never receives the entitlement. The per-paywall onEvent callback is
-      // mounted-guarded inside _fireEvent.
-      switch (outcome) {
-        case PurchaseOutcomeSucceeded(
-            :final transactionId,
-            :final verificationData,
-            :final priceMicros,
-            :final currency,
-          ):
-          _fireEvent(
-            PurchaseSucceeded(
-              paywallId: widget.id,
-              productId: productId,
-              transactionId: transactionId,
-              priceMicros: priceMicros,
-              currency: currency,
-              offerId: offerId,
-            ),
-            attribution: attribution,
-          );
-          if (!coordinatorOwned) {
-            Restage.grantEntitlementForProduct(
-              productId,
-              EntitlementSource.purchase,
-            );
-            if (verificationData != null) {
-              // Verified purchase (the bundled gateway surfaced the store
-              // receipt): report it to the entitlement service in the
-              // background. The optimistic local grant above keeps UX
-              // immediate; the report converges the server's view and feeds
-              // the reserved subscription events on the next reconciliation.
-              // No-ops cleanly when the SDK was configured without a baseUrl.
-              unawaited(Restage.reportTransaction(
-                storeProductId: productId,
-                storeTransactionId: transactionId,
-                storeVerificationData: verificationData,
-                paywallId: widget.id,
-                paywallPublishedVersion: _resolvedPaywallPublishedVersion,
-              ));
-            } else if (verificationData == null && transactionId != null) {
-              // Receipt-less, attribution-only success: an external-provider
-              // gateway delegated the purchase and kept the receipt, so there
-              // is nothing to validate. Report the attribution hint
-              // (transaction id + paywall id) — never down the
-              // receipt-validation path. No-ops cleanly when the SDK was
-              // configured without a baseUrl.
-              unawaited(Restage.reportAttribution(
-                storeProductId: productId,
-                storeTransactionId: transactionId,
-                paywallId: widget.id,
-                paywallPublishedVersion: _resolvedPaywallPublishedVersion,
-              ));
-            } else {
-              // Neither a receipt nor a transaction id: an external-provider
-              // gateway delegated the purchase, kept the receipt, and the
-              // store issued no transaction identity (a Google Play
-              // promotional-code redemption is the reachable case). There is
-              // nothing to validate and nothing to correlate an attribution
-              // hint against, so no report is sent. The local grant above still
-              // applies, and the entitlement service converges on the next
-              // sync. This branch exists so the absence of a report is a stated
-              // outcome rather than a silent fall-through.
-            }
-          }
-          _feedFlowOutcome(_kPurchaseSucceededEvent);
-        case PurchaseOutcomePending(:final reason):
-          _fireEvent(
-            PurchasePending(
-              paywallId: widget.id,
-              productId: productId,
-              reason: reason,
-            ),
-            attribution: attribution,
-          );
-          _feedFlowOutcome(_kPurchasePendingEvent);
-        case PurchaseOutcomeCancelled():
-          _fireEvent(
-            PurchaseCancelled(
-              paywallId: widget.id,
-              productId: productId,
-            ),
-            attribution: attribution,
-          );
-          _feedFlowOutcome(_kPurchaseCancelledEvent);
-        case PurchaseOutcomeFailed(
-            :final errorCode,
-            :final message,
-            :final platformErrorCode,
-          ):
-          _fireEvent(
-            PurchaseFailed(
-              paywallId: widget.id,
-              productId: productId,
-              errorCode: errorCode,
-              message: message,
-              platformErrorCode: platformErrorCode,
-            ),
-            attribution: attribution,
-          );
-          _feedFlowOutcome(_kPurchaseFailedEvent);
-      }
-    } finally {
-      _billingInFlight = false;
-    }
-  }
-
-  Future<void> _runRestore({
-    RootAnalyticsDeferredContext? attribution,
-  }) async {
-    // The in-flight billing guard is reserved by the caller (_handleRfwEvent);
-    // here we only RELEASE it in the `finally` on every outcome.
-    try {
-      final gateway = Restage.billingGateway;
-      final coordinatorOwned = BundledPurchaseOwnership.isInstalled(gateway);
-      final outcome = await gateway.restore();
-      // See _runPurchase: global side effects fire regardless of mount.
-      switch (outcome) {
-        case RestoreOutcomeSucceeded(:final restoredProductIds):
-          _fireEvent(
-            RestoreSucceeded(
-              paywallId: widget.id,
-              restoredProductIds: restoredProductIds,
-            ),
-            attribution: attribution,
-          );
-          if (!coordinatorOwned) {
-            for (final productId in restoredProductIds) {
-              Restage.grantEntitlementForProduct(
-                productId,
-                EntitlementSource.restore,
-              );
-            }
-          }
-          _feedFlowOutcome(_kRestoreSucceededEvent);
-        case RestoreOutcomeNoPurchases():
-          _fireEvent(
-            RestoreNoPurchases(paywallId: widget.id),
-            attribution: attribution,
-          );
-          _feedFlowOutcome(_kRestoreNoPurchasesEvent);
-        case RestoreOutcomeFailed(:final errorCode, :final message):
-          _fireEvent(
-            RestoreFailed(
-              paywallId: widget.id,
-              errorCode: errorCode,
-              message: message,
-            ),
-            attribution: attribution,
-          );
-          _feedFlowOutcome(_kRestoreFailedEvent);
-      }
-    } finally {
-      _billingInFlight = false;
-    }
-  }
-
-  PurchaseAttributionSnapshot _capturePurchaseAttribution(
-    String? offerId, {
-    RootAnalyticsDeferredContext? rootAnalyticsContext,
-  }) {
-    final experimentId = _renderedExperimentId;
-    final experimentVariantId = _renderedExperimentVariantId;
-    final experimentEpoch = _renderedExperimentEpoch;
-    final hasCompleteExperiment = experimentId != null &&
-        experimentVariantId != null &&
-        experimentEpoch != null;
-    return PurchaseAttributionSnapshot(
-      paywallId: widget.id,
-      paywallPublishedVersion: _resolvedPaywallPublishedVersion,
-      experimentId: hasCompleteExperiment ? experimentId : null,
-      experimentVariantId: hasCompleteExperiment ? experimentVariantId : null,
-      experimentEpoch: hasCompleteExperiment ? experimentEpoch : null,
-      offerId: offerId,
-      rootAnalyticsContext: rootAnalyticsContext,
-    );
+    if (event != null) _fireEvent(event);
   }
 
   void _handleBlobRfwEvent(
@@ -2581,7 +2243,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       controller: controller,
       onScreenEvent: _interceptFlowScreenEvent,
       loadingBuilder: widget.loadingBuilder,
-      priceQueries: widget.priceQueries,
       // A paywall is fully self-authored, so built-in flow chrome never
       // overlaps its authored back and dismiss affordances.
       chromeBuilder: (context, state, screen) => screen,
@@ -2624,9 +2285,8 @@ class _RestagePaywallState extends State<RestagePaywall> {
         excluding: staged || candidatePending,
         child: AbsorbPointer(
           absorbing: staged || candidatePending,
-          // A lowered navigation paywall: host the flow. Purchase/restore on
-          // any screen is intercepted to bill; navigation events drive the
-          // flow. A staged refresh is visibly built above last-good, but inert.
+          // A lowered navigation paywall: host the flow. A staged refresh is
+          // visibly built above last-good, but inert.
           child: child,
         ),
       ),
@@ -2702,27 +2362,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
 }
 
 // Reserved flow navigation events the adapter forwards to the controller's
-// graph. Everything else fired by a paywall screen either bills (purchase /
-// restore) or surfaces as a paywall custom event. `restageNav<N>` is the
+// graph. Other events surface as paywall custom events. `restageNav<N>` is the
 // synthesized nav transition; `back` / `skip` are the flow runtime's reserved
 // history-pop / dismiss events.
 const String _kFlowBackEvent = 'back';
 const String _kFlowSkipEvent = 'skip';
 const String _kFlowNavEventPrefix = 'restageNav';
-
-// The synthesized purchase/restore OUTCOME flow events — the named
-// outcome-event contract. After billing resolves, the adapter feeds the
-// matching one to a hosted flow controller so a flow screen can transition on a
-// CONFIRMED outcome, never on `PaywallFlowEvents.purchase` (which fires on
-// initiation, before charging). A flow screen that authors no transition on the
-// outcome event ignores it.
-const String _kPurchaseSucceededEvent = 'restage.purchase.succeeded';
-const String _kPurchasePendingEvent = 'restage.purchase.pending';
-const String _kPurchaseCancelledEvent = 'restage.purchase.cancelled';
-const String _kPurchaseFailedEvent = 'restage.purchase.failed';
-const String _kRestoreSucceededEvent = 'restage.restore.succeeded';
-const String _kRestoreNoPurchasesEvent = 'restage.restore.noPurchases';
-const String _kRestoreFailedEvent = 'restage.restore.failed';
 
 /// A [FlowResolver] that returns an already-resolved flow verbatim.
 ///
@@ -2776,8 +2421,7 @@ final class _BlobStage {
     required this.transaction,
     required this.analyticsPresentation,
     required this.measurementSession,
-    required WidgetLibrary library,
-  }) : placeholderLane = PlaceholderProductLane(library);
+  });
 
   final BlobPaywallPayload payload;
   final Runtime runtime;
@@ -2789,13 +2433,6 @@ final class _BlobStage {
   final FirstPaintLeaseTransaction transaction;
   final RootAnalyticsPresentation analyticsPresentation;
   final MeasurementHostSessionController measurementSession;
-
-  /// This stage's placeholder-lane state (memoized referenced keys + sticky
-  /// log flag), walked once at construction from the stage's decoded widget
-  /// library — a later re-population (a `priceQueries` change, or a
-  /// dependency-change heal check) reuses it without re-decoding or
-  /// re-walking.
-  final PlaceholderProductLane placeholderLane;
 
   _BlobStage? previousBlob;
   RestageFlowController<void>? previousFlow;

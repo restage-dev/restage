@@ -17,12 +17,12 @@ import 'fluent_pro_choose_plan.dart';
 ///
 /// The value content (the mascot hero and the headline) scrolls in an
 /// `Expanded(SingleChildScrollView(...))`; the offer zone — the two plan cards,
-/// the purchase pill, the "view all plans" link, and the legal line — is pinned
-/// below, so the buy button is always on screen.
+/// the continue pill, the "view all plans" link, and the legal line — is pinned
+/// below, so the continue action is always on screen.
 ///
 /// One piece of selection state lives at the root: `personalSelected` (the
 /// framed "most popular" Personal plan is the default). Tapping a plan card
-/// moves the selected check and re-targets the purchase — all inside the
+/// moves the selected check and reports the selection — all inside the
 /// delivered blob, with no host code.
 ///
 /// ## "View all plans" is a real navigation
@@ -372,7 +372,7 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                                   ),
                                 ),
                                 Text(
-                                  paywallPriceFor(slot: 'monthly'),
+                                  r'$6.99',
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 17,
@@ -425,10 +425,13 @@ class _FluentProPaywallState extends State<FluentProPaywall> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                // White "START MY FREE WEEK" pill — purchases the selected plan.
+                // White "START MY FREE WEEK" pill — reports the selected plan.
                 GestureDetector(
-                  onTap: paywallPurchase(
-                    slot: personalSelected ? 'monthly' : 'family',
+                  onTap: paywallEvent(
+                    'continue',
+                    args: {
+                      'plan': personalSelected ? 'personal' : 'family',
+                    },
                   ),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),

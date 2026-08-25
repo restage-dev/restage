@@ -7,9 +7,7 @@ import 'package:restage/restage.dart';
 /// Test fixture mirroring `apps/examples/lib/paywalls/pro_upgrade_paywall.dart`.
 ///
 /// Replicated inline because the SDK's test environment cannot import from the
-/// `apps/examples/` package. Without a codegen-installed dispatcher,
-/// `paywallPurchase`/`paywallPriceFor`/`paywallEvent` exercise their non-codegen
-/// runtime fallbacks (debugPrint sink + `'$X.XX'` placeholder).
+/// `apps/examples/` package.
 @PaywallSource(id: 'pro_upgrade')
 class _ProUpgradePaywall extends StatelessWidget {
   const _ProUpgradePaywall();
@@ -37,19 +35,26 @@ class _ProUpgradePaywall extends StatelessWidget {
                 ),
                 const SizedBox(height: 40),
                 ElevatedButton(
-                  onPressed: paywallPurchase(slot: 'primary'),
-                  child: Text(
-                      'Subscribe — ${paywallPriceFor(slot: 'primary')} / mo'),
+                  onPressed: paywallEvent(
+                    'cta_tapped',
+                    args: const {'action': 'primary'},
+                  ),
+                  child: const Text('Subscribe — \$X.XX / mo'),
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: paywallPurchase(slot: 'secondary'),
-                  child: Text(
-                      '${paywallPriceFor(slot: 'secondary')} / yr — best value'),
+                  onPressed: paywallEvent(
+                    'cta_tapped',
+                    args: const {'action': 'secondary'},
+                  ),
+                  child: const Text('\$X.XX / yr — best value'),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: paywallEvent('restore'),
+                  onPressed: paywallEvent(
+                    'cta_tapped',
+                    args: const {'action': 'tertiary'},
+                  ),
                   child: const Text('Restore purchases'),
                 ),
               ],

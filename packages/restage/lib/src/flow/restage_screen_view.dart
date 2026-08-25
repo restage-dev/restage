@@ -3,8 +3,6 @@ import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
 
 import '../runtime/error_boundary.dart';
-import '../runtime/product_reference_walk.dart';
-import '../runtime/state_variables.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
@@ -45,7 +43,6 @@ final class RestageScreenView<R> extends StatefulWidget {
     required this.controller,
     this.onRuntimeError,
     this.loadingBuilder,
-    this.priceQueries = const {},
   });
 
   /// The flow brain whose current screen this surface renders.
@@ -59,10 +56,6 @@ final class RestageScreenView<R> extends StatefulWidget {
   /// loads, while crossing a sub-flow boundary, or after the flow fails closed.
   final WidgetBuilder? loadingBuilder;
 
-  /// Map of productId -> live [PriceInfo] for paywall blobs rendered as flow
-  /// screens.
-  final Map<String, PriceInfo> priceQueries;
-
   @override
   State<RestageScreenView<R>> createState() => _RestageScreenViewState<R>();
 }
@@ -74,12 +67,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
   DynamicContent? _data;
   int? _entryId;
   bool _dependenciesReady = false;
-
-  /// The current screen's placeholder-lane state (memoized referenced keys +
-  /// sticky log flag), walked once in [_sync] when its library is set and
-  /// replaced on each new screen — reused by every later re-population
-  /// instead of re-walking per call.
-  PlaceholderProductLane? _placeholderLane;
 
   @override
   void initState() {
@@ -98,9 +85,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
       _disposeRuntime();
       _entryId = null;
       _sync();
-    }
-    if (!identical(oldWidget.priceQueries, widget.priceQueries)) {
-      _populateData();
     }
   }
 
@@ -141,7 +125,6 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     _entryId = entryId;
     _runtime = _libraries.runtimeFor(library);
     _data = DynamicContent();
-    _placeholderLane = PlaceholderProductLane(library);
     _populateData();
   }
 
@@ -157,17 +140,12 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
 
   void _populateData() {
     final data = _data;
-    final lane = _placeholderLane;
-    if (data == null || lane == null) return;
-    final tookPlaceholderLane = populateFlowScreenData(
+    if (data == null) return;
+    populateFlowScreenData(
       context,
       data,
-      priceQueries: widget.priceQueries,
       includeInheritedData: _dependenciesReady,
-      placeholderKeys: lane.keys,
-      shouldLogPlaceholder: !lane.logged,
     );
-    if (tookPlaceholderLane) lane.logged = true;
   }
 
   @override

@@ -1290,62 +1290,6 @@ final Catalog kRegistry = Catalog(
       ],
     ),
     WidgetEntry(
-      wireId: WireId('w0015'),
-      name: 'ExpressCheckoutButton',
-      library: WidgetLibrary.material,
-      category: WidgetCategory.action,
-      description:
-          'Conversion-CTA button for platform-native express-checkout flows.',
-      flutterType:
-          'package:restage_material/src/widgets/express_checkout_button.dart#ExpressCheckoutButton',
-      childrenSlot: ChildrenSlot.none,
-      properties: [
-        PropertyEntry(
-          wireId: WireId('p0070'),
-          name: 'onPressed',
-          type: PropertyType.event,
-          description:
-              'Fires when the user taps the button. Pass `null` (the default) to render the button in its disabled state.',
-          constructorNullable: true,
-          category: PropertyCategory.behavior,
-        ),
-        PropertyEntry(
-          wireId: WireId('p0071'),
-          name: 'paymentMethod',
-          type: PropertyType.enumValue,
-          description:
-              'Which platform\'s express-checkout variant to render. Defaults to [ExpressPaymentMethod.auto].',
-          enumType: 'ExpressPaymentMethod',
-          defaultSource: LiteralDefault('auto'),
-          valueShape: EnumShape(
-              propertyType: PropertyType.enumValue,
-              enumRef: DartTypeRef(
-                  libraryUri:
-                      'package:restage_material/src/widgets/express_checkout_button.dart',
-                  symbolName: 'ExpressPaymentMethod')),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0072'),
-          name: 'label',
-          type: PropertyType.string,
-          description:
-              'Overrides the platform-default label (for example `\'Subscribe with Apple Pay\'`). When `null`, a sensible default is chosen based on the resolved payment method.',
-          constructorNullable: true,
-          valueShape: ScalarShape(
-              propertyType: PropertyType.string,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0428'),
-          name: 'analyticsId',
-          type: PropertyType.string,
-          description: 'Optional identifier for this widget occurrence.',
-          synthetic: 'analyticsId',
-        ),
-      ],
-    ),
-    WidgetEntry(
       wireId: WireId('w0016'),
       name: 'FilledButton',
       library: WidgetLibrary.material,
@@ -3436,46 +3380,6 @@ final Catalog kRegistry = Catalog(
               transform: IdentityTransform(),
             ),
           ],
-        ),
-      ],
-    ),
-    WidgetEntry(
-      wireId: WireId('w0029'),
-      name: 'Package',
-      library: WidgetLibrary.material,
-      category: WidgetCategory.action,
-      description: 'Binds a child widget tree to a configured product slot.',
-      flutterType: 'package:restage_material/src/widgets/package.dart#Package',
-      childrenSlot: ChildrenSlot.single,
-      properties: [
-        PropertyEntry(
-          wireId: WireId('p0136'),
-          name: 'slot',
-          type: PropertyType.string,
-          description:
-              'Identifier matched against the host app\'s product configuration (for example `\'primary\'`, `\'secondary\'`, `\'tertiary\'`).',
-          required: true,
-          priority: PropertyPriority.primary,
-          valueShape: ScalarShape(
-              propertyType: PropertyType.string,
-              dartTypeRef:
-                  DartTypeRef(libraryUri: 'dart:core', symbolName: 'String')),
-        ),
-        PropertyEntry(
-          wireId: WireId('p0137'),
-          name: 'child',
-          type: PropertyType.widget,
-          description:
-              'UI bound to the resolved product. Descendants may read price and metadata via the standard product-resolution helpers.',
-          required: true,
-          priority: PropertyPriority.primary,
-        ),
-        PropertyEntry(
-          wireId: WireId('p0448'),
-          name: 'analyticsId',
-          type: PropertyType.string,
-          description: 'Optional identifier for this widget occurrence.',
-          synthetic: 'analyticsId',
         ),
       ],
     ),

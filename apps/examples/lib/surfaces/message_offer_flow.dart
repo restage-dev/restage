@@ -11,8 +11,7 @@ const messageOffer = FlowDefinition(
   transitions: [
     Transition(MessageNotice.openOffer, to: UpgradeOffer),
     Transition.complete(
-      PaywallEvents.purchase,
-      from: UpgradeOffer,
+      UpgradeOffer.continueFlow,
     ),
   ],
 );

@@ -245,17 +245,6 @@ Uint8List screenBlob(String text, String event) {
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
 
-/// Encodes a screen that reads paywall-style price data from `data.products`.
-Uint8List priceScreenBlob() {
-  const source = '''
-    import restage.core;
-    widget OnboardingScreen = Text(
-      text: data.products.annual.localizedPrice
-    );
-  ''';
-  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
-}
-
 /// Builds the default linear first-run flow document (welcome -> profile ->
 /// done), or [states] when supplied.
 FlowDocument flowDocument({

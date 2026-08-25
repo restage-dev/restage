@@ -126,7 +126,9 @@ void main() {
           p.join(tempDir.path, 'pubspec.yaml'),
         ).readAsString();
         expect(pubspecContent, contains('restage'));
+        expect(pubspecContent, contains('restage: ^2.0.0'));
         expect(pubspecContent, contains('restage_codegen'));
+        expect(pubspecContent, contains('restage_codegen: ^2.0.0'));
         expect(pubspecContent, contains('build_runner'));
         expect(pubspecContent, isNot(contains('assets/restage/bundles')));
 

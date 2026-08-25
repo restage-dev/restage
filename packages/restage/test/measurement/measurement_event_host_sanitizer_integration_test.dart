@@ -256,77 +256,54 @@ widget OnboardingScreen = AuthoredProbe();
     },
   );
 
-  testWidgets(
-    'paywall demux, custom callbacks, purchase, and restore never receive the '
-    'reserved namespace',
-    (tester) async {
-      final gateway = _RecordingGateway();
-      Restage.configure(
-        apiKey: 'rs_pk_test',
-        analyticsEnabled: false,
-        products: const <RestageProduct>[
-          RestageProduct(
-            id: 'pro_monthly',
-            slot: 'primary',
-            entitlement: 'pro',
-          ),
-        ],
-        billingGateway: gateway,
-      );
-      final received = <RestageEvent>[];
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: RestagePaywall(
-              id: 'measurement_paywall',
-              resolver: _StaticPaywallResolver(rfwSourceBlob(_paywallSource())),
-              onEvent: received.add,
-            ),
+  testWidgets('paywall custom callbacks never receive the reserved namespace', (
+    tester,
+  ) async {
+    Restage.configure(apiKey: 'rs_pk_test', analyticsEnabled: false);
+    final received = <RestageEvent>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RestagePaywall(
+            id: 'measurement_paywall',
+            resolver: _StaticPaywallResolver(rfwSourceBlob(_paywallSource())),
+            onEvent: received.add,
           ),
         ),
-      );
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final label in <String>[
+      'custom exact',
+      'custom malformed',
+      'custom future',
+      'custom multiple',
+    ]) {
+      await tester.tap(find.text(label));
       await tester.pumpAndSettle();
+    }
 
-      for (final label in <String>[
-        'purchase',
-        'restore',
-        'custom exact',
-        'custom malformed',
-        'custom future',
-        'custom multiple',
-      ]) {
-        await tester.tap(find.text(label));
-        await tester.pumpAndSettle();
-      }
-
-      expect(gateway.purchaseCalls, <String>['pro_monthly']);
-      expect(gateway.restoreCalls, 1);
-      final initiated = received.whereType<PurchaseInitiated>().single;
-      expect(initiated.productId, 'pro_monthly');
-      final customs = received.whereType<PaywallCustomEvent>().toList();
-      expect(
-        customs.map((event) => event.eventName),
-        <String>[
-          'customExact',
-          'customMalformed',
-          'customFuture',
-          'customMultiple',
-        ],
-      );
-      final expectedBusinessValues = <String, String>{
-        'customExact': 'exact',
-        'customMalformed': 'malformed',
-        'customFuture': 'future',
-        'customMultiple': 'multiple',
-      };
-      for (final event in customs) {
-        expect(event.args, <String, Object?>{
-          'business': expectedBusinessValues[event.eventName],
-        });
-        _expectNoReservedTopLevelKey(event.args);
-      }
-    },
-  );
+    final customs = received.whereType<PaywallCustomEvent>().toList();
+    expect(customs.map((event) => event.eventName), <String>[
+      'customExact',
+      'customMalformed',
+      'customFuture',
+      'customMultiple',
+    ]);
+    final expectedBusinessValues = <String, String>{
+      'customExact': 'exact',
+      'customMalformed': 'malformed',
+      'customFuture': 'future',
+      'customMultiple': 'multiple',
+    };
+    for (final event in customs) {
+      expect(event.args, <String, Object?>{
+        'business': expectedBusinessValues[event.eventName],
+      });
+      _expectNoReservedTopLevelKey(event.args);
+    }
+  });
 }
 
 Widget _screenHost({
@@ -484,17 +461,6 @@ import restage.core;
 import restage.material;
 widget Paywall = Column(children: [
   TextButton(
-    onPressed: event "restage.purchase" {
-      productId: "pro_monthly",
-      $_routeKey: "$_carrier"
-    },
-    child: Text(text: "purchase"),
-  ),
-  TextButton(
-    onPressed: event "restage.restore" { $_routeKey: "$_carrier" },
-    child: Text(text: "restore"),
-  ),
-  TextButton(
     onPressed: event "customExact" {
       business: "exact",
       $_routeKey: "$_carrier"
@@ -564,30 +530,4 @@ final class _StaticPaywallResolver implements VariantResolver {
     Locale? locale,
   }) async =>
       ResolvedVariant(bytes: bytes, surfaceVersion: 'test', paywallId: id);
-}
-
-final class _RecordingGateway implements BillingGateway {
-  final purchaseCalls = <String>[];
-  var restoreCalls = 0;
-
-  @override
-  Future<PurchaseOutcome> purchase(
-    String productId, {
-    String? basePlanId,
-  }) async {
-    purchaseCalls.add(productId);
-    return PurchaseOutcome.succeeded(
-      productId: productId,
-      transactionId: 'transaction',
-      verificationData: null,
-      priceMicros: 1000000,
-      currency: 'USD',
-    );
-  }
-
-  @override
-  Future<RestoreOutcome> restore() async {
-    restoreCalls += 1;
-    return RestoreOutcome.noPurchases();
-  }
 }

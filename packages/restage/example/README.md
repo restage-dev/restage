@@ -13,22 +13,20 @@ screens and flows). It uses your own widgets and your app's theme.
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-@Paywall(id: 'pro')
-final class ProPaywall extends StatelessWidget {
-  const ProPaywall({super.key});
+part 'restage.generated/welcome.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.onboarding)
+final class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text('Go Pro', style: Theme.of(context).textTheme.headlineMedium),
+        Text('Welcome', style: Theme.of(context).textTheme.headlineMedium),
         const SizedBox(height: 8),
-        Text(paywallPriceFor(slot: 'annual')),
-        FilledButton(
-          onPressed: paywallPurchase(slot: 'annual'),
-          child: const Text('Start free trial'),
-        ),
+        const Text('A simple server-driven screen.'),
       ],
     );
   }
@@ -49,21 +47,26 @@ identity and exact artifact closure.
 Publish the generated surface by id:
 
 ```sh
-restage surface publish pro
+restage surface publish welcome
 ```
 
 ## 3. Render it
 
 ```dart
 void main() {
-  Restage.configure(apiKey: 'local-dev', resolver: const AssetVariantResolver());
+  Restage.configure(apiKey: 'local-dev');
   runApp(const MaterialApp(
-    home: Scaffold(body: RestagePaywall(id: 'pro', resolver: AssetVariantResolver())),
+    home: Scaffold(
+      body: RestageScreen(
+        screen: welcomeScreenRef,
+        unavailable: SurfaceScreenUnavailablePolicy.hide(),
+      ),
+    ),
   ));
 }
 ```
 
-`RestagePaywall` decodes the blob and renders it as real Flutter widgets, in your
+`RestageScreen` decodes the blob and renders it as real Flutter widgets, in your
 own widget tree.
 
 ## Full, runnable examples

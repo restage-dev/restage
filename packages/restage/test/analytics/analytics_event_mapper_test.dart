@@ -39,7 +39,6 @@ void main() {
     final envelope = map(
       PaywallViewed(
         paywallId: 'pw-1',
-        productIds: const ['product-1'],
         variantId: 'variant-A',
         experimentId: 'exp-1',
         experimentEpoch: 3,
@@ -67,8 +66,7 @@ void main() {
   });
 
   test('firedAt absent falls back to now', () {
-    final envelope =
-        map(const PaywallViewed(paywallId: 'pw-1', productIds: []));
+    final envelope = map(const PaywallViewed(paywallId: 'pw-1'));
     expect(envelope.occurredAt, now);
   });
 
@@ -147,30 +145,12 @@ void main() {
     final envelope = map(
       const PaywallViewed(
         paywallId: 'pw-1',
-        productIds: ['product-1'],
         publishedVersion: 9,
       ),
     );
     expect(envelope.surfaceVersion, '9');
     // Promoted → typed field only, never duplicated into properties.
     expect(envelope.properties.containsKey('publishedVersion'), isFalse);
-  });
-
-  test('promoted conversion dims land on envelope fields, not properties', () {
-    final envelope = map(
-      const PurchaseSucceeded(
-        paywallId: 'pw-1',
-        productId: 'prod.monthly',
-        transactionId: 'txn-1',
-        priceMicros: 9990000,
-        currency: 'USD',
-      ),
-    );
-    expect(envelope.productId, 'prod.monthly');
-    expect(envelope.properties.containsKey('productId'), isFalse);
-    // The non-promoted residual fields stay in properties.
-    expect(envelope.properties['transactionId'], 'txn-1');
-    expect(envelope.properties['currency'], 'USD');
   });
 
   test('a custom event cannot smuggle render context into properties', () {
@@ -189,20 +169,6 @@ void main() {
     expect(envelope.properties.containsKey('context'), isFalse);
     expect(envelope.properties['plan'], 'pro');
     expect(envelope.properties['eventName'], 'tapped_plan');
-  });
-
-  test('an app-wide lifecycle event maps to surface=null', () {
-    final envelope = map(
-      const EntitlementGranted(
-        entitlementId: 'pro',
-        productId: 'prod.monthly',
-        source: EntitlementSource.purchase,
-      ),
-    );
-    expect(envelope.surface, isNull);
-    expect(envelope.surfaceId, isNull);
-    expect(envelope.productId, 'prod.monthly');
-    expect(envelope.properties['entitlementId'], 'pro');
   });
 
   group('onboarding events conform to the onboarding envelope', () {
@@ -392,7 +358,6 @@ void main() {
       final envelope = map(
         const PaywallViewed(
           paywallId: 'upgrade',
-          productIds: <String>[],
           publishedVersion: 4,
           experimentId: 'event-exp',
           variantId: 'event-variant',
@@ -418,12 +383,10 @@ void main() {
       for (final event in const <PaywallViewed>[
         PaywallViewed(
           paywallId: 'upgrade',
-          productIds: <String>[],
           experimentId: 'event-exp',
         ),
         PaywallViewed(
           paywallId: 'upgrade',
-          productIds: <String>[],
           variantId: 'event-variant',
           experimentEpoch: 99,
         ),
@@ -450,7 +413,6 @@ void main() {
       final envelope = map(
         const PaywallViewed(
           paywallId: 'upgrade',
-          productIds: <String>[],
           experimentId: 'event-exp',
           variantId: 'event-variant',
           experimentEpoch: 99,

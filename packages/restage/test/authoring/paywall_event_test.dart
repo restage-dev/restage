@@ -36,6 +36,22 @@ void main() {
     expect(receivedArgs, {'plan': 'monthly'});
   });
 
+  testWidgets('the dispatcher drops the reserved bare restore event',
+      (tester) async {
+    var received = false;
+    VoidCallback? captured;
+    await tester.pumpWidget(RestagePaywallEventDispatcher(
+      onEvent: (_, __) => received = true,
+      child: Builder(builder: (_) {
+        captured = paywallEvent('restore');
+        return const SizedBox();
+      }),
+    ));
+
+    captured!();
+    expect(received, isFalse);
+  });
+
   testWidgets('paywallEvent captures dispatcher at build time, not at tap',
       (tester) async {
     String? routedTo;

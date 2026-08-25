@@ -209,14 +209,14 @@ flow route.
 ## Two flow→paywall navigation patterns
 
 There are two ways to structure "onboarding, then a paywall." Pick by whether the
-two are distinct phases or one continuous flow.
+two are distinct stages or one continuous flow.
 
 ### Pattern A: handoff (the host navigates)
 
 The flow reaches an end state, `onComplete` fires, and the **host** navigates to
 a separate paywall surface. The completed flow does not navigate, so the user
 cannot back into onboarding from the paywall. Use this when onboarding and the
-paywall are distinct phases.
+paywall are distinct stages.
 
 ```dart
 RestageFlowGraph<FirstRunResult>(
@@ -250,9 +250,11 @@ part 'restage.generated/welcome_with_paywall.restage.g.dart';
 final class SerenePaywall extends StatelessWidget {
   const SerenePaywall({super.key});
 
+  static const continueFlow = SurfaceEvent<void>('continue');
+
   @override
   Widget build(BuildContext context) => FilledButton(
-        onPressed: paywallPurchase(slot: 'primary'),
+        onPressed: paywallEvent('continue'),
         child: const Text('Continue'),
       );
 }
@@ -263,20 +265,20 @@ const welcomeWithPaywall = FlowDefinition(
   transitions: [
     Transition(WelcomeScreen.next, to: SerenePaywall),
     Transition.complete(
-      PaywallEvents.purchase,
+      SerenePaywall.continueFlow,
       from: SerenePaywall,
     ),
   ],
 );
 ```
 
+The app-defined event in this example completes the flow.
+
 The `@Paywall` source remains a specialized paywall even when it is a step in an
 onboarding flow. Codegen emits the generated flow descriptor and the exact
 screen-artifact closure recorded in
 `lib/generated/restage.publication.json`. At runtime, consume the
-generated `SurfaceFlowRef<R>` with `RestageFlowGraph<R>`. If the embedded
-paywall reads live prices, pass the same `priceQueries` map to the flow host
-that you would pass to `RestagePaywall`.
+generated `SurfaceFlowRef<R>` with `RestageFlowGraph<R>`.
 
 ## Choosing a rendering surface
 

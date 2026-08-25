@@ -100,7 +100,6 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// precedence over the built-in behavior.
   static const String _backEventName = 'back';
   static const String _skipEventName = 'skip';
-  static const String _purchaseEventName = 'purchase';
 
   /// Process-global screen-entry sequence. Minting from a shared counter (not a
   /// per-controller one) keeps screen-entry ids unique across controller
@@ -370,7 +369,7 @@ final class RestageFlowController<R> extends ChangeNotifier {
       ));
       return;
     }
-    final flowEventName = _flowEventNameForRfw(name);
+    final flowEventName = name;
     final transition = state.on[flowEventName];
     // A skip is funnel-critical drop-off. Emit it whenever the skip has a real
     // destination ([canSkip] — an authored `on['skip']` transition or a declared
@@ -434,13 +433,6 @@ final class RestageFlowController<R> extends ChangeNotifier {
           () => _invokeAction(frame, transition, binding, args),
         ));
     }
-  }
-
-  String _flowEventNameForRfw(String name) {
-    return switch (name) {
-      RestageEventNames.purchase => _purchaseEventName,
-      _ => name,
-    };
   }
 
   T _invokeHostCallback<T>(T Function() callback) {

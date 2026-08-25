@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0
+
+- Remove the authored commerce widgets `Package` and
+  `ExpressCheckoutButton`. Authored surfaces do not initiate purchases or
+  restores; host code decides how to handle UI intent.
+
 ## 1.1.0
 
 - Regenerate the catalog as schema v5 with callback property names serving as

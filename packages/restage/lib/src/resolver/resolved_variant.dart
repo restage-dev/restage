@@ -84,7 +84,7 @@ class ResolvedVariant {
   /// An integer counter the delivery backend increments on each publish. Set by
   /// the hosted resolver (read from the served document); `null` for bundled or
   /// custom resolutions that have no published version. Carried through to
-  /// purchase reporting so a conversion attributes to the exact served version.
+  /// runtime telemetry so interactions attribute to the exact served version.
   final int? paywallPublishedVersion;
 
   /// Whether the bytes came from a local cache rather than a fresh fetch.

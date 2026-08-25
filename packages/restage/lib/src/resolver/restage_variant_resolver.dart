@@ -1246,10 +1246,10 @@ ResolvedPaywallPayload withoutAssignmentLeaseForDelivery(
 /// Environment hint passed to `Restage.configure` and [RestageVariantResolver].
 enum RestageEnvironment {
   /// Sandbox environment — paired with `rs_pk_test_…` API keys. Test
-  /// purchases route through the platform sandbox; events are not metered.
+  /// delivery stays isolated from production; events are not metered.
   sandbox,
 
-  /// Production environment — paired with `rs_pk_live_…` API keys. Real
-  /// charges; events are metered for billing.
+  /// Production environment — paired with `rs_pk_live_…` API keys. Events are
+  /// metered for billing.
   production,
 }

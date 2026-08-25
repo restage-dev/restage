@@ -25,7 +25,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // A fast-failing host: the analytics POST is intercepted by the injected
-  // client, and the (best-effort) entitlement sync harmlessly returns null.
+  // client.
   const baseUrl = 'http://127.0.0.1:1';
 
   setUp(() {
@@ -135,9 +135,7 @@ void main() {
     final meteringKey = await SurfaceMeteringKeyProvider.currentKey();
     expect(meteringKey, isNotNull);
 
-    Restage.fireEvent(
-      const PaywallViewed(paywallId: 'pw-1', productIds: ['product-1']),
-    );
+    Restage.fireEvent(const PaywallViewed(paywallId: 'pw-1'));
     await pumpEventQueue();
     await Restage.debugFlushAnalytics();
 

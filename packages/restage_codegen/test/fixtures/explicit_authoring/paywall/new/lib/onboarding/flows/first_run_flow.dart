@@ -10,9 +10,6 @@ const firstRunFlow = FlowDefinition(
   start: OfferIntroScreen,
   transitions: [
     Transition(OfferIntroScreen.next, to: PremiumPaywall),
-    Transition.complete(
-      PaywallEvents.purchase,
-      from: PremiumPaywall,
-    ),
+    Transition.complete(PremiumPaywall.complete),
   ],
 );

@@ -43,7 +43,7 @@ class _PulsePaywallState extends State<PulsePaywall> {
               const Center(child: PulseBadge(label: 'Streak', count: 12)),
               const Spacer(),
               GestureDetector(
-                onTap: paywallPurchase(slot: 'annual'),
+                onTap: paywallEvent('continue'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(

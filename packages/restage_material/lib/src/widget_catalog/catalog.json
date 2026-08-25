@@ -1544,66 +1544,6 @@
       ]
     },
     {
-      "wireId": "w0015",
-      "name": "ExpressCheckoutButton",
-      "library": "restage.material",
-      "category": "action",
-      "description": "Conversion-CTA button for platform-native express-checkout flows.",
-      "flutterType": "package:restage_material/src/widgets/express_checkout_button.dart#ExpressCheckoutButton",
-      "childrenSlot": "none",
-      "properties": [
-        {
-          "wireId": "p0070",
-          "name": "onPressed",
-          "type": "event",
-          "description": "Fires when the user taps the button. Pass `null` (the default) to render the button in its disabled state.",
-          "constructorNullable": true,
-          "category": "behavior"
-        },
-        {
-          "wireId": "p0071",
-          "name": "paymentMethod",
-          "type": "enumValue",
-          "description": "Which platform's express-checkout variant to render. Defaults to [ExpressPaymentMethod.auto].",
-          "enumType": "ExpressPaymentMethod",
-          "defaultSource": {
-            "kind": "literal",
-            "value": "auto"
-          },
-          "valueShape": {
-            "kind": "enumValue",
-            "propertyType": "enumValue",
-            "enumRef": {
-              "libraryUri": "package:restage_material/src/widgets/express_checkout_button.dart",
-              "symbolName": "ExpressPaymentMethod"
-            }
-          }
-        },
-        {
-          "wireId": "p0072",
-          "name": "label",
-          "type": "string",
-          "description": "Overrides the platform-default label (for example `'Subscribe with Apple Pay'`). When `null`, a sensible default is chosen based on the resolved payment method.",
-          "constructorNullable": true,
-          "valueShape": {
-            "kind": "scalar",
-            "propertyType": "string",
-            "dartTypeRef": {
-              "libraryUri": "dart:core",
-              "symbolName": "String"
-            }
-          }
-        },
-        {
-          "wireId": "p0428",
-          "name": "analyticsId",
-          "type": "string",
-          "description": "Optional identifier for this widget occurrence.",
-          "synthetic": "analyticsId"
-        }
-      ]
-    },
-    {
       "wireId": "w0016",
       "name": "FilledButton",
       "library": "restage.material",
@@ -4199,48 +4139,6 @@
               }
             }
           ]
-        }
-      ]
-    },
-    {
-      "wireId": "w0029",
-      "name": "Package",
-      "library": "restage.material",
-      "category": "action",
-      "description": "Binds a child widget tree to a configured product slot.",
-      "flutterType": "package:restage_material/src/widgets/package.dart#Package",
-      "childrenSlot": "single",
-      "properties": [
-        {
-          "wireId": "p0136",
-          "name": "slot",
-          "type": "string",
-          "description": "Identifier matched against the host app's product configuration (for example `'primary'`, `'secondary'`, `'tertiary'`).",
-          "required": true,
-          "priority": "primary",
-          "valueShape": {
-            "kind": "scalar",
-            "propertyType": "string",
-            "dartTypeRef": {
-              "libraryUri": "dart:core",
-              "symbolName": "String"
-            }
-          }
-        },
-        {
-          "wireId": "p0137",
-          "name": "child",
-          "type": "widget",
-          "description": "UI bound to the resolved product. Descendants may read price and metadata via the standard product-resolution helpers.",
-          "required": true,
-          "priority": "primary"
-        },
-        {
-          "wireId": "p0448",
-          "name": "analyticsId",
-          "type": "string",
-          "description": "Optional identifier for this widget occurrence.",
-          "synthetic": "analyticsId"
         }
       ]
     },

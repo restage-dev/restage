@@ -47,15 +47,6 @@ onboarding, messages, and surveys:
   the declarative flow graph (screens, decisions, sub-flows, branches), plus the
   action schemas and the content hash used for change detection.
 
-### Value types
-
-- **`RestageProduct`**: a purchasable product (id, slot, entitlement),
-  configured at app startup.
-- **`RestageEntitlement`**: an abstract feature gate the user has access to
-  (for example `'pro'`).
-- **`EntitlementSource`**: how an entitlement was obtained (`purchase`,
-  `restore`, `renewal`, `promotional`).
-
 ### Analytics taxonomy
 
 The behavioral-analytics event contract every surface emits:

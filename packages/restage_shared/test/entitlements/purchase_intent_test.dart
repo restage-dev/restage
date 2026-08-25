@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/src/entitlements/entitlements.dart';
 import 'package:test/test.dart';
 
 const _purchaseIntentId = '550e8400-e29b-41d4-a716-446655440000';

@@ -100,21 +100,22 @@ void main() {
       expect(result.rootWidgetState['selectedTier'], '0');
     });
 
-    test('an int-switch arm carrying a price helper still lowers (composes)',
-        () async {
+    test('an int-switch arm cannot carry a commerce price helper', () async {
       final expr = await parseExpressionForTest(
         'Text(text: selectedTier == 0 '
         "? paywallPriceFor(slot: 'a') : paywallPriceFor(slot: 'b'))",
       );
       final result = translator().translate(expr, rootState: [tier]);
-      expect(result.issues, isEmpty);
+      expect(
+        result.issues.map((issue) => issue.code),
+        [
+          IssueCode.unsupportedCommerceAuthoring,
+          IssueCode.unsupportedCommerceAuthoring,
+        ],
+      );
       expect(
         result.dsl,
-        contains(
-          'switch state.selectedTier { '
-          '0: data.products.a.localizedPrice, '
-          'default: data.products.b.localizedPrice }',
-        ),
+        isNot(contains('data.products')),
       );
     });
   });

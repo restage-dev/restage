@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_example/stub_products.dart';
 
 /// End-to-end proof that the Fluent Pro paywall, authored with a
 /// `Navigator.push` from its "VIEW ALL PLANS" control to the second
@@ -14,11 +13,8 @@ import 'package:restage_example/stub_products.dart';
 /// production present path — `RestagePaywall(id:)` + the default
 /// `AssetVariantResolver` flow arm — exactly as a shipped app would.
 ///
-/// The "Choose a plan" screen is **select-then-subscribe** (faithful to the
-/// entry): tapping a tier SELECTS it (the check moves; no charge), and the
-/// pinned "START MY FREE WEEK" CTA charges the SELECTED tier's distinct slot.
-/// The tests pin both the visible selection (the moved check) and the CTA
-/// re-target — never per-tier purchase firing.
+/// The "Choose a plan" screen is select-then-continue: tapping a tier selects
+/// it, and the pinned "START MY FREE WEEK" CTA reports the selected tier.
 void _useTallSurface(WidgetTester tester) {
   tester.view.physicalSize = const Size(1200, 3600);
   tester.view.devicePixelRatio = 1.0;
@@ -74,7 +70,6 @@ void main() {
     Restage.debugReset();
     Restage.configure(
       apiKey: 'rs_pk_test',
-      products: kStubProducts,
       resolver: const AssetVariantResolver(),
     );
   });
@@ -87,11 +82,7 @@ void main() {
     _useTallSurface(tester);
     await tester.pumpWidget(
       MaterialApp(
-        home: RestagePaywall(
-          id: 'fluent_pro',
-          priceQueries: kStubPriceQueries,
-          onEvent: events.add,
-        ),
+        home: RestagePaywall(id: 'fluent_pro', onEvent: events.add),
       ),
     );
     await tester.pump(const Duration(milliseconds: 400));
@@ -112,6 +103,15 @@ void main() {
     'Student Plan',
     'Monthly',
   ];
+
+  Map<String, Object?>? lastContinueArgs() {
+    final actions = events
+        .whereType<PaywallCustomEvent>()
+        .where((event) => event.eventName == 'continue')
+        .map((event) => event.args)
+        .toList();
+    return actions.isEmpty ? null : actions.last;
+  }
 
   testWidgets(
     'the lowered paywall hosts the bundled flow: entry -> view all plans -> '
@@ -140,68 +140,41 @@ void main() {
   );
 
   testWidgets(
-    'the choose-a-plan screen defaults to Personal selected and the CTA '
-    'charges the annual product',
+    'the choose-a-plan screen defaults to Personal selected',
     (tester) async {
       await openChoosePlan(tester);
 
-      // Default selection is the MOST POPULAR Personal tier — its check shows
-      // and no purchase has fired yet (a tier is selected, never charged).
+      // Default selection is the MOST POPULAR Personal tier.
       _expectCheckOnTier(tester, 'Personal', tierLabels);
-      expect(events.whereType<PurchaseInitiated>(), isEmpty);
+      expect(lastContinueArgs(), isNull);
 
-      // The CTA charges the selected (default Personal -> annual) slot.
       await tester.tap(find.text('START MY FREE WEEK'));
       await tester.pumpAndSettle();
-
-      final initiated = events.whereType<PurchaseInitiated>().toList();
-      expect(initiated, hasLength(1));
-      expect(initiated.single.productId, 'com.restage.pro.annual');
-      expect(initiated.single.paywallId, 'fluent_pro');
+      expect(lastContinueArgs()?['plan'], 'personal');
     },
   );
 
-  // Tapping a tier SELECTS it (the check moves; no charge); the CTA then charges
-  // that tier's distinct slot. One CTA charge per fresh mount: a real purchase
-  // dispatches an unawaited billing future, so the proof drives one charge per
-  // mount, which is the load-bearing assertion.
-  const movableTiers = <({String label, String slot, String productId})>[
-    (label: 'Family Plan', slot: 'family', productId: 'com.restage.pro.family'),
-    (
-      label: 'Student Plan',
-      slot: 'student',
-      productId: 'com.restage.pro.student'
-    ),
-    (label: 'Monthly', slot: 'monthly', productId: 'com.restage.pro.monthly'),
+  const movableTiers = <({String label, String plan})>[
+    (label: 'Family Plan', plan: 'family'),
+    (label: 'Student Plan', plan: 'student'),
+    (label: 'Monthly', plan: 'monthly'),
   ];
   for (final tier in movableTiers) {
     testWidgets(
-      'tapping "${tier.label}" selects it (the check moves, no charge) and the '
-      'CTA then charges ${tier.productId}',
+      'tapping "${tier.label}" selects it and the CTA reports it',
       (tester) async {
         await openChoosePlan(tester);
 
-        // Tap the tier -> it SELECTS (no purchase fires).
         await tester.tap(find.text(tier.label));
         await tester.pumpAndSettle();
-        expect(
-          events.whereType<PurchaseInitiated>(),
-          isEmpty,
-          reason: 'tapping a tier selects it; it must not charge',
-        );
+        expect(lastContinueArgs(), isNull);
         _expectCheckOnTier(tester, tier.label, tierLabels);
 
-        // The CTA charges the now-selected tier's product, keyed on the served
-        // paywall (not the onboarding flowId) — the adapter contract.
         await tester.tap(find.text('START MY FREE WEEK'));
         await tester.pumpAndSettle();
+        expect(lastContinueArgs()?['plan'], tier.plan);
 
-        final initiated = events.whereType<PurchaseInitiated>().toList();
-        expect(initiated, hasLength(1));
-        expect(initiated.single.productId, tier.productId);
-        expect(initiated.single.paywallId, 'fluent_pro');
-
-        // Charging did not advance the flow — still on the pushed screen.
+        // The action did not advance the flow.
         expect(find.text('Choose a plan'), findsOneWidget);
       },
     );

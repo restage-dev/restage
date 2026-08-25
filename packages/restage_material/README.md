@@ -4,7 +4,7 @@
 
 A curated [Remote Flutter Widget (RFW)](https://pub.dev/packages/rfw) catalog of Material Design widgets for
 server-driven Flutter UI: the `restage.material` library (buttons, Scaffold,
-AppBar, Card, ListTile, chips, selection controls, and more; 45 widgets).
+AppBar, Card, ListTile, chips, selection controls, and more; 43 widgets).
 Sibling to `restage_core` and `restage_cupertino`.
 
 Part of [Restage](https://restage.dev), server-driven UI for Flutter. Extend this
@@ -19,8 +19,6 @@ catalog widgets it ships as real classes:
   declaratively: `RestageModalSheet`, `RestageDraggableSheet`, `RestagePager`,
   `RestageDropdown`, `RestageRadioGroup`, `RestageSegmentedButton`,
   `RestageToggleButtons`.
-- **Domain widgets:** `Package` (a product/plan card) and
-  `ExpressCheckoutButton`.
 
 Standard Material widgets are mapped through the catalog.
 The catalog is surface-general: the same widgets compose any server-driven UI

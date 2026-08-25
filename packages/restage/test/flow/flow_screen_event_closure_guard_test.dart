@@ -21,13 +21,13 @@ void main() {
   // channel is safe ONLY because flow-state never reaches a screen — so no
   // screen-fired event can carry app-supplied (incl. host-seeded) flow-state to
   // analytics. That closure holds by construction because `populateFlowScreenData`
-  // projects ONLY product / device / theme onto a screen's `DynamicContent`. This
-  // test locks that: a future prefill-from-flow-state or `data.context.*`-into-
+  // projects ONLY device / theme onto a screen's `DynamicContent`. This test
+  // locks that: a future prefill-from-flow-state or `data.context.*`-into-
   // screen change would silently reopen the Event→analytics path and MUST turn
   // this red.
   testWidgets(
-      'populateFlowScreenData projects only product/device/theme onto a screen '
-      '— never flow-state or data.context', (tester) async {
+      'populateFlowScreenData projects only device/theme onto a screen '
+      '— never products, flow-state, or data.context', (tester) async {
     late final BuildContext ctx;
     await tester.pumpWidget(
       MaterialApp(
@@ -44,33 +44,17 @@ void main() {
     populateFlowScreenData(
       ctx,
       dc,
-      // A non-empty priceQueries signals commerce context, so this test
-      // exercises the same populateProductData path (unconditionally writes
-      // a 'products' map) it always has — this guard is about which
-      // namespaces get projected, not the unbound-price placeholder. The
-      // placeholder args are unused on that branch; empty/inert values
-      // suffice.
-      priceQueries: const {
-        'p': PriceInfo(
-          localizedPrice: r'$9.99',
-          priceMicros: 9990000,
-          currency: 'USD',
-          title: 'P',
-          description: '',
-        ),
-      },
       includeInheritedData: true,
-      placeholderKeys: const {},
-      shouldLogPlaceholder: false,
     );
 
-    // The three projected namespaces are present.
-    expect(_read(dc, 'products'), isA<Map<Object?, Object?>>());
+    // The projected namespaces are present.
     expect(_read(dc, 'device'), isA<Map<Object?, Object?>>());
     expect(_read(dc, 'theme'), isA<Map<Object?, Object?>>());
 
-    // Flow-state (incl. host-seeded) and host-context are NEVER projected onto a
-    // screen — absent keys read back as the RFW `missing` sentinel.
+    // Products, flow-state (incl. host-seeded), and host-context are NEVER
+    // projected onto a screen — absent keys read back as the RFW `missing`
+    // sentinel.
+    expect(_read(dc, 'products'), same(missing));
     expect(_read(dc, 'flowState'), same(missing));
     expect(_read(dc, 'state'), same(missing));
     expect(_read(dc, 'context'), same(missing));

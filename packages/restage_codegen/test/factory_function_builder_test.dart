@@ -285,18 +285,18 @@ void main() {
   "widgets": [
     {
       "wireId": "w0001",
-      "name": "Package",
+      "name": "SyntheticFrame",
       "library": "restage.material",
-      "category": "action",
-      "description": "Slot binding for surface children.",
-      "flutterType": "package:restage_material/src/widgets/package.dart#Package",
+      "category": "layout",
+      "description": "Synthetic frame used to verify direct imports.",
+      "flutterType": "package:restage_material/src/widgets/synthetic_frame.dart#SyntheticFrame",
       "childrenSlot": "single",
       "properties": [
         {
           "wireId": "p0001",
-          "name": "slot",
+          "name": "label",
           "type": "string",
-          "description": "Slot identifier.",
+          "description": "Display label.",
           "required": true
         },
         {
@@ -325,14 +325,14 @@ void main() {
             allOf(
               contains("import 'package:flutter/material.dart';"),
               contains(
-                "import 'package:restage_material/src/widgets/package.dart';",
+                "import 'package:restage_material/src/widgets/synthetic_frame.dart';",
               ),
-              contains("'Package': _buildPackage,"),
+              contains("'SyntheticFrame': _buildSyntheticFrame,"),
               contains(
-                'Widget _buildPackage(BuildContext context, '
+                'Widget _buildSyntheticFrame(BuildContext context, '
                 'DataSource source)',
               ),
-              contains('return Package('),
+              contains('return SyntheticFrame('),
             ),
           ),
         },

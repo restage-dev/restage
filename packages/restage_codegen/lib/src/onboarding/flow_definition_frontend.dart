@@ -14,6 +14,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart';
@@ -1827,6 +1828,13 @@ final class _FlowDefinitionGraphParser {
           IssueCode.annotationEvaluationFailed,
           'SurfaceEvent could not be '
           'const-evaluated.');
+      return null;
+    }
+    if (unsupportedCommerceEventNames.contains(id)) {
+      _issue(
+        IssueCode.unsupportedCommerceAuthoring,
+        unsupportedCommerceEventIssue(id, assetId.path).message,
+      );
       return null;
     }
     final scalar = _dataType(type.typeArguments.single);

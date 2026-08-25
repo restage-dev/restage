@@ -12,8 +12,6 @@
 // const).
 
 import 'package:flutter/material.dart';
-import 'package:restage_material/src/widgets/express_checkout_button.dart';
-import 'package:restage_material/src/widgets/package.dart';
 import 'package:restage_material/src/widgets/restage_draggable_sheet.dart';
 import 'package:restage_material/src/widgets/restage_dropdown.dart';
 import 'package:restage_material/src/widgets/restage_modal_sheet.dart';
@@ -42,7 +40,6 @@ const Map<String, LocalWidgetBuilder> kMaterialLibraryFactories =
   'Divider': _buildDivider,
   'ElevatedButton': _buildElevatedButton,
   'ExpansionTile': _buildExpansionTile,
-  'ExpressCheckoutButton': _buildExpressCheckoutButton,
   'FilledButton': _buildFilledButton,
   'FilledButtonTonal': _buildFilledButtonTonal,
   'FilterChip': _buildFilterChip,
@@ -62,7 +59,6 @@ const Map<String, LocalWidgetBuilder> kMaterialLibraryFactories =
   'RestageDraggableSheet': _buildRestageDraggableSheet,
   'OutlinedButton': _buildOutlinedButton,
   'OutlinedButtonIcon': _buildOutlinedButtonIcon,
-  'Package': _buildPackage,
   'Scaffold': _buildScaffold,
   'Scrollbar': _buildScrollbar,
   'Slider': _buildSlider,
@@ -275,16 +271,6 @@ Widget _buildExpansionTile(BuildContext context, DataSource source) {
     clipBehavior: RestageDecoders.enumByName<Clip>(
         Clip.values, source, <Object>['clipBehavior']),
     children: source.childList(<Object>['children']),
-  );
-}
-
-Widget _buildExpressCheckoutButton(BuildContext context, DataSource source) {
-  return ExpressCheckoutButton(
-    onPressed: source.voidHandler(<Object>['onPressed']),
-    paymentMethod: RestageDecoders.enumByName<ExpressPaymentMethod>(
-            ExpressPaymentMethod.values, source, <Object>['paymentMethod']) ??
-        ExpressPaymentMethod.auto,
-    label: source.v<String>(<Object>['label']),
   );
 }
 
@@ -600,14 +586,6 @@ Widget _buildOutlinedButtonIcon(BuildContext context, DataSource source) {
         Clip.values, source, <Object>['clipBehavior']),
     icon: source.child(<Object>['icon']),
     label: source.child(<Object>['label']),
-  );
-}
-
-Widget _buildPackage(BuildContext context, DataSource source) {
-  return Package(
-    slot: source.v<String>(<Object>['slot']) ??
-        (throw ArgumentError('Package.slot is required.')),
-    child: source.child(<Object>['child']),
   );
 }
 

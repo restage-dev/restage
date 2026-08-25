@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../refresh/surface_refresh_trigger.dart';
-import '../runtime/state_variables.dart';
 import 'flow_chrome.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
@@ -42,7 +41,6 @@ final class RestageOnboarding<R> extends StatefulWidget {
     this.skipBuilder,
     this.chromeBuilder,
     this.persistentChromeBuilder,
-    this.priceQueries = const {},
     this.liveRefresh,
   });
 
@@ -99,9 +97,6 @@ final class RestageOnboarding<R> extends StatefulWidget {
 
   /// Frames the whole flow.
   final FlowPersistentChromeBuilder? persistentChromeBuilder;
-
-  /// Product ID to live price data for paywall blobs rendered as screens.
-  final Map<String, PriceInfo> priceQueries;
 
   /// Per-widget live-refresh override.
   final Set<SurfaceRefreshTrigger>? liveRefresh;
@@ -204,7 +199,6 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       skipBuilder: widget.skipBuilder,
       chromeBuilder: widget.chromeBuilder,
       persistentChromeBuilder: widget.persistentChromeBuilder,
-      priceQueries: widget.priceQueries,
       liveRefresh: widget.liveRefresh,
     );
   }

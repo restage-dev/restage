@@ -32,7 +32,7 @@ appear in the gallery's first section, "Starters".
 
 | Starter | Files | Shows |
 |---|---|---|
-| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | `@Paywall` with a two-plan tap-to-select, `paywallPriceFor(slot:)`, and `paywallPurchase(slot:)`. The selection and the purchase path compile into the artifact. |
+| **Minimal paywall** | `lib/paywalls/minimal_paywall.dart` | `@Paywall` with a two-plan tap-to-select, literal display prices, and a `continue` event carrying the selected plan. The selection and event arguments compile into the artifact. |
 | **Minimal onboarding** | `lib/onboarding/flows/minimal_onboarding.dart` + `screens/starter_{welcome,question,done_guided,done_explore}.dart` | A multi-screen flow that navigates, writes the captured answer, and routes the ending on it with a `decision()`. |
 | **Minimal surface** | `lib/onboarding/flows/minimal_notice.dart` + `screens/starter_notice.dart` | The smallest flow: one screen, a notice. The CTA completes; the × is a host-handled `dismiss`. |
 | **Custom widget** | `lib/widgets/minimal_custom_widget.dart` (+ `lib/onboarding/screens/starter_stats.dart`) | A `@RestageWidget` (`StatBadge`) whose pure-composition `build` codegen inlines into the artifact, so your own widget renders through RFW inside a delivered surface with no runtime factory. |
@@ -47,10 +47,10 @@ records each surface's identity and artifacts.
 Each paywall is a `@Paywall` `StatefulWidget` in plain Flutter. All six are
 fixed-brand surfaces with literal-color palettes, and each presents a real plan
 choice: tap a plan and its selection indicator updates, in that surface's own
-visual language, while the purchase CTA re-targets to the selected plan. The
-selection lives in widget `State` (`setState`). Codegen compiles those state
-reads to state switches in the artifact, so the interaction travels inside the
-delivered artifact with no host code.
+visual language, while the primary CTA reports the selected plan through an
+ordinary `continue` event. The selection lives in widget `State` (`setState`).
+Codegen compiles those state reads to state switches in the artifact, so the
+interaction travels inside the delivered artifact with no host code.
 
 | Source (`id`) | Archetype | Plan selection |
 |---|---|---|
@@ -66,13 +66,11 @@ real `Navigator.push` to a second `@Paywall` (`fluent_pro_choose_plan`). Codegen
 compiles that to a two-screen flow (entry, then choose a plan), which
 `RestagePaywall` hosts without extra code.
 
-Each paywall appears in the gallery twice: a local widget mount (the authoring
-preview, with placeholder prices) and the delivered artifact
-(`RestagePaywall(id:)` decoding the bundled artifact, with live prices from the
-example product config in `lib/stub_products.dart`). On the delivered tiles the
-demo host wires `onEvent` to a SnackBar so every tap has a visible result:
-purchases, and the Restore / Terms / Privacy actions that fire host events. A
-real app performs the action there instead.
+Each paywall appears in the gallery twice: a local widget mount and the
+delivered artifact (`RestagePaywall(id:)` decoding the bundled artifact). The
+examples use literal illustrative prices. On the delivered tiles, the demo host
+wires `onEvent` to a SnackBar so custom events and Terms / Privacy actions have
+a visible result.
 
 The gallery also includes a minimal `hello` artifact, rendered straight through
 `RestagePaywall(id: "hello")`, to show the bare decode-and-render path.
@@ -86,7 +84,7 @@ The gallery presents four:
 
 - **Meditation onboarding to paywall** (`flows/lumen_onboarding.dart`): welcome,
   two personalization questions, an enable-reminders host-action gate, a
-  recap, then the embedded Lumen paywall. Purchasing ends the flow.
+  recap, then the embedded Lumen paywall. Its `continue` event ends the flow.
 - **Location permission primer** (`flows/crave_permission.dart`): a
   delivery-app location soft-ask. "Use current location" runs a host-action
   gate; "Not now" is a host-handled custom event that continues without the
@@ -175,32 +173,31 @@ here too. See `flows/apex_drop.dart`.
 A `@Paywall` is a `StatefulWidget`, so selection state lives in the widget's
 `State` as a plain field: a `bool` for a two-plan choice, an `int` for a tier
 strip. Tapping a plan calls `setState` to update that field. Reading the field
-in `build` drives both the selection indicator and which plan the purchase CTA
-buys. See `lib/paywalls/fluent_pro.dart` for the two-plan
-(`bool personalSelected`) shape, or `lib/paywalls/pulse_premium.dart` for the
-tri-state tier strip (`int selectedTier`).
+in `build` drives both the selection indicator and the arguments reported by
+the primary CTA. See `lib/paywalls/fluent_pro.dart` for the two-plan (`bool
+personalSelected`) shape, or `lib/paywalls/pulse_premium.dart` for the tri-state
+tier strip (`int selectedTier`).
 
-The CTA targets the selected plan's product slot:
+The CTA emits an ordinary event with the selected plan:
 
 ```dart
 GestureDetector(
-  onTap: paywallPurchase(
-    slot: personalSelected ? 'monthly' : 'family',
+  onTap: paywallEvent(
+    'continue',
+    args: {
+      'plan': personalSelected ? 'personal' : 'family',
+    },
   ),
   child: /* the styled button face */,
 )
 ```
 
-`paywallPurchase(slot:)` references a slot configured with
-`Restage.configure(products:)` (see `lib/stub_products.dart`), so the same
-source drives the local authoring preview (real `setState`) and the delivered
-artifact (the conditional compiles to a state switch). The displayed price and
-the charged slot must match. That mapping is the one thing a copy-paste must
-get right: the Family card shows the family product, so its CTA charges the
-`family` slot.
-
-For prices, read the slot's price with `paywallPriceFor(slot:)`. The runtime
-fills it from the host app's resolved store prices.
+Authored surfaces may emit ordinary selection or continue events. They cannot
+initiate purchases or restores; explicit host-controlled code invokes the typed
+commerce boundary. Once commerce is activated, that code imports
+`package:restage/commerce.dart` and invokes it through `Restage.commerce`. The
+commerce facade is currently unavailable. These examples stop at the event
+boundary and use literal illustrative prices.
 
 ## Authoring constraints
 

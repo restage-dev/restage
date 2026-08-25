@@ -1,4 +1,5 @@
 import 'package:restage_codegen/src/catalog_loader.dart';
+import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_shared/restage_shared.dart' show kSupportedCurveNames;
 import 'package:restage_shared/rfw_formats.dart';
@@ -60,7 +61,7 @@ List<Issue> validateModelAgainstCatalog(
   RemoteWidgetLibrary library,
   Catalog catalog,
 ) {
-  final issues = <Issue>[];
+  final issues = validateCommerceAuthoring(library);
   final localNames = {for (final widget in library.widgets) widget.name};
   for (final widget in library.widgets) {
     _walkNode(widget.root, catalog, localNames, issues, widget.name);

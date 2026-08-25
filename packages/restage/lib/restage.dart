@@ -12,14 +12,8 @@ export 'src/authoring/onboarding_event.dart';
 export 'src/authoring/onboarding_event_dispatcher.dart';
 export 'src/authoring/onboarding_source.dart';
 export 'src/authoring/paywall_event.dart';
-export 'src/authoring/paywall_price_for.dart';
-export 'src/authoring/paywall_purchase.dart';
 export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
-export 'src/billing/billing_gateway.dart';
-export 'src/billing/in_app_purchase_gateway.dart'
-    hide PurchaseCoordinator, PurchaseProcessingContext;
-export 'src/billing/signed_native_offer.dart';
 export 'src/events/event_enums.dart';
 export 'src/events/restage_event.dart';
 export 'src/flow/flow_assignment.dart';
@@ -46,11 +40,8 @@ export 'package:restage_shared/restage_shared.dart'
         ChildrenSlot,
         CapabilityManifest,
         EmitTarget,
-        EntitlementSource,
         Ignore,
-        RestageEntitlement,
         RestageLibrary,
-        RestageProduct,
         RestageProperty,
         RestageWidget,
         RestageBundleEntryRole,
@@ -103,11 +94,12 @@ export 'src/resolver/asset_variant_resolver.dart';
 export 'src/resolver/restage_variant_resolver.dart'
     hide stampFlowPayloadForDelivery, withoutAssignmentLeaseForDelivery;
 // The exception thrown when a configured origin would transmit credentials or
-// purchaser data over cleartext. Public so hosts can catch it by type.
+// SDK request data over cleartext. Public so hosts can catch it by type.
 export 'src/secure_transport.dart' show InsecureBaseUrlException;
 export 'src/resolver/resolved_variant.dart';
 export 'src/resolver/variant_resolver.dart';
 export 'src/runtime/error_boundary.dart' show RuntimeErrorBoundary;
+export 'src/commerce/restage_commerce.dart' show RestageCommerce;
 export 'src/runtime/restage.dart';
 export 'src/runtime/restage_widget_factory.dart';
 export 'src/runtime/restage_widget_library_registration.dart';
@@ -269,4 +261,5 @@ export 'src/runtime/restage_identity.dart';
 export 'src/runtime/restage_paywall.dart' hide debugClearRestagePaywallCache;
 export 'src/runtime/paywall_controller.dart';
 export 'src/runtime/paywall_error.dart';
-export 'src/runtime/state_variables.dart';
+export 'src/runtime/state_variables.dart'
+    show currentDevicePlatform, populateDeviceData, populateThemeData;

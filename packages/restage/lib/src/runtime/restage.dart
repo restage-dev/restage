@@ -12,11 +12,8 @@ import '../analytics/analytics_event_mapper.dart';
 import '../analytics/analytics_identity.dart';
 import '../analytics/analytics_transport.dart';
 import '../analytics/root_analytics_context.dart';
-import '../billing/anonymous_token.dart';
-import '../billing/billing_gateway.dart';
-import '../billing/in_app_purchase_gateway.dart';
-import '../billing/purchase_attribution.dart';
-import '../billing/signed_native_offer.dart';
+import '../commerce/restage_commerce.dart'
+    show RestageCommerce, restageCommerceInstance;
 import '../metering/metering_token_store.dart';
 import '../measurement/governed_measurement_transport.dart';
 import '../measurement/governed_measurement_rpc_transport.dart';
@@ -26,7 +23,6 @@ import '../measurement/restage_measurement.dart';
 import '../measurement/restage_privacy.dart';
 import '../restage_rpc_client/restage_rpc_client.dart';
 import '../restage_rpc_client/surface_delivery_evidence.dart';
-import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_resolver.dart';
 import '../surface_screen/asset_surface_screen_resolver.dart';
@@ -45,17 +41,20 @@ import 'library_runtime_registry.dart';
 import 'first_paint_lease_guard.dart';
 import 'restage_identity.dart';
 import 'restage_paywall.dart';
-import 'state_variables.dart';
 import 'restage_widget_factory.dart';
 import 'restage_widget_library_registration.dart';
 
 /// Restage SDK static facade.
 ///
-/// Configure app-wide product, billing, entitlement, and resolver settings at
-/// startup when needed. Bundled paywalls and onboarding flows can also be
-/// rendered directly with `AssetVariantResolver` and `AssetFlowResolver`.
+/// Configure app-wide delivery, analytics, privacy, Measurement, and rendering
+/// settings at startup when needed. Bundled paywalls and onboarding flows can
+/// also be rendered directly with `AssetVariantResolver` and
+/// `AssetFlowResolver`.
 abstract final class Restage {
   Restage._();
+
+  /// App-wide commerce operations and state.
+  static final RestageCommerce commerce = restageCommerceInstance;
 
   /// Explicit, opt-in governed Measurement operations.
   static final RestageMeasurement measurement = RestageMeasurement.internal();
@@ -71,9 +70,6 @@ abstract final class Restage {
   static SurfaceScreenResolver _defaultSurfaceScreenResolver =
       const AssetSurfaceScreenResolver();
   static int _configurationGeneration = 0;
-  static List<RestageProduct> _products = const [];
-  static Map<String, RestageProduct> _productsBySlot = const {};
-  static Map<String, RestageProduct> _productsById = const {};
 
   // App-global live-refresh configuration. `_liveRefresh` is the fallback
   // trigger set; `_liveRefreshOverrides` pins a per-surface set by id; both are
@@ -85,38 +81,12 @@ abstract final class Restage {
   static SurfaceUpdateChannel? _updateChannel;
 
   static StreamController<RestageEvent>? _events;
-
-  /// Stored keyed by entitlement id so re-grants from a different `source`
-  /// (e.g. purchase → restore) replace the metadata in place rather than
-  /// creating a duplicate entry alongside the existing one.
-  static final Map<String, RestageEntitlement> _entitlementsById = {};
-  static StreamController<Set<RestageEntitlement>>? _entitlementsController;
-  // Lazily instantiated. Direct construction touches `InAppPurchase.instance`,
-  // which depends on platform channels — eager init breaks pure-Dart unit
-  // tests. The `billingGateway` getter materializes on first read; tests that
-  // never invoke a purchase / restore never instantiate it.
-  static BillingGateway? _billingGateway;
-  // True only when a host passed `billingGateway:` explicitly to [configure].
-  // The bundled auto-installed gateway (below) must never set this — it
-  // exists whether or not a host has any real commerce set up, so its
-  // presence alone can't signal commerce context. See [hasCommerceContext].
-  static bool _hostSuppliedBillingGateway = false;
-  static PurchaseCoordinator? _purchaseCoordinator;
-  static int _purchaseCoordinatorEpoch = 0;
-
-  /// Tracks the server's last-reported state per entitlement id. Drives
-  /// the reconciliation transition matrix in [_reconcileFromServer]:
-  /// transitions (active ↔ expired/refunded, missing) compare the
-  /// incoming summary against this snapshot.
-  static final Map<String, EntitlementSummary> _lastSyncedSummaryById = {};
-
-  static AnonymousTokenStore _anonymousTokenStore = AnonymousTokenStore();
   static MeteringTokenStore? _meteringTokenStore;
   static RestageRpcClient? _rpcClient;
   static _RestageLifecycleObserver? _lifecycleObserver;
 
   // The SDK version stamped into the app context of each recorded event.
-  static const String _sdkVersion = '0.1.0';
+  static const String _sdkVersion = '2.0.0';
 
   // The behavioral-analytics transport. Active only when [configure] is given a
   // [baseUrl]; otherwise `track`/`identify`/`reset` are inert (no endpoint).
@@ -154,17 +124,14 @@ abstract final class Restage {
   /// source. When omitted, the generated manifest-aware hosted resolver is
   /// installed and falls back only to the exact bundled screen closure.
   ///
-  /// [baseUrl] is the entitlement service origin (e.g.
-  /// `'https://api.example.com'`). When omitted, the SDK does not call
-  /// the entitlement endpoints — the optimistic local-grant path stays
-  /// the only source of entitlement state. Set this once your hosted
-  /// (or self-hosted) entitlement service is reachable.
+  /// [baseUrl] is the hosted service origin (e.g.
+  /// `'https://api.example.com'`). When omitted, hosted delivery, analytics,
+  /// metering, and governed operations remain inactive.
   ///
   /// [analyticsEnabled] (default `true`) controls the conversion-analytics
   /// transport. When `false`, no analytics events are sent even if [baseUrl] is
-  /// set — keeps hosted delivery + entitlement sync while opting out of
-  /// analytics. With no [baseUrl] analytics is already inactive regardless of
-  /// this flag.
+  /// set — hosted delivery and governed operations remain available. With no
+  /// [baseUrl] analytics is already inactive regardless of this flag.
   ///
   /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
   /// update signals. A custom [updateChannel] takes precedence when both are
@@ -191,10 +158,8 @@ abstract final class Restage {
     VariantResolver? resolver,
     FlowResolver? flowResolver,
     SurfaceScreenResolver? surfaceScreenResolver,
-    List<RestageProduct> products = const [],
     Locale? locale,
     Future<RestageIdentity?> Function()? identity,
-    BillingGateway? billingGateway,
     Set<SurfaceRefreshTrigger> liveRefresh = const {},
     Map<String, Set<SurfaceRefreshTrigger>> liveRefreshOverrides = const {},
     SurfaceUpdateChannel? updateChannel,
@@ -210,17 +175,6 @@ abstract final class Restage {
       );
     }
     _configurationGeneration += 1;
-    assert(
-      products.map((p) => p.slot).toSet().length == products.length,
-      'Restage.configure: products contain duplicate slots',
-    );
-    assert(
-      products.map((p) => p.id).toSet().length == products.length,
-      'Restage.configure: products contain duplicate ids',
-    );
-    _purchaseCoordinatorEpoch += 1;
-    _purchaseCoordinator?.cancel();
-    _purchaseCoordinator = null;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
     // A reconfiguration must never retain a client bound to the previous
@@ -252,9 +206,6 @@ abstract final class Restage {
           baseUrl: baseUrl,
           rpcClientProvider: _requireRpcClient,
         );
-    _products = List.unmodifiable(products);
-    _productsBySlot = Map.unmodifiable({for (final p in products) p.slot: p});
-    _productsById = Map.unmodifiable({for (final p in products) p.id: p});
     _liveRefresh = Set.unmodifiable(liveRefresh);
     _liveRefreshOverrides = Map.unmodifiable({
       for (final entry in liveRefreshOverrides.entries)
@@ -278,21 +229,6 @@ abstract final class Restage {
       }
     }
     // The current bundled asset resolvers do not read `locale` or `identity`.
-    if (billingGateway != null) {
-      _billingGateway = billingGateway;
-      _hostSuppliedBillingGateway = true;
-    }
-    final configuredGateway = _billingGateway;
-    if (configuredGateway is InAppPurchaseGateway &&
-        _canInstallPurchaseCoordinator) {
-      _installPurchaseCoordinator(configuredGateway);
-    } else if (configuredGateway == null && _canInstallPurchaseCoordinator) {
-      final bundled = InAppPurchaseGateway(
-        anonymousTokenProvider: _resolveAnonymousToken,
-      );
-      _billingGateway = bundled;
-      _installPurchaseCoordinator(bundled);
-    }
     _registerLifecycleObserver();
     _configureAnalytics(
       apiKey: apiKey,
@@ -319,7 +255,6 @@ abstract final class Restage {
         try {
           await _analyticsIdentity?.anonymousId();
         } on Object catch (_) {}
-        await syncEntitlements();
       });
     }
   }
@@ -341,8 +276,8 @@ abstract final class Restage {
   static SurfaceUpdateChannel? get configuredUpdateChannel => _updateChannel;
 
   /// Re-resolves mounted Restage surfaces in place, applying new published
-  /// content where the surface is safely swappable (no user-contributed
-  /// state, no store operation in flight, not experiment-assigned). Restricts
+  /// content where the surface is safely swappable (no user interaction or
+  /// contributed state, no busy flow, and no locked assignment). Restricts
   /// to surfaces whose id equals [surfaceId] when provided. Explicit calls run
   /// regardless of the configured live-refresh triggers — an explicit call is
   /// its own consent — but still pass through the swap-safety gate.
@@ -460,33 +395,14 @@ abstract final class Restage {
     }
   }
 
-  /// App-wide event stream. Receives presentation, interaction, conversion,
-  /// and lifecycle events (entitlement changes fire even when no paywall
-  /// is mounted).
+  /// App-wide event stream. Receives presentation and interaction events.
   ///
   /// Broadcast — multiple listeners supported; events are not buffered for
-  /// late subscribers, so **subscribe before [Restage.configure] returns**
-  /// to avoid missing entitlement / purchase events fired during cold-start
-  /// auto-restore.
+  /// late subscribers.
   static Stream<RestageEvent> get events {
     _events ??= StreamController<RestageEvent>.broadcast();
     return _events!.stream;
   }
-
-  /// Stream of the full set of currently-granted entitlements. Emits the
-  /// updated [Set] on every grant or revoke.
-  ///
-  /// Broadcast — multiple listeners supported; not buffered for late
-  /// subscribers. Use [currentEntitlements] for a synchronous snapshot.
-  static Stream<Set<RestageEntitlement>> get entitlements {
-    _entitlementsController ??=
-        StreamController<Set<RestageEntitlement>>.broadcast();
-    return _entitlementsController!.stream;
-  }
-
-  /// Synchronous snapshot of the currently-granted entitlements.
-  static Set<RestageEntitlement> get currentEntitlements =>
-      Set.unmodifiable(_entitlementsById.values);
 
   /// Rotates the on-device pseudonymous actor.
   ///
@@ -502,8 +418,8 @@ abstract final class Restage {
   /// What it does **not** do. It is a local operation: it sends nothing and
   /// notifies no server. It does **not** erase, amend, or unlink anything
   /// already uploaded — records sent before the call are untouched. It does
-  /// **not** clear the billing or metering identifiers, which are separate and
-  /// survive the rotation. It is **not** a server-side erasure request; the
+  /// **not** clear the metering identifier, which is separate and survives the
+  /// rotation. It is **not** a server-side erasure request; the
   /// governed privacy request is [privacy], which coordinates the separately
   /// owned privacy operations once the hosted side serves them.
   ///
@@ -582,10 +498,9 @@ abstract final class Restage {
       get widgetLibraryRegistrations =>
           LibraryRuntimeRegistry.registrationSnapshot();
 
-  // --- Internal API used by RestagePaywall + billing layer ---
+  // --- Runtime API ---
 
-  /// Adds [event] to the [events] broadcast stream. Internal — used by
-  /// `RestagePaywall` and the billing layer.
+  /// Adds [event] to the [events] broadcast stream.
   ///
   /// The broadcast leg short-circuits when nothing is listening to [events].
   /// Recording is a separate concern: it runs through [_recordingSink], which
@@ -711,49 +626,6 @@ abstract final class Restage {
   static bool _isMeteredExposureEvent(RestageEvent event) =>
       event.name == 'paywall_viewed' || event.name == 'onboarding_step_viewed';
 
-  /// Records [e] as granted and fires an [EntitlementGranted] on [events].
-  ///
-  /// Always fires the event — even when the entitlement was already in the
-  /// granted set under the same id. The [source] of the new grant is
-  /// preserved in the stored entry (replacing whatever source was there
-  /// before). Hosts watching for `restore`-sourced grants on an already-
-  /// granted entitlement (e.g. to show a "Welcome back!" toast) rely on
-  /// this re-fire signal.
-  ///
-  /// The [entitlements] stream emits an updated snapshot only when the set
-  /// actually changed (new id) or when the stored entry's metadata
-  /// differs (new source / expiry).
-  ///
-  /// Internal — used by the billing layer.
-  static void grantEntitlement(RestageEntitlement e, {String productId = ''}) {
-    final previous = _entitlementsById[e.id];
-    _entitlementsById[e.id] = e;
-    fireEvent(
-      EntitlementGranted(
-        entitlementId: e.id,
-        productId: productId,
-        source: e.source,
-        expiresAtMs: e.expiresAtMs,
-      ),
-    );
-    if (previous != e) {
-      _entitlementsController?.add(currentEntitlements);
-    }
-  }
-
-  /// Removes the entitlement matching [e]'s id from the granted set, emits
-  /// the updated [entitlements] snapshot, and fires an [EntitlementRevoked]
-  /// on [events]. No-op when no entitlement under that id was present.
-  /// Internal — used by the billing layer.
-  static void revokeEntitlement(
-    RestageEntitlement e, [
-    RevokeReason reason = RevokeReason.expired,
-  ]) {
-    if (_entitlementsById.remove(e.id) == null) return;
-    _entitlementsController?.add(currentEntitlements);
-    fireEvent(EntitlementRevoked(entitlementId: e.id, reason: reason));
-  }
-
   /// Resolver used when a `RestagePaywall` is constructed without an explicit
   /// `resolver:` parameter.
   ///
@@ -781,582 +653,6 @@ abstract final class Restage {
   /// Monotonic identity of mutable SDK configuration used by hosted mounts.
   @internal
   static int get configurationGeneration => _configurationGeneration;
-
-  /// Products configured via [configure]. Used by the slot resolution
-  /// path in `RestagePaywall` and the billing layer.
-  static List<RestageProduct> get configuredProducts => _products;
-
-  /// True when the host has supplied any explicit commerce context: at
-  /// least one product registered via `configure(products: ...)`, an
-  /// explicit `billingGateway:` passed to `configure` (the auto-installed
-  /// bundled gateway never counts), or a non-empty [priceQueries] for this
-  /// render.
-  ///
-  /// A rendering surface uses this to choose between failing closed on a
-  /// missing price (context present — the fail-safe posture, always on when
-  /// there is real commerce to protect) and rendering the shared
-  /// unbound-price placeholder (no context — a storeless demo or preview,
-  /// where a blank surface teaches nothing). See [kRestageUnboundPriceLabel].
-  static bool hasCommerceContext({
-    required Map<String, PriceInfo> priceQueries,
-  }) =>
-      _products.isNotEmpty ||
-      _hostSuppliedBillingGateway ||
-      priceQueries.isNotEmpty;
-
-  /// Look up a product by its author-named slot (e.g. `'primary'`).
-  /// Returns `null` when no configured product matches.
-  static RestageProduct? findProductBySlot(String slot) =>
-      _productsBySlot[slot];
-
-  /// Look up a product by its store identifier. Returns `null` when no
-  /// configured product matches.
-  static RestageProduct? findProductById(String id) => _productsById[id];
-
-  /// Grant the entitlement associated with [productId] (if any product is
-  /// configured under that id), tagging it with [source]. No-op when the
-  /// product is not configured. Used by the billing layer's purchase /
-  /// restore success paths. The resulting [EntitlementGranted] event
-  /// carries [productId] so hosts can correlate grants with purchases.
-  ///
-  /// When [productId] is not in the configured product set this method
-  /// emits a debug-mode warning. Most commonly this happens during
-  /// restore when the store returns a historical productId the host no
-  /// longer ships — the user paid, but the SDK can't grant the
-  /// entitlement without knowing which one to grant. The warning lets the
-  /// developer notice the misconfiguration and ship a fix.
-  static void grantEntitlementForProduct(
-    String productId,
-    EntitlementSource source,
-  ) {
-    final product = _productsById[productId];
-    if (product == null) {
-      assert(() {
-        debugPrint(
-          '[restage] ${source.name} returned productId "$productId" but no '
-          'matching RestageProduct is configured — entitlement not granted. '
-          'If this is a legacy product the user purchased previously, add '
-          'it to Restage.configure(products: [...]) so the entitlement can '
-          'be re-granted on restore.',
-        );
-        return true;
-      }());
-      return;
-    }
-    grantEntitlement(
-      RestageEntitlement(id: product.entitlement, source: source),
-      productId: productId,
-    );
-  }
-
-  /// Billing gateway used by `RestagePaywall` to invoke purchase / restore
-  /// flows when an RFW event resolves to [PurchaseInitiated] or
-  /// [RestoreInitiated]. Defaults to [InAppPurchaseGateway] (lazily
-  /// instantiated on first read); override via
-  /// `Restage.configure(billingGateway:)`.
-  ///
-  /// When durable reporting is configured, the bundled path installs its
-  /// coordinator before the first purchase and stamps a committed purchase
-  /// intent before opening store UI. Hosts that pass a custom [BillingGateway]
-  /// continue to own their gateway lifecycle.
-  static BillingGateway get billingGateway {
-    final existing = _billingGateway;
-    if (existing != null) {
-      if (existing is InAppPurchaseGateway && _canInstallPurchaseCoordinator) {
-        _installPurchaseCoordinator(existing);
-      }
-      return existing;
-    }
-    final bundled = InAppPurchaseGateway(
-      anonymousTokenProvider: _resolveAnonymousToken,
-    );
-    _billingGateway = bundled;
-    if (_canInstallPurchaseCoordinator) {
-      _installPurchaseCoordinator(bundled);
-    }
-    return bundled;
-  }
-
-  static bool get _canInstallPurchaseCoordinator =>
-      _isNativeBillingPlatform && _baseUrl != null;
-
-  static void _installPurchaseCoordinator(InAppPurchaseGateway gateway) {
-    if (_purchaseCoordinator != null) return;
-    final epoch = _purchaseCoordinatorEpoch;
-    final coordinator = PurchaseCoordinator(
-      gateway: gateway,
-      knownSubscriptionProductIds: _productsById.keys.toSet(),
-      anonymousTokenProvider: _resolveAnonymousToken,
-      rpcClientProvider: _requireRpcClient,
-      store: _resolvePlatformStore(),
-      epoch: epoch,
-      isCurrentEpoch: (candidate) => candidate == _purchaseCoordinatorEpoch,
-      authoritativeTokenReplacer: (token) {
-        if (epoch != _purchaseCoordinatorEpoch) return Future<void>.value();
-        return _anonymousTokenStore.replaceWithAuthoritativeToken(
-          token,
-          isCurrent: () => epoch == _purchaseCoordinatorEpoch,
-        );
-      },
-      entitlementReconciler: _reconcileFromServer,
-      entitlementSync: () => _syncEntitlementsForPurchaseEpoch(epoch),
-      delayedSuccessEmitter: _emitDelayedPurchaseSuccess,
-    );
-    _purchaseCoordinator = coordinator;
-    coordinator.start();
-  }
-
-  static Future<String?> _resolveAnonymousToken() async {
-    try {
-      return await _anonymousTokenStore.getOrCreate();
-    } on Object {
-      // SharedPreferences can throw on platforms that haven't initialized
-      // their plugins yet. The stamping path is a defense-in-depth signal
-      // for fraud detection; losing it on a degraded platform doesn't
-      // block the purchase flow.
-      debugPrint('[restage] anonymous token resolution failed');
-      return null;
-    }
-  }
-
-  static void _emitDelayedPurchaseSuccess(
-    PurchaseOutcomeSucceeded outcome,
-    PurchaseAttributionSnapshot attribution,
-  ) {
-    void emit() {
-      fireEvent(
-        PurchaseSucceeded(
-          paywallId: attribution.paywallId,
-          productId: outcome.productId,
-          transactionId: outcome.transactionId,
-          priceMicros: outcome.priceMicros,
-          currency: outcome.currency,
-          offerId: attribution.offerId,
-        ),
-      );
-    }
-
-    final rootAnalyticsContext = attribution.rootAnalyticsContext;
-    if (rootAnalyticsContext == null) {
-      emit();
-      return;
-    }
-    rootAnalyticsContext.runWithEventContext(emit);
-  }
-
-  /// Purchases [productId], optionally selecting a Google Play [basePlanId] or
-  /// applying the promotional offer named by [offerId]. Used by
-  /// `RestagePaywall`'s purchase action; also callable directly.
-  ///
-  /// With no [offerId] this is a plain (no-discount) purchase. With an [offerId]
-  /// the SDK resolves the offer for the current store and transports it through
-  /// the gateway. Configure-owned purchases bind offer minting and the store
-  /// purchase to the same purchase-intent UUID; legacy/custom gateway calls use
-  /// their existing store-account token. On Android the gateway resolves the
-  /// eligible offer token from the live product (no server). If the offer cannot
-  /// be resolved, the active gateway cannot apply native offers, or the platform
-  /// is unsupported, it fails closed with
-  /// [RestageBillingErrorCodes.offerUnavailable] rather than charging the full
-  /// price — the host/paywall decides whether to retry or present the base
-  /// price. It never silently charges full price for a discount the user chose.
-  ///
-  /// [basePlanId] selects a specific Google Play subscription **base plan** at
-  /// its standard price. A plain purchase of a Play subscription that has **more
-  /// than one base plan** requires it: with no [basePlanId] the SDK fails closed
-  /// with [RestageBillingErrorCodes.basePlanSelectionRequired] rather than buy an
-  /// arbitrary plan or silently apply a discount. With [offerId] it scopes the
-  /// offer to that base plan (disambiguating an offer id shared across base
-  /// plans). It has no effect on Apple subscriptions, so cross-platform call
-  /// sites may pass it unconditionally. The configure-owned bundled path
-  /// currently accepts auto-renewing subscriptions only; one-time products
-  /// fail closed before intent creation or store UI. Google Play prepaid base
-  /// plans are not accepted. Custom and legacy direct gateways retain their
-  /// existing product behavior.
-  static Future<PurchaseOutcome> purchaseProduct(
-    String productId, {
-    String? offerId,
-    String? basePlanId,
-  }) {
-    final gateway = billingGateway;
-    final coordinator = _purchaseCoordinator;
-    if (gateway is InAppPurchaseGateway && coordinator != null) {
-      return coordinator.purchaseProduct(
-        productId,
-        offerId: offerId,
-        basePlanId: basePlanId,
-      );
-    }
-    // Only an absent offerId is a plain purchase. A present-but-empty offerId
-    // is a malformed offer request and fails closed below — it must never
-    // silently collapse to a full-price purchase.
-    if (offerId == null) {
-      return gateway.purchase(productId, basePlanId: basePlanId);
-    }
-    return _purchaseWithOffer(productId, offerId, basePlanId);
-  }
-
-  static Future<PurchaseOutcome> _purchaseWithOffer(
-    String productId,
-    String offerId,
-    String? basePlanId,
-  ) async {
-    PurchaseOutcome unavailable(String message) => PurchaseOutcome.failed(
-          productId: productId,
-          errorCode: RestageBillingErrorCodes.offerUnavailable,
-          message: message,
-        );
-
-    if (offerId.isEmpty) {
-      return unavailable('An empty offer id cannot be applied.');
-    }
-
-    final gateway = billingGateway;
-    if (gateway is! OfferCapableBillingGateway) {
-      return unavailable('The active billing gateway cannot apply offers.');
-    }
-
-    // Resolve the store-account token ONCE and thread the same value into the
-    // signature request and the purchase: the signature commits to the token,
-    // so a mismatch makes the store reject the offer.
-    final rawToken = await _resolveAnonymousToken();
-    final token =
-        (rawToken != null && AnonymousTokenStore.isValidUuid(rawToken))
-            ? rawToken
-            : null;
-    if (token == null) {
-      return unavailable('A promotional offer requires a store-account token.');
-    }
-
-    // Branch by store platform. The two stores resolve an offer differently:
-    // Apple needs a server-minted signature (resolved here), while Google
-    // resolves the eligible offer token client-side at the gateway (no server).
-    // Both dispatch into the same offer-capable gateway call, threading the same
-    // account token (Apple `appAccountToken` / Google `obfuscatedAccountId`).
-    if (_isApplePlatform) {
-      final client = _requireRpcClient();
-      if (client == null) {
-        return unavailable(
-          'Promotional offers require a configured service URL.',
-        );
-      }
-
-      final signature = await client.mintOfferSignature(
-        OfferSignatureRequest(
-          productId: productId,
-          offerId: offerId,
-          appAccountToken: token,
-        ),
-      );
-      if (signature == null ||
-          signature.scheme != OfferSignatureScheme.legacy) {
-        return unavailable('No promotional-offer signature was available.');
-      }
-
-      return gateway.purchaseWithOffer(
-        productId: productId,
-        appAccountToken: token,
-        offer: AppleSignedOffer.fromSignature(
-          offerId: offerId,
-          signature: signature,
-        ),
-      );
-    }
-
-    if (_isAndroidPlatform) {
-      // Google requires no server crypto: name the requested offer and let the
-      // gateway resolve the eligible token from the live product, failing closed
-      // if it cannot be matched. An optional basePlanId scopes the offer to a
-      // specific base plan, disambiguating the rare case where the same offer id
-      // recurs across base plans.
-      return gateway.purchaseWithOffer(
-        productId: productId,
-        appAccountToken: token,
-        offer: GoogleOffer(offerId: offerId, basePlanId: basePlanId),
-      );
-    }
-
-    return unavailable(
-      'Native promotional offers are not supported on this platform.',
-    );
-  }
-
-  /// Internal: reconciles the local entitlement set against the server's
-  /// authoritative list. Dispatches the reserved transition events
-  /// (`EntitlementGranted`, `SubscriptionRenewed`, `SubscriptionLapsed`,
-  /// `EntitlementRevoked`) exactly once per transition, with the right
-  /// payload.
-  ///
-  /// The matrix:
-  ///   - Server has active, local didn't track it: `EntitlementGranted`.
-  ///     If the entitlement was already in the granted set (optimistic
-  ///     local-grant from the purchase path) the event is suppressed —
-  ///     `grantEntitlement` already fired it.
-  ///   - Server has active, was previously expired/refunded:
-  ///     `SubscriptionRenewed`.
-  ///   - Server has active with later `expiresAtMs` than the previous
-  ///     server-reported active: `SubscriptionRenewed`.
-  ///   - Server has `refunded`, was active: `EntitlementRevoked(refunded)`
-  ///     — server explicitly named the reason.
-  ///   - Server has `expired` (or other non-active), was active:
-  ///     `SubscriptionLapsed`.
-  ///   - Server stopped reporting an entitlement entirely:
-  ///     `SubscriptionLapsed` (honest default — the SDK doesn't actually
-  ///     know the reason, so the lifecycle event is the right surface).
-  static void _reconcileFromServer(List<EntitlementSummary> summaries) {
-    final seenIds = <String>{};
-    for (final summary in summaries) {
-      seenIds.add(summary.entitlementId);
-      final previous = _lastSyncedSummaryById[summary.entitlementId];
-      final wasActive = previous != null && previous.isEntitled;
-      final isActive = summary.isEntitled;
-      _lastSyncedSummaryById[summary.entitlementId] = summary;
-
-      if (!isActive) {
-        if (wasActive) {
-          _handleActiveToInactive(summary);
-        }
-        continue;
-      }
-
-      if (!wasActive) {
-        _handleTransitionIntoActive(summary, previous);
-        continue;
-      }
-
-      // Stayed active. Detect renewal-with-extended-expiry.
-      final previousExpiry = previous.expiresAtMs;
-      final currentExpiry = summary.expiresAtMs;
-      if (previousExpiry != null &&
-          currentExpiry != null &&
-          currentExpiry > previousExpiry) {
-        _updateEntitlement(summary, source: EntitlementSource.renewal);
-        fireEvent(
-          SubscriptionRenewed(
-            entitlementId: summary.entitlementId,
-            productId: summary.productId,
-          ),
-        );
-      }
-    }
-
-    // Entitlements the server stopped reporting on entirely → lapse.
-    final droppedIds = _lastSyncedSummaryById.keys
-        .where((id) => !seenIds.contains(id))
-        .toList(growable: false);
-    for (final id in droppedIds) {
-      final stale = _lastSyncedSummaryById.remove(id)!;
-      final removed = _entitlementsById.remove(id) != null;
-      if (removed) {
-        fireEvent(
-          SubscriptionLapsed(entitlementId: id, productId: stale.productId),
-        );
-        _entitlementsController?.add(currentEntitlements);
-      }
-    }
-  }
-
-  static void _handleActiveToInactive(EntitlementSummary summary) {
-    final removed = _entitlementsById.remove(summary.entitlementId) != null;
-    if (!removed) {
-      // The granted set was already out of sync with our cached server
-      // view (no entitlement to surface the lapse on). Stay silent rather
-      // than fire a transition event with no observable change — mirrors
-      // the dropped-id loop's gating below.
-      return;
-    }
-    if (summary.status == 'refunded') {
-      fireEvent(
-        EntitlementRevoked(
-          entitlementId: summary.entitlementId,
-          reason: RevokeReason.refunded,
-        ),
-      );
-    } else {
-      fireEvent(
-        SubscriptionLapsed(
-          entitlementId: summary.entitlementId,
-          productId: summary.productId,
-        ),
-      );
-    }
-    _entitlementsController?.add(currentEntitlements);
-  }
-
-  static void _handleTransitionIntoActive(
-    EntitlementSummary summary,
-    EntitlementSummary? previous,
-  ) {
-    final existing = _entitlementsById[summary.entitlementId];
-    final alreadyGranted = existing != null;
-    if (alreadyGranted) {
-      // The optimistic local-grant path already populated the granted
-      // set + fired `EntitlementGranted`. Refresh expiresAtMs but
-      // preserve the existing source — the event the host already
-      // received carries that source, and overwriting it would create
-      // a stored-vs-event mismatch.
-      if (existing.expiresAtMs != summary.expiresAtMs) {
-        _entitlementsById[summary.entitlementId] = RestageEntitlement(
-          id: summary.entitlementId,
-          source: existing.source,
-          expiresAtMs: summary.expiresAtMs,
-        );
-        _entitlementsController?.add(currentEntitlements);
-      }
-      // Lifecycle events (`SubscriptionRenewed`/`SubscriptionLapsed`)
-      // are orthogonal to the grant event — re-subscribe-after-lapse
-      // still wants the lifecycle signal even though `EntitlementGranted`
-      // already fired from the optimistic path.
-      if (previous != null && !previous.isEntitled) {
-        fireEvent(
-          SubscriptionRenewed(
-            entitlementId: summary.entitlementId,
-            productId: summary.productId,
-          ),
-        );
-      }
-      return;
-    }
-    final source = previous == null
-        ? EntitlementSource.purchase
-        : EntitlementSource.renewal;
-    _updateEntitlement(summary, source: source);
-    if (previous == null) {
-      fireEvent(
-        EntitlementGranted(
-          entitlementId: summary.entitlementId,
-          productId: summary.productId,
-          source: source,
-          expiresAtMs: summary.expiresAtMs,
-        ),
-      );
-    } else {
-      fireEvent(
-        SubscriptionRenewed(
-          entitlementId: summary.entitlementId,
-          productId: summary.productId,
-        ),
-      );
-    }
-  }
-
-  static void _updateEntitlement(
-    EntitlementSummary summary, {
-    required EntitlementSource source,
-  }) {
-    _entitlementsById[summary.entitlementId] = RestageEntitlement(
-      id: summary.entitlementId,
-      source: source,
-      expiresAtMs: summary.expiresAtMs,
-    );
-    _entitlementsController?.add(currentEntitlements);
-  }
-
-  /// Fetches the authoritative entitlement set from the server and
-  /// reconciles against the local set. No-ops cleanly when the SDK was
-  /// configured without [baseUrl], or when the request fails — the next
-  /// foreground triggers a retry, and the optimistic local grants from
-  /// the purchase path are preserved across failed syncs.
-  static Future<void> syncEntitlements() async {
-    final client = _requireRpcClient();
-    if (client == null) return;
-    final token = await _resolveAnonymousToken();
-    final summaries = await client.syncEntitlements(
-      EntitlementSyncRequest(
-        appAnonymousToken: token,
-        // The SDK does not persist seen transaction IDs; the server
-        // back-fills against its own record.
-        knownStoreTransactionIds: const [],
-      ),
-    );
-    if (summaries == null) {
-      // Transport failure (network, non-2xx, malformed body). Preserve
-      // local state — the next foreground triggers a retry. An empty
-      // list (non-null) reconciles normally, which is the server's
-      // explicit "nothing entitled" answer.
-      return;
-    }
-    _reconcileFromServer(summaries);
-  }
-
-  static Future<void> _syncEntitlementsForPurchaseEpoch(int epoch) async {
-    if (epoch != _purchaseCoordinatorEpoch) return;
-    final client = _requireRpcClient();
-    if (client == null) return;
-    final token = await _resolveAnonymousToken();
-    if (epoch != _purchaseCoordinatorEpoch) return;
-    final summaries = await client.syncEntitlements(
-      EntitlementSyncRequest(
-        appAnonymousToken: token,
-        knownStoreTransactionIds: const [],
-      ),
-    );
-    if (epoch != _purchaseCoordinatorEpoch || summaries == null) return;
-    _reconcileFromServer(summaries);
-  }
-
-  /// Reports a receipt-bearing success from the non-coordinated gateway path.
-  ///
-  /// The paywall dispatches this after a non-coordinated gateway succeeds.
-  /// Transport and validation failures are logged by the RPC client and left
-  /// for the next entitlement sync to reconcile. Coordinator-owned purchases
-  /// do not use this method; the coordinator reports and completes them through
-  /// its durable configure and resume lifecycle. [storeTransactionId] may be
-  /// null for a Google Play promotional-code purchase; App Store reports must
-  /// always supply it.
-  static Future<void> reportTransaction({
-    required String storeProductId,
-    required String? storeTransactionId,
-    required String storeVerificationData,
-    String? paywallId,
-    int? paywallPublishedVersion,
-  }) async {
-    final client = _requireRpcClient();
-    if (client == null) return;
-    final token = await _resolveAnonymousToken();
-    final response = await client.reportTransaction(
-      ReportTransactionRequest(
-        reportId: AnonymousTokenStore.generateUuidV4(),
-        store: _resolvePlatformStore(),
-        storeVerificationData: storeVerificationData,
-        storeProductId: storeProductId,
-        storeTransactionId: storeTransactionId,
-        appAnonymousToken: token,
-        paywallId: paywallId,
-        paywallPublishedVersion: paywallPublishedVersion,
-      ),
-    );
-    // On transport failure or an accepted response without entitlements, the
-    // optimistic local grant from `RestagePaywall._runPurchase` stays in
-    // place; the next `syncEntitlements` reconciles.
-    if (response == null || response.entitlements.isEmpty) return;
-    _reconcileFromServer(response.entitlements);
-  }
-
-  /// Internal: dispatches an attribution-only report for a **receipt-less**
-  /// purchase — one a host-supplied [BillingGateway] completed through an
-  /// external billing provider that keeps the receipt. Wired by
-  /// `RestagePaywall._runPurchase` on a [PurchaseOutcomeSucceeded] whose
-  /// `verificationData` is `null`: it carries the store transaction id +
-  /// paywall id as an attribution hint, never a verified signal, so it is a
-  /// separate path from [reportTransaction]. No-ops cleanly when no `baseUrl`
-  /// is configured, exactly as [reportTransaction] does; the wire contract
-  /// lives on `RestageRpcClient.reportAttribution`.
-  static Future<void> reportAttribution({
-    required String storeProductId,
-    required String storeTransactionId,
-    String? paywallId,
-    int? paywallPublishedVersion,
-  }) async {
-    final client = _requireRpcClient();
-    if (client == null) return;
-    await client.reportAttribution(
-      store: _resolvePlatformStore(),
-      storeProductId: storeProductId,
-      storeTransactionId: storeTransactionId,
-      paywallId: paywallId,
-      paywallPublishedVersion: paywallPublishedVersion,
-    );
-  }
 
   static RestageRpcClient? _requireRpcClient() {
     return _rpcClient ??= _buildRpcClient();
@@ -1386,23 +682,6 @@ abstract final class Restage {
   /// The active RPC client, or `null` when no service is configured.
   @internal
   static RestageRpcClient? get activeRpcClient => _requireRpcClient();
-
-  static String _resolvePlatformStore() =>
-      _isApplePlatform ? 'appStore' : 'playStore';
-
-  /// Whether the current platform is an Apple store (iOS / macOS) — the stores
-  /// whose offers are resolved via a server-minted signature.
-  static bool get _isApplePlatform =>
-      defaultTargetPlatform == TargetPlatform.iOS ||
-      defaultTargetPlatform == TargetPlatform.macOS;
-
-  /// Whether the current platform is Android (the Play store), whose offers are
-  /// resolved client-side from the product's eligible subscription offers.
-  static bool get _isAndroidPlatform =>
-      defaultTargetPlatform == TargetPlatform.android;
-
-  static bool get _isNativeBillingPlatform =>
-      _isApplePlatform || _isAndroidPlatform;
 
   static void _registerLifecycleObserver() {
     if (_lifecycleObserver != null) return;
@@ -1448,10 +727,6 @@ abstract final class Restage {
   @internal
   static RestageEnvironment get debugEnvironment => _environment;
 
-  /// Test-only — exposes the products passed to [configure].
-  @internal
-  static List<RestageProduct> get debugProducts => _products;
-
   /// Test-only — exposes the resolver `RestagePaywall` will use by default.
   @internal
   static VariantResolver get debugDefaultResolver => _defaultResolver;
@@ -1461,15 +736,7 @@ abstract final class Restage {
   @visibleForTesting
   static void debugFire(RestageEvent event) => fireEvent(event);
 
-  /// Test-only setter for the billing gateway, so tests can swap in fakes
-  /// without going through [configure].
-  @internal
-  static set debugBillingGateway(BillingGateway gateway) =>
-      _billingGateway = gateway;
-
-  /// Test-only — injects a fake [RestageRpcClient]. Used by integration
-  /// tests that drive [syncEntitlements] / [reportTransaction] against
-  /// a `MockClient`-backed transport.
+  /// Test-only — injects a fake [RestageRpcClient].
   @internal
   static set debugRestageRpcClient(RestageRpcClient? client) {
     _rpcClient = client;
@@ -1479,32 +746,6 @@ abstract final class Restage {
   /// Test-only — exposes the current [RestageRpcClient] for inspection.
   @internal
   static RestageRpcClient? get debugRestageRpcClient => _rpcClient;
-
-  /// Test-only — injects a fake [RestageRpcClient].
-  @internal
-  @Deprecated('Use debugRestageRpcClient instead.')
-  static set debugEntitlementClient(RestageRpcClient? client) =>
-      debugRestageRpcClient = client;
-
-  /// Test-only — exposes the current [RestageRpcClient] for inspection.
-  @internal
-  @Deprecated('Use debugRestageRpcClient instead.')
-  static RestageRpcClient? get debugEntitlementClient => debugRestageRpcClient;
-
-  /// Test-only — swaps in an [AnonymousTokenStore] with a pre-seeded
-  /// `SharedPreferences` fixture, so tests that drive
-  /// [syncEntitlements] / [reportTransaction] don't need to mock the
-  /// platform channel for every case.
-  @internal
-  static set debugAnonymousTokenStore(AnonymousTokenStore store) =>
-      _anonymousTokenStore = store;
-
-  /// Test-only — invokes the private reconciliation method directly so
-  /// the transition matrix can be exercised without spinning up an HTTP
-  /// transport.
-  @internal
-  static void debugReconcileFromServer(List<EntitlementSummary> summaries) =>
-      _reconcileFromServer(summaries);
 
   /// Resets all module-global state. **Tests must call this in `setUp`
   /// to avoid leaking state between tests.**
@@ -1517,32 +758,13 @@ abstract final class Restage {
     _defaultResolver = const AssetVariantResolver();
     _defaultFlowResolver = const AssetFlowResolver();
     _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
-    _products = const [];
-    _productsBySlot = const {};
-    _productsById = const {};
     _liveRefresh = const {};
     _liveRefreshOverrides = const {};
     _updateChannel = null;
     _events?.close();
     _events = null;
-    _entitlementsById.clear();
-    _entitlementsController?.close();
-    _entitlementsController = null;
-    _billingGateway = null;
-    _hostSuppliedBillingGateway = false;
-    _purchaseCoordinatorEpoch += 1;
-    _purchaseCoordinator?.cancel();
-    _purchaseCoordinator = null;
-    PurchaseCoordinator.debugPlatformAdapterFactory = null;
-    PurchaseCoordinator.debugEvidenceProcessor = null;
-    PurchaseCoordinator.debugReportIdGenerator = null;
-    PurchaseCoordinator.debugRetryDelayPolicy = null;
-    PurchaseCoordinator.debugDelay = null;
-    BundledPurchaseOwnership.debugReset();
     _rpcClient = null;
     MeasurementAssignmentTransportRegistry.debugReset();
-    _lastSyncedSummaryById.clear();
-    _anonymousTokenStore = AnonymousTokenStore();
     _analyticsTransport?.close();
     _analyticsTransport = null;
     RootAnalyticsRuntime.clear();
@@ -1576,11 +798,6 @@ abstract final class Restage {
   static void _handleLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.resumed:
-        final purchaseCoordinator = _purchaseCoordinator;
-        if (purchaseCoordinator != null) {
-          scheduleMicrotask(purchaseCoordinator.onAppResumed);
-        }
-        scheduleMicrotask(Restage.syncEntitlements);
         scheduleMicrotask(() => SurfaceRefreshRegistry.instance.onAppResumed());
         return;
       case AppLifecycleState.hidden:
@@ -1599,10 +816,8 @@ abstract final class Restage {
   }
 }
 
-/// Lifecycle observer that triggers a server reconciliation whenever
-/// the app foregrounds. Registered on [Restage.configure] and removed
-/// on [Restage.debugReset]. The observer itself is stateless — the
-/// reconciliation and analytics flushes are driven through [Restage].
+/// Lifecycle observer for refresh and analytics work. Registered on
+/// [Restage.configure] and removed on [Restage.debugReset].
 class _RestageLifecycleObserver with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {

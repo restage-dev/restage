@@ -110,13 +110,11 @@ release version and publication timing are assigned separately.
 - Let one `@RestageWidget` opt out of selected package-enabled targets and let
   one safely omissible constructor input use `@Ignore` for selected targets,
   without suppressing diagnostics or properties in its siblings.
-- Fix `paywallPriceFor(productId: ...)` for real store ids: a product key that
-  is not a bare identifier (a reverse-DNS id such as `com.example.pro.annual`,
-  an all-digit id, or one containing a hyphen or space) is now emitted as a
-  quoted reference part, so it stays a single key instead of splitting at each
-  dot, decoding as an integer, or failing to parse. Identifier-shaped keys and
-  slots are unchanged, so any output that previously parsed is byte-for-byte
-  identical. A blank key is now rejected with a diagnostic naming the helper.
+- **Breaking.** `paywallPurchase` and `paywallPriceFor` are rejected with
+  `IssueCode.unsupportedCommerceAuthoring`; codegen no longer lowers either
+  former authoring form into commerce events or product-data references.
+  `paywallEvent` remains available for generic custom events, while commerce
+  operations belong in explicit host-controlled code.
 
 ## 1.3.0
 

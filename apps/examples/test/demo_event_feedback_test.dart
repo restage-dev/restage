@@ -4,26 +4,11 @@ import 'package:restage/restage.dart';
 
 void main() {
   group('demoPaywallEventLabel', () {
-    test('labels a purchase with its product id', () {
-      const event = PurchaseInitiated(
-        paywallId: 'ascend_premium',
-        productId: 'com.restage.pro.annual',
-      );
-      expect(
-        demoPaywallEventLabel(event),
-        'Starting purchase: com.restage.pro.annual',
-      );
-    });
-
     PaywallCustomEvent custom(String name) => PaywallCustomEvent(
           paywallId: 'ascend_premium',
           eventName: name,
           args: const {},
         );
-
-    test('labels the restore action', () {
-      expect(demoPaywallEventLabel(custom('restore')), 'Restore requested');
-    });
 
     test('labels the terms link', () {
       expect(demoPaywallEventLabel(custom('terms')), contains('Terms'));

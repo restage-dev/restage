@@ -12,11 +12,11 @@ import 'package:restage/restage.dart';
 /// regardless of the host app theme.
 ///
 /// One piece of selection state lives at the root: `annualSelected` (the annual
-/// plan is the default). Tapping a card moves the radio and re-targets the
-/// purchase inside the delivered blob via `paywallPurchase(slot:)`. The value
+/// plan is the default). Tapping a card moves the radio and reports the
+/// selection inside the delivered blob. The value
 /// body is moderate, so the layout pins the CTA below an
-/// `Expanded(SingleChildScrollView(...))` so the buy button never falls below
-/// the fold on a small device.
+/// `Expanded(SingleChildScrollView(...))` so the primary action never falls
+/// below the fold on a small device.
 @Paywall()
 class LumenPremiumPaywall extends StatefulWidget {
   const LumenPremiumPaywall({super.key});
@@ -241,7 +241,7 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
                                 ),
                               ),
                               Text(
-                                '${paywallPriceFor(slot: 'annual')}/yr',
+                                r'$69.99/yr',
                                 style: const TextStyle(
                                   color: Color(0xFF2A2833),
                                   fontSize: 16,
@@ -254,7 +254,7 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
                       ),
                       const SizedBox(height: 12),
                       // Monthly plan (unselected default). The standalone monthly
-                      // price binds to the live monthly slot.
+                      // price is illustrative display copy.
                       GestureDetector(
                         onTap: selectMonthly,
                         child: Container(
@@ -325,7 +325,7 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
                                 ),
                               ),
                               Text(
-                                '${paywallPriceFor(slot: 'monthly')}/mo',
+                                r'$8.99/mo',
                                 style: const TextStyle(
                                   color: Color(0xFF66616E),
                                   fontSize: 16,
@@ -343,7 +343,7 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
               const SizedBox(height: 14),
               Text(
                 // ignore: lines_longer_than_80_chars
-                '14-day free trial, then ${paywallPriceFor(slot: 'annual')}/year. Cancel anytime.',
+                r'14-day free trial, then $69.99/year. Cancel anytime.',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Color(0xFF847F92),
@@ -352,10 +352,13 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Start free trial CTA — calm pill; purchases the selected plan.
+              // Start free trial CTA — calm pill; reports the selected plan.
               GestureDetector(
-                onTap: paywallPurchase(
-                  slot: annualSelected ? 'annual' : 'monthly',
+                onTap: paywallEvent(
+                  'continue',
+                  args: {
+                    'plan': annualSelected ? 'annual' : 'monthly',
+                  },
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 17),
@@ -378,21 +381,6 @@ class _LumenPremiumPaywallState extends State<LumenPremiumPaywall> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  GestureDetector(
-                    onTap: paywallEvent('restore'),
-                    child: const Text(
-                      'Restore',
-                      style: TextStyle(
-                        color: Color(0xFF6A55C4),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const Text(
-                    '   ·   ',
-                    style: TextStyle(color: Color(0xFFC6BFD9), fontSize: 14),
-                  ),
                   GestureDetector(
                     onTap: paywallEvent('terms'),
                     child: const Text(

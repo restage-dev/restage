@@ -2,13 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 import 'package:restage/restage.dart';
-import 'package:restage_example/stub_products.dart';
 import 'package:restage_example/user_factories.g.dart';
 
 /// Proof-slice integration test for the recreated-paywall library's interactive
 /// surfaces. Drives each new paywall's *delivered render blob* through its
-/// selection states and asserts the consequence (the CTA re-targets the
-/// selected product) — the lesson: a rendered-but-dead control passes a
+/// selection states and asserts the consequence (the CTA reports the
+/// selected plan) — the lesson: a rendered-but-dead control passes a
 /// render-only test, so we drive the tap and assert what it does, not just that
 /// it draws.
 ///
@@ -35,7 +34,7 @@ import 'package:restage_example/user_factories.g.dart';
 /// trial paywall walks trial-timeline (footer, no scrim) → tap the footer → the
 /// modal plan sheet rises over the scrim, collapsed on the default plan → "See
 /// All Plans" swaps the sheet content to the plan list → the Monthly selection
-/// and purchase.
+/// and continue action.
 const _dwell = Duration(milliseconds: 1200);
 
 ThemeData _theme(Brightness brightness) => ThemeData(
@@ -46,8 +45,8 @@ ThemeData _theme(Brightness brightness) => ThemeData(
       ),
     );
 
-/// Delivered-blob render of [id] (live stub prices), loaded from the bundled
-/// asset via the default resolver.
+/// Delivered-blob render of [id], loaded from the bundled asset via the default
+/// resolver.
 Widget _delivered(
   String id,
   Brightness brightness,
@@ -56,19 +55,17 @@ Widget _delivered(
     MaterialApp(
       theme: _theme(brightness),
       home: Scaffold(
-        body: RestagePaywall(
-          id: id,
-          priceQueries: kStubPriceQueries,
-          onEvent: onEvent,
-        ),
+        body: RestagePaywall(id: id, onEvent: onEvent),
       ),
     );
 
-/// The product id of the most recent purchase fired, or null.
-String? _lastPurchased(List<RestageEvent> events) {
-  final ids =
-      events.whereType<PurchaseInitiated>().map((e) => e.productId).toList();
-  return ids.isEmpty ? null : ids.last;
+Map<String, Object?>? _lastContinueArgs(List<RestageEvent> events) {
+  final actions = events
+      .whereType<PaywallCustomEvent>()
+      .where((event) => event.eventName == 'continue')
+      .map((event) => event.args)
+      .toList();
+  return actions.isEmpty ? null : actions.last;
 }
 
 void main() {
@@ -78,7 +75,6 @@ void main() {
       Restage.debugReset();
       Restage.configure(
         apiKey: 'rs_pk_smoke',
-        products: kStubProducts,
         resolver: const AssetVariantResolver(),
       );
       registerRestageWidgets();
@@ -99,14 +95,13 @@ void main() {
       await $.pumpAndSettle();
       await Future<void>.delayed(_dwell);
 
-      // Plan — select annual, then fire the CTA: it must buy the annual
-      // product.
+      // Plan — select annual, then fire the CTA.
       await $('Annual').tap();
       await $.pumpAndSettle();
       await Future<void>.delayed(_dwell);
       await $('Subscribe & pay').tap();
       await $.pumpAndSettle();
-      expect(_lastPurchased(pulse), 'com.restage.pro.annual');
+      expect(_lastContinueArgs(pulse), {'tier': 'basic', 'term': 'annual'});
 
       // ---- Ascend trial paywall: light, trial-timeline → rising plan sheet ----
       // The delivered blob: a single screen whose footer opens a real modal
@@ -133,15 +128,15 @@ void main() {
       await $.pumpAndSettle();
       await Future<void>.delayed(_dwell);
 
-      // Plan — select monthly, then fire the sheet CTA: it must buy the monthly
-      // SKU. The sheet is open, so scope the CTA to the BottomSheet to pick the
+      // Plan — select monthly, then fire the sheet CTA. The sheet is open, so
+      // scope the CTA to the BottomSheet to pick the
       // sheet's "Start free trial" over the footer's behind the scrim.
       await $('Monthly').tap();
       await $.pumpAndSettle();
       await Future<void>.delayed(_dwell);
       await $(BottomSheet).$('Start free trial').tap();
       await $.pumpAndSettle();
-      expect(_lastPurchased(ascend), 'com.restage.pro.monthly');
+      expect(_lastContinueArgs(ascend)?['term'], 'monthly');
     },
   );
 }

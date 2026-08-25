@@ -7,6 +7,7 @@
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -58,26 +59,20 @@ void main() {
     );
   });
 
-  test('a two-axis parenthesized nested conditional builds the nested switch',
-      () async {
-    // A two-axis purchase slot, parenthesized (the idiomatic
-    // way to write it).
+  test('a parenthesized conditional purchase helper is rejected', () async {
     final expr = await parseExpressionForTest(
       'GestureDetector(onTap: paywallPurchase(slot: '
       "business ? (annual ? 'business_annual' : 'business_monthly') "
       ": (annual ? 'plus_annual' : 'plus_monthly')))",
     );
     final result = translator().translate(expr, rootState: [business, annual]);
-    expect(result.issues, isEmpty);
+    expect(
+      result.issues.map((issue) => issue.code),
+      [IssueCode.unsupportedCommerceAuthoring],
+    );
     expect(
       result.dsl,
-      contains(
-        'slot: switch state.business { '
-        'true: switch state.annual { '
-        'true: "business_annual", false: "business_monthly" }, '
-        'false: switch state.annual { '
-        'true: "plus_annual", false: "plus_monthly" } }',
-      ),
+      isNot(contains('restage.purchase')),
     );
   });
 

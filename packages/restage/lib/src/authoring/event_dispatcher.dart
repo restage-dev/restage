@@ -1,15 +1,16 @@
 import 'package:flutter/widgets.dart';
 
+import '../runtime/event_demux.dart' show isReservedCommerceEventName;
+
 /// Signature for paywall event callbacks.
 ///
-/// Author-fired events from a rendered paywall (e.g. `paywallEvent('subscribe')`,
-/// `paywallPurchase(slot: 'primary')`) reach the host app via this handler.
+/// Author-fired events from a rendered paywall reach the host app via this
+/// handler.
 typedef PaywallEventHandler = void Function(
     String name, Map<String, Object?> args);
 
 /// Stack of currently-active dispatchers. The top of the stack is queried
-/// by [paywallEvent] / [paywallPurchase] when invoked outside a codegen
-/// context.
+/// by [paywallEvent] when invoked outside a codegen context.
 ///
 /// This is a fallback for non-codegen invocations; in codegen-built paywalls
 /// these helpers are replaced by RFW references at build time and never run at
@@ -27,11 +28,18 @@ typedef PaywallEventHandler = void Function(
 /// stack-top read. So the stack is kept as the stable shape.
 final List<PaywallEventHandler> _dispatcherStack = <PaywallEventHandler>[];
 
+PaywallEventHandler _dropReservedEvents(PaywallEventHandler onEvent) {
+  return (name, args) {
+    if (isReservedCommerceEventName(name)) return;
+    onEvent(name, args);
+  };
+}
+
 /// Returns the most-recently-mounted [PaywallEventHandler], or `null` if no
 /// [RestagePaywallEventDispatcher] is active.
 ///
-/// Public so authoring helpers (`paywallEvent`, `paywallPurchase`) can look
-/// up the active dispatcher without a `BuildContext`.
+/// Public so authoring helpers can look up the active dispatcher without a
+/// `BuildContext`.
 PaywallEventHandler? activeDispatcher() =>
     _dispatcherStack.isEmpty ? null : _dispatcherStack.last;
 
@@ -43,8 +51,7 @@ PaywallEventHandler? activeDispatcher() =>
 ///
 /// Tracks the handler in a module-level stack: `initState` pushes,
 /// `didUpdateWidget` swaps in place, `dispose` pops. Free-function authoring
-/// helpers ([paywallEvent], [paywallPurchase]) read the top of the stack via
-/// [activeDispatcher].
+/// helpers read the top of the stack via [activeDispatcher].
 class RestagePaywallEventDispatcher extends StatefulWidget {
   /// Wraps [child] and routes paywall events fired in its subtree to [onEvent].
   const RestagePaywallEventDispatcher({
@@ -53,8 +60,8 @@ class RestagePaywallEventDispatcher extends StatefulWidget {
     required this.child,
   });
 
-  /// Called when an authored helper (e.g. `paywallEvent`, `paywallPurchase`)
-  /// fires while this dispatcher is the topmost in the stack.
+  /// Called when an authored helper fires while this dispatcher is the topmost
+  /// in the stack.
   final PaywallEventHandler onEvent;
 
   /// The subtree under which paywall event helpers should resolve to
@@ -68,26 +75,30 @@ class RestagePaywallEventDispatcher extends StatefulWidget {
 
 class _RestagePaywallEventDispatcherState
     extends State<RestagePaywallEventDispatcher> {
+  late PaywallEventHandler _dispatcher;
+
   @override
   void initState() {
     super.initState();
-    _dispatcherStack.add(widget.onEvent);
+    _dispatcher = _dropReservedEvents(widget.onEvent);
+    _dispatcherStack.add(_dispatcher);
   }
 
   @override
   void didUpdateWidget(RestagePaywallEventDispatcher old) {
     super.didUpdateWidget(old);
     if (!identical(old.onEvent, widget.onEvent)) {
-      final idx = _dispatcherStack.lastIndexOf(old.onEvent);
+      final idx = _dispatcherStack.lastIndexOf(_dispatcher);
       if (idx >= 0) {
-        _dispatcherStack[idx] = widget.onEvent;
+        _dispatcher = _dropReservedEvents(widget.onEvent);
+        _dispatcherStack[idx] = _dispatcher;
       }
     }
   }
 
   @override
   void dispose() {
-    final idx = _dispatcherStack.lastIndexOf(widget.onEvent);
+    final idx = _dispatcherStack.lastIndexOf(_dispatcher);
     if (idx >= 0) {
       _dispatcherStack.removeAt(idx);
     }

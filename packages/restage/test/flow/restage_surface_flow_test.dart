@@ -186,7 +186,6 @@ void main() {
       skipBuilder: null,
       chromeBuilder: null,
       persistentChromeBuilder: null,
-      priceQueries: const {},
       liveRefresh: const {},
     );
 

@@ -304,11 +304,11 @@ Future<Catalog> loadMergedCatalogFromDisk({
 ///
 /// [helpers] defaults to the same paywall-helper registry the production build
 /// step registers (`paywallHelpers`), so the meter mirrors the build: a
-/// `paywallPurchase(...)` / `paywallEvent(...)` / `paywallPriceFor(...)` call —
-/// composition the build lowers — is measured as composition, not as an
-/// unrecognised `dartCall`. The (name, libraryOrigin) match gates recognition
-/// to the SDK's helpers, so a scanned package's own same-named function is not
-/// mistaken for one. A caller may pass an explicit registry to override.
+/// registered helper call that the build lowers as composition is measured as
+/// composition, not as an unrecognised `dartCall`. The (name, libraryOrigin)
+/// match gates recognition to the SDK's helpers, so a scanned package's own
+/// same-named function is not mistaken for one. A caller may pass an explicit
+/// registry to override.
 Future<ScanResult> scanPackage({
   required String packagePath,
   required Catalog catalog,

@@ -13,6 +13,7 @@ import 'package:build/build.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/annotation_lookup.dart';
+import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -2282,7 +2283,13 @@ String? _eventId(
   if (eventField != null) {
     final id =
         eventField.computeConstantValue()?.getField('id')?.toStringValue();
-    if (id != null) return id;
+    if (id != null) {
+      if (unsupportedCommerceEventNames.contains(id)) {
+        issues.add(unsupportedCommerceEventIssue(id, assetId.path));
+        return null;
+      }
+      return id;
+    }
   }
   issues.add(
     Issue(

@@ -3,8 +3,8 @@ import 'package:restage/restage.dart';
 
 /// A dark, conversion-first premium paywall in the segmented-tier archetype:
 /// a three-way tier strip (Basic | Premium | Premium+), a long scrolling
-/// feature list, two **side-by-side** plan cards with a selected-state border, a
-/// flowing rich-text legal line, and an explicit Terms / Privacy / Restore row.
+/// feature list, two **side-by-side** plan cards with a selected-state border,
+/// a flowing rich-text legal line, and an explicit Terms / Privacy row.
 ///
 /// This is a **fixed-brand** surface — a deliberate single-brightness palette
 /// (near-black canvas, white type, a violet accent) authored with explicit
@@ -13,10 +13,10 @@ import 'package:restage/restage.dart';
 ///
 /// ## Pinned offer over a scrollable value body
 ///
-/// The offer zone — the plan cards, the purchase CTA, and the legal row — is
+/// The offer zone — the plan cards, the continue CTA, and the legal row — is
 /// **pinned**: it lives in fixed siblings below an `Expanded(SingleChildScroll
 /// View(...))` that carries the value content (wordmark, headline, tier strip,
-/// feature rows). So the price + buy button are always on screen while the long
+/// feature rows). So the price + continue button stay on screen while the long
 /// feature list scrolls — the layout fits every device, smallest included,
 /// without the offer ever falling below the fold.
 ///
@@ -33,8 +33,8 @@ import 'package:restage/restage.dart';
 /// The feature rows are inlined flat (no extracted helper widget) so the
 /// transpiler follows the tree. Note: the inline link word in the legal line is
 /// styled but not tappable — a per-word tap inside a rich-text run is not yet
-/// expressible in the render blob. The Terms / Privacy / Restore row below
-/// carries the working affordance.
+/// expressible in the render blob. The Terms / Privacy row below carries the
+/// working affordance.
 @Paywall()
 class PulsePremiumPaywall extends StatefulWidget {
   const PulsePremiumPaywall({super.key});
@@ -925,13 +925,11 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                                     ),
                                   ),
                                   Text(
-                                    paywallPriceFor(
-                                      slot: selectedTier == 0
-                                          ? 'basic_monthly'
-                                          : selectedTier == 1
-                                              ? 'premium_monthly'
-                                              : 'premiumplus_monthly',
-                                    ),
+                                    selectedTier == 0
+                                        ? r'$4.99'
+                                        : selectedTier == 1
+                                            ? r'$7.99'
+                                            : r'$10.99',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 15,
@@ -991,13 +989,11 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                               Row(
                                 children: [
                                   Text(
-                                    paywallPriceFor(
-                                      slot: selectedTier == 0
-                                          ? 'basic_annual'
-                                          : selectedTier == 1
-                                              ? 'premium_annual'
-                                              : 'premiumplus_annual',
-                                    ),
+                                    selectedTier == 0
+                                        ? r'$39.99'
+                                        : selectedTier == 1
+                                            ? r'$69.99'
+                                            : r'$99.99',
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 15,
@@ -1022,18 +1018,18 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Subscribe & pay CTA — violet pill; purchases the selected plan.
+              // Continue CTA — violet pill.
               GestureDetector(
-                onTap: paywallPurchase(
-                  slot: selectedTier == 0
-                      ? (annualSelected ? 'basic_annual' : 'basic_monthly')
-                      : selectedTier == 1
-                          ? (annualSelected
-                              ? 'premium_annual'
-                              : 'premium_monthly')
-                          : (annualSelected
-                              ? 'premiumplus_annual'
-                              : 'premiumplus_monthly'),
+                onTap: paywallEvent(
+                  'continue',
+                  args: {
+                    'tier': selectedTier == 0
+                        ? 'basic'
+                        : selectedTier == 1
+                            ? 'premium'
+                            : 'premium_plus',
+                    'term': annualSelected ? 'annual' : 'monthly',
+                  },
                 ),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 15),
@@ -1108,17 +1104,6 @@ class _PulsePremiumPaywallState extends State<PulsePremiumPaywall> {
                     onPressed: paywallEvent('privacy_policy'),
                     child: const Text(
                       'Privacy',
-                      style: TextStyle(color: Color(0xFF7B61FF), fontSize: 11),
-                    ),
-                  ),
-                  const Text(
-                    '·',
-                    style: TextStyle(color: Color(0xFF6B6B78)),
-                  ),
-                  TextButton(
-                    onPressed: paywallEvent('restore'),
-                    child: const Text(
-                      'Restore',
                       style: TextStyle(color: Color(0xFF7B61FF), fontSize: 11),
                     ),
                   ),

@@ -970,58 +970,44 @@ void main() {
       expect(events.whereType<FlowCompleted>(), isEmpty);
     });
 
-    test('unknown RFW events are dropped without PaywallCustomEvent', () async {
-      final events = <RestageEvent>[];
-      final resolver = _StaticFlowResolver(_resolvedFlow());
-      final controller = RestageFlowController<_FirstRunResult>(
-        flow: _flowRef,
-        resolver: resolver,
-        actions: null,
-        onEvent: events.add,
-        onComplete: (_) {},
-        onUnavailable: (_) {},
-      );
+    test('reserved event names have no flow effect', () async {
+      for (final name in const <String>[
+        'purchase',
+        'restage.purchase',
+        'restage.restore',
+        'restage.purchase.succeeded',
+        'restage.purchase.pending',
+        'restage.purchase.cancelled',
+        'restage.purchase.failed',
+        'restage.restore.succeeded',
+        'restage.restore.noPurchases',
+        'restage.restore.failed',
+      ]) {
+        var completed = false;
+        var unavailable = false;
+        final events = <RestageEvent>[];
+        final resolver = _StaticFlowResolver(_resolvedFlow());
+        final controller = RestageFlowController<_FirstRunResult>(
+          flow: _flowRef,
+          resolver: resolver,
+          actions: null,
+          onEvent: events.add,
+          onComplete: (_) => completed = true,
+          onUnavailable: (_) => unavailable = true,
+        );
 
-      await controller.load();
-      controller.handleEvent('restage.purchase', const {'slot': 'primary'});
-      await Future<void>.delayed(Duration.zero);
+        await controller.load();
+        events.clear();
+        controller.handleEvent(name, const {'ignored': true});
+        await Future<void>.delayed(Duration.zero);
 
-      expect(events.whereType<PaywallCustomEvent>(), isEmpty);
-      expect(events.whereType<FlowCustomEvent>(), isEmpty);
-      expect(controller.currentScreenId, 'welcome');
-    });
-
-    test('paywall purchase event routes to authored purchase transition',
-        () async {
-      _FirstRunResult? completed;
-      final events = <RestageEvent>[];
-      final resolver = _StaticFlowResolver(
-        _resolvedFlow(
-          states: const {
-            'welcome': ScreenFlowState(
-              screen: 'welcome',
-              on: {'purchase': FlowTransition.goto('done')},
-            ),
-            'done': EndFlowState(result: {'completed': true}),
-          },
-        ),
-      );
-      final controller = RestageFlowController<_FirstRunResult>(
-        flow: _flowRef,
-        resolver: resolver,
-        actions: null,
-        onEvent: events.add,
-        onComplete: (result) => completed = result,
-        onUnavailable: (_) {},
-      );
-
-      await controller.load();
-      controller.handleEvent('restage.purchase', const {'slot': 'primary'});
-      await Future<void>.delayed(Duration.zero);
-
-      expect(completed?.completed, isTrue);
-      expect(events.whereType<PaywallCustomEvent>(), isEmpty);
-      expect(controller.isComplete, isTrue);
+        expect(controller.currentScreenId, 'welcome', reason: name);
+        expect(controller.isComplete, isFalse, reason: name);
+        expect(completed, isFalse, reason: name);
+        expect(unavailable, isFalse, reason: name);
+        expect(events, isEmpty, reason: name);
+        controller.dispose();
+      }
     });
 
     test('allowlisted custom event emits only filtered flow fields', () async {

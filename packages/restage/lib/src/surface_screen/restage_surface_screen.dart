@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart' show Theme;
 import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
@@ -19,10 +20,11 @@ import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/error_boundary.dart';
+import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 import '../runtime/library_runtime_registry.dart';
-import '../runtime/product_reference_walk.dart';
 import '../runtime/restage.dart';
-import '../runtime/state_variables.dart' show PriceInfo;
+import '../runtime/state_variables.dart'
+    show currentDevicePlatform, populateDeviceData, populateThemeData;
 import 'surface_screen_runtime_provenance.dart';
 import 'surface_screen_unavailable_policy.dart';
 import 'surface_screen_types.dart';
@@ -237,26 +239,33 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       runtime: runtime,
       data: DynamicContent(),
       presentation: presentation,
-      library: library,
     );
   }
 
   void _populateData() {
     final stage = _stage;
-    if (stage == null) return;
-    final tookPlaceholderLane = populateFlowScreenData(
-      context,
+    if (stage == null || !_dependenciesReady) return;
+    final mediaQuery = MediaQuery.maybeOf(context);
+    if (mediaQuery != null) {
+      populateDeviceData(
+        stage.data,
+        locale: Localizations.maybeLocaleOf(context) ?? const Locale('en'),
+        mediaQuery: mediaQuery,
+        platform: currentDevicePlatform(),
+      );
+    }
+    final theme = Theme.of(context);
+    populateThemeData(
       stage.data,
-      priceQueries: const <String, PriceInfo>{},
-      includeInheritedData: _dependenciesReady,
-      placeholderKeys: stage.placeholderLane.keys,
-      shouldLogPlaceholder: !stage.placeholderLane.logged,
+      colorScheme: theme.colorScheme,
+      iconTheme: theme.iconTheme,
+      defaultTextStyle: DefaultTextStyle.of(context).style,
     );
-    if (tookPlaceholderLane) stage.placeholderLane.logged = true;
   }
 
   void _handleEvent(_ScreenStage stage, String name, Object? value) {
     if (!identical(_stage, stage)) return;
+    if (isReservedCommerceEventName(name)) return;
     try {
       final arguments = normalizeEventArgs(
         stage.sanitizeAndRecordEvent(value),
@@ -370,20 +379,13 @@ final class _ScreenStage {
     required this.runtime,
     required this.data,
     required this.presentation,
-    required WidgetLibrary library,
-  }) : placeholderLane = PlaceholderProductLane(library);
+  });
 
   final SurfaceScreenRuntimeProvenance provenance;
   final ResolvedSurfaceScreen resolved;
   final Runtime runtime;
   final DynamicContent data;
   final RootAnalyticsPresentation presentation;
-
-  /// This screen's placeholder-lane state (memoized referenced keys + sticky
-  /// log flag), walked once at construction from the screen's decoded widget
-  /// library — a later data re-population reuses it without re-decoding
-  /// [resolved]'s blob.
-  final PlaceholderProductLane placeholderLane;
 
   MeasurementHostSessionController? _measurementSession;
   var _disposed = false;
