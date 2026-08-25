@@ -7,6 +7,8 @@ import 'package:rfw_catalog_compiler/src/wire_ids/_validators.dart' as v;
 import 'package:rfw_catalog_compiler/src/wire_ids/events.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
+const _unnamedConstructorLabel = '<unnamed>';
+
 /// Error thrown when event replay violates wire-ID invariants.
 final class WireIdReplayException implements Exception {
   /// Creates a replay exception.
@@ -600,15 +602,17 @@ final class WireIdReplayBuilder {
 
   void _applyRename(RenameWireIdEvent event) {
     _validateId(event.id, event.type, 'rename.id');
-    if (event.from == event.to) {
-      throw const WireIdReplayException('rename must change the label');
-    }
     if (event.type == WireIdKind.designToken) {
       if (event.source != null ||
           event.fromSource != null ||
           event.toSource != null) {
         throw const WireIdReplayException(
           'design-token rename must not carry source fields',
+        );
+      }
+      if (event.cascade) {
+        throw const WireIdReplayException(
+          'design-token rename must not cascade',
         );
       }
     } else {
@@ -626,6 +630,16 @@ final class WireIdReplayBuilder {
           'source rename requires both fromSource and toSource',
         );
       }
+      if (event.cascade && !sourceRename) {
+        throw const WireIdReplayException(
+          'rename cascade requires fromSource + toSource',
+        );
+      }
+    }
+    if (event.from == event.to && event.fromSource == event.toSource) {
+      throw const WireIdReplayException(
+        'rename must change the display label or source',
+      );
     }
     final entry = _resolveLocalOrThrow(event.id, 'rename.id');
     if (entry.kind != event.type) {
@@ -656,10 +670,18 @@ final class WireIdReplayBuilder {
         );
       }
     }
+    _validateProjectedRenameIdentity(entry, event);
+    final descendantSourceMoves = !event.cascade
+        ? const <_SourceMove>[]
+        : _descendantSourceMoves(
+            entry,
+            fromSource: event.fromSource!,
+            toSource: event.toSource!,
+          );
 
     if (event.type == WireIdKind.variant) {
       if (entry.sourceKind == VariantSourceKind.constructor) {
-        entry.namedConstructor = event.to;
+        entry.namedConstructor = _constructorNameFromLabel(event.to);
       } else {
         entry.staticAccessor = event.to;
       }
@@ -668,7 +690,154 @@ final class WireIdReplayBuilder {
     }
 
     if (event.type == WireIdKind.designToken) return;
-    if (event.fromSource != null) entry.source = event.toSource;
+    if (event.fromSource != null) {
+      _moveSource(entry, event.toSource!);
+    }
+    for (final move in descendantSourceMoves) {
+      _moveSource(move.entry, move.toSource);
+    }
+  }
+
+  void _validateProjectedRenameIdentity(
+    _EntryBuilder entry,
+    RenameWireIdEvent event,
+  ) {
+    var projectedName = event.to;
+    var projectedNamedConstructor = entry.namedConstructor;
+    var projectedStaticAccessor = entry.staticAccessor;
+    if (entry.kind == WireIdKind.variant) {
+      projectedName = entry.name ?? event.to;
+      if (entry.sourceKind == VariantSourceKind.constructor) {
+        projectedNamedConstructor = _constructorNameFromLabel(event.to);
+      } else {
+        projectedStaticAccessor = event.to;
+      }
+    }
+    final projectedSource = event.toSource ?? entry.source;
+    if (entry.kind == WireIdKind.variant &&
+        entry.sourceKind == VariantSourceKind.constructor &&
+        projectedNamedConstructor == null &&
+        !_hasSingleTrailingDelimiter(projectedSource!)) {
+      throw WireIdReplayException(
+        'rename ${entry.id.value} unnamed constructor source must end in '
+        'exactly one .',
+      );
+    }
+    if (entry.deprecated) return;
+    final projectedIdentity = _allocationIdentity(
+      entry,
+      name: projectedName,
+      source: projectedSource,
+      namedConstructor: projectedNamedConstructor,
+      staticAccessor: projectedStaticAccessor,
+    );
+
+    for (final other in _mapFor(entry.kind).values) {
+      if (other.id == entry.id || other.deprecated) continue;
+      final otherIdentity = _allocationIdentity(
+        other,
+        name: other.name,
+        source: other.source,
+        namedConstructor: other.namedConstructor,
+        staticAccessor: other.staticAccessor,
+      );
+      if (otherIdentity == projectedIdentity) {
+        throw WireIdReplayException(
+          'rename ${entry.id.value} would create duplicate active '
+          '${entry.kind.name} identity with ${other.id.value}; deprecate or '
+          'reconcile one entry before renaming',
+        );
+      }
+    }
+  }
+
+  Object _allocationIdentity(
+    _EntryBuilder entry, {
+    required String? name,
+    required String? source,
+    required String? namedConstructor,
+    required String? staticAccessor,
+  }) {
+    return switch (entry.kind) {
+      WireIdKind.widget => (name, source),
+      WireIdKind.property =>
+        _resolveLocal(entry.owner!)?.kind == WireIdKind.structured
+            ? (entry.owner, name)
+            : (entry.owner, name, source),
+      WireIdKind.structured => source!,
+      WireIdKind.variant => (
+          entry.owner,
+          entry.sourceKind,
+          namedConstructor,
+          staticAccessor,
+        ),
+      WireIdKind.parameter => (entry.owner, name),
+      WireIdKind.union => source!,
+      WireIdKind.designToken => name!,
+    };
+  }
+
+  List<_SourceMove> _descendantSourceMoves(
+    _EntryBuilder entry, {
+    required String fromSource,
+    required String toSource,
+  }) {
+    final descendants = <_EntryBuilder>[];
+    switch (entry.kind) {
+      case WireIdKind.widget:
+        descendants.addAll(
+          _properties.values.where((child) => child.owner == entry.id),
+        );
+      case WireIdKind.structured:
+        descendants
+          ..addAll(
+            _properties.values.where((child) => child.owner == entry.id),
+          )
+          ..addAll(
+            _variants.values.where((child) => child.owner == entry.id),
+          );
+        final variantIds = descendants
+            .where((child) => child.kind == WireIdKind.variant)
+            .map((child) => child.id)
+            .toSet();
+        descendants.addAll(
+          _parameters.values.where(
+            (child) => variantIds.contains(child.owner),
+          ),
+        );
+      case WireIdKind.variant:
+        descendants.addAll(
+          _parameters.values.where((child) => child.owner == entry.id),
+        );
+      case WireIdKind.property:
+      case WireIdKind.parameter:
+      case WireIdKind.union:
+      case WireIdKind.designToken:
+        break;
+    }
+
+    final acceptedSources = <String>[
+      fromSource,
+      ...entry.sourceHistory.reversed,
+    ];
+    final moves = [
+      for (final descendant in descendants)
+        if (descendant.source case final source?)
+          if (_matchingSourcePrefix(source, acceptedSources) case final prefix?)
+            _SourceMove(
+              entry: descendant,
+              toSource: '${_descendantSourcePrefix(toSource)}'
+                  '${source.substring(prefix.length)}',
+            )
+          else
+            throw WireIdReplayException(
+              'source rename ${entry.id.value} cannot move descendant '
+              '${descendant.id.value}: expected source under $fromSource, '
+              'found $source',
+            ),
+    ];
+    _validateProjectedDescendantIdentities(entry, moves);
+    return moves;
   }
 
   void _applyDeprecate(DeprecateWireIdEvent event) {
@@ -878,6 +1047,63 @@ final class WireIdReplayBuilder {
   }
 }
 
+final class _SourceMove {
+  const _SourceMove({required this.entry, required this.toSource});
+
+  final _EntryBuilder entry;
+  final String toSource;
+}
+
+String? _matchingSourcePrefix(String source, Iterable<String> candidates) {
+  final prefixes = candidates.map(_descendantSourcePrefix).toSet().toList()
+    ..sort((left, right) => right.length.compareTo(left.length));
+  for (final prefix in prefixes) {
+    if (source.startsWith(prefix)) return prefix;
+  }
+  return null;
+}
+
+bool _hasSingleTrailingDelimiter(String source) =>
+    source.endsWith('.') && !source.endsWith('..');
+
+String _descendantSourcePrefix(String ownerSource) =>
+    ownerSource.endsWith('.') ? ownerSource : '$ownerSource.';
+
+void _moveSource(_EntryBuilder entry, String toSource) {
+  entry.sourceHistory.add(entry.source!);
+  entry.source = toSource;
+}
+
+void _validateProjectedDescendantIdentities(
+  _EntryBuilder owner,
+  Iterable<_SourceMove> moves,
+) {
+  final entriesByIdentity = <Object, _EntryBuilder>{};
+  for (final move in moves) {
+    final entry = move.entry;
+    if (entry.deprecated) continue;
+    final identity = (
+      entry.kind,
+      entry.owner,
+      entry.name,
+      entry.sourceKind,
+      entry.namedConstructor,
+      entry.staticAccessor,
+      move.toSource,
+    );
+    final existing = entriesByIdentity[identity];
+    if (existing != null && existing.id != entry.id) {
+      throw WireIdReplayException(
+        'source rename ${owner.id.value} would create duplicate active '
+        'descendant identity for ${existing.id.value} and ${entry.id.value} '
+        'at ${move.toSource}; deprecate or reconcile one entry before '
+        'cascading',
+      );
+    }
+    entriesByIdentity[identity] = entry;
+  }
+}
+
 Map<WireId, WireIdEntryState> _freezeMap(Map<WireId, _EntryBuilder> source) {
   return Map<WireId, WireIdEntryState>.unmodifiable(
     source.map((key, value) => MapEntry(key, value.freeze())),
@@ -887,9 +1113,12 @@ Map<WireId, WireIdEntryState> _freezeMap(Map<WireId, _EntryBuilder> source) {
 String? _entryLabel(_EntryBuilder entry) {
   if (entry.kind != WireIdKind.variant) return entry.name;
   return entry.sourceKind == VariantSourceKind.constructor
-      ? entry.namedConstructor
+      ? entry.namedConstructor ?? _unnamedConstructorLabel
       : entry.staticAccessor;
 }
+
+String? _constructorNameFromLabel(String label) =>
+    label == _unnamedConstructorLabel ? null : label;
 
 WireId _requiredWireId(WireId? value, String path) {
   if (value == null) throw WireIdReplayException('$path is required');
@@ -951,6 +1180,7 @@ final class _EntryBuilder {
   String? description;
   String stability;
   final members = <WireIdRef>[];
+  final sourceHistory = <String>[];
   bool deprecated = false;
   String? deprecationReason;
   String? deprecationAt;

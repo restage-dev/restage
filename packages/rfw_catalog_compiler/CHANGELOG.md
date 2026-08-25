@@ -2,6 +2,16 @@
 
 - Carry open event properties through compiler IR without a closed event-name
   list or rename field, and lower canonical catalog schema v5.
+- Allow wire-ID `rename` events to express source-only moves and opt into
+  carrying an owning class's source move through its properties, fields,
+  variants, and parameters. A later cascade can also normalize descendants
+  left under an earlier source by a non-cascading rename, and fails atomically
+  if that would collapse two live descendants onto one identity. Renames also
+  fail atomically if the target itself would collide with another live entry.
+  Source-only moves of unnamed constructor variants use a canonical event
+  label, require exactly one trailing source delimiter, and cascade through
+  their parameters from the most specific current or historical owner prefix
+  with exactly one delimiter across named/unnamed changes.
 
 # 1.2.0
 

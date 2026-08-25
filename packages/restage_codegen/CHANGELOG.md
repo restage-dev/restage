@@ -48,6 +48,11 @@ release version and publication timing are assigned separately.
 - Generate `registerRestageWidgets()` as the app startup helper.
   `registerRestageCustomerWidgets()` remains a deprecated forwarding alias
   through 2.x and is removed at 3.0.
+- Preserve generated catalog wire IDs across class renames and source moves.
+  A likely rename now stops before allocation and prints the exact append-only
+  `rename` or `deprecate` event needed to state the author's intent. Stable
+  source and class identity detect moves even when properties change in the
+  same edit; deprecated identities are never reused.
 - Each generated output roster entry records the condition under which its
   path is written: for every lowering of its source, or only when the lowering
   produces one particular thing. Paths are reserved before the translator

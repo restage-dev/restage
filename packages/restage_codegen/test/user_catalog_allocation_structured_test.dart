@@ -123,27 +123,37 @@ WidgetEntry _badgeCard() => const WidgetEntry(
       ],
     );
 
-/// Badge{label:String, count:int} with the canonical unnamed ctor variant.
-StructuredEntry _badge() => StructuredEntry(
+/// Badge with the canonical unnamed ctor variant.
+StructuredEntry _badge({
+  String sourceType = 'package:acme/b.dart#Badge',
+  bool includeTone = false,
+}) =>
+    StructuredEntry(
       wireId: WireId.unallocatedStructured,
       name: 'Badge',
       library: const WidgetLibrary.custom('acme.design_system'),
       description: '',
-      sourceType: 'package:acme/b.dart#Badge',
+      sourceType: sourceType,
       fields: [
         _field('label', PropertyType.string),
         _field('count', PropertyType.integer),
+        if (includeTone) _field('tone', PropertyType.string),
       ],
       variants: [
         ConstructorVariant(
           wireId: WireId.unallocatedVariant,
-          argMappings: const {
+          argMappings: {
             'label': ArgMapping(targetFields: [WireId.unallocatedProperty]),
             'count': ArgMapping(targetFields: [WireId.unallocatedProperty]),
+            if (includeTone)
+              'tone': ArgMapping(
+                targetFields: [WireId.unallocatedProperty],
+              ),
           },
           parameters: [
             _param('label', PropertyType.string),
             _param('count', PropertyType.integer),
+            if (includeTone) _param('tone', PropertyType.string),
           ],
         ),
       ],
@@ -219,6 +229,37 @@ void main() {
       expect(
         second.catalog.structuredTypes.single.fields.map((f) => f.wireId.value),
         ['p0003', 'p0004'],
+      );
+    });
+
+    test('detects a structured source move even when its fields change', () {
+      final first = allocateUserCatalogFromWidgets(
+        package: _pkg,
+        widgets: const [],
+        structuredTypes: [_badge()],
+      );
+
+      expect(
+        () => allocateUserCatalogFromWidgets(
+          package: _pkg,
+          widgets: const [],
+          structuredTypes: [
+            _badge(
+              sourceType: 'package:acme/moved/b.dart#Badge',
+              includeTone: true,
+            ),
+          ],
+          existingEvents: first.newEvents,
+        ),
+        throwsA(
+          predicate(
+            (error) =>
+                error.toString().contains('"id":"s0001","kind":"rename"') &&
+                error.toString().contains('"from":"Badge"') &&
+                error.toString().contains('"to":"Badge"') &&
+                error.toString().contains('"cascade":true'),
+          ),
+        ),
       );
     });
   });

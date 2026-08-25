@@ -32,9 +32,24 @@ server-driven UI surface, independent of which surface is being rendered.
 - **Wire-ID allocation.** An append-only event log, replay, and current-state
   materialization that mints stable, monotonic `WireId`s and re-uses the
   recorded ID for an entry that already exists, so identity survives across
-  regenerations. Backfill helpers re-attach recorded IDs to a freshly walked
-  catalog, and a cross-reference linker applies allocated IDs to
-  post-allocation reference sites with explicit duplicate-key detection.
+  regenerations. `rename` events preserve identity across label changes and
+  source moves; a cascading class move also moves the recorded source
+  identities of its owned properties, fields, variants, and parameters. A
+  later cascade also normalizes descendants left under an earlier source by a
+  non-cascading event when that would keep live descendant identities unique;
+  otherwise replay fails atomically so the duplicate can be explicitly
+  deprecated or reconciled first. Every rename also preflights the target's
+  projected allocation identity against other live entries of the same kind.
+  Unnamed constructor variants use `<unnamed>` as the event's canonical
+  `from`/`to` label while retaining `namedConstructor: null` in state; their
+  projected source must end in exactly one canonical `.` delimiter. Cascades
+  use the most specific matching current or historical owner prefix and join
+  owner and parameter sources with exactly one delimiter across named ↔ unnamed
+  constructor transitions.
+  `deprecate` records an intentional retirement. Backfill helpers re-attach
+  recorded IDs to a freshly walked catalog, and a cross-reference linker
+  applies allocated IDs to post-allocation reference sites with explicit
+  duplicate-key detection.
 - **Compatibility diff.** Per-entry change detection between two catalog
   versions, a forwarding/breaking compatibility classifier, and `CompatRule`
   emission: the tooling that decides whether a regenerated catalog is a safe

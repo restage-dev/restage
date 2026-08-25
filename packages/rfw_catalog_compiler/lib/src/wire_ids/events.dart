@@ -226,6 +226,7 @@ final class RenameWireIdEvent extends WireIdEvent {
     this.source,
     this.fromSource,
     this.toSource,
+    this.cascade = false,
   });
 
   @override
@@ -252,6 +253,9 @@ final class RenameWireIdEvent extends WireIdEvent {
   /// New source path for source-renames.
   final String? toSource;
 
+  /// Whether a class source move also moves source-derived descendants.
+  final bool cascade;
+
   @override
   Map<String, Object?> toJson() {
     final json = <String, Object?>{
@@ -264,6 +268,7 @@ final class RenameWireIdEvent extends WireIdEvent {
     if (source != null) json['source'] = source;
     if (fromSource != null) json['fromSource'] = fromSource;
     if (toSource != null) json['toSource'] = toSource;
+    if (cascade) json['cascade'] = true;
     json
       ..['at'] = at
       ..['by'] = by;
@@ -717,15 +722,22 @@ void _validateTypedRename(RenameWireIdEvent event) {
   _validateTypedId(event.id, event.type, 'rename.id');
   v.requireNonEmpty(event.from, 'rename.from', WireIdEventException.new);
   v.requireNonEmpty(event.to, 'rename.to', WireIdEventException.new);
-  if (event.from == event.to) {
-    throw const WireIdEventException('rename must change the display label');
-  }
   if (event.type == WireIdKind.designToken) {
     if (event.source != null ||
         event.fromSource != null ||
         event.toSource != null) {
       throw const WireIdEventException(
         'design-token rename must not carry source fields',
+      );
+    }
+    if (event.cascade) {
+      throw const WireIdEventException(
+        'design-token rename must not cascade',
+      );
+    }
+    if (event.from == event.to) {
+      throw const WireIdEventException(
+        'rename must change the display label or source',
       );
     }
     return;
@@ -750,6 +762,16 @@ void _validateTypedRename(RenameWireIdEvent event) {
       event.toSource,
       'rename.toSource',
       WireIdEventException.new,
+    );
+  }
+  if (event.cascade && !sourceRename) {
+    throw const WireIdEventException(
+      'rename cascade requires fromSource + toSource',
+    );
+  }
+  if (event.from == event.to && event.fromSource == event.toSource) {
+    throw const WireIdEventException(
+      'rename must change the display label or source',
     );
   }
 }
@@ -1022,6 +1044,7 @@ Set<String> _allocKeys(WireIdKind type, VariantSourceKind? sourceKind) {
 WireIdEvent _renameFromJson(_EventReader reader) {
   final type = reader.readType();
   final token = type == WireIdKind.designToken;
+  final sourceRename = reader.has('fromSource') || reader.has('toSource');
   if (token) {
     reader.expectOnly(
       const {'kind', 'type', 'id', 'from', 'to', 'at', 'by'},
@@ -1037,12 +1060,12 @@ WireIdEvent _renameFromJson(_EventReader reader) {
         'source',
         'fromSource',
         'toSource',
+        'cascade',
         'at',
         'by',
       },
     );
     final annotationRename = reader.has('source');
-    final sourceRename = reader.has('fromSource') || reader.has('toSource');
     if (annotationRename == sourceRename) {
       reader.fail(
         'rename requires either source or fromSource + toSource, exclusively',
@@ -1055,15 +1078,24 @@ WireIdEvent _renameFromJson(_EventReader reader) {
   }
   final from = reader.readNonEmptyString('from');
   final to = reader.readNonEmptyString('to');
-  if (from == to) reader.fail('rename must change the display label');
+  final fromSource = reader.optionalNonEmptyString('fromSource');
+  final toSource = reader.optionalNonEmptyString('toSource');
+  final cascade = reader.optionalBool('cascade') ?? false;
+  if (reader.has('cascade') && !sourceRename) {
+    reader.fail('rename cascade requires fromSource + toSource');
+  }
+  if (from == to && fromSource == toSource) {
+    reader.fail('rename must change the display label or source');
+  }
   return RenameWireIdEvent(
     type: type,
     id: reader.readWireId('id', expectedKind: type),
     from: from,
     to: to,
     source: reader.optionalNonEmptyString('source'),
-    fromSource: reader.optionalNonEmptyString('fromSource'),
-    toSource: reader.optionalNonEmptyString('toSource'),
+    fromSource: fromSource,
+    toSource: toSource,
+    cascade: cascade,
     at: reader.readTimestamp(),
     by: reader.readActor(),
   );
@@ -1358,6 +1390,13 @@ final class _EventReader {
     final value = json[key];
     if (value is String && value.isNotEmpty) return value;
     fail('$key must be a non-empty string');
+  }
+
+  bool? optionalBool(String key) {
+    if (!has(key)) return null;
+    final value = json[key];
+    if (value is bool) return value;
+    fail('$key must be a boolean');
   }
 
   WireIdEventField<T> field<T>(String key, T Function(Object? raw) parse) {

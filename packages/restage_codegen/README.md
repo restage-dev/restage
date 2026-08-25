@@ -93,6 +93,31 @@ widgets a surface references.
 Two further internal builders register catalog factory functions and your
 widget factories for the runtime.
 
+## Renaming catalog classes
+
+The package-root `wire_ids.events.jsonl` file is the durable identity record
+for generated catalog entries. Commit it with the source it describes.
+
+When generation can unambiguously pair one vanished `@RestageWidget` class
+with one new class, it stops before allocating a new wire ID. Stable source,
+class-name, and source-asset evidence is considered before property-name shape,
+so a class can move while its properties change in the same edit. The
+diagnostic prints the exact `rename` event to append to the event log. Add that
+line and rerun the build. A class rename or source-file move then keeps the
+widget ID and all property IDs. The same rule applies independently to
+structured classes and their field, variant, and parameter IDs.
+
+A source-only move uses the same value for `from` and `to`:
+
+```json
+{"kind":"rename","type":"widget","id":"w0042","from":"StatusPanel","to":"StatusPanel","fromSource":"package:acme/widgets/old.dart#StatusPanel","toSource":"package:acme/widgets/new.dart#StatusPanel","cascade":true,"at":"2026-05-26T00:00:00.000Z","by":"restage-codegen-user-catalog-allocator"}
+```
+
+If the new class is a replacement with deliberately new wire identity, use
+the `deprecate` event printed by the diagnostic instead. The next build then
+allocates a new ID. Append lifecycle events; do not rewrite an earlier `alloc`
+line.
+
 ## Optional targets
 
 **A2UI.** The generator can project your `@RestageWidget` source into a
