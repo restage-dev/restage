@@ -32,8 +32,7 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'BareCatalogCard',
       dataSchema: S.object(
-        description:
-            'A root-level customer card using only the ordinary Restage marker.',
+        description: 'A card registered with only the bare Restage marker.',
         properties: {
           'props': S.object(
             properties: {
@@ -63,24 +62,24 @@ List<CatalogItem> buildRestageCatalogItems() {
       dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
         'CatalogShowcaseData': S.object(
           description:
-              'Customer-owned structured information displayed by a [CatalogShowcase].',
+              'Structured information displayed by a [CatalogShowcase].',
           properties: {
-            'count': S.integer(description: 'Customer-owned count.'),
-            'note': S.string(description: 'Supporting customer text.')
+            'count': S.integer(description: 'The displayed count.'),
+            'note': S.string(description: 'Supporting text.')
           },
           required: <String>['count', 'note'],
         ),
         '__a2ui_root__': S.object(
           description:
-              'A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
+              'A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.',
           properties: {
             'props': S.object(
               properties: {
                 'title': S.string(
-                  description: 'Visible customer title.',
+                  description: 'Visible title.',
                 ),
                 'enabled': S.combined(
-                    description: 'Whether the customer control is enabled.',
+                    description: 'Whether the control is enabled.',
                     oneOf: [
                       S.boolean(),
                       S.object(
@@ -94,21 +93,20 @@ List<CatalogItem> buildRestageCatalogItems() {
                       ])
                     ]),
                 'status': S.string(
-                    description: 'Current customer state.',
+                    description: 'Current state.',
                     enumValues: <Object?>['ready', 'processing']),
                 'hero': S.string(
-                  description: 'Customer widget shown before the detail list.',
+                  description: 'Custom widget shown before the detail list.',
                 ),
                 'details': S.list(
-                    description:
-                        'Customer detail widgets shown in source order.',
+                    description: 'Detail widgets shown in source order.',
                     items: S.string()),
                 'footer': S.combined(
                     description:
-                        'Optional customer widget shown after the detail list.',
+                        'Optional custom widget shown after the detail list.',
                     anyOf: [S.string(), S.nil()]),
                 'data': S.combined(
-                    description: 'Customer-owned structured information.',
+                    description: 'Structured information.',
                     $ref: '#/\$defs/CatalogShowcaseData')
               },
               required: <String>['title', 'status', 'hero', 'details', 'data'],
@@ -169,18 +167,18 @@ List<CatalogItem> buildRestageCatalogItems() {
       name: 'ConstructorFidelityCorpus',
       dataSchema: S.combined($ref: '#/\$defs/__a2ui_root__', $defs: {
         'ConstructorCorpusData': S.object(
-          description: 'Customer-owned structured data with one nested object.',
+          description: 'Structured data with one nested object.',
           properties: {
-            'count': S.integer(
-                description: 'Customer-owned scalar nested beside the object.'),
+            'count':
+                S.integer(description: 'A scalar nested beside the object.'),
             'nested': S.combined(
-                description: 'Nested customer object.',
+                description: 'Nested object.',
                 $ref: '#/\$defs/ConstructorCorpusNestedData')
           },
           required: <String>['count', 'nested'],
         ),
         'ConstructorCorpusNestedData': S.object(
-          description: 'Nested customer-owned immutable data.',
+          description: 'Nested immutable data.',
           properties: {'label': S.string(description: 'Nested label.')},
           required: <String>['label'],
         ),
@@ -192,7 +190,7 @@ List<CatalogItem> buildRestageCatalogItems() {
               properties: {
                 'value': S.string(
                   description:
-                      'Generic value inherited by the concrete customer widget.',
+                      'Generic value inherited by the concrete widget.',
                 ),
                 'ordinaryLabel': S.string(
                   description: 'Ordinary one-to-one constructor binding.',
@@ -247,7 +245,7 @@ List<CatalogItem> buildRestageCatalogItems() {
                   description: 'Public static constant reference default.',
                 ),
                 'data': S.combined(
-                    description: 'Nested customer-structured default.',
+                    description: 'Nested structured default.',
                     $ref: '#/\$defs/ConstructorCorpusData')
               },
               required: <String>['value', 'ordinaryLabel', 'requiredNamed'],
@@ -492,16 +490,15 @@ List<CatalogItem> buildRestageCatalogItems() {
     CatalogItem(
       name: 'FeaturePanel',
       dataSchema: S.object(
-        description:
-            'A panel with a customer header and customer content widgets.',
+        description: 'A panel with an app-supplied header and content widgets.',
         properties: {
           'props': S.object(
             properties: {
               'header': S.combined(
-                  description: 'Customer widget shown as the panel header.',
+                  description: 'Widget shown as the panel header.',
                   anyOf: [S.string(), S.nil()]),
               'children': S.list(
-                  description: 'Customer widgets shown in the panel body.',
+                  description: 'Widgets shown in the panel body.',
                   items: S.string())
             },
             required: <String>['header', 'children'],
@@ -697,27 +694,27 @@ List<CatalogItem> buildRestageCatalogItems() {
                   enumValues: <Object?>['calm', 'urgent']),
               'data': S.string(
                 description:
-                    'Customer data retained under its exact Dart name.',
+                    'A field named `data`, kept under its exact Dart name.',
               ),
               'context': S.string(
                 description:
-                    'Customer context retained under its exact Dart name.',
+                    'A field named `context`, kept under its exact Dart name.',
               ),
               'itemContext': S.string(
                 description:
-                    'Customer item context retained under its exact Dart name.',
+                    'A field named `itemContext`, kept under its exact Dart name.',
               ),
               'restageA2uiStatus': S.string(
                   description:
-                      'Customer enum retained despite matching a generated-local prefix.',
+                      'An enum field whose name matches a generated-code prefix; still kept.',
                   enumValues: <Object?>['calm', 'urgent']),
               'description': S.string(
                 description:
-                    'Editable customer description shown beside Restage metadata.',
+                    'An editable `description` property shown beside Restage metadata.',
               ),
               'usage': S.string(
                 description:
-                    'Editable customer usage shown beside Restage metadata.',
+                    'An editable `usage` property shown beside Restage metadata.',
               )
             },
             required: <String>['title'],
@@ -771,16 +768,15 @@ List<CatalogItem> buildRestageCatalogItems() {
                               tone: p1.OpaqueScreenProofTone.values
                                       .asNameMap()[tone] ??
                                   p1.OpaqueScreenProofTone.calm,
-                              data: data_2 ?? 'Customer data',
-                              context: context_2 ?? 'Customer context',
+                              data: data_2 ?? 'Example data',
+                              context: context_2 ?? 'Example context',
                               itemContext:
-                                  itemContext_2 ?? 'Customer item context',
+                                  itemContext_2 ?? 'Example item context',
                               restageA2uiStatus: p1.OpaqueScreenProofTone.values
                                       .asNameMap()[restageA2uiStatus] ??
                                   p1.OpaqueScreenProofTone.calm,
-                              description:
-                                  description ?? 'Customer description',
-                              usage: usage ?? 'Customer usage',
+                              description: description ?? 'Example description',
+                              usage: usage ?? 'Example usage',
                             ),
                           ),
                         ),
@@ -803,7 +799,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e';
+    'restage:catalog/sha256/fd06a7337ce4d1e322ee0015c570146394e4c239f652bf4d6b471dff72e4e710';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -812,7 +808,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '0.9.1',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e',
+      'sha256/fd06a7337ce4d1e322ee0015c570146394e4c239f652bf4d6b471dff72e4e710',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(
@@ -834,9 +830,9 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d001f63ada5de0a7e30e18c62be8b2266274d96641a04642066d4dad883b3b5e".',
-  'BareCatalogCard: A root-level customer card using only the ordinary Restage marker.',
-  'CatalogShowcase: Use to verify a customer catalog across RFW, A2UI, and Widgetbook.',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/fd06a7337ce4d1e322ee0015c570146394e4c239f652bf4d6b471dff72e4e710".',
+  'BareCatalogCard: A card registered with only the bare Restage marker.',
+  'CatalogShowcase: Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
   'ConstructorFidelityCorpus: Use to verify accepted constructor, default, and callback families.',
   'ConstructorFidelityProof: Use to verify generated constructor binding and callback write-back.',
   'ConstructorPositionalCorpus: Reusable positional-hole fixture.',

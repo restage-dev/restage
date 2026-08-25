@@ -8,19 +8,19 @@ export 'widgets/feature_row.dart';
 export 'widgets/price_badge.dart';
 export 'widgets/stat_tile.dart';
 
-/// The typed customer library used by the generated multi-target fixture.
+/// The typed custom widget library used by the generated multi-target fixture.
 final class RestageWidgetbookLibrary extends WidgetLibrary {
-  /// Creates the example customer library declaration.
+  /// Creates the example custom widget library declaration.
   const RestageWidgetbookLibrary();
 
   @override
   final String namespace = 'restage_widgetbook_example.widgets';
 }
 
-/// The package's one customer-library identity declaration.
+/// The package's one custom-widget-library identity declaration.
 const WidgetLibrary restageWidgetbookLibrary = RestageWidgetbookLibrary();
 
-/// Declares the customer catalog capability carried by every generated target.
+/// Declares the custom-widget catalog capability carried by every generated target.
 @RestageLibrary(library: restageWidgetbookLibrary, capabilityVersion: 2)
 const restageWidgetbookCatalog = 0;
 // #enddocregion catalog-library

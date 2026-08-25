@@ -18,12 +18,12 @@ final class OpaqueScreenProof extends StatelessWidget {
     required this.title,
     this.enabled = true,
     this.tone = OpaqueScreenProofTone.calm,
-    this.data = 'Customer data',
-    this.context = 'Customer context',
-    this.itemContext = 'Customer item context',
+    this.data = 'Example data',
+    this.context = 'Example context',
+    this.itemContext = 'Example item context',
     this.restageA2uiStatus = OpaqueScreenProofTone.calm,
-    this.description = 'Customer description',
-    this.usage = 'Customer usage',
+    this.description = 'Example description',
+    this.usage = 'Example usage',
   });
 
   /// Event fired by the proof action.
@@ -40,22 +40,22 @@ final class OpaqueScreenProof extends StatelessWidget {
   @wb.Config.allValues()
   final OpaqueScreenProofTone tone;
 
-  /// Customer data retained under its exact Dart name.
+  /// A field named `data`, kept under its exact Dart name.
   final String data;
 
-  /// Customer context retained under its exact Dart name.
+  /// A field named `context`, kept under its exact Dart name.
   final String context;
 
-  /// Customer item context retained under its exact Dart name.
+  /// A field named `itemContext`, kept under its exact Dart name.
   final String itemContext;
 
-  /// Customer enum retained despite matching a generated-local prefix.
+  /// An enum field whose name matches a generated-code prefix; still kept.
   final OpaqueScreenProofTone restageA2uiStatus;
 
-  /// Editable customer description shown beside Restage metadata.
+  /// An editable `description` property shown beside Restage metadata.
   final String description;
 
-  /// Editable customer usage shown beside Restage metadata.
+  /// An editable `usage` property shown beside Restage metadata.
   final String usage;
 
   // #docregion ordinary-flutter-composition

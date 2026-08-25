@@ -27,12 +27,12 @@ class OpaqueScreenProofStoryInput {
     this.title = "",
     this.enabled = true,
     this.tone = _RestageChoice2.value0,
-    this.data = "Customer data",
-    this.context = "Customer context",
-    this.itemContext = "Customer item context",
+    this.data = "Example data",
+    this.context = "Example context",
+    this.itemContext = "Example item context",
     this.restageA2uiStatus = _RestageChoice6.value0,
-    this.description = "Customer description",
-    this.usage = "Customer usage",
+    this.description = "Example description",
+    this.usage = "Example usage",
   });
 
   final String restageMetadataDescription;
@@ -114,19 +114,19 @@ final $RestageCatalog = _Story(
           "Typed preview state retained by native targets. Default: the widget constructor's Dart default.",
     ),
     data: _RestageStringArg(
-      "Customer data",
+      "Example data",
       description:
-          "Customer data retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `data`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     context: _RestageStringArg(
-      "Customer context",
+      "Example context",
       description:
-          "Customer context retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `context`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     itemContext: _RestageStringArg(
-      "Customer item context",
+      "Example item context",
       description:
-          "Customer item context retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `itemContext`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     restageA2uiStatus: _RestageEnumArg<_RestageChoice6>(
       _RestageChoice6.value0,
@@ -136,17 +136,17 @@ final $RestageCatalog = _Story(
         _RestageChoice6.value1 => "urgent",
       },
       description:
-          "Customer enum retained despite matching a generated-local prefix. Default: the widget constructor's Dart default.",
+          "An enum field whose name matches a generated-code prefix; still kept. Default: the widget constructor's Dart default.",
     ),
     description: _RestageStringArg(
-      "Customer description",
+      "Example description",
       description:
-          "Editable customer description shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "An editable `description` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
     ),
     usage: _RestageStringArg(
-      "Customer usage",
+      "Example usage",
       description:
-          "Editable customer usage shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "An editable `usage` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
     ),
   ),
 );
@@ -181,19 +181,19 @@ final $EnabledFalse = _Story(
           "Typed preview state retained by native targets. Default: the widget constructor's Dart default.",
     ),
     data: _RestageStringArg(
-      "Customer data",
+      "Example data",
       description:
-          "Customer data retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `data`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     context: _RestageStringArg(
-      "Customer context",
+      "Example context",
       description:
-          "Customer context retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `context`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     itemContext: _RestageStringArg(
-      "Customer item context",
+      "Example item context",
       description:
-          "Customer item context retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `itemContext`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     restageA2uiStatus: _RestageEnumArg<_RestageChoice6>(
       _RestageChoice6.value0,
@@ -203,17 +203,17 @@ final $EnabledFalse = _Story(
         _RestageChoice6.value1 => "urgent",
       },
       description:
-          "Customer enum retained despite matching a generated-local prefix. Default: the widget constructor's Dart default.",
+          "An enum field whose name matches a generated-code prefix; still kept. Default: the widget constructor's Dart default.",
     ),
     description: _RestageStringArg(
-      "Customer description",
+      "Example description",
       description:
-          "Editable customer description shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "An editable `description` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
     ),
     usage: _RestageStringArg(
-      "Customer usage",
+      "Example usage",
       description:
-          "Editable customer usage shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "An editable `usage` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
     ),
   ),
 );
@@ -248,19 +248,19 @@ final $ToneUrgent = _Story(
           "Typed preview state retained by native targets. Default: the widget constructor's Dart default.",
     ),
     data: _RestageStringArg(
-      "Customer data",
+      "Example data",
       description:
-          "Customer data retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `data`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     context: _RestageStringArg(
-      "Customer context",
+      "Example context",
       description:
-          "Customer context retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `context`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     itemContext: _RestageStringArg(
-      "Customer item context",
+      "Example item context",
       description:
-          "Customer item context retained under its exact Dart name. Default: the widget constructor's Dart default.",
+          "A field named `itemContext`, kept under its exact Dart name. Default: the widget constructor's Dart default.",
     ),
     restageA2uiStatus: _RestageEnumArg<_RestageChoice6>(
       _RestageChoice6.value0,
@@ -270,17 +270,17 @@ final $ToneUrgent = _Story(
         _RestageChoice6.value1 => "urgent",
       },
       description:
-          "Customer enum retained despite matching a generated-local prefix. Default: the widget constructor's Dart default.",
+          "An enum field whose name matches a generated-code prefix; still kept. Default: the widget constructor's Dart default.",
     ),
     description: _RestageStringArg(
-      "Customer description",
+      "Example description",
       description:
-          "Editable customer description shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "An editable `description` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
     ),
     usage: _RestageStringArg(
-      "Customer usage",
+      "Example usage",
       description:
-          "Editable customer usage shown beside Restage metadata. Default: the widget constructor's Dart default.",
+          "An editable `usage` property shown beside Restage metadata. Default: the widget constructor's Dart default.",
     ),
   ),
 );

@@ -12,7 +12,7 @@
       "wireId": "w0009",
       "name": "BareCatalogCard",
       "library": "restage_widgetbook_example.widgets",
-      "description": "A root-level customer card using only the ordinary Restage marker.",
+      "description": "A card registered with only the bare Restage marker.",
       "flutterType": "package:restage_widgetbook_example/widgets/bare_catalog_card.dart#BareCatalogCard",
       "childrenSlot": "none",
       "properties": [
@@ -37,7 +37,7 @@
       "name": "CatalogShowcase",
       "library": "restage_widgetbook_example.widgets",
       "category": "input",
-      "description": "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "description": "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
       "flutterType": "package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcase",
       "childrenSlot": "none",
       "properties": [
@@ -45,14 +45,14 @@
           "wireId": "p0009",
           "name": "title",
           "type": "string",
-          "description": "Visible customer title.",
+          "description": "Visible title.",
           "required": true
         },
         {
           "wireId": "p0010",
           "name": "enabled",
           "type": "boolean",
-          "description": "Whether the customer control is enabled.",
+          "description": "Whether the control is enabled.",
           "defaultSource": {
             "kind": "literal",
             "value": true
@@ -66,7 +66,7 @@
           "wireId": "p0011",
           "name": "status",
           "type": "enumValue",
-          "description": "Current customer state.",
+          "description": "Current state.",
           "required": true,
           "enumType": "CatalogShowcaseStatus",
           "valueShape": {
@@ -90,28 +90,28 @@
           "wireId": "p0043",
           "name": "hero",
           "type": "widget",
-          "description": "Customer widget shown before the detail list.",
+          "description": "Custom widget shown before the detail list.",
           "required": true
         },
         {
           "wireId": "p0044",
           "name": "details",
           "type": "widgetList",
-          "description": "Customer detail widgets shown in source order.",
+          "description": "Detail widgets shown in source order.",
           "required": true
         },
         {
           "wireId": "p0045",
           "name": "footer",
           "type": "widget",
-          "description": "Optional customer widget shown after the detail list.",
+          "description": "Optional custom widget shown after the detail list.",
           "constructorNullable": true
         },
         {
           "wireId": "p0015",
           "name": "data",
           "type": "structured",
-          "description": "Customer-owned structured information.",
+          "description": "Structured information.",
           "required": true,
           "structuredRef": {
             "library": "restage_widgetbook_example.widgets",
@@ -141,7 +141,7 @@
           "wireId": "p0025",
           "name": "value",
           "type": "string",
-          "description": "Generic value inherited by the concrete customer widget.",
+          "description": "Generic value inherited by the concrete widget.",
           "required": true
         },
         {
@@ -272,7 +272,7 @@
           "wireId": "p0035",
           "name": "data",
           "type": "structured",
-          "description": "Nested customer-structured default.",
+          "description": "Nested structured default.",
           "constructorDefault": {
             "kind": "reference",
             "libraryUri": "package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart",
@@ -426,7 +426,7 @@
       "name": "FeaturePanel",
       "library": "restage_widgetbook_example.widgets",
       "category": "layout",
-      "description": "A panel with a customer header and customer content widgets.",
+      "description": "A panel with an app-supplied header and content widgets.",
       "flutterType": "package:restage_widgetbook_example/widgets/feature_panel.dart#FeaturePanel",
       "childrenSlot": "none",
       "properties": [
@@ -434,7 +434,7 @@
           "wireId": "p0007",
           "name": "header",
           "type": "widget",
-          "description": "Customer widget shown as the panel header.",
+          "description": "Widget shown as the panel header.",
           "required": true,
           "constructorNullable": true
         },
@@ -442,7 +442,7 @@
           "wireId": "p0008",
           "name": "children",
           "type": "widgetList",
-          "description": "Customer widgets shown in the panel body.",
+          "description": "Widgets shown in the panel body.",
           "required": true
         }
       ]
@@ -595,14 +595,14 @@
       "wireId": "s0001",
       "name": "CatalogShowcaseData",
       "library": "restage_widgetbook_example.widgets",
-      "description": "Customer-owned structured information displayed by a [CatalogShowcase].",
+      "description": "Structured information displayed by a [CatalogShowcase].",
       "sourceType": "package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcaseData",
       "fields": [
         {
           "wireId": "p0016",
           "name": "note",
           "type": "string",
-          "description": "Supporting customer text.",
+          "description": "Supporting text.",
           "valueShape": {
             "kind": "scalar",
             "propertyType": "string",
@@ -616,7 +616,7 @@
           "wireId": "p0017",
           "name": "count",
           "type": "integer",
-          "description": "Customer-owned count.",
+          "description": "The displayed count.",
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -639,7 +639,7 @@
               "p0017"
             ]
           },
-          "description": "Creates customer-owned showcase information."
+          "description": "Creates showcase information."
         }
       ],
       "stability": "volatile"
@@ -648,14 +648,14 @@
       "wireId": "s0002",
       "name": "ConstructorCorpusData",
       "library": "restage_widgetbook_example.widgets",
-      "description": "Customer-owned structured data with one nested object.",
+      "description": "Structured data with one nested object.",
       "sourceType": "package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart#ConstructorCorpusData",
       "fields": [
         {
           "wireId": "p0039",
           "name": "nested",
           "type": "structured",
-          "description": "Nested customer object.",
+          "description": "Nested object.",
           "structuredRef": {
             "library": "restage_widgetbook_example.widgets",
             "wireId": "s0003"
@@ -673,7 +673,7 @@
           "wireId": "p0040",
           "name": "count",
           "type": "integer",
-          "description": "Customer-owned scalar nested beside the object.",
+          "description": "A scalar nested beside the object.",
           "valueShape": {
             "kind": "scalar",
             "propertyType": "integer",
@@ -705,7 +705,7 @@
       "wireId": "s0003",
       "name": "ConstructorCorpusNestedData",
       "library": "restage_widgetbook_example.widgets",
-      "description": "Nested customer-owned immutable data.",
+      "description": "Nested immutable data.",
       "sourceType": "package:restage_widgetbook_example/widgets/constructor_fidelity_corpus.dart#ConstructorCorpusNestedData",
       "fields": [
         {

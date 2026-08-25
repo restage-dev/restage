@@ -90,16 +90,16 @@ class OpaqueScreenProofStoryInputArgs extends StoryArgs<OpaqueScreenProof> {
            values: _RestageChoice2.values,
          ),
        )!,
-       this.dataArg = $initArg('data', data, StringArg("Customer data"))!,
+       this.dataArg = $initArg('data', data, StringArg("Example data"))!,
        this.contextArg = $initArg(
          'context',
          context,
-         StringArg("Customer context"),
+         StringArg("Example context"),
        )!,
        this.itemContextArg = $initArg(
          'itemContext',
          itemContext,
-         StringArg("Customer item context"),
+         StringArg("Example item context"),
        )!,
        this.restageA2uiStatusArg = $initArg(
          'restageA2uiStatus',
@@ -112,9 +112,9 @@ class OpaqueScreenProofStoryInputArgs extends StoryArgs<OpaqueScreenProof> {
        this.descriptionArg = $initArg(
          'description',
          description,
-         StringArg("Customer description"),
+         StringArg("Example description"),
        )!,
-       this.usageArg = $initArg('usage', usage, StringArg("Customer usage"))!;
+       this.usageArg = $initArg('usage', usage, StringArg("Example usage"))!;
 
   OpaqueScreenProofStoryInputArgs.fixed({
     String restageMetadataDescription =
@@ -124,12 +124,12 @@ class OpaqueScreenProofStoryInputArgs extends StoryArgs<OpaqueScreenProof> {
     String title = "",
     bool enabled = true,
     _RestageChoice2 tone = _RestageChoice2.value0,
-    String data = "Customer data",
-    String context = "Customer context",
-    String itemContext = "Customer item context",
+    String data = "Example data",
+    String context = "Example context",
+    String itemContext = "Example item context",
     _RestageChoice6 restageA2uiStatus = _RestageChoice6.value0,
-    String description = "Customer description",
-    String usage = "Customer usage",
+    String description = "Example description",
+    String usage = "Example usage",
   }) : this.restageMetadataDescriptionArg = $initArg(
          'restageMetadataDescription',
          Arg.fixed(restageMetadataDescription),

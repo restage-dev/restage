@@ -163,7 +163,7 @@ void main() {
     expect(
       a2uiCatalog,
       contains(
-        'CatalogShowcase: Use to verify a customer catalog across RFW, '
+        'CatalogShowcase: Use to verify a custom-widget catalog across RFW, '
         'A2UI, and Widgetbook.',
       ),
     );
@@ -195,15 +195,15 @@ void main() {
       'lib/components.g.dart':
           '8cfc10269daf1ddfd00aeffb5ef23f3c2f223dbcfec550a301b7231ea87c0d1d',
       'lib/widgets/restage.generated/bare_catalog_card.stories.dart':
-          'd3455d3c5b04b717da01974ae98c092771feef7adbf3f46339651980faba489f',
+          'fcd7a7840e8cea3515cbaf0f59e3d2eb2c383731cdd100b0dbce7d2b25dcef9d',
       'lib/widgets/restage.generated/bare_catalog_card.stories.g.dart':
-          '3bc80fb337b376b90cc191372f75ef425a2121aacf91ee0dd6f10bef305534e7',
+          '67f0e3ae7a1346b65f1872738e9436bf6c0d9bece7b24832293d9aa982784b81',
       'lib/widgets/restage.generated/catalog_showcase.stories.dart':
-          'c36aaf102f313b3c81927eae8dd698f3c85a66624814b3389fdb33c21a2f0c7f',
+          '7df2380695b69225079a7ccf356d30d285478871628ccecab22dd42090af2030',
       'lib/widgets/restage.generated/catalog_showcase.stories.g.dart':
-          '17ac4625262b5a3aeab1d7daf0db5d9728dc9eb466ebc48d3ec595c010009f74',
+          '3416d2ef237c939ba6dace193acf72026b05434aaa6a3943412b3509262f43ed',
       'lib/widgets/restage.generated/constructor_fidelity_corpus.stories.dart':
-          'e8794adced2b139eee44e4b0581e4b6c9e2026392c2cea9d5cb717e70a19c966',
+          '5aa55eb91d9fdd7329bc906fd068e83d21c50ecf6730ad0505c34f8d2436bea8',
       'lib/widgets/restage.generated/constructor_fidelity_corpus.stories.g.dart':
           '186091254117d671a8173a03e5f9c7797728f19b45ba34d03b0fac5d36bfc464',
       'lib/widgets/restage.generated/constructor_fidelity_proof.stories.dart':
@@ -215,9 +215,9 @@ void main() {
       'lib/widgets/restage.generated/constructor_positional_corpus.stories.g.dart':
           '34343c1866427f784a3f0c42a75d1299ac91c5b39024f1c26968426a4b9a9ff9',
       'lib/widgets/restage.generated/feature_panel.stories.dart':
-          '55d41541f0294f730e9e9ee5ebc601c8adc536fc07dce91d204a8c73ecc69c7d',
+          '37e1cf879c9121028bfaa608558e4558f5410ec05d9c7e67ee7306a9b5050f14',
       'lib/widgets/restage.generated/feature_panel.stories.g.dart':
-          '50dc279b1a544b647ac3bab4dcb89f90b0c323052a6d5a1e97dc1e46010726e4',
+          '7a825bfb57c6327d1142c5ceede4271f2ceabc89b0b5870fe4b5f983caef4ade',
       'lib/widgets/restage.generated/feature_row.stories.dart':
           'cb21c23ccf7b8a90392092fb724916c0ca4f6d9e06e1b1a811f14450d9644ba9',
       'lib/widgets/restage.generated/feature_row.stories.g.dart':
@@ -231,9 +231,9 @@ void main() {
       'lib/widgets/restage.generated/required_nullable_widget_proof.stories.g.dart':
           'eba61dcb87d9bd63b0f2473c88b1c060b876e09822c2ced78957d2b537f2def6',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart':
-          'd59815e128ea999ce3fb3e30277a2d111bac2690ae3e2cec869735fb5a9a9891',
+          '122fa312901e3e61a2eac61beecfbc5a3ebe7df0a078864d21496fe395d009c8',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart':
-          '752764a1a6f72d5ea40a54ed7e88a3cfdeaba2b6587566fb313e701c92504521',
+          '2722ecfc635bf4ff0e4ca4ccd56c202dc0b23e70bb0848b569b9ffc1e85a41f2',
       'lib/widgets/restage.generated/stat_tile.stories.dart':
           '5396ace7194246c9fe74d7296b1b625d1ec0537d46679c12b9fab9ecc4abfffa',
       'lib/widgets/restage.generated/stat_tile.stories.g.dart':
@@ -241,11 +241,11 @@ void main() {
       'lib/generated/restage_a2ui_catalog.a2ui.json':
           'd87ed0601571f76401fce3d530a60eda52df2a70100945c8fafcd1abdeea77b4',
       'lib/generated/restage_a2ui_catalog.g.dart':
-          'e448b77ba5fc1dd9e3b0628170ebb93e910d4c28b3d9945ef07ad8339506e616',
+          '1b923b4c2698543063b0c12741866b29e931118beac52a2616bfdb930c5aab45',
       'lib/src/widget_catalog/catalog.json':
-          '5c4aca8207e886e4016c3e77e18ee52244a2b09985ea936ed6e557272e2b77d3',
+          '255f5be2bd542f18ac840c91333bdda1eb21eac4f9ae2ed311c2b78fa7243442',
       'lib/user_catalog.g.dart':
-          '02e26b85571e5b423d107dc7217446b962054d0a8e28769d92dce15936af9ea7',
+          '1582e544e6ceb39fea51fd97f7788d61a977484c17a74de7e6a7e740651a73ac',
       'lib/user_factories.g.dart':
           'd6a2a6aaa61c7c761ba871ea611ced2a62ad03dccda7c27e509843c7e31fd317',
     };

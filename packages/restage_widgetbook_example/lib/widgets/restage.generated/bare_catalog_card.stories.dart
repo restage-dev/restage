@@ -14,9 +14,9 @@ part 'bare_catalog_card.stories.g.dart';
 class BareCatalogCardStoryInput {
   const BareCatalogCardStoryInput({
     this.restageMetadataDescription =
-        "A root-level customer card using only the ordinary Restage marker.",
+        "A card registered with only the bare Restage marker.",
     this.restageMetadataUsage =
-        "A root-level customer card using only the ordinary Restage marker.",
+        "A card registered with only the bare Restage marker.",
     this.label = "Bare catalog card",
   });
 
@@ -39,11 +39,11 @@ final defaults = _Defaults(
 final $RestageCatalog = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A root-level customer card using only the ordinary Restage marker.",
+      "A card registered with only the bare Restage marker.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
-      "A root-level customer card using only the ordinary Restage marker.",
+      "A card registered with only the bare Restage marker.",
       name: 'usage',
     ),
     label: _RestageStringArg(

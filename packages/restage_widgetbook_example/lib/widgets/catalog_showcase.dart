@@ -13,27 +13,28 @@ enum CatalogShowcaseStatus {
   processing,
 }
 
-/// Customer-owned structured information displayed by a [CatalogShowcase].
+/// Structured information displayed by a [CatalogShowcase].
 class CatalogShowcaseData {
-  /// Creates customer-owned showcase information.
+  /// Creates showcase information.
   const CatalogShowcaseData({required this.note, required this.count});
 
-  /// Supporting customer text.
+  /// Supporting text.
   final String note;
 
-  /// Customer-owned count.
+  /// The displayed count.
   final int count;
 }
 
-/// A customer catalog widget proving one source can feed every enabled target.
+/// A catalog widget proving one source can feed every enabled target.
 /// It combines ordinary scalar state, an enum, callback write-back, native
-/// child-bearing inputs, and customer-owned structured data. The independently
+/// child-bearing inputs, and your own structured data. The independently
 /// named `hero`, `details`, and `footer` inputs require no slot annotation.
 ///
 /// The second paragraph is retained in generated property metadata so
 /// multi-paragraph Dart documentation is never reduced to its first line.
 @a2ui.Config(
-  usage: 'Use to verify a customer catalog across RFW, A2UI, and Widgetbook.',
+  usage:
+      'Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.',
 )
 @RestageWidget(category: WidgetCategory.input)
 class CatalogShowcase extends StatelessWidget {
@@ -50,14 +51,14 @@ class CatalogShowcase extends StatelessWidget {
     required this.data,
   });
 
-  /// Visible customer title.
+  /// Visible title.
   final String title;
 
-  /// Whether the customer control is enabled.
+  /// Whether the control is enabled.
   @wb.Config.allValues()
   final bool enabled;
 
-  /// Current customer state.
+  /// Current state.
   @wb.Config.allValues()
   final CatalogShowcaseStatus status;
 
@@ -65,16 +66,16 @@ class CatalogShowcase extends StatelessWidget {
   @a2ui.Config.writeBackValue('enabled')
   final ValueChanged<bool> onChanged;
 
-  /// Customer widget shown before the detail list.
+  /// Custom widget shown before the detail list.
   final Widget hero;
 
-  /// Customer detail widgets shown in source order.
+  /// Detail widgets shown in source order.
   final List<Widget> details;
 
-  /// Optional customer widget shown after the detail list.
+  /// Optional custom widget shown after the detail list.
   final Widget? footer;
 
-  /// Customer-owned structured information.
+  /// Structured information.
   final CatalogShowcaseData data;
 
   @override

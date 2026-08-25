@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:restage/a2ui.dart' as a2ui;
 import 'package:restage/restage.dart';
 
-/// A panel with a customer header and customer content widgets.
+/// A panel with an app-supplied header and content widgets.
 @a2ui.Config.usage('Use to group a compact catalog summary.')
 @RestageWidget(
   name: 'FeaturePanel',
@@ -10,13 +10,13 @@ import 'package:restage/restage.dart';
   category: WidgetCategory.layout,
 )
 class FeaturePanel extends StatelessWidget {
-  /// Creates a composed customer catalog panel.
+  /// Creates a composed catalog panel.
   const FeaturePanel({super.key, required this.header, required this.children});
 
-  /// Customer widget shown as the panel header.
+  /// Widget shown as the panel header.
   final Widget? header;
 
-  /// Customer widgets shown in the panel body.
+  /// Widgets shown in the panel body.
   final List<Widget> children;
 
   @override

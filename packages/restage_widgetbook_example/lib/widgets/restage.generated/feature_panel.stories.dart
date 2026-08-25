@@ -34,7 +34,7 @@ final class _RestageValue1 {
 class FeaturePanelStoryInput {
   const FeaturePanelStoryInput({
     this.restageMetadataDescription =
-        "A panel with a customer header and customer content widgets.",
+        "A panel with an app-supplied header and content widgets.",
     this.restageMetadataUsage = "Use to group a compact catalog summary.",
     this.header = const _RestageValue0.absent(),
     this.children = const _RestageValue1.absent(),
@@ -65,7 +65,7 @@ final defaults = _Defaults(
 final $RestageCatalog = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A panel with a customer header and customer content widgets.",
+      "A panel with an app-supplied header and content widgets.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
@@ -74,11 +74,11 @@ final $RestageCatalog = _Story(
     ),
     header: _RestageConstArg<_RestageValue0>(
       _RestageValue0(null),
-      description: "Customer widget shown as the panel header.",
+      description: "Widget shown as the panel header.",
     ),
     children: _RestageConstArg<_RestageValue1>(
       _RestageValue1(<restage_native_0.Widget>[]),
-      description: "Customer widgets shown in the panel body.",
+      description: "Widgets shown in the panel body.",
     ),
   ),
 );

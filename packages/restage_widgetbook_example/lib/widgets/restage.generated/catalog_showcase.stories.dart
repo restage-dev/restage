@@ -56,9 +56,9 @@ final class _RestageValue7 {
 class CatalogShowcaseStoryInput {
   const CatalogShowcaseStoryInput({
     this.restageMetadataDescription =
-        "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+        "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
     this.restageMetadataUsage =
-        "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+        "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
     this.title = "",
     this.enabled = true,
     this.status = _RestageChoice2.value0,
@@ -113,18 +113,18 @@ final defaults = _Defaults(
 final $RestageCatalog = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
-      "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+      "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
       name: 'usage',
     ),
-    title: _RestageStringArg("", description: "Visible customer title."),
+    title: _RestageStringArg("", description: "Visible title."),
     enabled: _RestageBoolArg(
       true,
       description:
-          "Whether the customer control is enabled. Default: the widget constructor's Dart default.",
+          "Whether the control is enabled. Default: the widget constructor's Dart default.",
     ),
     status: _RestageEnumArg<_RestageChoice2>(
       _RestageChoice2.value0,
@@ -133,7 +133,7 @@ final $RestageCatalog = _Story(
         _RestageChoice2.value0 => "ready",
         _RestageChoice2.value1 => "processing",
       },
-      description: "Current customer state.",
+      description: "Current state.",
     ),
     onChanged: _RestageEventArg(
       true,
@@ -141,19 +141,19 @@ final $RestageCatalog = _Story(
     ),
     hero: _RestageConstArg<_RestageValue4>(
       _RestageValue4(const restage_native_0.SizedBox.shrink()),
-      description: "Customer widget shown before the detail list.",
+      description: "Custom widget shown before the detail list.",
     ),
     details: _RestageConstArg<_RestageValue5>(
       _RestageValue5(<restage_native_0.Widget>[]),
-      description: "Customer detail widgets shown in source order.",
+      description: "Detail widgets shown in source order.",
     ),
     footer: _RestageConstArg<_RestageValue6>(
       _RestageValue6(null),
-      description: "Optional customer widget shown after the detail list.",
+      description: "Optional custom widget shown after the detail list.",
     ),
     data: _RestageConstArg<_RestageValue7>(
       _RestageValue7(restage_source.CatalogShowcaseData(note: "", count: 0)),
-      description: "Customer-owned structured information.",
+      description: "Structured information.",
     ),
   ),
 );
@@ -161,18 +161,18 @@ final $RestageCatalog = _Story(
 final $EnabledFalse = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
-      "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+      "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
       name: 'usage',
     ),
-    title: _RestageStringArg("", description: "Visible customer title."),
+    title: _RestageStringArg("", description: "Visible title."),
     enabled: _RestageBoolArg(
       false,
       description:
-          "Whether the customer control is enabled. Default: the widget constructor's Dart default.",
+          "Whether the control is enabled. Default: the widget constructor's Dart default.",
     ),
     status: _RestageEnumArg<_RestageChoice2>(
       _RestageChoice2.value0,
@@ -181,7 +181,7 @@ final $EnabledFalse = _Story(
         _RestageChoice2.value0 => "ready",
         _RestageChoice2.value1 => "processing",
       },
-      description: "Current customer state.",
+      description: "Current state.",
     ),
     onChanged: _RestageEventArg(
       true,
@@ -189,19 +189,19 @@ final $EnabledFalse = _Story(
     ),
     hero: _RestageConstArg<_RestageValue4>(
       _RestageValue4(const restage_native_0.SizedBox.shrink()),
-      description: "Customer widget shown before the detail list.",
+      description: "Custom widget shown before the detail list.",
     ),
     details: _RestageConstArg<_RestageValue5>(
       _RestageValue5(<restage_native_0.Widget>[]),
-      description: "Customer detail widgets shown in source order.",
+      description: "Detail widgets shown in source order.",
     ),
     footer: _RestageConstArg<_RestageValue6>(
       _RestageValue6(null),
-      description: "Optional customer widget shown after the detail list.",
+      description: "Optional custom widget shown after the detail list.",
     ),
     data: _RestageConstArg<_RestageValue7>(
       _RestageValue7(restage_source.CatalogShowcaseData(note: "", count: 0)),
-      description: "Customer-owned structured information.",
+      description: "Structured information.",
     ),
   ),
 );
@@ -209,18 +209,18 @@ final $EnabledFalse = _Story(
 final $StatusProcessing = _Story(
   args: _Args(
     restageMetadataDescription: _RestageMetadataArg(
-      "A customer catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and customer-owned structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
+      "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
       name: 'description',
     ),
     restageMetadataUsage: _RestageMetadataArg(
-      "Use to verify a customer catalog across RFW, A2UI, and Widgetbook.",
+      "Use to verify a custom-widget catalog across RFW, A2UI, and Widgetbook.",
       name: 'usage',
     ),
-    title: _RestageStringArg("", description: "Visible customer title."),
+    title: _RestageStringArg("", description: "Visible title."),
     enabled: _RestageBoolArg(
       true,
       description:
-          "Whether the customer control is enabled. Default: the widget constructor's Dart default.",
+          "Whether the control is enabled. Default: the widget constructor's Dart default.",
     ),
     status: _RestageEnumArg<_RestageChoice2>(
       _RestageChoice2.value1,
@@ -229,7 +229,7 @@ final $StatusProcessing = _Story(
         _RestageChoice2.value0 => "ready",
         _RestageChoice2.value1 => "processing",
       },
-      description: "Current customer state.",
+      description: "Current state.",
     ),
     onChanged: _RestageEventArg(
       true,
@@ -237,19 +237,19 @@ final $StatusProcessing = _Story(
     ),
     hero: _RestageConstArg<_RestageValue4>(
       _RestageValue4(const restage_native_0.SizedBox.shrink()),
-      description: "Customer widget shown before the detail list.",
+      description: "Custom widget shown before the detail list.",
     ),
     details: _RestageConstArg<_RestageValue5>(
       _RestageValue5(<restage_native_0.Widget>[]),
-      description: "Customer detail widgets shown in source order.",
+      description: "Detail widgets shown in source order.",
     ),
     footer: _RestageConstArg<_RestageValue6>(
       _RestageValue6(null),
-      description: "Optional customer widget shown after the detail list.",
+      description: "Optional custom widget shown after the detail list.",
     ),
     data: _RestageConstArg<_RestageValue7>(
       _RestageValue7(restage_source.CatalogShowcaseData(note: "", count: 0)),
-      description: "Customer-owned structured information.",
+      description: "Structured information.",
     ),
   ),
 );

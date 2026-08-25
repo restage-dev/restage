@@ -21,8 +21,7 @@ final BareCatalogCardComponent =
       name: component.name ?? 'BareCatalogCard',
       path: component.path ?? 'widgets/restage.generated',
       docsBuilder: component.docsBuilder,
-      docComment:
-          r'''A root-level customer card using only the ordinary Restage marker.''',
+      docComment: r'''A card registered with only the bare Restage marker.''',
       stories: [$RestageCatalog..$generatedName = 'RestageCatalog'],
     );
 typedef BareCatalogCardScenario =
@@ -55,16 +54,12 @@ class BareCatalogCardStoryInputArgs extends StoryArgs<BareCatalogCard> {
   }) : this.restageMetadataDescriptionArg = $initArg(
          'restageMetadataDescription',
          restageMetadataDescription,
-         StringArg(
-           "A root-level customer card using only the ordinary Restage marker.",
-         ),
+         StringArg("A card registered with only the bare Restage marker."),
        )!,
        this.restageMetadataUsageArg = $initArg(
          'restageMetadataUsage',
          restageMetadataUsage,
-         StringArg(
-           "A root-level customer card using only the ordinary Restage marker.",
-         ),
+         StringArg("A card registered with only the bare Restage marker."),
        )!,
        this.labelArg = $initArg(
          'label',
@@ -74,9 +69,9 @@ class BareCatalogCardStoryInputArgs extends StoryArgs<BareCatalogCard> {
 
   BareCatalogCardStoryInputArgs.fixed({
     String restageMetadataDescription =
-        "A root-level customer card using only the ordinary Restage marker.",
+        "A card registered with only the bare Restage marker.",
     String restageMetadataUsage =
-        "A root-level customer card using only the ordinary Restage marker.",
+        "A card registered with only the bare Restage marker.",
     String label = "Bare catalog card",
   }) : this.restageMetadataDescriptionArg = $initArg(
          'restageMetadataDescription',
