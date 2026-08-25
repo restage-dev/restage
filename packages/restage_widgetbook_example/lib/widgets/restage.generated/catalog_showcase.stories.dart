@@ -6,11 +6,11 @@ import 'package:widgetbook/widgetbook.dart' as widgetbook;
 import 'package:widgetbook/widgetbook.dart';
 import 'package:flutter/widgets.dart' as restage_native_0;
 import 'package:flutter/widgets.dart' show Widget;
-import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart'
+import 'package:restage_widgetbook_example/widgets/status_panel.dart'
     as restage_source;
-import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart'
+import 'package:restage_widgetbook_example/widgets/status_panel.dart'
     show CatalogShowcase;
-import 'package:restage_widgetbook_example/widgets/catalog_showcase.dart'
+import 'package:restage_widgetbook_example/widgets/status_panel.dart'
     show CatalogShowcaseData, CatalogShowcaseStatus;
 
 part 'catalog_showcase.stories.g.dart';

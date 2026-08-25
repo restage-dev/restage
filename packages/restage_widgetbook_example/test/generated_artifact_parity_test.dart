@@ -9,7 +9,7 @@ void main() {
   test('one normal build owns every screen target artifact and registration', () async {
     // Generated source stays on disk as ordinary files.
     const requiredSources = <String>[
-      'lib/onboarding/screens/restage.generated/opaque_screen_proof.restage.g.dart',
+      'lib/onboarding/screens/restage.generated/get_started_screen.restage.g.dart',
       'lib/generated/restage_a2ui_catalog.g.dart',
       'lib/generated/restage_a2ui_catalog.a2ui.json',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart',
@@ -199,7 +199,7 @@ void main() {
       'lib/widgets/restage.generated/bare_catalog_card.stories.g.dart':
           '67f0e3ae7a1346b65f1872738e9436bf6c0d9bece7b24832293d9aa982784b81',
       'lib/widgets/restage.generated/catalog_showcase.stories.dart':
-          '7df2380695b69225079a7ccf356d30d285478871628ccecab22dd42090af2030',
+          '0a6447840ba80409d999b2bb4a405e1125f332fe8bd5a307b428eb63d7a87f4c',
       'lib/widgets/restage.generated/catalog_showcase.stories.g.dart':
           '3416d2ef237c939ba6dace193acf72026b05434aaa6a3943412b3509262f43ed',
       'lib/widgets/restage.generated/constructor_fidelity_corpus.stories.dart':
@@ -231,7 +231,7 @@ void main() {
       'lib/widgets/restage.generated/required_nullable_widget_proof.stories.g.dart':
           'eba61dcb87d9bd63b0f2473c88b1c060b876e09822c2ced78957d2b537f2def6',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart':
-          '122fa312901e3e61a2eac61beecfbc5a3ebe7df0a078864d21496fe395d009c8',
+          '71a596c833259623d064b5a11ffa7639aa917ee0c6204d472e090608f6fd27ef',
       'lib/onboarding/screens/restage.generated/opaque_screen_proof.stories.g.dart':
           '2722ecfc635bf4ff0e4ca4ccd56c202dc0b23e70bb0848b569b9ffc1e85a41f2',
       'lib/widgets/restage.generated/stat_tile.stories.dart':
@@ -241,13 +241,13 @@ void main() {
       'lib/generated/restage_a2ui_catalog.a2ui.json':
           'd87ed0601571f76401fce3d530a60eda52df2a70100945c8fafcd1abdeea77b4',
       'lib/generated/restage_a2ui_catalog.g.dart':
-          '1b923b4c2698543063b0c12741866b29e931118beac52a2616bfdb930c5aab45',
+          '42203fa2760a2b5283091d11d4ed8f864984f7da2fdc00f33b4b33547ab85c31',
       'lib/src/widget_catalog/catalog.json':
-          '255f5be2bd542f18ac840c91333bdda1eb21eac4f9ae2ed311c2b78fa7243442',
+          '16f473e0326e003f4e22c081c948b272e27fe2d593a1e1adf61f8da9cf9776c0',
       'lib/user_catalog.g.dart':
-          '1582e544e6ceb39fea51fd97f7788d61a977484c17a74de7e6a7e740651a73ac',
+          '7ea1eb6179af9f48e609d943c0da15f6dbc679dc8a458697c807c011595285fa',
       'lib/user_factories.g.dart':
-          'd6a2a6aaa61c7c761ba871ea611ced2a62ad03dccda7c27e509843c7e31fd317',
+          'f2d7ead0fab2f0fd06948de0a93f792a378d6d88d4420d9402cd214f867caa4f',
     };
 
     for (final entry in expected.entries) {

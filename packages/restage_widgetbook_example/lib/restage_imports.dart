@@ -2,7 +2,7 @@
 import 'package:restage/restage.dart';
 
 export 'widgets/bare_catalog_card.dart';
-export 'widgets/catalog_showcase.dart';
+export 'widgets/status_panel.dart';
 export 'widgets/feature_panel.dart';
 export 'widgets/feature_row.dart';
 export 'widgets/price_badge.dart';

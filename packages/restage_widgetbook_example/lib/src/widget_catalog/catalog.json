@@ -33,23 +33,23 @@
       ]
     },
     {
-      "wireId": "w0005",
+      "wireId": "w0011",
       "name": "CatalogShowcase",
       "library": "restage_widgetbook_example.widgets",
       "category": "input",
       "description": "A catalog widget proving one source can feed every enabled target. It combines ordinary scalar state, an enum, callback write-back, native child-bearing inputs, and your own structured data. The independently named `hero`, `details`, and `footer` inputs require no slot annotation.\n\nThe second paragraph is retained in generated property metadata so multi-paragraph Dart documentation is never reduced to its first line.",
-      "flutterType": "package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcase",
+      "flutterType": "package:restage_widgetbook_example/widgets/status_panel.dart#CatalogShowcase",
       "childrenSlot": "none",
       "properties": [
         {
-          "wireId": "p0009",
+          "wireId": "p0050",
           "name": "title",
           "type": "string",
           "description": "Visible title.",
           "required": true
         },
         {
-          "wireId": "p0010",
+          "wireId": "p0051",
           "name": "enabled",
           "type": "boolean",
           "description": "Whether the control is enabled.",
@@ -63,7 +63,7 @@
           }
         },
         {
-          "wireId": "p0011",
+          "wireId": "p0052",
           "name": "status",
           "type": "enumValue",
           "description": "Current state.",
@@ -73,13 +73,13 @@
             "kind": "enumValue",
             "propertyType": "enumValue",
             "enumRef": {
-              "libraryUri": "package:restage_widgetbook_example/widgets/catalog_showcase.dart",
+              "libraryUri": "package:restage_widgetbook_example/widgets/status_panel.dart",
               "symbolName": "CatalogShowcaseStatus"
             }
           }
         },
         {
-          "wireId": "p0012",
+          "wireId": "p0053",
           "name": "onChanged",
           "type": "event",
           "description": "Reports changes to [enabled].",
@@ -87,42 +87,42 @@
           "callbackSignature": "ValueChanged<bool>"
         },
         {
-          "wireId": "p0043",
+          "wireId": "p0054",
           "name": "hero",
           "type": "widget",
           "description": "Custom widget shown before the detail list.",
           "required": true
         },
         {
-          "wireId": "p0044",
+          "wireId": "p0055",
           "name": "details",
           "type": "widgetList",
           "description": "Detail widgets shown in source order.",
           "required": true
         },
         {
-          "wireId": "p0045",
+          "wireId": "p0056",
           "name": "footer",
           "type": "widget",
           "description": "Optional custom widget shown after the detail list.",
           "constructorNullable": true
         },
         {
-          "wireId": "p0015",
+          "wireId": "p0057",
           "name": "data",
           "type": "structured",
           "description": "Structured information.",
           "required": true,
           "structuredRef": {
             "library": "restage_widgetbook_example.widgets",
-            "wireId": "s0001"
+            "wireId": "s0004"
           },
           "valueShape": {
             "kind": "structured",
             "propertyType": "structured",
             "structuredRef": {
               "library": "restage_widgetbook_example.widgets",
-              "wireId": "s0001"
+              "wireId": "s0004"
             }
           }
         }
@@ -592,59 +592,6 @@
   ],
   "structuredTypes": [
     {
-      "wireId": "s0001",
-      "name": "CatalogShowcaseData",
-      "library": "restage_widgetbook_example.widgets",
-      "description": "Structured information displayed by a [CatalogShowcase].",
-      "sourceType": "package:restage_widgetbook_example/widgets/catalog_showcase.dart#CatalogShowcaseData",
-      "fields": [
-        {
-          "wireId": "p0016",
-          "name": "note",
-          "type": "string",
-          "description": "Supporting text.",
-          "valueShape": {
-            "kind": "scalar",
-            "propertyType": "string",
-            "dartTypeRef": {
-              "libraryUri": "dart:core",
-              "symbolName": "String"
-            }
-          }
-        },
-        {
-          "wireId": "p0017",
-          "name": "count",
-          "type": "integer",
-          "description": "The displayed count.",
-          "valueShape": {
-            "kind": "scalar",
-            "propertyType": "integer",
-            "dartTypeRef": {
-              "libraryUri": "dart:core",
-              "symbolName": "int"
-            }
-          }
-        }
-      ],
-      "variants": [
-        {
-          "wireId": "v0001",
-          "sourceKind": "constructor",
-          "argMappings": {
-            "note": [
-              "p0016"
-            ],
-            "count": [
-              "p0017"
-            ]
-          },
-          "description": "Creates showcase information."
-        }
-      ],
-      "stability": "volatile"
-    },
-    {
       "wireId": "s0002",
       "name": "ConstructorCorpusData",
       "library": "restage_widgetbook_example.widgets",
@@ -733,6 +680,59 @@
             ]
           },
           "description": "Creates nested corpus data."
+        }
+      ],
+      "stability": "volatile"
+    },
+    {
+      "wireId": "s0004",
+      "name": "CatalogShowcaseData",
+      "library": "restage_widgetbook_example.widgets",
+      "description": "Structured information displayed by a [CatalogShowcase].",
+      "sourceType": "package:restage_widgetbook_example/widgets/status_panel.dart#CatalogShowcaseData",
+      "fields": [
+        {
+          "wireId": "p0058",
+          "name": "note",
+          "type": "string",
+          "description": "Supporting text.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "string",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "String"
+            }
+          }
+        },
+        {
+          "wireId": "p0059",
+          "name": "count",
+          "type": "integer",
+          "description": "The displayed count.",
+          "valueShape": {
+            "kind": "scalar",
+            "propertyType": "integer",
+            "dartTypeRef": {
+              "libraryUri": "dart:core",
+              "symbolName": "int"
+            }
+          }
+        }
+      ],
+      "variants": [
+        {
+          "wireId": "v0004",
+          "sourceKind": "constructor",
+          "argMappings": {
+            "note": [
+              "p0058"
+            ],
+            "count": [
+              "p0059"
+            ]
+          },
+          "description": "Creates showcase information."
         }
       ],
       "stability": "volatile"

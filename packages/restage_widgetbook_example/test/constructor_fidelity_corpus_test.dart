@@ -152,8 +152,11 @@ void main() {
       );
     }
 
+    // Compared whitespace-collapsed: the formatter may wrap these generated
+    // lines differently as sibling imports change length, and the property
+    // pinned here is the closures' presence, not their line breaks.
     expect(
-      rfwFactories,
+      rfwFactories.replaceAll(RegExp(r'\s+'), ' '),
       allOf(
         contains(
           'if (_restagePresenceLeading.supplied || '

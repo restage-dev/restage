@@ -4,7 +4,7 @@ import 'package:genui/genui.dart';
 import 'package:restage_widgetbook_example/onboarding/screens/restage.generated/opaque_screen_proof.stories.dart'
     as story;
 import 'package:restage_widgetbook_example/generated/restage_a2ui_catalog.g.dart';
-import 'package:restage_widgetbook_example/onboarding/screens/opaque_screen_proof.dart';
+import 'package:restage_widgetbook_example/onboarding/screens/get_started_screen.dart';
 import 'package:widgetbook/widgetbook.dart' as widgetbook;
 
 void main() {
