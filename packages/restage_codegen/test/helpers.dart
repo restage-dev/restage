@@ -750,7 +750,7 @@ Future<Expression> parseExpressionForTest(String expression) {
 }
 
 /// Parses a complete [source] file and returns the **resolved** expression
-/// returned by the top-level function named `x`. Allows tests to inline stub
+/// returned by the function named `x`. Allows tests to inline stub
 /// declarations (e.g. helper-function stubs) so that the analyzer resolves
 /// calls to those stubs within the `package:restage_codegen` library URI,
 /// making `element.library.identifier` available on resolved AST nodes.
@@ -768,6 +768,7 @@ Future<Expression> parseExpressionForTest(String expression) {
 Future<Expression> parseExpressionFromSourceForTest(
   String source, {
   String rootPackage = _kRootPackage,
+  String? enclosingClassName,
 }) async {
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: rootPackage,
@@ -781,7 +782,12 @@ Future<Expression> parseExpressionFromSourceForTest(
   await testBuilder(
     _CapturingBuilder(
       (library, assetId) async {
-        final fn = library.topLevelFunctions.firstWhere((f) => f.name == 'x');
+        final executable = enclosingClassName == null
+            ? library.topLevelFunctions.firstWhere((f) => f.name == 'x')
+            : library.classes
+                .firstWhere((c) => c.name == enclosingClassName)
+                .methods
+                .firstWhere((m) => m.name == 'x');
         // Use the *resolved* library so that element references (e.g.
         // MethodInvocation.methodName.element) are populated. This is
         // necessary for helper-call recognition tests where the translator
@@ -789,13 +795,17 @@ Future<Expression> parseExpressionFromSourceForTest(
         final resolvedResult =
             await library.session.getResolvedLibraryByElement(library);
         if (resolvedResult is! ResolvedLibraryResult) return;
-        final node =
-            resolvedResult.getFragmentDeclaration(fn.firstFragment)?.node;
-        if (node is FunctionDeclaration) {
-          final body = node.functionExpression.body;
-          if (body is ExpressionFunctionBody) {
-            result = body.expression;
-          }
+        final node = resolvedResult
+            .getFragmentDeclaration(executable.firstFragment)
+            ?.node;
+        final body = switch (node) {
+          FunctionDeclaration(:final functionExpression) =>
+            functionExpression.body,
+          MethodDeclaration(:final body) => body,
+          _ => null,
+        };
+        if (body is ExpressionFunctionBody) {
+          result = body.expression;
         }
       },
       allowedAssetIds: {AssetId.parse(assetKey)},
@@ -807,7 +817,7 @@ Future<Expression> parseExpressionFromSourceForTest(
   if (result == null) {
     throw StateError(
       'Failed to parse expression from source. '
-      'Ensure the source defines `Object x() => <expression>;`.',
+      'Ensure the source defines an expression-bodied `x()`.',
     );
   }
   return result!;

@@ -2,6 +2,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
+import 'package:restage_codegen/src/structured_value_emitter.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:test/test.dart';
 
@@ -18,11 +19,21 @@ void main() {
   String fakeTranslateDouble(Expression e, List<Issue> issues) =>
       asDoubleLiteral(fakeTranslate(e, issues));
 
-  RecipeDispatcher dispatcherWith(List<TranslatorRecipe> recipes) =>
+  RecipeDispatcher dispatcherWith(
+    List<TranslatorRecipe> recipes, {
+    DoubleListSourceDisposition doubleListDisposition =
+        DoubleListSourceDisposition.ordinary,
+    TranslateCallback? translate,
+    TranslateCallback? translateDouble,
+  }) =>
       RecipeDispatcher(
         recipes: {for (final r in recipes) r.key: r},
-        translate: fakeTranslate,
-        translateDouble: fakeTranslateDouble,
+        translate: translate ?? fakeTranslate,
+        translateDouble: translateDouble ?? fakeTranslateDouble,
+        resolveDoubleListSource: (source) => DoubleListSourceResolution(
+          source: source,
+          disposition: doubleListDisposition,
+        ),
       );
 
   // Parses a call expression and returns its argument list.
@@ -59,6 +70,110 @@ void main() {
   });
 
   group('emit — structural fragments', () {
+    const doubleListOwnerRecipes = [
+      TranslatorRecipe(
+        typeName: 'StopsList',
+        emit: EmitFragmentList([
+          EmitFragmentLiteral('"prefix"'),
+          EmitFragmentArg(
+            ArgRef.named('values'),
+            asDoubleList: true,
+          ),
+        ]),
+        failureDsl: '',
+      ),
+      TranslatorRecipe(
+        typeName: 'StopsMap',
+        emit: EmitFragmentMap([
+          EmitMapEntry(
+            'stops',
+            EmitFragmentArg(
+              ArgRef.named('values'),
+              asDoubleList: true,
+            ),
+          ),
+        ]),
+        failureDsl: '',
+      ),
+    ];
+
+    Future<
+        ({
+          IssueCode? directIssueCode,
+          int directIssueCount,
+          String list,
+          IssueCode? listIssueCode,
+          int listIssueCount,
+          String map,
+          IssueCode? mapIssueCode,
+          int mapIssueCount,
+          bool refused,
+          String value,
+        })> emitDoubleListFixture(
+      String source, {
+      required TranslateCallback translate,
+      required TranslateCallback translateDouble,
+    }) async {
+      final expression = await parseExpressionForTest(source);
+      final directIssues = <Issue>[];
+      final emission = emitDoubleList(
+        expression,
+        translate,
+        translateDouble,
+        (source) => DoubleListSourceResolution(
+          source: source,
+          disposition: DoubleListSourceDisposition.ordinary,
+        ),
+        directIssues,
+        'source.dart:1',
+      );
+      final dispatcher = dispatcherWith(
+        doubleListOwnerRecipes,
+        translate: translate,
+        translateDouble: translateDouble,
+      );
+      final listIssues = <Issue>[];
+      final list = dispatcher.tryTranslate(
+        '#StopsList',
+        await argsOf('StopsList(values: $source)'),
+        listIssues,
+        'source.dart:1',
+      )!;
+      final mapIssues = <Issue>[];
+      final map = dispatcher.tryTranslate(
+        '#StopsMap',
+        await argsOf('StopsMap(values: $source)'),
+        mapIssues,
+        'source.dart:1',
+      )!;
+      return (
+        directIssueCode:
+            directIssues.length == 1 ? directIssues.single.code : null,
+        directIssueCount: directIssues.length,
+        list: list,
+        listIssueCode: listIssues.length == 1 ? listIssues.single.code : null,
+        listIssueCount: listIssues.length,
+        map: map,
+        mapIssueCode: mapIssues.length == 1 ? mapIssues.single.code : null,
+        mapIssueCount: mapIssues.length,
+        refused: emission.refused,
+        value: emission.value,
+      );
+    }
+
+    const completeRefusal = (
+      directIssueCode: null,
+      directIssueCount: 0,
+      list: '',
+      listIssueCode: null,
+      listIssueCount: 0,
+      map: '',
+      mapIssueCode: null,
+      mapIssueCount: 0,
+      refused: true,
+      value: '',
+    );
+
     test('EmitFragmentMap assembles a map, recursing into args', () async {
       final d = dispatcherWith([
         const TranslatorRecipe(
@@ -91,6 +206,299 @@ void main() {
       final out =
           d.tryTranslate('#Quad', await argsOf('Quad(7)'), <Issue>[], 'l');
       expect(out, '[7, 7, 7, 7]');
+    });
+
+    test('a refused double list suppresses its enclosing list', () async {
+      final d = dispatcherWith(
+        [
+          const TranslatorRecipe(
+            typeName: 'Stops',
+            emit: EmitFragmentList([
+              EmitFragmentLiteral('"prefix"'),
+              EmitFragmentArg(
+                ArgRef.named('values'),
+                asDoubleList: true,
+              ),
+            ]),
+            failureDsl: '',
+          ),
+        ],
+        doubleListDisposition: DoubleListSourceDisposition.constant,
+      );
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Stops',
+        await argsOf('Stops(values: const [0, 1])'),
+        issues,
+        'source.dart:1',
+      );
+      expect(out, isEmpty);
+      expect(out, isNot(contains('["prefix", ]')));
+      expect(issues, hasLength(1));
+    });
+
+    test('a refused double list suppresses its enclosing map', () async {
+      final d = dispatcherWith(
+        [
+          const TranslatorRecipe(
+            typeName: 'Stops',
+            emit: EmitFragmentMap([
+              EmitMapEntry('type', EmitFragmentLiteral('"linear"')),
+              EmitMapEntry(
+                'stops',
+                EmitFragmentArg(
+                  ArgRef.named('values'),
+                  asDoubleList: true,
+                ),
+              ),
+            ]),
+            failureDsl: '',
+          ),
+        ],
+        doubleListDisposition: DoubleListSourceDisposition.constant,
+      );
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Stops',
+        await argsOf('Stops(values: const [0, 1])'),
+        issues,
+        'source.dart:1',
+      );
+      expect(out, isEmpty);
+      expect(out, isNot(contains('stops: }')));
+      expect(issues, hasLength(1));
+    });
+
+    test('a silent empty source refuses the list and map owners', () async {
+      String silentSource(Expression source, List<Issue> issues) =>
+          source.toSource() == 'unavailable'
+              ? ''
+              : fakeTranslate(source, issues);
+
+      final result = await emitDoubleListFixture(
+        'unavailable',
+        translate: silentSource,
+        translateDouble: fakeTranslateDouble,
+      );
+
+      expect(result, completeRefusal);
+      expect(result.map, isNot(equals('{stops: }')));
+    });
+
+    test('a silent empty element refuses the list and map owners', () async {
+      String silentElement(Expression source, List<Issue> issues) =>
+          source.toSource() == '1' ? '' : fakeTranslateDouble(source, issues);
+
+      final result = await emitDoubleListFixture(
+        '[0, 1]',
+        translate: fakeTranslate,
+        translateDouble: silentElement,
+      );
+
+      expect(result, completeRefusal);
+      expect(result.map, isNot(equals('{stops: [0.0, ]}')));
+    });
+
+    test('a deferred generic source refuses complete owners', () async {
+      String deferredSource(Expression source, List<Issue> issues) {
+        issues.add(
+          const Issue(
+            code: IssueCode.customWidgetInliningDeferred,
+            message: 'The source cannot emit here.',
+            location: 'source.dart:1',
+          ),
+        );
+        return 'data.stops';
+      }
+
+      final result = await emitDoubleListFixture(
+        'available',
+        translate: deferredSource,
+        translateDouble: fakeTranslateDouble,
+      );
+
+      expect(
+        result,
+        (
+          directIssueCode: IssueCode.customWidgetInliningDeferred,
+          directIssueCount: 1,
+          list: '',
+          listIssueCode: IssueCode.customWidgetInliningDeferred,
+          listIssueCount: 1,
+          map: '',
+          mapIssueCode: IssueCode.customWidgetInliningDeferred,
+          mapIssueCount: 1,
+          refused: true,
+          value: '',
+        ),
+      );
+      expect(result.value, isNot(equals('data.stops')));
+      expect(result.list, isNot(equals('["prefix", data.stops]')));
+      expect(result.map, isNot(equals('{stops: data.stops}')));
+    });
+
+    test('a deferred list element refuses complete owners', () async {
+      String deferredElement(Expression source, List<Issue> issues) {
+        if (source.toSource() == '1') {
+          issues.add(
+            const Issue(
+              code: IssueCode.customWidgetInliningDeferred,
+              message: 'The element cannot emit here.',
+              location: 'source.dart:1',
+            ),
+          );
+        }
+        return fakeTranslateDouble(source, issues);
+      }
+
+      final result = await emitDoubleListFixture(
+        '[0, 1]',
+        translate: fakeTranslate,
+        translateDouble: deferredElement,
+      );
+
+      expect(
+        result,
+        (
+          directIssueCode: IssueCode.customWidgetInliningDeferred,
+          directIssueCount: 1,
+          list: '',
+          listIssueCode: IssueCode.customWidgetInliningDeferred,
+          listIssueCount: 1,
+          map: '',
+          mapIssueCode: IssueCode.customWidgetInliningDeferred,
+          mapIssueCount: 1,
+          refused: true,
+          value: '',
+        ),
+      );
+      expect(result.value, isNot(equals('[0.0, 1.0]')));
+      expect(result.list, isNot(equals('["prefix", [0.0, 1.0]]')));
+      expect(result.map, isNot(equals('{stops: [0.0, 1.0]}')));
+    });
+
+    test('a diagnosed generic double-list source suppresses its map', () async {
+      final d = dispatcherWith(
+        [
+          const TranslatorRecipe(
+            typeName: 'Stops',
+            emit: EmitFragmentMap([
+              EmitMapEntry('type', EmitFragmentLiteral('"linear"')),
+              EmitMapEntry(
+                'stops',
+                EmitFragmentArg(
+                  ArgRef.named('values'),
+                  asDoubleList: true,
+                ),
+              ),
+            ]),
+            failureDsl: '',
+          ),
+        ],
+        translate: (source, issues) {
+          issues.add(
+            const Issue(
+              code: IssueCode.unrecognizedMethodCall,
+              message: 'The source cannot be translated.',
+              location: 'source.dart:1',
+            ),
+          );
+          return '';
+        },
+      );
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Stops',
+        await argsOf('Stops(values: unavailable)'),
+        issues,
+        'source.dart:1',
+      );
+      expect(out, isEmpty);
+      expect(out, isNot(contains('stops: }')));
+      expect(issues.map((issue) => issue.code), [
+        IssueCode.unrecognizedMethodCall,
+      ]);
+    });
+
+    test('a diagnosed double-list element suppresses its map', () async {
+      final d = dispatcherWith(
+        [
+          const TranslatorRecipe(
+            typeName: 'Stops',
+            emit: EmitFragmentMap([
+              EmitMapEntry('type', EmitFragmentLiteral('"linear"')),
+              EmitMapEntry(
+                'stops',
+                EmitFragmentArg(
+                  ArgRef.named('values'),
+                  asDoubleList: true,
+                ),
+              ),
+            ]),
+            failureDsl: '',
+          ),
+        ],
+        translateDouble: (source, issues) {
+          if (source.toSource() == '1') {
+            issues.add(
+              const Issue(
+                code: IssueCode.unrecognizedMethodCall,
+                message: 'The element cannot be translated.',
+                location: 'source.dart:1',
+              ),
+            );
+            return '';
+          }
+          return fakeTranslateDouble(source, issues);
+        },
+      );
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Stops',
+        await argsOf('Stops(values: [0, 1])'),
+        issues,
+        'source.dart:1',
+      );
+      expect(out, isEmpty);
+      expect(out, isNot(contains('stops: [0.0, ]')));
+      expect(issues.map((issue) => issue.code), [
+        IssueCode.unrecognizedMethodCall,
+      ]);
+    });
+
+    test('a build notice preserves complete bytes and owners', () async {
+      String noticedSource(Expression source, List<Issue> issues) {
+        issues.add(
+          const Issue(
+            code: IssueCode.idiomAutoSubstituted,
+            message: 'The source uses its canonical representation.',
+            location: 'source.dart:1',
+          ),
+        );
+        return 'data.stops';
+      }
+
+      final result = await emitDoubleListFixture(
+        'available',
+        translate: noticedSource,
+        translateDouble: fakeTranslateDouble,
+      );
+
+      expect(
+        result,
+        (
+          directIssueCode: IssueCode.idiomAutoSubstituted,
+          directIssueCount: 1,
+          list: '["prefix", data.stops]',
+          listIssueCode: IssueCode.idiomAutoSubstituted,
+          listIssueCount: 1,
+          map: '{stops: data.stops}',
+          mapIssueCode: IssueCode.idiomAutoSubstituted,
+          mapIssueCount: 1,
+          refused: false,
+          value: 'data.stops',
+        ),
+      );
     });
 
     test('EmitFragmentList reorders named args into positional slots',
@@ -307,6 +715,107 @@ void main() {
         d.tryTranslate('#V', await argsOf('V(2.0)'), <Issue>[], 'l'),
         'FAIL',
       );
+    });
+  });
+
+  group('strict double-list child failures', () {
+    Future<NodeList<Expression>> gradientArgs(String source) async {
+      final expression = await parseExpressionForTest(source);
+      return switch (expression) {
+        MethodInvocation(:final argumentList) => argumentList.arguments,
+        InstanceCreationExpression(:final argumentList) =>
+          argumentList.arguments,
+        _ => throw ArgumentError('not a gradient: $source'),
+      };
+    }
+
+    StructuredValueEmitter structuredEmitter({
+      required TranslateCallback translate,
+      required TranslateCallback translateDouble,
+    }) =>
+        StructuredValueEmitter(
+          translate: translate,
+          translateDoubleScalar: translateDouble,
+          resolveDoubleListSource: (source) => DoubleListSourceResolution(
+            source: source,
+            disposition: DoubleListSourceDisposition.ordinary,
+          ),
+          stripParens: (source) => source,
+          stringLiteral: (value) => '"$value"',
+          frameworkOrUnresolved: (_) => true,
+          resolveBoundIdentifier: (source) => source,
+          isResolvedNonFrameworkCtor: (_) => false,
+          deferFrameworkConstLookalike: (expression, owner, member, issues) =>
+              '',
+          deferFrameworkCtorLookalike: (expression, owner, issues) => '',
+          conditionalSwitch: (expression, issues, translateBranch) => '',
+          validateThemeValueForSlot: (expression, type, issues) {},
+          locationOf: (_) => 'source.dart:1',
+        );
+
+    test('a diagnosed generic source suppresses a structured gradient',
+        () async {
+      final emitter = structuredEmitter(
+        translate: (source, issues) {
+          if (source.toSource() == 'unavailable') {
+            issues.add(
+              const Issue(
+                code: IssueCode.unrecognizedMethodCall,
+                message: 'The source cannot be translated.',
+                location: 'source.dart:1',
+              ),
+            );
+            return 'wrong';
+          }
+          return source.toSource();
+        },
+        translateDouble: fakeTranslateDouble,
+      );
+      final issues = <Issue>[];
+      final out = emitter.linearGradient(
+        await gradientArgs(
+          'LinearGradient(colors: [], stops: unavailable)',
+        ),
+        issues,
+        'source.dart:1',
+      );
+      expect(out, isEmpty);
+      expect(out, isNot(contains('stops: }')));
+      expect(issues.map((issue) => issue.code), [
+        IssueCode.unrecognizedMethodCall,
+      ]);
+    });
+
+    test('a diagnosed list element suppresses a structured gradient', () async {
+      final emitter = structuredEmitter(
+        translate: fakeTranslate,
+        translateDouble: (source, issues) {
+          if (source.toSource() == '1') {
+            issues.add(
+              const Issue(
+                code: IssueCode.unrecognizedMethodCall,
+                message: 'The element cannot be translated.',
+                location: 'source.dart:1',
+              ),
+            );
+            return '';
+          }
+          return fakeTranslateDouble(source, issues);
+        },
+      );
+      final issues = <Issue>[];
+      final out = emitter.linearGradient(
+        await gradientArgs(
+          'LinearGradient(colors: [], stops: [0, 1])',
+        ),
+        issues,
+        'source.dart:1',
+      );
+      expect(out, isEmpty);
+      expect(out, isNot(contains('stops: [0.0, ]')));
+      expect(issues.map((issue) => issue.code), [
+        IssueCode.unrecognizedMethodCall,
+      ]);
     });
   });
 }
