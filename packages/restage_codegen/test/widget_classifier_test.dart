@@ -2648,9 +2648,7 @@ class AcmeSized extends StatelessWidget {
         'a helper reached only through a subtree the walk does not classify '
         'is not authorised for inlining', () async {
       // A registered helper's arguments are not classified, so a helper called
-      // there never has its body vetted. Speculative resolution must not put
-      // it in the blueprint, or the translator would inline a body whose
-      // blockers never reached the verdict.
+      // there has an unvetted body and must stay out of the blueprint.
       final result = await _classifyUnreachedHelperFixture(
         '''
   String _headingKey() => DateTime.now().toString();

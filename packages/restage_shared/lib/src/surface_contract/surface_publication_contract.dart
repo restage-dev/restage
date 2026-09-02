@@ -15,6 +15,7 @@ import 'package:restage_shared/src/generated_output_path_order.dart';
 import 'package:restage_shared/src/surface_contract/surface_contract_json.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_contract_fingerprint.dart';
 import 'package:restage_shared/src/surface_contract/surface_screen_event_schema.dart';
+import 'package:restage_shared/src/surface_contract/surface_screen_host_data_schema.dart';
 import 'package:restage_shared/src/surface_delivery/surface_artifact_descriptor.dart';
 import 'package:restage_shared/src/surface_document/surface_document.dart';
 
@@ -124,6 +125,8 @@ final class SurfacePublication {
     SurfaceScreenEventSchema? eventContract,
     String? eventContractHash,
     String? contractFingerprint,
+    SurfaceScreenHostDataSchema? hostDataContract,
+    String? hostDataContractHash,
   }) {
     _requireIdentity(slug, 'publication.slug');
     SurfaceContractJson.requireSha256(
@@ -173,11 +176,36 @@ final class SurfacePublication {
             'Screen eventContractHash does not match eventContract.',
           );
         }
+        // A screen declaring no host data carries neither field, so its
+        // contract encodes exactly as it did before host data existed.
+        if ((hostDataContract == null) != (hostDataContractHash == null)) {
+          throw const FormatException(
+            'A screen host data contract requires its hash, and vice versa.',
+          );
+        }
+        if (hostDataContract != null) {
+          if (hostDataContract.isEmpty) {
+            throw const FormatException(
+              'An empty screen host data contract must be omitted.',
+            );
+          }
+          SurfaceContractJson.requireSha256(
+            hostDataContractHash!,
+            'publication.hostDataContractHash',
+          );
+          if (hostDataContractHash !=
+              SurfaceScreenHostDataContractHash.hash(hostDataContract)) {
+            throw const FormatException(
+              'Screen hostDataContractHash does not match hostDataContract.',
+            );
+          }
+        }
         final expectedFingerprint = SurfaceScreenContractFingerprint.hash(
           sourceKind: sourceKind,
           payloadKind: payloadKind,
           capabilities: canonicalCapabilities,
           eventContractHash: eventContractHash,
+          hostDataContractHash: hostDataContractHash,
         );
         if (contractFingerprint != expectedFingerprint) {
           throw const FormatException(
@@ -196,6 +224,8 @@ final class SurfacePublication {
           eventContract: eventContract,
           eventContractHash: eventContractHash,
           contractFingerprint: contractFingerprint,
+          hostDataContract: hostDataContract,
+          hostDataContractHash: hostDataContractHash,
         );
       case SurfaceSourceKind.paywall:
         if (surface != Surface.paywall) {
@@ -215,6 +245,8 @@ final class SurfacePublication {
           eventContract: eventContract,
           eventContractHash: eventContractHash,
           contractFingerprint: contractFingerprint,
+          hostDataContract: hostDataContract,
+          hostDataContractHash: hostDataContractHash,
         );
     }
 
@@ -231,6 +263,8 @@ final class SurfacePublication {
       eventContract: eventContract,
       eventContractHash: eventContractHash,
       contractFingerprint: contractFingerprint,
+      hostDataContract: hostDataContract,
+      hostDataContractHash: hostDataContractHash,
     );
   }
 
@@ -246,6 +280,8 @@ final class SurfacePublication {
     required this.eventContract,
     required this.eventContractHash,
     required this.contractFingerprint,
+    required this.hostDataContract,
+    required this.hostDataContractHash,
   });
 
   final Surface surface;
@@ -260,6 +296,13 @@ final class SurfacePublication {
   final String? eventContractHash;
   final String? contractFingerprint;
 
+  /// The host-supplied inputs this screen declares, or null when it declares
+  /// none.
+  final SurfaceScreenHostDataSchema? hostDataContract;
+
+  /// Content hash of [hostDataContract], present exactly with it.
+  final String? hostDataContractHash;
+
   Map<String, Object?> toJson() {
     if (sourceKind == SurfaceSourceKind.screen) {
       return <String, Object?>{
@@ -272,6 +315,12 @@ final class SurfacePublication {
           eventContract!,
         ),
         'eventContractHash': eventContractHash,
+        if (hostDataContract != null)
+          'hostDataContract': SurfaceScreenHostDataSchemaV1Codec.encode(
+            hostDataContract!,
+          ),
+        if (hostDataContractHash != null)
+          'hostDataContractHash': hostDataContractHash,
         'payloadContentHash': payloadContentHash,
         'payloadKind': payloadKind.wireName,
         'slug': slug,
@@ -306,6 +355,14 @@ final class SurfacePublication {
       sourceKind: sourceKind,
       payloadKind: payloadKind,
     );
+    // Host data is optional on a screen: present as a pair, or absent.
+    if (sourceKind == SurfaceSourceKind.screen &&
+        (json.containsKey('hostDataContract') ||
+            json.containsKey('hostDataContractHash'))) {
+      expected
+        ..add('hostDataContract')
+        ..add('hostDataContractHash');
+    }
     SurfaceContractJson.exactKeys(json, expected, path);
     return SurfacePublication(
       surface: Surface.fromWireName(
@@ -349,6 +406,18 @@ final class SurfacePublication {
           ? SurfaceContractJson.requiredString(
               json,
               'contractFingerprint',
+              path,
+            )
+          : null,
+      hostDataContract: json.containsKey('hostDataContract')
+          ? SurfaceScreenHostDataSchemaV1Codec.decode(
+              SurfaceContractJson.requiredValue(json, 'hostDataContract', path),
+            )
+          : null,
+      hostDataContractHash: json.containsKey('hostDataContractHash')
+          ? SurfaceContractJson.requiredString(
+              json,
+              'hostDataContractHash',
               path,
             )
           : null,
@@ -982,6 +1051,19 @@ abstract final class SurfaceScreenDeliveryRequestV1Codec {
 }
 
 @immutable
+
+/// A delivered contract fingerprint that does not match the tuple it is
+/// checked against — the screen's contract moved relative to this reader.
+///
+/// A [FormatException] so existing readers keep classifying it as a rejected
+/// response; readers that can tell contract drift from a malformed frame catch
+/// this first.
+final class SurfaceScreenContractFingerprintMismatch extends FormatException {
+  /// Creates a fingerprint mismatch with [message].
+  const SurfaceScreenContractFingerprintMismatch(super.message);
+}
+
+@immutable
 final class SurfaceScreenDeliveryResponse {
   factory SurfaceScreenDeliveryResponse({
     required SurfaceDocument document,
@@ -991,6 +1073,7 @@ final class SurfaceScreenDeliveryResponse {
     required int publishedRevision,
     required String contractFingerprint,
     required String eventContractHash,
+    String? hostDataContractHash,
   }) {
     if (sourceKind != SurfaceSourceKind.screen ||
         payloadKind != SurfacePayloadKind.blob ||
@@ -1028,14 +1111,21 @@ final class SurfaceScreenDeliveryResponse {
       builtInFloor: document.minClient,
       requiredLibraries: document.requiredLibraries,
     );
+    if (hostDataContractHash != null) {
+      SurfaceContractJson.requireSha256(
+        hostDataContractHash,
+        'delivery response.hostDataContractHash',
+      );
+    }
     final expectedFingerprint = SurfaceScreenContractFingerprint.hash(
       sourceKind: sourceKind,
       payloadKind: payloadKind,
       capabilities: capabilities,
       eventContractHash: eventContractHash,
+      hostDataContractHash: hostDataContractHash,
     );
     if (contractFingerprint != expectedFingerprint) {
-      throw const FormatException(
+      throw const SurfaceScreenContractFingerprintMismatch(
         'Delivery response contractFingerprint does not match document metadata.',
       );
     }
@@ -1047,6 +1137,7 @@ final class SurfaceScreenDeliveryResponse {
       publishedRevision: publishedRevision,
       contractFingerprint: contractFingerprint,
       eventContractHash: eventContractHash,
+      hostDataContractHash: hostDataContractHash,
     );
   }
 
@@ -1058,6 +1149,7 @@ final class SurfaceScreenDeliveryResponse {
     required this.publishedRevision,
     required this.contractFingerprint,
     required this.eventContractHash,
+    required this.hostDataContractHash,
   });
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
@@ -1069,6 +1161,10 @@ final class SurfaceScreenDeliveryResponse {
   final int publishedRevision;
   final String contractFingerprint;
   final String eventContractHash;
+
+  /// Content hash of the family's host-data contract, absent when the screen
+  /// declares no host-supplied input.
+  final String? hostDataContractHash;
 }
 
 /// What a standalone-screen delivery puts on the wire.
@@ -1096,6 +1192,7 @@ final class SurfaceScreenDeliveryDescriptor {
     required int publishedRevision,
     required String contractFingerprint,
     required String eventContractHash,
+    String? hostDataContractHash,
   }) {
     if (sourceKind != SurfaceSourceKind.screen) {
       throw const FormatException(
@@ -1129,6 +1226,12 @@ final class SurfaceScreenDeliveryDescriptor {
       eventContractHash,
       'delivery descriptor.eventContractHash',
     );
+    if (hostDataContractHash != null) {
+      SurfaceContractJson.requireSha256(
+        hostDataContractHash,
+        'delivery descriptor.hostDataContractHash',
+      );
+    }
     return SurfaceScreenDeliveryDescriptor._(
       artifact: artifact,
       sourceKind: sourceKind,
@@ -1136,6 +1239,7 @@ final class SurfaceScreenDeliveryDescriptor {
       publishedRevision: publishedRevision,
       contractFingerprint: contractFingerprint,
       eventContractHash: eventContractHash,
+      hostDataContractHash: hostDataContractHash,
     );
   }
 
@@ -1146,6 +1250,7 @@ final class SurfaceScreenDeliveryDescriptor {
     required this.publishedRevision,
     required this.contractFingerprint,
     required this.eventContractHash,
+    required this.hostDataContractHash,
   });
 
   /// The publication schema this descriptor speaks.
@@ -1170,6 +1275,10 @@ final class SurfaceScreenDeliveryDescriptor {
   /// Content hash of the family's event contract.
   final String eventContractHash;
 
+  /// Content hash of the family's host-data contract, absent when the screen
+  /// declares no host-supplied input.
+  final String? hostDataContractHash;
+
   /// The descriptor as wire JSON.
   Map<String, Object?> toJson() => <String, Object?>{
         'schemaVersion': schemaVersion,
@@ -1179,6 +1288,8 @@ final class SurfaceScreenDeliveryDescriptor {
         'publishedRevision': publishedRevision,
         'contractFingerprint': contractFingerprint,
         'eventContractHash': eventContractHash,
+        if (hostDataContractHash != null)
+          'hostDataContractHash': hostDataContractHash,
       };
 
   /// Decodes a descriptor strictly.
@@ -1194,6 +1305,7 @@ final class SurfaceScreenDeliveryDescriptor {
         'publishedRevision',
         'contractFingerprint',
         'eventContractHash',
+        'hostDataContractHash',
       },
       r'$',
     );
@@ -1225,6 +1337,13 @@ final class SurfaceScreenDeliveryDescriptor {
         'eventContractHash',
         r'$',
       ),
+      hostDataContractHash: json.containsKey('hostDataContractHash')
+          ? SurfaceContractJson.requiredString(
+              json,
+              'hostDataContractHash',
+              r'$',
+            )
+          : null,
     );
   }
 
@@ -1235,7 +1354,15 @@ final class SurfaceScreenDeliveryDescriptor {
   /// reconstructing the checks: the fingerprint recompute has to run against
   /// the document that was actually assembled from fetched bytes, or it proves
   /// nothing about them.
-  SurfaceScreenDeliveryResponse completeWith(SurfaceDocument document) =>
+  ///
+  /// [readerHostDataContractHash] is the reader's own compiled-in host-data
+  /// contract hash, used only while no serve route carries one. The wire wins
+  /// whenever it supplies the value, so a delivery that does carry it is
+  /// checked entirely against served metadata.
+  SurfaceScreenDeliveryResponse completeWith(
+    SurfaceDocument document, {
+    String? readerHostDataContractHash,
+  }) =>
       SurfaceScreenDeliveryResponse(
         document: document,
         sourceKind: sourceKind,
@@ -1244,6 +1371,8 @@ final class SurfaceScreenDeliveryDescriptor {
         publishedRevision: publishedRevision,
         contractFingerprint: contractFingerprint,
         eventContractHash: eventContractHash,
+        hostDataContractHash:
+            hostDataContractHash ?? readerHostDataContractHash,
       );
 }
 
@@ -1281,6 +1410,8 @@ const Set<String> _publicationFields = <String>{
   'deliveryMode',
   'eventContract',
   'eventContractHash',
+  'hostDataContract',
+  'hostDataContractHash',
   'payloadContentHash',
   'payloadKind',
   'slug',
@@ -1319,12 +1450,16 @@ void _requireNoScreenContract({
   required SurfaceScreenEventSchema? eventContract,
   required String? eventContractHash,
   required String? contractFingerprint,
+  required SurfaceScreenHostDataSchema? hostDataContract,
+  required String? hostDataContractHash,
 }) {
   if (contractVersion != null ||
       capabilities != null ||
       eventContract != null ||
       eventContractHash != null ||
-      contractFingerprint != null) {
+      contractFingerprint != null ||
+      hostDataContract != null ||
+      hostDataContractHash != null) {
     throw const FormatException(
       'Only a screen publication may carry generic screen contract metadata.',
     );

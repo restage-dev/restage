@@ -344,6 +344,174 @@ Iterable<FormalParameterElement> widgetConstructorFormalChain(
   }
 }
 
+/// Analyzer-resolved facts for one constructor formal.
+@immutable
+final class ResolvedWidgetConstructorFormal {
+  /// Creates resolved constructor-formal facts.
+  const ResolvedWidgetConstructorFormal({
+    required this.formal,
+    required this.defaultDeclarations,
+    required this.backingFormal,
+    required this.field,
+    required this.type,
+    required this.forwardsFlutterKey,
+    required this.usesStatelessWidgetSuperFormal,
+    required this.inherited,
+    required this.bindingProblem,
+  });
+
+  /// The formal declared by the inspected constructor.
+  final FormalParameterElement formal;
+
+  /// Declarations that can supply the source formal's default expression.
+  final List<FormalParameterElement> defaultDeclarations;
+
+  /// The declaration that initializes [field], when one resolves.
+  final FormalParameterElement backingFormal;
+
+  /// The field initialized by this formal, when one resolves.
+  final FieldElement? field;
+
+  /// The constructor-effective type.
+  final DartType type;
+
+  /// Whether this formal reaches Flutter's widget key input.
+  final bool forwardsFlutterKey;
+
+  /// Whether the formal directly targets `StatelessWidget`'s constructor.
+  final bool usesStatelessWidgetSuperFormal;
+
+  /// Whether the formal is inherited with `super` syntax.
+  final bool inherited;
+
+  /// Why an ordinary field binding could not be resolved.
+  final String? bindingProblem;
+}
+
+/// Analyzer-resolved facts for a selected constructor.
+@immutable
+final class ResolvedWidgetConstructorFormals {
+  /// Creates resolved facts for one selected constructor.
+  ResolvedWidgetConstructorFormals({
+    required List<ResolvedWidgetConstructorFormal> formals,
+    required this.mountProblem,
+  }) : formals = List.unmodifiable(formals);
+
+  /// Formal facts in declaration order.
+  final List<ResolvedWidgetConstructorFormal> formals;
+
+  /// Why the constructor's key value cannot be reproduced by a mount.
+  final String? mountProblem;
+}
+
+/// Resolves the effective type, field binding, and key ownership of [formal].
+ResolvedWidgetConstructorFormal resolveWidgetConstructorFormal(
+  ClassElement cls,
+  ConstructorElement constructor,
+  FormalParameterElement formal,
+) =>
+    _resolveWidgetConstructorFormal(cls, constructor, formal, null);
+
+/// Resolves every constructor formal with resolved redirect and super edges.
+Future<ResolvedWidgetConstructorFormals> resolveWidgetConstructorFormals(
+  ClassElement cls,
+  ConstructorElement constructor,
+  Future<AstNode?> Function(Fragment fragment) astNodeFor,
+) async {
+  final declarations = await _resolvedConstructorDeclarations(
+    constructor,
+    astNodeFor,
+  );
+  final keyProvenance = _resolvedFlutterKeyProvenance(
+    constructor,
+    declarations,
+  );
+  final keyFormal = switch (keyProvenance) {
+    _SelectedFormalFlutterKey(:final formal) => formal,
+    _ => null,
+  };
+  return ResolvedWidgetConstructorFormals(
+    formals: [
+      for (final formal in constructor.formalParameters)
+        _resolveWidgetConstructorFormal(
+          cls,
+          constructor,
+          formal,
+          declarations,
+          forwardsFlutterKeyOverride: keyFormal != null &&
+              identical(formal.baseElement, keyFormal.baseElement),
+        ),
+    ],
+    mountProblem: keyProvenance is _RefusedFlutterKey
+        ? 'its constructor key value cannot be preserved'
+        : null,
+  );
+}
+
+ResolvedWidgetConstructorFormal _resolveWidgetConstructorFormal(
+  ClassElement cls,
+  ConstructorElement constructor,
+  FormalParameterElement formal,
+  Map<ConstructorElement, ConstructorDeclaration>? constructorDeclarations, {
+  bool? forwardsFlutterKeyOverride,
+}) {
+  final defaultDeclarations = List<FormalParameterElement>.unmodifiable(
+    widgetConstructorFormalChain(formal),
+  );
+  final forwardsFlutterKey = forwardsFlutterKeyOverride ??
+      _formalForwardsFlutterKey(
+        constructor,
+        formal,
+        constructorDeclarations,
+      );
+  final usesStatelessWidgetSuperFormal =
+      forwardsFlutterKey && _usesStatelessWidgetSuperFormal(formal);
+  if (formal is FieldFormalParameterElement) {
+    return ResolvedWidgetConstructorFormal(
+      formal: formal,
+      defaultDeclarations: defaultDeclarations,
+      backingFormal: formal,
+      field: formal.field,
+      type: formal.type,
+      forwardsFlutterKey: forwardsFlutterKey,
+      usesStatelessWidgetSuperFormal: usesStatelessWidgetSuperFormal,
+      inherited: false,
+      bindingProblem: formal.field == null
+          ? 'the field formal has no resolved field'
+          : null,
+    );
+  }
+  if (formal is SuperFormalParameterElement) {
+    final backing = _backingFieldFormal(formal);
+    return ResolvedWidgetConstructorFormal(
+      formal: formal,
+      defaultDeclarations: defaultDeclarations,
+      backingFormal: backing ?? formal,
+      field: backing?.field,
+      type: effectiveWidgetConstructorFormalType(cls, formal),
+      forwardsFlutterKey: forwardsFlutterKey,
+      usesStatelessWidgetSuperFormal: usesStatelessWidgetSuperFormal,
+      inherited: true,
+      bindingProblem: backing?.field == null
+          ? 'the super formal does not resolve through one field formal'
+          : null,
+    );
+  }
+
+  final binding = _ordinaryFormalBinding(cls, constructor, formal);
+  return ResolvedWidgetConstructorFormal(
+    formal: formal,
+    defaultDeclarations: defaultDeclarations,
+    backingFormal: formal,
+    field: binding.field,
+    type: formal.type,
+    forwardsFlutterKey: forwardsFlutterKey,
+    usesStatelessWidgetSuperFormal: usesStatelessWidgetSuperFormal,
+    inherited: false,
+    bindingProblem: binding.problem,
+  );
+}
+
 /// Reads the unnamed generative constructor that generated factories call.
 WidgetConstructorFacts readWidgetConstructorFacts(
   ClassElement cls,
@@ -591,7 +759,7 @@ bool _hasAssertedNonNullGuard(
   FormalParameterElement formal,
 ) {
   final name = formal.name;
-  final declaration = _constructorDeclaration(constructor);
+  final declaration = _constructorDeclaration(constructor, null);
   if (name == null || declaration == null) return false;
   return declaration.initializers.whereType<AssertInitializer>().any(
         (initializer) => _assertRequiresNonNull(
@@ -1144,64 +1312,39 @@ _InputResolution _resolveInput(
   ConstructorElement constructor,
   FormalParameterElement formal,
 ) {
-  if (formal is FieldFormalParameterElement) {
-    final field = formal.field;
-    if (field == null) {
-      return const _InvalidInput('the field formal has no resolved field');
-    }
-    final obstruction = _fieldObstruction(field, formal.type);
-    if (obstruction != null) return _InvalidInput(obstruction);
-    return _ResolvedInput(
-      field: field,
-      backingFormal: formal,
-      type: formal.type,
-      inherited: false,
-    );
-  }
-  if (formal is! SuperFormalParameterElement) {
-    if (_isFlutterKeyForwarding(constructor, formal)) {
-      return const _ExcludedInput();
-    }
-    return _resolveOrdinaryInput(cls, constructor, formal);
-  }
-
-  if (_isFlutterKeySuperFormal(formal)) return const _ExcludedInput();
-
-  final backing = _backingFieldFormal(formal);
-  if (backing == null || backing.field == null) {
-    return const _InvalidInput(
-      'the super formal does not resolve through one field formal',
-    );
-  }
-  final field = backing.field!;
-  final type = effectiveWidgetConstructorFormalType(cls, formal);
-  if (_isFlutterKeyPlumbing(field, type)) return const _ExcludedInput();
-  final obstruction = _fieldObstruction(field, type);
+  final resolved = resolveWidgetConstructorFormal(cls, constructor, formal);
+  if (resolved.forwardsFlutterKey) return const _ExcludedInput();
+  final problem = resolved.bindingProblem;
+  if (problem != null) return _InvalidInput(problem);
+  final field = resolved.field!;
+  final obstruction = _fieldObstruction(field, resolved.type);
   if (obstruction != null) return _InvalidInput(obstruction);
-  if (_containsUnresolvedTypeParameter(type)) {
+  if (_containsUnresolvedTypeParameter(resolved.type)) {
     return _InvalidInput(
-      'the subclass-effective type ${type.getDisplayString()} contains an '
+      'the subclass-effective type ${resolved.type.getDisplayString()} '
+      'contains an '
       'unresolved type parameter',
     );
   }
   return _ResolvedInput(
     field: field,
-    backingFormal: backing,
-    type: type,
-    inherited: true,
+    backingFormal: resolved.backingFormal,
+    type: resolved.type,
+    inherited: resolved.inherited,
   );
 }
 
-_InputResolution _resolveOrdinaryInput(
+({FieldElement? field, String? problem}) _ordinaryFormalBinding(
   ClassElement cls,
   ConstructorElement constructor,
   FormalParameterElement formal,
 ) {
-  final declaration = _constructorDeclaration(constructor);
+  final declaration = _constructorDeclaration(constructor, null);
   if (formal.name == null || declaration == null) {
-    return const _InvalidInput(
-      'the ordinary parameter binding could not be resolved from its '
-      'constructor declaration',
+    return (
+      field: null,
+      problem: 'the ordinary parameter binding could not be resolved from '
+          'its constructor declaration',
     );
   }
 
@@ -1218,10 +1361,19 @@ _InputResolution _resolveOrdinaryInput(
         !bindingInitializers.contains(initializer) &&
         _referencesFormal(initializer.expression, formal),
   );
+  FieldElement? field;
+  if (bindingInitializers.length == 1) {
+    final initializer = bindingInitializers.single;
+    final matches = cls.fields.where(
+      (candidate) => candidate.name == initializer.fieldName.name,
+    );
+    if (matches.length == 1) field = matches.single;
+  }
   if (bindingInitializers.isEmpty && transformedInitializers.isNotEmpty) {
-    return const _InvalidInput(
-      'the ordinary parameter is initializer-transformed before field '
-      'assignment',
+    return (
+      field: field,
+      problem: 'the ordinary parameter is initializer-transformed before '
+          'field assignment',
     );
   }
   final otherBindingUses = declaration.initializers.where((initializer) {
@@ -1230,36 +1382,72 @@ _InputResolution _resolveOrdinaryInput(
     return _referencesFormal(initializer, formal);
   });
   if (bindingInitializers.length != 1 || otherBindingUses.isNotEmpty) {
-    return const _InvalidInput(
-      'the ordinary parameter does not initialize exactly one field; '
-      'initializer-transformed or otherwise non-bijective bindings are not '
-      'admitted',
+    return (
+      field: field,
+      problem: 'the ordinary parameter does not initialize exactly one '
+          'field; initializer-transformed or otherwise non-bijective '
+          'bindings are not admitted',
     );
   }
-  final initializer = bindingInitializers.single;
+  if (field == null) {
+    return (
+      field: null,
+      problem: 'the ordinary parameter initializer has no unique backing '
+          'field',
+    );
+  }
+  return (field: field, problem: null);
+}
 
-  final matches = cls.fields.where(
-    (field) => field.name == initializer.fieldName.name,
-  );
-  if (matches.length != 1) {
-    return const _InvalidInput(
-      'the ordinary parameter initializer has no unique backing field',
-    );
+Future<Map<ConstructorElement, ConstructorDeclaration>>
+    _resolvedConstructorDeclarations(
+  ConstructorElement constructor,
+  Future<AstNode?> Function(Fragment fragment) astNodeFor,
+) async {
+  final declarations =
+      Map<ConstructorElement, ConstructorDeclaration>.identity();
+  final seen = Set<ConstructorElement>.identity();
+  final pending = <ConstructorElement>[constructor];
+  for (var index = 0; index < pending.length; index++) {
+    final current = pending[index].baseElement;
+    if (!seen.add(current)) continue;
+    final fragment = current.firstFragment;
+    final node = fragment.libraryFragment.source.uri.scheme == 'dart'
+        ? null
+        : await astNodeFor(fragment);
+    if (node is ConstructorDeclaration) {
+      declarations[current] = node;
+      for (final initializer in node.initializers) {
+        final target = switch (initializer) {
+          RedirectingConstructorInvocation(:final element) => element,
+          SuperConstructorInvocation(:final element) => element,
+          _ => null,
+        };
+        if (target != null) pending.add(target);
+      }
+    }
+    final redirected = current.redirectedConstructor;
+    if (redirected != null) pending.add(redirected);
+    final superConstructor = current.superConstructor;
+    if (superConstructor != null) pending.add(superConstructor);
+    for (final formal in current.formalParameters) {
+      if (formal
+          case SuperFormalParameterElement(:final superConstructorParameter?)) {
+        final enclosing = superConstructorParameter.enclosingElement;
+        if (enclosing is ConstructorElement) pending.add(enclosing);
+      }
+    }
   }
-  final field = matches.single;
-  final obstruction = _fieldObstruction(field, formal.type);
-  if (obstruction != null) return _InvalidInput(obstruction);
-  return _ResolvedInput(
-    field: field,
-    backingFormal: formal,
-    type: formal.type,
-    inherited: false,
-  );
+  return declarations;
 }
 
 ConstructorDeclaration? _constructorDeclaration(
   ConstructorElement constructor,
+  Map<ConstructorElement, ConstructorDeclaration>? resolvedDeclarations,
 ) {
+  if (resolvedDeclarations != null) {
+    return resolvedDeclarations[constructor.baseElement];
+  }
   final session = constructor.session;
   if (session == null) return null;
   final parsedLibrary = session.getParsedLibraryByElement(constructor.library);
@@ -1324,46 +1512,522 @@ final class _FormalReferenceVisitor extends RecursiveAstVisitor<void> {
   }
 }
 
-bool _isFlutterKeyForwarding(
-  ConstructorElement constructor,
-  FormalParameterElement formal,
+sealed class _FlutterKeyProvenance {
+  const _FlutterKeyProvenance();
+}
+
+final class _NullFlutterKey extends _FlutterKeyProvenance {
+  const _NullFlutterKey();
+}
+
+final class _SelectedFormalFlutterKey extends _FlutterKeyProvenance {
+  const _SelectedFormalFlutterKey(this.formal);
+
+  final FormalParameterElement formal;
+}
+
+final class _RefusedFlutterKey extends _FlutterKeyProvenance {
+  const _RefusedFlutterKey();
+}
+
+const _nullFlutterKey = _NullFlutterKey();
+const _refusedFlutterKey = _RefusedFlutterKey();
+
+_FlutterKeyProvenance _resolvedFlutterKeyProvenance(
+  ConstructorElement selectedConstructor,
+  Map<ConstructorElement, ConstructorDeclaration> declarations,
 ) {
-  final name = formal.name;
-  if (name != 'key' || !_isFlutterKeyType(formal.type)) return false;
-  final declaration = _constructorDeclaration(constructor);
-  if (declaration == null) return false;
-  final uses = declaration.initializers.where((initializer) {
-    if (initializer is AssertInitializer) return false;
-    return _referencesFormal(initializer, formal);
-  }).toList(growable: false);
-  if (uses.length != 1 || uses.single is! SuperConstructorInvocation) {
-    return false;
+  var constructor = selectedConstructor.baseElement;
+  var origins = Map<FormalParameterElement, _FlutterKeyProvenance>.identity();
+  for (final formal in constructor.formalParameters) {
+    final declaration = formal.baseElement;
+    origins[declaration] = _SelectedFormalFlutterKey(declaration);
   }
-  final superCall = uses.single as SuperConstructorInvocation;
-  return superCall.argumentList.arguments.any(
-    (argument) =>
-        argument is NamedExpression &&
-        argument.name.label.name == 'key' &&
-        _isFormalReference(argument.expression, formal),
+
+  final seen = Set<ConstructorElement>.identity();
+  while (seen.add(constructor)) {
+    final keyFormals = constructor.formalParameters
+        .where(_isFlutterKeyFormal)
+        .toList(growable: false);
+    if (keyFormals.length > 1) return _refusedFlutterKey;
+    if (keyFormals case [final keyFormal]) {
+      return origins[keyFormal.baseElement] ?? _refusedFlutterKey;
+    }
+
+    final redirected = constructor.redirectedConstructor?.baseElement;
+    if (redirected != null) {
+      final nextOrigins = constructor.isFactory
+          ? _redirectingFactoryOrigins(
+              constructor,
+              redirected,
+              origins,
+              declarations,
+            )
+          : _redirectingGenerativeOrigins(
+              constructor,
+              redirected,
+              origins,
+              declarations,
+            );
+      if (nextOrigins == null) return _refusedFlutterKey;
+      constructor = redirected;
+      origins = nextOrigins;
+      continue;
+    }
+
+    final target = constructor.superConstructor?.baseElement;
+    if (target == null) return _refusedFlutterKey;
+    final nextOrigins = _superConstructorOrigins(
+      constructor,
+      target,
+      origins,
+      declarations,
+    );
+    if (nextOrigins == null) return _refusedFlutterKey;
+    constructor = target;
+    origins = nextOrigins;
+  }
+  return _refusedFlutterKey;
+}
+
+bool _isFlutterKeyFormal(FormalParameterElement formal) {
+  final declaration = formal.baseElement;
+  if (declaration case FieldFormalParameterElement(:final field?)) {
+    return _isFlutterKeyPlumbing(field, declaration.type);
+  }
+  if (declaration is SuperFormalParameterElement) {
+    final backing = _flutterKeyBackingFormal(declaration);
+    if (backing?.field case final field?) {
+      return _isFlutterKeyPlumbing(field, declaration.type);
+    }
+  }
+  return false;
+}
+
+FieldFormalParameterElement? _flutterKeyBackingFormal(
+  SuperFormalParameterElement formal,
+) {
+  final seen = Set<FormalParameterElement>.identity();
+  FormalParameterElement current = formal.baseElement;
+  while (current is SuperFormalParameterElement) {
+    if (!seen.add(current)) return null;
+    final target = current.superConstructorParameter;
+    if (target == null) return null;
+    current = target.baseElement;
+  }
+  return current is FieldFormalParameterElement ? current : null;
+}
+
+Map<FormalParameterElement, _FlutterKeyProvenance>? _redirectingFactoryOrigins(
+  ConstructorElement source,
+  ConstructorElement target,
+  Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
+  Map<ConstructorElement, ConstructorDeclaration> declarations,
+) {
+  final targetOrigins =
+      Map<FormalParameterElement, _FlutterKeyProvenance>.identity();
+  for (final formal in source.formalParameters) {
+    final targetFormal = _redirectingFactoryFormal(source, target, formal);
+    final origin = sourceOrigins[formal.baseElement];
+    if (targetFormal == null ||
+        origin == null ||
+        !_addFlutterKeyOrigin(targetOrigins, targetFormal, origin)) {
+      return null;
+    }
+  }
+  return _completeFlutterKeyOrigins(target, targetOrigins, declarations);
+}
+
+Map<FormalParameterElement, _FlutterKeyProvenance>?
+    _redirectingGenerativeOrigins(
+  ConstructorElement source,
+  ConstructorElement target,
+  Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
+  Map<ConstructorElement, ConstructorDeclaration> declarations,
+) {
+  final declaration = declarations[source.baseElement];
+  if (declaration == null) return null;
+  final invocations = declaration.initializers
+      .whereType<RedirectingConstructorInvocation>()
+      .toList(growable: false);
+  if (invocations.length != 1) return null;
+  final invocation = invocations.single;
+  if (!identical(invocation.element?.baseElement, target.baseElement)) {
+    return null;
+  }
+  return _invocationFlutterKeyOrigins(
+    source: source,
+    target: target,
+    arguments: invocation.argumentList.arguments,
+    sourceOrigins: sourceOrigins,
+    declarations: declarations,
   );
 }
 
-bool _isFlutterKeyType(DartType type) =>
-    type is InterfaceType &&
-    type.element.name == 'Key' &&
-    type.element.library.identifier.startsWith('package:flutter/');
-
-bool _isFlutterKeySuperFormal(SuperFormalParameterElement formal) {
-  if (formal.name != 'key' || !_isFlutterKeyType(formal.type)) return false;
-
-  final current = _terminalSuperConstructorParameter(formal);
-  if (current == null || current.name != 'key') return false;
-  if (current.library?.identifier.startsWith('package:flutter/') ?? false) {
-    return true;
+Map<FormalParameterElement, _FlutterKeyProvenance>? _superConstructorOrigins(
+  ConstructorElement source,
+  ConstructorElement target,
+  Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
+  Map<ConstructorElement, ConstructorDeclaration> declarations,
+) {
+  NodeList<Expression>? arguments;
+  if (source.isOriginDeclaration) {
+    final declaration = declarations[source.baseElement];
+    if (declaration == null) return null;
+    final invocations = declaration.initializers
+        .whereType<SuperConstructorInvocation>()
+        .toList(growable: false);
+    if (invocations.length > 1) return null;
+    if (invocations case [final invocation]) {
+      if (!identical(invocation.element?.baseElement, target.baseElement)) {
+        return null;
+      }
+      arguments = invocation.argumentList.arguments;
+    }
+  } else if (!source.isOriginImplicitDefault) {
+    return null;
   }
-  final enclosing = current.enclosingElement;
-  return enclosing is ConstructorElement &&
-      _isFlutterKeyForwarding(enclosing, current);
+
+  return _invocationFlutterKeyOrigins(
+    source: source,
+    target: target,
+    arguments: arguments ?? const <Expression>[],
+    sourceOrigins: sourceOrigins,
+    declarations: declarations,
+    includeSuperFormals: true,
+  );
+}
+
+Map<FormalParameterElement, _FlutterKeyProvenance>?
+    _invocationFlutterKeyOrigins({
+  required ConstructorElement source,
+  required ConstructorElement target,
+  required Iterable<Expression> arguments,
+  required Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
+  required Map<ConstructorElement, ConstructorDeclaration> declarations,
+  bool includeSuperFormals = false,
+}) {
+  final targetOrigins =
+      Map<FormalParameterElement, _FlutterKeyProvenance>.identity();
+  if (includeSuperFormals) {
+    for (final formal in source.formalParameters) {
+      if (formal
+          case SuperFormalParameterElement(:final superConstructorParameter?)) {
+        final owner = superConstructorParameter.enclosingElement;
+        final origin = sourceOrigins[formal.baseElement];
+        if (owner is! ConstructorElement ||
+            !identical(owner.baseElement, target.baseElement) ||
+            origin == null ||
+            !_addFlutterKeyOrigin(
+              targetOrigins,
+              superConstructorParameter,
+              origin,
+            )) {
+          return null;
+        }
+      }
+    }
+  }
+
+  for (final argument in arguments) {
+    final targetFormal = argument.correspondingParameter;
+    final owner = targetFormal?.enclosingElement;
+    if (targetFormal == null ||
+        owner is! ConstructorElement ||
+        !identical(owner.baseElement, target.baseElement)) {
+      return null;
+    }
+    final expression =
+        argument is NamedExpression ? argument.expression : argument;
+    final origin = _expressionFlutterKeyOrigin(
+      expression,
+      source,
+      sourceOrigins,
+    );
+    if (!_addFlutterKeyOrigin(targetOrigins, targetFormal, origin)) {
+      return null;
+    }
+  }
+  return _completeFlutterKeyOrigins(target, targetOrigins, declarations);
+}
+
+_FlutterKeyProvenance _expressionFlutterKeyOrigin(
+  Expression expression,
+  ConstructorElement source,
+  Map<FormalParameterElement, _FlutterKeyProvenance> sourceOrigins,
+) {
+  final unwrapped = _unwrappedExpression(expression);
+  if (unwrapped is NullLiteral) return _nullFlutterKey;
+  for (final formal in source.formalParameters) {
+    if (_isFormalReference(unwrapped, formal)) {
+      return sourceOrigins[formal.baseElement] ?? _refusedFlutterKey;
+    }
+  }
+  return _refusedFlutterKey;
+}
+
+bool _addFlutterKeyOrigin(
+  Map<FormalParameterElement, _FlutterKeyProvenance> origins,
+  FormalParameterElement formal,
+  _FlutterKeyProvenance origin,
+) {
+  final declaration = formal.baseElement;
+  if (origins.containsKey(declaration)) return false;
+  origins[declaration] = origin;
+  return true;
+}
+
+Map<FormalParameterElement, _FlutterKeyProvenance> _completeFlutterKeyOrigins(
+  ConstructorElement target,
+  Map<FormalParameterElement, _FlutterKeyProvenance> origins,
+  Map<ConstructorElement, ConstructorDeclaration> declarations,
+) {
+  for (final formal in target.formalParameters) {
+    final declaration = formal.baseElement;
+    origins.putIfAbsent(
+      declaration,
+      () => _omittedFlutterKeyOrigin(declaration, declarations),
+    );
+  }
+  return origins;
+}
+
+_FlutterKeyProvenance _omittedFlutterKeyOrigin(
+  FormalParameterElement formal,
+  Map<ConstructorElement, ConstructorDeclaration> declarations,
+) {
+  if (formal.isRequired) return _refusedFlutterKey;
+  late final List<FormalParameterElement> chain;
+  try {
+    chain = widgetConstructorFormalChain(formal).toList(growable: false);
+  } on StateError {
+    return _refusedFlutterKey;
+  }
+  if (chain.isEmpty || chain.last is SuperFormalParameterElement) {
+    return _refusedFlutterKey;
+  }
+
+  for (final formalDeclaration in chain) {
+    final owner = formalDeclaration.enclosingElement;
+    if (owner is! ConstructorElement) return _refusedFlutterKey;
+    final constructorDeclaration = declarations[owner.baseElement];
+    if (constructorDeclaration == null) {
+      if (formalDeclaration.hasDefaultValue) return _refusedFlutterKey;
+      continue;
+    }
+    final parameters = constructorDeclaration.parameters.parameters.where(
+      (parameter) => identical(
+        parameter.declaredFragment?.element.baseElement,
+        formalDeclaration.baseElement,
+      ),
+    );
+    if (parameters.length > 1) return _refusedFlutterKey;
+    final parameter = parameters.firstOrNull;
+    if (parameter == null) {
+      if (formalDeclaration.hasDefaultValue) return _refusedFlutterKey;
+      continue;
+    }
+    final defaultValue =
+        parameter is DefaultFormalParameter ? parameter.defaultValue : null;
+    if (defaultValue != null) {
+      return _unwrappedExpression(defaultValue) is NullLiteral
+          ? _nullFlutterKey
+          : _refusedFlutterKey;
+    }
+  }
+  return chain.last.hasDefaultValue ? _refusedFlutterKey : _nullFlutterKey;
+}
+
+bool _formalForwardsFlutterKey(
+  ConstructorElement constructor,
+  FormalParameterElement formal,
+  Map<ConstructorElement, ConstructorDeclaration>? constructorDeclarations,
+) =>
+    _formalTargetsFlutterKey(
+      constructor,
+      formal,
+      Set<FormalParameterElement>.identity(),
+      constructorDeclarations,
+    );
+
+bool _formalTargetsFlutterKey(
+  ConstructorElement constructor,
+  FormalParameterElement formal,
+  Set<FormalParameterElement> seen,
+  Map<ConstructorElement, ConstructorDeclaration>? constructorDeclarations,
+) {
+  final formalDeclaration = formal.baseElement;
+  if (!seen.add(formalDeclaration)) return false;
+  if (formalDeclaration case FieldFormalParameterElement(:final field?)) {
+    if (_isFlutterKeyPlumbing(field, formalDeclaration.type)) return true;
+  }
+  if (formalDeclaration
+      case SuperFormalParameterElement(
+        :final superConstructorParameter?,
+      )) {
+    final backing = _backingFieldFormal(formalDeclaration);
+    if (backing?.field case final field?
+        when _isFlutterKeyPlumbing(field, formalDeclaration.type)) {
+      return true;
+    }
+    final enclosing = superConstructorParameter.enclosingElement;
+    if (enclosing is ConstructorElement &&
+        _formalTargetsFlutterKey(
+          enclosing,
+          superConstructorParameter,
+          seen,
+          constructorDeclarations,
+        )) {
+      return true;
+    }
+  }
+
+  final redirected = constructor.redirectedConstructor;
+  if (redirected != null) {
+    if (constructor.isFactory) {
+      final target = _redirectingFactoryFormal(
+        constructor,
+        redirected,
+        formalDeclaration,
+      );
+      return target != null &&
+          _formalTargetsFlutterKey(
+            redirected,
+            target,
+            seen,
+            constructorDeclarations,
+          );
+    }
+
+    final declaration = _constructorDeclaration(
+      constructor,
+      constructorDeclarations,
+    );
+    final redirectCall = declaration?.initializers
+        .whereType<RedirectingConstructorInvocation>()
+        .firstOrNull;
+    if (redirectCall == null) return false;
+    for (final argument in redirectCall.argumentList.arguments) {
+      final expression =
+          argument is NamedExpression ? argument.expression : argument;
+      if (!_isFormalReference(expression, formalDeclaration)) continue;
+      final target = argument.correspondingParameter ??
+          (constructorDeclarations == null
+              ? _parsedArgumentFormal(
+                  redirected,
+                  redirectCall.argumentList.arguments,
+                  argument,
+                )
+              : null);
+      final targetConstructor = target?.enclosingElement;
+      if (target != null &&
+          targetConstructor is ConstructorElement &&
+          _formalTargetsFlutterKey(
+            targetConstructor,
+            target,
+            seen,
+            constructorDeclarations,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final constructorDeclaration = _constructorDeclaration(
+    constructor,
+    constructorDeclarations,
+  );
+  if (constructorDeclaration == null) return false;
+  for (final superCall in constructorDeclaration.initializers
+      .whereType<SuperConstructorInvocation>()) {
+    final targetConstructor = superCall.element ?? constructor.superConstructor;
+    if (targetConstructor == null) continue;
+    for (final argument in superCall.argumentList.arguments) {
+      final expression =
+          argument is NamedExpression ? argument.expression : argument;
+      if (!_isFormalReference(expression, formalDeclaration)) continue;
+      final target = argument.correspondingParameter ??
+          (constructorDeclarations == null
+              ? _parsedArgumentFormal(
+                  targetConstructor,
+                  superCall.argumentList.arguments,
+                  argument,
+                )
+              : null);
+      final resolvedTargetConstructor = target?.enclosingElement;
+      if (target != null &&
+          resolvedTargetConstructor is ConstructorElement &&
+          _formalTargetsFlutterKey(
+            resolvedTargetConstructor,
+            target,
+            seen,
+            constructorDeclarations,
+          )) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool _usesStatelessWidgetSuperFormal(FormalParameterElement formal) {
+  if (formal is! SuperFormalParameterElement) return false;
+  final constructor = formal.superConstructorParameter?.enclosingElement;
+  final owner = constructor?.enclosingElement;
+  return constructor is ConstructorElement &&
+      owner is ClassElement &&
+      owner.name == 'StatelessWidget' &&
+      owner.library.identifier.startsWith('package:flutter/');
+}
+
+FormalParameterElement? _redirectingFactoryFormal(
+  ConstructorElement source,
+  ConstructorElement target,
+  FormalParameterElement formal,
+) {
+  if (formal.isNamed) {
+    for (final item in target.formalParameters) {
+      if (item.isNamed && item.name == formal.name) return item;
+    }
+    return null;
+  }
+  final position = source.formalParameters
+      .where((item) => item.isPositional)
+      .toList(growable: false)
+      .indexWhere((item) => item.baseElement == formal.baseElement);
+  final positional = target.formalParameters
+      .where((item) => item.isPositional)
+      .toList(growable: false);
+  return position >= 0 && position < positional.length
+      ? positional[position]
+      : null;
+}
+
+FormalParameterElement? _parsedArgumentFormal(
+  ConstructorElement constructor,
+  NodeList<Expression> arguments,
+  Expression argument,
+) {
+  if (argument is NamedExpression) {
+    final name = argument.name.label.name;
+    for (final formal in constructor.formalParameters) {
+      if (formal.isNamed && formal.name == name) return formal;
+    }
+    return null;
+  }
+  var position = 0;
+  for (final candidate in arguments) {
+    if (candidate is NamedExpression) continue;
+    if (identical(candidate, argument)) {
+      final positional = constructor.formalParameters
+          .where((formal) => formal.isPositional)
+          .toList(growable: false);
+      return position < positional.length ? positional[position] : null;
+    }
+    position++;
+  }
+  return null;
 }
 
 FieldFormalParameterElement? _backingFieldFormal(
@@ -1402,7 +2066,9 @@ String? _fieldObstruction(FieldElement field, DartType type) {
 bool _isFlutterKeyPlumbing(FieldElement field, DartType type) {
   return field.name == 'key' &&
       field.library.identifier.startsWith('package:flutter/') &&
-      _isFlutterKeyType(type);
+      type is InterfaceType &&
+      type.element.name == 'Key' &&
+      type.element.library.identifier.startsWith('package:flutter/');
 }
 
 /// Returns [formal]'s subclass-effective type.

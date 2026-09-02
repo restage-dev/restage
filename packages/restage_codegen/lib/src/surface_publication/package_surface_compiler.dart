@@ -26,6 +26,7 @@ import 'package:restage_codegen/src/measurement/measurement_rfw_route_composer.d
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
+import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/restage_source_roster.dart';
 import 'package:restage_codegen/src/surface_publication/generated_handle_names.dart';
 import 'package:restage_codegen/src/surface_publication/legacy_screen_contract_adapter.dart';
@@ -219,12 +220,17 @@ final class CompiledFlowArtifact {
   CompiledFlowArtifact({
     required this.declaration,
     required List<int> flowDocumentBytes,
+    required Iterable<String> generatedTopLevelSymbols,
     this.generatedPart,
-  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes);
+  })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
+        generatedTopLevelSymbols = Set.unmodifiable(
+          generatedTopLevelSymbols,
+        );
 
   final Element declaration;
   final Uint8List flowDocumentBytes;
   final String? generatedPart;
+  final Set<String> generatedTopLevelSymbols;
 
   String get declarationIdentity =>
       '${declaration.library?.identifier ?? '<unknown>'}#'
@@ -399,10 +405,15 @@ final class CanonicalFlowArtifactCompilation {
   CanonicalFlowArtifactCompilation({
     required List<int> flowDocumentBytes,
     required this.generatedPart,
-  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes);
+    required Iterable<String> generatedTopLevelSymbols,
+  })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
+        generatedTopLevelSymbols = Set.unmodifiable(
+          generatedTopLevelSymbols,
+        );
 
   final Uint8List flowDocumentBytes;
   final String generatedPart;
+  final Set<String> generatedTopLevelSymbols;
 }
 
 /// Fail-closed result from [compileCanonicalFlowArtifact].
@@ -516,15 +527,16 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
     final resultName = '${flowStem}Result';
     final decoderName = '_decode${flowStem}Result';
     final seedName = '${flowStem}Seed';
+    final generatedTopLevelSymbols = _canonicalFlowGeneratedTopLevelSymbols(
+      flow: flow,
+      graph: resolvedGraph,
+      refName: refName,
+      resultName: resultName,
+      decoderName: decoderName,
+      seedName: seedName,
+    );
     final claimedSymbols = <String, String>{};
-    for (final symbol in <String>{
-      refName,
-      decoderName,
-      if (flow.delivery == FlowDeliveryMode.typed) resultName,
-      if (resolvedGraph.flowState.values.any((state) => state.hostSeedable))
-        seedName,
-      if (resolvedGraph.actions.isNotEmpty) '${flowStem}Actions',
-    }) {
+    for (final symbol in generatedTopLevelSymbols) {
       _claimGeneratedSymbol(
         claimedSymbols,
         source: source,
@@ -584,6 +596,7 @@ CanonicalFlowArtifactCompilationResult compileCanonicalFlowArtifact({
       compilation: CanonicalFlowArtifactCompilation(
         flowDocumentBytes: documentBytes,
         generatedPart: generatedPart,
+        generatedTopLevelSymbols: generatedTopLevelSymbols,
       ),
       issues: const [],
     );
@@ -1202,13 +1215,15 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
       );
       continue;
     }
-    _claimGeneratedSymbol(
-      claimedSymbols,
-      source: source,
-      library: contract.screen.library,
-      symbol: generatedHandleName(screenName, fallback: 'surfaceScreen'),
-      issues: issues,
-    );
+    for (final symbol in contract.generatedTopLevelSymbols.toList()..sort()) {
+      _claimGeneratedSymbol(
+        claimedSymbols,
+        source: source,
+        library: contract.screen.library,
+        symbol: symbol,
+        issues: issues,
+      );
+    }
 
     final publication = _assembleStandalonePublication(
       artifact: artifact,
@@ -1415,6 +1430,16 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         );
         continue;
       }
+      for (final symbol in precompiled.generatedTopLevelSymbols.toList()
+        ..sort()) {
+        _claimGeneratedSymbol(
+          claimedSymbols,
+          source: source,
+          library: precompiled.declaration.library,
+          symbol: symbol,
+          issues: issues,
+        );
+      }
       final assembly = _assemblePrecompiledFlowPublication(
         flow: flow,
         source: source,
@@ -1517,13 +1542,14 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
     final resultName = '${flowStem}Result';
     final decoderName = '_decode${flowStem}Result';
     final seedName = '${flowStem}Seed';
-    for (final symbol in <String>{
-      refName,
-      decoderName,
-      if (flow.delivery == FlowDeliveryMode.typed) resultName,
-      if (graph.flowState.values.any((state) => state.hostSeedable)) seedName,
-      if (graph.actions.isNotEmpty) '${flowStem}Actions',
-    }) {
+    for (final symbol in _canonicalFlowGeneratedTopLevelSymbols(
+      flow: flow,
+      graph: graph,
+      refName: refName,
+      resultName: resultName,
+      decoderName: decoderName,
+      seedName: seedName,
+    )) {
       _claimGeneratedSymbol(
         claimedSymbols,
         source: source,
@@ -1954,6 +1980,7 @@ SurfacePublicationAssemblyInput? _assembleStandalonePublication({
         contractVersion: contract.contractVersion,
         capabilities: contract.capabilities,
         eventContract: contract.eventSchema,
+        hostDataContract: contract.hostDataContract,
       ),
     );
   } on Object catch (error) {
@@ -2729,6 +2756,31 @@ ${_emitSeedClass(seedName, graph.flowState, sdkPrefix)}
 $support''';
 }
 
+Set<String> _canonicalFlowGeneratedTopLevelSymbols({
+  required NormalizedFlowSource flow,
+  required NormalizedFlowGraph graph,
+  required String refName,
+  required String resultName,
+  required String decoderName,
+  required String seedName,
+}) {
+  final flowName = resultName.substring(
+    0,
+    resultName.length - 'Result'.length,
+  );
+  return {
+    refName,
+    decoderName,
+    if (flow.delivery == FlowDeliveryMode.typed) resultName,
+    if (graph.flowState.entries.any((entry) => entry.value.hostSeedable) &&
+        graph.flowState.entries
+            .where((entry) => entry.value.hostSeedable)
+            .every((entry) => _isSafeGeneratedIdentifier(entry.key)))
+      seedName,
+    if (graph.actions.isNotEmpty) '${flowName}Actions',
+  };
+}
+
 String _emitCanonicalActions(
   String resultName,
   Map<String, FlowActionContract> actions,
@@ -3014,6 +3066,9 @@ ResolvedStandaloneScreenContract? _refreshStandaloneContractBundleMetadata(
       slug: contract.slug,
       contractVersion: contract.contractVersion,
       capabilities: contract.capabilities,
+      rootParams: contract.input.rootParams,
+      constructorParams: contract.input.constructorParams,
+      mountConstructorProblem: contract.input.mountConstructorProblem,
       plan: contract.input.plan,
       bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
         blobSha256: CapabilitySidecar.hashBlob(blob),
@@ -3963,9 +4018,17 @@ Set<String> _topLevelNames(
   LibraryElement library, {
   RestageSourceDeclaration? source,
 }) {
-  final names = <String>{};
   final ownedGeneratedPart =
       source == null ? null : _ownedGeneratedPartAsset(library, source);
+  bool fromOwnedGeneratedPart(Element element) =>
+      ownedGeneratedPart != null &&
+      _elementAssetId(element) == ownedGeneratedPart;
+  final namespace = OwningLibraryNamespace(library);
+  final names = <String>{
+    ...namespace.prefixNames,
+    ...namespace.unprefixedImportNames,
+    ...namespace.publicNamespaceNames(exclude: fromOwnedGeneratedPart),
+  };
   for (final elements in <Iterable<Element>>[
     library.classes,
     library.enums,
@@ -3979,10 +4042,7 @@ Set<String> _topLevelNames(
     library.setters,
   ]) {
     for (final element in elements) {
-      if (ownedGeneratedPart != null &&
-          _elementAssetId(element) == ownedGeneratedPart) {
-        continue;
-      }
+      if (fromOwnedGeneratedPart(element)) continue;
       final name = element.name;
       if (name != null && name.isNotEmpty) names.add(name);
       final lookup = element.lookupName;

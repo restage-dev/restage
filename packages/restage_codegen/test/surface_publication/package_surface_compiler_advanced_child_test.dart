@@ -140,6 +140,7 @@ PackageSurfaceCompilationInput _inputFor(
         flowDocumentBytes: childBytes,
         generatedPart: 'part of authoring.dart;\n\n'
             'const advancedChildGenerated = true;',
+        generatedTopLevelSymbols: const {'advancedChildGenerated'},
       ),
     ],
   );

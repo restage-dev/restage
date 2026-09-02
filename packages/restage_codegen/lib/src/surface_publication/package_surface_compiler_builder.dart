@@ -74,6 +74,34 @@ final class TrackedPackageSurfaceCompilation {
   bool get isValid => publicationBundle.valid && issues.isEmpty;
 }
 
+final class _AppFactoryNoticeCensus {
+  final Map<String, Issue> _canonicalIssues = {};
+  final Set<String> _deprecatedKeys = {};
+
+  void add(Issue issue, bool isCanonical) {
+    final key = issue.buildNoticeKey;
+    if (!isCanonical) {
+      _deprecatedKeys.add(key);
+      return;
+    }
+    final existing = _canonicalIssues[key];
+    if (existing == null ||
+        issue.toLogString().compareTo(existing.toLogString()) < 0) {
+      _canonicalIssues[key] = issue;
+    }
+  }
+
+  void emit(Set<String> buildNoticeKeys) {
+    final keys = _canonicalIssues.keys
+        .where((key) => !_deprecatedKeys.contains(key))
+        .toList()
+      ..sort();
+    for (final key in keys) {
+      logBuildNoticeOnce(log, buildNoticeKeys, _canonicalIssues[key]!);
+    }
+  }
+}
+
 /// Scans only tracked build assets and invokes the package compiler's resolved
 /// frontends and strict artifact adapters.
 ///
@@ -105,6 +133,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   bool measurementEnabled,
 ) async {
   final issues = <Issue>[];
+  final buildNoticeKeys = <String>{};
+  final appFactoryNotices = _AppFactoryNoticeCensus();
   // One selection, shared with the roster below: this compiler and the roster
   // cannot disagree about which libraries can declare a surface, and the
   // package's sources are read once instead of twice.
@@ -124,8 +154,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   final contracts = <ResolvedStandaloneScreenContract>[];
   final legacyContracts = <LegacyStandaloneScreenContract>[];
   final precompiledFlows = <CompiledFlowArtifact>[];
-  final canonicalPaywallJobs = <_CanonicalPaywallJob>[];
-  final measurementPaywallJobs = <_CanonicalPaywallJob>[];
+  final paywallJobs = <_PaywallCompilationJob>[];
   final measurementScreenInputs = <ResolvedScreenCompilationInput>[];
   final provisionalAnalyticsIdControlCaptures = <AnalyticsIdControlCapture>[];
   final flowJobs = <_FlowCompilationJob>[];
@@ -176,6 +205,8 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
       final compilation = await compileResolvedScreens(
         buildStep,
         screenInspection.screens,
+        buildNoticeKeys: buildNoticeKeys,
+        appFactoryNoticeCollector: appFactoryNotices.add,
       );
       issues.addAll(compilation.issues);
       for (final screen in compilation.screens) {
@@ -245,12 +276,20 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
             slug: screen.input.id,
             contractVersion: screen.input.version,
             capabilities: capabilities,
+            rootParams: screen.input.build.rootParams,
+            constructorParams: screen.input.build.constructorParams,
+            mountConstructorProblem: screen.input.build.mountConstructorProblem,
             plan: plan,
             bundleEntryMetadata: bundleEntryMetadata,
           ),
         );
         issues.addAll(contract.issues);
-        if (contract.contract != null) contracts.add(contract.contract!);
+        final resolved = contract.contract;
+        if (resolved != null) {
+          final message = resolved.mountOmissionMessage;
+          if (message != null) log.warning(message);
+          contracts.add(resolved);
+        }
       }
     }
 
@@ -288,11 +327,14 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         minClient: legacySource.minClient,
         surface: source.surface,
         build: legacySource.build,
+        isCanonical: false,
       );
       measurementScreenInputs.add(legacyInput);
       final legacyCompilation = await compileResolvedScreens(
         buildStep,
         [legacyInput],
+        buildNoticeKeys: buildNoticeKeys,
+        appFactoryNoticeCollector: appFactoryNotices.add,
       );
       issues.addAll(legacyCompilation.issues);
       if (legacyCompilation.screens.length != 1) continue;
@@ -354,21 +396,9 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
 
     final paywalls = await visitPaywallSources(library, assetId);
     issues.addAll(paywalls.issues);
-    final canonicalPaywalls = paywalls.sources
-        .where((source) => source.isCanonical)
-        .toList(growable: false);
-    if (canonicalPaywalls.isNotEmpty) {
-      canonicalPaywallJobs.add(
-        _CanonicalPaywallJob(
-          assetId: assetId,
-          library: library,
-          sources: canonicalPaywalls,
-        ),
-      );
-    }
     if (paywalls.sources.isNotEmpty) {
-      measurementPaywallJobs.add(
-        _CanonicalPaywallJob(
+      paywallJobs.add(
+        _PaywallCompilationJob(
           assetId: assetId,
           library: library,
           sources: paywalls.sources,
@@ -417,13 +447,16 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     }
   }
 
-  await _compileCanonicalPaywalls(
+  await _compilePaywalls(
     buildStep,
-    jobs: canonicalPaywallJobs,
+    jobs: paywallJobs,
+    retainSource: (source) => source.isCanonical,
     rendered: rendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     analyticsIdControlCaptures: provisionalAnalyticsIdControlCaptures,
     issues: issues,
+    buildNoticeKeys: buildNoticeKeys,
+    appFactoryNoticeCollector: appFactoryNotices.add,
   );
   final classFlowScreens = <ResolvedClassFlowScreen>[];
   for (final artifact in rendered) {
@@ -515,12 +548,18 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           generatedPart: recompiled.flows.length == 1
               ? recompiled.flows.single.generatedPart
               : null,
+          generatedTopLevelSymbols: recompiled.flows.length == 1
+              ? recompiled.flows.single.generatedTopLevelSymbols
+              : const {},
         ),
       );
     }
   }
 
-  if (issues.isNotEmpty) return _invalidCompilation(issues);
+  if (issues.isNotEmpty) {
+    appFactoryNotices.emit(buildNoticeKeys);
+    return _invalidCompilation(issues);
+  }
   final frozenRfwCatalogOccurrenceSetsByArtifactPath =
       _rfwCatalogOccurrenceSetsByArtifactPath(
     roster: roster,
@@ -541,9 +580,11 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   issues.addAll(provisionalResult.issues);
   final provisionalBundle = provisionalResult.bundle;
   if (issues.isNotEmpty || provisionalBundle == null) {
+    appFactoryNotices.emit(buildNoticeKeys);
     return _invalidCompilation(issues);
   }
   if (!measurementEnabled) {
+    appFactoryNotices.emit(buildNoticeKeys);
     return _validCompilation(
       provisionalBundle,
       RestageMeasurementCompilerOutputV1.empty(),
@@ -557,12 +598,15 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     buildStep,
     issues,
   );
-  if (priorMeasurementOutput == null) return _invalidCompilation(issues);
+  if (priorMeasurementOutput == null) {
+    appFactoryNotices.emit(buildNoticeKeys);
+    return _invalidCompilation(issues);
+  }
   final catalog = await loadMergedCatalog(buildStep);
   final discoveries = await _discoverMeasurementSources(
     buildStep,
     screens: measurementScreenInputs,
-    paywallJobs: measurementPaywallJobs,
+    paywallJobs: paywallJobs,
     catalog: catalog,
     issues: issues,
   );
@@ -580,6 +624,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     issues: issues,
   );
   if (issues.isNotEmpty) {
+    appFactoryNotices.emit(buildNoticeKeys);
     return _invalidCompilation(
       issues,
       measurementCompilerOutput: priorMeasurementOutput,
@@ -599,6 +644,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
           location: kRestageMeasurementCompilerOutputPath,
         ),
     ];
+    appFactoryNotices.emit(buildNoticeKeys);
     return _invalidCompilation(
       measurementIssues,
       measurementCompilerOutput: RestageMeasurementCompilerOutputV1(
@@ -666,10 +712,12 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     analyticsIdControlCaptures: finalAnalyticsIdControlCaptures,
     issues: issues,
+    buildNoticeKeys: buildNoticeKeys,
+    appFactoryNoticeCollector: appFactoryNotices.add,
   );
-  await _compileCanonicalPaywalls(
+  await _compilePaywalls(
     buildStep,
-    jobs: measurementPaywallJobs,
+    jobs: paywallJobs,
     rendered: finalRendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
     measurementRoutePlans: emissionPlans,
@@ -680,7 +728,10 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
         frozenScreenRfwCatalogOccurrenceSetsByDeclarationIdentity,
     analyticsIdControlCaptures: finalAnalyticsIdControlCaptures,
     issues: issues,
+    buildNoticeKeys: buildNoticeKeys,
+    appFactoryNoticeCollector: appFactoryNotices.add,
   );
+  appFactoryNotices.emit(buildNoticeKeys);
   final finalClassFlowScreens = _resolvedClassFlowScreens(
     finalRendered,
     sourcesByDeclarationIdentity: sourcesByDeclarationIdentity,
@@ -1190,7 +1241,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
     _discoverMeasurementSources(
   BuildStep buildStep, {
   required List<ResolvedScreenCompilationInput> screens,
-  required List<_CanonicalPaywallJob> paywallJobs,
+  required List<_PaywallCompilationJob> paywallJobs,
   required Catalog catalog,
   required List<Issue> issues,
 }) async {
@@ -1654,12 +1705,17 @@ Future<void> _appendResolvedScreens(
   required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
   required List<AnalyticsIdControlCapture> analyticsIdControlCaptures,
   required List<Issue> issues,
+  required Set<String> buildNoticeKeys,
+  required void Function(Issue issue, bool isCanonical)
+      appFactoryNoticeCollector,
 }) async {
   final compilation = await compileResolvedScreens(
     buildStep,
     inputs,
     measurementRoutePlans: routePlans,
     rfwCatalogOccurrenceSets: rfwCatalogOccurrenceSetsByDeclarationIdentity,
+    buildNoticeKeys: buildNoticeKeys,
+    appFactoryNoticeCollector: appFactoryNoticeCollector,
   );
   issues.addAll(compilation.issues);
   for (final screen in compilation.screens) {
@@ -1719,6 +1775,9 @@ Future<void> _appendResolvedScreens(
           slug: screen.input.id,
           contractVersion: screen.input.version,
           capabilities: capabilities,
+          rootParams: screen.input.build.rootParams,
+          constructorParams: screen.input.build.constructorParams,
+          mountConstructorProblem: screen.input.build.mountConstructorProblem,
           plan: placement,
           bundleEntryMetadata: ResolvedScreenBundleEntryMetadata(
             blobSha256: CapabilitySidecar.hashBlob(screen.blob),
@@ -1729,7 +1788,12 @@ Future<void> _appendResolvedScreens(
         ),
       );
       issues.addAll(contract.issues);
-      if (contract.contract != null) contracts.add(contract.contract!);
+      final resolved = contract.contract;
+      if (resolved != null) {
+        final message = resolved.mountOmissionMessage;
+        if (message != null) log.warning(message);
+        contracts.add(resolved);
+      }
     } else {
       final contract = inspectLegacyStandaloneScreenContract(
         LegacyStandaloneScreenContractInput(
@@ -1846,6 +1910,7 @@ Future<void> _compileLegacyClassFlowDocuments(
           declaration: compiled.declaration,
           flowDocumentBytes: compiled.flowDocumentBytes,
           generatedPart: compiled.generatedPart,
+          generatedTopLevelSymbols: compiled.generatedTopLevelSymbols,
         ),
       );
     }
@@ -2052,6 +2117,7 @@ Future<void> _compileCanonicalClassFlowDocuments(
             declaration: compiled.declaration,
             flowDocumentBytes: compiled.flowDocumentBytes,
             generatedPart: compiled.generatedPart,
+            generatedTopLevelSymbols: compiled.generatedTopLevelSymbols,
           ),
         );
       }
@@ -2152,13 +2218,17 @@ Map<String, ScreenArtifact>? _screenArtifactsForNormalizedFlow(
   return issues.isEmpty ? result : null;
 }
 
-Future<void> _compileCanonicalPaywalls(
+Future<void> _compilePaywalls(
   BuildStep buildStep, {
-  required List<_CanonicalPaywallJob> jobs,
+  required List<_PaywallCompilationJob> jobs,
+  bool Function(PaywallSourceFound source)? retainSource,
   required List<CompiledSurfaceArtifact> rendered,
   required Map<String, RestageSourceDeclaration> sourcesByDeclarationIdentity,
   required List<AnalyticsIdControlCapture> analyticsIdControlCaptures,
   required List<Issue> issues,
+  required Set<String> buildNoticeKeys,
+  required void Function(Issue issue, bool isCanonical)
+      appFactoryNoticeCollector,
   Map<String, MeasurementRouteEmissionPlan> measurementRoutePlans = const {},
   Map<String, MeasurementPaywallRouteEmissionOwnership>
       measurementRouteOwnership = const {},
@@ -2177,7 +2247,7 @@ Future<void> _compileCanonicalPaywalls(
     return source.effectiveId;
   }
 
-  final compiledById = <String, _CanonicalCompiledPaywall>{};
+  final compiledById = <String, _CompiledPaywall>{};
   for (final job in jobs) {
     final compilation = await compileResolvedPaywalls(
       buildStep,
@@ -2191,6 +2261,9 @@ Future<void> _compileCanonicalPaywalls(
           adapterRfwCatalogOccurrenceSetsByDeclarationIdentity,
       standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity:
           standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity,
+      buildNoticeKeys: buildNoticeKeys,
+      appFactoryNoticeCollector: appFactoryNoticeCollector,
+      retainSource: retainSource,
     );
     issues.addAll(compilation.issues);
     for (final compiled in compilation.paywalls) {
@@ -2235,7 +2308,7 @@ Future<void> _compileCanonicalPaywalls(
         );
         continue;
       }
-      compiledById[compiled.source.id] = _CanonicalCompiledPaywall(
+      compiledById[compiled.source.id] = _CompiledPaywall(
         assetId: job.assetId,
         declaration: declaration,
         artifacts: compiled,
@@ -2486,8 +2559,8 @@ CapabilitySidecar? _decodeCapabilitySidecar(
   }
 }
 
-final class _CanonicalPaywallJob {
-  const _CanonicalPaywallJob({
+final class _PaywallCompilationJob {
+  const _PaywallCompilationJob({
     required this.assetId,
     required this.library,
     required this.sources,
@@ -2510,8 +2583,8 @@ final class _FlowCompilationJob {
   final List<NormalizedFlowSource> flows;
 }
 
-final class _CanonicalCompiledPaywall {
-  const _CanonicalCompiledPaywall({
+final class _CompiledPaywall {
+  const _CompiledPaywall({
     required this.assetId,
     required this.declaration,
     required this.artifacts,

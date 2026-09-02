@@ -6,6 +6,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/callback_shape.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
@@ -20,6 +21,7 @@ import 'package:restage_codegen/src/dsl_emission.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
@@ -250,7 +252,7 @@ final class TranslationResult {
   }
 }
 
-/// Internal build artifact describing a lowered paywall-root navigation flow.
+/// Private build artifact describing a lowered paywall-root navigation flow.
 @immutable
 final class NavigationLowering {
   /// Creates navigation lowering metadata.
@@ -269,7 +271,7 @@ final class NavigationLowering {
   /// Reserved SDK event that terminates the flow.
   final String terminatingEvent;
 
-  /// Stable JSON representation for the internal `.navplan` sidecar.
+  /// Stable JSON representation for the private `.navplan` sidecar.
   Map<String, Object?> toJson() => {
         'entryId': entryId,
         'transitions': [
@@ -297,6 +299,16 @@ final class NavigationTransition {
         'pushedId': pushedId,
       };
 }
+
+typedef _CustomWidgetEmissionIdentity = ({
+  String classKey,
+  String remoteLibrary,
+});
+
+typedef _CustomWidgetFactoryRoute = ({
+  String widgetName,
+  String reason,
+});
 
 /// Translates Dart `Expression` AST nodes into RFW DSL fragments.
 ///
@@ -509,6 +521,13 @@ final class ExpressionTranslator {
   Map<String, fmt.RfwCatalogConstructorProvenance>?
       _currentRfwCatalogConstructorOrigins;
 
+  Set<_CustomWidgetEmissionIdentity>? _currentCustomWidgetInlineClaims;
+  Set<_CustomWidgetEmissionIdentity>? _currentCustomWidgetReferences;
+  Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>?
+      _currentCustomWidgetFactoryRoutes;
+  Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
+      _forcedCustomWidgetFactoryRoutes = const {};
+
   // Lowered coalesce fallbacks discovered while translating a definition body,
   // keyed by classKey then property name: the value a call site that omits (or
   // passes explicit null) the property is completed with. Populated once per
@@ -612,12 +631,65 @@ final class ExpressionTranslator {
     bool flowScreenContext = false,
     Map<Element, Expression> rootLocalBindings = const {},
   }) {
+    final first = _translateArtifact(
+      expr,
+      sourcePath: sourcePath,
+      lineInfo: lineInfo,
+      entryId: entryId,
+      rootState: rootState,
+      rootParams: rootParams,
+      rootEventHandlers: rootEventHandlers,
+      buildContextParameter: buildContextParameter,
+      flowScreenContext: flowScreenContext,
+      rootLocalBindings: rootLocalBindings,
+      forcedCustomWidgetFactoryRoutes: const {},
+    );
+    final mixed = first.inlineClaims.intersection(first.references);
+    if (mixed.isEmpty) return first.result;
+    return _translateArtifact(
+      expr,
+      sourcePath: sourcePath,
+      lineInfo: lineInfo,
+      entryId: entryId,
+      rootState: rootState,
+      rootParams: rootParams,
+      rootEventHandlers: rootEventHandlers,
+      buildContextParameter: buildContextParameter,
+      flowScreenContext: flowScreenContext,
+      rootLocalBindings: rootLocalBindings,
+      forcedCustomWidgetFactoryRoutes: Map.unmodifiable({
+        for (final identity in mixed) identity: first.factoryRoutes[identity],
+      }),
+    ).result;
+  }
+
+  ({
+    TranslationResult result,
+    Set<_CustomWidgetEmissionIdentity> inlineClaims,
+    Set<_CustomWidgetEmissionIdentity> references,
+    Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute> factoryRoutes,
+  }) _translateArtifact(
+    Expression expr, {
+    required String? sourcePath,
+    required LineInfo? lineInfo,
+    required String? entryId,
+    required List<CustomWidgetStateField>? rootState,
+    required List<RootContextParam> rootParams,
+    required Map<String, RecognisedSetState> rootEventHandlers,
+    required Element? buildContextParameter,
+    required bool flowScreenContext,
+    required Map<Element, Expression> rootLocalBindings,
+    required Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>
+        forcedCustomWidgetFactoryRoutes,
+  }) {
     final saved = _walk;
     final savedNavigation = _currentNavigation;
     final savedFlowScreenContext = _flowScreenContext;
     final savedSuppressed = _currentTranslationSuppressed;
     final savedCollectionHelpers = _collectionHelpers;
     final savedCollectionSession = _collectionSession;
+    final savedForcedCustomWidgetFactoryRoutes =
+        _forcedCustomWidgetFactoryRoutes;
     _currentSourcePath = sourcePath;
     _currentLineInfo = lineInfo;
     _walk = _walk.copyWith(
@@ -647,11 +719,19 @@ final class ExpressionTranslator {
     final referencedCustomLibraries = <String>{};
     final rfwCatalogConstructorOrigins =
         <String, fmt.RfwCatalogConstructorProvenance>{};
+    final customWidgetInlineClaims = <_CustomWidgetEmissionIdentity>{};
+    final customWidgetReferences = <_CustomWidgetEmissionIdentity>{};
+    final customWidgetFactoryRoutes =
+        <_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute>{};
     _currentWidgetDefinitions = widgetDefinitions;
     _currentWidgetDefinitionStates = widgetDefinitionStates;
     _currentDefinitionOwners = definitionOwners;
     _currentReferencedCustomLibraries = referencedCustomLibraries;
     _currentRfwCatalogConstructorOrigins = rfwCatalogConstructorOrigins;
+    _currentCustomWidgetInlineClaims = customWidgetInlineClaims;
+    _currentCustomWidgetReferences = customWidgetReferences;
+    _currentCustomWidgetFactoryRoutes = customWidgetFactoryRoutes;
+    _forcedCustomWidgetFactoryRoutes = forcedCustomWidgetFactoryRoutes;
     var dsl = '';
     var suppressed = false;
     NavigationLowering? navigationLowering;
@@ -743,26 +823,41 @@ final class ExpressionTranslator {
       _currentDefinitionOwners = null;
       _currentReferencedCustomLibraries = null;
       _currentRfwCatalogConstructorOrigins = null;
+      _currentCustomWidgetInlineClaims = null;
+      _currentCustomWidgetReferences = null;
+      _currentCustomWidgetFactoryRoutes = null;
+      _forcedCustomWidgetFactoryRoutes = savedForcedCustomWidgetFactoryRoutes;
       // Clear the per-call source context so it never lingers past this call —
       // a helper invoked directly (not through `translate`) would otherwise
       // read a stale source path / line info from a previous translation.
       _currentSourcePath = null;
       _currentLineInfo = null;
     }
-    return TranslationResult(
-      dsl: dsl,
-      issues: issues,
-      navigation: navigationLowering,
-      suppressed: suppressed,
-      widgetDefinitions: widgetDefinitions,
-      widgetDefinitionStates: widgetDefinitionStates,
-      rootWidgetState: rootWidgetState,
-      referencedCustomLibraries: referencedCustomLibraries,
-      rfwCatalogConstructorOrigins: rfwCatalogConstructorOrigins.values.toList()
-        ..sort(
-          (left, right) =>
-              left.constructorName.compareTo(right.constructorName),
-        ),
+    if (dsl.isNotEmpty &&
+        !suppressed &&
+        !issues.any((issue) => !issue.code.isBuildNotice)) {
+      issues.addAll(_customWidgetFactoryNotices(customWidgetFactoryRoutes));
+    }
+    return (
+      result: TranslationResult(
+        dsl: dsl,
+        issues: issues,
+        navigation: navigationLowering,
+        suppressed: suppressed,
+        widgetDefinitions: widgetDefinitions,
+        widgetDefinitionStates: widgetDefinitionStates,
+        rootWidgetState: rootWidgetState,
+        referencedCustomLibraries: referencedCustomLibraries,
+        rfwCatalogConstructorOrigins:
+            rfwCatalogConstructorOrigins.values.toList()
+              ..sort(
+                (left, right) =>
+                    left.constructorName.compareTo(right.constructorName),
+              ),
+      ),
+      inlineClaims: Set.unmodifiable(customWidgetInlineClaims),
+      references: Set.unmodifiable(customWidgetReferences),
+      factoryRoutes: Map.unmodifiable(customWidgetFactoryRoutes),
     );
   }
 
@@ -788,14 +883,14 @@ final class ExpressionTranslator {
   /// It runs the same strict checks as the paywall-body inline path
   /// (`_tryInlineCustomWidget`), but NOT the two further gates the *full*
   /// production build applies after translation — `parseLibraryFile` of the
-  /// emitted DSL and the post-emit `validateModelAgainstCatalog` model-walk
+  /// emitted DSL and the post-emit `validateModelAgainstCatalog` schema walk
   /// (see `codegen_builder`). So a body that translates issue-free but whose
   /// emitted DSL would fail one of those would still count confirmed here.
   /// The metric is therefore a (safe-direction) **over-confirming upper
   /// bound** — it never under-counts inlinable; the residual is narrow and
   /// closes once the measurement is run against the full real-catalog emit.
   ///
-  /// Internal to the coverage-measurement tooling (the harness + the
+  /// Private to the coverage-measurement tooling (the harness + the
   /// standalone CLI). Callers map the result to an `EmitOutcome`.
   TranslationResult attemptInlineEmit(
     WidgetClassification classification,
@@ -941,19 +1036,35 @@ final class ExpressionTranslator {
         );
         return '';
       }
-      if (rootAccess.isMember && _isPropertyMemberAccess(expr)) {
+      if (rootAccess.isRefused && _isDescriptorMemberSyntax(expr)) {
         issues.add(_hostDataMemberIssue(rootAccess.param, expr));
         return '';
+      }
+      if (rootAccess.isMember && !rootAccess.isRefused) {
+        if (rootAccess.param.hasNonNullDefault) {
+          issues.add(
+            _hostDataDefaultIssue(
+              rootAccess.param,
+              expr,
+              stateful: rootAccess.stateful,
+            ),
+          );
+          return '';
+        }
+        return rootAccess.dsl(_rfwPathPart);
       }
     }
     final loopReference = _runtimeLoopReference(expr);
     if (loopReference != null) {
-      if (loopReference.indexed) {
+      if (loopReference.isRefused) {
         issues.add(
           Issue(
             code: IssueCode.unsupportedCollectionFlow,
-            message: 'A run-time loop value cannot be read by index. Read the '
-                'value itself or one of its named members.',
+            message: loopReference.indexed
+                ? 'A run-time loop value cannot be read by index. Read the '
+                    'value itself or one of its named members.'
+                : 'A run-time loop value can only read exact stored members '
+                    'from its derived host-data shape.',
             location: _locationOf(expr),
           ),
         );
@@ -1191,10 +1302,8 @@ final class ExpressionTranslator {
       // reaches here unresolved.)
       // A `FormalParameterElement` is a closure's own parameter, never a field
       // or constructor arg; a same-named one must defer, not match by name.
-      // A resolved top-level / static const is likewise never the parameter,
-      // field, or handler the name matches: in a `State.build()` those are
-      // reachable only through `widget.X`, so the const is what Dart binds and
-      // what must be folded.
+      // In a `State.build()` a parameter, field, or handler is reachable only
+      // through `widget.X`, so a bare name binds to the const and is folded.
       if (expr.element is! LocalVariableElement &&
           expr.element is! FormalParameterElement &&
           !isConstDeclarationReference(expr)) {
@@ -1454,13 +1563,17 @@ final class ExpressionTranslator {
   String _rfwPathPart(String name) => '.${_rfwMapKey(name)}';
 
   /// Shared refusal text for stateless and stateful host-data reads.
-  String _hostDataRefusal(String subject, RootContextParam param) =>
-      'Cannot read $subject: it is declared '
-      "'${param.type.getDisplayString()}', and Restage does "
-      'not support that type as host data. Host data parameters must be a '
-      'scalar (bool, int, double, num, String), Object?, a List of host-data '
-      'values, or a Map<String, …> whose values are host data, optionally '
-      'nullable.';
+  String _hostDataRefusal(String subject, RootContextParam param) {
+    final problem = param.hostDataProblem;
+    final reason =
+        problem == null ? '' : " At '${problem.path}': ${problem.detail}.";
+    return 'Cannot read $subject: it is declared '
+        "'${param.type.getDisplayString()}', and Restage does "
+        'not support that type as host data. Host data parameters must be a '
+        'scalar (bool, int, double, num, String), Object?, a List of '
+        'non-nullable host-data values, or a Map<String, …> whose values are '
+        'host data, optionally nullable, or a plain const data class.$reason';
+  }
 
   String _hostDataDefaultRefusal(String subject, RootContextParam param) =>
       'Cannot read $subject as host data: omitting the value would select its '
@@ -1515,37 +1628,35 @@ final class ExpressionTranslator {
       final param = _rootParamForElement(expr.element);
       return param == null
           ? null
-          : _RootParamAccess(param: param, stateful: false, isMember: false);
+          : _RootParamAccess.root(param: param, stateful: false);
     }
     if (expr is PrefixedIdentifier) {
       if (_isInheritedStateWidgetReceiver(expr.prefix) &&
           _walk.rootStateContext) {
         final param = _rootParamForElement(expr.identifier.element);
         if (param != null) {
-          return _RootParamAccess(
-            param: param,
-            stateful: true,
-            isMember: false,
-          );
+          return _RootParamAccess.root(param: param, stateful: true);
         }
       }
       final base = _rootParamAccess(expr.prefix);
-      return base?.asMember();
+      return base?.append(expr.identifier.element);
     }
     if (expr is PropertyAccess) {
       final target = expr.target;
-      if (target != null) return _rootParamAccess(target)?.asMember();
+      if (target != null) {
+        return _rootParamAccess(target)?.append(expr.propertyName.element);
+      }
     }
     if (expr is MethodInvocation) {
       final target = expr.target;
-      if (target != null) return _rootParamAccess(target)?.asMember();
+      if (target != null) return _rootParamAccess(target)?.refuse();
     }
     if (expr is IndexExpression) {
       final target = expr.target;
-      if (target != null) return _rootParamAccess(target)?.asMember();
+      if (target != null) return _rootParamAccess(target)?.refuse();
     }
     if (expr is CascadeExpression) {
-      return _rootParamAccess(expr.target)?.asMember();
+      return _rootParamAccess(expr.target)?.refuse();
     }
     return null;
   }
@@ -1556,9 +1667,11 @@ final class ExpressionTranslator {
     return access == null || access.isMember ? null : access.param;
   }
 
-  bool _isPropertyMemberAccess(Expression source) {
+  bool _isDescriptorMemberSyntax(Expression source) {
     final expr = _stripParens(source);
-    return expr is PrefixedIdentifier || expr is PropertyAccess;
+    return expr is PrefixedIdentifier ||
+        expr is PropertyAccess ||
+        expr is IndexExpression;
   }
 
   bool _isInheritedStateWidgetReceiver(SimpleIdentifier receiver) {
@@ -1687,28 +1800,36 @@ final class ExpressionTranslator {
         );
         return null;
       }
-      if (rootAccess.isMember && _isPropertyMemberAccess(resolved)) {
+      if (rootAccess.isRefused && _isDescriptorMemberSyntax(resolved)) {
         issues.add(_hostDataMemberIssue(rootAccess.param, inner));
         return null;
       }
     }
     // A String-typed host data parameter interpolates as a `data.context`
     // reference; other types would stringify differently at render time.
-    final rootParam = rootAccess?.param;
-    if (rootParam != null && rootParam.isHostData) {
-      if (rootParam.hasNonNullDefault) {
+    final rootShape = rootAccess?.shape;
+    if (rootAccess != null && rootShape != null) {
+      if (rootAccess.param.hasNonNullDefault) {
         issues.add(
           _hostDataDefaultIssue(
-            rootParam,
+            rootAccess.param,
             inner,
             stateful: _walk.rootStateContext,
           ),
         );
         return null;
       }
-      if (rootParam.type.isDartCoreString && !rootParam.isNullable) {
-        return 'data.context${_rfwPathPart(rootParam.name)}';
-      }
+    }
+    final reference = _shapedReference(resolved);
+    if (reference
+        case (
+          :final dsl,
+          shape: HostDataScalarShape(
+            kind: HostDataScalarKind.string,
+            :final type,
+          ),
+        ) when type.nullabilitySuffix == NullabilitySuffix.none) {
+      return dsl;
     }
 
     issues.add(
@@ -1802,7 +1923,7 @@ final class ExpressionTranslator {
     _walk = _walk.copyWith(
       runtimeLoops: [
         ..._walk.runtimeLoops,
-        _RuntimeLoopBinding(candidate.binding, identifier),
+        _RuntimeLoopBinding(candidate.binding, identifier, input.elementShape),
       ],
     );
     late final String template;
@@ -1828,10 +1949,10 @@ final class ExpressionTranslator {
       );
       return null;
     }
-    return '...for $identifier in $input: $template';
+    return '...for $identifier in ${input.dsl}: $template';
   }
 
-  String? _runtimeLoopInput(
+  ({String dsl, HostDataShape elementShape})? _runtimeLoopInput(
     CollectionRuntimeLoopCandidate candidate,
     CollectionUnrollRefused refusal,
     List<Issue> issues,
@@ -1842,18 +1963,29 @@ final class ExpressionTranslator {
       return null;
     }
     final outer = _runtimeLoopReference(iterable);
-    if (outer != null && !outer.indexed) {
-      return outer.dsl(_rfwPathPart);
+    if (outer != null && !outer.isRefused) {
+      final shape = outer.shape;
+      if (shape is HostDataListShape) {
+        return (
+          dsl: outer.dsl(_rfwPathPart),
+          elementShape: shape.elementShape,
+        );
+      }
     }
-    final rootParam = _rootParamRead(iterable);
-    if (rootParam == null ||
-        !rootParam.isHostData ||
-        rootParam.hasNonNullDefault ||
-        !_isResolvedList(rootParam.type)) {
+    final rootAccess = _rootParamAccess(iterable);
+    final shape = rootAccess?.shape;
+    if (rootAccess == null ||
+        rootAccess.isRefused ||
+        rootAccess.param.hasNonNullDefault ||
+        shape is! HostDataListShape ||
+        !_isResolvedList(shape.type)) {
       _recordCollectionRefusal(refusal, issues);
       return null;
     }
-    return 'data.context${_rfwPathPart(rootParam.name)}';
+    return (
+      dsl: rootAccess.dsl(_rfwPathPart),
+      elementShape: shape.elementShape,
+    );
   }
 
   bool _containsConstructorCall(String dsl, String identifier) {
@@ -1919,24 +2051,45 @@ final class ExpressionTranslator {
     if (expression is SimpleIdentifier) {
       for (final binding in _walk.runtimeLoops.reversed) {
         if (identical(binding.element, expression.element)) {
-          return _RuntimeLoopReference(binding, const [], indexed: false);
+          return _RuntimeLoopReference(
+            binding,
+            const [],
+            shape: binding.shape,
+            indexed: false,
+          );
         }
       }
       return null;
     }
     if (expression is PrefixedIdentifier) {
       final target = _runtimeLoopReference(expression.prefix);
-      return target?.append(expression.identifier.name);
+      return target?.append(expression.identifier.element);
     }
     if (expression is PropertyAccess && expression.target != null) {
       final target = _runtimeLoopReference(expression.target!);
-      return target?.append(expression.propertyName.name);
+      return target?.append(expression.propertyName.element);
     }
     if (expression is IndexExpression) {
       final target = _runtimeLoopReference(expression.realTarget);
       return target?.withIndex();
     }
     return null;
+  }
+
+  ({String dsl, HostDataShape shape})? _shapedReference(Expression source) {
+    final resolved = _resolveBoundIdentifier(source);
+    final root = _rootParamAccess(resolved);
+    if (root != null) {
+      final shape = root.shape;
+      return root.param.isHostData && !root.isRefused && shape != null
+          ? (dsl: root.dsl(_rfwPathPart), shape: shape)
+          : null;
+    }
+    final loop = _runtimeLoopReference(resolved);
+    final shape = loop?.shape;
+    return loop != null && !loop.isRefused && shape != null
+        ? (dsl: loop.dsl(_rfwPathPart), shape: shape)
+        : null;
   }
 
   void _recordCollectionRefusal(
@@ -2472,7 +2625,7 @@ final class ExpressionTranslator {
       return '';
     }
 
-    // A dotted read would name a key the host never supplies for this param.
+    // A dotted read must resolve through the retained host-data descriptor.
     final memberRootAccess = _rootParamAccess(expr);
     if (memberRootAccess?.isMember ?? false) {
       issues.add(_hostDataMemberIssue(memberRootAccess!.param, expr));
@@ -5799,6 +5952,7 @@ final class ExpressionTranslator {
       }
     }
     if (entry != null) _recordRfwCatalogConstructorOrigin(entry);
+    _CustomWidgetFactoryRoute? customWidgetFactoryRoute;
     // A registered customer widget that can inline still inlines —
     // its composition travels in the blob and renders with no runtime factory.
     // One that cannot inline (imperative or not yet supported) falls
@@ -5813,10 +5967,41 @@ final class ExpressionTranslator {
       final key = customWidgetKey(widgetClass);
       final classification = customWidgetClassifications[key];
       if (classification != null) {
+        final identity = (
+          classKey: key,
+          remoteLibrary: entry.library.namespace,
+        );
+        customWidgetFactoryRoute = _forcedCustomWidgetFactoryRoutes[identity];
         final issueMark = issues.length;
-        final inlined =
-            _tryInlineCustomWidget(classification, key, args, anchor, issues);
+        final inlined = _tryInlineCustomWidget(
+          classification,
+          key,
+          args,
+          anchor,
+          issues,
+          catalogEntry: entry,
+        );
         if (inlined != null && inlined.isNotEmpty) return inlined;
+        if (customWidgetFactoryRoute == null) {
+          final inlineIssues = issues.sublist(issueMark)
+            ..sort((left, right) {
+              final codeOrder = left.code.name.compareTo(right.code.name);
+              if (codeOrder != 0) return codeOrder;
+              final messageOrder = left.message.compareTo(right.message);
+              if (messageOrder != 0) return messageOrder;
+              return left.location.compareTo(right.location);
+            });
+          customWidgetFactoryRoute = (
+            widgetName: entry.name,
+            reason: inlineIssues.isEmpty
+                ? _customWidgetIssue(
+                    classification,
+                    entry.name,
+                    anchor,
+                  ).message
+                : inlineIssues.first.message,
+          );
+        }
         // Not inlined (imperative, not yet supported, or an inline-attempt
         // diagnostic): discard any inline-specific diagnostics and reference
         // the registered catalog entry below.
@@ -5973,6 +6158,26 @@ final class ExpressionTranslator {
         return '';
       }
       _currentReferencedCustomLibraries?.add(entry.library.namespace);
+      if (widgetClass != null) {
+        final identity = (
+          classKey: customWidgetKey(widgetClass),
+          remoteLibrary: entry.library.namespace,
+        );
+        _currentCustomWidgetReferences?.add(identity);
+        if (customWidgetFactoryRoute == null &&
+            firstAnnotation(widgetClass, 'RestageWidget') != null) {
+          customWidgetFactoryRoute = (
+            widgetName: entry.name,
+            reason: 'Local RFW analysis did not provide a usable definition.',
+          );
+        }
+        if (customWidgetFactoryRoute != null) {
+          _recordCustomWidgetFactoryRoute(
+            identity,
+            customWidgetFactoryRoute,
+          );
+        }
+      }
     }
 
     final localIssueStart = issues.length;
@@ -6370,8 +6575,9 @@ final class ExpressionTranslator {
     String key,
     NodeList<Expression> args,
     Expression anchor,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    WidgetEntry? catalogEntry,
+  }) {
     if (classification is! ComposableWidget) return null;
     final unmet =
         classification.requiredMechanisms.difference(_kImplementedMechanisms);
@@ -6387,6 +6593,16 @@ final class ExpressionTranslator {
       return null;
     }
     final name = blueprint.rfwName;
+    final emissionIdentity = catalogEntry == null
+        ? null
+        : (
+            classKey: key,
+            remoteLibrary: catalogEntry.library.namespace,
+          );
+    if (emissionIdentity != null &&
+        _forcedCustomWidgetFactoryRoutes.containsKey(emissionIdentity)) {
+      return null;
+    }
 
     // Resolve the RFW widget name. The first widget to claim a name registers
     // its definition; a name a *different* classKey already claimed, or one
@@ -6467,12 +6683,20 @@ final class ExpressionTranslator {
       );
       return '';
     }
+    if (emissionIdentity != null) {
+      _currentCustomWidgetInlineClaims?.add(emissionIdentity);
+    }
 
     // The call-site arguments translate in the caller's context — restored
     // above after any definition-body translation.
     final callArgs = normalizeOptionalChild(
       issues,
-      () => _customWidgetCallArgs(blueprint, args, issues),
+      () => _customWidgetCallArgs(
+        blueprint,
+        args,
+        issues,
+        catalogEntry: catalogEntry,
+      ),
     );
     return switch (callArgs) {
       CompleteDslEmission(:final value) => '$name($value)',
@@ -6501,25 +6725,25 @@ final class ExpressionTranslator {
   /// the call site omits it. A numeric parameter's value is coerced to a
   /// double literal; the `key:` argument is dropped.
   ///
-  /// Theme-read / slot-type compatibility is NOT validated here: a custom
-  /// widget's parameters carry no catalog property types (only a numeric
-  /// flag), so there is no slot type to validate against. In resolved
-  /// authoring the parameter's own Dart type bounds what a call site can
-  /// supply; validation against catalog slot types happens where the value
-  /// reaches a catalog widget's property inside the definition body.
+  /// A matched catalog entry supplies the exact decoder type after resolved
+  /// formal identity and named-or-positional correspondence agree.
   String _customWidgetCallArgs(
     CustomWidgetBlueprint blueprint,
     NodeList<Expression> args,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    WidgetEntry? catalogEntry,
+  }) {
     // Collect call-site expressions by parameter name. Unmatched named
     // arguments are diagnosed.
     final supplied = <String, Expression>{};
+    final suppliedProperties = <String, PropertyEntry>{};
     final parameterNames = {
       for (final parameter in blueprint.params) parameter.name,
     };
     var positionalIndex = 0;
     for (final arg in args) {
+      final resolvedParam = _resolvedCustomWidgetParam(blueprint, arg);
+      CustomWidgetParam? param;
       if (arg is NamedExpression) {
         final argName = arg.name.label.name;
         if (isDiscardedWidgetKeyArgument(arg)) continue;
@@ -6534,13 +6758,41 @@ final class ExpressionTranslator {
           );
           continue;
         }
-        supplied[argName] = arg.expression;
+        param = resolvedParam ??
+            blueprint.params.firstWhereOrNull(
+              (candidate) => candidate.name == argName,
+            );
       } else {
-        if (positionalIndex < blueprint.params.length) {
-          supplied[blueprint.params[positionalIndex].name] = arg;
-        }
+        param = resolvedParam ??
+            (positionalIndex < blueprint.params.length
+                ? blueprint.params[positionalIndex]
+                : null);
         positionalIndex++;
       }
+      if (param == null) continue;
+      if (catalogEntry != null) {
+        final property = resolvedParam == null
+            ? null
+            : _customWidgetCatalogProperty(
+                catalogEntry,
+                resolvedParam,
+                arg,
+              );
+        if (property == null) {
+          issues.add(
+            Issue(
+              code: IssueCode.customWidgetUnsupportedReducible,
+              message: "Argument '${param.name}' on "
+                  "'${blueprint.rfwName}' has no exact catalog property "
+                  'match.',
+              location: _locationOf(arg),
+            ),
+          );
+          continue;
+        }
+        suppliedProperties[param.name] = property;
+      }
+      supplied[param.name] = arg is NamedExpression ? arg.expression : arg;
     }
     // Emit one argument per parameter per the null-coalescing completion
     // table (a property the blueprint marked coalesced is `completion-required`
@@ -6587,7 +6839,12 @@ final class ExpressionTranslator {
             '${_coerceParamValue(param, fallback)}',
           );
         } else {
-          final lowered = _translateParamValue(param, suppliedExpr, issues);
+          final lowered = _translateParamValue(
+            param,
+            suppliedExpr,
+            issues,
+            property: suppliedProperties[param.name],
+          );
           if (fallback != null &&
               (_isRuntimeMissing(suppliedExpr) ||
                   _lowersToMissableRef(lowered))) {
@@ -6631,6 +6888,51 @@ final class ExpressionTranslator {
     return emitted.join(', ');
   }
 
+  CustomWidgetParam? _resolvedCustomWidgetParam(
+    CustomWidgetBlueprint blueprint,
+    Expression argument,
+  ) {
+    final formal = argument.correspondingParameter;
+    if (formal is! FieldFormalParameterElement) return null;
+    final field = formal.field;
+    if (field == null) return null;
+    return blueprint.params.firstWhereOrNull(
+      (param) => param.sourceField?.baseElement == field.baseElement,
+    );
+  }
+
+  PropertyEntry? _customWidgetCatalogProperty(
+    WidgetEntry entry,
+    CustomWidgetParam param,
+    Expression argument,
+  ) {
+    final formal = argument.correspondingParameter;
+    if (formal is! FieldFormalParameterElement) return null;
+    if (formal.isNamed) {
+      if (argument is! NamedExpression ||
+          argument.name.label.name != param.name) {
+        return null;
+      }
+      return entry.properties.singleWhereOrNull(
+        (property) => !property.positional && property.name == param.name,
+      );
+    }
+    final constructor = formal.enclosingElement;
+    if (constructor is! ConstructorElement) return null;
+    final position = constructor.formalParameters
+        .where((candidate) => candidate.isPositional)
+        .toList(growable: false)
+        .indexWhere(
+          (candidate) => candidate.baseElement == formal.baseElement,
+        );
+    final properties = entry.properties
+        .where((property) => property.positional)
+        .toList(growable: false);
+    return position >= 0 && position < properties.length
+        ? properties[position]
+        : null;
+  }
+
   /// Whether [expr] is the literal `null` (through any parenthesis wrapping) —
   /// the explicit-null call-site form that, for a coalesced property, fires the
   /// `??` and completes with the fallback (distinct from an omitted argument
@@ -6666,27 +6968,38 @@ final class ExpressionTranslator {
   String _translateParamValue(
     CustomWidgetParam param,
     Expression expr,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    PropertyEntry? property,
+  }) {
     final stripped = _stripParens(expr);
-    final paramType = param.type;
-    final declaredListItemType =
-        paramType == null ? null : _dartCoreListElementType(paramType);
-    final listItemType = _listItemPropertyTypeForDartType(paramType);
-    final rootParam = _rootParamRead(stripped);
-    final type = param.isNumeric
-        ? PropertyType.real
-        : _propertyTypeForParameter(paramType) ??
-            _propertyTypeForParameter(rootParam?.type) ??
-            PropertyType.unknown;
-    final translated = listItemType == null
-        ? _translateSlotValue(stripped, type, issues)
-        : _translateTypedListTerminal(
-            stripped,
-            listItemType,
-            issues,
-            declaredItemType: declaredListItemType,
-          );
+    late final String translated;
+    if (property != null) {
+      translated = _translateSlotValue(
+        stripped,
+        property.type,
+        issues,
+        property: property,
+      );
+    } else {
+      final paramType = param.type;
+      final declaredListItemType =
+          paramType == null ? null : _dartCoreListElementType(paramType);
+      final listItemType = _listItemPropertyTypeForDartType(paramType);
+      final rootParam = _rootParamRead(stripped);
+      final type = param.isNumeric
+          ? PropertyType.real
+          : _propertyTypeForParameter(paramType) ??
+              _propertyTypeForParameter(rootParam?.type) ??
+              PropertyType.unknown;
+      translated = listItemType == null
+          ? _translateSlotValue(stripped, type, issues)
+          : _translateTypedListTerminal(
+              stripped,
+              listItemType,
+              issues,
+              declaredItemType: declaredListItemType,
+            );
+    }
     final value = _coerceParamValue(
       param,
       translated,
@@ -6775,7 +7088,7 @@ final class ExpressionTranslator {
   /// `source.v<double>` consistently with constructor-arg coercion. The
   /// caller has already validated that [CustomWidgetStateField.initialValue]
   /// is non-null via [_validateStateShape] — a null reaching here would be
-  /// an internal contract violation, so we throw rather than silently emit
+  /// a translator contract violation, so we throw rather than silently emit
   /// a `null` literal.
   String _stateInitialLiteral(CustomWidgetStateField field) {
     final value = field.initialValue;
@@ -7110,8 +7423,8 @@ final class ExpressionTranslator {
     DartType? declaredItemType,
   }) {
     final resolved = _resolveBoundIdentifier(_stripParens(source));
-    final param = _rootParamRead(resolved);
-    if (param == null) {
+    final rootAccess = _rootParamAccess(resolved);
+    if (rootAccess == null || rootAccess.isRefused) {
       if (resolved is ListLiteral) {
         return _listLiteral(resolved, issues, itemType: itemType);
       }
@@ -7139,12 +7452,16 @@ final class ExpressionTranslator {
       );
       return '';
     }
+    final param = rootAccess.param;
     if (!param.isHostData || param.hasNonNullDefault) {
       return _translate(resolved, issues);
     }
-    final elementType = _dartCoreListElementType(param.type);
-    if (elementType != null &&
-        _propertyTypeAcceptsHostDataType(itemType, elementType)) {
+    final rootShape = rootAccess.shape;
+    if (rootShape is HostDataListShape &&
+        _propertyTypeAcceptsHostDataShape(
+          itemType,
+          rootShape.elementShape,
+        )) {
       return _translate(resolved, issues);
     }
     issues.add(
@@ -7969,6 +8286,44 @@ final class ExpressionTranslator {
     }
   }
 
+  void _recordCustomWidgetFactoryRoute(
+    _CustomWidgetEmissionIdentity identity,
+    _CustomWidgetFactoryRoute route,
+  ) {
+    final routes = _currentCustomWidgetFactoryRoutes;
+    if (routes == null) return;
+    final existing = routes[identity];
+    if (existing == null || route.reason.compareTo(existing.reason) < 0) {
+      routes[identity] = route;
+    }
+  }
+
+  List<Issue> _customWidgetFactoryNotices(
+    Map<_CustomWidgetEmissionIdentity, _CustomWidgetFactoryRoute> routes,
+  ) {
+    final ordered = routes.entries.toList()
+      ..sort((left, right) {
+        final classOrder = left.key.classKey.compareTo(right.key.classKey);
+        if (classOrder != 0) return classOrder;
+        return left.key.remoteLibrary.compareTo(right.key.remoteLibrary);
+      });
+    return [
+      for (final entry in ordered)
+        Issue(
+          code: IssueCode.customWidgetAppFactoryUsed,
+          message: "Custom widget '${entry.value.widgetName}' uses the "
+              "registered '${entry.key.remoteLibrary}' app factory. Local RFW "
+              'output was unavailable: ${entry.value.reason} The installed '
+              "app's compiled widget body and defaults remain authoritative; "
+              'changing either requires an app release. Explicit call values '
+              'remain supplied by the delivered artifact.',
+          location: entry.key.classKey,
+          buildNoticeIdentity:
+              '${entry.key.classKey}\u0000${entry.key.remoteLibrary}',
+        ),
+    ];
+  }
+
   /// Splits a comma-separated argument list at the top level only, respecting
   /// nested parentheses, brackets, and quoted strings. Used to decompose the
   /// `__rfw_interp(...)` sentinel without breaking on commas inside nested
@@ -8052,8 +8407,7 @@ final class ExpressionTranslator {
     final isCleanSentinel =
         value.startsWith(_kBorderRadiusCornerSentinel) && value.endsWith(')');
     if (!isCleanSentinel) {
-      // Close the class by construction: the sentinel is an internal marker
-      // that must NEVER reach the blob. A value that CONTAINS it but isn't a
+      // The sentinel is a private marker that must NEVER reach the blob. A value that CONTAINS it but isn't a
       // clean top-level sentinel means the asymmetric BorderRadius was wrapped
       // in another expression the splice can't fan out — e.g. a conditional on
       // a direct slot (`cond ? BorderRadius.only(..) : circular(..)`) lowers to
@@ -8140,7 +8494,7 @@ final class ExpressionTranslator {
     }
   }
 
-  /// Validates theme and root host-data references against [type], including
+  /// Validates theme and shaped host-data references against [type], including
   /// conditional branches and coalesced fallbacks.
   void _validateDataRefForSlot(
     Expression source,
@@ -8175,7 +8529,7 @@ final class ExpressionTranslator {
     // it and bypass this kind check.
     final segments = _recognizeThemeRead(current);
     if (segments == null) {
-      _validateRootParamForSlot(current, type, issues);
+      _validateShapedReferenceForSlot(current, type, issues);
       return;
     }
     final kind = kThemeContractPathKinds[segments.join('.')];
@@ -8191,20 +8545,22 @@ final class ExpressionTranslator {
     );
   }
 
-  /// Validates a root host-data read against a property slot.
-  void _validateRootParamForSlot(
+  /// Validates a shaped host-data read against a property slot.
+  void _validateShapedReferenceForSlot(
     Expression source,
     PropertyType type,
     List<Issue> issues,
   ) {
-    final param = _rootParamRead(_resolveBoundIdentifier(source));
-    if (param == null || !param.isHostData) return;
-    if (_propertyTypeAcceptsHostDataType(type, param.type)) return;
+    if (type == PropertyType.unknown) return;
+    final reference = _shapedReference(source);
+    if (reference == null) return;
+    if (_propertyTypeAcceptsHostDataShape(type, reference.shape)) return;
+    final typeCode = reference.shape.type.getDisplayString();
     issues.add(
       Issue(
         code: IssueCode.propertyValueTypeMismatch,
-        message: "Host data value 'data.context.${param.name}' is declared "
-            "'${param.type.getDisplayString()}' and cannot be assigned to a "
+        message: "Host data value '${reference.dsl}' is declared "
+            "'$typeCode' and cannot be assigned to a "
             "'${type.name}' property type at this site.",
         location: _locationOf(source),
       ),
@@ -9263,7 +9619,7 @@ final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers for string-interpolation decomposition.
+// Helpers for string-interpolation decomposition.
 // ---------------------------------------------------------------------------
 
 enum _InterpKind { literal, dataRef }
@@ -9346,19 +9702,34 @@ bool propertyTypeAcceptsThemeKind(
 
 /// Whether [dartType] exactly matches [type]'s runtime decoder.
 bool _propertyTypeAcceptsHostDataType(PropertyType type, DartType dartType) {
-  final shape = _hostDataShapeOf(dartType);
+  final shape = deriveHostDataShape(dartType, root: 'value').shape;
+  return shape != null && _propertyTypeAcceptsHostDataShape(type, shape);
+}
+
+bool _propertyTypeAcceptsHostDataShape(
+  PropertyType type,
+  HostDataShape shape,
+) {
+  final scalar = shape is HostDataScalarShape ? shape.kind : null;
+  final listElementScalar = switch (shape) {
+    HostDataListShape(
+      elementShape: HostDataScalarShape(:final kind),
+    ) =>
+      kind,
+    _ => null,
+  };
   return switch (type) {
     PropertyType.length ||
     PropertyType.real =>
-      shape == _HostDataShape.doubleValue,
+      scalar == HostDataScalarKind.doubleValue,
     PropertyType.color ||
     PropertyType.duration ||
     PropertyType.integer =>
-      shape == _HostDataShape.integer,
-    PropertyType.string => shape == _HostDataShape.string,
-    PropertyType.boolean => shape == _HostDataShape.boolean,
-    PropertyType.stringList => shape == _HostDataShape.stringList,
-    PropertyType.booleanList => shape == _HostDataShape.booleanList,
+      scalar == HostDataScalarKind.integer,
+    PropertyType.string => scalar == HostDataScalarKind.string,
+    PropertyType.boolean => scalar == HostDataScalarKind.boolean,
+    PropertyType.stringList => listElementScalar == HostDataScalarKind.string,
+    PropertyType.booleanList => listElementScalar == HostDataScalarKind.boolean,
     _ => false,
   };
 }
@@ -9410,64 +9781,82 @@ DartType? _dartCoreListElementType(DartType type) {
 PropertyType? _propertyTypeForParameter(DartType? type) {
   if (type == null) return null;
   if (isEventCallbackType(type)) return PropertyType.event;
-  final shape = _hostDataShapeOf(type);
+  final shape = deriveHostDataShape(type, root: 'value').shape;
   return switch (shape) {
-    _HostDataShape.string => PropertyType.string,
-    _HostDataShape.boolean => PropertyType.boolean,
-    _HostDataShape.integer => PropertyType.integer,
-    _HostDataShape.doubleValue || _HostDataShape.number => PropertyType.real,
-    _HostDataShape.stringList => PropertyType.stringList,
-    _HostDataShape.booleanList => PropertyType.booleanList,
-    _HostDataShape.other => PropertyType.unknown,
+    HostDataScalarShape(kind: HostDataScalarKind.string) => PropertyType.string,
+    HostDataScalarShape(kind: HostDataScalarKind.boolean) =>
+      PropertyType.boolean,
+    HostDataScalarShape(kind: HostDataScalarKind.integer) =>
+      PropertyType.integer,
+    HostDataScalarShape(
+      kind: HostDataScalarKind.doubleValue || HostDataScalarKind.number,
+    ) =>
+      PropertyType.real,
+    HostDataListShape(
+      elementShape: HostDataScalarShape(kind: HostDataScalarKind.string),
+    ) =>
+      PropertyType.stringList,
+    HostDataListShape(
+      elementShape: HostDataScalarShape(kind: HostDataScalarKind.boolean),
+    ) =>
+      PropertyType.booleanList,
+    _ => PropertyType.unknown,
   };
 }
 
-/// Returns the runtime shape used for slot validation.
-_HostDataShape _hostDataShapeOf(DartType type) {
-  if (type.isDartCoreString) return _HostDataShape.string;
-  if (type.isDartCoreBool) return _HostDataShape.boolean;
-  if (type.isDartCoreInt) return _HostDataShape.integer;
-  if (type.isDartCoreDouble) return _HostDataShape.doubleValue;
-  if (type.isDartCoreNum) return _HostDataShape.number;
-  if (type is InterfaceType && type.isDartCoreList) {
-    final elementType =
-        type.typeArguments.length == 1 ? type.typeArguments.single : null;
-    if (elementType != null &&
-        elementType.nullabilitySuffix == NullabilitySuffix.none) {
-      if (elementType.isDartCoreString) return _HostDataShape.stringList;
-      if (elementType.isDartCoreBool) return _HostDataShape.booleanList;
-    }
-  }
-  return _HostDataShape.other;
-}
-
-enum _HostDataShape {
-  string,
-  boolean,
-  integer,
-  doubleValue,
-  number,
-  stringList,
-  booleanList,
-  other,
-}
-
 final class _RootParamAccess {
-  const _RootParamAccess({
+  const _RootParamAccess._({
     required this.param,
     required this.stateful,
-    required this.isMember,
+    required this.shape,
+    required this.parts,
+    required this.isRefused,
   });
+
+  factory _RootParamAccess.root({
+    required RootContextParam param,
+    required bool stateful,
+  }) =>
+      _RootParamAccess._(
+        param: param,
+        stateful: stateful,
+        shape: param.hostDataShape,
+        parts: const [],
+        isRefused: false,
+      );
 
   final RootContextParam param;
   final bool stateful;
-  final bool isMember;
+  final HostDataShape? shape;
+  final List<String> parts;
+  final bool isRefused;
 
-  _RootParamAccess asMember() => _RootParamAccess(
+  bool get isMember => parts.isNotEmpty || isRefused;
+
+  _RootParamAccess append(Element? element) {
+    final current = shape;
+    final field =
+        current is HostDataObjectShape ? current.fieldFor(element) : null;
+    if (field == null) return refuse();
+    return _RootParamAccess._(
+      param: param,
+      stateful: stateful,
+      shape: field.shape,
+      parts: [...parts, field.wireKey],
+      isRefused: false,
+    );
+  }
+
+  _RootParamAccess refuse() => _RootParamAccess._(
         param: param,
         stateful: stateful,
-        isMember: true,
+        shape: null,
+        parts: parts,
+        isRefused: true,
       );
+
+  String dsl(String Function(String) pathPart) =>
+      'data.context${pathPart(param.name)}${parts.map(pathPart).join()}';
 }
 
 /// Sentinel for [_WalkContext.copyWith] that distinguishes "argument omitted"
@@ -9670,32 +10059,44 @@ final class _WalkContext {
 }
 
 final class _RuntimeLoopBinding {
-  const _RuntimeLoopBinding(this.element, this.identifier);
+  const _RuntimeLoopBinding(this.element, this.identifier, this.shape);
 
   final Element element;
   final String identifier;
+  final HostDataShape shape;
 }
 
 final class _RuntimeLoopReference {
   const _RuntimeLoopReference(
     this.binding,
     this.parts, {
+    required this.shape,
     required this.indexed,
   });
 
   final _RuntimeLoopBinding binding;
   final List<String> parts;
+  final HostDataShape? shape;
   final bool indexed;
 
-  _RuntimeLoopReference append(String part) => _RuntimeLoopReference(
-        binding,
-        [...parts, part],
-        indexed: indexed,
-      );
+  bool get isRefused => shape == null;
+
+  _RuntimeLoopReference append(Element? element) {
+    final current = shape;
+    final field =
+        current is HostDataObjectShape ? current.fieldFor(element) : null;
+    return _RuntimeLoopReference(
+      binding,
+      field == null ? parts : [...parts, field.wireKey],
+      shape: field?.shape,
+      indexed: indexed,
+    );
+  }
 
   _RuntimeLoopReference withIndex() => _RuntimeLoopReference(
         binding,
         parts,
+        shape: null,
         indexed: true,
       );
 

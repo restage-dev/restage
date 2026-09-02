@@ -73,7 +73,10 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         assignmentKey: lease.assignmentKey,
         meteringKey: meteringKey,
       );
-      final result = await client.fetchSurfaceScreen(request);
+      final result = await client.fetchSurfaceScreen(
+        request,
+        readerHostDataContractHash: provenance.hostDataContractHash,
+      );
       if (!lease.isCurrent) continue;
       switch (result) {
         case SurfaceScreenDeliveryAvailable(

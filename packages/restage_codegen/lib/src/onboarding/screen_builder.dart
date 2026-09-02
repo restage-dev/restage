@@ -6,7 +6,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:analyzer/dart/analysis/results.dart';
-import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
@@ -49,6 +48,7 @@ final class ResolvedScreenCompilationInput {
     required this.minClient,
     required this.surface,
     required this.build,
+    required this.isCanonical,
   });
 
   final AssetId assetId;
@@ -58,6 +58,7 @@ final class ResolvedScreenCompilationInput {
   final int minClient;
   final Surface? surface;
   final SourceBuildBlueprint build;
+  final bool isCanonical;
 
   String get declarationIdentity =>
       '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
@@ -180,7 +181,7 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
     final build = await extractSourceBuildBlueprint(
       sourceClass: declaration,
       library: library,
-      astNodeFor: _astNodeFor(library),
+      astNodeFor: resolvedAstNodeFor,
       issues: issues,
       location: location,
     );
@@ -194,6 +195,7 @@ Future<ResolvedScreenInspectionResult> inspectCanonicalScreenDeclarations(
         minClient: value.getField('minClient')?.toIntValue() ?? 1,
         surface: surface,
         build: build,
+        isCanonical: true,
       ),
     );
   }
@@ -231,6 +233,8 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       const <String, MeasurementRouteEmissionPlan>{},
   Map<String, fmt.ResolvedRfwCatalogOccurrenceSet> rfwCatalogOccurrenceSets =
       const <String, fmt.ResolvedRfwCatalogOccurrenceSet>{},
+  Set<String>? buildNoticeKeys,
+  void Function(Issue issue, bool isCanonical)? appFactoryNoticeCollector,
 }) async {
   final ordered = inputs.toList()
     ..sort(
@@ -241,6 +245,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
     return ResolvedScreenCompilationResult(screens: const [], issues: const []);
   }
   final issues = <Issue>[];
+  final noticeKeys = buildNoticeKeys ?? <String>{};
   final catalog = await loadMergedCatalog(buildStep);
   final helpers = HelperRegistry()..registerAll(onboardingHelpers);
   final classification = await classifyReferencedCustomWidgets(
@@ -281,8 +286,15 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       rootEventHandlers: source.build.eventHandlers,
       rootLocalBindings: source.build.localBindings,
     );
-    issues.addAll(translation.issues);
-    if (translation.issues.isNotEmpty) continue;
+    if (_collectTranslationIssues(
+      issues,
+      translation.issues,
+      buildNoticeKeys: noticeKeys,
+      sourceIsCanonical: source.isCanonical,
+      appFactoryNoticeCollector: appFactoryNoticeCollector,
+    )) {
+      continue;
+    }
     final text = emitRemoteWidgetLibrary(
       translation.dsl,
       rootWidgetName: onboardingScreenRootWidgetName,
@@ -519,6 +531,7 @@ final class OnboardingScreenBuilder implements Builder {
       if (resolved.units.isNotEmpty) lineInfo = resolved.units.first.lineInfo;
     }
 
+    final buildNoticeKeys = <String>{};
     for (final src in result.sources) {
       final translation = translator.translate(
         src.rootExpression,
@@ -529,8 +542,13 @@ final class OnboardingScreenBuilder implements Builder {
         rootEventHandlers: src.build.eventHandlers,
         rootLocalBindings: src.build.localBindings,
       );
-      issues.addAll(translation.issues);
-      if (translation.issues.isNotEmpty) continue;
+      if (_collectTranslationIssues(
+        issues,
+        translation.issues,
+        buildNoticeKeys: buildNoticeKeys,
+      )) {
+        continue;
+      }
 
       final text = emitRemoteWidgetLibrary(
         translation.dsl,
@@ -741,24 +759,6 @@ Surface? _surfaceFromValue(DartObject value) {
   return null;
 }
 
-Future<AstNode?> Function(Fragment fragment) _astNodeFor(
-  LibraryElement library,
-) {
-  Future<ResolvedLibraryResult?>? resolved;
-  Future<ResolvedLibraryResult?> resolvedLibrary() async {
-    final cached = resolved;
-    if (cached != null) return cached;
-    return resolved = library.session
-        .getResolvedLibraryByElement(library)
-        .then((result) => result is ResolvedLibraryResult ? result : null);
-  }
-
-  return (fragment) async {
-    final result = await resolvedLibrary();
-    return result?.getFragmentDeclaration(fragment)?.node;
-  };
-}
-
 Never _surfaceIssues(List<Issue> issues) {
   for (final issue in issues) {
     log.severe(issue.toLogString());
@@ -766,4 +766,28 @@ Never _surfaceIssues(List<Issue> issues) {
   throw StateError(
     '${issues.length} codegen issue(s) detected; see log above.',
   );
+}
+
+bool _collectTranslationIssues(
+  List<Issue> target,
+  Iterable<Issue> additions, {
+  required Set<String> buildNoticeKeys,
+  bool sourceIsCanonical = false,
+  void Function(Issue issue, bool isCanonical)? appFactoryNoticeCollector,
+}) {
+  var blocked = false;
+  for (final issue in additions) {
+    if (issue.code.isBuildNotice) {
+      if (issue.code == IssueCode.customWidgetAppFactoryUsed &&
+          appFactoryNoticeCollector != null) {
+        appFactoryNoticeCollector(issue, sourceIsCanonical);
+      } else {
+        logBuildNoticeOnce(log, buildNoticeKeys, issue);
+      }
+      continue;
+    }
+    target.add(issue);
+    blocked = true;
+  }
+  return blocked;
 }

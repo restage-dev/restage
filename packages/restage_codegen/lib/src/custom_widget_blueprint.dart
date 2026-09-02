@@ -5,6 +5,7 @@ import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
@@ -58,19 +59,39 @@ final class CustomWidgetParam {
   final FieldElement? sourceField;
 }
 
-/// One constructor parameter of a root source — a value the host supplies at
-/// render time, read inside the blob as a `data.context.<name>` reference.
+/// Position of a root parameter in its unnamed constructor.
+enum RootContextParamKind {
+  /// A required positional parameter.
+  requiredPositional,
+
+  /// An optional positional parameter.
+  optionalPositional,
+
+  /// A required or optional named parameter.
+  named,
+}
+
+/// One root constructor parameter and its host-data eligibility.
 @immutable
 final class RootContextParam {
   /// Creates a root host-data parameter descriptor.
   const RootContextParam({
     required this.name,
     required this.type,
-    required this.isHostData,
+    required this.typeCode,
+    required this.kind,
+    required this.hostDataShape,
     required this.field,
     required this.isRequired,
     required this.defaultValueCode,
     required this.hasNullDefault,
+    this.hostDataProblem,
+    this.mountDefaultValueCode,
+    this.mountDefaultProblem,
+    this.forwardsFlutterKey = false,
+    this.usesSuperFormal = false,
+    this.usesStatelessWidgetSuperFormal = false,
+    this.hasExplicitType = false,
   });
 
   /// The declared formal name — the `data.context` key the host must supply.
@@ -79,8 +100,20 @@ final class RootContextParam {
   /// The parameter's static Dart type, nullability included.
   final DartType type;
 
+  /// The declared type spelling visible from the owning library.
+  final String? typeCode;
+
+  /// The constructor parameter's positional or named form.
+  final RootContextParamKind kind;
+
+  /// The one recursive host-data shape, or `null` when [type] is inadmissible.
+  final HostDataShape? hostDataShape;
+
+  /// The structural refusal retained for read-triggered diagnostics.
+  final HostDataShapeProblem? hostDataProblem;
+
   /// Whether [type] is valid host data. Unread parameters may use any type.
-  final bool isHostData;
+  bool get isHostData => hostDataShape != null;
 
   /// The instance field initialized by this formal, when one exists.
   final FieldElement? field;
@@ -91,8 +124,26 @@ final class RootContextParam {
   /// The explicit constructor default, or `null` when none is declared.
   final String? defaultValueCode;
 
+  /// The constructor default as resolved from the owning library.
+  final String? mountDefaultValueCode;
+
+  /// Why the constructor default cannot be emitted by the owning library.
+  final String? mountDefaultProblem;
+
   /// Whether the explicit constructor default evaluates to `null`.
   final bool hasNullDefault;
+
+  /// Whether this formal reaches Flutter's widget key input.
+  final bool forwardsFlutterKey;
+
+  /// Whether the formal uses inherited `super` syntax.
+  final bool usesSuperFormal;
+
+  /// Whether a generated `StatelessWidget` may preserve the `super` syntax.
+  final bool usesStatelessWidgetSuperFormal;
+
+  /// Whether the formal declares its own type annotation.
+  final bool hasExplicitType;
 
   /// Whether omission would select a non-null Dart default.
   bool get hasNonNullDefault => defaultValueCode != null && !hasNullDefault;

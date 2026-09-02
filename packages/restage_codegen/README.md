@@ -56,7 +56,8 @@ From one annotated source file:
   that move between screens.
 - **Generated Dart** (`restage.generated/<name>.restage.g.dart`): typed
   `SurfaceScreenRef<E>` and `SurfaceFlowRef<R>` accessors with the category,
-  compatibility, and event or result contracts.
+  compatibility, and event or result contracts, plus typed `<Screen>Surface`
+  widgets for eligible screens.
 - **A publication manifest** (`lib/generated/restage.publication.json`): the
   exact set of generated artifacts for each surface id. `restage surface
   publish` reads it.

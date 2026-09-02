@@ -1,5 +1,7 @@
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
+import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_state.dart';
 import 'package:test/test.dart';
@@ -43,7 +45,7 @@ void main() {
         () async {
       final result = await _extractBlueprint(
         '''
-        $kSourceStateStubs
+        import 'package:flutter/widgets.dart';
 
         class Foo extends StatelessWidget {
           const Foo({
@@ -57,7 +59,7 @@ void main() {
           final int? count;
           final String? nickname;
           final String heading;
-          Widget build(BuildContext context) => const Widget();
+          Widget build(BuildContext context) => const SizedBox.shrink();
         }
       ''',
         className: 'Foo',
@@ -76,12 +78,73 @@ void main() {
         params.map((param) => param.isRequired),
         [true, false, false, false],
       );
+      expect(
+        params.map((param) => param.kind),
+        everyElement(RootContextParamKind.named),
+      );
+      expect(
+        params.map((param) => param.typeCode),
+        ['String', 'int?', 'String?', 'String'],
+      );
       expect(params[0].defaultValueCode, isNull);
       expect(params[1].defaultValueCode, isNull);
       expect(params[2].defaultValueCode, 'null');
       expect(params[2].hasNullDefault, isTrue);
       expect(params[3].defaultValueCode, "'Welcome'");
       expect(params[3].hasNonNullDefault, isTrue);
+    });
+
+    test('retains positional constructor forms and field type spelling',
+        () async {
+      final result = await _extractBlueprint(
+        '''
+        $kSourceStateStubs
+
+        class Foo extends StatelessWidget {
+          const Foo(this.title, [this.count = 2]);
+          final String title;
+          final int count;
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''',
+        className: 'Foo',
+      );
+
+      expect(result.issues, isEmpty);
+      final params = result.blueprint!.rootParams;
+      expect(params.map((param) => param.name), ['title', 'count']);
+      expect(
+        params.map((param) => param.kind),
+        [
+          RootContextParamKind.requiredPositional,
+          RootContextParamKind.optionalPositional,
+        ],
+      );
+      expect(params.map((param) => param.typeCode), ['String', 'int']);
+      expect(params[1].defaultValueCode, '2');
+    });
+
+    test('refuses Object list elements with one remedy', () async {
+      for (final element in ['Object?', 'Object']) {
+        final result = await _extractBlueprint(
+          '''
+            $kSourceStateStubs
+            class Foo extends StatelessWidget {
+              const Foo({required this.value});
+              final List<$element> value;
+              Widget build(BuildContext context) => const Widget();
+            }
+          ''',
+          className: 'Foo',
+        );
+        final refused = result.blueprint!.rootParams.single;
+        expect(refused.hostDataProblem?.path, 'value[]', reason: element);
+        expect(
+          refused.hostDataProblem?.detail,
+          contains('cannot be Object'),
+          reason: element,
+        );
+      }
     });
 
     test('admits List and Map root host data params', () async {
@@ -107,6 +170,277 @@ void main() {
       expect(
         result.blueprint!.rootParams.map((param) => param.isHostData),
         everyElement(isTrue),
+      );
+    });
+
+    test('derives the closed recursive host-data shape', () async {
+      const acceptedSource = '''
+        $kSourceStateStubs
+
+        final class Habit {
+          const Habit({required this.id, required this.name});
+          final String id;
+          final String name;
+        }
+
+        typedef HabitAlias = Habit;
+
+        final class Group {
+          const Group(this.label, this.habits, this.selected);
+          final String label;
+          final List<HabitAlias> habits;
+          final Map<String, Habit?> selected;
+        }
+
+        class Foo extends StatelessWidget {
+          const Foo({required this.group});
+          final Group? group;
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''';
+      final accepted = await _extractBlueprint(
+        acceptedSource,
+        className: 'Foo',
+      );
+
+      expect(accepted.issues, isEmpty);
+      final param = accepted.blueprint!.rootParams.single;
+      expect(param.isHostData, isTrue);
+      expect(param.typeCode, 'Group?');
+      final group = param.hostDataShape;
+      if (group is! HostDataObjectShape) {
+        fail('expected a plain object shape, got $group');
+      }
+      expect(group.fields.map((field) => field.wireKey), [
+        'label',
+        'habits',
+        'selected',
+      ]);
+      final habits = group.fields[1].shape as HostDataListShape;
+      final habit = habits.elementShape as HostDataObjectShape;
+      expect(habit.element.name, 'Habit');
+      expect(habit.fields.map((field) => field.wireKey), ['id', 'name']);
+      expect(
+        habit.fields.map((field) => field.element.name),
+        ['id', 'name'],
+      );
+      expect(
+        (group.fields[2].shape as HostDataMapShape).valueShape,
+        isA<HostDataObjectShape>(),
+      );
+
+      final cases =
+          <({String name, String declarations, String type, String path})>[
+        (
+          name: 'dynamic',
+          declarations: '',
+          type: 'dynamic',
+          path: 'value',
+        ),
+        (
+          name: 'object',
+          declarations: '',
+          type: 'Object',
+          path: 'value',
+        ),
+        (
+          name: 'enum',
+          declarations: 'enum Choice { one }',
+          type: 'Choice',
+          path: 'value',
+        ),
+        (
+          name: 'record',
+          declarations: '',
+          type: '(String, int)',
+          path: 'value',
+        ),
+        (
+          name: 'function',
+          declarations: '',
+          type: 'String Function()',
+          path: 'value',
+        ),
+        (
+          name: 'set',
+          declarations: '',
+          type: 'Set<String>',
+          path: 'value',
+        ),
+        (
+          name: 'iterable',
+          declarations: '',
+          type: 'Iterable<String>',
+          path: 'value',
+        ),
+        (
+          name: 'map key',
+          declarations: '',
+          type: 'Map<int, String>',
+          path: 'value{key}',
+        ),
+        (
+          name: 'mutable field',
+          declarations: 'class Value { Value(this.name); String name; }',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'private field',
+          declarations: '''
+            class Value { const Value(this._name); final String _name; }
+          ''',
+          type: 'Value',
+          path: 'value._name',
+        ),
+        (
+          name: 'computed field',
+          declarations: '''
+            class Value {
+              const Value(this.name);
+              final String name;
+              String get label => name;
+            }
+          ''',
+          type: 'Value',
+          path: 'value.label',
+        ),
+        (
+          name: 'non-const construction',
+          declarations: 'class Value { Value(); }',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'missing unnamed construction',
+          declarations: 'class Value { const Value.named(); }',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'empty object',
+          declarations: 'final class Value { const Value(); }',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'method',
+          declarations: '''
+            class Value { const Value(); String read() => 'value'; }
+          ''',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'generic',
+          declarations: '''
+            class Value<T> { const Value(this.value); final T value; }
+          ''',
+          type: 'Value<String>',
+          path: 'value',
+        ),
+        (
+          name: 'inherited',
+          declarations: '''
+            class Base { const Base(this.id); final String id; }
+            class Value extends Base { const Value(super.id); }
+          ''',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'mixed in',
+          declarations: '''
+            mixin Extra { final String extra = ''; }
+            class Value with Extra { const Value(); }
+          ''',
+          type: 'Value',
+          path: 'value',
+        ),
+        (
+          name: 'nested bad field',
+          declarations: '''
+            class Value { const Value(this.child); final Child child; }
+            class Child { const Child(this.names); final Set<String> names; }
+          ''',
+          type: 'Value',
+          path: 'value.child.names',
+        ),
+        (
+          name: 'cycle',
+          declarations: '''
+            class Value { const Value(this.child); final Child child; }
+            class Child { const Child(this.value); final Value value; }
+          ''',
+          type: 'Value',
+          path: 'value.child.value',
+        ),
+      ];
+
+      for (final entry in cases) {
+        final result = await _extractBlueprint(
+          '''
+            $kSourceStateStubs
+            ${entry.declarations}
+            class Foo extends StatelessWidget {
+              const Foo({required this.value});
+              final ${entry.type} value;
+              Widget build(BuildContext context) => const Widget();
+            }
+          ''',
+          className: 'Foo',
+        );
+        expect(result.issues, isEmpty, reason: entry.name);
+        final refused = result.blueprint!.rootParams.single;
+        expect(refused.isHostData, isFalse, reason: entry.name);
+        expect(refused.hostDataShape, isNull, reason: entry.name);
+        expect(refused.hostDataProblem?.path, entry.path, reason: entry.name);
+      }
+
+      final implementsGetter = await _extractBlueprint(
+        '''
+          $kSourceStateStubs
+          abstract interface class NamedValue {
+            String get name;
+          }
+          final class Value implements NamedValue {
+            const Value(this.name);
+            @override
+            final String name;
+          }
+          class Foo extends StatelessWidget {
+            const Foo({required this.value});
+            final Value value;
+            Widget build(BuildContext context) => const Widget();
+          }
+        ''',
+        className: 'Foo',
+      );
+      expect(implementsGetter.issues, isEmpty);
+      final interfaceParam = implementsGetter.blueprint!.rootParams.single;
+      expect(interfaceParam.isHostData, isTrue);
+      final interfaceShape = interfaceParam.hostDataShape;
+      if (interfaceShape is! HostDataObjectShape) {
+        fail('expected a plain object shape, got $interfaceShape');
+      }
+      expect(interfaceShape.fields.map((field) => field.wireKey), ['name']);
+
+      final framework = await _extractBlueprint(
+        '''
+          import 'package:flutter/widgets.dart';
+          class Foo extends StatelessWidget {
+            const Foo({required this.value, super.key});
+            final EdgeInsets value;
+            Widget build(BuildContext context) => const SizedBox.shrink();
+          }
+        ''',
+        className: 'Foo',
+      );
+      expect(framework.issues, isEmpty);
+      expect(framework.blueprint!.rootParams.single.isHostData, isFalse);
+      expect(
+        framework.blueprint!.rootParams.single.hostDataProblem?.path,
+        'value',
       );
     });
 
@@ -142,6 +476,7 @@ void main() {
 
         class Habit {
           const Habit();
+          String label() => 'habit';
         }
 
         class Foo extends StatelessWidget {

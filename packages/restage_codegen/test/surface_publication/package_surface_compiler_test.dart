@@ -14,6 +14,7 @@ import 'package:restage_codegen/src/surface_publication/package_surface_compiler
 import 'package:restage_codegen/src/surface_publication/paywall_artifact_adapter.dart';
 import 'package:restage_codegen/src/surface_publication/screen_contract_reference_emitter.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
+import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
@@ -26,10 +27,19 @@ void main() {
     test('recognizes only the exact roster-owned generated part', () async {
       const sourceId = 'apps_examples|lib/surfaces/categorized_screens.dart';
       const source = '''
+import 'source_names.dart';
+import 'source_names.dart' as sourcePrefix;
+export 'source_names.dart' show exportedName;
+
 part 'restage.generated/categorized_screens.restage.g.dart';
 part 'restage.generated/lookalike.restage.g.dart';
 
 final authoredCollisionRef = Object();
+final _authoredPrivate = Object();
+''';
+      const sourceNames = '''
+final importedName = Object();
+final exportedName = Object();
 ''';
       const ownGeneratedPart = '''
 part of '../categorized_screens.dart';
@@ -49,6 +59,7 @@ final foreignGeneratedRef = Object();
               ownGeneratedPart,
           'apps_examples|lib/surfaces/restage.generated/lookalike.restage.g.dart':
               foreignGeneratedPart,
+          'apps_examples|lib/surfaces/source_names.dart': sourceNames,
         },
         (resolver) async {
           final library = await resolver.libraryFor(AssetId.parse(sourceId));
@@ -84,11 +95,37 @@ final foreignGeneratedRef = Object();
           );
           expect(names, isNot(contains('ownGeneratedRef')));
           expect(names, contains('authoredCollisionRef'));
+          expect(names, contains('_authoredPrivate'));
+          expect(names, contains('importedName'));
+          expect(names, contains('exportedName'));
+          expect(names, contains('sourcePrefix'));
           expect(names, contains('foreignGeneratedRef'));
         },
         resolverFor: sourceId,
         rootPackage: 'apps_examples',
         readAllSourcesFromFilesystem: true,
+      );
+    });
+
+    test('claims every declaration across normalized screen names', () async {
+      final result = await _normalizedScreenSymbolCollision();
+
+      expect(result.bundle, isNull);
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        contains('Generated symbol noticeCardRef is shared by'),
+      );
+    });
+
+    test('claims carried flow declarations against default bindings', () async {
+      final result = await _defaultBindingFlowCollision();
+
+      expect(result.bundle, isNull);
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        contains(
+          'Generated symbol _boundNoticeMountDefault0 is shared by',
+        ),
       );
     });
 
@@ -763,6 +800,14 @@ final foreignGeneratedRef = Object();
       );
 
       expect(result.issues, isEmpty);
+      expect(
+        result.compilation!.generatedTopLevelSymbols,
+        equals({
+          'generalFlowRef',
+          '_decodeGeneralFlowResult',
+          'GeneralFlowResult',
+        }),
+      );
       final document = FlowDocumentCodec.decodeJson(
         utf8.decode(result.compilation!.flowDocumentBytes),
       );
@@ -890,6 +935,215 @@ Future<_Scenario> _loadScenario() async {
   return scenario!;
 }
 
+Future<PackageSurfaceCompilationResult>
+    _normalizedScreenSymbolCollision() async {
+  const sourceId = 'apps_examples|lib/authoring.dart';
+  const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/authoring.restage.g.dart';
+
+@Screen(id: 'first_card', surface: Surface.general)
+final class Notice_Card extends StatelessWidget {
+  const Notice_Card();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+@Screen(id: 'second_card', surface: Surface.general)
+final class NoticeCard extends StatelessWidget {
+  const NoticeCard();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+''';
+  late PackageSurfaceCompilationResult compilation;
+  await resolveSources(
+    const {sourceId: source},
+    (resolver) async {
+      final assetId = AssetId.parse(sourceId);
+      final library = await resolver.libraryFor(assetId);
+      final screenInspection = await inspectCanonicalScreenDeclarations(
+        library,
+        assetId,
+      );
+      final contracts = <ResolvedStandaloneScreenContract>[];
+      final declarations = <RestageSourceDeclaration>[];
+      final artifacts = <CompiledSurfaceArtifact>[];
+      for (final (name, id) in const [
+        ('Notice_Card', 'first_card'),
+        ('NoticeCard', 'second_card'),
+      ]) {
+        final screen = _class(library, name);
+        final screenInput = screenInspection.screens.singleWhere(
+          (candidate) => candidate.declaration == screen,
+        );
+        final inspection = inspectStandaloneScreenContract(
+          ResolvedStandaloneScreenContractInput(
+            assetId: assetId,
+            screen: screen,
+            surface: Surface.general,
+            slug: id,
+            contractVersion: 1,
+            capabilities: CapabilityManifest(
+              builtInFloor: 1,
+              requiredLibraries: const [],
+            ),
+            rootParams: screenInput.build.rootParams,
+            constructorParams: screenInput.build.constructorParams,
+          ),
+        );
+        expect(inspection.issues, isEmpty);
+        contracts.add(inspection.contract!);
+        declarations.add(
+          _screenDeclaration(
+            library: library,
+            declaration: screen,
+            id: id,
+            surface: Surface.general,
+            sourcePath: 'lib/screens/$id.dart',
+          ),
+        );
+        artifacts.add(_artifact(screen, id: id));
+      }
+      compilation = compilePackageSurfacePublications(
+        PackageSurfaceCompilationInput(
+          roster: assembleRestageSourceRoster(declarations),
+          flows: const [],
+          renderedSources: artifacts,
+          standaloneScreens: contracts,
+        ),
+      );
+    },
+    resolverFor: sourceId,
+    rootPackage: 'apps_examples',
+    readAllSourcesFromFilesystem: true,
+  );
+  return compilation;
+}
+
+Future<PackageSurfaceCompilationResult> _defaultBindingFlowCollision() async {
+  const sourceId = 'apps_examples|lib/authoring.dart';
+  const source = '''
+import 'package:flutter/widgets.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/authoring.restage.g.dart';
+
+@Screen(id: 'bound_notice', surface: Surface.general)
+final class BoundNotice extends StatelessWidget {
+  const BoundNotice({this.value = 1});
+
+  final int value;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+final bindingFlow = Object();
+''';
+  late PackageSurfaceCompilationResult compilation;
+  await resolveSources(
+    const {sourceId: source},
+    (resolver) async {
+      final assetId = AssetId.parse(sourceId);
+      final library = await resolver.libraryFor(assetId);
+      final screen = _class(library, 'BoundNotice');
+      final flowDeclaration = _variable(library, 'bindingFlow');
+      final screenInput = (await inspectCanonicalScreenDeclarations(
+        library,
+        assetId,
+      ))
+          .screens
+          .singleWhere((candidate) => candidate.declaration == screen);
+      final inspection = inspectStandaloneScreenContract(
+        ResolvedStandaloneScreenContractInput(
+          assetId: assetId,
+          screen: screen,
+          surface: Surface.general,
+          slug: 'bound_notice',
+          contractVersion: 1,
+          capabilities: CapabilityManifest(
+            builtInFloor: 1,
+            requiredLibraries: const [],
+          ),
+          rootParams: screenInput.build.rootParams,
+          constructorParams: screenInput.build.constructorParams,
+        ),
+      );
+      expect(inspection.issues, isEmpty);
+      expect(inspection.contract!.mountOmissionMessage, isNull);
+      const binding = '_boundNoticeMountDefault0';
+      expect(
+        inspection.contract!.generatedTopLevelSymbols,
+        contains(binding),
+      );
+      final roster = assembleRestageSourceRoster([
+        _screenDeclaration(
+          library: library,
+          declaration: screen,
+          id: 'bound_notice',
+          surface: Surface.general,
+          sourcePath: 'lib/screens/bound_notice.dart',
+        ),
+        _flowDeclaration(
+          library: library,
+          declaration: flowDeclaration,
+          id: 'binding_flow',
+          surface: Surface.general,
+          sourcePath: 'lib/flows/binding_flow.dart',
+        ),
+      ]);
+      final flow = NormalizedFlowSource(
+        id: 'binding_flow',
+        hasExplicitId: true,
+        version: 1,
+        minClient: 1,
+        surface: Surface.general,
+        delivery: FlowDeliveryMode.typed,
+        declaration: flowDeclaration,
+        isCanonical: true,
+        graph: null,
+      );
+      final document = FlowDocumentCodec.encodeCanonicalJson(
+        const FlowDocument(
+          flow: 'binding_flow',
+          version: 1,
+          schemaVersion: 1,
+          minClient: 1,
+          initial: 'done',
+          screenArtifacts: {},
+          states: {'done': EndFlowState(result: {})},
+        ),
+      );
+      compilation = compilePackageSurfacePublications(
+        PackageSurfaceCompilationInput(
+          roster: roster,
+          flows: [flow],
+          renderedSources: [_artifact(screen, id: 'bound_notice')],
+          standaloneScreens: [inspection.contract!],
+          precompiledFlows: [
+            CompiledFlowArtifact(
+              declaration: flowDeclaration,
+              flowDocumentBytes: document,
+              generatedPart: "part of 'authoring.dart';\n\n"
+                  'const bool $binding = true;',
+              generatedTopLevelSymbols: const {binding},
+            ),
+          ],
+        ),
+      );
+    },
+    resolverFor: sourceId,
+    rootPackage: 'apps_examples',
+    readAllSourcesFromFilesystem: true,
+  );
+  return compilation;
+}
+
 _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
   final announcement = _class(library, 'Announcement');
   final welcome = _class(library, 'Welcome');
@@ -910,6 +1164,7 @@ _Scenario _scenarioFromLibrary(LibraryElement library, AssetId assetId) {
       slug: 'announcement',
       contractVersion: 1,
       capabilities: capabilities,
+      rootParams: const [],
     ),
   );
   expect(

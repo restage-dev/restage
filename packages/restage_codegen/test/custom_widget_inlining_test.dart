@@ -3,6 +3,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -23,10 +24,18 @@ RootContextParam _rootParamFrom(
   final parameter = probe
       .classes[className]!.unnamedConstructor!.formalParameters
       .firstWhere((element) => element.name == name);
+  final hostData = deriveHostDataShape(parameter.type, root: name);
   return RootContextParam(
     name: parameter.name!,
     type: parameter.type,
-    isHostData: true,
+    typeCode: parameter.type.getDisplayString(),
+    kind: parameter.isOptionalPositional
+        ? RootContextParamKind.optionalPositional
+        : parameter.isNamed
+            ? RootContextParamKind.named
+            : RootContextParamKind.requiredPositional,
+    hostDataShape: hostData.shape,
+    hostDataProblem: hostData.problem,
     field: parameter is FieldFormalParameterElement ? parameter.field : null,
     isRequired: parameter.isRequired,
     defaultValueCode: parameter.defaultValueCode,
