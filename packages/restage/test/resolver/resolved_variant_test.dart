@@ -10,9 +10,6 @@ void main() {
       bytes: Uint8List.fromList([1, 2, 3]),
       surfaceVersion: 'sha256:example',
       paywallId: 'pro_upgrade',
-      variantId: 'variant-a',
-      experimentId: 'exp1',
-      experimentEpoch: 3,
       paywallVersion: '0.0.1',
       paywallPublishedVersion: 7,
       cacheHit: false,
@@ -20,9 +17,6 @@ void main() {
     expect(v.bytes.length, 3);
     expect(v.paywallId, 'pro_upgrade');
     expect(v.surfaceVersion, 'sha256:example');
-    expect(v.variantId, 'variant-a');
-    expect(v.experimentId, 'exp1');
-    expect(v.experimentEpoch, 3);
     expect(v.paywallPublishedVersion, 7);
     expect(v.cacheHit, isFalse);
   });
@@ -43,9 +37,6 @@ void main() {
       List<int> bytes = const [1, 2, 3],
       String paywallId = 'pro_upgrade',
       String surfaceVersion = 'sha256:example',
-      String? variantId = 'variant-a',
-      String? experimentId = 'exp1',
-      int? experimentEpoch = 3,
       String? paywallVersion = '0.0.1',
       int? paywallPublishedVersion = 7,
       MeasurementPublicationBindingReferenceV1? publicationBindingReference,
@@ -56,9 +47,6 @@ void main() {
             bytes: Uint8List.fromList(bytes),
             surfaceVersion: surfaceVersion,
             paywallId: paywallId,
-            variantId: variantId,
-            experimentId: experimentId,
-            experimentEpoch: experimentEpoch,
             paywallVersion: paywallVersion,
             paywallPublishedVersion: paywallPublishedVersion,
             cacheHit: cacheHit,
@@ -83,17 +71,10 @@ void main() {
         make(surfaceVersion: 'sha256:a'),
         isNot(equals(make(surfaceVersion: 'sha256:b'))),
       );
-      expect(make(variantId: 'a'), isNot(equals(make(variantId: 'b'))));
-      expect(make(experimentId: 'a'), isNot(equals(make(experimentId: 'b'))));
-      expect(
-        make(experimentEpoch: 3),
-        isNot(equals(make(experimentEpoch: 4))),
-      );
       expect(
         make(paywallVersion: '1'),
         isNot(equals(make(paywallVersion: '2'))),
       );
-      expect(make(variantId: null), isNot(equals(make(variantId: 'x'))));
       final first = make(publicationBindingReference: _bindingReference('a'));
       final second = make(publicationBindingReference: _bindingReference('b'));
       // Measurement provenance stays in an SDK-private carrier. It must not
@@ -134,9 +115,6 @@ void main() {
         bytes: Uint8List.fromList([7, 8, 9]),
         surfaceVersion: 'sha256:full',
         paywallId: 'pro_upgrade',
-        variantId: 'variant-a',
-        experimentId: 'exp1',
-        experimentEpoch: 3,
         paywallVersion: '0.0.1',
         paywallPublishedVersion: 7,
         cacheHit: false,
@@ -149,9 +127,6 @@ void main() {
       expect(copy.bytes, full.bytes);
       expect(copy.paywallId, 'pro_upgrade');
       expect(copy.surfaceVersion, 'sha256:full');
-      expect(copy.variantId, 'variant-a');
-      expect(copy.experimentId, 'exp1');
-      expect(copy.experimentEpoch, 3);
       expect(copy.paywallVersion, '0.0.1');
       expect(copy.paywallPublishedVersion, 7);
       // A public copy can alter the payload identity, so it must never carry
@@ -167,9 +142,6 @@ void main() {
       expect(hit.bytes, full.bytes);
       expect(hit.paywallId, 'pro_upgrade');
       expect(hit.surfaceVersion, 'sha256:full');
-      expect(hit.variantId, 'variant-a');
-      expect(hit.experimentId, 'exp1');
-      expect(hit.experimentEpoch, 3);
       expect(hit.paywallVersion, '0.0.1');
       expect(hit.paywallPublishedVersion, 7);
       expect(measurementPublicationBindingReferenceFor(hit), isNull);
@@ -181,9 +153,6 @@ void main() {
         full.copyWith(surfaceVersion: 'sha256:next').surfaceVersion,
         'sha256:next',
       );
-      expect(full.copyWith(variantId: 'v2').variantId, 'v2');
-      expect(full.copyWith(experimentId: 'e2').experimentId, 'e2');
-      expect(full.copyWith(experimentEpoch: 4).experimentEpoch, 4);
       expect(full.copyWith(paywallVersion: '9').paywallVersion, '9');
       expect(
         full.copyWith(paywallPublishedVersion: 42).paywallPublishedVersion,

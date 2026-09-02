@@ -98,23 +98,17 @@ FlowPaywallActiveResolution _resolve(
   FlowSurfacePayload active,
   BundledFlowArtifacts bundled, {
   int activeVersion = 5,
-  String? experimentId = 'exp_1',
-  String? variantId = 'variant_a',
-  int? experimentEpoch = 3,
 }) {
   return resolveFlowActiveArm(
     activePayload: active,
     bundledDocument: bundled.document,
     paywallId: _paywallId,
     activeVersion: activeVersion,
-    experimentId: experimentId,
-    variantId: variantId,
-    experimentEpoch: experimentEpoch,
   );
 }
 
 void main() {
-  test('a compatible content-only active flow is accepted + attributed', () {
+  test('a compatible content-only active flow is accepted', () {
     final screen = _screen('restage.purchase');
     final doc = _flowDoc(screen);
     final result = _resolve(_active(doc, screen), _bundled(doc, screen));
@@ -123,9 +117,6 @@ void main() {
     final payload = (result as FlowPaywallActiveAccepted).payload;
     expect(payload.paywallId, _paywallId);
     expect(payload.paywallPublishedVersion, 5);
-    expect(payload.experimentId, 'exp_1');
-    expect(payload.variantId, 'variant_a');
-    expect(payload.experimentEpoch, 3);
     expect(payload.resolvedFromActiveArm, isTrue);
     expect(payload.flow.document.flow, _paywallId);
   });

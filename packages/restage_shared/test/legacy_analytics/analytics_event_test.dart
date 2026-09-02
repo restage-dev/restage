@@ -9,7 +9,7 @@ void main() {
   );
   final occurred = DateTime.utc(2026, 6, 13, 12, 30);
 
-  AnalyticsEvent clientEvent({int? experimentEpoch}) => AnalyticsEvent(
+  AnalyticsEvent clientEvent() => AnalyticsEvent(
         eventId: 'e-1',
         name: 'paywall_viewed',
         occurredAt: occurred,
@@ -18,7 +18,6 @@ void main() {
         sessionId: 'sess-1',
         surfaceSessionId: 'surf-1',
         appContext: ctx,
-        experimentEpoch: experimentEpoch,
         properties: const {'plan': 'pro'},
       );
 
@@ -40,29 +39,81 @@ void main() {
       );
       expect(clientEvent().hashCode, clientEvent().hashCode);
     });
-
-    test('experiment epoch participates in equality and hashCode', () {
-      final first = clientEvent(experimentEpoch: 3);
-      final second = clientEvent(experimentEpoch: 4);
-
-      expect(first, isNot(equals(second)));
-      expect(first.hashCode, isNot(second.hashCode));
-    });
   });
 
   group('toJson/fromJson', () {
     test('client event round-trips', () {
-      final event = clientEvent(experimentEpoch: 3);
+      final event = clientEvent();
       final json = event.toJson();
-      expect(json['experimentEpoch'], 3);
       expect(
         AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
         event,
       );
     });
 
-    test('experiment epoch is omitted when absent', () {
-      expect(clientEvent().toJson().containsKey('experimentEpoch'), isFalse);
+    test('property scrubbing survives construction, decoding, and round-trip',
+        () {
+      const properties = <String, Object?>{
+        'data': 'top-level',
+        'context': 'top-level',
+        'result': <String, Object?>{
+          'data': <String, Object?>{'context': 'local'},
+          'context': 'nested',
+          'data.context.locale': 'en_US',
+          'ExPeRiMeNtId': 'exp-1',
+          'items': <Object?>[
+            <String, Object?>{
+              'vArIaNtId': 'variant-a',
+              'value': 42,
+            },
+            <String, Object?>{
+              'nested': <String, Object?>{
+                'eXpErImEnTePoCh': 7,
+                'Context': 'preserve',
+              },
+            },
+          ],
+        },
+      };
+      const expectedProperties = <String, Object?>{
+        'result': <String, Object?>{
+          'data': <String, Object?>{'context': 'local'},
+          'context': 'nested',
+          'data.context.locale': 'en_US',
+          'items': <Object?>[
+            <String, Object?>{'value': 42},
+            <String, Object?>{
+              'nested': <String, Object?>{'Context': 'preserve'},
+            },
+          ],
+        },
+      };
+
+      final constructed = AnalyticsEvent(
+        eventId: 'e-properties',
+        name: 'paywall_viewed',
+        occurredAt: occurred,
+        anonymousId: 'a',
+        sessionId: 's',
+        appContext: ctx,
+        properties: properties,
+      );
+      final decoded = AnalyticsEvent.fromJson(
+        <String, Object?>{
+          ...clientEvent().toJson(),
+          'properties': properties,
+        },
+        source: AnalyticsSource.client,
+      );
+      final roundTripped = AnalyticsEvent.fromJson(
+        decoded.toJson(),
+        source: AnalyticsSource.client,
+      );
+
+      expect(constructed.properties, expectedProperties);
+      expect(constructed.toJson()['properties'], expectedProperties);
+      expect(decoded.properties, expectedProperties);
+      expect(roundTripped.toJson()['properties'], expectedProperties);
     });
 
     test('schemaVersion defaults to 1 and survives the round-trip', () {
@@ -259,11 +310,28 @@ void main() {
       );
     });
 
-    test('experimentEpoch present but not an int → FormatException', () {
-      final json = base()..['experimentEpoch'] = 'three';
+    test('retired assignment fields are rejected by presence', () {
+      for (final field in const [
+        'variantId',
+        'experimentId',
+        'experimentEpoch',
+      ]) {
+        for (final value in <Object?>[null, 'legacy', 3]) {
+          final json = base()..[field] = value;
+          expect(
+            () => AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
+            throwsFormatException,
+            reason: '$field with value $value was accepted',
+          );
+        }
+      }
+    });
+
+    test('unrelated additive fields remain ignored', () {
+      final json = base()..['futureEnvelopeField'] = 'preserved-by-reader';
       expect(
-        () => AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
-        throwsFormatException,
+        AnalyticsEvent.fromJson(json, source: AnalyticsSource.client),
+        isA<AnalyticsEvent>(),
       );
     });
 

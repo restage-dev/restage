@@ -2,6 +2,9 @@
 
 ## 2.0.0
 
+- **Breaking:** `SurfaceExperimentAssignment` and assignment fields on
+  standalone-screen delivery types are removed. Purchase-intent and analytics
+  envelopes no longer include experiment assignment metadata.
 - **Breaking:** the default `restage_shared.dart` export no longer exposes the
   former commerce types: purchase intents, entitlement synchronization,
   transaction reporting, offer signatures, `RestageProduct`,

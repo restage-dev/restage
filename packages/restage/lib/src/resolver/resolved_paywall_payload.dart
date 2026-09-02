@@ -103,9 +103,6 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
     required this.flow,
     required this.paywallId,
     this.paywallPublishedVersion,
-    this.experimentId,
-    this.variantId,
-    this.experimentEpoch,
     this.resolvedFromActiveArm = false,
     super.assignmentLease,
     super.hostedPublication,
@@ -128,11 +125,7 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
                 : null,
         acceptedCandidate = acceptedCandidate,
         _pinnedFlowResolver = acceptedCandidate.resolver,
-        flow = acceptedCandidate.candidateRoot,
-        experimentId = acceptedCandidate.candidateRoot.assignment?.experimentId,
-        variantId = acceptedCandidate.candidateRoot.assignment?.variantId,
-        experimentEpoch =
-            acceptedCandidate.candidateRoot.assignment?.experimentEpoch;
+        flow = acceptedCandidate.candidateRoot;
 
   @internal
   const FlowPaywallPayload.experimentBaseline({
@@ -149,10 +142,7 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
                 ? experimentAuthority
                 : null,
         acceptedCandidate = null,
-        _pinnedFlowResolver = pinnedFlowResolver,
-        experimentId = null,
-        variantId = null,
-        experimentEpoch = null;
+        _pinnedFlowResolver = pinnedFlowResolver;
 
   final ResolvedFlow flow;
   final String paywallId;
@@ -183,22 +173,6 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
 
   /// Server-assigned published version (null for a bundled/custom resolution).
   final int? paywallPublishedVersion;
-
-  /// Server-selected experiment id, when the served artifact is an experiment
-  /// arm (null for a bundled/custom resolution). Threaded onto `PaywallViewed`
-  /// so a hosted flow-paywall conversion attributes to the experiment arm, at
-  /// parity with the blob active path.
-  final String? experimentId;
-
-  /// Server-selected variant id, when the served artifact is an experiment arm
-  /// (null for a bundled/custom resolution). Rides the same assignment metadata
-  /// as [experimentId]; threaded onto `PaywallViewed` for A/B attribution parity
-  /// with the blob active path.
-  final String? variantId;
-
-  /// Server-selected experiment epoch, when the served artifact is an
-  /// experiment arm (null for a bundled/custom resolution).
-  final int? experimentEpoch;
 
   /// Whether this payload was resolved from the hosted active arm (vs a bundled
   /// or custom resolution). The runtime `cacheLastRender` fallback must not
@@ -241,9 +215,6 @@ final class FlowPaywallPayload extends ResolvedPaywallPayload {
       flow: flow,
       paywallId: paywallId,
       paywallPublishedVersion: paywallPublishedVersion,
-      experimentId: experimentId,
-      variantId: variantId,
-      experimentEpoch: experimentEpoch,
       resolvedFromActiveArm: resolvedFromActiveArm,
       assignmentLease: assignmentLease,
       hostedPublication: hostedPublication,

@@ -184,20 +184,11 @@ class _SeqFlowResolver implements VariantResolver, FlowCapableVariantResolver {
   }
 }
 
-/// A flow-capable resolver returning a pre-resolved flow payload carrying an
-/// experiment id + served version (mirroring what the hosted active arm sets),
-/// so the flow-hosted lifecycle attributes the experiment on `PaywallViewed`.
-class _AttributedFlowResolver
+/// A flow-capable resolver returning a pre-resolved hosted flow payload with a
+/// served version.
+class _PublishedFlowResolver
     implements VariantResolver, FlowCapableVariantResolver {
-  _AttributedFlowResolver({
-    this.experimentId,
-    this.variantId,
-    this.experimentEpoch,
-    this.publishedVersion,
-  });
-  final String? experimentId;
-  final String? variantId;
-  final int? experimentEpoch;
+  _PublishedFlowResolver({this.publishedVersion});
   final int? publishedVersion;
 
   @override
@@ -218,9 +209,6 @@ class _AttributedFlowResolver
         flow: _navResolvedFlow(),
         paywallId: id,
         paywallPublishedVersion: publishedVersion,
-        experimentId: experimentId,
-        variantId: variantId,
-        experimentEpoch: experimentEpoch,
       );
 }
 
@@ -728,9 +716,8 @@ void main() {
     },
   );
 
-  testWidgets(
-      'a flow-hosted paywall attributes the experiment on PaywallViewed '
-      '(experiment-attribution parity with the blob path)', (tester) async {
+  testWidgets('a flow-hosted paywall reports its published version',
+      (tester) async {
     Restage.configure(apiKey: 'pk_test');
 
     final received = <RestageEvent>[];
@@ -738,12 +725,7 @@ void main() {
       home: Scaffold(
         body: RestagePaywall(
           id: 'pro_upgrade',
-          resolver: _AttributedFlowResolver(
-            experimentId: 'exp_arm_A',
-            variantId: 'variant_a',
-            experimentEpoch: 3,
-            publishedVersion: 7,
-          ),
+          resolver: _PublishedFlowResolver(publishedVersion: 7),
           onEvent: received.add,
         ),
       ),
@@ -753,13 +735,11 @@ void main() {
     final viewed = received.whereType<PaywallViewed>().toList();
     expect(viewed, isNotEmpty,
         reason: 'a flow paywall must fire PaywallViewed');
-    expect(viewed.first.experimentId, 'exp_arm_A');
-    expect(viewed.first.variantId, 'variant_a');
-    expect(viewed.first.experimentEpoch, 3);
+    expect(viewed.first.publishedVersion, 7);
   });
 
   testWidgets(
-      'a flow-hosted paywall emits one canonical root with served attribution',
+      'a flow-hosted paywall emits one canonical root with served version',
       (tester) async {
     final requests = <http.Request>[];
     Restage.debugAnalyticsHttpClient = _delivery.client((request) async {
@@ -773,12 +753,7 @@ void main() {
 
     await _pumpFlowPaywall(
       tester,
-      resolver: _AttributedFlowResolver(
-        experimentId: 'exp_arm_A',
-        variantId: 'variant_a',
-        experimentEpoch: 3,
-        publishedVersion: 7,
-      ),
+      resolver: _PublishedFlowResolver(publishedVersion: 7),
     );
     await Restage.debugFlushAnalytics();
 
@@ -790,9 +765,9 @@ void main() {
     expect(presentations.single['surfaceId'], 'pro_upgrade');
     expect(presentations.single['surfaceVersion'], '7');
     expect(presentations.single['surfaceSessionId'], isNotNull);
-    expect(presentations.single['experimentId'], 'exp_arm_A');
-    expect(presentations.single['variantId'], 'variant_a');
-    expect(presentations.single['experimentEpoch'], 3);
+    expect(presentations.single, isNot(contains('experimentId')));
+    expect(presentations.single, isNot(contains('variantId')));
+    expect(presentations.single, isNot(contains('experimentEpoch')));
 
     final viewed =
         events.singleWhere((event) => event['name'] == 'paywall_viewed');
@@ -803,9 +778,9 @@ void main() {
       viewed['surfaceSessionId'],
       presentations.single['surfaceSessionId'],
     );
-    expect(viewed['experimentId'], 'exp_arm_A');
-    expect(viewed['variantId'], 'variant_a');
-    expect(viewed['experimentEpoch'], 3);
+    expect(viewed, isNot(contains('experimentId')));
+    expect(viewed, isNot(contains('variantId')));
+    expect(viewed, isNot(contains('experimentEpoch')));
   });
 
   testWidgets(

@@ -11,11 +11,8 @@ import 'package:restage_shared/restage_shared.dart';
 
 import '../support/hosted_artifact_delivery.dart';
 
-/// Artifact-owned attribution across the server-flow ladder: the assignment
-/// stamped onto the served [ResolvedFlow] is ALWAYS the assignment of the
-/// artifact that actually rendered (fresh / hold-last-good / bundled), NEVER the
-/// arm of an attempt that was rejected. Test responses carry assignments to pin
-/// this invariant without a request-side assignment key.
+/// The server-flow ladder always returns the content that passed its retained
+/// checks: fresh active content, hold-last-good content, or the bundled flow.
 const int _installed = RestageBuiltInCatalogCapabilities.currentVersion;
 const int _refFloor = _installed + 2;
 
@@ -35,18 +32,7 @@ void main() {
     decodeResult: _decodeMapResult,
   );
 
-  const armA = FlowAssignment(
-    experimentId: 'exp_copy',
-    variantId: 'variant_a',
-    experimentEpoch: 3,
-  );
-  const armB = FlowAssignment(
-    experimentId: 'exp_copy',
-    variantId: 'variant_b',
-    experimentEpoch: 3,
-  );
-
-  test('fresh accept: the served artifact carries the FRESH arm', () async {
+  test('fresh accept: the active content is served', () async {
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final activeBytes = Uint8List.fromList([4, 5, 6, 7]);
     final resolver = ServerFlowResolver(
@@ -56,19 +42,16 @@ void main() {
       bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
       httpClient: _server(
         _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
-        assignment: armA,
       ),
     );
 
     final resolved = await resolver.resolveActiveRoot(flowRef);
 
     expect(resolved.document.version, 2);
-    expect(resolved.assignment, equals(armA));
+    expect(resolved.screenBlobs['welcome'], orderedEquals(activeBytes));
   });
 
-  test(
-      'fresh REJECTED → bundled served: carries the BUNDLED artifact (null), '
-      'NEVER the rejected fresh arm', () async {
+  test('fresh rejected → bundled content is served', () async {
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final activeBytes = Uint8List.fromList([4, 5, 6]);
     // Contract expansion → the render gate REJECTS the fresh active.
@@ -82,26 +65,24 @@ void main() {
       apiKey: apiKey,
       active: true,
       bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
-      // The rejected fresh attempt WAS assigned arm B — it must never be stamped.
-      httpClient:
-          _server(_envelope(breakingActive, activeBytes), assignment: armB),
+      httpClient: _server(_envelope(breakingActive, activeBytes)),
     );
 
     final resolved = await resolver.resolveActiveRoot(flowRef);
 
     expect(resolved.document.version, 1); // bundled rendered
-    expect(resolved.assignment, isNull); // the bundled artifact owns no arm
+    expect(resolved.screenBlobs['welcome'], orderedEquals(bundledBytes));
   });
 
   test(
-      'fresh arm A accepted then fresh arm B rejected → hold-last-good '
-      'serves and stamps arm A', () async {
+      'fresh active accepted then rejected → hold-last-good serves the active '
+      'content', () async {
     final bundledBytes = Uint8List.fromList([1, 2, 3]);
     final armABytes = Uint8List.fromList([4, 5, 6, 7]);
     final armBBytes = Uint8List.fromList([8, 9, 10]);
-    final acceptedArmA = _doc(version: 2, screenBytes: armABytes);
+    final acceptedActive = _doc(version: 2, screenBytes: armABytes);
     // Contract expansion makes this otherwise fresh response incompatible.
-    final rejectedArmB = _doc(
+    final rejectedActive = _doc(
       version: 3,
       screenBytes: armBBytes,
       terminalResult: const {'completed': true, 'extra': 1},
@@ -112,8 +93,8 @@ void main() {
       active: true,
       bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
       httpClient: _sequenceServer([
-        (envelope: _envelope(acceptedArmA, armABytes), assignment: armA),
-        (envelope: _envelope(rejectedArmB, armBBytes), assignment: armB),
+        _envelope(acceptedActive, armABytes),
+        _envelope(rejectedActive, armBBytes),
       ]),
     );
 
@@ -121,34 +102,31 @@ void main() {
     final second = await resolver.resolveActiveRoot(flowRef);
 
     expect(first.document.version, 2);
-    expect(first.assignment, equals(armA));
-    // Arm B is rejected by the contract gate. The accepted arm-A artifact is
-    // served from hold-last-good with its own assignment and bytes intact.
+    expect(first.screenBlobs['welcome'], orderedEquals(armABytes));
+    // The second active document is rejected by the contract gate. The first
+    // accepted active artifact is served from hold-last-good with its bytes
+    // intact.
     expect(second.cacheHit, isTrue);
     expect(second.document.version, 2);
     expect(second.screenBlobs['welcome'], orderedEquals(armABytes));
-    expect(second.assignment, equals(armA));
-    expect(second.assignment, isNot(equals(armB)));
   });
 
-  test('exact resolve() carries the assignment; a cache hit preserves it',
-      () async {
+  test('exact resolve() serves content; a cache hit preserves it', () async {
     final screenBytes = Uint8List.fromList([1, 2, 3]);
     final resolver = ServerFlowResolver(
       baseUrl: baseUrl,
       apiKey: apiKey,
       httpClient: _server(
         _envelope(_doc(screenBytes: screenBytes), screenBytes),
-        assignment: armA,
       ),
     );
 
     final first = await resolver.resolve(flowRef);
     final second = await resolver.resolve(flowRef);
 
-    expect(first.assignment, equals(armA));
     expect(second.cacheHit, isTrue);
-    expect(second.assignment, equals(armA));
+    expect(first.screenBlobs['welcome'], orderedEquals(screenBytes));
+    expect(second.screenBlobs['welcome'], orderedEquals(screenBytes));
   });
 }
 
@@ -208,30 +186,24 @@ AssetBundle _bundleFor(FlowDocument document, Uint8List screenBytes) {
   });
 }
 
-MockClient _server(Uint8List envelope, {FlowAssignment? assignment}) {
+MockClient _server(Uint8List envelope) {
   return _delivery.client((request) async {
-    return http.Response(_body(envelope, assignment), 200);
+    return http.Response(_body(envelope), 200);
   });
 }
 
 MockClient _sequenceServer(
-  List<({Uint8List envelope, FlowAssignment? assignment})> responses,
+  List<Uint8List> responses,
 ) {
   var index = 0;
   return _delivery.client((request) async {
     final response = responses[index++];
-    return http.Response(_body(response.envelope, response.assignment), 200);
+    return http.Response(_body(response), 200);
   });
 }
 
-String _body(Uint8List envelope, FlowAssignment? assignment) => jsonEncode({
-      ..._delivery.describeEnvelope(envelope),
-      if (assignment != null) ...{
-        'experimentId': assignment.experimentId,
-        'variantId': assignment.variantId,
-        'experimentEpoch': assignment.experimentEpoch,
-      },
-    });
+String _body(Uint8List envelope) =>
+    jsonEncode(_delivery.describeEnvelope(envelope));
 
 final class _TestBundle extends CachingAssetBundle {
   _TestBundle(this._assets);

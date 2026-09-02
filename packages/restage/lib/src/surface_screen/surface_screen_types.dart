@@ -92,7 +92,6 @@ final class ResolvedSurfaceScreen {
           blob: blob,
           contentHash: contentHash,
           bundledEntryHash: bundledEntryHash,
-          assignment: null,
           cacheHit: false,
         );
 
@@ -109,7 +108,6 @@ final class ResolvedSurfaceScreen {
     required String eventContractHash,
     required Uint8List blob,
     required String contentHash,
-    required SurfaceExperimentAssignment? assignment,
     required bool cacheHit,
   }) : this._(
           origin: SurfaceScreenOrigin.hosted,
@@ -125,7 +123,6 @@ final class ResolvedSurfaceScreen {
           blob: blob,
           contentHash: contentHash,
           bundledEntryHash: null,
-          assignment: assignment,
           cacheHit: cacheHit,
         );
 
@@ -143,7 +140,6 @@ final class ResolvedSurfaceScreen {
     required Uint8List blob,
     required this.contentHash,
     required this.bundledEntryHash,
-    required this.assignment,
     required this.cacheHit,
   }) : blob = Uint8List.fromList(blob) {
     if (contractVersion < 1) {
@@ -154,7 +150,7 @@ final class ResolvedSurfaceScreen {
       );
     }
     if (origin == SurfaceScreenOrigin.bundled) {
-      if (publishedRevision != null || assignment != null || cacheHit) {
+      if (publishedRevision != null || cacheHit) {
         throw ArgumentError(
           'Bundled results cannot carry hosted delivery metadata.',
         );
@@ -215,9 +211,6 @@ final class ResolvedSurfaceScreen {
   /// matching contract, so a repackaged bundle cannot substitute other bytes.
   final String? bundledEntryHash;
 
-  /// The exact hosted experiment assignment, when one was selected.
-  final SurfaceExperimentAssignment? assignment;
-
   /// Whether this hosted result came from the resolver cache.
   final bool cacheHit;
 
@@ -239,7 +232,6 @@ final class ResolvedSurfaceScreen {
         eventContractHash: eventContractHash,
         blob: blob,
         contentHash: contentHash,
-        assignment: assignment,
         cacheHit: true,
       ),
       measurementPublicationBindingReferenceFor(this),

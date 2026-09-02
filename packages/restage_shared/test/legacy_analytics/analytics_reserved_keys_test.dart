@@ -48,8 +48,22 @@ void main() {
 
     test('benign look-alikes survive', () {
       expect(
-        scrubReservedKeys({'database': 1, 'contextual': 2, 'metadata': 3}),
-        {'database': 1, 'contextual': 2, 'metadata': 3},
+        scrubReservedKeys({
+          'database': 1,
+          'contextual': 2,
+          'metadata': 3,
+          'experimentIdentifier': 4,
+          'variantIdentity': 5,
+          'experimentEpochId': 6,
+        }),
+        {
+          'database': 1,
+          'contextual': 2,
+          'metadata': 3,
+          'experimentIdentifier': 4,
+          'variantIdentity': 5,
+          'experimentEpochId': 6,
+        },
       );
     });
 
@@ -57,6 +71,107 @@ void main() {
       expect(
         scrubReservedKeys({'Data': 1, ' context': 2, 'ok': 3}),
         {'ok': 3},
+      );
+    });
+
+    test('preserves data and context below the top level', () {
+      const properties = <String, Object?>{
+        'result': <String, Object?>{
+          'data': <String, Object?>{'context': 'local'},
+          'context': 'nested',
+          'data.context.locale': 'en_US',
+          'Context.Theme': 'dark',
+        },
+      };
+
+      expect(scrubReservedKeys(properties), properties);
+    });
+
+    test('drops retired property tuples at exact and mixed casing', () {
+      const preserved = <String, Object?>{
+        'plan': 'pro',
+        'experimentIdentifier': 'keep',
+        'variantIdentity': 'keep',
+        'experimentEpochId': 'keep',
+      };
+
+      for (final properties in <Map<String, Object?>>[
+        <String, Object?>{
+          ...preserved,
+          'experimentId': 'exp-1',
+          'variantId': 'variant-a',
+          'experimentEpoch': 7,
+        },
+        <String, Object?>{
+          ...preserved,
+          'ExPeRiMeNtId': 'exp-2',
+          'vArIaNtId': 'variant-b',
+          'eXpErImEnTePoCh': 8,
+        },
+      ]) {
+        expect(scrubReservedKeys(properties), preserved);
+      }
+    });
+
+    test('drops nested retired property keys from maps and lists', () {
+      final input = <String, Object?>{
+        'payload': <String, Object?>{
+          'label': 'visible',
+          'ExPeRiMeNtId': 'exp-1',
+          'experimentIdentifier': 'keep',
+          'Data': 'preserve',
+          'Contextual': 'keep',
+          'items': <Object?>[
+            <String, Object?>{
+              'vArIaNtId': 'variant-a',
+              'label': 'first',
+              'variantIdentity': 'keep',
+            },
+            <String, Object?>{
+              'nested': <String, Object?>{
+                'eXpErImEnTePoCh': 7,
+                'experimentEpochId': 'keep',
+                'enabled': true,
+                'nothing': null,
+              },
+            },
+            'ordinary',
+            42,
+          ],
+        },
+      };
+
+      expect(
+        scrubReservedKeys(input),
+        <String, Object?>{
+          'payload': <String, Object?>{
+            'label': 'visible',
+            'experimentIdentifier': 'keep',
+            'Data': 'preserve',
+            'Contextual': 'keep',
+            'items': <Object?>[
+              <String, Object?>{
+                'label': 'first',
+                'variantIdentity': 'keep',
+              },
+              <String, Object?>{
+                'nested': <String, Object?>{
+                  'experimentEpochId': 'keep',
+                  'enabled': true,
+                  'nothing': null,
+                },
+              },
+              'ordinary',
+              42,
+            ],
+          },
+        },
+      );
+      final payload = input['payload'];
+      expect(payload, isA<Map<Object?, Object?>>());
+      expect(
+        (payload! as Map<Object?, Object?>).containsKey('ExPeRiMeNtId'),
+        isTrue,
       );
     });
   });

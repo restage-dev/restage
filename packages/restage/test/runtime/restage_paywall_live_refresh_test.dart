@@ -49,11 +49,10 @@ Uint8List _tappableBlob(String text, String event) {
 /// A resolver whose served content is mutable between resolves and can be told
 /// to throw on the next resolve (to exercise the silent-failure refresh path).
 class _MutableResolver implements VariantResolver {
-  _MutableResolver(this.bytes, {this.version, this.experimentId});
+  _MutableResolver(this.bytes, {this.version});
 
   Uint8List bytes;
   int? version;
-  String? experimentId;
   bool throwNext = false;
   int calls = 0;
 
@@ -76,7 +75,6 @@ class _MutableResolver implements VariantResolver {
       surfaceVersion:
           version?.toString() ?? FlowContentHash.compute(bytes).value,
       paywallId: id,
-      experimentId: experimentId,
       paywallPublishedVersion: version,
     );
   }
@@ -200,9 +198,9 @@ void main() {
         impression['surfaceSessionId'],
         owner['surfaceSessionId'],
       );
-      expect(impression['experimentId'], isNull);
-      expect(impression['variantId'], isNull);
-      expect(impression['experimentEpoch'], isNull);
+      expect(impression, isNot(contains('experimentId')));
+      expect(impression, isNot(contains('variantId')));
+      expect(impression, isNot(contains('experimentEpoch')));
     }
   });
 
@@ -287,7 +285,7 @@ void main() {
     expect(viewed.length, 1); // no second impression
   });
 
-  testWidgets('a deferred (experiment-arm) refresh fires no fresh impression',
+  testWidgets('an ordinary hosted refresh applies fresh content',
       (tester) async {
     final viewed = <PaywallViewed>[];
     final resolver = _MutableResolver(_blob('A'), version: 1);
@@ -305,12 +303,13 @@ void main() {
 
     resolver
       ..bytes = _blob('B')
-      ..version = 2
-      ..experimentId = 'exp1'; // enrolling arm → deferred, not applied
+      ..version = 2;
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
-    expect(find.text('A'), findsOneWidget); // held
-    expect(viewed.length, 1); // no impression for a deferred swap
+    expect(find.text('B'), findsOneWidget);
+    expect(find.text('A'), findsNothing);
+    expect(viewed.length, 2);
+    expect(viewed.last.publishedVersion, 2);
   });
 
   testWidgets('unchanged content is not re-applied (no duplicate lifecycle)',
@@ -396,9 +395,8 @@ void main() {
     );
   }
 
-  testWidgets('an experiment-assigned render never live-swaps', (tester) async {
-    final resolver =
-        _MutableResolver(_blob('A'), version: 1, experimentId: 'exp1');
+  testWidgets('an ordinary hosted render can live-swap', (tester) async {
+    final resolver = _MutableResolver(_blob('A'), version: 1);
     await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
     expect(find.text('A'), findsOneWidget);
 
@@ -407,8 +405,8 @@ void main() {
       ..version = 2;
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
-    expect(find.text('A'), findsOneWidget); // experiment lockout
-    expect(find.text('B'), findsNothing);
+    expect(find.text('B'), findsOneWidget);
+    expect(find.text('A'), findsNothing);
   });
 
   testWidgets('a failed refresh keeps the current render and stays silent',
@@ -763,9 +761,9 @@ void main() {
       overlapPresentations.single['surfaceSessionId'],
       isNot(initialSession),
     );
-    expect(overlapPresentations.single['experimentId'], isNull);
-    expect(overlapPresentations.single['variantId'], isNull);
-    expect(overlapPresentations.single['experimentEpoch'], isNull);
+    expect(overlapPresentations.single, isNot(contains('experimentId')));
+    expect(overlapPresentations.single, isNot(contains('variantId')));
+    expect(overlapPresentations.single, isNot(contains('experimentEpoch')));
   });
 
   testWidgets(
@@ -874,38 +872,32 @@ void main() {
     expect(find.text('BlobA'), findsNothing);
   });
 
-  testWidgets('a blob refresh into a new experiment arm is deferred',
-      (tester) async {
+  testWidgets('a blob refresh applies ordinary hosted content', (tester) async {
     final resolver = _MutableResolver(_blob('A'), version: 1);
     await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
     expect(find.text('A'), findsOneWidget);
 
-    // The fresh resolution now carries an experiment arm — the surface must not
-    // enroll a live view into an experiment; defer to remount.
     resolver
       ..bytes = _blob('B')
-      ..version = 2
-      ..experimentId = 'exp1';
+      ..version = 2;
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
-    expect(find.text('A'), findsOneWidget);
-    expect(find.text('B'), findsNothing);
+    expect(find.text('B'), findsOneWidget);
+    expect(find.text('A'), findsNothing);
   });
 
-  testWidgets('a flow refresh into a new experiment arm is deferred',
-      (tester) async {
+  testWidgets('a flow refresh applies ordinary hosted content', (tester) async {
     final resolver = _FlowResolver(resolvedFlow(welcomeText: 'FlowA'), 1);
     await _pump(tester, RestagePaywall(id: 'p', resolver: resolver));
     expect(find.text('FlowA'), findsOneWidget);
 
     resolver
       ..flow = resolvedFlow(welcomeText: 'FlowB')
-      ..version = 2
-      ..experimentId = 'exp1';
+      ..version = 2;
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
-    expect(find.text('FlowA'), findsOneWidget);
-    expect(find.text('FlowB'), findsNothing);
+    expect(find.text('FlowB'), findsOneWidget);
+    expect(find.text('FlowA'), findsNothing);
   });
 
   testWidgets('widget liveRefresh override wins over the global set',
@@ -1177,7 +1169,6 @@ class _FlowResolver implements VariantResolver, FlowCapableVariantResolver {
   _FlowResolver(this.flow, this.version);
   ResolvedFlow flow;
   int version;
-  String? experimentId;
   Completer<void>? hold;
 
   @override
@@ -1197,13 +1188,11 @@ class _FlowResolver implements VariantResolver, FlowCapableVariantResolver {
     final gate = hold;
     final servedFlow = flow;
     final servedVersion = version;
-    final servedExperiment = experimentId;
     if (gate != null) await gate.future;
     return FlowPaywallPayload(
       flow: servedFlow,
       paywallId: id,
       paywallPublishedVersion: servedVersion,
-      experimentId: servedExperiment,
     );
   }
 }
@@ -1217,7 +1206,6 @@ class _ShapeResolver implements VariantResolver, FlowCapableVariantResolver {
   Uint8List? _bytes;
   ResolvedFlow? _flow;
   int version;
-  String? experimentId;
 
   void serveBlob(Uint8List bytes, int v) {
     _bytes = bytes;
@@ -1251,7 +1239,6 @@ class _ShapeResolver implements VariantResolver, FlowCapableVariantResolver {
         flow: flow,
         paywallId: id,
         paywallPublishedVersion: version,
-        experimentId: experimentId,
       );
     }
     return BlobPaywallPayload(
@@ -1260,7 +1247,6 @@ class _ShapeResolver implements VariantResolver, FlowCapableVariantResolver {
         surfaceVersion: FlowContentHash.compute(_bytes!).value,
         paywallId: id,
         paywallPublishedVersion: version,
-        experimentId: experimentId,
       ),
     );
   }

@@ -8,9 +8,6 @@ import 'package:rfw/formats.dart';
 class _SwitchableResolver implements VariantResolver {
   Uint8List? next;
   bool throwNext = false;
-  String? experimentId;
-  String? variantId;
-  int? experimentEpoch;
 
   @override
   Future<ResolvedVariant> resolve(
@@ -25,9 +22,6 @@ class _SwitchableResolver implements VariantResolver {
       bytes: next!,
       surfaceVersion: 'test',
       paywallId: id,
-      experimentId: experimentId,
-      variantId: variantId,
-      experimentEpoch: experimentEpoch,
     );
   }
 }
@@ -42,11 +36,7 @@ void main() {
       import restage.core;
       widget Paywall = Text(text: "First");
     ''')));
-    final resolver = _SwitchableResolver()
-      ..next = goodBytes
-      ..experimentId = 'exp_paywall_copy'
-      ..variantId = 'variant_a'
-      ..experimentEpoch = 3;
+    final resolver = _SwitchableResolver()..next = goodBytes;
     final firstEvents = <RestageEvent>[];
     final secondEvents = <RestageEvent>[];
 
@@ -62,10 +52,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('First'), findsOneWidget);
-    final firstViewed = firstEvents.whereType<PaywallViewed>().single;
-    expect(firstViewed.experimentId, 'exp_paywall_copy');
-    expect(firstViewed.variantId, 'variant_a');
-    expect(firstViewed.experimentEpoch, 3);
+    expect(firstEvents.whereType<PaywallViewed>(), hasLength(1));
 
     // Force a remount to trigger a second fetch; this time, fail.
     resolver.throwNext = true;
@@ -84,9 +71,6 @@ void main() {
 
     // Cache hits → "First" still rendered.
     expect(find.text('First'), findsOneWidget);
-    final secondViewed = secondEvents.whereType<PaywallViewed>().single;
-    expect(secondViewed.experimentId, 'exp_paywall_copy');
-    expect(secondViewed.variantId, 'variant_a');
-    expect(secondViewed.experimentEpoch, 3);
+    expect(secondEvents.whereType<PaywallViewed>(), hasLength(1));
   });
 }

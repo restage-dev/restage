@@ -994,11 +994,6 @@ void main() {
         publishedRevision: 12,
         contractFingerprint: fixture.contractFingerprint,
         eventContractHash: fixture.eventContractHash,
-        assignment: SurfaceExperimentAssignment(
-          experimentId: 'exp_1',
-          variantId: 'treatment',
-          experimentEpoch: 3,
-        ),
       );
       final descriptorJson =
           SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
@@ -1007,9 +1002,8 @@ void main() {
       expect(descriptorJson, _screenDescriptorGolden);
       expect(
         SurfaceScreenDeliveryDescriptorV1Codec.decodeJson(descriptorJson)
-            .assignment!
-            .variantId,
-        'treatment',
+            .publishedRevision,
+        12,
       );
 
       // The completion is the correlation: the fingerprint is recomputed
@@ -1063,14 +1057,6 @@ void main() {
         throwsFormatException,
       );
 
-      final partialAssignment = Map<String, Object?>.from(descriptorMap)
-        ..['assignment'] = <String, Object?>{
-          'experimentId': 'exp_1',
-        };
-      expect(
-        () => SurfaceScreenDeliveryDescriptorV1Codec.decode(partialAssignment),
-        throwsFormatException,
-      );
       expect(
         () => SurfaceScreenDeliveryDescriptorV1Codec.decode(null),
         throwsFormatException,
@@ -1078,16 +1064,13 @@ void main() {
       expect(
         () => SurfaceScreenDeliveryDescriptorV1Codec.decode(<String, Object?>{
           ...descriptorMap,
-          'assignment': null,
+          'assignment': <String, Object?>{
+            'experimentId': 'exp_1',
+            'variantId': 'treatment',
+            'experimentEpoch': 3,
+          },
         }),
         throwsFormatException,
-      );
-      final withoutAssignment = Map<String, Object?>.from(descriptorMap)
-        ..remove('assignment');
-      expect(
-        SurfaceScreenDeliveryDescriptorV1Codec.decode(withoutAssignment)
-            .assignment,
-        isNull,
       );
 
       // This wire delivers exactly one shape, so an artifact that makes no
@@ -1318,7 +1301,7 @@ const String _screenUploadGolden =
 /// where the content is, what it must hash to, and the contract facts that
 /// travel beside it — which is the whole point of the change.
 const String _screenDescriptorGolden =
-    '{"schemaVersion":1,"artifact":{"artifactPass":"v1.k1.4102444800.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactUrl":"https://artifacts.example/artifacts/orgs/1/artifacts/1/sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","contentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","descriptorVersion":1,"payloadFormatVersion":1,"payloadKind":"blob","publishedAtMicros":1786406400000000,"surfaceSlug":"feature_announcement","surfaceType":"general","version":12},"sourceKind":"screen","contractVersion":7,"publishedRevision":12,"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5","assignment":{"experimentId":"exp_1","variantId":"treatment","experimentEpoch":3}}';
+    '{"schemaVersion":1,"artifact":{"artifactPass":"v1.k1.4102444800.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","artifactUrl":"https://artifacts.example/artifacts/orgs/1/artifacts/1/sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","contentHash":"sha256:7caa614ebcc1800fb0e2aef7f4066c32f6589f6b62d3732901eb1d7d617f923d","descriptorVersion":1,"payloadFormatVersion":1,"payloadKind":"blob","publishedAtMicros":1786406400000000,"surfaceSlug":"feature_announcement","surfaceType":"general","version":12},"sourceKind":"screen","contractVersion":7,"publishedRevision":12,"contractFingerprint":"sha256:5876ace20d49d4af1c24e69867f9de9380688586256e67130f83bf99d0e96a9f","eventContractHash":"sha256:de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5"}';
 
 /// The artifact half of the frozen descriptor above, built from the same
 /// fixture so the two cannot drift apart.

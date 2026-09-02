@@ -260,12 +260,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'message',
       surfaceId: 'welcome-message',
-    )..stage(
-        surfaceVersion: '14',
-        experimentId: 'exp-message',
-        variantId: 'variant-b',
-        experimentEpoch: 8,
-      );
+    )..stage(surfaceVersion: '14');
 
     presentation.activate();
 
@@ -275,9 +270,6 @@ void main() {
     expect(events.single, containsPair('surface', 'message'));
     expect(events.single, containsPair('surfaceId', 'welcome-message'));
     expect(events.single, containsPair('surfaceVersion', '14'));
-    expect(events.single, containsPair('experimentId', 'exp-message'));
-    expect(events.single, containsPair('variantId', 'variant-b'));
-    expect(events.single, containsPair('experimentEpoch', 8));
     expect(events.single['surfaceSessionId'], isNotNull);
     expect(publicEvents, isEmpty);
     await subscription.cancel();
@@ -294,12 +286,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'message',
       surfaceId: 'offline-message',
-    )..stage(
-        surfaceVersion: '2',
-        experimentId: 'exp-offline',
-        variantId: 'variant-a',
-        experimentEpoch: 3,
-      );
+    )..stage(surfaceVersion: '2');
 
     presentation.activate();
     await pumpEventQueue();
@@ -312,9 +299,6 @@ void main() {
         .single! as Map<String, Object?>;
     expect(retried['name'], 'surface_presented');
     expect(retried['surfaceSessionId'], isNotNull);
-    expect(retried['experimentId'], 'exp-offline');
-    expect(retried['variantId'], 'variant-a');
-    expect(retried['experimentEpoch'], 3);
   });
 
   test('same-authority configure preserves an offline buffered canonical event',
@@ -328,12 +312,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'message',
       surfaceId: 'buffered-message',
-    )..stage(
-        surfaceVersion: '6',
-        experimentId: 'exp-buffered',
-        variantId: 'variant-b',
-        experimentEpoch: 4,
-      );
+    )..stage(surfaceVersion: '6');
 
     presentation.activate();
     await pumpEventQueue();
@@ -354,9 +333,6 @@ void main() {
     expect(retried['surfaceId'], 'buffered-message');
     expect(retried['surfaceVersion'], '6');
     expect(retried['surfaceSessionId'], isNotNull);
-    expect(retried['experimentId'], 'exp-buffered');
-    expect(retried['variantId'], 'variant-b');
-    expect(retried['experimentEpoch'], 4);
   });
 
   test('reset after fire cannot rewrite that event root attribution', () async {
@@ -369,12 +345,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'survey',
       surfaceId: 'activation-survey',
-    )..stage(
-        surfaceVersion: '3',
-        experimentId: 'exp-survey',
-        variantId: 'variant-a',
-        experimentEpoch: 2,
-      );
+    )..stage(surfaceVersion: '3');
     presentation.activate();
     await pumpEventQueue();
     requests.clear();
@@ -399,9 +370,6 @@ void main() {
     expect(envelope['surfaceId'], 'activation-survey');
     expect(envelope['surfaceVersion'], '3');
     expect(envelope['surfaceSessionId'], isNotNull);
-    expect(envelope['experimentId'], 'exp-survey');
-    expect(envelope['variantId'], 'variant-a');
-    expect(envelope['experimentEpoch'], 2);
   });
 
   test(
@@ -453,12 +421,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
       surfaceId: 'upgrade',
-    )..stage(
-        surfaceVersion: '9',
-        experimentId: 'exp-paywall',
-        variantId: 'variant-c',
-        experimentEpoch: 5,
-      );
+    )..stage(surfaceVersion: '9');
     presentation.activate();
     await pumpEventQueue();
     requests.clear();
@@ -484,9 +447,6 @@ void main() {
     expect(envelope['surfaceId'], 'upgrade');
     expect(envelope['surfaceVersion'], isNull);
     expect(envelope['surfaceSessionId'], isNull);
-    expect(envelope['experimentId'], isNull);
-    expect(envelope['variantId'], isNull);
-    expect(envelope['experimentEpoch'], isNull);
   });
 
   for (final boundary in <String>[
@@ -510,12 +470,7 @@ void main() {
       final presentation = RootAnalyticsRuntime.createPresentation(
         surface: 'paywall',
         surfaceId: 'upgrade',
-      )..stage(
-          surfaceVersion: '9',
-          experimentId: 'exp-paywall',
-          variantId: 'variant-c',
-          experimentEpoch: 5,
-        );
+      )..stage(surfaceVersion: '9');
       presentation.activate();
       await capturedEvents(requests);
       requests.clear();
@@ -573,9 +528,6 @@ void main() {
       expect(envelope['surfaceId'], 'upgrade');
       expect(envelope['surfaceVersion'], isNull);
       expect(envelope['surfaceSessionId'], isNull);
-      expect(envelope['experimentId'], isNull);
-      expect(envelope['variantId'], isNull);
-      expect(envelope['experimentEpoch'], isNull);
     });
   }
 }

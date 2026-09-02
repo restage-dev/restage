@@ -22,7 +22,6 @@ import 'package:restage_shared/restage_shared.dart'
         SurfaceDocument,
         Surface;
 
-import '../flow/flow_assignment.dart';
 import '../flow/flow_descriptors.dart';
 import '../flow/flow_experiment_artifact_metadata.dart';
 import '../flow/flow_experiment_mount.dart';
@@ -302,9 +301,6 @@ final class RestageVariantResolver
         bundledDocument: bundled.flow.document,
         paywallId: id,
         activeVersion: fresh.version,
-        experimentId: fresh.experimentId,
-        variantId: fresh.variantId,
-        experimentEpoch: fresh.experimentEpoch,
         publicationBindingReference: fresh.publicationBindingReference,
       );
       if (arm is FlowPaywallActiveAccepted) {
@@ -312,9 +308,6 @@ final class RestageVariantResolver
         final cacheEntry = _CachedFlow(
           activePayload: fresh.activePayload,
           version: fresh.version,
-          experimentId: fresh.experimentId,
-          variantId: fresh.variantId,
-          experimentEpoch: fresh.experimentEpoch,
           publicationBindingReference: fresh.publicationBindingReference,
           assignmentLease: fresh.assignmentLease,
         );
@@ -474,9 +467,6 @@ final class RestageVariantResolver
           bytes: payload.blob,
           paywallId: id,
           surfaceVersion: document.version.toString(),
-          variantId: result.variantId,
-          experimentId: result.experimentId,
-          experimentEpoch: result.experimentEpoch,
           paywallPublishedVersion: document.version,
         ),
         result.publicationBindingReference,
@@ -494,13 +484,10 @@ final class RestageVariantResolver
     if (payload is FlowSurfacePayload) {
       // Flow-shaped (Navigator-lowered) paywall: hand the served active document
       // to the flow active arm (gated in [resolvePayload] against the bundled
-      // contract). The served version + experiment arm ride along for attribution.
+      // contract). The served version and publication binding stay with the payload.
       return _FreshFlow(
         payload,
         document.version,
-        result.experimentId,
-        result.variantId,
-        result.experimentEpoch,
         result.publicationBindingReference,
         assignmentLease,
       );
@@ -559,9 +546,6 @@ final class RestageVariantResolver
         bundledDocument: bundledFlow.flow.document,
         paywallId: id,
         activeVersion: cached.version,
-        experimentId: cached.experimentId,
-        variantId: cached.variantId,
-        experimentEpoch: cached.experimentEpoch,
         publicationBindingReference: cached.publicationBindingReference,
         cacheHit: true,
       );
@@ -692,7 +676,6 @@ final class _RestagePaywallExperimentPresentation
             captureSeed: captureSeed,
             candidateRoot: fresh.candidateRoot,
             resolver: this,
-            serverVerdictAccepted: fresh.serverVerdictAccepted,
           );
           if (_disposed || !presentationGuard()) {
             throw const StaleSurfaceAssignmentResolution();
@@ -814,9 +797,6 @@ final class _RestagePaywallExperimentPresentation
       exactVersion: false,
     );
     if (decoded == null) return null;
-    final assignment = _flowAssignmentOf(result);
-    if ((assignment != null) != (result.decision == 'assigned')) return null;
-    if (assignment != null && snapshot.assignmentKey == null) return null;
 
     final candidate = _own(
       attachMeasurementPublicationBindingReference(
@@ -827,7 +807,6 @@ final class _RestagePaywallExperimentPresentation
             FlowDocumentCodec.encodeCanonicalJson(decoded.document),
           ),
           cacheHit: false,
-          assignment: assignment,
         ),
         result.publicationBindingReference,
       ),
@@ -836,8 +815,6 @@ final class _RestagePaywallExperimentPresentation
     return _PaywallExperimentFreshFlow(
       candidateRoot: candidate,
       paywallPublishedVersion: decoded.publishedVersion,
-      serverVerdictAccepted:
-          assignment == null || result.decision == 'assigned',
     );
   }
 
@@ -886,9 +863,7 @@ final class _RestagePaywallExperimentPresentation
       throw const StaleSurfaceAssignmentResolution();
     }
     _requireCurrent(snapshot, FlowMountRevalidationBoundary.candidatePrefetch);
-    if (result == null ||
-        result.decision == 'assigned' ||
-        _flowAssignmentOf(result) != null) {
+    if (result == null) {
       throw FlowUnavailableError(
         flowId: requestedFlow.id,
         flowVersion: requestedFlow.version,
@@ -1064,12 +1039,10 @@ final class _PaywallExperimentFreshFlow {
   const _PaywallExperimentFreshFlow({
     required this.candidateRoot,
     required this.paywallPublishedVersion,
-    required this.serverVerdictAccepted,
   });
 
   final ResolvedFlow candidateRoot;
   final int paywallPublishedVersion;
-  final bool serverVerdictAccepted;
 }
 
 final class _DecodedPaywallHostedFlow {
@@ -1104,20 +1077,6 @@ final class _PaywallExperimentHostedFlow {
   }
 }
 
-FlowAssignment? _flowAssignmentOf(SurfaceFetchResult result) {
-  final experimentId = result.experimentId;
-  final variantId = result.variantId;
-  final experimentEpoch = result.experimentEpoch;
-  if (experimentId == null || variantId == null || experimentEpoch == null) {
-    return null;
-  }
-  return FlowAssignment(
-    experimentId: experimentId,
-    variantId: variantId,
-    experimentEpoch: experimentEpoch,
-  );
-}
-
 Map<String, Object?> _identityPaywallFlowResult(Map<String, Object?> value) =>
     value;
 
@@ -1146,18 +1105,12 @@ final class _FreshFlow extends _FreshOutcome {
   const _FreshFlow(
     this.activePayload,
     this.version,
-    this.experimentId,
-    this.variantId,
-    this.experimentEpoch,
     this.publicationBindingReference,
     this.assignmentLease,
   );
 
   final FlowSurfacePayload activePayload;
   final int version;
-  final String? experimentId;
-  final String? variantId;
-  final int? experimentEpoch;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
   final SurfaceAssignmentResolutionLease assignmentLease;
 }
@@ -1198,9 +1151,6 @@ final class _CachedFlow extends _CachedPayload {
   const _CachedFlow({
     required this.activePayload,
     required this.version,
-    required this.experimentId,
-    required this.variantId,
-    required this.experimentEpoch,
     required this.publicationBindingReference,
     required super.assignmentLease,
   });
@@ -1211,9 +1161,6 @@ final class _CachedFlow extends _CachedPayload {
   /// never re-served.
   final FlowSurfacePayload activePayload;
   final int version;
-  final String? experimentId;
-  final String? variantId;
-  final int? experimentEpoch;
   final MeasurementPublicationBindingReferenceV1? publicationBindingReference;
 }
 

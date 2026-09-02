@@ -58,10 +58,6 @@ final class SurfaceFetchResult {
   /// Creates a hosted surface fetch result.
   const SurfaceFetchResult({
     required this.artifact,
-    this.decision,
-    this.experimentId,
-    this.variantId,
-    this.experimentEpoch,
     this.contractRequired = false,
     this.flowContractRequired = false,
     this.publicationBindingReference,
@@ -76,22 +72,6 @@ final class SurfaceFetchResult {
   /// response it is about to discard.
   @internal
   final SurfaceArtifactOutcome artifact;
-
-  /// The server's serve decision for this fetch, when present. Carried
-  /// verbatim as an opaque string — an unrecognised value is preserved as-is,
-  /// never rejected — so a newer server can introduce new decision values
-  /// without breaking this client.
-  final String? decision;
-
-  /// Experiment id selected by the server, when the served artifact is an arm.
-  final String? experimentId;
-
-  /// Variant id selected by the server, when the served artifact is an arm.
-  final String? variantId;
-
-  /// Experiment epoch selected by the server, when the served artifact is an
-  /// arm.
-  final int? experimentEpoch;
 
   /// Whether the server needs the full client contract uploaded to resolve
   /// eligibility (a content-hash cache miss). The caller retries the fetch
@@ -796,18 +776,16 @@ class RestageRpcClient {
     }
   }
 
-  /// Fetches a surface document envelope for [surfaceSlug] of [surfaceType].
+  /// Fetches a hosted surface delivery for [surfaceSlug] of [surfaceType].
   ///
   /// Pass an explicit [version] to fetch that exact published version. Omit it
   /// (pass `null`) to ask the server for the currently-active version — the
   /// `version` key is then left out of the request body, which the serve route
   /// treats as the active-version request for surface types that support it
-  /// (paywalls). Returns the base64-decoded envelope bytes, or `null` on any
-  /// failure (network error, non-2xx status, a missing/invalid `envelope`
-  /// field, or malformed assignment metadata). A `null` is the caller's signal
-  /// to treat the surface as unavailable. The served version is carried inside
-  /// the decoded envelope, so the active-version caller reads it back after
-  /// decoding.
+  /// (paywalls). Returns `null` on a network error, non-2xx status, unsupported
+  /// response field, or missing/invalid artifact descriptor. A `null` is the
+  /// caller's signal to treat the surface as unavailable. A successful response
+  /// carries an artifact outcome and any contract-retry signals.
   Future<SurfaceFetchResult?> fetchSurface({
     required String surfaceType,
     required String surfaceSlug,
@@ -852,13 +830,10 @@ class RestageRpcClient {
     final json = httpResult?.json;
     if (json == null) return null;
 
-    final assignment = _parseSurfaceAssignmentMetadata(json);
-    if (assignment == null) {
-      debugPrint('[restage] surface assignment metadata was malformed');
+    if (_containsRetiredSurfaceResponseField(json)) {
+      debugPrint('[restage] surface delivery contains an unsupported field');
       return null;
     }
-    final rawDecision = json['decision'];
-    final decision = rawDecision is String ? rawDecision : null;
     final rawContractRequired = json['contractRequired'];
     final contractRequired =
         rawContractRequired is bool ? rawContractRequired : false;
@@ -888,10 +863,6 @@ class RestageRpcClient {
 
     return SurfaceFetchResult(
       artifact: artifact,
-      decision: decision,
-      experimentId: assignment.experimentId,
-      variantId: assignment.variantId,
-      experimentEpoch: assignment.experimentEpoch,
       contractRequired: contractRequired,
       flowContractRequired: flowContractRequired,
       publicationBindingReference:
@@ -899,6 +870,13 @@ class RestageRpcClient {
         httpResult!.headers,
       ),
     );
+  }
+
+  bool _containsRetiredSurfaceResponseField(Map<String, dynamic> json) {
+    return json.containsKey('decision') ||
+        json.containsKey('experimentId') ||
+        json.containsKey('variantId') ||
+        json.containsKey('experimentEpoch');
   }
 
   /// Fetches, verifies and assembles the artifact [descriptor] names.
@@ -1476,48 +1454,6 @@ bool _isRetryableSurfaceScreenDeliveryStatus(int statusCode) =>
       408 || 429 || 500 || 502 || 503 || 504 => true,
       _ => false,
     };
-
-final class _SurfaceAssignmentMetadata {
-  const _SurfaceAssignmentMetadata({
-    this.experimentId,
-    this.variantId,
-    this.experimentEpoch,
-  });
-
-  final String? experimentId;
-  final String? variantId;
-  final int? experimentEpoch;
-}
-
-_SurfaceAssignmentMetadata? _parseSurfaceAssignmentMetadata(
-  Map<String, dynamic> json,
-) {
-  final experimentId = json['experimentId'];
-  final variantId = json['variantId'];
-  final experimentEpoch = json['experimentEpoch'];
-  if (experimentId == null && variantId == null && experimentEpoch == null) {
-    return const _SurfaceAssignmentMetadata();
-  }
-  if (experimentId is! String ||
-      variantId is! String ||
-      experimentEpoch is! int ||
-      experimentEpoch < 1) {
-    return null;
-  }
-  if (!_isValidSurfaceAssignmentToken(experimentId) ||
-      !_isValidSurfaceAssignmentToken(variantId)) {
-    return null;
-  }
-  return _SurfaceAssignmentMetadata(
-    experimentId: experimentId,
-    variantId: variantId,
-    experimentEpoch: experimentEpoch,
-  );
-}
-
-bool _isValidSurfaceAssignmentToken(String value) {
-  return value.isNotEmpty && value.trim() == value && !value.contains('\u0000');
-}
 
 /// A store answered, and not with the artifact.
 final class _ArtifactFetchRefused implements Exception {

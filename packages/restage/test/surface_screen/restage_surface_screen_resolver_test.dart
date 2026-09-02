@@ -22,7 +22,7 @@ void main() {
   setUp(resetSurfaceScreenTestState);
 
   test(
-      'accepts valid hosted content, forwards assignment and metering context, and partitions cache by assignment key',
+      'accepts valid hosted content, forwards metering context, and partitions cache by request identity',
       () async {
     final fixture = stringScreenFixture();
     await _installMeteringKey();
@@ -36,20 +36,11 @@ void main() {
       apiKey: _apiKey,
       httpClient: fixture.hostedDelivery.client((request) async {
         requests.add(request);
-        final body = jsonDecode(request.body) as Map<String, Object?>;
-        final assigned = body['assignmentKey'] == null
-            ? null
-            : SurfaceExperimentAssignment(
-                experimentId: 'experiment',
-                variantId: 'variant',
-                experimentEpoch: 2,
-              );
         return http.Response(
           SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(
             fixture.delivery(
               hostedBlob: hostedBlob,
               publishedRevision: 8,
-              assignment: assigned,
             ),
           ),
           200,
@@ -267,6 +258,24 @@ void main() {
       throwsA(_unavailable(SurfaceScreenUnavailableReason.invalidPayload)),
     );
     expect(fallback.calls, 0);
+  });
+
+  test('strictly refuses a hosted response with the retired assignment key',
+      () {
+    final fixture = stringScreenFixture();
+    final response = <String, Object?>{
+      ...fixture.delivery().toJson(),
+      'assignment': <String, Object?>{
+        'experimentId': 'retired-experiment',
+        'variantId': 'retired-variant',
+        'experimentEpoch': 1,
+      },
+    };
+
+    expect(
+      () => SurfaceScreenDeliveryDescriptorV1Codec.decode(response),
+      throwsA(isA<FormatException>()),
+    );
   });
 
   test('never falls back from a present contract-version mismatch', () async {

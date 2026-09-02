@@ -84,21 +84,9 @@ final class PaywallViewed extends RestageEvent {
   /// Const constructor.
   const PaywallViewed({
     required String super.paywallId,
-    this.variantId,
-    this.experimentId,
-    this.experimentEpoch,
     this.publishedVersion,
     super.firedAt,
   });
-
-  /// A/B variant identifier; null if not part of an experiment.
-  final String? variantId;
-
-  /// Experiment identifier; null if not part of an experiment.
-  final String? experimentId;
-
-  /// Experiment epoch; null if not part of an experiment.
-  final int? experimentEpoch;
 
   /// The server-assigned published version of the rendered paywall content;
   /// null for a bundled or custom (versionless) resolution. On a live in-place
@@ -106,9 +94,7 @@ final class PaywallViewed extends RestageEvent {
   ///
   /// Exactly one `PaywallViewed` fires per SETTLED applied swap. If two applies
   /// land within a single frame (no frame drawn between them), they coalesce
-  /// into one impression describing the settled content — its version, with
-  /// null experiment assignment metadata on the refresh path (a live refresh
-  /// never applies an experiment arm; enrollment is deferred to remount).
+  /// into one impression describing the settled content and its version.
   final int? publishedVersion;
 
   @override
@@ -118,9 +104,6 @@ final class PaywallViewed extends RestageEvent {
   Map<String, Object?> toMap() => {
         'name': name,
         'paywallId': paywallId,
-        if (variantId != null) 'variantId': variantId,
-        if (experimentId != null) 'experimentId': experimentId,
-        if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
         if (publishedVersion != null) 'publishedVersion': publishedVersion,
       };
 }

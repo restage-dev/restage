@@ -9,39 +9,75 @@
 ///
 /// The guard is intentionally **broad** (the safe direction): the `data` and
 /// `context` namespaces never legitimately carry analytics properties, so the
-/// whole top-level `data.*` / `context.*` space is dropped — covering both a
-/// nested `{'data': {'context': ...}}` and a flattened `'data.context.x'` key.
+/// whole top-level `data.*` / `context.*` space is dropped — covering a
+/// top-level `{'data': {'context': ...}}` value and a flattened
+/// `'data.context.x'` key.
 library;
 
-/// Top-level property keys that are always dropped.
-const Set<String> kReservedPropertyKeys = <String>{'data', 'context'};
+/// Reserved property keys.
+const Set<String> kReservedPropertyKeys = <String>{
+  'data',
+  'context',
+  'experimentId',
+  'variantId',
+  'experimentEpoch',
+};
 
-bool _isReserved(String key) {
-  // Case-insensitive + whitespace-trimmed so `Data`, ` data`, `CONTEXT.x`, etc.
-  // cannot bypass the denylist. The reserved namespaces are contract-reserved
-  // at any casing; benign look-alikes (`database`, `contextual`) are unaffected
-  // because the match is on the exact word or a `data.`/`context.` prefix.
-  final k = key.trim().toLowerCase();
-  return kReservedPropertyKeys.contains(k) ||
-      k.startsWith('data.') ||
-      k.startsWith('context.');
+const _topLevelNamespaceKeys = <String>{'data', 'context'};
+
+bool _isTopLevelReserved(String key) {
+  // Case-insensitive + whitespace-trimmed so property keys cannot bypass the
+  // denylist. `data` and `context` also reserve their dotted namespaces.
+  final normalized = key.trim().toLowerCase();
+  return kReservedPropertyKeys.any(
+        (reservedKey) => reservedKey.toLowerCase() == normalized,
+      ) ||
+      normalized.startsWith('data.') ||
+      normalized.startsWith('context.');
+}
+
+bool _isRetiredPropertyKey(String key) {
+  final normalized = key.trim().toLowerCase();
+  return kReservedPropertyKeys.any(
+    (reservedKey) =>
+        !_topLevelNamespaceKeys.contains(reservedKey) &&
+        reservedKey.toLowerCase() == normalized,
+  );
 }
 
 /// Whether [properties] contains any reserved (render-context) key.
 bool containsReservedKey(Map<String, Object?> properties) {
   for (final key in properties.keys) {
-    if (_isReserved(key)) return true;
+    if (_isTopLevelReserved(key)) return true;
   }
   return false;
 }
 
-/// Returns a new map with every reserved key removed. Non-mutating; benign
-/// look-alikes (`database`, `contextual`, `metadata`) are preserved.
+/// Returns a new map with top-level namespaces and retired property keys
+/// removed. Retired property keys are removed at every map depth.
 Map<String, Object?> scrubReservedKeys(Map<String, Object?> properties) {
   final result = <String, Object?>{};
   for (final entry in properties.entries) {
-    if (_isReserved(entry.key)) continue;
-    result[entry.key] = entry.value;
+    if (_isTopLevelReserved(entry.key)) continue;
+    result[entry.key] = _scrubValue(entry.value);
+  }
+  return result;
+}
+
+Object? _scrubValue(Object? value) {
+  if (value is Map<Object?, Object?>) return _scrubMap(value);
+  if (value is List<Object?>) {
+    return <Object?>[for (final item in value) _scrubValue(item)];
+  }
+  return value;
+}
+
+Map<Object?, Object?> _scrubMap(Map<Object?, Object?> value) {
+  final result = <Object?, Object?>{};
+  for (final entry in value.entries) {
+    final key = entry.key;
+    if (key is String && _isRetiredPropertyKey(key)) continue;
+    result[key] = _scrubValue(entry.value);
   }
   return result;
 }

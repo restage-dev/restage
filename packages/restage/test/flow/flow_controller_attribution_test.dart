@@ -7,29 +7,18 @@ import 'package:restage/src/analytics/root_analytics_context.dart';
 
 import 'flow_test_support.dart';
 
-/// The controller hoists the RENDERED artifact's assignment to a field that
-/// survives `FlowUnavailable`'s frame-stack clear. The hoist happens only when
-/// an artifact actually renders (never at fetch/resolve — a rejected fresh arm
-/// never reaches the field), and a failed render does not fabricate one.
+/// The controller reports readiness only after content is actually painted.
 void main() {
   setUp(Restage.debugReset);
 
-  const armA = FlowAssignment(
-    experimentId: 'exp_copy',
-    variantId: 'variant_a',
-    experimentEpoch: 3,
-  );
-
-  testWidgets(
-      'renderedAssignment commits only after the view builds the screen',
+  testWidgets('render readiness commits only after the view builds the screen',
       (tester) async {
-    final controller = _controller(_assignedFlow(armA));
+    final controller = _controller(_resolvedFlow());
     addTearDown(controller.dispose);
 
     await tester.runAsync(controller.load);
     expect(controller.currentScreenEntryId, isNotNull);
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
 
     await tester.pumpWidget(Directionality(
       textDirection: TextDirection.ltr,
@@ -37,30 +26,23 @@ void main() {
     ));
     await tester.pump();
 
-    final observed = (
-      ready: controller.hasRenderedContent,
-      assignment: controller.renderedAssignment,
-    );
+    final observed = controller.hasRenderedContent;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(observed, (ready: true, assignment: armA));
+    expect(observed, isTrue);
   });
 
-  test('render readiness and assignment are atomic at the first screen',
-      () async {
-    ({bool ready, FlowAssignment? assignment})? stateAtStart;
+  test('render readiness is false when the first screen starts', () async {
+    bool? readyAtStart;
     late final RestageFlowController<FirstRunResult> controller;
     controller = RestageFlowController<FirstRunResult>(
       flow: firstRunFlowRef,
-      resolver: StaticFlowResolver(_assignedFlow(armA)),
+      resolver: StaticFlowResolver(_resolvedFlow()),
       actions: null,
       onEvent: (event) {
         if (event is FlowStarted) {
-          stateAtStart = (
-            ready: controller.hasRenderedContent,
-            assignment: controller.renderedAssignment,
-          );
+          readyAtStart = controller.hasRenderedContent;
         }
       },
       onComplete: (_) {},
@@ -71,30 +53,19 @@ void main() {
     await controller.load();
     await drainFlowTasks();
 
-    expect(stateAtStart, (ready: false, assignment: null));
+    expect(readyAtStart, isFalse);
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
   });
 
-  testWidgets(
-      'an initial sub-flow exposes the root assignment only when its first '
-      'actual screen commits', (tester) async {
-    const childArm = FlowAssignment(
-      experimentId: 'exp_child',
-      variantId: 'variant_child',
-      experimentEpoch: 8,
-    );
-    final child = childScreenFlow(assignment: childArm);
+  testWidgets('an initial sub-flow becomes ready when its first screen commits',
+      (tester) async {
+    final child = childScreenFlow();
     final childCompleter = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: initialSubFlowRoot(child: child, assignment: armA),
+      root: initialSubFlowRoot(child: child),
       child: childCompleter,
     );
-    final observations = <({
-      String flowId,
-      bool ready,
-      FlowAssignment? assignment,
-    })>[];
+    final observations = <({String flowId, bool ready})>[];
     late final RestageFlowController<FirstRunResult> controller;
     controller = RestageFlowController<FirstRunResult>(
       flow: firstRunFlowRef,
@@ -105,7 +76,6 @@ void main() {
           observations.add((
             flowId: event.flowId,
             ready: controller.hasRenderedContent,
-            assignment: controller.renderedAssignment,
           ));
         }
       },
@@ -122,23 +92,21 @@ void main() {
     });
 
     expect(observations, [
-      (flowId: 'first_run', ready: false, assignment: null),
+      (flowId: 'first_run', ready: false),
     ]);
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
 
     childCompleter.complete(child);
     await tester.runAsync(() => load);
 
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
     expect(
       RootAnalyticsArtifactRegistry.surfaceVersionFor(controller),
       firstRunFlowRef.version.toString(),
     );
     expect(observations, [
-      (flowId: 'first_run', ready: false, assignment: null),
-      (flowId: 'child_flow', ready: false, assignment: null),
+      (flowId: 'first_run', ready: false),
+      (flowId: 'child_flow', ready: false),
     ]);
 
     await tester.pumpWidget(Directionality(
@@ -147,34 +115,22 @@ void main() {
     ));
     await tester.pump();
 
-    final observed = (
-      ready: controller.hasRenderedContent,
-      assignment: controller.renderedAssignment,
-    );
+    final observed = controller.hasRenderedContent;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(observed, (ready: true, assignment: armA));
+    expect(observed, isTrue);
   });
 
-  testWidgets(
-      'a root screen reached after a screenless child marks readiness with '
-      'the root assignment', (tester) async {
-    const childArm = FlowAssignment(
-      experimentId: 'exp_child',
-      variantId: 'variant_child',
-      experimentEpoch: 8,
-    );
-    final child = screenlessChildFlow(assignment: childArm);
+  testWidgets('a root screen reached after a screenless child marks readiness',
+      (tester) async {
+    final child = screenlessChildFlow();
     final childCompleter = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: initialSubFlowThenScreenRoot(
-        child: child,
-        assignment: armA,
-      ),
+      root: initialSubFlowThenScreenRoot(child: child),
       child: childCompleter,
     );
-    final readyStates = <FlowAssignment?>[];
+    final readyStates = <bool>[];
     late final RestageFlowController<FirstRunResult> controller;
     controller = RestageFlowController<FirstRunResult>(
       flow: firstRunFlowRef,
@@ -185,7 +141,7 @@ void main() {
       onUnavailable: (_) {},
     )..addListener(() {
         if (controller.hasRenderedContent) {
-          readyStates.add(controller.renderedAssignment);
+          readyStates.add(true);
         }
       });
     addTearDown(controller.dispose);
@@ -198,13 +154,11 @@ void main() {
     });
 
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
 
     childCompleter.complete(child);
     await tester.runAsync(() => load);
 
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
     expect(readyStates, isEmpty);
 
     await tester.pumpWidget(Directionality(
@@ -215,31 +169,36 @@ void main() {
 
     final observed = (
       ready: controller.hasRenderedContent,
-      assignment: controller.renderedAssignment,
-      readyStates: List<FlowAssignment?>.of(readyStates),
+      readyStates: List<bool>.of(readyStates),
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
     expect(observed.ready, isTrue);
-    expect(observed.assignment, armA);
-    expect(observed.readyStates, <FlowAssignment?>[armA]);
+    expect(observed.readyStates, [true]);
   });
 
-  test('renderedAssignment is null for an artifact with no experiment',
-      () async {
-    final controller = _controller(_assignedFlow(null));
+  test('a resolved flow remains unpainted until its view builds', () async {
+    final controller = _controller(_resolvedFlow());
     addTearDown(controller.dispose);
 
     await controller.load();
     await drainFlowTasks();
 
-    expect(controller.renderedAssignment, isNull);
+    expect(controller.currentScreenEntryId, isNotNull);
+    expect(controller.hasRenderedContent, isFalse);
   });
 
-  testWidgets('renderedAssignment SURVIVES a later render failure',
-      (tester) async {
-    final controller = _controller(_assignedFlow(armA));
+  testWidgets('a later render failure closes the controller', (tester) async {
+    FlowUnavailableError? unavailable;
+    final controller = RestageFlowController<FirstRunResult>(
+      flow: firstRunFlowRef,
+      resolver: StaticFlowResolver(_resolvedFlow()),
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (error) => unavailable = error,
+    );
     addTearDown(controller.dispose);
 
     await tester.runAsync(controller.load);
@@ -248,55 +207,57 @@ void main() {
       child: RestageFlowView(controller: controller),
     ));
     await tester.pump();
-    expect(controller.renderedAssignment, equals(armA));
+    expect(controller.hasRenderedContent, isTrue);
 
-    // A late render failure fails the flow closed and clears the frame stack.
     controller.reportRenderFailure(StateError('boom'));
 
-    // The assignment of the artifact that DID render is retained.
-    final observed = controller.renderedAssignment;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(observed, equals(armA));
+    expect(controller.isUnavailable, isTrue);
+    expect(unavailable?.reason, 'render_failed');
   });
 
-  test(
-      'FlowStarted.toMap() emits NO assignment keys '
-      '(assignment exposure requires an explicit contract change)', () {
+  test('FlowStarted.toMap() omits retired experiment fields', () {
     const started = FlowStarted(
       flowId: 'first_run',
       flowVersion: 1,
       flowSessionId: 'session-1',
     );
     final map = started.toMap();
-    expect(map.containsKey('experimentId'), isFalse);
-    expect(map.containsKey('variantId'), isFalse);
-    expect(map.containsKey('experimentEpoch'), isFalse);
+    for (final key in const [
+      'decision',
+      'experimentId',
+      'variantId',
+      'experimentEpoch',
+    ]) {
+      expect(map.containsKey(key), isFalse, reason: key);
+    }
   });
 
-  test(
-      'a resolve that never renders leaves renderedAssignment null '
-      '(a rejected fresh arm is never stamped)', () async {
+  test('a failed resolve leaves the controller unavailable', () async {
+    FlowUnavailableError? unavailable;
     final controller = RestageFlowController<FirstRunResult>(
       flow: firstRunFlowRef,
       resolver: const _ThrowingResolver(),
       actions: null,
       onEvent: (_) {},
       onComplete: (_) {},
-      onUnavailable: (_) {},
+      onUnavailable: (error) => unavailable = error,
     );
     addTearDown(controller.dispose);
 
     await controller.load();
     await drainFlowTasks();
 
-    expect(controller.renderedAssignment, isNull);
+    expect(controller.isUnavailable, isTrue);
+    expect(unavailable?.reason, 'unavailable');
+    expect(controller.currentScreenEntryId, isNull);
   });
 
   test('controller disposal is idempotent without an external retention set',
       () {
-    final controller = _controller(_assignedFlow(null));
+    final controller = _controller(_resolvedFlow());
 
     controller.dispose();
 
@@ -314,9 +275,8 @@ RestageFlowController<FirstRunResult> _controller(ResolvedFlow flow) =>
       onUnavailable: (_) {},
     );
 
-/// The default first-run flow, tagged with [assignment] as its artifact-owned
-/// arm (null for an artifact with no experiment).
-ResolvedFlow _assignedFlow(FlowAssignment? assignment) {
+/// The default first-run flow used by these controller tests.
+ResolvedFlow _resolvedFlow() {
   final welcome = screenBlob('Welcome', 'next');
   final profile = screenBlob('Profile', 'finish');
   return ResolvedFlow(
@@ -329,7 +289,6 @@ ResolvedFlow _assignedFlow(FlowAssignment? assignment) {
     ),
     screenBlobs: {'welcome': welcome, 'profile': profile},
     cacheHit: false,
-    assignment: assignment,
   );
 }
 

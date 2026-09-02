@@ -14,14 +14,6 @@ Map<String, Object?> _requiredRequestJson() => {
       'storeProductId': 'com.example.app.pro_monthly',
     };
 
-Map<String, Object?> _experimentRequestJson({int epoch = 1}) => {
-      ..._requiredRequestJson(),
-      'paywallId': 'upgrade',
-      'experimentId': 'upgrade-copy',
-      'experimentVariantId': 'concise',
-      'experimentEpoch': epoch,
-    };
-
 Map<String, dynamic> _requestWithRawNumericField(
   Map<String, Object?> json,
   String field,
@@ -48,9 +40,6 @@ void main() {
         paywallId: 'upgrade',
         paywallVariantSlug: 'control',
         paywallPublishedVersion: 7,
-        experimentId: 'upgrade-copy',
-        experimentVariantId: 'concise',
-        experimentEpoch: 1,
       );
       final expected = <String, Object?>{
         'purchaseIntentId': _purchaseIntentId,
@@ -62,25 +51,10 @@ void main() {
         'paywallId': 'upgrade',
         'paywallVariantSlug': 'control',
         'paywallPublishedVersion': 7,
-        'experimentId': 'upgrade-copy',
-        'experimentVariantId': 'concise',
-        'experimentEpoch': 1,
       };
 
       expect(request.toJson(), expected);
       expect(CreatePurchaseIntentRequest.fromJson(expected), request);
-    });
-
-    test('accepts experiment metadata without a paywall variant slug', () {
-      final request = CreatePurchaseIntentRequest.fromJson(
-        _experimentRequestJson(),
-      );
-
-      expect(request.paywallId, 'upgrade');
-      expect(request.paywallVariantSlug, isNull);
-      expect(request.experimentId, 'upgrade-copy');
-      expect(request.experimentVariantId, 'concise');
-      expect(request.experimentEpoch, 1);
     });
 
     test('omits every absent optional field', () {
@@ -99,9 +73,6 @@ void main() {
         'paywallId',
         'paywallVariantSlug',
         'paywallPublishedVersion',
-        'experimentId',
-        'experimentVariantId',
-        'experimentEpoch',
       ]) {
         json[field] = null;
       }
@@ -177,9 +148,6 @@ void main() {
         paywallId: 'upgrade',
         paywallVariantSlug: 'control',
         paywallPublishedVersion: 7,
-        experimentId: 'upgrade-copy',
-        experimentVariantId: 'concise',
-        experimentEpoch: 1,
       );
 
       expect(
@@ -188,9 +156,7 @@ void main() {
         '"appAnonymousToken":"$_appAnonymousToken",'
         '"storeProductId":"pro_monthly","basePlanId":"monthly",'
         '"offerId":"intro","paywallId":"upgrade",'
-        '"paywallVariantSlug":"control","paywallPublishedVersion":7,'
-        '"experimentId":"upgrade-copy","experimentVariantId":"concise",'
-        '"experimentEpoch":1}',
+        '"paywallVariantSlug":"control","paywallPublishedVersion":7}',
       );
     });
 
@@ -276,17 +242,6 @@ void main() {
           );
         }
       }
-
-      for (final field in const ['experimentId', 'experimentVariantId']) {
-        for (final value in ['', oversized]) {
-          final json = _experimentRequestJson()..[field] = value;
-          expect(
-            () => CreatePurchaseIntentRequest.fromJson(json),
-            throwsArgumentError,
-            reason: '$field accepted a value of length ${value.length}',
-          );
-        }
-      }
     });
 
     test('accepts signed 64-bit min and max boundaries', () {
@@ -298,14 +253,6 @@ void main() {
           CreatePurchaseIntentRequest.fromJson(
             versionJson,
           ).paywallPublishedVersion,
-          value,
-        );
-
-        final experimentJson = _experimentRequestJson(epoch: value);
-        expect(
-          CreatePurchaseIntentRequest.fromJson(
-            experimentJson,
-          ).experimentEpoch,
           value,
         );
       }
@@ -321,13 +268,6 @@ void main() {
           throwsArgumentError,
           reason: 'paywallPublishedVersion accepted $value',
         );
-
-        final experimentJson = _experimentRequestJson(epoch: value);
-        expect(
-          () => CreatePurchaseIntentRequest.fromJson(experimentJson),
-          throwsArgumentError,
-          reason: 'experimentEpoch accepted $value',
-        );
       }
 
       final oversizedVersion = _requestWithRawNumericField(
@@ -342,31 +282,16 @@ void main() {
         () => CreatePurchaseIntentRequest.fromJson(oversizedVersion),
         throwsArgumentError,
       );
-
-      final oversizedEpoch = _requestWithRawNumericField(
-        _experimentRequestJson(),
-        'experimentEpoch',
-        '9223372036854775808',
-      );
-      expect(
-        () => CreatePurchaseIntentRequest.fromJson(oversizedEpoch),
-        throwsArgumentError,
-      );
     });
 
     test('rejects noninteger numeric fields', () {
-      for (final field in const [
-        'paywallPublishedVersion',
-        'experimentEpoch',
-      ]) {
+      for (final field in const ['paywallPublishedVersion']) {
         for (final value in <Object>[1.0, '1', true]) {
-          final json = field == 'experimentEpoch'
-              ? _experimentRequestJson()
-              : {
-                  ..._requiredRequestJson(),
-                  'paywallId': 'upgrade',
-                  'paywallPublishedVersion': 1,
-                };
+          final json = {
+            ..._requiredRequestJson(),
+            'paywallId': 'upgrade',
+            'paywallPublishedVersion': 1,
+          };
           json[field] = value;
           expect(
             () => CreatePurchaseIntentRequest.fromJson(json),
@@ -376,47 +301,14 @@ void main() {
       }
     });
 
-    test('rejects every partial experiment metadata tuple', () {
-      const fields = [
-        'experimentId',
-        'experimentVariantId',
-        'experimentEpoch',
-      ];
-      const values = <String, Object>{
-        'experimentId': 'upgrade-copy',
-        'experimentVariantId': 'concise',
-        'experimentEpoch': 1,
-      };
-
-      for (var mask = 1; mask < 7; mask += 1) {
-        final json = _requiredRequestJson()..['paywallId'] = 'upgrade';
-        for (var index = 0; index < fields.length; index += 1) {
-          if ((mask & (1 << index)) != 0) {
-            final field = fields[index];
-            json[field] = values[field];
-          }
-        }
-
-        expect(
-          () => CreatePurchaseIntentRequest.fromJson(json),
-          throwsArgumentError,
-          reason: 'partial experiment metadata mask $mask was accepted',
-        );
-      }
-    });
-
     test('requires paywall context for nested metadata', () {
       final variantWithoutPaywall = _requiredRequestJson()
         ..['paywallVariantSlug'] = 'control';
       final versionWithoutPaywall = _requiredRequestJson()
         ..['paywallPublishedVersion'] = 1;
-      final experimentWithoutPaywall = _experimentRequestJson()
-        ..remove('paywallId');
-
       for (final json in [
         variantWithoutPaywall,
         versionWithoutPaywall,
-        experimentWithoutPaywall,
       ]) {
         expect(
           () => CreatePurchaseIntentRequest.fromJson(json),
@@ -432,9 +324,6 @@ void main() {
         String? paywallId,
         String? paywallVariantSlug,
         int? paywallPublishedVersion,
-        String? experimentId,
-        String? experimentVariantId,
-        int? experimentEpoch,
       }) {
         return CreatePurchaseIntentRequest(
           purchaseIntentId: _purchaseIntentId,
@@ -445,9 +334,6 @@ void main() {
           paywallId: paywallId,
           paywallVariantSlug: paywallVariantSlug,
           paywallPublishedVersion: paywallPublishedVersion,
-          experimentId: experimentId,
-          experimentVariantId: experimentVariantId,
-          experimentEpoch: experimentEpoch,
         );
       }
 
@@ -462,25 +348,10 @@ void main() {
         ),
         returnsNormally,
       );
-      expect(
-        () => construct(
-          paywallId: 'upgrade',
-          experimentId: 'upgrade-copy',
-          experimentVariantId: 'concise',
-          experimentEpoch: _maxSignedInt64,
-        ),
-        returnsNormally,
-      );
-
       for (final createInvalid in <CreatePurchaseIntentRequest Function()>[
         () => construct(basePlanId: 'monthly'),
         () => construct(paywallVariantSlug: 'control'),
         () => construct(paywallPublishedVersion: 1),
-        () => construct(
-              experimentId: 'upgrade-copy',
-              experimentVariantId: 'concise',
-              experimentEpoch: 1,
-            ),
         () => construct(
               paywallId: 'upgrade',
               paywallPublishedVersion: 0,
@@ -489,33 +360,8 @@ void main() {
               paywallId: 'upgrade',
               paywallPublishedVersion: -1,
             ),
-        () => construct(
-              paywallId: 'upgrade',
-              experimentId: 'upgrade-copy',
-              experimentVariantId: 'concise',
-              experimentEpoch: 0,
-            ),
-        () => construct(
-              paywallId: 'upgrade',
-              experimentId: 'upgrade-copy',
-              experimentVariantId: 'concise',
-              experimentEpoch: -1,
-            ),
       ]) {
         expect(createInvalid, throwsA(isA<AssertionError>()));
-      }
-
-      for (var mask = 1; mask < 7; mask += 1) {
-        expect(
-          () => construct(
-            paywallId: 'upgrade',
-            experimentId: (mask & (1 << 0)) != 0 ? 'upgrade-copy' : null,
-            experimentVariantId: (mask & (1 << 1)) != 0 ? 'concise' : null,
-            experimentEpoch: (mask & (1 << 2)) != 0 ? 1 : null,
-          ),
-          throwsA(isA<AssertionError>()),
-          reason: 'partial constructor tuple mask $mask was accepted',
-        );
       }
     });
 

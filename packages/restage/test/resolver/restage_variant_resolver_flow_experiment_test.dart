@@ -119,10 +119,6 @@ void main() {
 
     server.requests[1].complete(_surfaceResponse(
       _flowEnvelope(screen: hostedScreen, publishedVersion: 9),
-      decision: 'assigned',
-      experimentId: 'experiment-flow',
-      variantId: 'variant-b',
-      experimentEpoch: 7,
     ));
     final payload = await resolved as FlowPaywallPayload;
     await Future<void>.delayed(Duration.zero);
@@ -130,9 +126,6 @@ void main() {
     expect(server.requests, hasLength(2));
     expect(payload.acceptedCandidate, isNotNull);
     expect(payload.flow, same(payload.acceptedCandidate!.candidateRoot));
-    expect(payload.experimentId, 'experiment-flow');
-    expect(payload.variantId, 'variant-b');
-    expect(payload.experimentEpoch, 7);
     expect(payload.paywallPublishedVersion, 9);
     expect(payload.flow.screenBlobs['welcome'], hostedScreen);
     expect(
@@ -145,7 +138,7 @@ void main() {
   });
 
   test(
-      'missing flow preflight preserves the legacy blob request body and still '
+      'missing flow preflight preserves the ordinary blob request body and still '
       'reaches the rfw fallback', () async {
     final presentationBundle = _ControlledPaywallBundle()
       ..writeBlob('pro_upgrade', Uint8List.fromList(<int>[1, 2, 3]));
@@ -226,7 +219,6 @@ void main() {
     expect(server.requests, isEmpty);
     expect(payload.acceptedCandidate, isNull);
     expect(payload.resolvedFromActiveArm, isFalse);
-    expect(payload.experimentId, isNull);
     expect(payload.pinnedFlowResolver, isNotNull);
     expect(payload.flow.screenBlobs['welcome'], bundledScreen);
     expect(payload.hasHostedExperimentAuthority, isFalse);
@@ -267,18 +259,10 @@ void main() {
     actorGeneration += 1;
     server.requests[0].complete(_surfaceResponse(
       _flowEnvelope(screen: staleScreen, publishedVersion: 8),
-      decision: 'assigned',
-      experimentId: 'stale-experiment',
-      variantId: 'stale-variant',
-      experimentEpoch: 1,
     ));
     await _waitUntil(() => server.requests.length == 2);
     server.requests[1].complete(_surfaceResponse(
       _flowEnvelope(screen: freshScreen, publishedVersion: 9),
-      decision: 'assigned',
-      experimentId: 'fresh-experiment',
-      variantId: 'fresh-variant',
-      experimentEpoch: 2,
     ));
 
     final payload = await resolved as FlowPaywallPayload;
@@ -288,7 +272,6 @@ void main() {
     expect(
         _requestBody(server.requests[1].request)['assignmentKey'], 'actor-1');
     expect(payload.flow.screenBlobs['welcome'], freshScreen);
-    expect(payload.experimentId, 'fresh-experiment');
   });
 
   test('identity drift during canonical retry rejects both stale responses',
@@ -318,10 +301,6 @@ void main() {
     await _waitUntil(() => server.requests.length == 1);
     final staleResponse = _surfaceResponse(
       _flowEnvelope(screen: staleScreen, publishedVersion: 8),
-      decision: 'assigned',
-      experimentId: 'stale-experiment',
-      variantId: 'stale-variant',
-      experimentEpoch: 1,
     );
     server.requests[0].complete(_surfaceResponse(
       _flowEnvelope(screen: staleScreen, publishedVersion: 8),
@@ -333,10 +312,6 @@ void main() {
     await _waitUntil(() => server.requests.length == 3);
     server.requests[2].complete(_surfaceResponse(
       _flowEnvelope(screen: freshScreen, publishedVersion: 9),
-      decision: 'assigned',
-      experimentId: 'fresh-experiment',
-      variantId: 'fresh-variant',
-      experimentEpoch: 2,
     ));
 
     final payload = await resolved as FlowPaywallPayload;
@@ -401,10 +376,6 @@ void main() {
         <String, Uint8List>{'welcome': staleRootScreen},
         publishedVersion: 9,
       ),
-      decision: 'assigned',
-      experimentId: 'experiment-flow',
-      variantId: 'variant-b',
-      experimentEpoch: 7,
     ));
     await _waitUntil(() => server.requests.length == 2);
     final staleChildRequest = _requestBody(server.requests[1].request);
@@ -423,10 +394,6 @@ void main() {
         <String, Uint8List>{'welcome': candidateRootScreen},
         publishedVersion: 10,
       ),
-      decision: 'assigned',
-      experimentId: 'experiment-flow',
-      variantId: 'variant-b',
-      experimentEpoch: 8,
     ));
     await _waitUntil(() => server.requests.length == 4);
     final freshChildRequest = _requestBody(server.requests[3].request);
@@ -537,10 +504,6 @@ void main() {
     current = false;
     server.requests[0].complete(_surfaceResponse(
       _flowEnvelope(screen: disposedScreen, publishedVersion: 9),
-      decision: 'assigned',
-      experimentId: 'disposed-experiment',
-      variantId: 'disposed-variant',
-      experimentEpoch: 1,
     ));
     await expectLater(
       disposed,
@@ -583,7 +546,6 @@ void main() {
     expect(request, isNot(contains('flowContractHash')));
     expect(request, isNot(contains('flowContractBytes')));
     expect(payload.acceptedCandidate, isNull);
-    expect(payload.experimentId, isNull);
   });
 
   test('a custom fallback is never preflighted or auto-enrolled', () async {
@@ -622,19 +584,11 @@ Map<String, Object?> _requestBody(http.Request request) =>
 
 http.Response _surfaceResponse(
   Uint8List envelope, {
-  String? decision,
-  String? experimentId,
-  String? variantId,
-  int? experimentEpoch,
   bool flowContractRequired = false,
 }) {
   return http.Response(
     jsonEncode(<String, Object?>{
       ..._delivery.describeEnvelope(envelope),
-      if (decision != null) 'decision': decision,
-      if (experimentId != null) 'experimentId': experimentId,
-      if (variantId != null) 'variantId': variantId,
-      if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
       if (flowContractRequired) 'flowContractRequired': true,
     }),
     200,

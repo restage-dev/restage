@@ -73,7 +73,7 @@ void main() {
     expect(warm.containsKey('flowContractBytes'), isFalse);
 
     server.respondJson(0, {
-      ..._assignedBody(candidateEnvelope),
+      ..._contentBody(candidateEnvelope),
       'flowContractRequired': true,
     });
     await _waitFor(() => server.requests.length == 2);
@@ -88,7 +88,7 @@ void main() {
       warm['flowContractHash'],
     );
 
-    server.respondJson(1, _assignedBody(candidateEnvelope));
+    server.respondJson(1, _contentBody(candidateEnvelope));
     await tester.pumpAndSettle();
 
     expect(find.text('Candidate'), findsOneWidget);
@@ -119,12 +119,12 @@ void main() {
     await tester.pumpWidget(_host(resolver));
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(0, {
-      ..._assignedBody(candidateEnvelope),
+      ..._contentBody(candidateEnvelope),
       'flowContractRequired': true,
     });
     await _waitFor(() => server.requests.length == 2);
     server.respondJson(1, {
-      ..._assignedBody(candidateEnvelope),
+      ..._contentBody(candidateEnvelope),
       'flowContractRequired': true,
     });
     await tester.pumpAndSettle();
@@ -183,10 +183,10 @@ void main() {
     await _waitFor(() => server.requests.isNotEmpty);
 
     final firstKey = _requestBody(server.requests[0])['assignmentKey'];
-    server.respondJson(0, _assignedBody(candidateEnvelope));
+    server.respondJson(0, _contentBody(candidateEnvelope));
     if (firstKey == 'actor-0') {
       await _waitFor(() => server.requests.length == 2);
-      server.respondJson(1, _assignedBody(candidateEnvelope));
+      server.respondJson(1, _contentBody(candidateEnvelope));
     }
     await tester.pumpAndSettle();
 
@@ -247,7 +247,7 @@ void main() {
       ),
     );
     server.respondJson(0, {
-      ..._assignedBody(candidateEnvelope),
+      ..._contentBody(candidateEnvelope),
       'flowContractRequired': true,
     });
     await _waitFor(() => meteringLookups == 1);
@@ -257,10 +257,10 @@ void main() {
     await _waitFor(() => server.requests.length >= 2);
 
     final secondBody = _requestBody(server.requests[1]);
-    server.respondJson(1, _assignedBody(candidateEnvelope));
+    server.respondJson(1, _contentBody(candidateEnvelope));
     if (secondBody['assignmentKey'] == 'actor-0') {
       await _waitFor(() => server.requests.length == 3);
-      server.respondJson(2, _assignedBody(candidateEnvelope));
+      server.respondJson(2, _contentBody(candidateEnvelope));
     }
     await tester.pumpAndSettle();
 
@@ -396,7 +396,7 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(
+      _contentBody(
         _envelope(candidateRoot, {'welcome': candidateRootBytes}),
       ),
     );
@@ -409,7 +409,7 @@ void main() {
 
     server.respondJson(
       1,
-      _unassignedBody(
+      _contentBody(
         _envelope(baselineChild, {'screen': candidateChildBytes}),
       ),
     );
@@ -528,7 +528,7 @@ void main() {
     );
     server.respondJson(
       0,
-      _assignedBody(_envelope(candidateRoot, {'welcome': rootBytes})),
+      _contentBody(_envelope(candidateRoot, {'welcome': rootBytes})),
     );
     await _waitFor(() => meteringLookups == 1);
 
@@ -539,7 +539,7 @@ void main() {
     if (secondBody['surfaceSlug'] == 'child') {
       server.respondJson(
         1,
-        _unassignedBody(_envelope(child, {'screen': childBytes})),
+        _contentBody(_envelope(child, {'screen': childBytes})),
       );
       await _waitFor(() => server.requests.length == 3);
       server.respondNotFound(2);
@@ -554,7 +554,7 @@ void main() {
     await _waitFor(() => server.requests.length > beforeExactProbe);
     server.respondJson(
       beforeExactProbe,
-      _unassignedBody(_envelope(child, {'screen': childBytes})),
+      _contentBody(_envelope(child, {'screen': childBytes})),
     );
     await exactProbe;
     final exactProbePublished = server.requests.length == beforeExactProbe + 1;
@@ -574,9 +574,7 @@ void main() {
     expect(secondBody.containsKey('version'), isFalse);
     expect(exactProbePublished, isTrue);
     expect(resolved.document.version, baselineRoot.version);
-    expect(resolved.assignment, isNull);
     expect(nextRoot.document.version, baselineRoot.version);
-    expect(nextRoot.assignment, isNull);
   });
 
   test(
@@ -659,7 +657,7 @@ void main() {
     );
     server.respondJson(
       0,
-      _assignedBody(_envelope(candidateRoot, {'welcome': rootBytes})),
+      _contentBody(_envelope(candidateRoot, {'welcome': rootBytes})),
     );
     await _waitFor(() => meteringLookups == 1);
 
@@ -670,7 +668,7 @@ void main() {
     if (childPublished) {
       server.respondJson(
         1,
-        _unassignedBody(_envelope(child, {'screen': childBytes})),
+        _contentBody(_envelope(child, {'screen': childBytes})),
       );
     }
     await resolvedFuture;
@@ -680,7 +678,7 @@ void main() {
     await _waitFor(() => server.requests.length > beforeExactProbe);
     server.respondJson(
       beforeExactProbe,
-      _unassignedBody(_envelope(child, {'screen': childBytes})),
+      _contentBody(_envelope(child, {'screen': childBytes})),
     );
     await exactProbe;
 
@@ -762,7 +760,7 @@ void main() {
     );
     server.respondJson(
       0,
-      _assignedBody(_envelope(candidateRoot, {'welcome': rootBytes})),
+      _contentBody(_envelope(candidateRoot, {'welcome': rootBytes})),
     );
     await _waitFor(() => meteringLookups == 1);
     expect(server.requests, hasLength(1));
@@ -772,7 +770,7 @@ void main() {
     final childRequest = _requestBody(server.requests[1]);
     server.respondJson(
       1,
-      _unassignedBody(_envelope(child, {'screen': childBytes})),
+      _contentBody(_envelope(child, {'screen': childBytes})),
     );
     final root = await resolvedFuture;
     final pinnedChild = await presentation.resolve<Object?>(childRef);
@@ -801,7 +799,7 @@ void main() {
     expect(server.requests, hasLength(beforeCacheProbe));
   });
 
-  testWidgets('local child-closure parity rejection falls back unassigned',
+  testWidgets('local child-closure parity rejection falls back to baseline',
       (tester) async {
     SurfaceAssignmentKeyProvider.current = () => 'actor-a';
     final baselineChildBytes = screenBlob('Bundled child', 'next');
@@ -838,12 +836,12 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(_envelope(candidateRoot, const {})),
+      _contentBody(_envelope(candidateRoot, const {})),
     );
     await _waitFor(() => server.requests.length == 2);
     server.respondJson(
       1,
-      _unassignedBody(
+      _contentBody(
         _envelope(candidateChild, {'screen': candidateChildBytes}),
       ),
     );
@@ -854,7 +852,7 @@ void main() {
     expect(server.requests, hasLength(2));
   });
 
-  testWidgets('successful paint publishes the exact assigned artifact as HLG',
+  testWidgets('successful paint publishes the exact active artifact as HLG',
       (tester) async {
     final analyticsRequests = <http.Request>[];
     _configureAnalytics(analyticsRequests);
@@ -877,7 +875,7 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: candidateBytes),
         {'welcome': candidateBytes},
       )),
@@ -907,9 +905,6 @@ void main() {
     expect(hlgPresentations.single['surfaceId'], 'first_run');
     expect(hlgPresentations.single['surfaceVersion'], '2');
     expect(hlgPresentations.single['surfaceSessionId'], isNot(freshSession));
-    expect(hlgPresentations.single['experimentId'], 'exp_copy');
-    expect(hlgPresentations.single['variantId'], 'variant_a');
-    expect(hlgPresentations.single['experimentEpoch'], 3);
   });
 
   testWidgets(
@@ -940,7 +935,7 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: candidateBytes),
         {'welcome': candidateBytes},
       )),
@@ -979,9 +974,6 @@ void main() {
     expect(bundledPresentations.single['surfaceId'], 'first_run');
     expect(bundledPresentations.single['surfaceVersion'], '1');
     expect(bundledPresentations.single['surfaceSessionId'], isNotNull);
-    expect(bundledPresentations.single['experimentId'], isNull);
-    expect(bundledPresentations.single['variantId'], isNull);
-    expect(bundledPresentations.single['experimentEpoch'], isNull);
   });
 
   testWidgets(
@@ -1011,7 +1003,7 @@ void main() {
         _requestBody(server.requests[0])['flowContractHash']! as String;
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: candidateBytes),
         {'welcome': candidateBytes},
       )),
@@ -1116,14 +1108,14 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(
+      _contentBody(
         _envelope(candidateRoot, {'welcome': candidateRootBytes}),
       ),
     );
     await _waitFor(() => server.requests.length == 2);
     server.respondJson(
       1,
-      _unassignedBody(_envelope(child, {'screen': childBytes})),
+      _contentBody(_envelope(child, {'screen': childBytes})),
     );
     final freshRoot = await freshRootFuture;
     final freshChild = await freshPresentation.resolve<Object?>(childRef);
@@ -1158,14 +1150,10 @@ void main() {
       heldChild.screenBlobs['screen'],
       orderedEquals(freshChild.screenBlobs['screen']!),
     );
-    expect(heldRoot.assignment, freshRoot.assignment);
-    expect(heldChild.assignment, freshChild.assignment);
     expect(server.requests, hasLength(3));
   });
 
-  testWidgets(
-      'an assigned response cannot create authority without a sealed '
-      'assignment key', (tester) async {
+  testWidgets('active content renders without an identity key', (tester) async {
     SurfaceAssignmentKeyProvider.current = () => null;
     final bundledBytes = screenBlob('Bundled', 'next');
     final candidateBytes = screenBlob('Unauthorized candidate', 'next');
@@ -1186,7 +1174,7 @@ void main() {
     final request = _requestBody(server.requests.single);
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: candidateBytes),
         {'welcome': candidateBytes},
       )),
@@ -1195,14 +1183,14 @@ void main() {
 
     final observed = (
       bundled: find.text('Bundled').evaluate().length,
-      unauthorized: find.text('Unauthorized candidate').evaluate().length,
+      candidate: find.text('Unauthorized candidate').evaluate().length,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
     expect(request.containsKey('assignmentKey'), isFalse);
-    expect(observed.bundled, 1);
-    expect(observed.unauthorized, 0);
+    expect(observed.bundled, 0);
+    expect(observed.candidate, 1);
   });
 
   testWidgets(
@@ -1280,7 +1268,7 @@ void main() {
     await tester.pump();
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: candidateBytes),
         {'welcome': candidateBytes},
       )),
@@ -1295,147 +1283,6 @@ void main() {
     expect(find.text('Bundled'), findsOneWidget);
     expect(find.text('Disposed candidate'), findsNothing);
     expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('a painted assigned root locks refresh before another fetch',
-      (tester) async {
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Assigned', 'next');
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    server.respondJson(
-      0,
-      _assignedBody(_envelope(
-        _screenDocument(version: 2, screenBytes: candidateBytes),
-        {'welcome': candidateBytes},
-      )),
-    );
-    await tester.pumpAndSettle();
-
-    await Restage.reloadSurfaces();
-    await tester.pumpAndSettle();
-
-    expect(find.text('Assigned'), findsOneWidget);
-    expect(server.requests, hasLength(1));
-  });
-
-  testWidgets(
-      'an installed assigned root locks refresh before its frame commits',
-      (tester) async {
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final candidateBytes = screenBlob('Installed assigned', 'next');
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    server.respondJson(
-      0,
-      _assignedBody(_envelope(
-        _screenDocument(version: 2, screenBytes: candidateBytes),
-        {'welcome': candidateBytes},
-      )),
-    );
-    // Let the assigned artifact install without drawing its scheduled frame.
-    await tester.idle();
-
-    final refresh = Restage.reloadSurfaces();
-    await tester.idle();
-    final requestCountBeforePaint = server.requests.length;
-    server.completeOutstandingWithNotFound();
-    await refresh;
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-
-    expect(requestCountBeforePaint, 1);
-  });
-
-  testWidgets(
-      'refresh may fetch but cannot stage, promote, or publish a newly assigned '
-      'candidate', (tester) async {
-    SurfaceAssignmentKeyProvider.current = () => 'actor-a';
-    final bundledBytes = screenBlob('Bundled', 'next');
-    final currentBytes = screenBlob('Current unassigned', 'next');
-    final candidateBytes = screenBlob('Refresh assigned', 'next');
-    final server = _ControlledServer();
-    final resolver = ServerFlowResolver(
-      baseUrl: _baseUrl,
-      apiKey: _apiKey,
-      active: true,
-      bundle: _bundleFor(
-        _screenDocument(screenBytes: bundledBytes),
-        bundledBytes,
-      ),
-      httpClient: server.client,
-    );
-
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 1);
-    server.respondJson(
-      0,
-      _unassignedBody(_envelope(
-        _screenDocument(version: 2, screenBytes: currentBytes),
-        {'welcome': currentBytes},
-      )),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Current unassigned'), findsOneWidget);
-
-    await Restage.reloadSurfaces();
-    await _waitFor(() => server.requests.length == 2);
-    server.respondJson(
-      1,
-      _assignedBody(_envelope(
-        _screenDocument(version: 3, screenBytes: candidateBytes),
-        {'welcome': candidateBytes},
-      )),
-    );
-    await tester.pumpAndSettle();
-    final afterRefresh = (
-      current: find.text('Current unassigned').evaluate().length,
-      candidate: find.text('Refresh assigned').evaluate().length,
-    );
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await tester.pumpWidget(_host(resolver));
-    await _waitFor(() => server.requests.length == 3);
-    server.respondNotFound(2);
-    await tester.pumpAndSettle();
-    final afterRemount = (
-      current: find.text('Current unassigned').evaluate().length,
-      candidate: find.text('Refresh assigned').evaluate().length,
-    );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-
-    expect(afterRefresh.current, 1);
-    expect(afterRefresh.candidate, 0);
-    expect(afterRemount.current, 1);
-    expect(afterRemount.candidate, 0);
   });
 
   testWidgets(
@@ -1464,7 +1311,7 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: candidateBytes),
         {'welcome': candidateBytes},
       )),
@@ -1566,7 +1413,7 @@ void main() {
 
     server.respondJson(
       surveyIndex,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: surveyCandidate),
         {'welcome': surveyCandidate},
         surfaceType: Surface.survey,
@@ -1580,7 +1427,7 @@ void main() {
 
     server.respondJson(
       messageIndex,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: messageCandidate),
         {'welcome': messageCandidate},
         surfaceType: Surface.message,
@@ -1633,7 +1480,7 @@ void main() {
     actorGeneration += 1;
     server.respondJson(
       0,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: staleBytes),
         {'welcome': staleBytes},
       )),
@@ -1644,7 +1491,7 @@ void main() {
 
     server.respondJson(
       1,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: freshBytes),
         {'welcome': freshBytes},
       )),
@@ -1686,19 +1533,19 @@ void main() {
       {'welcome': staleBytes},
     );
     server.respondJson(0, {
-      ..._assignedBody(staleEnvelope),
+      ..._contentBody(staleEnvelope),
       'flowContractRequired': true,
     });
     await _waitFor(() => server.requests.length == 2);
 
     actorGeneration += 1;
-    server.respondJson(1, _assignedBody(staleEnvelope));
+    server.respondJson(1, _contentBody(staleEnvelope));
     await _waitFor(() => server.requests.length == 3);
     final requestBodies = server.requests.map(_requestBody).toList();
 
     server.respondJson(
       2,
-      _assignedBody(_envelope(
+      _contentBody(_envelope(
         _screenDocument(version: 2, screenBytes: freshBytes),
         {'welcome': freshBytes},
       )),
@@ -1766,26 +1613,26 @@ void main() {
     await _waitFor(() => server.requests.length == 1);
     server.respondJson(
       0,
-      _assignedBody(_envelope(staleRoot, {'welcome': staleRootBytes})),
+      _contentBody(_envelope(staleRoot, {'welcome': staleRootBytes})),
     );
     await _waitFor(() => server.requests.length == 2);
 
     actorGeneration += 1;
     server.respondJson(
       1,
-      _unassignedBody(_envelope(child, {'screen': childBytes})),
+      _contentBody(_envelope(child, {'screen': childBytes})),
     );
     await _waitFor(() => server.requests.length == 3);
     final requestBodies = server.requests.map(_requestBody).toList();
 
     server.respondJson(
       2,
-      _assignedBody(_envelope(freshRoot, {'welcome': freshRootBytes})),
+      _contentBody(_envelope(freshRoot, {'welcome': freshRootBytes})),
     );
     await _waitFor(() => server.requests.length == 4);
     server.respondJson(
       3,
-      _unassignedBody(_envelope(child, {'screen': childBytes})),
+      _contentBody(_envelope(child, {'screen': childBytes})),
     );
     await tester.pumpAndSettle();
 
@@ -1808,7 +1655,7 @@ void main() {
 
   testWidgets(
       'sustained identity churn before paint is bounded and ends bundled '
-      'unassigned', (tester) async {
+      'baseline', (tester) async {
     var actorGeneration = 0;
     SurfaceAssignmentKeyProvider.install(
       key: () => 'actor-$actorGeneration',
@@ -1835,7 +1682,7 @@ void main() {
       final candidateBytes = screenBlob('Candidate $attempt', 'next');
       server.respondJson(
           attempt,
-          _assignedBody(
+          _contentBody(
             _envelope(
               _screenDocument(version: 2, screenBytes: candidateBytes),
               {'welcome': candidateBytes},
@@ -2012,15 +1859,7 @@ Uint8List _envelope(
   ));
 }
 
-Map<String, Object?> _assignedBody(Uint8List envelope) => {
-      ..._delivery.describeEnvelope(envelope),
-      'decision': 'assigned',
-      'experimentId': 'exp_copy',
-      'variantId': 'variant_a',
-      'experimentEpoch': 3,
-    };
-
-Map<String, Object?> _unassignedBody(Uint8List envelope) => {
+Map<String, Object?> _contentBody(Uint8List envelope) => {
       ..._delivery.describeEnvelope(envelope),
     };
 

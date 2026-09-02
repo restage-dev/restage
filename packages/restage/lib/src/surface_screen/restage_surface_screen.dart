@@ -225,13 +225,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       sourceKind: SurfaceScreenRuntimeProvenance.sourceKind,
       payloadKind: SurfaceScreenRuntimeProvenance.payloadKind,
     );
-    final assignment = resolved.assignment;
     presentation.stage(
       surfaceVersion:
           (resolved.publishedRevision ?? provenance.contractVersion).toString(),
-      experimentId: assignment?.experimentId,
-      variantId: assignment?.variantId,
-      experimentEpoch: assignment?.experimentEpoch,
     );
     return _ScreenStage(
       provenance: provenance,

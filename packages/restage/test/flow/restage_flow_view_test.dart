@@ -1668,7 +1668,6 @@ void main() {
     expect(unavailable?.reason, 'render_failed');
     expect(controller.currentScreenEntryId, isNull);
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
     // onRuntimeError fired as a notification (not the safety mechanism).
     expect(notified, 1);
   });

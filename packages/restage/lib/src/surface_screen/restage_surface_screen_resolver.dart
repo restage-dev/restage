@@ -85,13 +85,6 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
             provenance,
             publicationBindingReference,
           );
-          if (resolved.assignment != null && lease.assignmentKey == null) {
-            throw const SurfaceScreenUnavailableError(
-              reason: SurfaceScreenUnavailableReason.contractMismatch,
-              message:
-                  'Hosted screen assignment does not match the request context.',
-            );
-          }
           _cache[key] = _CachedHostedScreen(screen: resolved, lease: lease);
           return resolved;
         case SurfaceScreenDeliveryAbsent():
@@ -176,7 +169,6 @@ final class RestageScreenResolver implements SurfaceScreenResolver {
         eventContractHash: response.eventContractHash,
         blob: payload.blob,
         contentHash: document.contentHash,
-        assignment: response.assignment,
         cacheHit: false,
       ),
       publicationBindingReference,

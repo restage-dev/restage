@@ -26,12 +26,7 @@ void main() {
       surfaceId: 'survey-root',
     );
 
-    presentation.stage(
-      surfaceVersion: '7',
-      experimentId: 'exp-survey',
-      variantId: 'variant-a',
-      experimentEpoch: 4,
-    );
+    presentation.stage(surfaceVersion: '7');
 
     expect(_bindingFrom(presentation).context, isNull);
     expect(presented, isEmpty);
@@ -46,9 +41,6 @@ void main() {
     expect(binding.context, presented.single);
     expect(binding.context!.surfaceVersion, '7');
     expect(binding.context!.surfaceSessionId, isNotEmpty);
-    expect(binding.context!.experimentId, 'exp-survey');
-    expect(binding.context!.variantId, 'variant-a');
-    expect(binding.context!.experimentEpoch, 4);
   });
 
   test('stage rejects an empty surface version', () {
@@ -90,38 +82,6 @@ void main() {
     expect(activeBinding.payloadKind, SurfacePayloadKind.blob);
     expect(deferredBinding.sourceKind, SurfaceSourceKind.screen);
     expect(deferredBinding.payloadKind, SurfacePayloadKind.blob);
-  });
-
-  test('a partial experiment triple is normalized to all-null at staging',
-      () async {
-    final presented = <RootAnalyticsEventContext>[];
-    final identity = _identity();
-    await identity.anonymousId();
-    RootAnalyticsRuntime.install(
-      identity: identity,
-      onSurfacePresented: presented.add,
-    );
-    final presentation = RootAnalyticsRuntime.createPresentation(
-      surface: 'survey',
-      surfaceId: 'survey-root',
-    );
-
-    presentation.stage(
-      surfaceVersion: '7',
-      experimentId: 'exp-partial',
-      variantId: 'variant-a',
-    );
-    presentation.activate();
-
-    expect(presented, hasLength(1));
-    expect(
-      (
-        presented.single.experimentId,
-        presented.single.variantId,
-        presented.single.experimentEpoch,
-      ),
-      (null, null, null),
-    );
   });
 
   test('overlapping presentations retain owner-specific active context',
@@ -168,12 +128,7 @@ void main() {
     final first = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
       surfaceId: 'upgrade',
-    )..stage(
-        surfaceVersion: '1',
-        experimentId: 'exp-a',
-        variantId: 'variant-a',
-        experimentEpoch: 1,
-      );
+    )..stage(surfaceVersion: '1');
     RootAnalyticsDeferredContext? firstSnapshot;
     first.captureDeferredContextOnActivation(
       (context) => firstSnapshot = context,
@@ -183,20 +138,12 @@ void main() {
     final replacement = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
       surfaceId: 'upgrade',
-    )..stage(
-        surfaceVersion: '2',
-        experimentId: 'exp-b',
-        variantId: 'variant-b',
-        experimentEpoch: 2,
-      );
+    )..stage(surfaceVersion: '2');
     replacement.activate();
     first.dispose();
 
     final binding = _bindingFrom(firstSnapshot!);
     expect(binding.context!.surfaceVersion, '1');
-    expect(binding.context!.experimentId, 'exp-a');
-    expect(binding.context!.variantId, 'variant-a');
-    expect(binding.context!.experimentEpoch, 1);
     expect(
       binding.context!.surfaceSessionId,
       isNot(_bindingFrom(replacement).context!.surfaceSessionId),
@@ -271,12 +218,7 @@ void main() {
     final stale = RootAnalyticsRuntime.createPresentation(
       surface: 'onboarding',
       surfaceId: 'first-run',
-    )..stage(
-        surfaceVersion: '8',
-        experimentId: 'exp-old',
-        variantId: 'variant-old',
-        experimentEpoch: 3,
-      );
+    )..stage(surfaceVersion: '8');
 
     final reset = identity.reset();
     RootAnalyticsRuntime.retireAll();
@@ -298,12 +240,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'onboarding',
       surfaceId: 'first-run',
-    )..stage(
-        surfaceVersion: '9',
-        experimentId: 'exp-onboarding',
-        variantId: 'variant-b',
-        experimentEpoch: 6,
-      );
+    )..stage(surfaceVersion: '9');
     presentation.activate();
 
     final reset = identity.reset();
@@ -328,12 +265,7 @@ void main() {
     final presentation = RootAnalyticsRuntime.createPresentation(
       surface: 'paywall',
       surfaceId: 'upgrade',
-    )..stage(
-        surfaceVersion: '12',
-        experimentId: 'exp-paywall',
-        variantId: 'variant-c',
-        experimentEpoch: 2,
-      );
+    )..stage(surfaceVersion: '12');
     presentation.activate();
     final deferred = presentation.captureDeferredContext();
     presentation.dispose();

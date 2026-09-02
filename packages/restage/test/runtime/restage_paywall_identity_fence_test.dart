@@ -217,8 +217,8 @@ void main() {
   });
 
   testWidgets(
-      'strict flow reset before first paint discards the assigned candidate, '
-      'publishes only the retried actor, and reuses only that HLG',
+      'strict flow reset before first paint discards the stale candidate, '
+      'publishes only the retried content, and reuses only that HLG',
       (tester) async {
     _registerResetPaintProbe(_ResetTiming.duringBuild);
     Restage.configure(
@@ -261,10 +261,6 @@ void main() {
           ),
         ],
       ),
-      decision: 'assigned',
-      experimentId: 'experiment-a',
-      variantId: 'variant-a',
-      experimentEpoch: 1,
     ));
 
     await _pumpUntil(tester, () => _ResetPaintProbe.resetTriggered);
@@ -272,29 +268,12 @@ void main() {
     final actorBScreen = screenBlob('Strict actor B', 'finish');
     server.requests[1].complete(_hostedResponse(
       _strictFlowEnvelope(screen: actorBScreen, version: 10),
-      decision: 'assigned',
-      experimentId: 'experiment-b',
-      variantId: 'variant-b',
-      experimentEpoch: 2,
     ));
     await tester.pumpAndSettle();
 
     expect(_ResetPaintProbe.paintCount, 0);
     expect(find.text('Strict actor B'), findsOneWidget);
-    expect(
-      events.whereType<PaywallViewed>().map((event) => (
-            experimentId: event.experimentId,
-            variantId: event.variantId,
-            experimentEpoch: event.experimentEpoch,
-          )),
-      orderedEquals(<Object>[
-        (
-          experimentId: 'experiment-b',
-          variantId: 'variant-b',
-          experimentEpoch: 2,
-        ),
-      ]),
-    );
+    expect(events.whereType<PaywallViewed>(), hasLength(1));
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -386,13 +365,9 @@ void main() {
 
     for (var attempt = 0; attempt < 3; attempt += 1) {
       await _waitUntil(() => server.requests.length == attempt + 1);
-      final candidate = screenBlob('Rejected candidate $attempt', 'finish');
+      final candidate = screenBlob('Rejected content $attempt', 'finish');
       server.requests[attempt].complete(_hostedResponse(
         _strictFlowEnvelope(screen: candidate, version: 10 + attempt),
-        decision: 'assigned',
-        experimentId: 'experiment-$attempt',
-        variantId: 'variant-$attempt',
-        experimentEpoch: attempt + 1,
       ));
       // Resolve and stage the candidate while its HTTP response Completer is
       // controlled, but do not draw the scheduled first-paint frame.
@@ -413,22 +388,14 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    final viewed = events.whereType<PaywallViewed>().toList();
     final observed = (
       requests: server.requests.length,
       loadedKeys: List<String>.of(bundle.loadedKeys),
       original: find.text('Original frozen baseline').evaluate().length,
       mutated: find.text('Mutated bundled baseline').evaluate().length,
-      candidates: find.textContaining('Rejected candidate').evaluate().length,
+      candidates: find.textContaining('Rejected content').evaluate().length,
       unavailable: events.whereType<FlowUnavailable>().length,
       failed: events.whereType<PaywallLoadFailed>().length,
-      assignment: viewed.length != 1
-          ? null
-          : (
-              viewed.single.experimentId,
-              viewed.single.variantId,
-              viewed.single.experimentEpoch,
-            ),
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -446,7 +413,6 @@ void main() {
     expect(observed.candidates, 0);
     expect(observed.unavailable, 0);
     expect(observed.failed, 0);
-    expect(observed.assignment, (null, null, null));
   });
 
   testWidgets(
@@ -498,13 +464,9 @@ void main() {
       identity.driftAfterPresentationFinalRecapture();
       server.requests[attempt].complete(_hostedResponse(
         _strictFlowEnvelope(
-          screen: screenBlob('Resolver-gap candidate $attempt', 'finish'),
+          screen: screenBlob('Resolver-gap content $attempt', 'finish'),
           version: 20 + attempt,
         ),
-        decision: 'assigned',
-        experimentId: 'resolver-gap-experiment-$attempt',
-        variantId: 'resolver-gap-variant-$attempt',
-        experimentEpoch: attempt + 1,
       ));
       await tester.idle();
       await _waitUntil(() => identity.completedDrifts == attempt + 1);
@@ -531,23 +493,14 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    final viewed = events.whereType<PaywallViewed>().toList();
     final observed = (
       requests: server.requests.length,
       loadedKeys: List<String>.of(bundle.loadedKeys),
       original: find.text('Original resolver-gap baseline').evaluate().length,
       mutated: find.text('Mutated resolver-gap baseline').evaluate().length,
-      candidates:
-          find.textContaining('Resolver-gap candidate').evaluate().length,
+      candidates: find.textContaining('Resolver-gap content').evaluate().length,
       unavailable: events.whereType<FlowUnavailable>().length,
       failed: events.whereType<PaywallLoadFailed>().length,
-      assignment: viewed.length != 1
-          ? null
-          : (
-              viewed.single.experimentId,
-              viewed.single.variantId,
-              viewed.single.experimentEpoch,
-            ),
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -565,7 +518,6 @@ void main() {
     expect(observed.candidates, 0);
     expect(observed.unavailable, 0);
     expect(observed.failed, 0);
-    expect(observed.assignment, (null, null, null));
   });
 
   testWidgets(
@@ -661,10 +613,6 @@ void main() {
         screen: screenBlob('Disposed candidate A', 'finish'),
         version: 9,
       ),
-      decision: 'assigned',
-      experimentId: 'experiment-a',
-      variantId: 'variant-a',
-      experimentEpoch: 1,
     ));
     await tester.idle();
     actorGeneration += 1;
@@ -678,10 +626,6 @@ void main() {
         screen: screenBlob('Disposed candidate B', 'finish'),
         version: 10,
       ),
-      decision: 'assigned',
-      experimentId: 'experiment-b',
-      variantId: 'variant-b',
-      experimentEpoch: 2,
     ));
     await tester.idle();
     await tester.pump();
@@ -694,9 +638,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'strict unassigned refresh promotes while a newly assigned refresh is '
-      'discarded and cannot replace HLG', (tester) async {
+  testWidgets('strict ordinary hosted refresh promotes and replaces HLG',
+      (tester) async {
     Restage.configure(
       apiKey: 'rs_pk_test',
       baseUrl: 'https://surfaces.example.com',
@@ -737,20 +680,16 @@ void main() {
     expect(find.text('Strict refreshed B'), findsOneWidget);
     expect(find.text('Strict current A'), findsNothing);
 
-    final rejectAssigned = Restage.reloadSurfaces();
+    final refresh = Restage.reloadSurfaces();
     await _pumpUntil(tester, () => server.requests.length == 3);
-    final screenC = screenBlob('Incorrect assigned refresh C', 'finish');
+    final screenC = screenBlob('Strict refreshed C', 'finish');
     server.requests[2].complete(_hostedResponse(
       _strictFlowEnvelope(screen: screenC, version: 11),
-      decision: 'assigned',
-      experimentId: 'experiment-c',
-      variantId: 'variant-c',
-      experimentEpoch: 3,
     ));
-    await rejectAssigned;
+    await refresh;
     await tester.pumpAndSettle();
-    expect(find.text('Strict refreshed B'), findsOneWidget);
-    expect(find.text('Incorrect assigned refresh C'), findsNothing);
+    expect(find.text('Strict refreshed C'), findsOneWidget);
+    expect(find.text('Strict refreshed B'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -761,7 +700,7 @@ void main() {
     server.requests[3].complete(http.Response('unavailable', 503));
     await tester.pumpAndSettle();
 
-    expect(find.text('Strict refreshed B'), findsOneWidget);
+    expect(find.text('Strict refreshed C'), findsOneWidget);
     expect(server.requests, hasLength(4));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
@@ -1037,9 +976,6 @@ void main() {
       server.requests[0].complete(
         _hostedResponse(
           _blobEnvelope('Actor A', version: 1),
-          experimentId: 'experiment-a',
-          variantId: 'variant-a',
-          experimentEpoch: 1,
         ),
       );
     }
@@ -1831,20 +1767,10 @@ String? _assignmentKey(http.Request request) {
   return body['assignmentKey'] as String?;
 }
 
-http.Response _hostedResponse(
-  Uint8List envelope, {
-  String? decision,
-  String? experimentId,
-  String? variantId,
-  int? experimentEpoch,
-}) {
+http.Response _hostedResponse(Uint8List envelope) {
   return http.Response(
     jsonEncode({
       ..._delivery.describeEnvelope(envelope),
-      if (decision != null) 'decision': decision,
-      if (experimentId != null) 'experimentId': experimentId,
-      if (variantId != null) 'variantId': variantId,
-      if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
     }),
     200,
   );

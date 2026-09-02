@@ -18,9 +18,6 @@ const _requestFields = {
   'paywallId',
   'paywallVariantSlug',
   'paywallPublishedVersion',
-  'experimentId',
-  'experimentVariantId',
-  'experimentEpoch',
 };
 
 /// Public request to durably create an immutable purchase intent.
@@ -37,9 +34,6 @@ final class CreatePurchaseIntentRequest {
     this.paywallId,
     this.paywallVariantSlug,
     this.paywallPublishedVersion,
-    this.experimentId,
-    this.experimentVariantId,
-    this.experimentEpoch,
   })  : assert(
           store == 'appStore' || store == 'playStore',
           'store must be appStore or playStore',
@@ -93,43 +87,6 @@ final class CreatePurchaseIntentRequest {
                               _maxSignedInt64LowChunk))),
           'paywallPublishedVersion must be an int from '
           '1 to 9223372036854775807',
-        ),
-        assert(
-          experimentId == null ||
-              (experimentId.length > 0 &&
-                  experimentId.length <= _maxStringLength),
-          'experimentId must contain 1 to 1024 characters',
-        ),
-        assert(
-          experimentVariantId == null ||
-              (experimentVariantId.length > 0 &&
-                  experimentVariantId.length <= _maxStringLength),
-          'experimentVariantId must contain 1 to 1024 characters',
-        ),
-        assert(
-          (experimentId == null &&
-                  experimentVariantId == null &&
-                  experimentEpoch == null) ||
-              (experimentId != null &&
-                  experimentVariantId != null &&
-                  experimentEpoch != null),
-          'experimentId, experimentVariantId, and experimentEpoch must be '
-          'provided together',
-        ),
-        assert(
-          experimentId == null || paywallId != null,
-          'experiment metadata requires paywallId',
-        ),
-        assert(
-          experimentEpoch == null ||
-              (experimentEpoch >= 1 &&
-                  (experimentEpoch ~/ _signedInt64ChunkBase <
-                          _maxSignedInt64HighChunk ||
-                      (experimentEpoch ~/ _signedInt64ChunkBase ==
-                              _maxSignedInt64HighChunk &&
-                          experimentEpoch % _signedInt64ChunkBase <=
-                              _maxSignedInt64LowChunk))),
-          'experimentEpoch must be an int from 1 to 9223372036854775807',
         );
 
   /// Strictly parses the frozen public request shape.
@@ -160,35 +117,6 @@ final class CreatePurchaseIntentRequest {
       'paywallPublishedVersion',
     );
 
-    final experimentId = _optionalBoundedString(json, 'experimentId');
-    final experimentVariantId = _optionalBoundedString(
-      json,
-      'experimentVariantId',
-    );
-    final experimentEpoch = _optionalPositiveSignedInt64(
-      json,
-      'experimentEpoch',
-    );
-
-    final hasAnyExperimentMetadata = experimentId != null ||
-        experimentVariantId != null ||
-        experimentEpoch != null;
-    final hasCompleteExperimentMetadata = experimentId != null &&
-        experimentVariantId != null &&
-        experimentEpoch != null;
-    if (hasAnyExperimentMetadata && !hasCompleteExperimentMetadata) {
-      throw ArgumentError.value(
-        {
-          'experimentId': experimentId,
-          'experimentVariantId': experimentVariantId,
-          'experimentEpoch': experimentEpoch,
-        },
-        'json',
-        'experimentId, experimentVariantId, and experimentEpoch must be '
-            'provided together',
-      );
-    }
-
     if (paywallVariantSlug != null && paywallId == null) {
       throw ArgumentError.value(
         paywallVariantSlug,
@@ -203,14 +131,6 @@ final class CreatePurchaseIntentRequest {
         'paywallId is required when paywallPublishedVersion is provided',
       );
     }
-    if (hasCompleteExperimentMetadata && paywallId == null) {
-      throw ArgumentError.value(
-        experimentId,
-        'experimentId',
-        'paywallId is required when experiment metadata is provided',
-      );
-    }
-
     final basePlanId = _optionalBoundedString(json, 'basePlanId');
     if (basePlanId != null && store != 'playStore') {
       throw ArgumentError.value(
@@ -230,9 +150,6 @@ final class CreatePurchaseIntentRequest {
       paywallId: paywallId,
       paywallVariantSlug: paywallVariantSlug,
       paywallPublishedVersion: paywallPublishedVersion,
-      experimentId: experimentId,
-      experimentVariantId: experimentVariantId,
-      experimentEpoch: experimentEpoch,
     );
   }
 
@@ -264,8 +181,7 @@ final class CreatePurchaseIntentRequest {
 
   /// Client-known paywall variant slug, when known.
   ///
-  /// This identifies a paywall variant. It is distinct from
-  /// [experimentVariantId], which identifies an experiment arm.
+  /// This identifies a paywall variant.
   final String? paywallVariantSlug;
 
   /// Client-known published paywall version, when known.
@@ -273,24 +189,6 @@ final class CreatePurchaseIntentRequest {
   /// This is the published-version counter carried by `ResolvedVariant` and
   /// `FlowPaywallPayload`, not a numeric persistence identifier.
   final int? paywallPublishedVersion;
-
-  /// Client-known experiment identifier, when known.
-  ///
-  /// This is assignment metadata carried by `ResolvedVariant` and
-  /// `FlowPaywallPayload`, not a numeric persistence identifier.
-  final String? experimentId;
-
-  /// Client-known experiment arm identifier, when known.
-  ///
-  /// This is the resolver's experiment `variantId`, not
-  /// [paywallVariantSlug] and not a numeric persistence identifier.
-  final String? experimentVariantId;
-
-  /// Client-known experiment epoch, when known.
-  ///
-  /// This is assignment metadata carried by `ResolvedVariant` and
-  /// `FlowPaywallPayload`, not a numeric persistence identifier.
-  final int? experimentEpoch;
 
   /// Converts this request to the frozen public JSON shape.
   Map<String, dynamic> toJson() {
@@ -305,10 +203,6 @@ final class CreatePurchaseIntentRequest {
       if (paywallVariantSlug != null) 'paywallVariantSlug': paywallVariantSlug,
       if (paywallPublishedVersion != null)
         'paywallPublishedVersion': paywallPublishedVersion,
-      if (experimentId != null) 'experimentId': experimentId,
-      if (experimentVariantId != null)
-        'experimentVariantId': experimentVariantId,
-      if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
     };
   }
 
@@ -324,10 +218,7 @@ final class CreatePurchaseIntentRequest {
             other.offerId == offerId &&
             other.paywallId == paywallId &&
             other.paywallVariantSlug == paywallVariantSlug &&
-            other.paywallPublishedVersion == paywallPublishedVersion &&
-            other.experimentId == experimentId &&
-            other.experimentVariantId == experimentVariantId &&
-            other.experimentEpoch == experimentEpoch;
+            other.paywallPublishedVersion == paywallPublishedVersion;
   }
 
   @override
@@ -341,9 +232,6 @@ final class CreatePurchaseIntentRequest {
         paywallId,
         paywallVariantSlug,
         paywallPublishedVersion,
-        experimentId,
-        experimentVariantId,
-        experimentEpoch,
       );
 }
 

@@ -19,9 +19,6 @@ final class RootAnalyticsEventContext {
     required this.surfaceId,
     required this.surfaceVersion,
     required this.surfaceSessionId,
-    required this.experimentId,
-    required this.variantId,
-    required this.experimentEpoch,
     this.sourceKind,
     this.payloadKind,
     this.canonicalEventId,
@@ -33,9 +30,6 @@ final class RootAnalyticsEventContext {
   final String surfaceId;
   final String surfaceVersion;
   final String surfaceSessionId;
-  final String? experimentId;
-  final String? variantId;
-  final int? experimentEpoch;
   final SurfaceSourceKind? sourceKind;
   final SurfacePayloadKind? payloadKind;
   final String? canonicalEventId;
@@ -51,9 +45,6 @@ final class RootAnalyticsEventContext {
         surfaceId: surfaceId,
         surfaceVersion: surfaceVersion,
         surfaceSessionId: surfaceSessionId,
-        experimentId: experimentId,
-        variantId: variantId,
-        experimentEpoch: experimentEpoch,
         sourceKind: sourceKind,
         payloadKind: payloadKind,
         canonicalEventId: eventId,
@@ -65,7 +56,7 @@ final class RootAnalyticsEventContext {
 ///
 /// A binding is always authoritative when present. [context] is null before
 /// paint and after identity retirement, which forces root session and
-/// assignment fields to null without losing the actual surface type/id.
+/// presentation fields to null without losing the actual surface type/id.
 @immutable
 final class RootAnalyticsEventBinding {
   RootAnalyticsEventBinding.active(RootAnalyticsEventContext context)
@@ -97,7 +88,7 @@ abstract interface class RootAnalyticsContextSource {
 
 /// Surface owner used before paint, after retirement, or without a renderable
 /// artifact. It preserves the actual surface type/id while forcing all root
-/// presentation and assignment fields to null.
+/// presentation fields to null.
 @immutable
 final class RootAnalyticsAnonymousContext
     implements RootAnalyticsContextSource {
@@ -352,9 +343,6 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
 
   void stage({
     required String surfaceVersion,
-    String? experimentId,
-    String? variantId,
-    int? experimentEpoch,
   }) {
     if (surfaceVersion.isEmpty) {
       throw ArgumentError.value(
@@ -370,8 +358,6 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
         !isIdentityCurrent) {
       return;
     }
-    final hasCompleteExperimentTriple =
-        experimentId != null && variantId != null && experimentEpoch != null;
     final identity = _identity;
     _staged = RootAnalyticsEventContext(
       identityGeneration: _identityGeneration!,
@@ -379,9 +365,6 @@ final class RootAnalyticsPresentation implements RootAnalyticsContextSource {
       surfaceId: surfaceId,
       surfaceVersion: surfaceVersion,
       surfaceSessionId: identity.newEventId(),
-      experimentId: hasCompleteExperimentTriple ? experimentId : null,
-      variantId: hasCompleteExperimentTriple ? variantId : null,
-      experimentEpoch: hasCompleteExperimentTriple ? experimentEpoch : null,
       sourceKind: sourceKind,
       payloadKind: payloadKind,
     );
