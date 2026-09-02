@@ -16,7 +16,7 @@ them; expect their interfaces to change without a deprecation.
   browser, shows a code, completes on a second call), `restage_whoami`,
   `restage_logout`. Reuses any existing `restage login` session.
 - **Paywalls:** `restage_list_paywalls`, `restage_get_paywall` (compiled blob
-  as base64), `restage_publish_paywall`, `restage_get_published_version`.
+  as base64), `restage_push_paywall`, `restage_get_published_version`.
 - **Discovery:** `restage_list_organizations`, `restage_list_projects`,
   `restage_list_apps`, `restage_list_environments`.
 - **Products & store:** `restage_list_products`, `restage_import_products`,

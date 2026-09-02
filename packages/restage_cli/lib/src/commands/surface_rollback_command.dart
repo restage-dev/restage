@@ -24,7 +24,7 @@ import 'package:restage_shared/restage_shared.dart';
 ///
 /// Works for paywalls AND flow surfaces (onboarding / message / survey /
 /// general) — the re-point reaches the selected family's active-arm clients.
-/// The target version must exist in the published history; the command
+/// The target version must exist in the pushed history; the command
 /// validates this and previews the cohort impact before confirming.
 ///
 /// Requires a non-empty `--reason` for the audit trail. A destructive-op
@@ -95,7 +95,7 @@ class SurfaceRollbackCommand extends Command<int> {
 
   @override
   String get description =>
-      'Roll a surface family back to a previous published revision.';
+      'Roll a surface family back to a previous pushed revision.';
 
   @override
   Future<int> run() async {
@@ -189,7 +189,7 @@ class SurfaceRollbackCommand extends Command<int> {
       // before the confirm) and, defensively, by the backend gate.
 
       // Step 9: VERSION VALIDATION — the target version must exist in the
-      // published history before confirming the operation.
+      // pushed history before confirming the operation.
       final availableVersions = status.versions.map((v) => v.version).toList();
       if (!availableVersions.contains(toVersion)) {
         final available = availableVersions.isEmpty
@@ -363,7 +363,7 @@ class SurfaceRollbackCommand extends Command<int> {
             'fall back to their bundled copy.$changes $caveat';
       case RollbackPreflightClassification.noActiveBaseline:
         return '$kCohortImpactNotePrefix: nothing is currently live (killed or '
-            'never-activated) — this reactivates v${preflight.toVersion}.';
+            'never published) — this publishes v${preflight.toVersion}.';
       case RollbackPreflightClassification.unsupportedTargetShape:
       case RollbackPreflightClassification.unknown:
         // unsupportedTargetShape is reserved and no longer emitted by the

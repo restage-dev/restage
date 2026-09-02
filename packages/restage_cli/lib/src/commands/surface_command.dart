@@ -2,7 +2,7 @@ import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/surface_kill_command.dart';
 import 'package:restage_cli/src/commands/surface_history_command.dart';
-import 'package:restage_cli/src/commands/surface_activate_command.dart';
+import 'package:restage_cli/src/commands/surface_push_command.dart';
 import 'package:restage_cli/src/commands/surface_list_command.dart';
 import 'package:restage_cli/src/commands/surface_lock_command.dart';
 import 'package:restage_cli/src/commands/surface_publish_command.dart';
@@ -16,7 +16,7 @@ import 'package:restage_cli/src/io/interactive.dart';
 /// Generated publication metadata is the authority for surface identity and
 /// artifact assembly. An engagement surface (onboarding, message, survey,
 /// paywall, or general) is authored in Dart, compiled to a flow document plus
-/// per-screen blobs by the build step, and published to the backend through the
+/// per-screen blobs by the build step, and pushed to the backend through the
 /// shared delivery substrate. Adding a new surface-scoped command is a single
 /// `addSubcommand` call here.
 class SurfaceCommand extends Command<int> {
@@ -37,7 +37,7 @@ class SurfaceCommand extends Command<int> {
       ),
     );
     addSubcommand(
-      SurfacePublishCommand(
+      SurfacePushCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,
@@ -64,7 +64,7 @@ class SurfaceCommand extends Command<int> {
       ),
     );
     addSubcommand(
-      SurfaceActivateCommand(
+      SurfacePublishCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,
@@ -117,6 +117,6 @@ class SurfaceCommand extends Command<int> {
 
   @override
   String get description =>
-      'Manifest-driven publication and lifecycle for generated Flutter '
+      'Manifest-driven push and lifecycle for generated Flutter '
       'surfaces (including paywalls) in the current project and app.';
 }

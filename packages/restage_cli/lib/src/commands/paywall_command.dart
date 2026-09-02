@@ -1,10 +1,10 @@
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
 import 'package:restage_cli/src/commands/paywall_list_command.dart';
-import 'package:restage_cli/src/commands/paywall_publish_command.dart';
+import 'package:restage_cli/src/commands/paywall_push_command.dart';
 import 'package:restage_cli/src/commands/surface_kill_command.dart';
 import 'package:restage_cli/src/commands/surface_history_command.dart';
-import 'package:restage_cli/src/commands/surface_activate_command.dart';
+import 'package:restage_cli/src/commands/surface_publish_command.dart';
 import 'package:restage_cli/src/commands/surface_lock_command.dart';
 import 'package:restage_cli/src/commands/surface_rollback_command.dart';
 import 'package:restage_cli/src/commands/surface_status_command.dart';
@@ -16,7 +16,7 @@ import 'package:restage_shared/restage_shared.dart';
 ///
 /// `package:args`'s [CommandRunner] dispatches to a [Command] which can
 /// itself host subcommands — the conventional shape for a noun-verb CLI
-/// (`restage paywall list`, `restage paywall publish`, …). Adding a new
+/// (`restage paywall list`, `restage paywall push`, …). Adding a new
 /// paywall-scoped command is a single `addSubcommand` call here.
 class PaywallCommand extends Command<int> {
   /// Construct a paywall command group.
@@ -36,7 +36,7 @@ class PaywallCommand extends Command<int> {
       ),
     );
     addSubcommand(
-      PaywallPublishCommand(
+      PaywallPushCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,
@@ -65,7 +65,7 @@ class PaywallCommand extends Command<int> {
       ),
     );
     addSubcommand(
-      SurfaceActivateCommand(
+      SurfacePublishCommand(
         stdout: stdout,
         stderr: stderr,
         interactive: interactive,

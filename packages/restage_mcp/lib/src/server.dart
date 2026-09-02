@@ -80,7 +80,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     registerTool(_logoutTool, _scrubbed(_handleLogout));
     registerTool(_listPaywallsTool, _scrubbed(_handleListPaywalls));
     registerTool(_getPaywallTool, _scrubbed(_handleGetPaywall));
-    registerTool(_publishPaywallTool, _scrubbed(_handlePublishPaywall));
+    registerTool(_pushPaywallTool, _scrubbed(_handlePushPaywall));
     registerTool(
       _getPublishedVersionTool,
       _scrubbed(_handleGetPublishedVersion),
@@ -88,7 +88,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     registerTool(_listSurfacesTool, _scrubbed(_handleListSurfaces));
     registerTool(_surfaceStatusTool, _scrubbed(_handleSurfaceStatus));
     registerTool(_surfaceHistoryTool, _scrubbed(_handleSurfaceHistory));
-    registerTool(_publishSurfaceTool, _scrubbed(_handlePublishSurface));
+    registerTool(_pushSurfaceTool, _scrubbed(_handlePushSurface));
     registerTool(_rollbackPreflightTool, _scrubbed(_handleRollbackPreflight));
     registerTool(_rollbackSurfaceTool, _scrubbed(_handleRollbackSurface));
     registerTool(_listOrganizationsTool, _scrubbed(_handleListOrganizations));
@@ -245,11 +245,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     ),
   );
 
-  static final _publishPaywallTool = Tool(
-    name: 'restage_publish_paywall',
+  static final _pushPaywallTool = Tool(
+    name: 'restage_push_paywall',
     description:
-        'Publish a paywall\'s current draft to an environment. Returns the new '
-        'published version number (monotonic per paywall + environment). '
+        'Push a paywall\'s current draft to an environment. Returns the new '
+        'pushed version number (monotonic per paywall + environment). '
         'Requires an admin role on the organization.',
     inputSchema: Schema.object(
       properties: {
@@ -270,8 +270,10 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   static final _getPublishedVersionTool = Tool(
     name: 'restage_get_published_version',
     description:
-        'Get the most-recent published version number of a paywall in an '
-        'environment, or null when it has never been published there.',
+        'Get the paywall version currently live in an environment — the '
+        'published version the active pointer names — or null when nothing '
+        'is published there. A pushed version is not live until it is '
+        'published.',
     inputSchema: Schema.object(
       properties: {
         'projectSlug': Schema.string(description: 'The project slug.'),
@@ -328,7 +330,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     description:
         'Show the live lifecycle state of a surface in an environment: the '
         'active version, lock state, delivery shape (blob or flow), and the '
-        "published version history. Each flow version carries its delivery "
+        "pushed version history. Each flow version carries its delivery "
         "mode ('typed' or 'general'); a general version's flow structure can "
         'be recomposed over the air within the installed vocabulary.',
     inputSchema: Schema.object(
@@ -357,9 +359,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
   static final _surfaceHistoryTool = Tool(
     name: 'restage_surface_history',
     description:
-        'The audit timeline for one surface in an environment: publishes, '
-        'rollbacks, kills, locks — newest first, each with its actor, '
-        'outcome, and reason.',
+        'The audit timeline for one surface in an environment: pushes, '
+        'publishes, rollbacks, kills, locks — newest first, each with its '
+        'actor, outcome, and reason.',
     inputSchema: Schema.object(
       properties: {
         'projectSlug': Schema.string(description: 'The project slug.'),
@@ -383,11 +385,11 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     ),
   );
 
-  static final _publishSurfaceTool = Tool(
-    name: 'restage_publish_surface',
+  static final _pushSurfaceTool = Tool(
+    name: 'restage_push_surface',
     description:
-        "Publish a surface's current draft to an environment. Returns the "
-        'new published version number (monotonic per surface + '
+        "Push a surface's current draft to an environment. Returns the "
+        'new pushed version number (monotonic per surface + '
         'environment). Requires an admin role on the organization.',
     inputSchema: Schema.object(
       properties: {
@@ -899,16 +901,14 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     });
   }
 
-  /// Handle `restage_publish_paywall` — publish a draft to an environment.
-  Future<CallToolResult> _handlePublishPaywall(CallToolRequest request) {
+  /// Handle `restage_push_paywall` — push a draft to an environment.
+  Future<CallToolResult> _handlePushPaywall(CallToolRequest request) {
     final projectSlug = request.str('projectSlug');
     final appSlug = request.str('appSlug');
     final paywallSlug = request.str('paywallSlug');
     final environmentSlug = request.str('environmentSlug');
     final organizationId = request.optInt('organizationId');
-    return _withApi('publishing the paywall', surfaceNoun: 'paywall', (
-      api,
-    ) async {
+    return _withApi('pushing the paywall', surfaceNoun: 'paywall', (api) async {
       final version = await PaywallApi(api).publish(
         project: projectSlug,
         app: appSlug,
@@ -922,7 +922,7 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     });
   }
 
-  /// Handle `restage_get_published_version` — the latest published version.
+  /// Handle `restage_get_published_version` — the version now live.
   Future<CallToolResult> _handleGetPublishedVersion(CallToolRequest request) {
     final projectSlug = request.str('projectSlug');
     final appSlug = request.str('appSlug');
@@ -1045,9 +1045,9 @@ base class RestageMcpServer extends MCPServer with ToolsSupport {
     });
   }
 
-  /// Handle `restage_publish_surface` — publish a draft to an environment.
-  Future<CallToolResult> _handlePublishSurface(CallToolRequest request) {
-    return _withSurfaceApi(request, 'publishing the surface', (
+  /// Handle `restage_push_surface` — push a draft to an environment.
+  Future<CallToolResult> _handlePushSurface(CallToolRequest request) {
+    return _withSurfaceApi(request, 'pushing the surface', (
       api,
       surfaceType,
     ) async {

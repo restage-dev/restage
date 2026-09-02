@@ -72,9 +72,10 @@ bundles: it carries only inert references and literal values.
 - Catalog entries for any custom widgets you registered with `@RestageWidget`
   (see [`rfw_catalog_compiler`](https://pub.dev/packages/rfw_catalog_compiler)).
 
-Publish the generated entry by id:
+Push the generated entry by id, then publish the pushed revision:
 
 ```sh
+restage surface push welcome
 restage surface publish welcome
 ```
 

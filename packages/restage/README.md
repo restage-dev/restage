@@ -79,8 +79,9 @@ it as real Flutter widgets:
 RestagePaywall(id: 'pro_upgrade')
 ```
 
-Change the widget, rebuild, and the surface updates. Publish it with
-`restage surface publish pro_upgrade` and installed apps pick it up over the
+Change the widget, rebuild, and the surface updates. Push it with
+`restage surface push pro_upgrade`, then make that revision live with
+`restage surface publish pro_upgrade`, and installed apps pick it up over the
 air. The [Quickstart](https://github.com/restage-dev/restage/blob/main/QUICKSTART.md)
 walks through all of it, including the `build.yaml` for bundled assets.
 

@@ -117,11 +117,11 @@ class ConsoleCommandExecutor implements ConsoleOperationExecutor {
   }
 
   @override
-  Future<ConsoleOperationResult> publish({
+  Future<ConsoleOperationResult> push({
     required ConsoleContext context,
     required ConsoleSurface surface,
   }) {
-    return _run(['surface', 'publish', ..._surfaceArgs(context, surface)]);
+    return _run(['surface', 'push', ..._surfaceArgs(context, surface)]);
   }
 
   /// The shared target-selection arguments every surface lifecycle command

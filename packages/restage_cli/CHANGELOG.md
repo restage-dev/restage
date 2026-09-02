@@ -23,10 +23,10 @@ Commands:
 
 - `restage login` / `restage logout` / `restage whoami` — device-authorization
   sign-in, sign-out, and current-session identity.
-- `restage paywall list` / `restage paywall publish` — list paywalls and publish
-  a compiled paywall to an environment.
-- `restage surface publish` — publish an engagement surface (onboarding,
-  message, survey).
+- `restage paywall list` / `restage paywall push` — list paywalls and push a
+  compiled paywall to an environment.
+- `restage surface push` — push a surface version to an environment.
+- `restage surface publish` — make one pushed revision live.
 - `restage init` — bootstrap Restage into an existing Flutter project.
 - `restage preview` — launch the local desktop preview for a compiled blob.
 - `restage doctor` — diagnose the local toolchain setup.

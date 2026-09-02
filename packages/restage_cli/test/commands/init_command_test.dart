@@ -118,8 +118,8 @@ void main() {
         final starterSource = await starter.readAsString();
         expect(starterSource, contains('@Paywall()'));
         expect(starterSource, isNot(contains('@Paywall(id:')));
-        expect(stdout.toString(), contains('restage surface publish starter'));
-        expect(stdout.toString(), isNot(contains('restage paywall publish')));
+        expect(stdout.toString(), contains('restage surface push starter'));
+        expect(stdout.toString(), isNot(contains('restage paywall push')));
 
         // Pubspec edits applied.
         final pubspecContent = await File(

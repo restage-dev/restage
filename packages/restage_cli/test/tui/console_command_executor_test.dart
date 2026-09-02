@@ -339,14 +339,14 @@ void main() {
     expect(lockCalls, hasLength(2));
   });
 
-  test('publish routes through surface publish command core', () async {
+  test('push routes through surface push command core', () async {
     final fixture = await _seedExecutorFixture(environment: 'staging');
     final entry = await seedGeneratedPaywall(fixture.dir, slug: 'pro');
 
-    var publishCalls = 0;
+    var pushCalls = 0;
     final client = scriptedHttpClient([
       (request) {
-        publishCalls++;
+        pushCalls++;
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['method'], surfacePublicationUploadMethod);
         expect(body['environmentSlug'], 'staging');
@@ -383,13 +383,13 @@ void main() {
       directory: fixture.dir,
     );
 
-    final result = await executor.publish(
+    final result = await executor.push(
       context: _context('staging'),
       surface: _surface,
     );
 
     expect(result.exitCode, 0);
-    expect(publishCalls, 1);
+    expect(pushCalls, 1);
   });
 
   for (final environment in const ['dev', 'staging']) {

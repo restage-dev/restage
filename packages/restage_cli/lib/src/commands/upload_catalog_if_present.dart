@@ -9,7 +9,7 @@ import 'package:restage_cli/src/api/typed_error_renderer.dart';
 ///
 /// A missing catalog means there are no registered custom widgets to push and
 /// is intentionally silent. Upload failures are warnings because the caller's
-/// primary publish operation has already succeeded.
+/// primary push operation has already succeeded.
 Future<void> uploadCatalogIfPresent({
   required RestageApi api,
   required String project,

@@ -27,6 +27,7 @@ dev_dependencies:
 
 ```sh
 dart run build_runner build
+restage surface push <id>
 restage surface publish <id>
 ```
 
