@@ -201,42 +201,29 @@ Future<Map<String, Uint8List>> _unpackBundle(
   return written;
 }
 
-/// Copy the real `first_run` flow document and its referenced screen blobs
-/// into [dir] under the codegen on-disk layout
-/// (`assets/<type>/flows/<slug>.flow.json` + `assets/<type>/screens/*.rfw`).
+/// Unpack the example app's real `<slug>` flow document and every screen it
+/// references into [dir], each at its own logical delivery path.
 ///
-/// Returns the resolved flow JSON path. The blobs are the real committed
-/// artifacts, so their SHA-256 content hashes match the flow document — a
-/// faithful payload assembles without a stale-blob error. Each screen's
-/// capability sidecar is copied alongside its blob, since the flow assembler
-/// reads them to union the flow's required libraries.
+/// Returns the resolved flow JSON path. Every artifact is the committed one,
+/// so the content hashes agree with the flow document and the capability
+/// sidecars carry the requirements the real screens declare.
 ///
 /// Read from the tracked `.rsbundle`s rather than a loose asset tree: the
 /// bundles ARE the shipped artifact, and a loose mirror of them is a second
-/// copy that can rot or, as happened here, be deleted while the tests that
-/// depend on it keep passing against another checkout.
+/// copy that can rot or be deleted while the tests that depend on it keep
+/// passing against another checkout.
 Future<String> seedSurfaceFlow(
   Directory dir, {
   String type = 'onboarding',
   String slug = 'first_run',
 }) async {
   final bundles = locateExampleBundles();
-  final flowsDst = Directory(p.join(dir.path, 'assets', type, 'flows'));
-  final screensDst = Directory(p.join(dir.path, 'assets', type, 'screens'));
-  await flowsDst.create(recursive: true);
-  await screensDst.create(recursive: true);
-
   final flowEntries = await _unpackBundle(
     dir,
-    p.join(bundles.path, type, 'flows', 'first_run.rsbundle'),
+    p.join(bundles.path, type, 'flows', '$slug.rsbundle'),
   );
-  final flowJson = utf8.decode(
-    flowEntries['assets/$type/flows/first_run.flow.json']!,
-  );
-  final flowPath = p.join(flowsDst.path, '$slug.flow.json');
-  await File(flowPath).writeAsString(flowJson);
-
-  final doc = FlowDocumentCodec.decodeJson(flowJson);
+  final flowPath = 'assets/$type/flows/$slug.flow.json';
+  final doc = FlowDocumentCodec.decodeJson(utf8.decode(flowEntries[flowPath]!));
   for (final artifact in doc.screenArtifacts.values) {
     await _unpackBundle(
       dir,
@@ -248,7 +235,7 @@ Future<String> seedSurfaceFlow(
       ),
     );
   }
-  return flowPath;
+  return p.join(dir.path, flowPath);
 }
 
 // seedPaywallFlow and seedPaywallBlob lived here and are gone. Both read the

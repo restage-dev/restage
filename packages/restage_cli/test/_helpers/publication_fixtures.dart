@@ -425,6 +425,74 @@ Future<void> writeMeasurementPublicationIndex(
   );
 }
 
+/// The extract of the example app's generated Measurement publication index
+/// that flow fixtures select their draft from.
+///
+/// Refresh it from `apps/examples/lib/generated/restage.measurement.index.json`
+/// after `cd apps/examples && dart run build_runner build`.
+const String exampleMeasurementIndexFixturePath =
+    'packages/restage_cli/test/_fixtures/restage.measurement.index.json';
+
+/// Write the generated Measurement publication index for [entry] from the
+/// example app's own build output.
+///
+/// The draft passes through unchanged; only the package envelope is
+/// restated, since the fixture's output index owns a different package name.
+Future<void> seedExampleMeasurementPublicationIndex(
+  Directory projectRoot,
+  SurfacePublicationManifestEntry entry, {
+  GeneratedOutputLayout layout = GeneratedOutputLayout.generatedDirectory,
+}) async {
+  final source =
+      jsonDecode(
+            await File(
+              p.join(
+                locateCheckoutRoot().path,
+                exampleMeasurementIndexFixturePath,
+              ),
+            ).readAsString(),
+          )
+          as Map<String, Object?>;
+  final publication = entry.publication;
+  final selected = [
+    for (final indexed in source['entries']! as List<Object?>)
+      if (_selectsPublication(
+        (indexed! as Map<String, Object?>)['selector']! as Map<String, Object?>,
+        publication,
+      ))
+        indexed,
+  ];
+  if (selected.length != 1) {
+    throw StateError(
+      'the example Measurement index holds ${selected.length} drafts for '
+      '${publication.surface.wireName}/${publication.slug}',
+    );
+  }
+  await File(
+    p.join(
+      projectRoot.path,
+      layout.metadataDirectory,
+      restageMeasurementPublicationIndexFileName,
+    ),
+  ).writeAsBytes(
+    CanonicalJsonCodec.encode({
+      'entries': selected,
+      'kind': source['kind'],
+      'package': fixturePackageName,
+      'schemaVersion': source['schemaVersion'],
+    }),
+  );
+}
+
+bool _selectsPublication(
+  Map<String, Object?> selector,
+  SurfacePublication publication,
+) =>
+    selector['surface'] == publication.surface.wireName &&
+    selector['slug'] == publication.slug &&
+    selector['sourceKind'] == publication.sourceKind.wireName &&
+    selector['contractVersion'] == publication.contractVersion;
+
 /// Compute the candidate reference expected for an exact generated closure.
 MeasurementPublicationCandidateReferenceV1
 expectedMeasurementCandidateReference({
