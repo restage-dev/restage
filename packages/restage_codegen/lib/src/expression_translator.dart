@@ -938,22 +938,13 @@ final class ExpressionTranslator {
     }
 
     final name = blueprint.rfwName;
-    // A name that shadows the paywall root or a DIFFERENT catalog widget would
+    // A name that shadows a surface root or a DIFFERENT catalog widget would
     // make a reference in the blob ambiguous — the same diagnostic the inline
     // path raises. The widget's OWN catalog entry (same name AND same source)
     // is not a collision: a registered inlinable widget inlines itself.
-    final shadowsOtherCatalogWidget = catalog.widgets
-        .any((w) => w.name == name && w.flutterType != blueprint.classKey);
-    if (name == paywallRootWidgetName || shadowsOtherCatalogWidget) {
-      issues.add(
-        _nameCollisionIssue(
-          blueprint.classKey,
-          name,
-          name == paywallRootWidgetName
-              ? 'the paywall root widget'
-              : 'the catalog widget',
-        ),
-      );
+    final conflict = _inlineNameConflict(name, blueprint.classKey);
+    if (conflict != null) {
+      issues.add(_nameCollisionIssue(blueprint.classKey, name, conflict));
       return resultWith(issues);
     }
 
@@ -6635,19 +6626,13 @@ final class ExpressionTranslator {
     // ambiguous — diagnose it rather than emit.
     final claimedBy = owners[name];
     if (claimedBy == null) {
-      if (name == paywallRootWidgetName) {
-        issues.add(
-          _nameCollisionIssue(key, name, 'the paywall root widget'),
-        );
-        return '';
-      }
-      // A DIFFERENT catalog widget sharing this name is a real ambiguity; the
-      // widget's OWN catalog entry (same name AND same source) is not — a
-      // registered inlinable widget inlines itself, and its definition simply
-      // shadows the (unused) reference.
-      if (catalog.widgets
-          .any((w) => w.name == name && w.flutterType != blueprint.classKey)) {
-        issues.add(_nameCollisionIssue(key, name, 'the catalog widget'));
+      // A surface root name, or a DIFFERENT catalog widget sharing this name,
+      // is a real ambiguity; the widget's OWN catalog entry (same name AND
+      // same source) is not — a registered inlinable widget inlines itself,
+      // and its definition simply shadows the (unused) reference.
+      final conflict = _inlineNameConflict(name, blueprint.classKey);
+      if (conflict != null) {
+        issues.add(_nameCollisionIssue(key, name, conflict));
         return '';
       }
       // Validate State field initialisers BEFORE claiming the name: if any
@@ -6728,6 +6713,19 @@ final class ExpressionTranslator {
       AbsentDslEmission() => '$name()',
       RefusedDslEmission() => '',
     };
+  }
+
+  /// Why the RFW widget name [name] cannot be claimed by the custom widget
+  /// [classKey] — a reserved surface root name, or a different catalog widget
+  /// already carrying it — or `null` when the name is free.
+  String? _inlineNameConflict(String name, String classKey) {
+    if (name == paywallRootWidgetName ||
+        name == onboardingScreenRootWidgetName) {
+      return 'a reserved surface root widget name';
+    }
+    final shadowsOtherCatalogWidget =
+        catalog.widgets.any((w) => w.name == name && w.flutterType != classKey);
+    return shadowsOtherCatalogWidget ? 'the catalog widget' : null;
   }
 
   /// Diagnostic for a custom widget [key] whose emitted RFW name [name]

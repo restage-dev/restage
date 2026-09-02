@@ -828,6 +828,84 @@ void main() {
       );
     });
 
+    test('diagnoses a custom widget whose name shadows the onboarding root',
+        () async {
+      final body = await parseExpressionForTest('Text("hi")');
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          // The custom widget would emit under the reserved root name.
+          _cardKey: CustomWidgetBlueprint(
+            classKey: _cardKey,
+            rfwName: 'OnboardingScreen',
+            buildExpression: body,
+            params: const [],
+          ),
+        },
+      );
+      final expr = await parseExpressionFromSourceForTest('''
+        class AcmeCard { const AcmeCard(); }
+        Object x() => AcmeCard();
+      ''');
+      final result = translator.translate(expr);
+
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.customWidgetNameCollision),
+      );
+      // Nothing may shadow the synthesized onboarding root definition.
+      expect(result.widgetDefinitions, isEmpty);
+    });
+
+    test('inlines a custom widget whose name is not a surface root', () async {
+      final body = await parseExpressionForTest('Text("hi")');
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          _cardKey: CustomWidgetBlueprint(
+            classKey: _cardKey,
+            rfwName: 'AcmeCard',
+            buildExpression: body,
+            params: const [],
+          ),
+        },
+      );
+      final expr = await parseExpressionFromSourceForTest('''
+        class AcmeCard { const AcmeCard(); }
+        Object x() => AcmeCard();
+      ''');
+      final result = translator.translate(expr);
+
+      expect(result.issues, isEmpty);
+      expect(result.widgetDefinitions['AcmeCard'], 'Text(text: "hi")');
+    });
+
     test('folds const references and const arithmetic in the body', () async {
       final body = await parseExpressionFromSourceForTest('''
         const double kGap = 16;
