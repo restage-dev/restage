@@ -296,6 +296,9 @@ void main() {
       transport: transport,
     );
     addTearDown(() async {
+      // The last update still has a validation error in flight; let it
+      // finish sending before the conversation is disposed.
+      await pumpEventQueue();
       conversation.dispose();
       transport.dispose();
       controller.dispose();
