@@ -21,6 +21,9 @@ enum IssueCode {
   /// Two `@PaywallSource` classes share the same `id`.
   duplicateId,
 
+  /// The package Measurement setting is invalid or conflicting.
+  measurementConfigurationInvalid,
+
   // Class shape
   /// Class doesn't extend `StatelessWidget`.
   unsupportedBaseClass,
@@ -103,14 +106,8 @@ enum IssueCode {
   unsupportedCommerceAuthoring,
 
   // Idiom auto-substitution
-  /// Codegen recognised a customer's imperative formatting idiom — e.g.
-  /// `Text(NumberFormat.currency(...).format(...))` — and rewrote it to a
-  /// semantically-equivalent catalog widget the customer did not name (e.g.
-  /// `RestagePrice`). The substitute's rendered output is identical (it runs
-  /// the same statically-extracted formatting), so this is **not** an error:
-  /// it is the announced-rewrite build notice, surfaced so the customer is
-  /// told at build time exactly what was rewritten and why (the source→blob
-  /// mapping is no longer 1:1 for the recognised idiom). Informational.
+  /// Codegen replaced a supported imperative formatting idiom with an
+  /// equivalent catalog widget. Informational.
   idiomAutoSubstituted,
 
   // Catalog validation
@@ -248,7 +245,7 @@ enum IssueCode {
 
   /// A `Theme.of(context).<x>(.<y>)` read in a transpiled widget resolves
   /// to a path the SDK's `data.theme.*` channel does not publish — e.g. a
-  /// `textTheme.*` read, a customer `ThemeExtension`, or a deprecated
+  /// `textTheme.*` read, an app-defined `ThemeExtension`, or a deprecated
   /// `ColorScheme` role. Emitting the reference would silently resolve to
   /// null at render time, so the build surfaces it as an authoring error.
   themeReadOutOfContract,
@@ -568,6 +565,7 @@ enum IssueCode {
         // Everything below is a real codegen error the author must resolve.
         IssueCode.annotationEvaluationFailed ||
         IssueCode.duplicateId ||
+        IssueCode.measurementConfigurationInvalid ||
         IssueCode.unsupportedBaseClass ||
         IssueCode.buildMethodMissing ||
         IssueCode.buildMethodTooComplex ||

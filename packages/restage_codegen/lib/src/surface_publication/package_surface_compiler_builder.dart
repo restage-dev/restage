@@ -15,6 +15,7 @@ import 'package:restage_codegen/src/codegen_builder.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
+import 'package:restage_codegen/src/measurement/measurement_configuration.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
@@ -101,6 +102,7 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   BuildStep buildStep,
   RestageOutputPlacementPlan plan,
   MeasurementCompilerPolicyInput measurementPolicy,
+  bool measurementEnabled,
 ) async {
   final issues = <Issue>[];
   // One selection, shared with the roster below: this compiler and the roster
@@ -541,6 +543,16 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   if (issues.isNotEmpty || provisionalBundle == null) {
     return _invalidCompilation(issues);
   }
+  if (!measurementEnabled) {
+    return _validCompilation(
+      provisionalBundle,
+      RestageMeasurementCompilerOutputV1.empty(),
+      AnalyticsIdControlOutputV1(
+        packageName: buildStep.inputId.package,
+        publications: const [],
+      ),
+    );
+  }
   final priorMeasurementOutput = await _readPriorMeasurementOutput(
     buildStep,
     issues,
@@ -960,6 +972,8 @@ final Resource<_TrackedCompilationCache> _trackedCompilationResource =
 
 final class _TrackedCompilationCache {
   final Map<String, Future<TrackedPackageSurfaceCompilation>> _byPackage = {};
+  final Map<String, Future<MeasurementConfigurationResult>>
+      _measurementConfigurationByPackage = {};
   final Map<String, ({String cacheKey, String builderKey})>
       _measurementPolicyByPackage = {};
 
@@ -975,6 +989,24 @@ final class _TrackedCompilationCache {
       builderKey: builderKey,
     );
     final package = buildStep.inputId.package;
+    final measurementConfigurationCandidates =
+        await selectRestageMeasurementConfigurationCandidates(buildStep);
+    // Every consumer registers these inputs, including on cache hits.
+    await registerMeasurementConfigurationDependencies(
+      buildStep,
+      measurementConfigurationCandidates,
+    );
+    final measurementConfiguration =
+        await _measurementConfigurationByPackage.putIfAbsent(
+      package,
+      () => resolveMeasurementConfiguration(
+        buildStep,
+        candidates: measurementConfigurationCandidates,
+      ),
+    );
+    if (!measurementConfiguration.isValid) {
+      return _invalidCompilation(measurementConfiguration.issues);
+    }
     final policyKey = measurementPolicy.cacheKey;
     final registeredPolicy = _measurementPolicyByPackage.putIfAbsent(
       package,
@@ -999,6 +1031,7 @@ final class _TrackedCompilationCache {
         buildStep,
         plan,
         measurementPolicy,
+        measurementConfiguration.enabled,
       ),
     );
   }
@@ -1044,8 +1077,7 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     for (final issue in compilation.issues) {
       log.severe(issue.toLogString());
     }
-    if (compilation.isValid &&
-        compilation.measurementCompilerOutput.policy != null) {
+    if (compilation.isValid) {
       await _ledgerWriter(
         package: buildStep.inputId.package,
         output: compilation.measurementCompilerOutput,

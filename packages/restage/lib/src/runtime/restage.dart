@@ -70,6 +70,7 @@ abstract final class Restage {
   static SurfaceScreenResolver _defaultSurfaceScreenResolver =
       const AssetSurfaceScreenResolver();
   static int _configurationGeneration = 0;
+  static bool _measurementEnabled = true;
 
   // App-global live-refresh configuration. `_liveRefresh` is the fallback
   // trigger set; `_liveRefreshOverrides` pins a per-surface set by id; both are
@@ -133,9 +134,12 @@ abstract final class Restage {
   /// set — hosted delivery and governed operations remain available. With no
   /// [baseUrl] analytics is already inactive regardless of this flag.
   ///
+  /// [measurementEnabled] (default `true`) controls new Measurement sessions.
+  /// When `false`, new sessions do not load publications or submit data.
+  ///
   /// Pass [liveRefreshEdgeUrl] with [baseUrl] to use Restage-hosted realtime
   /// update signals. A custom [updateChannel] takes precedence when both are
-  /// provided. If the hosted lane is unavailable, mounted surfaces continue
+  /// provided. If hosted refresh is unavailable, mounted surfaces continue
   /// without realtime refresh.
   ///
   /// [identity] is an **experimental, not-yet-active** hook (see
@@ -154,6 +158,7 @@ abstract final class Restage {
     required String apiKey,
     String? baseUrl,
     bool analyticsEnabled = true,
+    bool measurementEnabled = true,
     RestageEnvironment environment = RestageEnvironment.production,
     VariantResolver? resolver,
     FlowResolver? flowResolver,
@@ -175,6 +180,7 @@ abstract final class Restage {
       );
     }
     _configurationGeneration += 1;
+    _measurementEnabled = measurementEnabled;
     _apiKey = apiKey;
     _baseUrl = baseUrl;
     // A reconfiguration must never retain a client bound to the previous
@@ -457,7 +463,7 @@ abstract final class Restage {
     }
   }
 
-  /// Register a customer-defined widget [library] so its [widgets] can be
+  /// Register an app-defined widget [library] so its [widgets] can be
   /// used in paywalls. Call in `main()` before any `RestagePaywall` mounts.
   /// Re-registering the same namespace replaces the prior registration.
   ///
@@ -490,7 +496,7 @@ abstract final class Restage {
     );
   }
 
-  /// Immutable snapshot of the customer widget libraries registered so far.
+  /// Immutable snapshot of the app widget libraries registered so far.
   ///
   /// This lets a caller-owned RFW runtime use the same generated registration
   /// calls as the main SDK runtime without creating a second registry.
@@ -654,6 +660,9 @@ abstract final class Restage {
   @internal
   static int get configurationGeneration => _configurationGeneration;
 
+  @internal
+  static bool get isMeasurementEnabled => _measurementEnabled;
+
   static RestageRpcClient? _requireRpcClient() {
     return _rpcClient ??= _buildRpcClient();
   }
@@ -758,6 +767,7 @@ abstract final class Restage {
     _defaultResolver = const AssetVariantResolver();
     _defaultFlowResolver = const AssetFlowResolver();
     _defaultSurfaceScreenResolver = const AssetSurfaceScreenResolver();
+    _measurementEnabled = true;
     _liveRefresh = const {};
     _liveRefreshOverrides = const {};
     _updateChannel = null;
