@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
+import 'package:restage_cli/src/commands/surface_payload.dart';
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
@@ -78,15 +79,37 @@ void main() {
     },
   );
 
-  test('assembles a flow and unions verified sidecar requirements', () async {
-    final entry = await _seedGeneratedFlow(tempDir);
+  test('assembles a multi-screen flow over its whole closure', () async {
+    await _seedGeneratedFlow(tempDir, slug: 'first_run');
     final loaded = await SurfacePublicationManifestLoader().load(
       projectRoot: tempDir,
     );
 
     final assembled = await SurfacePublicationAssembler().assemble(
       loaded: loaded,
-      entry: entry,
+      entry: loaded.manifest.publications.single,
+    );
+
+    final payload = assembled.payload;
+    expect(payload, isA<FlowSurfacePayload>());
+    expect((payload as FlowSurfacePayload).screenBlobs, hasLength(4));
+    expect(payload.requiredLibraries, isEmpty);
+    expect(
+      assembled.request.publication.payloadContentHash,
+      payload.contentHash,
+    );
+    expect(assembled.measurementUpload, isNotNull);
+  });
+
+  test('unions verified sidecar requirements into the flow payload', () async {
+    await _seedGeneratedFlow(tempDir, slug: 'plan_board_showcase');
+    final loaded = await SurfacePublicationManifestLoader().load(
+      projectRoot: tempDir,
+    );
+
+    final assembled = await SurfacePublicationAssembler().assemble(
+      loaded: loaded,
+      entry: loaded.manifest.publications.single,
     );
 
     final payload = assembled.payload;
@@ -237,48 +260,21 @@ void main() {
   );
 }
 
-Future<SurfacePublicationManifestEntry> _seedGeneratedFlow(
-  Directory root,
-) async {
-  final flowPath = await seedSurfaceFlow(root, slug: 'first_run');
-  for (final item in const <String, int>{'ready': 2, 'welcome': 3}.entries) {
-    final blobPath = p.join(
-      root.path,
-      'assets/onboarding/screens/${item.key}.rfw',
-    );
-    final sidecarPath = p.join(
-      root.path,
-      'assets/onboarding/screens/${item.key}.capability.json',
-    );
-    final blob = await File(blobPath).readAsBytes();
-    await File(sidecarPath).writeAsString(
-      jsonEncode(
-        CapabilitySidecar(
-          blobSha256: CapabilitySidecar.hashBlob(blob),
-          manifest: CapabilityManifest(
-            builtInFloor: 1,
-            requiredLibraries: [
-              LibraryRequirement(
-                namespace: 'restage_example.widgets',
-                minVersion: item.value,
-              ),
-            ],
-          ),
-        ).toJson(),
-      ),
-    );
-  }
+/// Seed the example app's real `<slug>` flow closure and the generated
+/// Measurement draft that belongs to it.
+Future<void> _seedGeneratedFlow(Directory root, {required String slug}) async {
+  final flowPath = await seedSurfaceFlow(root, slug: slug);
   final flowBytes = await File(flowPath).readAsBytes();
   final document = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
   final artifacts = <SurfacePublicationArtifact>[
     SurfacePublicationArtifact(
       contentHash: CapabilitySidecar.hashBlob(flowBytes),
-      path: 'assets/onboarding/flows/first_run.flow.json',
+      path: 'assets/onboarding/flows/$slug.flow.json',
       role: SurfacePublicationArtifactRole.flowDocument,
     ),
   ];
   final screenBlobs = <String, Uint8List>{};
-  final sidecars = <String, CapabilitySidecar>{};
+  final perScreenLibraries = <List<LibraryRequirement>>[];
   for (final screen in document.screenArtifacts.entries) {
     final blobPath = 'assets/onboarding/screens/${screen.value.path}';
     final blob = await File(p.join(root.path, blobPath)).readAsBytes();
@@ -286,12 +282,14 @@ Future<SurfacePublicationManifestEntry> _seedGeneratedFlow(
       p.dirname(blobPath),
       '${p.basenameWithoutExtension(screen.value.path)}.capability.json',
     );
+    final sidecarBytes = await File(
+      p.join(root.path, sidecarPath),
+    ).readAsBytes();
     final sidecar = CapabilitySidecar.fromJson(
-      jsonDecode(await File(p.join(root.path, sidecarPath)).readAsString())
-          as Map<String, dynamic>,
+      jsonDecode(utf8.decode(sidecarBytes)) as Map<String, dynamic>,
     );
     screenBlobs[screen.key] = blob;
-    sidecars[screen.key] = sidecar;
+    perScreenLibraries.add(sidecar.manifest.requiredLibraries);
     artifacts.add(
       SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(blob),
@@ -300,9 +298,6 @@ Future<SurfacePublicationManifestEntry> _seedGeneratedFlow(
         id: screen.key,
       ),
     );
-    final sidecarBytes = await File(
-      p.join(root.path, sidecarPath),
-    ).readAsBytes();
     artifacts.add(
       SurfacePublicationArtifact(
         contentHash: CapabilitySidecar.hashBlob(sidecarBytes),
@@ -312,29 +307,22 @@ Future<SurfacePublicationManifestEntry> _seedGeneratedFlow(
       ),
     );
   }
-  final requiredLibraries = <LibraryRequirement>[
-    const LibraryRequirement(
-      namespace: 'restage_example.widgets',
-      minVersion: 3,
-    ),
-  ];
   final payload = FlowSurfacePayload(
     flowDocument: document,
     screenBlobs: screenBlobs,
-    requiredLibraries: requiredLibraries,
-  );
-  final publication = SurfacePublication(
-    surface: Surface.onboarding,
-    slug: document.flow,
-    sourceKind: SurfaceSourceKind.flowGraph,
-    payloadKind: SurfacePayloadKind.flow,
-    payloadContentHash: payload.contentHash,
-    deliveryMode: document.deliveryMode,
+    requiredLibraries: unionRequiredLibraries(perScreenLibraries),
   );
   final entry = SurfacePublicationManifestEntry(
     artifacts: artifacts,
-    publication: publication,
+    publication: SurfacePublication(
+      surface: Surface.onboarding,
+      slug: document.flow,
+      sourceKind: SurfaceSourceKind.flowGraph,
+      payloadKind: SurfacePayloadKind.flow,
+      payloadContentHash: payload.contentHash,
+      deliveryMode: document.deliveryMode,
+    ),
   );
   await writeGeneratedOutput(root, [entry]);
-  return entry;
+  await seedExampleMeasurementPublicationIndex(root, entry);
 }
