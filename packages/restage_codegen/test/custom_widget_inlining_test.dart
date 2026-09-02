@@ -5,6 +5,7 @@ import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/paywall_helpers.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -16,6 +17,9 @@ import 'helpers.dart';
 /// `package:restage_codegen/_expr_probe.dart`.
 const String _cardKey = 'package:restage_codegen/_expr_probe.dart#AcmeCard';
 
+/// The same class resolved in the Flutter fixture package, where the
+/// navigation recogniser sees a real `Navigator`.
+const String _appsCardKey = 'package:apps_examples/_expr_probe.dart#AcmeCard';
 RootContextParam _rootParamFrom(
   ResolvedMethodExpressionForTest probe, {
   String className = 'P',
@@ -1110,6 +1114,223 @@ Object x() => AcmeCard();
       final result = translator.attemptInlineEmit(classification, blueprint);
 
       expect(result.issues, isNotEmpty);
+    });
+  });
+  group('ExpressionTranslator — inlined custom-widget event parameters', () {
+    Future<TranslationResult> lowerCall(String argument) async {
+      final body = await parseExpressionForTest('GestureDetector(onTap: tap)');
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'GestureDetector',
+            properties: [prop('onTap', PropertyType.event)],
+          ),
+        ]),
+        helpers: HelperRegistry()..registerAll(paywallHelpers),
+        customWidgetClassifications: {
+          _appsCardKey: ComposableWidget(
+            _appsCardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          _appsCardKey: CustomWidgetBlueprint(
+            classKey: _appsCardKey,
+            rfwName: 'AcmeCard',
+            buildExpression: body,
+            params: const [
+              CustomWidgetParam(
+                name: 'tap',
+                isNumeric: false,
+                defaultValue: null,
+                isVoidCallback: true,
+              ),
+            ],
+          ),
+        },
+      );
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+class AcmeCard extends StatelessWidget {
+  const AcmeCard({this.tap, super.key});
+  final ValueChanged<bool>? tap;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => AcmeCard(tap: $argument);
+''',
+        rootPackage: 'apps_examples',
+      );
+      return translator.translate(expr);
+    }
+
+    Future<({TranslationResult result, CustomWidgetParam param})>
+        lowerTypedDestination({
+      required String destinationType,
+      String argument = "(v) => paywallEvent('x')",
+    }) async {
+      final catalog = catalogWith([
+        entry(
+          name: 'SizedBox',
+          flutterType: 'package:apps_examples/_expr_probe.dart#SizedBox',
+          properties: const [],
+        ),
+      ]);
+      final classification = await classifyFixtureResult(
+        {
+          'lib/_expr_probe.dart': '''
+$kClassifierStubs
+
+typedef VoidCallback = void Function();
+typedef ValueChanged<T> = void Function(T value);
+
+class SizedBox extends StatelessWidget {
+  const SizedBox();
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'AcmeCard',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'card',
+)
+class AcmeCard extends StatelessWidget {
+  const AcmeCard({this.tap});
+  final $destinationType tap;
+  Widget build(BuildContext context) => const SizedBox();
+}
+''',
+        },
+        inputPath: 'lib/_expr_probe.dart',
+        widgetName: 'AcmeCard',
+        catalog: catalog,
+      );
+      final blueprint = classification.blueprints[_appsCardKey]!;
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+class AcmeCard extends StatelessWidget {
+  const AcmeCard({this.tap, super.key});
+  final $destinationType tap;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x() => AcmeCard(tap: $argument);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = ExpressionTranslator(
+        catalog: catalog,
+        helpers: HelperRegistry()..registerAll(paywallHelpers),
+        customWidgetClassifications: classification.classifications,
+        customWidgetBlueprints: classification.blueprints,
+      ).translate(expr);
+      return (result: result, param: blueprint.params.single);
+    }
+
+    test('a value-callback closure lowers to its event at the call site',
+        () async {
+      final r = await lowerCall("(v) => paywallEvent('x')");
+      expect(r.issues, isEmpty);
+      expect(r.dsl, 'AcmeCard(tap: event "x" {})');
+      expect(
+        r.widgetDefinitions['AcmeCard'],
+        'GestureDetector(onTap: args.tap)',
+      );
+    });
+
+    test('classifier metadata admits a declared void callback', () async {
+      final lowered = await lowerTypedDestination(
+        destinationType: 'ValueChanged<bool>?',
+      );
+
+      expect(lowered.param.isVoidCallback, isTrue);
+      expect(lowered.result.issues, isEmpty);
+      expect(lowered.result.dsl, 'AcmeCard(tap: event "x" {})');
+    });
+
+    test('an async closure still binds to a declared void callback', () async {
+      final lowered = await lowerTypedDestination(
+        destinationType: 'ValueChanged<bool>?',
+        argument: "(v) async => paywallEvent('x')",
+      );
+
+      expect(lowered.param.isVoidCallback, isTrue);
+      expect(lowered.result.issues, isEmpty);
+      expect(lowered.result.dsl, 'AcmeCard(tap: event "x" {})');
+    });
+
+    for (final destination in <({String name, String type})>[
+      (name: 'Object?', type: 'Object?'),
+      (name: 'dynamic', type: 'dynamic'),
+      (name: 'Function', type: 'Function?'),
+      (
+        name: 'value-returning function',
+        type: 'VoidCallback Function(bool)?',
+      ),
+    ]) {
+      test('${destination.name} keeps ordinary closure lowering', () async {
+        final lowered = await lowerTypedDestination(
+          destinationType: destination.type,
+        );
+
+        expect(lowered.param.isVoidCallback, isFalse);
+        expect(lowered.result.dsl, 'AcmeCard()');
+        expect(lowered.result.dsl, isNot(contains('tap: event "x" {}')));
+        expect(
+          lowered.result.issues.map((issue) => issue.code),
+          contains(IssueCode.unrecognizedMethodCall),
+        );
+      });
+    }
+
+    test('a diagnosed conditional arm suppresses the inlined argument',
+        () async {
+      final r = await lowerCall(
+        'true ? ((v) => paywallEvent(v)) : '
+        "((v) => paywallEvent('ok'))",
+      );
+
+      expect(
+        r.issues.map((issue) => issue.code),
+        contains(IssueCode.invalidEventConfiguration),
+      );
+      expect(r.dsl, 'AcmeCard()');
+      expect(r.dsl, isNot(contains('true: ,')));
+    });
+
+    test('a navigation closure still reaches the navigation path', () async {
+      final r = await lowerCall(
+        '(v) => Navigator.push<void>(context, '
+        "MaterialPageRoute<void>(builder: (_) => const Text('d')))",
+      );
+      expect(
+        r.issues.map((i) => i.message).join('\n'),
+        allOf(contains('FunctionExpression'), contains('Navigator.push')),
+      );
+      expect(r.dsl, isNot(contains('tap:')));
+    });
+
+    test('a closure reading its own parameter gets the same refusal', () async {
+      final r = await lowerCall('(v) => paywallEvent(v)');
+      expect(
+        r.issues.map((i) => i.code),
+        [IssueCode.invalidEventConfiguration],
+      );
+      expect(
+        r.issues.map((i) => i.message).join('\n'),
+        contains('`(_) => paywallEvent(...)`'),
+      );
+      expect(r.dsl, isNot(contains('tap:')));
     });
   });
 }

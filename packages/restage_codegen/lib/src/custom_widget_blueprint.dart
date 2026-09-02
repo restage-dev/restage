@@ -19,6 +19,7 @@ final class CustomWidgetParam {
     required this.name,
     required this.isNumeric,
     required this.defaultValue,
+    this.isVoidCallback = false,
     this.coalesceFallback,
     this.sourceField,
     this.type,
@@ -35,6 +36,9 @@ final class CustomWidgetParam {
 
   /// The resolved parameter type used to preserve its runtime decoder shape.
   final DartType? type;
+
+  /// Whether the resolved destination formal is a void-returning function.
+  final bool isVoidCallback;
 
   /// The constructor default, folded to a scalar — an [int], [double],
   /// [bool], or [String] — or `null` when the parameter has no default (or a

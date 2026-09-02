@@ -5763,14 +5763,10 @@ final class ExpressionTranslator {
         );
         return '';
       }
-      // The host idiom is `onSelectionChanged: (Set<String> s) => <body>`. The
-      // blob carries the declarative `<body>` event (the host wires its real
-      // `ValueChanged<Set<String>>` to it); the closure params are irrelevant
-      // to the wire. Unwrap a single-expression closure body to its declarative
-      // event before the event-slot translation — a host-imperative body
-      // (an arbitrary call / a block) defers loud there, never silently drops.
+      // The event slot unwraps the closure; a host-imperative body defers
+      // loud there rather than lowering as a value.
       final value = slot(
-        _eventBodyOf(onSelectionChanged),
+        onSelectionChanged,
         PropertyType.event,
         property: onChangedProp,
       );
@@ -5825,6 +5821,35 @@ final class ExpressionTranslator {
       if (body is ExpressionFunctionBody) return body.expression;
     }
     return stripped;
+  }
+
+  /// The event to lower at an event slot, or null when the slot must refuse.
+  /// Refuses a `(v) => <event>` whose event reads the closure's own parameter.
+  Expression? _eventSlotExpression(Expression rawExpr, List<Issue> issues) {
+    if (!_wrapsEventHelper(rawExpr)) return rawExpr;
+    final event = _eventBodyOf(rawExpr);
+    final closure = _stripParens(rawExpr);
+    if (closure is! FunctionExpression) return event;
+    final declared = <Element>{
+      for (final parameter
+          in closure.parameters?.parameters ?? const <FormalParameter>[])
+        if (parameter.declaredFragment?.element case final element?) element,
+    };
+    if (declared.isEmpty) return event;
+    final census = _ClosureParameterCensus(declared);
+    event.accept(census);
+    if (!census.found) return event;
+    final call = _stripParens(event) as MethodInvocation;
+    issues.add(
+      Issue(
+        code: IssueCode.invalidEventConfiguration,
+        message: 'The callback value reaches the event automatically. Write '
+            '`(_) => ${call.methodName.name}(...)` so the closure does not '
+            'read its parameter.',
+        location: _locationOf(rawExpr),
+      ),
+    );
+    return null;
   }
 
   /// Whether [expr] is an absent (`null`) or empty list literal — the forms a
@@ -6839,12 +6864,15 @@ final class ExpressionTranslator {
             '${_coerceParamValue(param, fallback)}',
           );
         } else {
+          final beforeIssues = issues.length;
           final lowered = _translateParamValue(
             param,
             suppliedExpr,
             issues,
             property: suppliedProperties[param.name],
           );
+          // A refused value emits no argument rather than an empty one.
+          if (lowered.isEmpty && issues.length > beforeIssues) continue;
           if (fallback != null &&
               (_isRuntimeMissing(suppliedExpr) ||
                   _lowersToMissableRef(lowered))) {
@@ -6964,7 +6992,8 @@ final class ExpressionTranslator {
   /// parameter-level analogue of [_translateSlotValue]: a bare integer in
   /// either branch of a ternary bound to a numeric parameter must be
   /// normalised per branch or the definition body's `source.v<double>`
-  /// decode silently nulls it.
+  /// decode silently nulls it. Also unwraps a callback closure and attaches
+  /// any measurement marker.
   String _translateParamValue(
     CustomWidgetParam param,
     Expression expr,
@@ -7278,11 +7307,18 @@ final class ExpressionTranslator {
       PropertyType.boolean,
       issues,
     );
-    if (cond.isEmpty && issues.length > beforeCondition) return '';
+    if (_diagnosedEmpty(cond, issues, beforeCondition)) return '';
+    final beforeThen = issues.length;
     final thenDsl = branch(expr.thenExpression);
+    if (_diagnosedEmpty(thenDsl, issues, beforeThen)) return '';
+    final beforeElse = issues.length;
     final elseDsl = branch(expr.elseExpression);
+    if (_diagnosedEmpty(elseDsl, issues, beforeElse)) return '';
     return 'switch $cond { true: $thenDsl, false: $elseDsl }';
   }
+
+  bool _diagnosedEmpty(String value, List<Issue> issues, int beforeIssues) =>
+      value.isEmpty && issues.length > beforeIssues;
 
   /// Attempts to lower [expr] — a conditional whose condition is an
   /// integer-state equality — to a native N-arm `switch` keyed on the int
@@ -7338,7 +7374,10 @@ final class ExpressionTranslator {
         defaultBranch = current;
         break;
       }
-      arms.add('${match.key}: ${branch(current.thenExpression)}');
+      final beforeArm = issues.length;
+      final armDsl = branch(current.thenExpression);
+      if (_diagnosedEmpty(armDsl, issues, beforeArm)) return '';
+      arms.add('${match.key}: $armDsl');
       final elseExpr = _stripParens(current.elseExpression);
       if (elseExpr is ConditionalExpression) {
         current = elseExpr;
@@ -7347,7 +7386,9 @@ final class ExpressionTranslator {
         current = null;
       }
     }
+    final beforeDefault = issues.length;
     final defaultDsl = branch(defaultBranch!);
+    if (_diagnosedEmpty(defaultDsl, issues, beforeDefault)) return '';
     final armsDsl = arms.join(', ');
     return 'switch state${_rfwPathPart(fieldName)} '
         '{ $armsDsl, default: $defaultDsl }';
@@ -7363,7 +7404,10 @@ final class ExpressionTranslator {
   CustomWidgetStateField? _intStateFieldOf(Expression expr) {
     final e = _stripParens(expr);
     if (e is! SimpleIdentifier) return null;
-    if (e.element is LocalVariableElement) return null;
+    if (e.element is LocalVariableElement ||
+        e.element is FormalParameterElement) {
+      return null;
+    }
     final field = _walk.stateFields?[e.name];
     if (field == null || field.isNumeric || field.initialValue is! int) {
       return null;
@@ -7649,9 +7693,10 @@ final class ExpressionTranslator {
   }) {
     // A value-callback closure `(v) => <event>` carries only the event on the
     // wire; any other closure stays intact for the recognisers that match it.
-    final expr = type == PropertyType.event && _wrapsEventHelper(rawExpr)
-        ? _eventBodyOf(rawExpr)
+    final expr = type == PropertyType.event
+        ? _eventSlotExpression(rawExpr, issues)
         : rawExpr;
+    if (expr == null) return '';
     // Rewrite only when this slot accepts the coalesced fallback.
     final coalesce = _coalesceParamAt(expr);
     if (coalesce != null) {
@@ -9410,6 +9455,20 @@ final class _NavigationTriggerEntry {
 
   final RecognisedNavigation trigger;
   final String event;
+}
+
+/// Finds a read of any element in [parameters] anywhere under a node.
+final class _ClosureParameterCensus extends RecursiveAstVisitor<void> {
+  _ClosureParameterCensus(this.parameters);
+
+  final Set<Element> parameters;
+  bool found = false;
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (parameters.contains(node.element)) found = true;
+    super.visitSimpleIdentifier(node);
+  }
 }
 
 final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {

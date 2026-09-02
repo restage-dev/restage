@@ -77,6 +77,7 @@ List<CustomWidgetParam>? _constructorParams(
         isNumeric: _isNumericType(parameter.type),
         type: parameter.type,
         defaultValue: defaultValue,
+        isVoidCallback: _isVoidCallbackType(parameter.type),
         coalesceFallback: coalescedFallbacks[name],
         sourceField: parameter.field,
       ),
@@ -92,6 +93,9 @@ bool _isNumericType(DartType type) {
   final name = type.element.name;
   return name == 'double' || name == 'num';
 }
+
+bool _isVoidCallbackType(DartType type) =>
+    type is FunctionType && type.returnType is VoidType;
 
 /// The bespoke structured value types the translator lowers to RFW maps /
 /// lists outside the catalog decompose path — a construction of one of these

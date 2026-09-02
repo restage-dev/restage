@@ -1685,13 +1685,13 @@ ToggleButtons(
   });
 
   group('SegmentedButton -> RestageSegmentedButton alias', () {
-    // The paywall helpers are registered so a declarative `paywallEvent(...)`
-    // in the onSelectionChanged closure lowers exactly as the production build
-    // recognises it (a host-imperative closure cannot lower — only the
-    // declarative event form does, the same contract as every catalog event).
+    // The declarative event helper and a value-returning helper are both
+    // registered, so the event slot's gate is what separates them.
     final segmentedTranslator = ExpressionTranslator(
       catalog: _segmentedButtonCatalog(),
-      helpers: HelperRegistry()..registerAll(paywallHelpers),
+      helpers: HelperRegistry()
+        ..registerAll(paywallHelpers)
+        ..registerAll([_hostTextHelper('package:apps_examples')]),
     );
 
     Future<TranslationResult> alias(String body) async {
@@ -1701,7 +1701,8 @@ ToggleButtons(
 
         final Set<String> sel = const {'a'};
         void someHostCall(Set<String> s) {}
-        Object x() => $body;
+        String hostText({String? key}) => '';
+        Object x(BuildContext context) => $body;
         ''',
         rootPackage: 'apps_examples',
       );
@@ -1747,7 +1748,15 @@ SegmentedButton<String>(
 )
 ''');
       expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
-      expect(r.dsl, contains('onChanged: event "tierChanged"'));
+      // The recogniser passes the raw callback to the shared event slot,
+      // which owns the closure unwrap.
+      expect(
+        r.dsl,
+        'RestageSegmentedButtonString('
+        'items: [{ value: "a", label: "A" }], '
+        'selected: ["a"], '
+        'onChanged: event "tierChanged" {})',
+      );
     });
 
     test('the declarative bools lower into the blob', () async {
@@ -1878,9 +1887,8 @@ SegmentedButton<String>(
     test(
         'a host-imperative onSelectionChanged body defers loud at the event '
         'slot (never silently dropped)', () async {
-      // `someHostCall(s)` is not a declarative event — the unwrapped body
-      // reaches the event slot and defers loud, so the WHOLE widget aborts
-      // rather than ship a segmented button with a silently-dropped callback.
+      // `someHostCall(s)` is not a declarative event, so the whole widget
+      // aborts rather than ship a silently-dropped callback.
       final r = await alias('''
 SegmentedButton<String>(
   segments: const [
@@ -1892,6 +1900,49 @@ SegmentedButton<String>(
 ''');
       expect(r.dsl, isEmpty);
       expect(r.issues, isNotEmpty);
+    });
+
+    test('a navigation onSelectionChanged reaches the navigation path',
+        () async {
+      final r = await alias('''
+SegmentedButton<String>(
+  segments: const [
+    ButtonSegment<String>(value: 'a', label: Text('A')),
+  ],
+  selected: const {'a'},
+  onSelectionChanged: (Set<String> s) => Navigator.push<void>(
+    context,
+    MaterialPageRoute<void>(builder: (_) => const Text('d')),
+  ),
+)
+''');
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((i) => i.message).join('\n'),
+        allOf(
+          contains('FunctionExpression'),
+          contains('Navigator.push'),
+        ),
+      );
+    });
+
+    test('a value-returning onSelectionChanged refuses at the event slot',
+        () async {
+      final r = await alias('''
+SegmentedButton<String>(
+  segments: const [
+    ButtonSegment<String>(value: 'a', label: Text('A')),
+  ],
+  selected: const {'a'},
+  onSelectionChanged: (Set<String> s) => hostText(key: 'a'),
+)
+''');
+      expect(r.dsl, isEmpty);
+      expect(r.issues, isNotEmpty);
+      expect(
+        r.issues.map((i) => i.message).join('\n'),
+        isNot(contains('data.context.a')),
+      );
     });
   });
 
@@ -6213,11 +6264,8 @@ Object x() => surfaceEvent(Probe.next);
   // -------------------------------------------------------------------------
   // Generic value-callback closure unwrap at any event slot.
   //
-  // `_wrapsEventHelper`/`_eventBodyOf` unwrap `onFoo: (v) => paywallEvent(…)`
-  // shaped closures at ANY widget's ANY event slot — not only the two
-  // catalog widgets (segmented button, single-select) whose own recognisers
-  // pre-unwrap by hand. These tests exercise that generic path directly, on
-  // a plain widget with no dedicated recogniser of its own.
+  // Dedicated recognisers pass callbacks raw; `_eventSlotExpression` owns
+  // closure unwrapping for every catalog event slot.
   // -------------------------------------------------------------------------
 
   group('generic value-callback closure unwrap at any event slot', () {
@@ -6240,19 +6288,15 @@ Object x() => surfaceEvent(Probe.next);
     );
 
     test(
-        'a State field sharing the closure parameter name defers loud '
-        'instead of silently substituting the stale state value', () async {
-      // The State field and the closure's own parameter are both named
-      // "value" — the exact idiomatic-name collision the fix guards
-      // against. A resolved FormalParameterElement reference must never
-      // silently fall through to the NAME-based state lookup.
+        'a surrounding function parameter sharing a State field name '
+        'defers loud instead of substituting the state value', () async {
       final expression = await parseExpressionFromSourceForTest(
         '''
 import 'package:flutter/material.dart';
 
-Object x() => Switch(
+Object x(bool value) => Switch(
   value: false,
-  onChanged: (value) => paywallEvent("changed", args: {"v": value}),
+  onChanged: () => paywallEvent("changed", args: {"v": value}),
 );
 ''',
         rootPackage: 'apps_examples',
@@ -6267,12 +6311,49 @@ Object x() => Switch(
           ),
         ],
       );
+      expect(result.dsl, isNot(contains('state.value')));
+      expect(result.dsl, isNot(contains('args.value')));
       expect(
         result.issues.map((i) => i.code),
         contains(IssueCode.unrecognizedMethodCall),
       );
-      expect(result.dsl, isNot(contains('state.value')));
-      expect(result.dsl, isNot(contains('args.value')));
+    });
+
+    test('an integer switch cannot capture a surrounding function parameter',
+        () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+Object x(int step) => Switch(
+  value: false,
+  onChanged: step == 0
+      ? ((value) => paywallEvent("a"))
+      : ((value) => paywallEvent("b")),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(
+        expression,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'step',
+            isNumeric: false,
+            initialValue: 0,
+          ),
+        ],
+      );
+      const capturedStateDsl =
+          'Switch(value: false, onChanged: switch state.step '
+          '{ 0: event "a" {}, default: event "b" {} })';
+
+      expect(result.dsl, isNot(capturedStateDsl));
+      expect(result.dsl, isNot(contains('state.step')));
+      expect(result.dsl, isNot(contains('event "a" {}')));
+      expect(result.dsl, isNot(contains('event "b" {}')));
+      expect(result.dsl, isEmpty);
+      expect(result.issues, isNotEmpty);
     });
 
     test(
@@ -6295,6 +6376,91 @@ Object x() => Switch(
       final result = tPaywall.translate(expression);
       expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
       expect(result.dsl, contains('onChanged: event "toggled" {}'));
+    });
+
+    test('a diagnosed event arm aborts the shared bool switch', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+Object x() => Switch(
+  value: false,
+  onChanged: true
+      ? ((value) => paywallEvent(value))
+      : ((value) => paywallEvent("ok")),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.invalidEventConfiguration),
+      );
+      expect(result.dsl, isEmpty);
+      expect(result.dsl, isNot(contains('true: ,')));
+    });
+
+    test('a diagnosed condition aborts the shared bool switch', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+bool unsupportedCondition() => true;
+
+Object x() => Switch(
+  value: false,
+  onChanged: unsupportedCondition()
+      ? ((value) => paywallEvent("yes"))
+      : ((value) => paywallEvent("no")),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.unknownWidget),
+      );
+      expect(result.dsl, isEmpty);
+      expect(result.dsl, isNot(contains('switch  {')));
+    });
+
+    test('a diagnosed event arm aborts the shared integer switch', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+int step = 0;
+
+Object x() => Switch(
+  value: false,
+  onChanged: step == 0
+      ? ((value) => paywallEvent(value))
+      : ((value) => paywallEvent("ok")),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(
+        expression,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'step',
+            isNumeric: false,
+            initialValue: 0,
+          ),
+        ],
+      );
+
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.invalidEventConfiguration),
+      );
+      expect(result.dsl, isEmpty);
+      expect(result.dsl, isNot(contains('0: ,')));
     });
 
     test('a block-bodied closure at a generic event slot defers loud',
@@ -6422,6 +6588,270 @@ Object x() => Switch(
         contains(IssueCode.unrecognizedMethodCall),
       );
       expect(result.dsl, isNot(contains('Navigator')));
+    });
+  });
+
+  // Event-slot closure unwrap. A value callback is authored as a closure; only
+  // the declarative event inside it travels on the wire.
+
+  group('event-slot closure unwrap', () {
+    // The value-returning helper is registered so the `voidCallback` gate is
+    // what refuses it, not a failed registry lookup.
+    final unwrapTranslator = ExpressionTranslator(
+      catalog: _eventSlotCatalog(),
+      helpers: HelperRegistry()
+        ..registerAll(paywallHelpers)
+        ..registerAll(onboardingHelpers)
+        ..registerAll([_hostTextHelper('package:apps_examples')]),
+    );
+
+    Future<TranslationResult> lower(String body) async {
+      final expr = await parseExpressionFromSourceForTest(
+        """
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+abstract final class Probe {
+  static const reorderRows = SurfaceEvent<List<int>>('reorderRows');
+}
+
+class CompactList extends StatelessWidget {
+  const CompactList({this.onReorder, this.label, super.key});
+  final ValueChanged<List<int>>? onReorder;
+  final String? label;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class Namespaced {
+  static void paywallEvent(String name) {}
+}
+
+String hostText({String? key}) => '';
+void setState(void Function() fn) {}
+bool flag = false;
+
+Object x(BuildContext context) => $body;
+""",
+        rootPackage: 'apps_examples',
+      );
+      return unwrapTranslator.translate(expr);
+    }
+
+    void expectClosureUnchanged(TranslationResult r) {
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((i) => i.code),
+        [IssueCode.unrecognizedMethodCall],
+      );
+      expect(r.issues.single.message, contains('FunctionExpression'));
+    }
+
+    const goEvent =
+        'GestureDetector(onTap: event "go" {}, child: Text(text: "a"))';
+
+    test('a ValueChanged callback on a catalog widget lowers to its event',
+        () async {
+      final r = await lower(
+        'CompactList(onReorder: (moved) => surfaceEvent(Probe.reorderRows))',
+      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, 'CompactList(onReorder: event "reorderRows" {})');
+    });
+
+    test('a zero-parameter closure lowers exactly like the bare event call',
+        () async {
+      final closured = await lower(
+        "GestureDetector(onTap: () => paywallEvent('go'), "
+        "child: const Text('a'))",
+      );
+      final bare = await lower(
+        "GestureDetector(onTap: paywallEvent('go'), child: const Text('a'))",
+      );
+      expect(closured.issues, isEmpty);
+      expect(bare.issues, isEmpty);
+      // The closure carries nothing of its own: the DSL is unchanged.
+      expect(closured.dsl, bare.dsl);
+      expect(closured.dsl, goEvent);
+    });
+
+    test('a built-in widget event slot admits the same closure shape',
+        () async {
+      final r = await lower(
+        'Switch(value: true, '
+        'onChanged: (v) => surfaceEvent(Probe.reorderRows))',
+      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, 'Switch(value: true, onChanged: event "reorderRows" {})');
+    });
+
+    test('a navigation closure still reaches the navigation path unchanged',
+        () async {
+      final r = await lower('''
+GestureDetector(
+  onTap: () => Navigator.push<void>(
+    context,
+    MaterialPageRoute<void>(builder: (_) => const Text('d')),
+  ),
+  child: const Text('a'),
+)''');
+      expectClosureUnchanged(r);
+      expect(r.issues.single.message, contains('Navigator.push'));
+    });
+
+    test('a sheet-presenting closure still reaches the sheet path unchanged',
+        () async {
+      final r = await lower('''
+GestureDetector(
+  onTap: () => showModalBottomSheet<void>(
+    context: context,
+    builder: (_) => const Text('s'),
+  ),
+  child: const Text('a'),
+)''');
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((i) => i.code),
+        [IssueCode.modalSheetFormUnsupported],
+      );
+      expect(r.issues.single.message, contains('RestageModalSheet'));
+    });
+
+    test('a pop closure is unchanged', () async {
+      final r = await lower(
+        'GestureDetector(onTap: () => Navigator.pop(context), '
+        "child: const Text('a'))",
+      );
+      expectClosureUnchanged(r);
+      expect(r.issues.single.message, contains('Navigator.pop'));
+    });
+
+    test('a setState closure is not an event helper and is unchanged',
+        () async {
+      final r = await lower(
+        'GestureDetector(onTap: () => setState(() { flag = true; }), '
+        "child: const Text('a'))",
+      );
+      expectClosureUnchanged(r);
+    });
+
+    test('a state method tear-off never reaches the closure gate', () async {
+      final r = unwrapTranslator.translate(
+        await parseExpressionForTest('GestureDetector(onTap: toggle)'),
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'annual',
+            isNumeric: false,
+            initialValue: false,
+          ),
+        ],
+        rootEventHandlers: {
+          'toggle': const SetStateBoolFlip(fieldName: 'annual'),
+        },
+      );
+      expect(r.issues, isEmpty);
+      expect(
+        r.dsl,
+        contains(
+          'onTap: set state.annual = switch state.annual '
+          '{ true: false, false: true }',
+        ),
+      );
+    });
+
+    test('a block-bodied closure is unchanged', () async {
+      final r = await lower(
+        "GestureDetector(onTap: (v) { paywallEvent('go'); }, "
+        "child: const Text('a'))",
+      );
+      expectClosureUnchanged(r);
+    });
+
+    test('a closure around a value-returning helper is unchanged', () async {
+      final r = await lower(
+        "GestureDetector(onTap: (v) => hostText(key: 'a'), "
+        "child: const Text('a'))",
+      );
+      expectClosureUnchanged(r);
+    });
+
+    test('a closure at a non-event slot is left alone', () async {
+      // The unwrap is gated on the slot type; a string slot never sees it.
+      final r = await lower(
+        "CompactList(label: (v) => paywallEvent('go'))",
+      );
+      expectClosureUnchanged(r);
+    });
+
+    test('a closure whose event call reads its own parameter is refused',
+        () async {
+      // The parameter is the host's and has no wire representation.
+      final r = await lower(
+        'GestureDetector(onTap: (v) => paywallEvent(v), '
+        "child: const Text('a'))",
+      );
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((i) => i.code),
+        [IssueCode.invalidEventConfiguration],
+      );
+      expect(
+        r.issues.single.message,
+        'The callback value reaches the event automatically. Write '
+        '`(_) => paywallEvent(...)` so the closure does not read its '
+        'parameter.',
+      );
+    });
+
+    test('a parameter read inside the event arguments is refused too',
+        () async {
+      final r = await lower(
+        "GestureDetector(onTap: (v) => paywallEvent('go', args: {'k': v}), "
+        "child: const Text('a'))",
+      );
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((i) => i.code),
+        [IssueCode.invalidEventConfiguration],
+      );
+      expect(r.issues.single.message, contains('(_) => paywallEvent(...)'));
+    });
+
+    test('a wildcard parameter lowers', () async {
+      final r = await lower(
+        "GestureDetector(onTap: (_) => paywallEvent('go'), "
+        "child: const Text('a'))",
+      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, goEvent);
+    });
+
+    test('a named but unread parameter lowers', () async {
+      final r = await lower(
+        "GestureDetector(onTap: (v) => paywallEvent('go'), "
+        "child: const Text('a'))",
+      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, goEvent);
+    });
+
+    test('an async closure body lowers to the same event', () async {
+      // `Future<void> Function(T)` is assignable to `void Function(T)`, so this
+      // compiles; the modifier carries nothing on the wire.
+      final r = await lower(
+        "GestureDetector(onTap: (v) async => paywallEvent('go'), "
+        "child: const Text('a'))",
+      );
+      expect(r.issues, isEmpty);
+      expect(r.dsl, goEvent);
+    });
+
+    test('a closure around a call with a target is unchanged', () async {
+      final r = await lower(
+        "GestureDetector(onTap: (v) => Namespaced.paywallEvent('go'), "
+        "child: const Text('a'))",
+      );
+      expectClosureUnchanged(r);
     });
   });
 
@@ -8331,6 +8761,55 @@ Catalog _segmentedButtonCatalog() => catalogWith([
       ),
     ]);
 
+// The event-slot shapes the unwrap serves: a `ValueChanged` callback property
+// and a built-in event slot. `label` is the non-event slot it leaves alone.
+Catalog _eventSlotCatalog() => catalogWith([
+      WidgetEntry(
+        wireId: WireId('w9450'),
+        name: 'CompactList',
+        library: WidgetLibrary.core,
+        category: WidgetCategory.layout,
+        description: '',
+        flutterType: 'package:apps_examples/_expr_probe.dart#CompactList',
+        childrenSlot: ChildrenSlot.none,
+        properties: [
+          const PropertyEntry(
+            wireId: WireId.unallocatedProperty,
+            name: 'onReorder',
+            type: PropertyType.event,
+            description: '',
+            callbackSignature: 'ValueChanged<List<int>>',
+          ),
+          prop('label', PropertyType.string),
+        ],
+      ),
+      entry(
+        name: 'GestureDetector',
+        properties: [
+          prop('onTap', PropertyType.event),
+          prop('child', PropertyType.widget),
+        ],
+        flutterType:
+            'package:flutter/src/widgets/gesture_detector.dart#GestureDetector',
+      ),
+      entry(
+        name: 'Switch',
+        library: WidgetLibrary.material,
+        category: WidgetCategory.input,
+        properties: [
+          prop('value', PropertyType.boolean),
+          prop('onChanged', PropertyType.event),
+        ],
+        flutterType: 'package:flutter/src/material/switch.dart#Switch',
+      ),
+      entry(
+        name: 'Text',
+        properties: [
+          prop('text', PropertyType.string, required: true, positional: true),
+        ],
+        flutterType: 'package:flutter/src/widgets/text.dart#Text',
+      ),
+    ]);
 String _gradientStopsSource(
   String gradientName, {
   required String declarations,
