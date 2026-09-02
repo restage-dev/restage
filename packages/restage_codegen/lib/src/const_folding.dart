@@ -245,6 +245,31 @@ Object? tryScalarFoldConstObjectField(Expression expr) {
 Object? tryFoldScalarConstant(Expression expr) =>
     tryFoldConstant(expr) ?? tryScalarFoldConstObjectField(expr);
 
+/// Whether [expr] resolves to a const variable declaration, excluding enum
+/// values and instance fields.
+bool isConstDeclarationReference(Expression expr) =>
+    constDeclarationElement(expr) != null;
+
+/// The const declaration referenced by [expr], or null for another shape.
+Element? constDeclarationElement(Expression expr) {
+  if (expr is! SimpleIdentifier && expr is! PrefixedIdentifier) return null;
+  final element = _receiverElement(expr);
+  return _isConstValueElement(element) ? element : null;
+}
+
+/// The initializer of a const identifier declared in this compilation unit.
+Expression? resolveConstIdentifierInitializer(Expression expr) {
+  final element = constDeclarationElement(expr);
+  if (element == null) return null;
+  final unit = expr.root;
+  if (unit is! CompilationUnit) return null;
+  // Avoid walking this unit for declarations owned by another library.
+  if (element.firstFragment.libraryFragment != unit.declaredFragment) {
+    return null;
+  }
+  return _findVariableDeclaration(element, unit)?.initializer;
+}
+
 /// Unwraps a getter [PropertyAccessorElement] to its backing variable so an
 /// element comparison sees the [FieldElement], not the synthetic getter —
 /// mirroring [_foldConstReference]'s accessor unwrap.

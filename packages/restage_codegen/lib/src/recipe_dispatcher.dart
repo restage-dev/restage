@@ -9,6 +9,64 @@ import 'package:restage_codegen/src/translator_recipe.dart';
 /// hook back into the host translator.
 typedef TranslateCallback = String Function(Expression, List<Issue>);
 
+/// How a resolved double-list source must be translated.
+enum DoubleListSourceDisposition {
+  /// The terminal source can use ordinary list translation.
+  ordinary,
+
+  /// Resolution crossed a const declaration.
+  constant,
+
+  /// The terminal list contains collection elements.
+  collectionFlow,
+
+  /// The terminal source selects between whole lists.
+  conditional,
+
+  /// Source bindings resolve back to an element already visited.
+  cycle,
+
+  /// Source resolution exceeded its nesting bound.
+  depthLimit,
+}
+
+/// A terminal double-list source and the way it resolved.
+final class DoubleListSourceResolution {
+  /// Creates a resolved source with its translation disposition.
+  const DoubleListSourceResolution({
+    required this.source,
+    required this.disposition,
+  });
+
+  /// The terminal expression reached by source resolution.
+  final Expression source;
+
+  /// The terminal expression's translation category.
+  final DoubleListSourceDisposition disposition;
+}
+
+/// Resolves a double-list expression through active source bindings.
+typedef DoubleListSourceResolver = DoubleListSourceResolution Function(
+  Expression,
+);
+
+/// A DSL fragment that either emitted completely or refused.
+final class DslEmission {
+  /// Creates a complete DSL fragment.
+  const DslEmission.success(this.value) : refused = false;
+
+  /// Creates a refusal with no DSL bytes.
+  const DslEmission.refusal()
+      : value = '',
+        refused = true;
+
+  /// The complete emitted fragment, or an empty string on refusal.
+  final String value;
+
+  /// Whether emission refused instead of producing a fragment.
+  final bool refused;
+}
+
 /// Emits a list literal with each element coerced to a double-formatted
 /// literal (`[0, 1]` -> `[0.0, 1.0]`), using [translate] for each element.
 ///
@@ -17,30 +75,84 @@ typedef TranslateCallback = String Function(Expression, List<Issue>);
 /// int element is silently nulled to `0.0` without this per-element coercion —
 /// the list analogue of the scalar `asDoubleLiteral` the sibling slots apply.
 ///
-/// Only a plain list literal of expression elements is coerced. Anything else
-/// — a data reference, or a list carrying a spread / collection-if /
-/// collection-for — falls back to [translate] so the host's own list handling
-/// emits it (and surfaces any unsupported-collection-flow diagnostic).
-String emitDoubleList(
+/// A plain terminal list is coerced element by element. Runtime references use
+/// [translate]; unsupported source categories produce a diagnostic.
+DslEmission emitDoubleList(
   Expression expr,
   TranslateCallback translate,
   TranslateCallback translateDouble,
+  DoubleListSourceResolver resolveSource,
   List<Issue> issues,
+  String loc,
 ) {
-  if (expr is! ListLiteral ||
-      expr.elements.any((element) => element is! Expression)) {
-    return translate(expr, issues);
+  DslEmission translateChild(
+    Expression source,
+    TranslateCallback childTranslator,
+  ) {
+    final issueStart = issues.length;
+    final value = childTranslator(source, issues);
+    final diagnosedFailure =
+        issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
+    if (value.isEmpty || diagnosedFailure) {
+      return const DslEmission.refusal();
+    }
+    return DslEmission.success(value);
+  }
+
+  final resolved = resolveSource(expr);
+  final disposition = resolved.disposition;
+  if (disposition != DoubleListSourceDisposition.ordinary) {
+    final message = switch (disposition) {
+      DoubleListSourceDisposition.constant =>
+        'A const-derived list cannot be lowered at a double-decoded list '
+            'slot. Inline the list so each element is coerced to a double.',
+      DoubleListSourceDisposition.collectionFlow =>
+        'A list with collection elements cannot be lowered at a '
+            'double-decoded list slot. Write an explicit list without '
+            'collection if, for, or spread elements.',
+      DoubleListSourceDisposition.conditional =>
+        'A conditional list cannot be lowered at a double-decoded list slot. '
+            'Write the selected list directly so each element is coerced to '
+            'a double.',
+      DoubleListSourceDisposition.cycle =>
+        'A cyclic list binding cannot be lowered at a double-decoded list '
+            'slot. Break the binding cycle.',
+      DoubleListSourceDisposition.depthLimit =>
+        'The list source is too deeply nested to lower at a double-decoded '
+            'list slot. Simplify the source bindings.',
+      DoubleListSourceDisposition.ordinary => throw StateError(
+          'ordinary double-list sources are translated below',
+        ),
+    };
+    issues.add(
+      Issue(
+        code: disposition == DoubleListSourceDisposition.collectionFlow
+            ? IssueCode.unsupportedCollectionFlow
+            : expr is PrefixedIdentifier
+                ? IssueCode.unresolvedIdentifier
+                : IssueCode.unrecognizedMethodCall,
+        message: message,
+        location: loc,
+      ),
+    );
+    return const DslEmission.refusal();
+  }
+  final source = resolved.source;
+  if (source is! ListLiteral) {
+    return translateChild(source, translate);
   }
   // Each element coerces to a double literal through [translateDouble] — which
   // coerces PER BRANCH when an element is a conditional, so a bare-int branch
   // does not survive (a plain `asDoubleLiteral` over the assembled
   // `switch state.X { … }` string would pass the bare ints through unchanged
   // because the string contains a `.` from `state.X`).
-  final parts = expr.elements
-      .cast<Expression>()
-      .map((element) => translateDouble(element, issues))
-      .toList();
-  return '[${parts.join(', ')}]';
+  final parts = <String>[];
+  for (final element in source.elements.cast<Expression>()) {
+    final emitted = translateChild(element, translateDouble);
+    if (emitted.refused) return emitted;
+    parts.add(emitted.value);
+  }
+  return DslEmission.success('[${parts.join(', ')}]');
 }
 
 /// Generic table-driven translator. Consumes a [TranslatorRecipe], runs its
@@ -58,15 +170,18 @@ final class RecipeDispatcher {
     required Map<String, TranslatorRecipe> recipes,
     required TranslateCallback translate,
     required TranslateCallback translateDouble,
+    required DoubleListSourceResolver resolveDoubleListSource,
     bool Function(Element?) isFrameworkLibrary = isFrameworkValueTypeLibrary,
   })  : _recipes = recipes,
         _translate = translate,
         _translateDouble = translateDouble,
+        _resolveDoubleListSource = resolveDoubleListSource,
         _isFrameworkLibrary = isFrameworkLibrary;
 
   final Map<String, TranslatorRecipe> _recipes;
   final TranslateCallback _translate;
   final TranslateCallback _translateDouble;
+  final DoubleListSourceResolver _resolveDoubleListSource;
 
   /// Framework-vs-customer predicate for the member-table nested-value gate.
   /// Defaults to [isFrameworkValueTypeLibrary]; the host translator injects its
@@ -100,7 +215,7 @@ final class RecipeDispatcher {
       for (final a in args.whereType<NamedExpression>())
         a.name.label.name: a.expression,
     };
-    return _emitFragment(fragment, positional, named, issues, loc);
+    return _emitFragment(fragment, positional, named, issues, loc).value;
   }
 
   /// Translates the call described by [args] via the recipe for [key], or
@@ -159,7 +274,7 @@ final class RecipeDispatcher {
       }
     }
 
-    return _emitFragment(recipe.emit, positional, named, issues, loc);
+    return _emitFragment(recipe.emit, positional, named, issues, loc).value;
   }
 
   /// Returns null when [check] passes, or the offending value (`''` when
@@ -200,7 +315,7 @@ final class RecipeDispatcher {
     }
   }
 
-  String _emitFragment(
+  DslEmission _emitFragment(
     EmitFragment node,
     List<Expression> positional,
     Map<String, Expression> named,
@@ -209,7 +324,7 @@ final class RecipeDispatcher {
   ) {
     switch (node) {
       case EmitFragmentLiteral(:final dsl):
-        return dsl;
+        return DslEmission.success(dsl);
       case EmitFragmentArg(
           :final arg,
           :final ifUnset,
@@ -219,22 +334,32 @@ final class RecipeDispatcher {
         final expr = _resolveArg(arg, positional, named);
         if (expr == null) {
           return ifUnset == null
-              ? ''
+              ? const DslEmission.success('')
               : _emitFragment(ifUnset, positional, named, issues, loc);
         }
         if (asDoubleList) {
-          return emitDoubleList(expr, _translate, _translateDouble, issues);
+          return emitDoubleList(
+            expr,
+            _translate,
+            _translateDouble,
+            _resolveDoubleListSource,
+            issues,
+            loc,
+          );
         }
         // `asLength` coerces through [_translateDouble] (per-branch for a
         // conditional); otherwise translate as-is.
-        return asLength
-            ? _translateDouble(expr, issues)
-            : _translate(expr, issues);
+        return DslEmission.success(
+          asLength ? _translateDouble(expr, issues) : _translate(expr, issues),
+        );
       case EmitFragmentList(:final items):
-        final parts = items
-            .map((item) => _emitFragment(item, positional, named, issues, loc))
-            .toList();
-        return '[${parts.join(', ')}]';
+        final parts = <String>[];
+        for (final item in items) {
+          final emitted = _emitFragment(item, positional, named, issues, loc);
+          if (emitted.refused) return emitted;
+          parts.add(emitted.value);
+        }
+        return DslEmission.success('[${parts.join(', ')}]');
       case EmitFragmentMap(:final entries):
         final parts = <String>[];
         for (final entry in entries) {
@@ -242,15 +367,16 @@ final class RecipeDispatcher {
               _entryArgUnset(entry.value, positional, named)) {
             continue;
           }
-          final value =
+          final emitted =
               _emitFragment(entry.value, positional, named, issues, loc);
-          parts.add('${entry.key}: $value');
+          if (emitted.refused) return emitted;
+          parts.add('${entry.key}: ${emitted.value}');
         }
-        return '{${parts.join(', ')}}';
+        return DslEmission.success('{${parts.join(', ')}}');
       case EmitFragmentKernel(:final kernel, :final inputs):
         final values =
             inputs.map((i) => _emitValue(i, positional, named)).toList();
-        return runFragmentKernel(kernel, values);
+        return DslEmission.success(runFragmentKernel(kernel, values));
       case EmitFragmentMemberTable(
           :final memberArg,
           :final members,
@@ -284,7 +410,7 @@ final class RecipeDispatcher {
               location: loc,
             ),
           );
-          return '';
+          return const DslEmission.success('');
         }
         final name = switch (expr) {
           PrefixedIdentifier(:final identifier) => identifier.name,
@@ -318,10 +444,10 @@ final class RecipeDispatcher {
               location: loc,
             ),
           );
-          return '';
+          return const DslEmission.success('');
         }
         return fallback == null
-            ? ''
+            ? const DslEmission.success('')
             : _emitFragment(fallback, positional, named, issues, loc);
     }
   }

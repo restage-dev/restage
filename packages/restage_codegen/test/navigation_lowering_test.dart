@@ -77,6 +77,46 @@ Object x(BuildContext context) => Column(
       expect(translation.navigation!.transitions.single.event, 'restageNav1');
     });
 
+    test('event-name census includes custom static string constants', () async {
+      final translation = await _translateEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+class Alignment {
+  static const String nav = 'restageNav0';
+}
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => Column(
+  children: [
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent(Alignment.nav),
+      child: const Text('Terms'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Skip'),
+    ),
+  ],
+);
+''');
+      expect(translation.issues, isEmpty);
+      expect(translation.navigation, isNotNull);
+      expect(translation.navigation!.transitions.single.event, 'restageNav1');
+    });
+
     test('root push rewrites both artifacts and exposes a navigation plan',
         () async {
       final standalone = await _translateEntry(

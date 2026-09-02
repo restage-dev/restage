@@ -182,6 +182,50 @@ const Set<(String, String)> kStructuredConstMembers = {
   ('Offset', 'zero'),
 };
 
+const String _alignmentTypeName = 'Alignment';
+
+/// Whether [name] is reserved for a framework constant namespace.
+bool isFrameworkConstNamespaceName(String name) =>
+    // `double` uses reserved-name handling for non-finite values.
+    name == 'double' ||
+    kFrameworkConstNamespaces.contains(name) ||
+    kFrameworkEnumLikeConstClasses.contains(name) ||
+    kStructuredValueTypeNames.contains(name);
+
+/// The reserved owner name for an application-defined class constant.
+String? frameworkConstNamespaceLookalikeOwner(
+  Expression expr, {
+  bool Function(Element?) isFrameworkLibrary = isFrameworkValueTypeLibrary,
+}) {
+  final declaration = constDeclarationElement(expr);
+  if (declaration is FieldElement) {
+    final owner = declaration.enclosingElement;
+    final ownerName = owner is InterfaceElement ? owner.name : null;
+    if (ownerName != null &&
+        isFrameworkConstNamespaceName(ownerName) &&
+        !isFrameworkLibrary(owner)) {
+      return ownerName;
+    }
+  }
+  if (expr is PrefixedIdentifier &&
+      isFrameworkConstNamespaceName(expr.prefix.name) &&
+      !isFrameworkLibrary(expr.prefix.element)) {
+    return expr.prefix.name;
+  }
+  return null;
+}
+
+/// Whether [expr] uses a reserved namespace for an application-defined class.
+bool isFrameworkConstNamespaceLookalike(
+  Expression expr, {
+  bool Function(Element?) isFrameworkLibrary = isFrameworkValueTypeLibrary,
+}) =>
+    frameworkConstNamespaceLookalikeOwner(
+      expr,
+      isFrameworkLibrary: isFrameworkLibrary,
+    ) !=
+    null;
+
 /// `State` lifecycle methods — their presence makes a widget imperative.
 const Set<String> _kLifecycleMethods = {
   'initState',
@@ -726,7 +770,7 @@ class _Walk {
       return;
     }
     if (expr is PrefixedIdentifier) {
-      _prefixedIdentifier(expr);
+      await _prefixedIdentifier(expr);
       return;
     }
     if (expr is FunctionExpression) {
@@ -736,7 +780,7 @@ class _Walk {
     }
     if (_isPlainLiteral(expr)) return;
     if (expr is SimpleIdentifier) {
-      _identifier(expr);
+      await _identifier(expr);
       return;
     }
     _unclassifiable(
@@ -1204,7 +1248,7 @@ class _Walk {
     return finder.found;
   }
 
-  void _identifier(SimpleIdentifier expr) {
+  Future<void> _identifier(SimpleIdentifier expr) async {
     final member = _ownMember(expr.element);
     if (member != null) {
       final paramName = _ownParamName(expr.element);
@@ -1212,14 +1256,14 @@ class _Walk {
       _markIfEventHandler(member);
       return;
     }
-    if (_tryConstOrEnum(expr, expr.element)) return;
+    if (await _tryConstOrEnum(expr, expr.element)) return;
     _unclassifiable(
       "an identifier ('${expr.name}') that is not a constructor argument, "
       'State field, or constant',
     );
   }
 
-  void _prefixedIdentifier(PrefixedIdentifier expr) {
+  Future<void> _prefixedIdentifier(PrefixedIdentifier expr) async {
     final member = _ownMember(expr.identifier.element);
     if (member != null) {
       if (expr.prefix.name == 'widget') {
@@ -1237,7 +1281,7 @@ class _Walk {
     // cannot resolve produces a translator diagnostic — the safe direction,
     // floor-backstopped.)
     if (_isFrameworkConstNamespace(expr)) return;
-    if (_tryConstOrEnum(expr, expr.identifier.element)) return;
+    if (await _tryConstOrEnum(expr, expr.identifier.element)) return;
     // A framework enum-like-const value — `FontWeight.w600`,
     // `TextDecoration.underline`. These classes have static-const members (not
     // Dart `enum`s, so `_tryConstOrEnum` cannot fold them), but the translator
@@ -1316,14 +1360,16 @@ class _Walk {
     return true;
   }
 
-  /// Whether [expr] is one of the curated structured-value static-const member
-  /// pairs ([kStructuredConstMembers]) the translator lowers —
-  /// `BorderSide.none` and the `.zero` siblings. Element-gated to a framework
-  /// value-type library (the same gate the enum-like-const arm uses): a
-  /// customer class of the same name is NOT promoted — its member would
-  /// otherwise reach the framework lowering, a value-substitution silent-wrong.
-  /// An unresolved prefix defers.
+  /// Accepts a resolved Flutter `Alignment` const field before the curated
+  /// fallback. Both paths gate on the PREFIX, which is what the translator
+  /// lowers on, so an alias that hides the prefix cannot classify here and
+  /// then fail to translate.
   bool _isStructuredConstMember(PrefixedIdentifier expr) {
+    if (expr.prefix.name == _alignmentTypeName &&
+        isFrameworkValueTypeLibrary(expr.prefix.element)) {
+      final resolved = _unwrapAccessor(expr.identifier.element);
+      if (resolved is FieldElement && resolved.isConst) return true;
+    }
     if (!kStructuredConstMembers
         .contains((expr.prefix.name, expr.identifier.name))) {
       return false;
@@ -1357,7 +1403,7 @@ class _Walk {
   /// shared folder can evaluate contributes the constant-folding mechanism.
   /// Returns false when [expr] is neither — the caller reports it
   /// unclassifiable.
-  bool _tryConstOrEnum(Expression expr, Element? element) {
+  Future<bool> _tryConstOrEnum(Expression expr, Element? element) async {
     final resolved = _unwrapAccessor(element);
     if (resolved is FieldElement && resolved.isEnumConstant) {
       // An enum value renders as its bare name — plain composition.
@@ -1367,8 +1413,28 @@ class _Walk {
       _mechanisms.add(InliningMechanism.constantFolding);
       return true;
     }
-    return false;
+    if (isFrameworkConstNamespaceLookalike(expr)) return false;
+    final initializer = resolveConstIdentifierInitializer(expr);
+    if (initializer == null) return false;
+    // Classify same-file const initializers as inline expressions.
+    final declaration = constDeclarationElement(expr);
+    if (declaration != null && !_constDeclarationsInFlight.add(declaration)) {
+      _unclassifiable('a cyclic const declaration');
+      return true;
+    }
+    try {
+      await classify(initializer);
+    } finally {
+      if (declaration != null) {
+        _constDeclarationsInFlight.remove(declaration);
+      }
+    }
+    _mechanisms.add(InliningMechanism.constantFolding);
+    return true;
   }
+
+  /// Const declarations under classification.
+  final Set<Element> _constDeclarationsInFlight = <Element>{};
 
   /// Whether [element] resolves to a `const` variable or enum value.
   bool _isConstLike(Element? element) {

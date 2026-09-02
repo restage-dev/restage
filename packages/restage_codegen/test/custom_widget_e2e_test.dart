@@ -20,7 +20,7 @@ import 'helpers.dart';
 /// Outcome of transpiling a custom-widget fixture through the full
 /// chain — classify → translate → emit → parse → validate → encode → decode.
 class _TranspileResult {
-  _TranspileResult(this.issues, this.decoded);
+  _TranspileResult(this.issues, this.decoded, this.translation);
 
   /// Every diagnostic from translation and catalog validation.
   final List<Issue> issues;
@@ -28,6 +28,9 @@ class _TranspileResult {
   /// The `.rfw` blob decoded back to a library — null when an earlier stage
   /// produced issues.
   final fmt.RemoteWidgetLibrary? decoded;
+
+  /// Translation output used for exact-value refusal assertions.
+  final TranslationResult translation;
 }
 
 final _hostTextHelper = HelperDefinition(
@@ -406,9 +409,8 @@ Object x() => AcmeCard();
         'the local, not an args. reference', () async {
       // The element-keyed resolve-through must beat the name-based args/state
       // lowering — a local `child` shadowing the constructor param `child`
-      // emits the local initializer, never `args.child` (the value-wrong class
-      // the floor cannot catch; the const-local analog was caught at the C1f
-      // close-review).
+      // emits the local initializer, never `args.child` (a wrong value the
+      // floor cannot catch).
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -455,6 +457,236 @@ Object x() => AcmeCard(child: Text("passed"));
       // Text("local"), NOT the args.child passed at the call site.
       expect(inner.name, 'Text');
       expect(inner.arguments['text'], 'local');
+    });
+
+    test('a final local cannot expose a const list to LinearGradient stops',
+        () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '',
+          buildSource: '''
+  Widget build(BuildContext context) {
+    final stops = kStops;
+    return Box(
+      gradient: LinearGradient(colors: kColors, stops: stops),
+    );
+  }
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(definition, isEmpty);
+      expect(result.decoded, isNull);
+      expect(
+        result.issues.map((i) => i.code),
+        [IssueCode.unrecognizedMethodCall],
+      );
+      expect(result.issues.single.location, isNotEmpty);
+    });
+
+    test('a final local cannot expose a const list to RadialGradient stops',
+        () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '',
+          buildSource: '''
+  Widget build(BuildContext context) {
+    final stops = kStops;
+    return Box(
+      gradient: RadialGradient(colors: kColors, stops: stops),
+    );
+  }
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(definition, isEmpty);
+      expect(result.decoded, isNull);
+      expect(
+        result.issues.map((i) => i.code),
+        [IssueCode.unrecognizedMethodCall],
+      );
+      expect(result.issues.single.location, isNotEmpty);
+    });
+
+    test('a helper parameter cannot expose a const list to LinearGradient',
+        () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '''
+  Gradient gradient(List<double> stops) =>
+      LinearGradient(colors: kColors, stops: stops);
+''',
+          buildSource: '''
+  Widget build(BuildContext context) =>
+      Box(gradient: gradient(kStops));
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(definition, isEmpty);
+      expect(result.decoded, isNull);
+      expect(
+        result.issues.map((i) => i.code),
+        [IssueCode.unrecognizedMethodCall],
+      );
+      expect(result.issues.single.location, isNotEmpty);
+    });
+
+    test('a helper parameter cannot expose a const list to RadialGradient',
+        () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '''
+  Gradient gradient(List<double> stops) =>
+      RadialGradient(colors: kColors, stops: stops);
+''',
+          buildSource: '''
+  Widget build(BuildContext context) =>
+      Box(gradient: gradient(kStops));
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(definition, isEmpty);
+      expect(result.decoded, isNull);
+      expect(
+        result.issues.map((i) => i.code),
+        [IssueCode.unrecognizedMethodCall],
+      );
+      expect(result.issues.single.location, isNotEmpty);
+    });
+
+    test('a diagnosed generic source suppresses a nested LinearGradient',
+        () async {
+      await _expectNestedGradientChildRefusal(
+        'LinearGradient('
+        'colors: kColors, stops: true ? [0, 1] : Colors.teal)',
+        code: IssueCode.unrecognizedMethodCall,
+      );
+    });
+
+    test('a diagnosed generic source suppresses a nested RadialGradient',
+        () async {
+      await _expectNestedGradientChildRefusal(
+        'RadialGradient('
+        'colors: kColors, stops: true ? [0, 1] : Colors.teal)',
+        code: IssueCode.unrecognizedMethodCall,
+      );
+    });
+
+    test('a diagnosed list element suppresses a nested LinearGradient',
+        () async {
+      await _expectNestedGradientChildRefusal(
+        'LinearGradient(colors: kColors, stops: [0, Colors.teal])',
+      );
+    });
+
+    test('a diagnosed list element suppresses a nested RadialGradient',
+        () async {
+      await _expectNestedGradientChildRefusal(
+        'RadialGradient(colors: kColors, stops: [0, Colors.teal])',
+      );
+    });
+
+    test('a final local list is double-coerced by LinearGradient', () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '',
+          buildSource: '''
+  Widget build(BuildContext context) {
+    final stops = [0, 1];
+    return Box(
+      gradient: LinearGradient(colors: kColors, stops: stops),
+    );
+  }
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(definition, contains('stops: [0.0, 1.0]'));
+      expect(definition, isNot(contains('stops: [0, 1]')));
+    });
+
+    test('a final local list is double-coerced by RadialGradient', () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '',
+          buildSource: '''
+  Widget build(BuildContext context) {
+    final stops = [0, 1];
+    return Box(
+      gradient: RadialGradient(colors: kColors, stops: stops),
+    );
+  }
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(definition, contains('stops: [0.0, 1.0]'));
+      expect(definition, isNot(contains('stops: [0, 1]')));
+    });
+
+    test('a helper argument list is double-coerced by LinearGradient',
+        () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '''
+  Gradient gradient(List<double> stops) =>
+      LinearGradient(colors: kColors, stops: stops);
+''',
+          buildSource: '''
+  Widget build(BuildContext context) =>
+      Box(gradient: gradient([0, 1]));
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(definition, contains('stops: [0.0, 1.0]'));
+      expect(definition, isNot(contains('stops: [0, 1]')));
+    });
+
+    test('a helper argument list is double-coerced by RadialGradient',
+        () async {
+      final result = await _transpile(
+        _constStopsFixture(
+          memberSource: '''
+  Gradient gradient(List<double> stops) =>
+      RadialGradient(colors: kColors, stops: stops);
+''',
+          buildSource: '''
+  Widget build(BuildContext context) =>
+      Box(gradient: gradient([0, 1]));
+''',
+        ),
+        _gradientBoxCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      final definition = result.translation.widgetDefinitions['AcmeGradient'];
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(definition, contains('stops: [0.0, 1.0]'));
+      expect(definition, isNot(contains('stops: [0, 1]')));
     });
 
     test('composition with constant-folding transpiles and round-trips',
@@ -543,21 +775,16 @@ Object x() => AcmeBadge(label: "Pro");
       expect(badge.arguments['text'], 'gold');
     });
 
-    test('an object-valued const local defers (not a scalar fold)', () async {
-      // The const-local fold is for SCALARS. An object-valued const local
-      // (`const c = Color(0x..)`) does not fold to a scalar, so the widget
-      // is not inlinable — it must DEFER with a diagnostic, never silently
-      // mis-emit. (Guards the body-shape relaxation against object consts.)
+    test('an object-valued const local lowers through its initializer',
+        () async {
       final result = await _transpile(
         '''
-$kClassifierStubs
-
-class Color { const Color(this.value); final int value; }
+$kFlutterClassifierStubs
 
 class Box extends StatelessWidget {
-  const Box({this.color});
+  const Box({this.color, super.key});
   final Color? color;
-  Widget build(BuildContext context) => const Widget();
+  Widget build(BuildContext context) => const SizedBox();
 }
 
 @RestageWidget(
@@ -577,14 +804,19 @@ class AcmeBrand extends StatelessWidget {
 Object x() => AcmeBrand();
 ''',
         catalogWith([
-          _entry('Box', [prop('color', PropertyType.color)]),
+          _entry(
+            'Box',
+            [prop('color', PropertyType.color)],
+            rootPackage: 'apps_examples',
+          ),
         ]),
+        rootPackage: 'apps_examples',
       );
 
-      // Deferred: the unclassifiable custom widget cannot inline, so the
-      // pipeline surfaces a diagnostic rather than emitting a wrong blob.
-      expect(result.issues, isNotEmpty);
-      expect(result.decoded, isNull);
+      expect(result.issues, isEmpty);
+      final brand = _widget(result.decoded!, 'AcmeBrand');
+      expect(brand.name, 'Box');
+      expect(brand.arguments['color'], 0xFF112233);
     });
 
     test('a custom widget composing another transpiles both definitions',
@@ -2428,6 +2660,115 @@ Object x() => AcmeDisplay(prefix: "P");
     });
 
     test(
+        'a State body reading a top-level const emits the constant, not the '
+        'same-named constructor parameter', () async {
+      // In `State.build()` a bare name reaches a constructor parameter only
+      // through `widget.X`, so `gap` here is the top-level const.
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.size, this.label});
+  final double? size;
+  final String? label;
+  Widget build(BuildContext context) => const Widget();
+}
+
+const double gap = 8;
+
+@RestageWidget(
+  name: 'AcmeGapped',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'gapped',
+)
+class AcmeGapped extends StatefulWidget {
+  const AcmeGapped({this.gap});
+  final double? gap;
+  _AcmeGappedState createState() => _AcmeGappedState();
+}
+
+class _AcmeGappedState extends State<AcmeGapped> {
+  String label = "hi";
+  Widget build(BuildContext context) => Box(size: gap, label: label);
+}
+
+Object x() => AcmeGapped(gap: 24);
+''',
+        catalogWith([
+          _entry('Box', [
+            prop('size', PropertyType.real),
+            prop('label', PropertyType.string),
+          ]),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      final decoded = result.decoded!;
+      final definition = _widget(decoded, 'AcmeGapped');
+      expect(definition.name, 'Box');
+      final size = definition.arguments['size'];
+      expect(
+        size,
+        isNot(isA<fmt.ArgsReference>()),
+        reason: 'the caller argument must not substitute for the constant',
+      );
+      expect(size, 8.0);
+      // The State field still lowers to `state.`, so this is a stateful walk.
+      expect(definition.arguments['label'], isA<fmt.StateReference>());
+      final paywall = _widget(decoded, 'Paywall');
+      expect(paywall.name, 'AcmeGapped');
+      expect(paywall.arguments['gap'], 24.0);
+    });
+
+    test(
+        'a stateless body reading its own constructor parameter still emits '
+        'an args reference when a same-named const is in scope', () async {
+      // The stateless `build()` has the parameter in scope, so Dart binds
+      // `gap` to it and the const is shadowed.
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.size});
+  final double? size;
+  Widget build(BuildContext context) => const Widget();
+}
+
+const double gap = 8;
+
+@RestageWidget(
+  name: 'AcmeSpaced',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'spaced',
+)
+class AcmeSpaced extends StatelessWidget {
+  const AcmeSpaced({this.gap});
+  final double? gap;
+  Widget build(BuildContext context) => Box(size: gap);
+}
+
+Object x() => AcmeSpaced(gap: 24);
+''',
+        catalogWith([
+          _entry('Box', [prop('size', PropertyType.real)]),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      final decoded = result.decoded!;
+      final definition = _widget(decoded, 'AcmeSpaced');
+      final size = definition.arguments['size'];
+      expect(size, isA<fmt.ArgsReference>());
+      expect((size! as fmt.ArgsReference).parts, ['gap']);
+      final paywall = _widget(decoded, 'Paywall');
+      expect(paywall.arguments['gap'], 24.0);
+    });
+
+    test(
         'a stateful toggle widget emits its setState bool-flip as the '
         'no-negation switch form RFW data accepts', () async {
       // The canonical bool-flip pattern: `setState(() => on = !on);`. RFW
@@ -3318,6 +3659,69 @@ Object x() => Box(child: AcmeReserved());
   });
 }
 
+String _constStopsFixture({
+  required String memberSource,
+  required String buildSource,
+}) =>
+    '''
+$kFlutterClassifierStubs
+
+const List<double> kStops = [0, 1];
+const List<Color> kColors = [Color(0xFF000000), Color(0xFFFFFFFF)];
+
+class Box extends StatelessWidget {
+  const Box({this.gradient, super.key});
+  final Gradient? gradient;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeGradient',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration,
+  description: 'gradient',
+)
+class AcmeGradient extends StatelessWidget {
+  const AcmeGradient({super.key});
+$memberSource
+$buildSource
+}
+
+Object x() => const AcmeGradient();
+''';
+
+Catalog _gradientBoxCatalog() => catalogWith([
+      _entry(
+        'Box',
+        [prop('gradient', PropertyType.gradient)],
+        rootPackage: 'apps_examples',
+      ),
+    ]);
+
+Future<void> _expectNestedGradientChildRefusal(
+  String gradient, {
+  IssueCode code = IssueCode.unresolvedIdentifier,
+}) async {
+  final result = await _transpile(
+    _constStopsFixture(
+      memberSource: '',
+      buildSource: '''
+  Widget build(BuildContext context) => Box(gradient: $gradient);
+''',
+    ),
+    _gradientBoxCatalog(),
+    rootPackage: 'apps_examples',
+  );
+  final definition = result.translation.widgetDefinitions['AcmeGradient'];
+  expect(definition, isEmpty);
+  expect(result.decoded, isNull);
+  expect(result.issues.map((issue) => issue.code), [
+    code,
+  ]);
+  expect(result.issues.single.location, isNotEmpty);
+}
+
 /// The root [fmt.ConstructorCall] of the widget named [name] in [library].
 fmt.ConstructorCall _widget(fmt.RemoteWidgetLibrary library, String name) =>
     library.widgets.firstWhere((w) => w.name == name).root
@@ -3426,7 +3830,7 @@ class _TranspileProbeBuilder implements Builder {
     );
     final translation = translator.translate(root);
     if (translation.issues.isNotEmpty) {
-      onResult(_TranspileResult(translation.issues, null));
+      onResult(_TranspileResult(translation.issues, null, translation));
       return;
     }
 
@@ -3439,12 +3843,12 @@ class _TranspileProbeBuilder implements Builder {
       final parsed = fmt.parseLibraryFile(text, sourceIdentifier: 'e2e');
       final validation = validateModelAgainstCatalog(parsed, catalog);
       if (validation.isNotEmpty) {
-        onResult(_TranspileResult(validation, null));
+        onResult(_TranspileResult(validation, null, translation));
         return;
       }
       final bytes = fmt.encodeLibraryBlob(parsed);
       final decoded = fmt.decodeLibraryBlob(Uint8List.fromList(bytes));
-      onResult(_TranspileResult(const [], decoded));
+      onResult(_TranspileResult(const [], decoded, translation));
     } on fmt.ParserException catch (e) {
       onResult(
         _TranspileResult(
@@ -3456,6 +3860,7 @@ class _TranspileProbeBuilder implements Builder {
             ),
           ],
           null,
+          translation,
         ),
       );
     }

@@ -4,6 +4,7 @@ import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
+import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// The synthetic value sentinel emitted for an asymmetric `BorderRadius`
@@ -33,19 +34,14 @@ const List<String> _kBorderRadiusCornerOrder = [
 /// node-dispatch arms here. Output is byte-identical to the in-host emission it
 /// replaces.
 ///
-/// The injected back-interface — the 12 host primitives these emitters call
-/// outward — is `translate`, `translateDoubleScalar`, `stripParens`,
-/// `stringLiteral`, `frameworkOrUnresolved`, `resolveBoundIdentifier`,
-/// `isResolvedNonFrameworkCtor`, `deferFrameworkConstLookalike`,
-/// `deferFrameworkCtorLookalike`, `conditionalSwitch`,
-/// `validateThemeValueForSlot`, and a `locationOf` provider. The closure fields
-/// are named to match the host method names so the moved bodies need no
-/// call-site edits.
+/// The injected back-interface has thirteen callbacks, including
+/// `resolveDoubleListSource`; each delegates to its matching host operation.
 final class StructuredValueEmitter {
   /// Creates an emitter wired to the host primitives it delegates back to.
   StructuredValueEmitter({
     required String Function(Expression, List<Issue>) translate,
     required String Function(Expression, List<Issue>) translateDoubleScalar,
+    required DoubleListSourceResolver resolveDoubleListSource,
     required Expression Function(Expression) stripParens,
     required String Function(String) stringLiteral,
     required bool Function(Element?) frameworkOrUnresolved,
@@ -66,6 +62,7 @@ final class StructuredValueEmitter {
     required String Function(AstNode) locationOf,
   })  : _translate = translate,
         _translateDoubleScalar = translateDoubleScalar,
+        _resolveDoubleListSource = resolveDoubleListSource,
         _stripParens = stripParens,
         _stringLiteral = stringLiteral,
         _frameworkOrUnresolved = frameworkOrUnresolved,
@@ -83,6 +80,9 @@ final class StructuredValueEmitter {
   /// Translates an expression to an RFW scalar that strict-decodes as a
   /// `double` (an author-written `int` literal is forced to a double literal).
   final String Function(Expression, List<Issue>) _translateDoubleScalar;
+
+  /// Resolves a list expression through the host's active source bindings.
+  final DoubleListSourceResolver _resolveDoubleListSource;
 
   /// Strips redundant parenthesization from an expression.
   final Expression Function(Expression) _stripParens;
@@ -474,9 +474,12 @@ final class StructuredValueEmitter {
             a.expression,
             _translate,
             _translateDoubleScalar,
+            _resolveDoubleListSource,
             issues,
+            loc,
           );
-          parts.add('$name: $stopsDsl');
+          if (stopsDsl.refused) return '';
+          parts.add('$name: ${stopsDsl.value}');
         case 'tileMode':
         case 'transform':
         case 'colorMode':
@@ -1413,7 +1416,7 @@ final class StructuredValueEmitter {
     // `_translateSlotValue` — must be resolved-through here or it would
     // over-claim (classifier inlinable, translator a confusing diagnostic).
     // Inert outside an inline (both binding maps empty).
-    final expr = _resolveBoundIdentifier(rawExpr);
+    final expr = _resolveAlignmentSource(rawExpr);
     if (expr is PrefixedIdentifier && expr.prefix.name == 'Alignment') {
       // Nested name-only gate: an `Alignment.<member>` argument inside a real
       // framework gradient is lowered against a hard-coded coordinate table by
@@ -1450,6 +1453,30 @@ final class StructuredValueEmitter {
       final xy = _xyMap(ctorArgs, issues, loc, diagnoseHost: null);
       if (xy != null) return xy;
     }
+    // A const reference nothing above could resolve refuses without a value:
+    // the `{x, y}` failure shape reads as a centred alignment, and no floor
+    // can catch a well-formed coordinate pair. A framework const gets the
+    // remedy an author can follow; a cross-file const names its real fix.
+    final unresolvedConst = constDeclarationElement(expr);
+    if (unresolvedConst != null) {
+      final framework = isFrameworkValueTypeLibrary(unresolvedConst);
+      issues.add(
+        Issue(
+          code: framework
+              ? IssueCode.unrecognizedMethodCall
+              : IssueCode.unresolvedIdentifier,
+          message: framework
+              ? 'Unsupported alignment expression: ${expr.toSource()}. '
+                  'Use an Alignment.<name> member or Alignment(x, y).'
+              : "Cannot fold the const reference '${expr.toSource()}' to an "
+                  'alignment: it is declared in another file. Inline the '
+                  'Alignment.<name> member at the use site, or move the const '
+                  'into the same file.',
+          location: loc,
+        ),
+      );
+      return '';
+    }
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
@@ -1459,6 +1486,25 @@ final class StructuredValueEmitter {
       ),
     );
     return '{x: 0.0, y: 0.0}';
+  }
+
+  /// Resolves a bound name, then any same-file const declaration chain, so an
+  /// alignment held in a constant lowers like the inline value. Stops at an
+  /// `Alignment.<member>`, whose framework-identity gate the arm below owns;
+  /// the seen-set stops a cyclic declaration.
+  Expression _resolveAlignmentSource(Expression rawExpr) {
+    var current = _resolveBoundIdentifier(rawExpr);
+    final seen = <Element>{};
+    while (true) {
+      if (current is PrefixedIdentifier && current.prefix.name == 'Alignment') {
+        return current;
+      }
+      final declaration = constDeclarationElement(current);
+      if (declaration == null || !seen.add(declaration)) return current;
+      final initializer = resolveConstIdentifierInitializer(current);
+      if (initializer == null) return current;
+      current = initializer;
+    }
   }
 
   String _alignmentMember(String member, List<Issue> issues, String loc) {

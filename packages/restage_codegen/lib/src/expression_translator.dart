@@ -326,6 +326,7 @@ final class ExpressionTranslator {
   late final StructuredValueEmitter _structured = StructuredValueEmitter(
     translate: _translate,
     translateDoubleScalar: _translateDoubleScalar,
+    resolveDoubleListSource: _resolveDoubleListSource,
     stripParens: _stripParens,
     stringLiteral: _stringLiteral,
     frameworkOrUnresolved: _frameworkOrUnresolved,
@@ -433,6 +434,9 @@ final class ExpressionTranslator {
   /// The eleven walk-scoped fields are read off `_walk`.
   _WalkContext _walk = _WalkContext.initial();
 
+  /// Const declarations under translation.
+  final Set<Element> _constDeclarationsInFlight = <Element>{};
+
   // Per-call location context, set at the start of each [translate] call.
   String? _currentSourcePath;
   LineInfo? _currentLineInfo;
@@ -499,6 +503,7 @@ final class ExpressionTranslator {
     recipes: kTranslatorRecipes,
     translate: _translate,
     translateDouble: _translateDoubleScalar,
+    resolveDoubleListSource: _resolveDoubleListSource,
     // Inject the (forTesting-aware) framework-value-type predicate so the
     // member-table nested-value gate defers a resolved customer look-alike
     // consistently with the hand-authored helpers.
@@ -1070,8 +1075,13 @@ final class ExpressionTranslator {
       // reaches here unresolved.)
       // A `FormalParameterElement` is a closure's own parameter, never a field
       // or constructor arg; a same-named one must defer, not match by name.
+      // A resolved top-level / static const is likewise never the parameter,
+      // field, or handler the name matches: in a `State.build()` those are
+      // reachable only through `widget.X`, so the const is what Dart binds and
+      // what must be folded.
       if (expr.element is! LocalVariableElement &&
-          expr.element is! FormalParameterElement) {
+          expr.element is! FormalParameterElement &&
+          !isConstDeclarationReference(expr)) {
         // A bare identifier resolving to a State event-handler method —
         // lowered to a `set state.<field> = …` handler emitted from the
         // classifier-captured verdict.
@@ -1123,6 +1133,35 @@ final class ExpressionTranslator {
     if (folded != null) {
       return _foldedLiteral(folded);
     }
+    // Runtime name bindings take precedence over const declarations.
+    if (isConstDeclarationReference(expr)) {
+      final translated = _translateConstIdentifier(
+        expr,
+        issues,
+        IssueCode.unrecognizedMethodCall,
+        (initializer) => _translate(initializer, issues),
+      );
+      if (translated != null) return translated;
+      final reservedOwner = _constNamespaceLookalikeOwner(expr);
+      if (reservedOwner != null) {
+        issues.add(
+          _frameworkNamespaceReservedIssue(
+            expr,
+            reservedOwner,
+            IssueCode.unrecognizedMethodCall,
+          ),
+        );
+        return '';
+      }
+      issues.add(
+        _constIdentifierUnresolvedIssue(
+          expr,
+          IssueCode.unrecognizedMethodCall,
+          capabilityGapSubject: 'expression:${expr.runtimeType}',
+        ),
+      );
+      return '';
+    }
     issues.add(
       Issue(
         code: IssueCode.unrecognizedMethodCall,
@@ -1134,6 +1173,114 @@ final class ExpressionTranslator {
     );
     return '';
   }
+
+  /// A same-file const initializer that requires structured translation.
+  Expression? _constIdentifierInitializer(Expression expr) {
+    if (expr is! SimpleIdentifier && expr is! PrefixedIdentifier) return null;
+    if (tryFoldConstant(expr) != null) return null;
+    if (_constNamespaceLookalikeOwner(expr) != null) return null;
+    return resolveConstIdentifierInitializer(expr);
+  }
+
+  /// Translates one reachable const initializer with shared cycle protection.
+  String? _translateConstIdentifier(
+    Expression expr,
+    List<Issue> issues,
+    IssueCode cycleCode,
+    String Function(Expression) translateInitializer,
+  ) {
+    final initializer = _constIdentifierInitializer(expr);
+    if (initializer == null) return null;
+    final declaration = constDeclarationElement(expr);
+    if (declaration == null) return null;
+    if (!_constDeclarationsInFlight.add(declaration)) {
+      issues.add(_constIdentifierCycleIssue(expr, cycleCode));
+      return '';
+    }
+    try {
+      return _inDeclarationScope(() => translateInitializer(initializer));
+    } finally {
+      _constDeclarationsInFlight.remove(declaration);
+    }
+  }
+
+  /// Runs [body] with declaration-owned names isolated from use-site bindings.
+  T _inDeclarationScope<T>(T Function() body) {
+    final saved = _walk;
+    _walk = _walk.copyWith(
+      argNames: const {},
+      stateFields: null,
+      eventHandlers: const {},
+      rootStateContext: false,
+      params: const {},
+      classKey: null,
+      validatedCoalesceParams: <String>{},
+      modalSheet: null,
+      modalSheetCloseFlag: null,
+    );
+    try {
+      return body();
+    } finally {
+      _walk = saved;
+    }
+  }
+
+  /// The reserved owner name for an application-defined class constant.
+  String? _constNamespaceLookalikeOwner(Expression expr) =>
+      frameworkConstNamespaceLookalikeOwner(
+        expr,
+        isFrameworkLibrary: _frameworkOrUnresolved,
+      );
+
+  /// Whether [expr] resolves through an active runtime name binding. Decided
+  /// by the resolved element: a const declaration a name happens to shadow is
+  /// bound to the constant by Dart, so it takes the const path instead.
+  bool _isNameBoundIdentifier(Expression expr) {
+    if (expr is! SimpleIdentifier) return false;
+    if (expr.element is LocalVariableElement) return false;
+    if (isConstDeclarationReference(expr)) return false;
+    return _walk.eventHandlers.containsKey(expr.name) ||
+        (_walk.stateFields?.containsKey(expr.name) ?? false) ||
+        _walk.argNames.contains(expr.name);
+  }
+
+  /// Creates the diagnostic for an application-defined reserved namespace.
+  Issue _frameworkNamespaceReservedIssue(
+    Expression expr,
+    String owner,
+    IssueCode code,
+  ) =>
+      Issue(
+        code: code,
+        message: "'$owner' is the name of a framework value type, so "
+            "'${expr.toSource()}' is not lowered to this class's own value. "
+            'Rename the class, or inline the value at the use site.',
+        location: _locationOf(expr),
+      );
+
+  Issue _constIdentifierCycleIssue(Expression expr, IssueCode code) => Issue(
+        code: code,
+        capabilityGapSubject: 'constDeclarationCycle',
+        message: "The const declaration '${expr.toSource()}' is cyclic and "
+            'cannot be lowered. Break the declaration cycle.',
+        location: _locationOf(expr),
+      );
+
+  /// Creates the diagnostic for an unsupported cross-file const reference.
+  Issue _constIdentifierUnresolvedIssue(
+    Expression expr,
+    IssueCode code, {
+    String? capabilityGapSubject,
+  }) =>
+      Issue(
+        code: code,
+        capabilityGapSubject: capabilityGapSubject,
+        message: "Cannot fold the const reference '${expr.toSource()}' to a "
+            'value: it is declared in another file and is not a scalar this '
+            'codegen can evaluate. Inline the value at the use site, or move '
+            'the const into the same file.',
+        location: _locationOf(expr),
+      );
 
   /// Renders a folded constant — an [int], [double], [bool], or [String] —
   /// as an RFW DSL literal fragment.
@@ -1612,7 +1759,16 @@ final class ExpressionTranslator {
     // for the non-finite guard). A FINITE const (`double.maxFinite`) folds
     // above and never reaches here.
     if (_isNonFiniteDoubleConstant(expr)) {
-      issues.add(_nonFiniteNumericIssue(expr));
+      final owner = _constNamespaceLookalikeOwner(expr);
+      issues.add(
+        owner == null
+            ? _nonFiniteNumericIssue(expr)
+            : _frameworkNamespaceReservedIssue(
+                expr,
+                owner,
+                IssueCode.nonFiniteNumericValue,
+              ),
+      );
       return '';
     }
 
@@ -1622,6 +1778,37 @@ final class ExpressionTranslator {
     final member = _unwrapPropertyAccessor(expr.identifier.element);
     if (member is FieldElement && member.isEnumConstant) {
       return '"$identifier"';
+    }
+
+    // Same-file structured consts translate through their initializers.
+    final constDsl = _translateConstIdentifier(
+      expr,
+      issues,
+      IssueCode.unresolvedIdentifier,
+      (initializer) => _translate(initializer, issues),
+    );
+    if (constDsl != null) return constDsl;
+
+    final reservedOwner = _constNamespaceLookalikeOwner(expr);
+    if (reservedOwner != null) {
+      issues.add(
+        _frameworkNamespaceReservedIssue(
+          expr,
+          reservedOwner,
+          IssueCode.unresolvedIdentifier,
+        ),
+      );
+      return '';
+    }
+    // Report unsupported cross-file consts explicitly.
+    if (isConstDeclarationReference(expr)) {
+      issues.add(
+        _constIdentifierUnresolvedIssue(
+          expr,
+          IssueCode.unresolvedIdentifier,
+        ),
+      );
+      return '';
     }
     issues.add(
       Issue(
@@ -1640,13 +1827,8 @@ final class ExpressionTranslator {
   /// finite const already folded), so this is the non-finite-or-unresolved
   /// case.
   ///
-  /// The three `dart:core` `double` non-finite members are matched by name
-  /// first — a pure check that short-circuits the common framework case and
-  /// stays valid when the prefix is unresolved (the synthetic-test
-  /// affordance). `double` is a built-in type a customer cannot usefully
-  /// shadow, so the name match carries no value-substitution risk. Anything
-  /// else falls to the resolved path: a customer `const` whose value is a
-  /// non-finite double.
+  /// The three `double` non-finite members are matched by name. Other constants
+  /// use their resolved value.
   bool _isNonFiniteDoubleConstant(PrefixedIdentifier expr) {
     if (expr.prefix.name == 'double' &&
         const {'infinity', 'negativeInfinity', 'nan'}
@@ -1852,16 +2034,14 @@ final class ExpressionTranslator {
   String _deferFrameworkConstLookalike(
     PrefixedIdentifier expr,
     String prefix,
-    String identifier,
+    String _identifier,
     List<Issue> issues,
   ) {
     issues.add(
-      Issue(
-        code: IssueCode.unresolvedIdentifier,
-        message: "'$prefix.$identifier' does not resolve to package:flutter's "
-            '$prefix; a constant named $prefix that is not the framework one '
-            'cannot be inlined here. Reference its value directly.',
-        location: _locationOf(expr),
+      _frameworkNamespaceReservedIssue(
+        expr,
+        _constNamespaceLookalikeOwner(expr) ?? prefix,
+        IssueCode.unresolvedIdentifier,
       ),
     );
     return '';
@@ -6060,6 +6240,23 @@ final class ExpressionTranslator {
       issues.add(_constObjectFieldUnresolvedIssue(resolved));
       return '';
     }
+    // Translate same-file consts with the destination slot's value shape.
+    if (!_isNameBoundIdentifier(resolved)) {
+      final constDsl = _translateConstIdentifier(
+        resolved,
+        issues,
+        resolved is PrefixedIdentifier
+            ? IssueCode.unresolvedIdentifier
+            : IssueCode.unrecognizedMethodCall,
+        (initializer) => _translateSlotValue(
+          initializer,
+          type,
+          issues,
+          property: property,
+        ),
+      );
+      if (constDsl != null) return constDsl;
+    }
     final valueShape = property?.valueShape;
     if (valueShape is ScalarShape && valueShape.isOpaqueStringKeyedMap) {
       return _customerMapSlotValue(resolved, issues);
@@ -6383,6 +6580,80 @@ final class ExpressionTranslator {
       break;
     }
     return current;
+  }
+
+  /// Resolves a strict-double list through active bindings and const aliases.
+  DoubleListSourceResolution _resolveDoubleListSource(Expression expr) {
+    var current = expr;
+    var inConstDeclaration = false;
+    final seen = <Element>{};
+    for (var depth = 0; depth < 256; depth += 1) {
+      if (current is ParenthesizedExpression) {
+        current = current.expression;
+        continue;
+      }
+      if (current is SimpleIdentifier) {
+        final element = current.element;
+        final bound = _walk.paramBindings[element] ??
+            _walk.inlined.localBindings[element];
+        if (bound != null) {
+          if (element != null && !seen.add(element)) {
+            return DoubleListSourceResolution(
+              source: current,
+              disposition: DoubleListSourceDisposition.cycle,
+            );
+          }
+          current = bound;
+          continue;
+        }
+      }
+      final declaration = constDeclarationElement(current);
+      if (declaration != null) {
+        if (!seen.add(declaration)) {
+          return DoubleListSourceResolution(
+            source: current,
+            disposition: DoubleListSourceDisposition.cycle,
+          );
+        }
+        inConstDeclaration = true;
+        final initializer = resolveConstIdentifierInitializer(current);
+        if (initializer == null) {
+          return DoubleListSourceResolution(
+            source: current,
+            disposition: DoubleListSourceDisposition.constant,
+          );
+        }
+        current = initializer;
+        continue;
+      }
+      if (inConstDeclaration) {
+        return DoubleListSourceResolution(
+          source: current,
+          disposition: DoubleListSourceDisposition.constant,
+        );
+      }
+      if (current is ListLiteral &&
+          current.elements.any((element) => element is! Expression)) {
+        return DoubleListSourceResolution(
+          source: current,
+          disposition: DoubleListSourceDisposition.collectionFlow,
+        );
+      }
+      if (current is ConditionalExpression) {
+        return DoubleListSourceResolution(
+          source: current,
+          disposition: DoubleListSourceDisposition.conditional,
+        );
+      }
+      return DoubleListSourceResolution(
+        source: current,
+        disposition: DoubleListSourceDisposition.ordinary,
+      );
+    }
+    return DoubleListSourceResolution(
+      source: current,
+      disposition: DoubleListSourceDisposition.depthLimit,
+    );
   }
 
   /// If [expr] is `<own coalesced property> ?? <fallback>` — a `??` whose left
