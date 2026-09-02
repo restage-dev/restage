@@ -1,6 +1,7 @@
 import 'package:restage/src/events/restage_event.dart';
 import 'package:restage_shared/legacy_analytics.dart';
 
+import 'render_event_privacy.dart';
 import 'root_analytics_context.dart';
 
 /// Event names the SDK does NOT yet bridge to analytics in production.
@@ -50,7 +51,9 @@ const Set<String> _promotedKeys = <String>{
 /// Promoted conversion dims (`productId`/`offerId`) land on typed envelope
 /// fields. Payload claims are scrubbed but never trusted. Every other residual
 /// field goes to `properties` **after the reserved-key scrub** (so a custom event
-/// can never smuggle render context). `tier`/`source` are NOT set here — the
+/// can never smuggle render context). Render provenance can additionally require
+/// complete authored-argument omission; scrubbing alone cannot identify host
+/// context carried under a benign key. `tier`/`source` are NOT set here — the
 /// server stamps them.
 AnalyticsEvent mapRestageEventToEnvelope(
   RestageEvent event, {
@@ -62,8 +65,12 @@ AnalyticsEvent mapRestageEventToEnvelope(
   RootAnalyticsEventBinding? rootAttribution,
   String? surfaceSessionId,
   String? userId,
+  bool omitAuthoredArguments = false,
 }) {
-  final map = event.toMap();
+  final map = RestageRenderEventPrivacy.analyticsMap(
+    event,
+    omitAuthoredArguments: omitAuthoredArguments,
+  );
   final flowId = map['flowId'] as String?;
   final paywallId = event.paywallId;
 

@@ -76,6 +76,7 @@ const _legacyDeclarations = <String>[
   'AnalyticsAppContext',
   'AnalyticsEvent',
   'kReservedPropertyKeys',
+  'kTruncatedPropertyKey',
   'containsReservedKey',
   'scrubReservedKeys',
   'kMaxEventSkew',

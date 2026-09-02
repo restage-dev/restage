@@ -135,29 +135,24 @@ final class CustomerStructuredValueEmitter {
       entries.add(
         EmitMapEntry(
           field.name,
-          EmitFragmentArg(argRef, asLength: _isDoubleField(field.type)),
+          EmitFragmentArg(
+            argRef,
+            asLength: _isDoubleField(field.type),
+            propertyType: field.type,
+          ),
           omitWhenArgUnset: !field.required,
         ),
       );
     }
 
-    // A NESTED structured/framework-value field recurses back through the
-    // host translator (via EmitFragmentArg's translate callback), which can
-    // itself defer loud (e.g. a nested value authored via a non-canonical
-    // constructor) — raising an issue and returning ''. Left unchecked, that
-    // '' would simply be spliced into THIS map as an empty entry
-    // (`price: `), a syntactically broken partial map masquerading as a
-    // successful encode. Fail closed recursively: if dispatching raised any
-    // issue, the whole value is un-encodable, so defer it as a whole — never
-    // a partial map.
-    final issuesBefore = issues.length;
-    final dispatched = _dispatch(
+    // A nested field recurses through the dispatcher. Its map owner preserves
+    // refusal, while build notices may accompany complete output.
+    return _dispatch(
       EmitFragmentMap(entries),
       expr.argumentList.arguments,
       issues,
       loc,
     );
-    return issues.length > issuesBefore ? '' : dispatched;
   }
 
   /// Maps each source constructor parameter name to the [ArgRef] that reads its

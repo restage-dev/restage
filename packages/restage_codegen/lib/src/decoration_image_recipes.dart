@@ -1,4 +1,5 @@
 import 'package:restage_codegen/src/translator_recipe.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Translator recipes for the `DecorationImage` value (a `BoxDecoration.image`
 /// background) and the two `ImageProvider` types it lowers.
@@ -34,7 +35,13 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
     deferredNamedArgs: {'headers', 'webHtmlElementStrategy'},
     emit: EmitFragmentMap([
       EmitMapEntry('kind', EmitFragmentLiteral('"network"')),
-      EmitMapEntry('src', EmitFragmentArg(ArgRef.positional(0))),
+      EmitMapEntry(
+        'src',
+        EmitFragmentArg(
+          ArgRef.positional(0),
+          propertyType: PropertyType.string,
+        ),
+      ),
       EmitMapEntry(
         'scale',
         EmitFragmentArg(ArgRef.named('scale'), asLength: true),
@@ -59,10 +66,19 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
     deferredNamedArgs: {'bundle'},
     emit: EmitFragmentMap([
       EmitMapEntry('kind', EmitFragmentLiteral('"asset"')),
-      EmitMapEntry('src', EmitFragmentArg(ArgRef.positional(0))),
+      EmitMapEntry(
+        'src',
+        EmitFragmentArg(
+          ArgRef.positional(0),
+          propertyType: PropertyType.string,
+        ),
+      ),
       EmitMapEntry(
         'package',
-        EmitFragmentArg(ArgRef.named('package')),
+        EmitFragmentArg(
+          ArgRef.named('package'),
+          propertyType: PropertyType.string,
+        ),
         omitWhenArgUnset: true,
       ),
     ]),
@@ -103,7 +119,10 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
       ),
       EmitMapEntry(
         'fit',
-        EmitFragmentArg(ArgRef.named('fit')),
+        EmitFragmentArg(
+          ArgRef.named('fit'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
       // A concrete `Alignment.<member>` resolves through the member table to
@@ -121,7 +140,10 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
       ),
       EmitMapEntry(
         'repeat',
-        EmitFragmentArg(ArgRef.named('repeat')),
+        EmitFragmentArg(
+          ArgRef.named('repeat'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -149,7 +171,10 @@ const List<TranslatorRecipe> kDecorationImageRecipes = [
 const EmitFragment _kAlignmentArg = EmitFragmentMemberTable(
   ArgRef.named('alignment'),
   _kAlignmentMemberFragments,
-  fallback: EmitFragmentArg(ArgRef.named('alignment')),
+  fallback: EmitFragmentArg(
+    ArgRef.named('alignment'),
+    propertyType: PropertyType.alignmentXY,
+  ),
 );
 
 /// Coordinate-pair fragments for Flutter's nine `Alignment` constants, in the

@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
@@ -17,9 +18,11 @@ final class SourceBuildBlueprint {
     required this.rootExpression,
     this.buildContextParameter,
     List<CustomWidgetStateField>? state,
+    List<RootContextParam> rootParams = const [],
     Map<String, RecognisedSetState> eventHandlers = const {},
     Map<Element, Expression> localBindings = const {},
   })  : state = state == null ? null : List.unmodifiable(state),
+        rootParams = List.unmodifiable(rootParams),
         eventHandlers = Map.unmodifiable(eventHandlers),
         localBindings = Map.unmodifiable(localBindings);
 
@@ -35,6 +38,9 @@ final class SourceBuildBlueprint {
 
   /// Root `State` fields, or `null` for a stateless root.
   final List<CustomWidgetStateField>? state;
+
+  /// Root constructor parameters in declaration order.
+  final List<RootContextParam> rootParams;
 
   /// Referenced State method tear-offs recognised as `setState` handlers.
   final Map<String, RecognisedSetState> eventHandlers;
@@ -143,9 +149,12 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     );
     return null;
   }
+  final buildContextParameter = _buildContextParameter(buildMethod);
+  final rootParams = _rootContextParams(sourceClass);
   final blueprint = SourceBuildBlueprint(
     rootExpression: extracted.expression,
-    buildContextParameter: _buildContextParameter(buildMethod),
+    buildContextParameter: buildContextParameter,
+    rootParams: rootParams,
     localBindings: localBindings,
   );
   if (stateClass == null) return blueprint;
@@ -182,10 +191,68 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     rootExpression: blueprint.rootExpression,
     buildContextParameter: blueprint.buildContextParameter,
     state: state,
+    rootParams: rootParams,
     eventHandlers: eventHandlers,
     localBindings: blueprint.localBindings,
   );
 }
+
+/// Collects non-key unnamed-constructor parameters in declaration order.
+List<RootContextParam> _rootContextParams(ClassElement sourceClass) {
+  final constructor = sourceClass.unnamedConstructor;
+  if (constructor == null) return const [];
+  final params = <RootContextParam>[];
+  for (final parameter in constructor.formalParameters) {
+    final name = parameter.name;
+    if (name == null || name.isEmpty || name == 'key') continue;
+    final defaultValue =
+        parameter.hasDefaultValue ? parameter.computeConstantValue() : null;
+    params.add(
+      RootContextParam(
+        name: name,
+        type: parameter.type,
+        isHostData: _isHostDataType(parameter.type),
+        field:
+            parameter is FieldFormalParameterElement ? parameter.field : null,
+        isRequired: parameter.isRequired,
+        defaultValueCode: parameter.defaultValueCode,
+        hasNullDefault: parameter.hasDefaultValue &&
+            defaultValue != null &&
+            defaultValue.isNull,
+      ),
+    );
+  }
+  return params;
+}
+
+/// Whether [type] belongs to the closed host-data algebra.
+bool _isHostDataType(DartType type) {
+  if (type is! InterfaceType) return false;
+  final args = type.typeArguments;
+  // Nullable scalars and collections remain host data; bare Object must be
+  // Object?.
+  if (args.isEmpty) {
+    if (type.isDartCoreObject) {
+      return type.nullabilitySuffix == NullabilitySuffix.question;
+    }
+    return type.isDartCoreBool ||
+        type.isDartCoreInt ||
+        type.isDartCoreDouble ||
+        type.isDartCoreNum ||
+        type.isDartCoreString;
+  }
+  if (type.isDartCoreList && args.length == 1) {
+    return _isHostDataType(args.single);
+  }
+  if (type.isDartCoreMap && args.length == 2) {
+    return _isNonNullableCoreString(args.first) && _isHostDataType(args.last);
+  }
+  return false;
+}
+
+/// Whether [type] is a non-nullable `dart:core` String map key.
+bool _isNonNullableCoreString(DartType type) =>
+    type.isDartCoreString && type.nullabilitySuffix == NullabilitySuffix.none;
 
 Element? _buildContextParameter(MethodElement buildMethod) {
   final parameters = buildMethod.formalParameters;

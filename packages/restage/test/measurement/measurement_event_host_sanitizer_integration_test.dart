@@ -284,6 +284,9 @@ widget OnboardingScreen = AuthoredProbe();
       await tester.pumpAndSettle();
     }
 
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
     final customs = received.whereType<PaywallCustomEvent>().toList();
     expect(customs.map((event) => event.eventName), <String>[
       'customExact',

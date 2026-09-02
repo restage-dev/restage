@@ -1,6 +1,7 @@
 import 'package:restage_codegen/src/decoration_image_recipes.dart';
 import 'package:restage_codegen/src/gradient_recipes.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Hand-authored translator recipes for the property-type-backed value
 /// types. These carry RFW-decoder-contract knowledge — a color is a packed
@@ -86,17 +87,26 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
     emit: EmitFragmentMap([
       EmitMapEntry(
         'inherit',
-        EmitFragmentArg(ArgRef.named('inherit')),
+        EmitFragmentArg(
+          ArgRef.named('inherit'),
+          propertyType: PropertyType.boolean,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'color',
-        EmitFragmentArg(ArgRef.named('color')),
+        EmitFragmentArg(
+          ArgRef.named('color'),
+          propertyType: PropertyType.color,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'backgroundColor',
-        EmitFragmentArg(ArgRef.named('backgroundColor')),
+        EmitFragmentArg(
+          ArgRef.named('backgroundColor'),
+          propertyType: PropertyType.color,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -106,12 +116,18 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       ),
       EmitMapEntry(
         'fontWeight',
-        EmitFragmentArg(ArgRef.named('fontWeight')),
+        EmitFragmentArg(
+          ArgRef.named('fontWeight'),
+          propertyType: PropertyType.fontWeight,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'fontStyle',
-        EmitFragmentArg(ArgRef.named('fontStyle')),
+        EmitFragmentArg(
+          ArgRef.named('fontStyle'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -126,7 +142,10 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       ),
       EmitMapEntry(
         'textBaseline',
-        EmitFragmentArg(ArgRef.named('textBaseline')),
+        EmitFragmentArg(
+          ArgRef.named('textBaseline'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -136,52 +155,82 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       ),
       EmitMapEntry(
         'leadingDistribution',
-        EmitFragmentArg(ArgRef.named('leadingDistribution')),
+        EmitFragmentArg(
+          ArgRef.named('leadingDistribution'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'locale',
-        EmitFragmentArg(ArgRef.named('locale')),
+        EmitFragmentArg(
+          ArgRef.named('locale'),
+          propertyType: PropertyType.locale,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'foreground',
-        EmitFragmentArg(ArgRef.named('foreground')),
+        EmitFragmentArg(
+          ArgRef.named('foreground'),
+          propertyType: PropertyType.paint,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'background',
-        EmitFragmentArg(ArgRef.named('background')),
+        EmitFragmentArg(
+          ArgRef.named('background'),
+          propertyType: PropertyType.paint,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'shadows',
-        EmitFragmentArg(ArgRef.named('shadows')),
+        EmitFragmentArg(
+          ArgRef.named('shadows'),
+          propertyType: PropertyType.shadowList,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'fontFeatures',
-        EmitFragmentArg(ArgRef.named('fontFeatures')),
+        EmitFragmentArg(
+          ArgRef.named('fontFeatures'),
+          propertyType: PropertyType.fontFeatureList,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'fontVariations',
-        EmitFragmentArg(ArgRef.named('fontVariations')),
+        EmitFragmentArg(
+          ArgRef.named('fontVariations'),
+          propertyType: PropertyType.fontVariationList,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'decoration',
-        EmitFragmentArg(ArgRef.named('decoration')),
+        EmitFragmentArg(
+          ArgRef.named('decoration'),
+          propertyType: PropertyType.textDecoration,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'decorationColor',
-        EmitFragmentArg(ArgRef.named('decorationColor')),
+        EmitFragmentArg(
+          ArgRef.named('decorationColor'),
+          propertyType: PropertyType.color,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'decorationStyle',
-        EmitFragmentArg(ArgRef.named('decorationStyle')),
+        EmitFragmentArg(
+          ArgRef.named('decorationStyle'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -191,29 +240,44 @@ const List<TranslatorRecipe> _kValueTypeRecipes = [
       ),
       EmitMapEntry(
         'debugLabel',
-        EmitFragmentArg(ArgRef.named('debugLabel')),
+        EmitFragmentArg(
+          ArgRef.named('debugLabel'),
+          propertyType: PropertyType.string,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'fontFamily',
-        EmitFragmentArg(ArgRef.named('fontFamily')),
+        EmitFragmentArg(
+          ArgRef.named('fontFamily'),
+          propertyType: PropertyType.string,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'fontFamilyFallback',
-        EmitFragmentArg(ArgRef.named('fontFamilyFallback')),
+        EmitFragmentArg(
+          ArgRef.named('fontFamilyFallback'),
+          propertyType: PropertyType.stringList,
+        ),
         omitWhenArgUnset: true,
       ),
       // The ctor arg is `package`; the decoder reads the `fontPackage` wire
       // key (the same rename the flat TextStyle decompose applies).
       EmitMapEntry(
         'fontPackage',
-        EmitFragmentArg(ArgRef.named('package')),
+        EmitFragmentArg(
+          ArgRef.named('package'),
+          propertyType: PropertyType.string,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'overflow',
-        EmitFragmentArg(ArgRef.named('overflow')),
+        EmitFragmentArg(
+          ArgRef.named('overflow'),
+          propertyType: PropertyType.enumValue,
+        ),
         omitWhenArgUnset: true,
       ),
     ]),

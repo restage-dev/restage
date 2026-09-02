@@ -823,6 +823,75 @@ Future<Expression> parseExpressionFromSourceForTest(
   return result!;
 }
 
+final class ResolvedMethodExpressionForTest {
+  const ResolvedMethodExpressionForTest({
+    required this.expression,
+    required this.classes,
+  });
+
+  final Expression expression;
+  final Map<String, ClassElement> classes;
+}
+
+/// Resolves one class method's returned expression and library classes.
+Future<ResolvedMethodExpressionForTest> parseMethodExpressionFromSourceForTest(
+  String source, {
+  required String className,
+  String methodName = 'build',
+  String rootPackage = _kRootPackage,
+}) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: rootPackage,
+    includeFlutter: _importsFlutter([source]),
+    includeIntl: _importsIntl([source]),
+  );
+  final assetKey = '$rootPackage|lib/_expr_probe.dart';
+  readerWriter.testing.writeString(AssetId.parse(assetKey), source);
+
+  ResolvedMethodExpressionForTest? result;
+  await testBuilder(
+    _CapturingBuilder(
+      (library, assetId) async {
+        final classElement =
+            library.classes.firstWhere((element) => element.name == className);
+        final method = classElement.methods
+            .firstWhere((element) => element.name == methodName);
+        final resolvedResult =
+            await library.session.getResolvedLibraryByElement(library);
+        if (resolvedResult is! ResolvedLibraryResult) return;
+        final node =
+            resolvedResult.getFragmentDeclaration(method.firstFragment)?.node;
+        if (node is! MethodDeclaration) return;
+        final body = node.body;
+        Expression? expression;
+        if (body is ExpressionFunctionBody) {
+          expression = body.expression;
+        } else if (body is BlockFunctionBody) {
+          final returns = body.block.statements.whereType<ReturnStatement>();
+          if (returns.length == 1) expression = returns.single.expression;
+        }
+        if (expression == null) return;
+        result = ResolvedMethodExpressionForTest(
+          expression: expression,
+          classes: Map.unmodifiable({
+            for (final element in library.classes) element.name: element,
+          }),
+        );
+      },
+      allowedAssetIds: {AssetId.parse(assetKey)},
+    ),
+    {assetKey: source},
+    rootPackage: rootPackage,
+    readerWriter: readerWriter,
+  );
+  if (result == null) {
+    throw StateError(
+      'Failed to resolve $className.$methodName as a single-return method.',
+    );
+  }
+  return result!;
+}
+
 /// Builds a [TestReaderWriter] pre-populated with the on-disk source files
 /// fixture analysis needs.
 ///

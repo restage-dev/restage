@@ -797,6 +797,9 @@ enum CollectionStructuralOccurrenceKind {
   /// One statically expanded loop iteration.
   loopIteration,
 
+  /// The single authored template of a run-time loop.
+  loopTemplate,
+
   /// The selected true branch of a collection condition.
   selectedThen,
 
@@ -881,6 +884,29 @@ final class CollectionListElement extends CollectionListTraversalEntry {
   final CollectionSemanticOccurrence occurrence;
 }
 
+/// One run-time collection loop that static traversal deliberately refused.
+final class CollectionRuntimeLoopCandidate {
+  /// Creates a resolved candidate for strict downstream admission.
+  const CollectionRuntimeLoopCandidate({
+    required this.iterable,
+    required this.binding,
+    required this.identifier,
+    required this.template,
+  });
+
+  /// The resolved iterable expression.
+  final Expression iterable;
+
+  /// The resolved loop-variable element.
+  final Element binding;
+
+  /// The identifier authored for the loop variable.
+  final String identifier;
+
+  /// The resolved template and its structural occurrence.
+  final CollectionSemanticOccurrence template;
+}
+
 /// One refusal produced while traversing a list literal.
 final class CollectionListRefusal extends CollectionListTraversalEntry {
   /// Creates a refused list entry.
@@ -921,6 +947,7 @@ final class CollectionUnrollRefused extends CollectionUnrollResult {
     required this.reason,
     required this.detail,
     required this.location,
+    this.runtimeLoop,
   });
 
   /// The category of the refusal.
@@ -931,6 +958,9 @@ final class CollectionUnrollRefused extends CollectionUnrollResult {
 
   /// The AST node that should anchor the diagnostic.
   final AstNode location;
+
+  /// A resolved run-time loop available to strict downstream consumers.
+  final CollectionRuntimeLoopCandidate? runtimeLoop;
 }
 
 /// Expands a spread, collection-`if`, or collection-`for` over static values
@@ -1298,11 +1328,55 @@ final class _CollectionUnroller {
       );
     }
     if (iterable is! ListLiteral) {
-      return _nonListRefusal(
+      final refusal = _nonListRefusal(
         iterable,
         element,
         staticDetail: _kStaticForDetail,
         runtimeDetail: _kRuntimeForDetail,
+      );
+      if (refusal.reason != CollectionUnrollRefusal.runtimeValue ||
+          element.body is! Expression) {
+        return refusal;
+      }
+      final body = element.body as Expression;
+      final templateResolution = _semantics.resolve(body, bindings, _budget);
+      if (templateResolution.workLimitExceeded) {
+        return _budget.workRefusal(element);
+      }
+      final template = CollectionSemanticOccurrence(
+        authoredExpression: body,
+        terminalExpression: templateResolution.expression,
+        bindings: templateResolution.bindings,
+        sourceProvenance: templateResolution.sourceProvenance,
+        structuralPath: [
+          ...structuralPath,
+          CollectionStructuralOccurrenceStep(
+            kind: CollectionStructuralOccurrenceKind.loopTemplate,
+            node: element,
+            ordinal: 0,
+          ),
+        ],
+      );
+      if (ledgerCallbacks) {
+        final callbackRefusal = _session._admitCallbacks(
+          template,
+          _semantics,
+          _budget,
+          repeatedBy: null,
+          rootWorkAlreadyCharged: false,
+        );
+        if (callbackRefusal != null) return callbackRefusal;
+      }
+      return CollectionUnrollRefused(
+        reason: refusal.reason,
+        detail: refusal.detail,
+        location: refusal.location,
+        runtimeLoop: CollectionRuntimeLoopCandidate(
+          iterable: iterable,
+          binding: loopVariable,
+          identifier: parts.loopVariable.name.lexeme,
+          template: template,
+        ),
       );
     }
     var iterationOrdinal = 0;

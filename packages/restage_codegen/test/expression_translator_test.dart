@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
@@ -30,6 +31,22 @@ import 'helpers.dart';
 // ---------------------------------------------------------------------------
 
 const String _kTestLibraryOrigin = 'package:restage_codegen';
+
+const String _kRootExpressionStubs = '''
+  class Widget { const Widget(); }
+  class BuildContext {}
+  abstract class StatelessWidget extends Widget { const StatelessWidget(); }
+  abstract class StatefulWidget extends Widget { const StatefulWidget(); }
+  abstract class State<T extends StatefulWidget> {
+    late T widget;
+  }
+  class Text extends Widget {
+    const Text({this.text, this.value});
+    final String? text;
+    final int? value;
+  }
+  class Tag { const Tag(); }
+''';
 
 final List<HelperDefinition> _testHelpers = [
   HelperDefinition(
@@ -87,6 +104,30 @@ Object x() => value();
   return translator.translate(
     body.expression,
     rootLocalBindings: body.localBindings,
+  );
+}
+
+RootContextParam _rootParamFrom(
+  ResolvedMethodExpressionForTest probe, {
+  required String className,
+  required String name,
+  bool isHostData = true,
+}) {
+  final classElement = probe.classes[className]!;
+  final parameter = classElement.unnamedConstructor!.formalParameters
+      .firstWhere((element) => element.name == name);
+  final defaultValue =
+      parameter.hasDefaultValue ? parameter.computeConstantValue() : null;
+  return RootContextParam(
+    name: name,
+    type: parameter.type,
+    isHostData: isHostData,
+    field: parameter is FieldFormalParameterElement ? parameter.field : null,
+    isRequired: parameter.isRequired,
+    defaultValueCode: parameter.defaultValueCode,
+    hasNullDefault: parameter.hasDefaultValue &&
+        defaultValue != null &&
+        defaultValue.isNull,
   );
 }
 
@@ -225,6 +266,210 @@ void main() {
       );
       expect(r.dsl, '[1, 2, 3]');
       expect(r.issues, isEmpty);
+    });
+  });
+
+  group('typed list collection flow', () {
+    const flowTails = <(String, String)>[
+      ('spread', '...more'),
+      ('collection-if', "if (enabled) 'more'"),
+      ('collection-for', 'for (final value in more) value'),
+    ];
+    NodeList<Expression> callArgumentsOf(Expression expression) =>
+        switch (expression) {
+          InstanceCreationExpression(:final argumentList) =>
+            argumentList.arguments,
+          MethodInvocation(:final argumentList) => argumentList.arguments,
+          _ => throw StateError('Expected a call expression.'),
+        };
+
+    test('direct list slots suppress every collection-flow form', () async {
+      final directTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'ListSink',
+            properties: [prop('values', PropertyType.stringList)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+      final success = directTranslator.translate(
+        await parseExpressionForTest(
+          "ListSink(values: <String>['ok', 'more'])",
+        ),
+      );
+      expect(success.issues, isEmpty);
+      expect(success.dsl, 'ListSink(values: ["ok", "more"])');
+
+      for (final (name, tail) in flowTails) {
+        final source = '''
+class ListSink {
+  const ListSink({required this.values});
+  final List<String> values;
+}
+final List<String> more = const <String>['more'];
+const bool enabled = true;
+Object x() => ListSink(values: <String>['ok', $tail]);
+''';
+        final expression = await parseExpressionFromSourceForTest(source);
+        final argument = (expression as InstanceCreationExpression)
+            .argumentList
+            .arguments
+            .single as NamedExpression;
+        final list = argument.expression as ListLiteral;
+        final lineInfo = LineInfo.fromContent(source);
+        final offendingLocation =
+            lineInfo.getLocation(list.elements.last.offset);
+        final result = directTranslator.translate(
+          expression,
+          sourcePath: 'direct_list.dart',
+          lineInfo: lineInfo,
+        );
+
+        expect(result.issues, hasLength(1), reason: name);
+        expect(
+          result.issues.single.code,
+          IssueCode.unsupportedCollectionFlow,
+          reason: name,
+        );
+        expect(result.dsl, isEmpty, reason: name);
+        expect(result.dsl, isNot(contains('["ok"]')), reason: name);
+        expect(
+          result.issues.single.location,
+          'direct_list.dart:${offendingLocation.lineNumber}:'
+          '${offendingLocation.columnNumber}',
+          reason: name,
+        );
+      }
+    });
+
+    test('direct list slots refuse a present child with no DSL bytes',
+        () async {
+      final directTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'ListSink',
+            properties: [prop('values', PropertyType.stringList)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+      final result = directTranslator.translate(
+        await parseExpressionFromSourceForTest('''
+          class ListSink {
+            const ListSink({required this.values});
+            final List<String> values;
+          }
+          String unavailable() => throw StateError('unavailable');
+          Object x() => ListSink(
+            values: <String>['ok', unavailable()],
+          );
+        '''),
+      );
+
+      expect(result.dsl, isEmpty);
+      expect(result.dsl, isNot(contains('["ok", ]')));
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.unknownWidget),
+      );
+    });
+
+    test('generated list recipes suppress every collection-flow form',
+        () async {
+      final success = translator.translate(
+        await parseExpressionForTest(
+          'RadialGradient(colors: <Color>['
+          ' Color(0xFF112233), Color(0xFF445566)])',
+        ),
+      );
+      expect(success.issues, isEmpty);
+      expect(
+        success.dsl,
+        '{type: "radial", colors: [0xFF112233, 0xFF445566]}',
+      );
+
+      for (final (name, tail) in const <(String, String)>[
+        ('spread', '...more'),
+        ('collection-if', 'if (enabled) Color(0xFF445566)'),
+        ('collection-for', 'for (final color in more) color'),
+      ]) {
+        final source = 'Object x() => RadialGradient(colors: <Color>[ '
+            'Color(0xFF112233), $tail]);';
+        final expression = await parseExpressionFromSourceForTest(source);
+        final argument = callArgumentsOf(expression).single as NamedExpression;
+        final list = argument.expression as ListLiteral;
+        final lineInfo = LineInfo.fromContent(source);
+        final offendingLocation =
+            lineInfo.getLocation(list.elements.last.offset);
+        final result = translator.translate(
+          expression,
+          sourcePath: 'generated_list.dart',
+          lineInfo: lineInfo,
+        );
+
+        expect(result.issues, hasLength(1), reason: name);
+        expect(
+          result.issues.single.code,
+          IssueCode.unsupportedCollectionFlow,
+          reason: name,
+        );
+        expect(result.dsl, isEmpty, reason: name);
+        expect(result.dsl, isNot(contains('0xFF112233')), reason: name);
+        expect(
+          result.issues.single.location,
+          'generated_list.dart:${offendingLocation.lineNumber}:'
+          '${offendingLocation.columnNumber}',
+          reason: name,
+        );
+      }
+    });
+
+    test('strict-double lists suppress every collection-flow form', () async {
+      final success = translator.translate(
+        await parseExpressionForTest(
+          'LinearGradient(colors: <Color>[Color(0xFF112233)], '
+          'stops: <double>[0.0, 1.0])',
+        ),
+      );
+      expect(success.issues, isEmpty);
+      expect(
+        success.dsl,
+        '{type: "linear", colors: [0xFF112233], stops: [0.0, 1.0]}',
+      );
+
+      for (final (name, tail) in const <(String, String)>[
+        ('spread', '...more'),
+        ('collection-if', 'if (enabled) 1.0'),
+        ('collection-for', 'for (final stop in more) stop'),
+      ]) {
+        final source = 'Object x() => LinearGradient( '
+            'colors: <Color>[Color(0xFF112233)], '
+            'stops: <double>[0.0, $tail]);';
+        final expression = await parseExpressionFromSourceForTest(source);
+        final lineInfo = LineInfo.fromContent(source);
+        final expressionLocation = lineInfo.getLocation(expression.offset);
+        final result = translator.translate(
+          expression,
+          sourcePath: 'double_list.dart',
+          lineInfo: lineInfo,
+        );
+
+        expect(result.issues, hasLength(1), reason: name);
+        expect(
+          result.issues.single.code,
+          IssueCode.unsupportedCollectionFlow,
+          reason: name,
+        );
+        expect(result.dsl, isEmpty, reason: name);
+        expect(result.dsl, isNot(contains('stops: [0.0]')), reason: name);
+        expect(
+          result.issues.single.location,
+          'double_list.dart:${expressionLocation.lineNumber}:'
+          '${expressionLocation.columnNumber}',
+          reason: name,
+        );
+      }
     });
   });
 
@@ -1069,6 +1314,60 @@ RadioGroup<String>(
       expect(r.dsl, isNot(contains('selected')));
     });
 
+    test('validates host data used by single-select string slots', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        class P extends StatelessWidget {
+          const P({required this.title, required this.count});
+          final String title;
+          final int count;
+          Object render() => <Object>[
+            DropdownButton<String>(
+              value: title,
+              items: const [
+                DropdownMenuItem<String>(value: 'a', child: Text('A')),
+              ],
+            ),
+            DropdownButton<String>(
+              value: count,
+              items: const [
+                DropdownMenuItem<String>(value: 'a', child: Text('A')),
+              ],
+            ),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'title'),
+        _rootParamFrom(probe, className: 'P', name: 'count'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final valid = selectTranslator.translate(
+        expressions[0],
+        rootParams: params,
+      );
+      expect(valid.issues, isEmpty);
+      expect(valid.dsl, contains('selected: data.context.title'));
+
+      final invalid = selectTranslator.translate(
+        expressions[1],
+        rootParams: params,
+      );
+      expect(invalid.dsl, isNot(contains('data.context.count')));
+      expect(
+        invalid.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
+      );
+    });
+
     test('a non-carrier leaf defers the whole widget, named', () async {
       final r = await alias('''
 RadioGroup<String>(
@@ -1453,6 +1752,65 @@ SegmentedButton<String>(
       expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
       expect(r.dsl, contains('multiSelectionEnabled: true'));
       expect(r.dsl, contains('emptySelectionAllowed: true'));
+    });
+
+    test('validates host data used by segmented boolean slots', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        class P extends StatelessWidget {
+          const P({required this.enabled, required this.label});
+          final bool enabled;
+          final String label;
+          Object render() => <Object>[
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(value: 'a', label: Text('A')),
+              ],
+              selected: const {'a'},
+              multiSelectionEnabled: enabled,
+            ),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(value: 'a', label: Text('A')),
+              ],
+              selected: const {'a'},
+              multiSelectionEnabled: label,
+            ),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'enabled'),
+        _rootParamFrom(probe, className: 'P', name: 'label'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final valid = segmentedTranslator.translate(
+        expressions[0],
+        rootParams: params,
+      );
+      expect(valid.issues, isEmpty);
+      expect(
+        valid.dsl,
+        contains('multiSelectionEnabled: data.context.enabled'),
+      );
+
+      final invalid = segmentedTranslator.translate(
+        expressions[1],
+        rootParams: params,
+      );
+      expect(invalid.dsl, isNot(contains('data.context.label')));
+      expect(
+        invalid.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
+      );
     });
 
     test(
@@ -3650,7 +4008,7 @@ Object x() => Column(
   });
 
   group('root source state translation', () {
-    final stateTranslator = ExpressionTranslator(
+    final stateTranslator = ExpressionTranslator.forTesting(
       catalog: catalogWith([
         entry(
           name: 'Text',
@@ -3665,8 +4023,15 @@ Object x() => Column(
             prop('child', PropertyType.widget),
           ],
         ),
+        entry(
+          name: 'Sink',
+          properties: [
+            prop('text', PropertyType.string, required: true),
+          ],
+        ),
       ]),
       helpers: HelperRegistry(),
+      frameworkLibraryPredicate: syntheticFrameworkLibrary,
     );
 
     // Same catalog as `stateTranslator`, with the production helper registry
@@ -3769,10 +4134,22 @@ Object x() => Column(
 
     test('rejects root widget field reads instead of lowering to args',
         () async {
-      final expr = await parseExpressionForTest('Text(text: widget.label)');
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatefulWidget {
+          const P({required this.name});
+          final String name;
+        }
+        class _PState extends State<P> {
+          Widget build(BuildContext context) => Text(text: widget.label);
+        }
+      ''',
+        className: '_PState',
+      );
 
       final result = stateTranslator.translate(
-        expr,
+        probe.expression,
         rootState: [
           const CustomWidgetStateField(
             name: 'annual',
@@ -3780,6 +4157,7 @@ Object x() => Column(
             initialValue: false,
           ),
         ],
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'name')],
       );
 
       expect(result.dsl, isNot(contains('args.label')));
@@ -3794,6 +4172,1158 @@ Object x() => Column(
           contains('no args.label binding to emit'),
         ),
       );
+    });
+
+    test('lowers root widget params to host data references', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatefulWidget {
+          const P({required this.label});
+          final String label;
+        }
+        class _PState extends State<P> {
+          Widget build(BuildContext context) => Text(text: widget.label);
+        }
+      ''',
+        className: '_PState',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'annual',
+            isNumeric: false,
+            initialValue: false,
+          ),
+        ],
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'label')],
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, contains('data.context.label'));
+    });
+
+    test('requires the inherited State widget receiver for host data',
+        () async {
+      final overridden = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/widgets.dart';
+
+        class Sink {
+          const Sink({required this.text});
+          final String text;
+        }
+
+        class P extends StatefulWidget {
+          const P({required this.title});
+          final String title;
+          @override
+          State<P> createState() => _PState();
+        }
+        class _PState extends State<P> {
+          @override
+          P get widget => const P(title: 'fixed');
+          Object render() => Sink(text: widget.title);
+        }
+      ''',
+        className: '_PState',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final shadowed = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/widgets.dart';
+
+        class Sink {
+          const Sink({required this.text});
+          final String text;
+        }
+
+        class P extends StatefulWidget {
+          const P({required this.title});
+          final String title;
+          @override
+          State<P> createState() => _PState();
+        }
+        class _PState extends State<P> {
+          Object render() {
+            const widget = P(title: 'local');
+            return Sink(text: widget.title);
+          }
+        }
+      ''',
+        className: '_PState',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+
+      TranslationResult translate(ResolvedMethodExpressionForTest probe) =>
+          stateTranslator.translate(
+            probe.expression,
+            rootState: const [],
+            rootParams: [
+              _rootParamFrom(probe, className: 'P', name: 'title'),
+            ],
+          );
+
+      final overriddenResult = translate(overridden);
+      expect(overriddenResult.dsl, isNot(contains('data.context.title')));
+      expect(
+        overriddenResult.issues.map((issue) => issue.code),
+        contains(IssueCode.stateShapeUnsupported),
+      );
+
+      final shadowedResult = translate(shadowed);
+      expect(shadowedResult.issues, isEmpty);
+      expect(shadowedResult.dsl, 'Sink(text: "local")');
+      expect(shadowedResult.dsl, isNot(contains('data.context.title')));
+    });
+
+    test('lowers stateless root params to host data references', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.label});
+          final String label;
+          Widget build(BuildContext context) => Text(text: label);
+        }
+      ''',
+        className: 'P',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'label')],
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, contains('data.context.label'));
+    });
+
+    test('rejects a stateless read of a non-host-data root param', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.tag});
+          final Tag tag;
+          Widget build(BuildContext context) => Text(text: tag);
+        }
+      ''',
+        className: 'P',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootParams: [
+          _rootParamFrom(
+            probe,
+            className: 'P',
+            name: 'tag',
+            isHostData: false,
+          ),
+        ],
+      );
+
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
+      expect(
+        result.issues.single.message,
+        allOf(
+          contains('does not support that type as host data'),
+          contains('Tag'),
+          contains('bool, int, double, num, String'),
+          contains('List of host-data values'),
+          contains('whose values are host data'),
+        ),
+      );
+    });
+
+    test('rejects a stateful read of a non-host-data root param', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatefulWidget {
+          const P({required this.tag});
+          final Tag tag;
+        }
+        class _PState extends State<P> {
+          Widget build(BuildContext context) => Text(text: widget.tag);
+        }
+      ''',
+        className: '_PState',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'annual',
+            isNumeric: false,
+            initialValue: false,
+          ),
+        ],
+        rootParams: [
+          _rootParamFrom(
+            probe,
+            className: 'P',
+            name: 'tag',
+            isHostData: false,
+          ),
+        ],
+      );
+
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.stateShapeUnsupported);
+      expect(
+        result.issues.single.message,
+        allOf(
+          contains('does not support that type as host data'),
+          contains('Tag'),
+        ),
+      );
+    });
+
+    test('lowers an admissible root param alongside non-host data', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.label, required this.tag});
+          final String label;
+          final Tag tag;
+          Widget build(BuildContext context) => Text(text: label);
+        }
+      ''',
+        className: 'P',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootParams: [
+          _rootParamFrom(probe, className: 'P', name: 'label'),
+          _rootParamFrom(
+            probe,
+            className: 'P',
+            name: 'tag',
+            isHostData: false,
+          ),
+        ],
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, contains('data.context.label'));
+    });
+
+    test('root State fields win over same-named host data params', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatefulWidget {
+          const P({required this.label});
+          final String label;
+        }
+        class _PState extends State<P> {
+          int label = 7;
+          Widget build(BuildContext context) => Text(value: label);
+        }
+      ''',
+        className: '_PState',
+      );
+      final numericTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('value', PropertyType.integer)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+
+      final result = numericTranslator.translate(
+        probe.expression,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'label',
+            isNumeric: true,
+            initialValue: 7,
+          ),
+        ],
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'label')],
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, contains('state.label'));
+      expect(result.dsl, isNot(contains('data.context.label')));
+    });
+
+    test('rejects member access on root host data params', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.settings});
+          final Map<String, String> settings;
+          Widget build(BuildContext context) => Text(text: settings.length);
+        }
+      ''',
+        className: 'P',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'settings')],
+      );
+
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        contains('does not support reading a member of the host data '
+            'parameter'),
+      );
+    });
+
+    test('refuses whole structured values when typed children refuse',
+        () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/widgets.dart';
+
+        class P {
+          const P({required this.gap, required this.color});
+          final int gap;
+          final String color;
+          Object render() => <Object>[
+            EdgeInsets.all(gap),
+            BoxShadow(color: color),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'gap'),
+        _rootParamFrom(probe, className: 'P', name: 'color'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final insets = translator.translate(expressions[0], rootParams: params);
+      final shadow = translator.translate(expressions[1], rootParams: params);
+
+      expect(insets.dsl, isEmpty);
+      expect(shadow.dsl, isEmpty);
+      expect(
+        insets.issues.map((issue) => issue.code),
+        [IssueCode.propertyValueTypeMismatch],
+      );
+      expect(
+        shadow.issues.map((issue) => issue.code),
+        [IssueCode.propertyValueTypeMismatch],
+      );
+    });
+
+    test('keeps exact root list decoders at typed list terminals', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        class P {
+          const P({
+            required this.colors,
+            required this.stops,
+            required this.wrongColors,
+            required this.wrongStops,
+          });
+          final List<int> colors;
+          final List<double> stops;
+          final List<double> wrongColors;
+          final List<int> wrongStops;
+          Object render() => <Object>[
+            RadialGradient(colors: colors, stops: const [0.0, 1.0]),
+            RadialGradient(
+              colors: const [Color(0xFF000000), Color(0xFFFFFFFF)],
+              stops: stops,
+            ),
+            RadialGradient(colors: colors, stops: stops),
+            LinearGradient(colors: colors, stops: stops),
+            RadialGradient(
+              colors: wrongColors,
+              stops: const [0.0, 1.0],
+            ),
+            RadialGradient(
+              colors: const [Color(0xFF000000), Color(0xFFFFFFFF)],
+              stops: wrongStops,
+            ),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'colors'),
+        _rootParamFrom(probe, className: 'P', name: 'stops'),
+        _rootParamFrom(probe, className: 'P', name: 'wrongColors'),
+        _rootParamFrom(probe, className: 'P', name: 'wrongStops'),
+      ];
+
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          translator.translate(expression, rootParams: params),
+      ];
+
+      String gradientDsl(String type, String colors, String stops) =>
+          '{type: "$type", colors: $colors, stops: $stops}';
+      expect(
+        results.take(4).map((result) => result.dsl),
+        [
+          gradientDsl('radial', 'data.context.colors', '[0.0, 1.0]'),
+          gradientDsl(
+            'radial',
+            '[0xFF000000, 0xFFFFFFFF]',
+            'data.context.stops',
+          ),
+          gradientDsl(
+            'radial',
+            'data.context.colors',
+            'data.context.stops',
+          ),
+          gradientDsl(
+            'linear',
+            'data.context.colors',
+            'data.context.stops',
+          ),
+        ],
+      );
+      expect(results.take(4).expand((result) => result.issues), isEmpty);
+      for (final result in results.skip(4)) {
+        expect(result.dsl, isEmpty);
+        expect(
+          result.issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch],
+        );
+      }
+    });
+
+    test('validates conditional typed list terminals for each decoder',
+        () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        class P {
+          const P({
+            required this.flag,
+            required this.colors,
+            required this.alternateColors,
+            required this.wrongColors,
+          });
+          final bool flag;
+          final List<int> colors;
+          final List<int> alternateColors;
+          final List<double> wrongColors;
+          Object render() => <Object>[
+            LinearGradient(colors: colors),
+            LinearGradient(colors: wrongColors),
+            LinearGradient(colors: flag ? colors : alternateColors),
+            LinearGradient(colors: flag ? colors : wrongColors),
+            LinearGradient(
+              colors: const [Color(0xFF000000), Color(0xFFFFFFFF)],
+            ),
+            RadialGradient(colors: flag ? colors : alternateColors),
+            RadialGradient(colors: flag ? colors : wrongColors),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        for (final name in [
+          'flag',
+          'colors',
+          'alternateColors',
+          'wrongColors',
+        ])
+          _rootParamFrom(probe, className: 'P', name: name),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          translator.translate(expression, rootParams: params),
+      ];
+      const matchingSwitch =
+          'switch data.context.flag { true: data.context.colors, '
+          'false: data.context.alternateColors }';
+
+      expect(
+        results.map((result) => result.dsl),
+        [
+          '{type: "linear", colors: data.context.colors}',
+          '',
+          '{type: "linear", colors: $matchingSwitch}',
+          '',
+          '{type: "linear", colors: [0xFF000000, 0xFFFFFFFF]}',
+          '{type: "radial", colors: $matchingSwitch}',
+          '',
+        ],
+      );
+      for (final index in [0, 2, 4, 5]) {
+        expect(results[index].issues, isEmpty);
+      }
+      for (final index in [1, 3, 6]) {
+        expect(
+          results[index].issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch],
+        );
+        expect(results[index].issues.single.location, isNotEmpty);
+      }
+      for (final index in [3, 6]) {
+        expect(
+          results[index].issues.single.message,
+          allOf(contains("'List<num>'"), contains("'color' item decoder")),
+        );
+      }
+    });
+
+    test('uses one type refusal for non-host root reads', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        r'''
+        class Profile {
+          const Profile(this.name);
+          final String name;
+        }
+        class P {
+          const P({required this.profile});
+          final Profile profile;
+          Object render() => <Object>[
+            profile,
+            profile.name,
+            (profile).name,
+            profile.toString(),
+            profile[0],
+            profile..name,
+            'Hi $profile',
+            'Hi ${profile.name}',
+            'Hi ${profile.toString()}',
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final param = _rootParamFrom(
+        probe,
+        className: 'P',
+        name: 'profile',
+        isHostData: false,
+      );
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          translator.translate(expression, rootParams: [param]),
+      ];
+
+      const expectedMessage =
+          "Cannot read the parameter 'profile': it is declared 'Profile', and "
+          'Restage does not support that type as host data. Host data '
+          'parameters must be a scalar (bool, int, double, num, String), '
+          'Object?, a List of host-data values, or a Map<String, …> whose '
+          'values are host data, optionally nullable.';
+      expect(
+        results.map((result) => result.issues.single.message),
+        everyElement(expectedMessage),
+      );
+      expect(
+        results.map((result) => result.issues.single.code),
+        everyElement(IssueCode.unrecognizedMethodCall),
+      );
+      expect(results.map((result) => result.dsl), everyElement(isEmpty));
+    });
+
+    test('matches root host data to exact runtime decoder shapes', () async {
+      final exactTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Slots',
+            properties: [
+              prop('realValue', PropertyType.real),
+              prop('integerValue', PropertyType.integer),
+              prop('colorValue', PropertyType.color),
+              prop('stringValue', PropertyType.string),
+              prop('booleanValue', PropertyType.boolean),
+              prop('stringsValue', PropertyType.stringList),
+              prop('booleansValue', PropertyType.booleanList),
+              prop('gradientValue', PropertyType.gradient),
+            ],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class Slots extends Widget {
+          const Slots({
+            this.realValue,
+            this.integerValue,
+            this.colorValue,
+            this.stringValue,
+            this.booleanValue,
+            this.stringsValue,
+            this.booleansValue,
+            this.gradientValue,
+          });
+          final double? realValue;
+          final int? integerValue;
+          final int? colorValue;
+          final String? stringValue;
+          final bool? booleanValue;
+          final List<String>? stringsValue;
+          final List<bool>? booleansValue;
+          final Object? gradientValue;
+        }
+        class P extends StatelessWidget {
+          const P({
+            required this.count,
+            required this.size,
+            required this.amount,
+            required this.label,
+            required this.enabled,
+            required this.labels,
+            required this.flags,
+            required this.settings,
+          });
+          final int count;
+          final double size;
+          final num amount;
+          final String label;
+          final bool enabled;
+          final List<String>? labels;
+          final List<bool>? flags;
+          final Map<String, String> settings;
+          Object build(BuildContext context) => <Widget>[
+            Slots(realValue: size),
+            Slots(integerValue: count),
+            Slots(colorValue: count),
+            Slots(stringValue: label),
+            Slots(booleanValue: enabled),
+            Slots(stringsValue: labels),
+            Slots(booleansValue: flags),
+            Slots(realValue: count),
+            Slots(realValue: amount),
+            Slots(stringsValue: flags),
+            Slots(booleansValue: labels),
+            Slots(gradientValue: settings),
+            Slots(stringsValue: <String>[label]),
+            Slots(stringsValue: <String>[enabled]),
+            Slots(booleansValue: <bool>[enabled]),
+            Slots(booleansValue: <bool>[label]),
+            Slots(stringsValue: <String>[label.toUpperCase()]),
+          ];
+        }
+      ''',
+        className: 'P',
+      );
+      final params = [
+        for (final name in [
+          'count',
+          'size',
+          'amount',
+          'label',
+          'enabled',
+          'labels',
+          'flags',
+          'settings',
+        ])
+          _rootParamFrom(probe, className: 'P', name: name),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          exactTranslator.translate(expression, rootParams: params),
+      ];
+
+      for (final index in [0, 1, 2, 3, 4, 5, 6, 12, 14]) {
+        final result = results[index];
+        expect(result.issues, isEmpty);
+      }
+      for (final index in [7, 8, 9, 10, 11, 13, 15]) {
+        final result = results[index];
+        expect(
+          result.issues.map((issue) => issue.code),
+          contains(IssueCode.propertyValueTypeMismatch),
+        );
+      }
+      for (final index in [13, 15, 16]) {
+        expect(results[index].dsl, isEmpty);
+      }
+      expect(
+        results[16].issues.map((issue) => issue.code),
+        contains(IssueCode.unknownWidget),
+      );
+    });
+
+    test('validates host data inside structured double decoders', () async {
+      final structuredTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'InsetsSink',
+            properties: [prop('value', PropertyType.edgeInsets)],
+          ),
+          entry(
+            name: 'OffsetSink',
+            properties: [prop('value', PropertyType.offset)],
+          ),
+          entry(
+            name: 'RadiusSink',
+            properties: [prop('value', PropertyType.real)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/widgets.dart';
+
+        class InsetsSink { const InsetsSink({required this.value}); final Object value; }
+        class OffsetSink { const OffsetSink({required this.value}); final Object value; }
+        class RadiusSink { const RadiusSink({required this.value}); final Object value; }
+        class P extends StatelessWidget {
+          const P({required this.gap, required this.extent});
+          final int gap;
+          final double extent;
+          Object render() => <Object>[
+            InsetsSink(value: EdgeInsets.all(gap)),
+            InsetsSink(value: EdgeInsets.all(extent)),
+            OffsetSink(value: Offset(gap, gap)),
+            OffsetSink(value: Offset(extent, extent)),
+            RadiusSink(value: BorderRadius.all(Radius.circular(gap))),
+            RadiusSink(value: BorderRadius.all(Radius.circular(extent))),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'gap'),
+        _rootParamFrom(probe, className: 'P', name: 'extent'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          structuredTranslator.translate(expression, rootParams: params),
+      ];
+
+      for (final index in [0, 2, 4]) {
+        expect(results[index].dsl, isNot(contains('data.context.gap')));
+        expect(
+          results[index].issues.where((issue) => !issue.code.isInformational),
+          isNotEmpty,
+        );
+      }
+      for (final index in [1, 3, 5]) {
+        expect(results[index].issues, isEmpty);
+        expect(results[index].dsl, contains('data.context.extent'));
+      }
+    });
+
+    test('validates conditional, record, and custom-map values', () async {
+      final valueTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'ValueSink',
+            properties: [prop('value', PropertyType.real)],
+          ),
+          entry(
+            name: 'RecordSink',
+            properties: [
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'value',
+                type: PropertyType.unknown,
+                description: '',
+                valueShape: ScalarShape.opaqueRecord(),
+              ),
+            ],
+          ),
+          entry(
+            name: 'MapSink',
+            properties: [
+              PropertyEntry(
+                wireId: WireId.unallocatedProperty,
+                name: 'value',
+                type: PropertyType.unknown,
+                description: '',
+                valueShape: ScalarShape.opaqueStringKeyedMap(),
+              ),
+            ],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class ValueSink { const ValueSink({required this.value}); final Object value; }
+        class RecordSink {
+          const RecordSink({required this.value});
+          final ({bool enabled, String label}) value;
+        }
+        class MapSink { const MapSink({required this.value}); final Object value; }
+        class P extends StatelessWidget {
+          const P({
+            required this.flag,
+            required this.count,
+            required this.extent,
+            required this.label,
+          });
+          final bool flag;
+          final int count;
+          final double extent;
+          final String label;
+          Object render() => <Object>[
+            ValueSink(value: flag ? extent : extent),
+            ValueSink(value: flag ? extent : count),
+            ValueSink(value: count ? extent : extent),
+            RecordSink(value: (label: label, enabled: flag)),
+            MapSink(value: <String, String>{'name': label}),
+            MapSink(value: <String, String>{'name': count}),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final params = [
+        for (final name in ['flag', 'count', 'extent', 'label'])
+          _rootParamFrom(probe, className: 'P', name: name),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          valueTranslator.translate(expression, rootParams: params),
+      ];
+
+      for (final index in [0, 3, 4]) {
+        expect(results[index].issues, isEmpty);
+        expect(results[index].dsl, contains('data.context'));
+      }
+      for (final index in [1, 2, 5]) {
+        expect(results[index].dsl, isNot(contains('data.context.count')));
+        expect(
+          results[index].issues.map((issue) => issue.code),
+          contains(IssueCode.propertyValueTypeMismatch),
+        );
+      }
+    });
+
+    test('validates typed recipe fields', () async {
+      final recipeTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'GradientSink',
+            properties: [prop('value', PropertyType.gradient)],
+          ),
+          entry(
+            name: 'ImageSink',
+            properties: [prop('value', PropertyType.decorationImage)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        class GradientSink {
+          const GradientSink({required this.value});
+          final Object value;
+        }
+        class ImageSink {
+          const ImageSink({required this.value});
+          final Object value;
+        }
+        class P extends StatelessWidget {
+          const P({
+            required this.extent,
+            required this.count,
+            required this.color,
+            required this.label,
+            required this.url,
+          });
+          final double extent;
+          final int count;
+          final int color;
+          final String label;
+          final String url;
+          Object render() => <Object>[
+            GradientSink(
+              value: RadialGradient(
+                colors: const [Colors.black, Colors.white],
+                radius: extent,
+              ),
+            ),
+            GradientSink(
+              value: RadialGradient(
+                colors: const [Colors.black, Colors.white],
+                radius: count,
+              ),
+            ),
+            GradientSink(value: RadialGradient(colors: <Color>[color])),
+            GradientSink(
+              value: RadialGradient(colors: <Color>[color, label]),
+            ),
+            GradientSink(value: LinearGradient(colors: <Color>[color])),
+            GradientSink(
+              value: LinearGradient(colors: <Color>[color, label]),
+            ),
+            GradientSink(
+              value: RadialGradient(
+                colors: const [Colors.black, Colors.white],
+                stops: <double>[extent],
+              ),
+            ),
+            GradientSink(
+              value: RadialGradient(
+                colors: const [Colors.black, Colors.white],
+                stops: <num>[extent, count],
+              ),
+            ),
+            GradientSink(
+              value: LinearGradient(
+                colors: const [Colors.black, Colors.white],
+                stops: <double>[extent],
+              ),
+            ),
+            GradientSink(
+              value: LinearGradient(
+                colors: const [Colors.black, Colors.white],
+                stops: <num>[extent, count],
+              ),
+            ),
+            ImageSink(
+              value: DecorationImage(image: NetworkImage(url)),
+            ),
+            ImageSink(
+              value: DecorationImage(image: NetworkImage(count)),
+            ),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        for (final name in ['extent', 'count', 'color', 'label', 'url'])
+          _rootParamFrom(probe, className: 'P', name: name),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final results = [
+        for (final expression in expressions)
+          recipeTranslator.translate(expression, rootParams: params),
+      ];
+
+      for (final index in [0, 2, 4, 6, 8, 10]) {
+        expect(results[index].issues, isEmpty);
+        expect(results[index].dsl, contains('data.context'));
+      }
+      for (final index in [1, 3, 5, 7, 9, 11]) {
+        expect(
+          results[index].issues.map((issue) => issue.code),
+          contains(IssueCode.propertyValueTypeMismatch),
+        );
+        expect(results[index].dsl, isEmpty);
+      }
+    });
+
+    test('does not capture a stateful top-level const with the same name',
+        () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        const String title = 'fixed';
+        class P extends StatefulWidget {
+          const P({required this.title});
+          final String title;
+        }
+        class _PState extends State<P> {
+          Widget build(BuildContext context) => Text(text: title);
+        }
+      ''',
+        className: '_PState',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootState: const [],
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'title')],
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'Text(text: "fixed")');
+      expect(result.dsl, isNot(contains('data.context')));
+    });
+
+    test('does not capture local, static, or getter lookalikes', () async {
+      final localProbe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.value});
+          final String value;
+          Widget build(BuildContext context) {
+            const int value = 7;
+            return Text(value: value);
+          }
+        }
+      ''',
+        className: 'P',
+      );
+      final staticProbe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatefulWidget {
+          const P({required this.title});
+          final String title;
+        }
+        class _PState extends State<P> {
+          static const String title = 'static';
+          Widget build(BuildContext context) => Text(text: title);
+        }
+      ''',
+        className: '_PState',
+      );
+      final getterProbe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatefulWidget {
+          const P({required this.title});
+          final String title;
+        }
+        class _PState extends State<P> {
+          String get title => 'getter';
+          Widget build(BuildContext context) => Text(text: title);
+        }
+      ''',
+        className: '_PState',
+      );
+      final integerTranslator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('value', PropertyType.integer)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+      );
+
+      final local = integerTranslator.translate(
+        localProbe.expression,
+        rootParams: [
+          _rootParamFrom(localProbe, className: 'P', name: 'value'),
+        ],
+      );
+      final staticResult = stateTranslator.translate(
+        staticProbe.expression,
+        rootState: const [],
+        rootParams: [
+          _rootParamFrom(staticProbe, className: 'P', name: 'title'),
+        ],
+      );
+      final getterResult = stateTranslator.translate(
+        getterProbe.expression,
+        rootState: const [],
+        rootParams: [
+          _rootParamFrom(getterProbe, className: 'P', name: 'title'),
+        ],
+      );
+
+      expect(local.issues, isEmpty);
+      expect(local.dsl, 'Text(value: 7)');
+      expect(staticResult.issues, isEmpty);
+      expect(staticResult.dsl, 'Text(text: "static")');
+      expect(getterResult.dsl, isNot(contains('data.context')));
+    });
+
+    test('refuses a read whose omitted value has a non-null default', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({this.title = 'Welcome'});
+          final String title;
+          Widget build(BuildContext context) => Text(text: title);
+        }
+      ''',
+        className: 'P',
+      );
+
+      final result = stateTranslator.translate(
+        probe.expression,
+        rootParams: [_rootParamFrom(probe, className: 'P', name: 'title')],
+      );
+
+      expect(result.dsl, isEmpty);
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
+      expect(
+        result.issues.single.message,
+        allOf(contains('Dart default'), contains('Welcome')),
+      );
+    });
+
+    test('implicit and explicit nullable null defaults lower equivalently',
+        () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({this.implicitName, this.explicitName = null});
+          final String? implicitName;
+          final String? explicitName;
+          Object build(BuildContext context) => <Widget>[
+            Text(text: implicitName),
+            Text(text: explicitName),
+          ];
+        }
+      ''',
+        className: 'P',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'implicitName'),
+        _rootParamFrom(probe, className: 'P', name: 'explicitName'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final implicitResult =
+          stateTranslator.translate(expressions[0], rootParams: params);
+      final explicitResult =
+          stateTranslator.translate(expressions[1], rootParams: params);
+
+      expect(implicitResult.issues, isEmpty);
+      expect(explicitResult.issues, isEmpty);
+      expect(implicitResult.dsl, 'Text(text: data.context.implicitName)');
+      expect(explicitResult.dsl, 'Text(text: data.context.explicitName)');
     });
 
     test('does not leak root state or handlers between translations', () async {
@@ -3824,6 +5354,334 @@ Object x() => Column(
       expect(withoutState.dsl, isNot(contains('state.annual')));
       expect(withoutState.dsl, isNot(contains('set state.annual')));
       expect(withoutState.issues, isNotEmpty);
+    });
+  });
+
+  group('context list loops', () {
+    final loopTranslator = ExpressionTranslator.forTesting(
+      catalog: catalogWith([
+        entry(
+          name: 'Column',
+          childrenSlot: ChildrenSlot.list,
+          properties: [prop('children', PropertyType.widgetList)],
+        ),
+        entry(
+          name: 'Text',
+          properties: [
+            prop('text', PropertyType.string, required: true),
+          ],
+        ),
+        entry(
+          name: 'Probe',
+          properties: [
+            prop('near', PropertyType.unknown),
+            prop('far', PropertyType.unknown),
+          ],
+        ),
+      ]),
+      helpers: HelperRegistry(),
+      frameworkLibraryPredicate: syntheticFrameworkLibrary,
+    );
+
+    Future<TranslationResult> translate(
+      String source, {
+      List<String> params = const ['values'],
+      Set<String> inadmissible = const {},
+    }) async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        source,
+        className: 'P',
+      );
+      return loopTranslator.translate(
+        probe.expression,
+        rootParams: [
+          for (final name in params)
+            _rootParamFrom(
+              probe,
+              className: 'P',
+              name: name,
+              isHostData: !inadmissible.contains(name),
+            ),
+        ],
+      );
+    }
+
+    test('emits a root list loop with bare and member references', () async {
+      final bare = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<String> values;
+          Widget build(BuildContext context) => Column(
+            children: [for (final value in values) Text(text: value)],
+          );
+        }
+      ''');
+      final member = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class Item {
+          const Item(this.name);
+          final String name;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<Item> values;
+          Widget build(BuildContext context) => Column(
+            children: [for (final item in values) Text(text: item.name)],
+          );
+        }
+      ''');
+
+      expect(bare.issues, isEmpty);
+      expect(
+        bare.dsl,
+        'Column(children: [...for value in data.context.values: '
+        'Text(text: value)])',
+      );
+      expect(member.issues, isEmpty);
+      expect(
+        member.dsl,
+        'Column(children: [...for item in data.context.values: '
+        'Text(text: item.name)])',
+      );
+    });
+
+    test('nested loops preserve lexical reference depth', () async {
+      final result = await translate(
+        '''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class Probe extends Widget {
+          const Probe({this.near, this.far});
+          final Object? near;
+          final Object? far;
+        }
+        class Group {
+          const Group(this.items);
+          final List<String> items;
+        }
+        class P extends StatelessWidget {
+          const P({required this.groups});
+          final List<Group> groups;
+          Widget build(BuildContext context) => Column(
+            children: [
+              for (final group in groups)
+                Column(
+                  children: [
+                    for (final item in group.items)
+                      Probe(near: item, far: group),
+                  ],
+                ),
+            ],
+          );
+        }
+      ''',
+        params: const ['groups'],
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      expect(
+        result.dsl,
+        'Column(children: [...for group in data.context.groups: '
+        'Column(children: [...for item in group.items: '
+        'Probe(near: item, far: group)])])',
+      );
+
+      final library = fmt.parseLibraryFile(emitPaywallLibrary(result.dsl));
+      final root = library.widgets.single.root as fmt.ConstructorCall;
+      final outer =
+          (root.arguments['children']! as List<Object?>).single! as fmt.Loop;
+      final outerBody = outer.output as fmt.ConstructorCall;
+      final inner = (outerBody.arguments['children']! as List<Object?>).single!
+          as fmt.Loop;
+      final innerBody = inner.output as fmt.ConstructorCall;
+      expect((inner.input as fmt.LoopReference).loop, 0);
+      expect((inner.input as fmt.LoopReference).parts, ['items']);
+      expect((innerBody.arguments['near']! as fmt.LoopReference).loop, 0);
+      expect((innerBody.arguments['far']! as fmt.LoopReference).loop, 1);
+    });
+
+    test('rejects non-list and inadmissible context inputs', () async {
+      final iterable = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final Iterable<String> values;
+          Widget build(BuildContext context) => Column(
+            children: [for (final value in values) Text(text: value)],
+          );
+        }
+      ''');
+      final inadmissible = await translate(
+        '''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<String> values;
+          Widget build(BuildContext context) => Column(
+            children: [for (final value in values) Text(text: value)],
+          );
+        }
+      ''',
+        inadmissible: const {'values'},
+      );
+
+      for (final result in [iterable, inadmissible]) {
+        expect(result.dsl, isNot(contains('...for')));
+        expect(result.issues, hasLength(1));
+        expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+        expect(
+          result.issues.single.message,
+          contains('known only at run time'),
+        );
+      }
+    });
+
+    test('rejects reserved names, index reads, and constructor collisions',
+        () async {
+      Future<TranslationResult> guarded(String body) => translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<List<String>> values;
+          Widget build(BuildContext context) => Column(children: [$body]);
+        }
+      ''');
+
+      final reserved = await guarded(
+        'for (final data in values) Text(text: data.first)',
+      );
+      final invalid = await guarded(
+        r'for (final $value in values) Text(text: $value.first)',
+      );
+      final indexed = await guarded(
+        'for (final value in values) Text(text: value[0])',
+      );
+      final collision = await guarded(
+        'for (final Text in values) const Text(text: "fixed")',
+      );
+
+      expect(reserved.dsl, isNot(contains('...for')));
+      expect(reserved.issues.single.message, contains("name 'data'"));
+      expect(invalid.dsl, isNot(contains('...for')));
+      expect(invalid.issues.single.message, contains(r"name '$value'"));
+      expect(indexed.dsl, isNot(contains('...for')));
+      expect(
+        indexed.issues.single.message,
+        contains('cannot be read by index'),
+      );
+      expect(collision.dsl, isNot(contains('...for')));
+      expect(collision.issues.single.message, contains('conflicts with'));
+    });
+
+    test('constructor collision checks ignore string contents', () async {
+      final result = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<String> values;
+          Widget build(BuildContext context) => Column(
+            children: [
+              for (final value in values) const Text(text: 'value('),
+            ],
+          );
+        }
+      ''');
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      expect(
+        result.dsl,
+        'Column(children: [...for value in data.context.values: '
+        'Text(text: "value(")])',
+      );
+    });
+
+    test('suppresses a loop whose template is diagnosed or incomplete',
+        () async {
+      final result = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class Missing extends Widget {
+          const Missing(this.value);
+          final String value;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<String> values;
+          Widget build(BuildContext context) => Column(
+            children: [for (final value in values) Missing(value)],
+          );
+        }
+      ''');
+
+      expect(result.dsl, 'Column(children: [])');
+      expect(result.dsl, isNot(contains('...for')));
+      expect(result.dsl, isNot(contains('Missing')));
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unknownWidget);
+    });
+
+    test('discards valid output beside a diagnosed template child', () async {
+      final result = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class Missing extends Widget {
+          const Missing(this.value);
+          final String value;
+        }
+        class P extends StatelessWidget {
+          const P({required this.values});
+          final List<String> values;
+          Widget build(BuildContext context) => Column(
+            children: [
+              for (final value in values)
+                Column(children: [
+                  Text(text: value),
+                  Missing(value),
+                ]),
+            ],
+          );
+        }
+      ''');
+
+      expect(result.dsl, 'Column(children: [])');
+      expect(result.dsl, isNot(contains('...for')));
+      expect(result.dsl, isNot(contains('Text')));
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unknownWidget);
     });
   });
 
@@ -4353,6 +6211,44 @@ Object x() => Switch(
       );
     });
 
+    test(
+        'interpolates non-nullable String root data and rejects nullable '
+        'String', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.name, this.nickname});
+          final String name;
+          final String? nickname;
+          Object build(BuildContext context) => <Widget>[
+            Text(text: 'Hi \$name'),
+            Text(text: 'Hi \$nickname'),
+          ];
+        }
+      ''',
+        className: 'P',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'name'),
+        _rootParamFrom(probe, className: 'P', name: 'nickname'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+      final stringResult =
+          tInterp.translate(expressions[0], rootParams: params);
+      final nullableResult =
+          tInterp.translate(expressions[1], rootParams: params);
+
+      expect(stringResult.issues, isEmpty);
+      expect(stringResult.dsl, contains('data.context.name'));
+      expect(
+        nullableResult.issues.map((issue) => issue.code),
+        contains(IssueCode.unsupportedInterpolation),
+      );
+      expect(nullableResult.dsl, isEmpty);
+    });
+
     test('interpolated Text with uncarried prop defers whole rewrite',
         () async {
       const source = r'''
@@ -4477,6 +6373,50 @@ Object x() => Switch(
       expect(r.issues.where((issue) => !issue.code.isInformational), isEmpty);
       expect(r.dsl, 'TextRich(textSpan: { text: "Ready" })');
       expect(r.dsl, isNot(contains('key:')));
+    });
+
+    test('validates host data used by TextSpan text', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+
+        class P extends StatelessWidget {
+          const P({required this.title, required this.count});
+          final String title;
+          final int count;
+          Object render() => <Object>[
+            Text.rich(TextSpan(text: title)),
+            Text.rich(TextSpan(text: count)),
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+        rootPackage: 'apps_examples',
+      );
+      final params = [
+        _rootParamFrom(probe, className: 'P', name: 'title'),
+        _rootParamFrom(probe, className: 'P', name: 'count'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final valid = textRichTranslator.translate(
+        expressions[0],
+        rootParams: params,
+      );
+      expect(valid.issues, isEmpty);
+      expect(valid.dsl, contains('text: data.context.title'));
+
+      final invalid = textRichTranslator.translate(
+        expressions[1],
+        rootParams: params,
+      );
+      expect(invalid.dsl, isNot(contains('data.context.count')));
+      expect(
+        invalid.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
+      );
     });
 
     test('mixed-style legal paragraph emits nested span styles', () async {
@@ -4995,6 +6935,36 @@ Object x() => Text.rich(
       );
     });
 
+    test('validates host data before projectList identity emission', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        $_nativeExpressionSourceStubs
+        class P {
+          const P({required this.values});
+          final List<String> values;
+          Object render() => Container(
+            decoration: BoxDecoration(boxShadow: values),
+          );
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+
+      final result = t.translate(
+        probe.expression,
+        rootParams: [
+          _rootParamFrom(probe, className: 'P', name: 'values'),
+        ],
+      );
+
+      expect(result.dsl, isNot(contains('data.context.values')));
+      expect(
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
+      );
+    });
+
     test('matches owning-widget static factories by native receiver metadata',
         () async {
       final r = t.translate(
@@ -5129,6 +7099,77 @@ Object x() => Text.rich(
         'fontFamilyFallback: ["Inter", "SF Pro"], '
         'fontPackage: "brand_fonts")',
       );
+    });
+
+    test('accepts only the resolved TextDecoration list item type', () async {
+      final cases = <({
+        String type,
+        String first,
+        String second,
+        bool accepted,
+      })>[
+        (
+          type: 'TextDecoration',
+          first: 'TextDecoration.underline',
+          second: 'TextDecoration.overline',
+          accepted: true,
+        ),
+        (
+          type: 'Shadow',
+          first: 'const Shadow()',
+          second: 'const Shadow()',
+          accepted: false,
+        ),
+      ];
+
+      for (final entry in cases) {
+        final probe = await parseMethodExpressionFromSourceForTest(
+          '''
+$_nativeExpressionSourceStubs
+
+class P {
+  const P({required this.flag});
+  final bool flag;
+  Object render() => Text(
+    text: 'value',
+    style: TextStyle(
+      decoration: TextDecoration.combine(
+        flag
+            ? const <${entry.type}>[${entry.first}]
+            : const <${entry.type}>[${entry.second}],
+      ),
+    ),
+  );
+}
+''',
+          className: 'P',
+          methodName: 'render',
+        );
+        final result = t.translate(
+          probe.expression,
+          rootParams: [
+            _rootParamFrom(probe, className: 'P', name: 'flag'),
+          ],
+        );
+
+        if (entry.accepted) {
+          expect(result.issues, isEmpty);
+          expect(
+            result.dsl,
+            contains(
+              'decoration: switch data.context.flag { '
+              'true: ["underline"], false: ["overline"] }',
+            ),
+          );
+        } else {
+          expect(result.dsl, isNot(contains('decoration:')));
+          expect(
+            result.issues.map((issue) => issue.code),
+            [IssueCode.propertyValueTypeMismatch],
+          );
+          expect(result.issues.single.location, isNotEmpty);
+        }
+      }
     });
 
     test('TextDecoration.combine refuses wrapped collection elements',

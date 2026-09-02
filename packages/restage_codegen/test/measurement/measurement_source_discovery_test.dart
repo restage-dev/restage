@@ -202,6 +202,38 @@ void main() {
       );
     });
 
+    test('discovers one event in a run-time list template', () async {
+      final fixture = await _resolveFixture(_runtimeCollectionSource());
+      final discovery = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+      );
+
+      expect(
+        discovery.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: discovery.rejectionReason,
+      );
+      expect(discovery.events, hasLength(1));
+      const source =
+          'package:apps_examples/onboarding/screens/probe.dart#Welcome';
+      const column = 'package:flutter/src/widgets/basic.dart#Column';
+      const button =
+          'package:flutter/src/material/elevated_button.dart#ElevatedButton';
+      expect(
+        discovery.events.single.node.structuralOccurrenceKey,
+        '$source|child:$column:$column.children[0]|'
+        'collection:listElement[0]|collection:loopTemplate[0]|widget:$button',
+      );
+      const eventKey = '$source|child:$column:$column.children[0]|'
+          'collection:listElement[0]|collection:loopTemplate[0]|'
+          'widget:$button|$button|$button.onPressed';
+      expect(
+        _eventKeys(discovery),
+        orderedEquals([eventKey]),
+      );
+    });
+
     test('keeps helper bindings on the established list expression key',
         () async {
       final ordinaryFixture = await _resolveFixture(
@@ -1905,6 +1937,28 @@ final class Welcome extends StatelessWidget {
           for (final label in const ['first', 'second']) Text(label),
           if (true) third,
           ...const [Text('fourth')],
+        ],
+      );
+}
+''';
+
+String _runtimeCollectionSource() => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@ScreenSource(id: 'dynamic_labels')
+final class Welcome extends StatelessWidget {
+  const Welcome({required this.labels, super.key});
+  final List<String> labels;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final label in labels)
+            ElevatedButton(
+              onPressed: () {},
+              child: Text(label),
+            ),
         ],
       );
 }

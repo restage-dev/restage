@@ -277,6 +277,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       sourcePath: source.assetId.path,
       lineInfo: lineInfo,
       rootState: source.build.state,
+      rootParams: source.build.rootParams,
       rootEventHandlers: source.build.eventHandlers,
       rootLocalBindings: source.build.localBindings,
     );
@@ -524,6 +525,7 @@ final class OnboardingScreenBuilder implements Builder {
         sourcePath: assetId.path,
         lineInfo: lineInfo,
         rootState: src.build.state,
+        rootParams: src.build.rootParams,
         rootEventHandlers: src.build.eventHandlers,
         rootLocalBindings: src.build.localBindings,
       );

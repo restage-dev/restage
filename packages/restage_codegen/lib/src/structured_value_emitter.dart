@@ -24,50 +24,85 @@ const List<String> _kBorderRadiusCornerOrder = [
 ];
 
 /// Emits RFW DSL fragments for structured Flutter value types.
+/// Host translation primitives are injected; the emitter owns no walk state.
 final class StructuredValueEmitter {
   /// Creates an emitter wired to the host primitives it delegates back to.
   StructuredValueEmitter({
     required String Function(Expression, List<Issue>) translate,
+    String Function(Expression, PropertyType, List<Issue>)? translateSlotValue,
     required String Function(Expression, List<Issue>) translateDoubleScalar,
-    required TranslateBoundCallback translateDoubleElement,
-    required DoubleListSourceResolver resolveDoubleListSource,
+    TranslateBoundCallback? translateDoubleElement,
+    DoubleListSourceResolver? resolveDoubleListSource,
     required Expression Function(Expression) stripParens,
     required String Function(String) stringLiteral,
     required bool Function(Element?) frameworkOrUnresolved,
     required Expression Function(Expression) resolveBoundIdentifier,
-    required CollectionSemanticProbe Function() collectionSemanticProbe,
+    CollectionSemanticProbe Function()? collectionSemanticProbe,
     required bool Function(InstanceCreationExpression)
         isResolvedNonFrameworkCtor,
     required String Function(PrefixedIdentifier, String, String, List<Issue>)
         deferFrameworkConstLookalike,
     required String Function(InstanceCreationExpression, String, List<Issue>)
         deferFrameworkCtorLookalike,
-    required String Function(
+    required String Function(AstNode) locationOf,
+    String Function(Expression, List<Issue>)? translateDoubleLiteral,
+    TranslateBoundSlotCallback? translateSlotElement,
+    TranslateTypedListTerminalCallback? translateTypedListTerminal,
+    String Function(
       ConditionalExpression,
       List<Issue>,
       String Function(Expression),
-    ) conditionalSwitch,
-    required void Function(Expression, PropertyType, List<Issue>)
+    )? conditionalSwitch,
+    void Function(Expression, PropertyType, List<Issue>)?
         validateThemeValueForSlot,
-    required String Function(AstNode) locationOf,
   })  : _translate = translate,
+        _translateSlotValue = translateSlotValue ??
+            ((expr, type, issues) {
+              validateThemeValueForSlot?.call(expr, type, issues);
+              if (expr is ConditionalExpression && conditionalSwitch != null) {
+                return conditionalSwitch(
+                  expr,
+                  issues,
+                  (branch) => translate(branch, issues),
+                );
+              }
+              return translate(expr, issues);
+            }),
         _translateDoubleScalar = translateDoubleScalar,
-        _translateDoubleElement = translateDoubleElement,
-        _resolveDoubleListSource = resolveDoubleListSource,
+        _translateDoubleElement = translateDoubleElement ??
+            ((expr, _, issues) => translateDoubleScalar(expr, issues)),
+        _resolveDoubleListSource = resolveDoubleListSource ??
+            ((source) => DoubleListSourceResolution(
+                  source: source,
+                  disposition: DoubleListSourceDisposition.ordinary,
+                )),
+        _translateDoubleLiteral =
+            translateDoubleLiteral ?? translateDoubleScalar,
+        _translateSlotElement = translateSlotElement ??
+            ((expr, _, type, issues) => (translateSlotValue ??
+                    ((expr, _, issues) => translate(expr, issues)))(
+                  expr,
+                  type,
+                  issues,
+                )),
+        _translateTypedListTerminal = translateTypedListTerminal ??
+            ((expr, _, issues) => translate(expr, issues)),
         _stripParens = stripParens,
         _stringLiteral = stringLiteral,
         _frameworkOrUnresolved = frameworkOrUnresolved,
         _resolveBoundIdentifier = resolveBoundIdentifier,
-        _collectionSemanticProbe = collectionSemanticProbe,
+        _collectionSemanticProbe =
+            collectionSemanticProbe ?? (() => CollectionSemanticProbe()),
         _isResolvedNonFrameworkCtor = isResolvedNonFrameworkCtor,
         _deferFrameworkConstLookalike = deferFrameworkConstLookalike,
         _deferFrameworkCtorLookalike = deferFrameworkCtorLookalike,
-        _conditionalSwitch = conditionalSwitch,
-        _validateThemeValueForSlot = validateThemeValueForSlot,
         _locationOf = locationOf;
 
   /// Translates an arbitrary expression to its RFW DSL fragment.
   final String Function(Expression, List<Issue>) _translate;
+
+  final String Function(Expression, PropertyType, List<Issue>)
+      _translateSlotValue;
 
   /// Translates an expression to an RFW scalar that strict-decodes as a
   /// `double` (an author-written `int` literal is forced to a double literal).
@@ -77,6 +112,12 @@ final class StructuredValueEmitter {
 
   /// Resolves a list expression through the host's active source bindings.
   final DoubleListSourceResolver _resolveDoubleListSource;
+
+  /// Validates a double slot while preserving authored scalar spelling.
+  final String Function(Expression, List<Issue>) _translateDoubleLiteral;
+
+  final TranslateBoundSlotCallback _translateSlotElement;
+  final TranslateTypedListTerminalCallback _translateTypedListTerminal;
 
   /// Strips redundant parenthesization from an expression.
   final Expression Function(Expression) _stripParens;
@@ -104,19 +145,6 @@ final class StructuredValueEmitter {
   /// Emits the deferral diagnostic for a non-framework constructor look-alike.
   final String Function(InstanceCreationExpression, String, List<Issue>)
       _deferFrameworkCtorLookalike;
-
-  /// Lowers a conditional to a native RFW `switch`, branching each arm through
-  /// the supplied per-branch translator.
-  final String Function(
-    ConditionalExpression,
-    List<Issue>,
-    String Function(Expression),
-  ) _conditionalSwitch;
-
-  /// Validates a contract theme read supplied as a slot value against the
-  /// slot's property type.
-  final void Function(Expression, PropertyType, List<Issue>)
-      _validateThemeValueForSlot;
 
   /// Resolves the pre-computed source location string for a node.
   final String Function(AstNode) _locationOf;
@@ -281,13 +309,9 @@ final class StructuredValueEmitter {
   String _radiusScalarDsl(Expression radius, List<Issue> sink) {
     final stripped = _stripParens(radius);
     if (stripped is ConditionalExpression) {
-      return _conditionalSwitch(
-        stripped,
-        sink,
-        (branch) => _translateDoubleScalar(branch, sink),
-      );
+      return _translateDoubleScalar(stripped, sink);
     }
-    return _translate(radius, sink);
+    return _translateDoubleLiteral(stripped, sink);
   }
 
   /// `BorderRadius.all(Radius.circular(<radius>))` is semantically the uniform
@@ -462,22 +486,18 @@ final class StructuredValueEmitter {
         case 'end':
           parts.add('$name: ${alignmentGeometry(a.expression, issues, loc)}');
         case 'colors':
-          final colorsDsl = emitTypedList(
+          final value = _typedList(
             a.expression,
-            _translate,
+            PropertyType.color,
             issues,
-            loc,
-            resolveExpression: _resolveBoundIdentifier,
-            semanticProbe: _collectionSemanticProbe(),
-            locationOf: _locationOf,
           );
-          if (colorsDsl.refused) return '';
-          parts.add('$name: ${colorsDsl.value}');
+          if (value.isEmpty) return '';
+          parts.add('$name: $value');
         case 'stops':
           // `stops` decodes as `list<double>`, so coerce int elements to
           // double literals (the scalar slots already coerce via
           // `asDoubleLiteral`); `colors` are int ARGB values and stay as-is.
-          final stopsDsl = emitDoubleList(
+          final stops = emitDoubleList(
             a.expression,
             _translate,
             _translateDoubleScalar,
@@ -488,9 +508,10 @@ final class StructuredValueEmitter {
             semanticProbe: _collectionSemanticProbe(),
             translateDoubleElement: _translateDoubleElement,
             locationOf: _locationOf,
+            translateTerminal: _translateTypedListTerminal,
           );
-          if (stopsDsl.refused) return '';
-          parts.add('$name: ${stopsDsl.value}');
+          if (stops.isEmpty) return '';
+          parts.add('$name: $stops');
         case 'tileMode':
         case 'transform':
         case 'colorMode':
@@ -522,13 +543,12 @@ final class StructuredValueEmitter {
       final name = a.name.label.name;
       switch (name) {
         case 'color':
-          // Validate before translating so a coalesced `??` fallback in this
-          // hand-authored structured field is kind-checked and recorded as
-          // validated (see [_translateCoalesce]).
-          _validateThemeValueForSlot(a.expression, PropertyType.color, issues);
-          colorDsl = _translate(a.expression, issues);
+          colorDsl = _translateSlotValue(
+            a.expression,
+            PropertyType.color,
+            issues,
+          );
         case 'width':
-          _validateThemeValueForSlot(a.expression, PropertyType.length, issues);
           widthDsl = _translateDoubleScalar(a.expression, issues);
         case 'style':
         case 'strokeAlign':
@@ -604,13 +624,12 @@ final class StructuredValueEmitter {
       final name = a.name.label.name;
       switch (name) {
         case 'color':
-          // Validate before translating so a coalesced `??` fallback in this
-          // hand-authored structured field is kind-checked and recorded as
-          // validated (see [_translateCoalesce]).
-          _validateThemeValueForSlot(a.expression, PropertyType.color, issues);
-          colorDsl = _translate(a.expression, issues);
+          colorDsl = _translateSlotValue(
+            a.expression,
+            PropertyType.color,
+            issues,
+          );
         case 'width':
-          _validateThemeValueForSlot(a.expression, PropertyType.length, issues);
           widthDsl = _translateDoubleScalar(a.expression, issues);
         case 'style':
           // `BorderStyle.solid` / `BorderStyle.none` — emit the bare
@@ -1055,7 +1074,7 @@ final class StructuredValueEmitter {
       }
       return '{width: 0.0, style: "none"}';
     }
-    return _translate(expr, issues);
+    return _translateSlotValue(expr, PropertyType.unknown, issues);
   }
 
   String _doubleShapePart(
@@ -1079,8 +1098,19 @@ final class StructuredValueEmitter {
       final name = a.name.label.name;
       switch (name) {
         case 'color':
+          final value = _translateSlotValue(
+            a.expression,
+            PropertyType.color,
+            issues,
+          );
+          parts.add('$name: $value');
         case 'offset':
-          parts.add('$name: ${_translate(a.expression, issues)}');
+          final value = _translateSlotValue(
+            a.expression,
+            PropertyType.unknown,
+            issues,
+          );
+          parts.add('$name: $value');
         case 'blurRadius':
         case 'spreadRadius':
           parts.add(
@@ -1163,11 +1193,29 @@ final class StructuredValueEmitter {
       }
       switch (name) {
         case 'color':
-        case 'blendMode':
-        case 'filterQuality':
+          final before = issues.length;
+          final value = _translateSlotValue(
+            section.rightHandSide,
+            PropertyType.color,
+            issues,
+          );
+          if (issues.length == before) parts.add('$name: $value');
         case 'isAntiAlias':
           final before = issues.length;
-          final value = _translate(section.rightHandSide, issues);
+          final value = _translateSlotValue(
+            section.rightHandSide,
+            PropertyType.boolean,
+            issues,
+          );
+          if (issues.length == before) parts.add('$name: $value');
+        case 'blendMode':
+        case 'filterQuality':
+          final before = issues.length;
+          final value = _translateSlotValue(
+            section.rightHandSide,
+            PropertyType.unknown,
+            issues,
+          );
           if (issues.length == before) parts.add('$name: $value');
         default:
           issues.add(
@@ -1257,8 +1305,19 @@ final class StructuredValueEmitter {
       final name = a.name.label.name;
       switch (name) {
         case 'color':
+          final value = _translateSlotValue(
+            a.expression,
+            PropertyType.color,
+            issues,
+          );
+          parts.add('$name: $value');
         case 'offset':
-          parts.add('$name: ${_translate(a.expression, issues)}');
+          final value = _translateSlotValue(
+            a.expression,
+            PropertyType.unknown,
+            issues,
+          );
+          parts.add('$name: $value');
         case 'blurRadius':
           parts.add(
             '$name: ${_translateDoubleScalar(a.expression, issues)}',
@@ -1330,8 +1389,13 @@ final class StructuredValueEmitter {
       _stringArgIssue('FontFeature', issues, loc);
       return '{}';
     }
-    final value =
-        positional.length == 2 ? _translate(positional[1], issues) : '1';
+    final value = positional.length == 2
+        ? _translateSlotValue(
+            positional[1],
+            PropertyType.integer,
+            issues,
+          )
+        : '1';
     return '{feature: ${_stringLiteral(feature)}, value: $value}';
   }
 
@@ -1379,15 +1443,31 @@ final class StructuredValueEmitter {
       );
       return '[]';
     }
-    return emitTypedList(
+    return _typedList(
       positional.first,
+      PropertyType.textDecoration,
+      issues,
+    );
+  }
+
+  String _typedList(
+    Expression source,
+    PropertyType itemType,
+    List<Issue> issues,
+  ) {
+    return emitTypedList(
+      source,
       _translate,
       issues,
-      loc,
+      _locationOf(source),
       resolveExpression: _resolveBoundIdentifier,
       semanticProbe: _collectionSemanticProbe(),
       locationOf: _locationOf,
-    ).value;
+      translateElement: (element, bindings, issues) =>
+          _translateSlotElement(element, bindings, itemType, issues),
+      terminalItemType: itemType,
+      translateTerminal: _translateTypedListTerminal,
+    );
   }
 
   List<Expression> _positionalArgs(Iterable<Expression> args) =>

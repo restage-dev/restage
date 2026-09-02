@@ -92,6 +92,21 @@ void main() {
       );
     });
 
+    test('validates a constructor in a list loop output', () {
+      const dsl = '''
+        import restage.core;
+        widget Paywall = Column(children: [
+          ...for value in data.context.values: NotReal()
+        ]);
+      ''';
+      final library = parseLibraryFile(dsl, sourceIdentifier: 'test');
+      final issues = validateModelAgainstCatalog(library, catalog);
+
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unknownWidget);
+      expect(issues.single.message, contains('NotReal'));
+    });
+
     test('passes Column with valid children', () {
       const dsl = '''
         import restage.core;

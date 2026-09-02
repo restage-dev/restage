@@ -2,8 +2,12 @@ import 'package:flutter/widgets.dart';
 import 'package:meta/meta.dart';
 import 'package:rfw/rfw.dart';
 
-import '../runtime/error_boundary.dart';
+import '../analytics/render_event_privacy.dart';
+import '../authoring/onboarding_event_dispatcher.dart'
+    show RestageFlowEventRegistration;
 import '../measurement/measurement_event_sanitizer.dart';
+import '../runtime/context_data.dart';
+import '../runtime/error_boundary.dart';
 import 'flow_controller.dart';
 import 'flow_runtime_support.dart';
 
@@ -43,6 +47,7 @@ final class RestageScreenView<R> extends StatefulWidget {
     required this.controller,
     this.onRuntimeError,
     this.loadingBuilder,
+    this.context,
   });
 
   /// The flow brain whose current screen this surface renders.
@@ -56,6 +61,20 @@ final class RestageScreenView<R> extends StatefulWidget {
   /// loads, while crossing a sub-flow boundary, or after the flow fails closed.
   final WidgetBuilder? loadingBuilder;
 
+  /// Host-supplied render data, published to the surface as `data.context.*`.
+  ///
+  /// Values support 32 collection levels below the root, 10,000 retained
+  /// normalized nodes including the root, and 100,000 inspected map entries or
+  /// list elements per normalization. Null map values are omitted; null list
+  /// elements are dropped and lists compact. Invalid values, unreadable
+  /// collections, and exceeded limits throw in debug. Release reports
+  /// diagnostics and omits the offending value or collection.
+  ///
+  /// Accepted input is normalized and copied synchronously. Equal normalized
+  /// snapshots issue no renderer update. Null (the default) publishes no
+  /// `data.context` namespace at all.
+  final Map<String, Object?>? context;
+
   @override
   State<RestageScreenView<R>> createState() => _RestageScreenViewState<R>();
 }
@@ -65,12 +84,20 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
 
   Runtime? _runtime;
   DynamicContent? _data;
+  ContextPublisher? _contextPublisher;
   int? _entryId;
   bool _dependenciesReady = false;
+  ContextSnapshot? _context;
+
+  void _refreshContext() {
+    final raw = widget.context;
+    _context = raw == null ? null : ContextSnapshot.of(raw, previous: _context);
+  }
 
   @override
   void initState() {
     super.initState();
+    _refreshContext();
     _libraries = FlowScreenLibraries();
     widget.controller.addListener(_controllerChanged);
     _sync();
@@ -79,13 +106,16 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
   @override
   void didUpdateWidget(RestageScreenView<R> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _refreshContext();
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_controllerChanged);
       widget.controller.addListener(_controllerChanged);
       _disposeRuntime();
       _entryId = null;
       _sync();
+      return;
     }
+    _contextPublisher?.publishSnapshot(_context);
   }
 
   @override
@@ -125,6 +155,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     _entryId = entryId;
     _runtime = _libraries.runtimeFor(library);
     _data = DynamicContent();
+    _contextPublisher = ContextPublisher(_data!);
     _populateData();
   }
 
@@ -132,6 +163,7 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     final runtime = _runtime;
     _runtime = null;
     _data = null;
+    _contextPublisher = null;
     if (runtime == null) return;
     // Dispose after the frame, once the rebuild has detached the RemoteWidget
     // (so the runtime has no remaining listeners).
@@ -145,6 +177,8 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
       context,
       data,
       includeInheritedData: _dependenciesReady,
+      contextPublisher: _contextPublisher,
+      hostContext: _context,
     );
   }
 
@@ -159,7 +193,8 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
     // to the owner gated to the owner's current entry.
     final controller = widget.controller;
     final entryId = _entryId!;
-    return RuntimeErrorBoundary(
+    final contextPublisher = _contextPublisher!;
+    final child = RuntimeErrorBoundary(
       key: ValueKey<int>(entryId),
       onFirstBuildSuccess: () {
         controller.acknowledgeRenderedEntry(entryId);
@@ -171,20 +206,42 @@ class _RestageScreenViewState<R> extends State<RestageScreenView<R>> {
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RemoteWidget(
+      child: RestagePrivacyAwareRemoteWidget(
         runtime: runtime,
         data: data,
         widget: kFlowScreenWidget,
+        mayExposeNonEmptyHostContext: () =>
+            contextPublisher.mayExposeNonEmptyHostContext,
         onEvent: (name, args) {
-          // Inert unless this is the owning controller's current screen.
-          if (entryId != controller.currentScreenEntryId) return;
-          final sanitized = MeasurementEventSanitizer.sanitize(args);
-          controller.handleEvent(
-            name,
-            normalizeEventArgs(sanitized.businessValue),
+          RestageRenderEventPrivacy.run<void>(
+            mayExposeNonEmptyHostContext:
+                contextPublisher.mayExposeNonEmptyHostContext,
+            body: () {
+              // Inert unless this is the owning controller's current screen.
+              if (entryId != controller.currentScreenEntryId) return;
+              final sanitized = MeasurementEventSanitizer.sanitize(args);
+              controller.handleEvent(
+                name,
+                normalizeEventArgs(sanitized.businessValue),
+              );
+            },
           );
         },
       ),
+    );
+    return RestageFlowEventRegistration(
+      controller: controller,
+      registration: data,
+      contentToken: entryId,
+      associatedHandler: controller.handleEvent,
+      isCurrent: () =>
+          identical(widget.controller, controller) &&
+          identical(_data, data) &&
+          _entryId == entryId &&
+          controller.currentScreenEntryId == entryId,
+      mayExposeNonEmptyHostContext: () =>
+          contextPublisher.mayExposeNonEmptyHostContext,
+      child: child,
     );
   }
 }

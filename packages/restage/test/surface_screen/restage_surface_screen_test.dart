@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/analytics/analytics_identity.dart';
 import 'package:restage/src/analytics/root_analytics_context.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:rfw/rfw.dart' show DynamicContent, RemoteWidget;
 
 import 'surface_screen_test_support.dart';
 
@@ -34,6 +37,59 @@ void main() {
 
     expect(events, <String>['tap']);
     expect(find.textContaining('fallback:'), findsNothing);
+  });
+
+  testWidgets(
+      'publishes context after controlled resolution and skips equal updates',
+      (tester) async {
+    final fixture = stringScreenFixture(
+      blob: rfwSourceBlob('''
+import restage.core;
+
+widget OnboardingScreen = Text(text: data.context.label);
+'''),
+    );
+    final resolver = _ControlledScreenResolver();
+    var hostContext = <String, Object?>{'label': 'first'};
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          updateHost = setState;
+          return _host(
+            fixture: fixture,
+            resolver: resolver,
+            context: hostContext,
+          );
+        },
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(RemoteWidget), findsNothing);
+
+    hostContext['label'] = 'later';
+    resolver.result.complete(fixture.bundled());
+    await tester.pumpAndSettle();
+    expect(find.text('first'), findsOneWidget);
+    expect(find.text('later'), findsNothing);
+
+    final data = tester.widget<RemoteWidget>(find.byType(RemoteWidget)).data;
+    var notifications = 0;
+    void onContext(Object _) => notifications += 1;
+    data.subscribe(const <Object>['context'], onContext);
+    expect(_readContext(data)['label'], 'first');
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'second'});
+    await tester.pump();
+    expect(find.text('second'), findsOneWidget);
+    expect(notifications, 1);
+    expect(_readContext(data)['label'], 'second');
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'second'});
+    await tester.pump();
+    expect(notifications, 1);
+    data.unsubscribe(const <Object>['context'], onContext);
   });
 
   test('refuses a reference whose event decoder disagrees with its schema', () {
@@ -321,6 +377,7 @@ Widget _host<E>({
   required ScreenFixture<E> fixture,
   required SurfaceScreenResolver resolver,
   ValueChanged<E>? onEvent,
+  Map<String, Object?>? context,
 }) =>
     MaterialApp(
       home: Scaffold(
@@ -329,12 +386,30 @@ Widget _host<E>({
           screen: fixture.ref,
           resolver: resolver,
           onEvent: onEvent,
+          context: context,
           unavailable: SurfaceScreenUnavailablePolicy.fallback(
             builder: (_, error) => Text('fallback:${error.reason.name}'),
           ),
         ),
       ),
     );
+
+Map<Object?, Object?> _readContext(DynamicContent data) {
+  void noop(Object _) {}
+  final value = data.subscribe(const <Object>['context'], noop);
+  data.unsubscribe(const <Object>['context'], noop);
+  return value as Map<Object?, Object?>;
+}
+
+final class _ControlledScreenResolver implements SurfaceScreenResolver {
+  final Completer<ResolvedSurfaceScreen> result =
+      Completer<ResolvedSurfaceScreen>();
+
+  @override
+  Future<ResolvedSurfaceScreen> resolve<E>(SurfaceScreenRef<E> screen) {
+    return result.future;
+  }
+}
 
 final class _ThrowingWidget extends StatelessWidget {
   const _ThrowingWidget();

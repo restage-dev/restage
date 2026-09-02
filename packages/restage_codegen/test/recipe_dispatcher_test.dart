@@ -5,6 +5,7 @@ import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/structured_value_emitter.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -161,8 +162,8 @@ void main() {
         map: map,
         mapIssueCode: mapIssues.length == 1 ? mapIssues.single.code : null,
         mapIssueCount: mapIssues.length,
-        refused: emission.refused,
-        value: emission.value,
+        refused: emission.isEmpty,
+        value: emission,
       );
     }
 
@@ -506,6 +507,295 @@ void main() {
       );
     });
 
+    test('typed lists refuse deferred and silent empty children', () async {
+      final expression = await parseExpressionForTest('["ok", unavailable]');
+
+      final deferredIssues = <Issue>[];
+      final deferred = emitTypedList(
+        expression,
+        fakeTranslate,
+        deferredIssues,
+        'values.dart@1:1',
+        translateElement: (element, bindings, issues) {
+          if (element.toSource() == 'unavailable') {
+            issues.add(
+              const Issue(
+                code: IssueCode.customWidgetInliningDeferred,
+                message: 'The value cannot emit here.',
+                location: 'values.dart@1:1',
+              ),
+            );
+            return '';
+          }
+          return element.toSource();
+        },
+      );
+      expect(deferred, isEmpty);
+      expect(deferred, isNot(equals('["ok", ]')));
+      expect(
+        deferredIssues.single.code,
+        IssueCode.customWidgetInliningDeferred,
+      );
+
+      final silent = emitTypedList(
+        expression,
+        fakeTranslate,
+        <Issue>[],
+        'values.dart@1:1',
+        translateElement: (element, bindings, issues) =>
+            element.toSource() == 'unavailable' ? '' : element.toSource(),
+      );
+      expect(silent, isEmpty);
+      expect(silent, isNot(equals('["ok", ]')));
+    });
+
+    test('typed list refusal reaches generated list and map owners', () async {
+      const recipes = [
+        TranslatorRecipe(
+          typeName: 'ValuesList',
+          emit: EmitFragmentList([
+            EmitFragmentLiteral('"prefix"'),
+            EmitFragmentArg(
+              ArgRef.named('values'),
+              propertyType: PropertyType.stringList,
+              itemPropertyType: PropertyType.string,
+            ),
+          ]),
+          failureDsl: '',
+        ),
+        TranslatorRecipe(
+          typeName: 'ValuesMap',
+          emit: EmitFragmentMap([
+            EmitMapEntry(
+              'values',
+              EmitFragmentArg(
+                ArgRef.named('values'),
+                propertyType: PropertyType.stringList,
+                itemPropertyType: PropertyType.string,
+              ),
+            ),
+          ]),
+          failureDsl: '',
+        ),
+      ];
+      final dispatcher = RecipeDispatcher(
+        recipes: {for (final recipe in recipes) recipe.key: recipe},
+        translate: fakeTranslate,
+        translateDouble: fakeTranslateDouble,
+        translateSlot: (expression, type, issues) => expression.toSource(),
+        translateSlotElement: (expression, bindings, type, issues) {
+          if (expression.toSource() == 'unavailable') {
+            issues.add(
+              const Issue(
+                code: IssueCode.unrecognizedMethodCall,
+                message: 'The value cannot be translated.',
+                location: 'values.dart@1:1',
+              ),
+            );
+            return '';
+          }
+          if (expression.toSource() == 'silent') return '';
+          if (expression.toSource() == 'noticed') {
+            issues.add(
+              const Issue(
+                code: IssueCode.idiomAutoSubstituted,
+                message: 'The value uses its canonical representation.',
+                location: 'values.dart@1:1',
+              ),
+            );
+          }
+          return expression.toSource();
+        },
+      );
+
+      final listIssues = <Issue>[];
+      final list = dispatcher.tryTranslate(
+        '#ValuesList',
+        await argsOf('ValuesList(values: ["ok", unavailable])'),
+        listIssues,
+        'values.dart@1:1',
+      );
+      expect(list, isEmpty);
+      expect(list, isNot(equals('["prefix", ]')));
+      expect(listIssues.single.code, IssueCode.unrecognizedMethodCall);
+
+      final mapIssues = <Issue>[];
+      final map = dispatcher.tryTranslate(
+        '#ValuesMap',
+        await argsOf('ValuesMap(values: ["ok", unavailable])'),
+        mapIssues,
+        'values.dart@1:1',
+      );
+      expect(map, isEmpty);
+      expect(map, isNot(equals('{values: }')));
+      expect(mapIssues.single.code, IssueCode.unrecognizedMethodCall);
+
+      expect(
+        dispatcher.tryTranslate(
+          '#ValuesMap',
+          await argsOf('ValuesMap(values: ["ok", silent])'),
+          <Issue>[],
+          'values.dart@1:1',
+        ),
+        isEmpty,
+      );
+
+      final noticeIssues = <Issue>[];
+      expect(
+        dispatcher.tryTranslate(
+          '#ValuesMap',
+          await argsOf('ValuesMap(values: ["ok", noticed])'),
+          noticeIssues,
+          'values.dart@1:1',
+        ),
+        '{values: ["ok", noticed]}',
+      );
+      expect(noticeIssues.single.code, IssueCode.idiomAutoSubstituted);
+    });
+
+    test('present scalar refusal reaches both evaluation entrances', () async {
+      const fragment = EmitFragmentMap([
+        EmitMapEntry(
+          'value',
+          EmitFragmentArg(
+            ArgRef.named('value'),
+            propertyType: PropertyType.string,
+          ),
+        ),
+      ]);
+      const recipe = TranslatorRecipe(
+        typeName: 'ValueMap',
+        emit: fragment,
+        failureDsl: '',
+      );
+      final dispatcher = RecipeDispatcher(
+        recipes: {recipe.key: recipe},
+        translate: fakeTranslate,
+        translateDouble: fakeTranslateDouble,
+        translateSlot: (expression, type, issues) {
+          issues.add(
+            const Issue(
+              code: IssueCode.customWidgetInliningDeferred,
+              message: 'The value cannot emit here.',
+              location: 'value.dart@1:1',
+            ),
+          );
+          return '';
+        },
+      );
+      final args = await argsOf('ValueMap(value: unavailable)');
+
+      final directIssues = <Issue>[];
+      expect(
+        dispatcher.emit(fragment, args, directIssues, 'value.dart@1:1'),
+        isEmpty,
+      );
+      expect(
+        directIssues.single.code,
+        IssueCode.customWidgetInliningDeferred,
+      );
+
+      final recipeIssues = <Issue>[];
+      expect(
+        dispatcher.tryTranslate(
+          '#ValueMap',
+          args,
+          recipeIssues,
+          'value.dart@1:1',
+        ),
+        isEmpty,
+      );
+      expect(
+        recipeIssues.single.code,
+        IssueCode.customWidgetInliningDeferred,
+      );
+    });
+
+    test('absence is accepted only by an optional map entry', () async {
+      const recipes = [
+        TranslatorRecipe(
+          typeName: 'MissingList',
+          emit: EmitFragmentList([
+            EmitFragmentLiteral('"prefix"'),
+            EmitFragmentArg(ArgRef.named('value')),
+          ]),
+          failureDsl: '',
+        ),
+        TranslatorRecipe(
+          typeName: 'MissingMap',
+          emit: EmitFragmentMap([
+            EmitMapEntry('value', EmitFragmentArg(ArgRef.named('value'))),
+          ]),
+          failureDsl: '',
+        ),
+        TranslatorRecipe(
+          typeName: 'OptionalMap',
+          emit: EmitFragmentMap([
+            EmitMapEntry('kept', EmitFragmentLiteral('1')),
+            EmitMapEntry(
+              'value',
+              EmitFragmentArg(ArgRef.named('value')),
+              omitWhenArgUnset: true,
+            ),
+          ]),
+          failureDsl: '',
+        ),
+      ];
+      final dispatcher = dispatcherWith(recipes);
+
+      expect(
+        dispatcher.tryTranslate(
+          '#MissingList',
+          await argsOf('MissingList()'),
+          <Issue>[],
+          'value.dart@1:1',
+        ),
+        isEmpty,
+      );
+      expect(
+        dispatcher.tryTranslate(
+          '#MissingMap',
+          await argsOf('MissingMap()'),
+          <Issue>[],
+          'value.dart@1:1',
+        ),
+        isEmpty,
+      );
+      expect(
+        dispatcher.tryTranslate(
+          '#OptionalMap',
+          await argsOf('OptionalMap()'),
+          <Issue>[],
+          'value.dart@1:1',
+        ),
+        '{kept: 1}',
+      );
+      expect(
+        dispatcher.tryTranslate(
+          '#OptionalMap',
+          await argsOf('OptionalMap(value: "set")'),
+          <Issue>[],
+          'value.dart@1:1',
+        ),
+        '{kept: 1, value: "set"}',
+      );
+
+      final refusingDispatcher = dispatcherWith(
+        recipes,
+        translate: (expression, issues) =>
+            expression.toSource() == 'unavailable' ? '' : expression.toSource(),
+      );
+      expect(
+        refusingDispatcher.tryTranslate(
+          '#OptionalMap',
+          await argsOf('OptionalMap(value: unavailable)'),
+          <Issue>[],
+          'value.dart@1:1',
+        ),
+        isEmpty,
+      );
+    });
+
     test('EmitFragmentList reorders named args into positional slots',
         () async {
       final d = dispatcherWith([
@@ -673,7 +963,7 @@ void main() {
                 : expression,
       );
 
-      expect(out.refused, isTrue);
+      expect(out, isEmpty);
       expect(issues, hasLength(1));
       expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
     });
@@ -744,7 +1034,7 @@ void main() {
         semanticBudget: CollectionUnrollBudget(workCeiling: 1),
       );
 
-      expect(out.refused, isTrue);
+      expect(out, isEmpty);
       expect(issues, hasLength(1));
       expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
       expect(
@@ -783,7 +1073,7 @@ void main() {
         semanticBudget: CollectionUnrollBudget(workCeiling: 1),
       );
 
-      expect(out.refused, isTrue);
+      expect(out, isEmpty);
       expect(issues, hasLength(1));
       expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
       expect(
@@ -810,7 +1100,7 @@ void main() {
         locationOf: (_) => 'lib/typed_flow.dart:4:8',
       );
 
-      expect(out.refused, isTrue);
+      expect(out, isEmpty);
       expect(issues, hasLength(1));
       expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
       expect(
@@ -835,7 +1125,7 @@ void main() {
         semanticBudget: CollectionUnrollBudget(workCeiling: 0),
       );
 
-      expect(out.refused, isTrue);
+      expect(out, isEmpty);
       expect(issues, hasLength(1));
       expect(
         issues.single.message,
@@ -843,6 +1133,148 @@ void main() {
         'Simplify the list expression.',
       );
       expect(issues.single.location, 'lib/typed_element_limit.dart:5:7');
+    });
+
+    test('a typed item error suppresses the complete generated list', () async {
+      const recipe = TranslatorRecipe(
+        typeName: 'Palette',
+        emit: EmitFragmentArg(
+          ArgRef.positional(0),
+          itemPropertyType: PropertyType.color,
+        ),
+        failureDsl: '',
+      );
+      final dispatcher = RecipeDispatcher(
+        recipes: {recipe.key: recipe},
+        translate: fakeTranslate,
+        translateDouble: fakeTranslateDouble,
+        translateSlot: (expression, type, issues) {
+          if (expression.toSource() == 'bad') {
+            issues.add(
+              const Issue(
+                code: IssueCode.propertyValueTypeMismatch,
+                message: 'Expected an integer color value.',
+                location: 'palette.dart@1:1',
+              ),
+            );
+            return '';
+          }
+          return expression.toSource();
+        },
+      );
+
+      expect(
+        dispatcher.tryTranslate(
+          '#Palette',
+          await argsOf('Palette(<int>[1, 2])'),
+          <Issue>[],
+          'palette.dart@1:1',
+        ),
+        '[1, 2]',
+      );
+      final issues = <Issue>[];
+      expect(
+        dispatcher.tryTranslate(
+          '#Palette',
+          await argsOf('Palette(<Object>[1, bad])'),
+          issues,
+          'palette.dart@1:1',
+        ),
+        isEmpty,
+      );
+      expect(issues.single.code, IssueCode.propertyValueTypeMismatch);
+    });
+
+    test('a double item error suppresses the complete generated list',
+        () async {
+      const recipe = TranslatorRecipe(
+        typeName: 'Stops',
+        emit: EmitFragmentArg(
+          ArgRef.positional(0),
+          asDoubleList: true,
+        ),
+        failureDsl: '',
+      );
+      final dispatcher = RecipeDispatcher(
+        recipes: {recipe.key: recipe},
+        translate: fakeTranslate,
+        translateDouble: (expression, issues) {
+          if (expression.toSource() == 'bad') {
+            issues.add(
+              const Issue(
+                code: IssueCode.propertyValueTypeMismatch,
+                message: 'Expected a double stop value.',
+                location: 'gradient.dart@1:1',
+              ),
+            );
+            return '';
+          }
+          return fakeTranslateDouble(expression, issues);
+        },
+      );
+
+      expect(
+        dispatcher.tryTranslate(
+          '#Stops',
+          await argsOf('Stops(<num>[1, 2])'),
+          <Issue>[],
+          'gradient.dart@1:1',
+        ),
+        '[1.0, 2.0]',
+      );
+      final issues = <Issue>[];
+      expect(
+        dispatcher.tryTranslate(
+          '#Stops',
+          await argsOf('Stops(<Object>[1, bad])'),
+          issues,
+          'gradient.dart@1:1',
+        ),
+        isEmpty,
+      );
+      expect(issues.single.code, IssueCode.propertyValueTypeMismatch);
+    });
+
+    test('a fragment item error suppresses the complete generated list',
+        () async {
+      const recipe = TranslatorRecipe(
+        typeName: 'Pair',
+        emit: EmitFragmentList([
+          EmitFragmentLiteral('1'),
+          EmitFragmentArg(
+            ArgRef.positional(0),
+            propertyType: PropertyType.string,
+          ),
+        ]),
+        failureDsl: '',
+      );
+      final dispatcher = RecipeDispatcher(
+        recipes: {recipe.key: recipe},
+        translate: fakeTranslate,
+        translateDouble: fakeTranslateDouble,
+        translateSlot: (expression, type, issues) {
+          issues.add(
+            const Issue(
+              code: IssueCode.unknownWidget,
+              message: 'Unsupported string expression.',
+              location: 'pair.dart@1:1',
+            ),
+          );
+          return '';
+        },
+      );
+      final issues = <Issue>[];
+
+      expect(
+        dispatcher.tryTranslate(
+          '#Pair',
+          await argsOf('Pair(value)'),
+          issues,
+          'pair.dart@1:1',
+        ),
+        isEmpty,
+      );
+      expect(issues.single.code, IssueCode.unknownWidget);
     });
 
     test('EmitFragmentMemberTable looks a member up by name', () async {

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
+import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import '../measurement/measurement_event_sanitizer.dart';
@@ -335,6 +336,13 @@ final class RestageFlowController<R> extends ChangeNotifier {
 
   /// Routes an RFW event through the flow transition table.
   void handleEvent(String name, Object? args) {
+    RestageFlowRenderEventPrivacyRegistry.runControllerEvent(
+      controller: this,
+      body: () => _handleEvent(name, args),
+    );
+  }
+
+  void _handleEvent(String name, Object? args) {
     if (_isInteractionBlocked) return;
     final frame = _currentFrame;
     final current = frame?.currentStateId;

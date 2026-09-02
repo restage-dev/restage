@@ -1,0 +1,38 @@
+[
+  {
+    "eventId": "paywall-context-event",
+    "name": "paywall_custom_event",
+    "occurredAt": "2026-08-27T12:00:00.000Z",
+    "surface": "paywall",
+    "surfaceId": "privacy-paywall",
+    "surfaceVersion": "1",
+    "anonymousId": "install-1",
+    "sessionId": "session-1",
+    "appContext": {
+      "platform": "ios",
+      "locale": "en_US",
+      "sdkVersion": "2.0.0"
+    },
+    "properties": {
+      "eventName": "selected_plan"
+    }
+  },
+  {
+    "eventId": "flow-context-event",
+    "name": "flow_custom_event",
+    "occurredAt": "2026-08-27T12:00:00.000Z",
+    "surface": "onboarding",
+    "surfaceId": "first_run",
+    "surfaceVersion": "1",
+    "anonymousId": "install-1",
+    "sessionId": "session-1",
+    "appContext": {
+      "platform": "ios",
+      "locale": "en_US",
+      "sdkVersion": "2.0.0"
+    },
+    "properties": {
+      "eventName": "selected_plan"
+    }
+  }
+]

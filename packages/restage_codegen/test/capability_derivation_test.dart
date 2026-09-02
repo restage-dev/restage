@@ -91,6 +91,20 @@ void main() {
       expect(result.manifest!.builtInFloor, 3);
     });
 
+    test('includes a constructor in a list loop output', () {
+      const dsl = '''
+        import restage.core;
+        widget Paywall = Column(children: [
+          ...for value in data.context.values: Hero()
+        ]);
+      ''';
+      final surface = parseLibraryFile(dsl, sourceIdentifier: 'test');
+      final result = deriveCapabilityManifest(surface, builtInCatalog);
+
+      expect(result.issues, isEmpty);
+      expect(result.manifest!.builtInFloor, 3);
+    });
+
     test(
       'a newly-added built-in floors above every OTHER shipped library — '
       'derived from the real committed catalogs',

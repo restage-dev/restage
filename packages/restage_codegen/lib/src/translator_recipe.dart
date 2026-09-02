@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Identifies one source-level argument of a factory call: either a
 /// positional argument by zero-based index, or a named argument by label.
@@ -204,6 +205,8 @@ final class EmitFragmentArg extends EmitFragment {
     this.ifUnset,
     this.asLength = false,
     this.asDoubleList = false,
+    this.propertyType,
+    this.itemPropertyType,
   });
 
   /// The argument to translate.
@@ -224,6 +227,12 @@ final class EmitFragmentArg extends EmitFragment {
   /// without coercion an author-written int element is silently nulled to
   /// `0.0` at decode time. The list analogue of [asLength].
   final bool asDoubleList;
+
+  /// The exact runtime decoder used by this argument, when known.
+  final PropertyType? propertyType;
+
+  /// The runtime decoder used by each list item, when known.
+  final PropertyType? itemPropertyType;
 }
 
 /// A DSL list `[a, b, ...]`. Slot order is [items] order; broadcast is the

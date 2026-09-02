@@ -5,13 +5,9 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart'
-    show
-        DynamicContent,
-        RemoteWidget,
-        Runtime,
-        WidgetLibrary,
-        decodeLibraryBlob;
+    show DynamicContent, Runtime, WidgetLibrary, decodeLibraryBlob;
 
+import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart' show PagerPageChanged;
 import '../flow/flow_descriptors.dart';
@@ -19,6 +15,7 @@ import '../flow/flow_runtime_support.dart';
 import '../measurement/measurement_event_sanitizer.dart';
 import '../measurement/measurement_host_session.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
+import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 import '../runtime/library_runtime_registry.dart';
@@ -46,6 +43,7 @@ final class RestageScreen<E> extends StatefulWidget {
     this.resolver,
     this.onUnavailable,
     this.loadingBuilder,
+    this.context,
   });
 
   /// The exact generated standalone-screen reference to render.
@@ -66,6 +64,20 @@ final class RestageScreen<E> extends StatefulWidget {
   /// Optional content shown while the screen resolves.
   final WidgetBuilder? loadingBuilder;
 
+  /// Host-supplied render data, published to the surface as `data.context.*`.
+  ///
+  /// Values support 32 collection levels below the root, 10,000 retained
+  /// normalized nodes including the root, and 100,000 inspected map entries or
+  /// list elements per normalization. Null map values are omitted; null list
+  /// elements are dropped and lists compact. Invalid values, unreadable
+  /// collections, and exceeded limits throw in debug. Release reports
+  /// diagnostics and omits the offending value or collection.
+  ///
+  /// Accepted input is normalized and copied synchronously. Equal normalized
+  /// snapshots issue no renderer update. Null (the default) publishes no
+  /// `data.context` namespace at all.
+  final Map<String, Object?>? context;
+
   @override
   State<RestageScreen<E>> createState() => _RestageScreenState<E>();
 }
@@ -77,10 +89,17 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   SurfaceScreenUnavailableError? _unavailableError;
   var _resolutionEpoch = 0;
   var _dependenciesReady = false;
+  ContextSnapshot? _context;
+
+  void _refreshContext() {
+    final raw = widget.context;
+    _context = raw == null ? null : ContextSnapshot.of(raw, previous: _context);
+  }
 
   @override
   void initState() {
     super.initState();
+    _refreshContext();
     _libraries = FlowScreenLibraries();
     _restart();
   }
@@ -95,10 +114,13 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
   @override
   void didUpdateWidget(RestageScreen<E> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _refreshContext();
     if (!identical(oldWidget.screen, widget.screen) ||
         !identical(oldWidget.resolver, widget.resolver)) {
       _restart();
+      return;
     }
+    _stage?.contextPublisher.publishSnapshot(_context);
   }
 
   @override
@@ -240,7 +262,9 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
 
   void _populateData() {
     final stage = _stage;
-    if (stage == null || !_dependenciesReady) return;
+    if (stage == null) return;
+    stage.contextPublisher.publishSnapshot(_context);
+    if (!_dependenciesReady) return;
     final mediaQuery = MediaQuery.maybeOf(context);
     if (mediaQuery != null) {
       populateDeviceData(
@@ -356,11 +380,17 @@ class _RestageScreenState<E> extends State<RestageScreen<E>> {
       child: stage.wrapMeasuredRoot(
         RestagePagerEventScope(
           sink: _pagerSinkForStage(stage),
-          child: RemoteWidget(
+          child: RestagePrivacyAwareRemoteWidget(
             runtime: stage.runtime,
             data: stage.data,
             widget: kFlowScreenWidget,
-            onEvent: (name, value) => _handleEvent(stage, name, value),
+            mayExposeNonEmptyHostContext: () =>
+                stage.contextPublisher.mayExposeNonEmptyHostContext,
+            onEvent: (name, value) => RestageRenderEventPrivacy.run<void>(
+              mayExposeNonEmptyHostContext:
+                  stage.contextPublisher.mayExposeNonEmptyHostContext,
+              body: () => _handleEvent(stage, name, value),
+            ),
           ),
         ),
       ),
@@ -381,6 +411,7 @@ final class _ScreenStage {
   final ResolvedSurfaceScreen resolved;
   final Runtime runtime;
   final DynamicContent data;
+  late final ContextPublisher contextPublisher = ContextPublisher(data);
   final RootAnalyticsPresentation presentation;
 
   MeasurementHostSessionController? _measurementSession;

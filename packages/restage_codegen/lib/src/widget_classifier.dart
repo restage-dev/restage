@@ -75,6 +75,7 @@ List<CustomWidgetParam>? _constructorParams(
       CustomWidgetParam(
         name: name,
         isNumeric: _isNumericType(parameter.type),
+        type: parameter.type,
         defaultValue: defaultValue,
         coalesceFallback: coalescedFallbacks[name],
         sourceField: parameter.field,
@@ -1901,13 +1902,17 @@ final class _StaticallyAdmittedExpressionVisitor {
           bindings: bindings,
         );
         for (final entry in traversal.entries) {
-          if (entry case CollectionListElement(:final occurrence)) {
-            _collect(
-              occurrence.terminalExpression,
-              session: session,
-              bindings: occurrence.bindings,
-            );
-          }
+          final occurrence = switch (entry) {
+            CollectionListElement(:final occurrence) => occurrence,
+            CollectionListRefusal(:final refusal) =>
+              refusal.runtimeLoop?.template,
+          };
+          if (occurrence == null) continue;
+          _collect(
+            occurrence.terminalExpression,
+            session: session,
+            bindings: occurrence.bindings,
+          );
         }
         return;
       }

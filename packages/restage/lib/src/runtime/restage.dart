@@ -11,6 +11,7 @@ import 'package:restage_shared/restage_shared.dart';
 import '../analytics/analytics_event_mapper.dart';
 import '../analytics/analytics_identity.dart';
 import '../analytics/analytics_transport.dart';
+import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../commerce/restage_commerce.dart'
     show RestageCommerce, restageCommerceInstance;
@@ -100,7 +101,7 @@ abstract final class Restage {
   // it is torn down; there is no host-facing way to install one. Keeping it a
   // registration rather than a hard call in [fireEvent] is what lets the event
   // stream and the recording path be reasoned about — and retired — separately.
-  static void Function(RestageEvent)? _recordingSink;
+  static void Function(RestageEvent, bool)? _recordingSink;
   static ({
     String apiKey,
     String endpoint,
@@ -517,10 +518,16 @@ abstract final class Restage {
     if (controller != null && controller.hasListener) {
       controller.add(event);
     }
-    _recordingSink?.call(event);
+    _recordingSink?.call(
+      event,
+      RestageRenderEventPrivacy.omitsAuthoredArguments,
+    );
   }
 
-  static void _bridgeEventToAnalytics(RestageEvent event) {
+  static void _bridgeEventToAnalytics(
+    RestageEvent event,
+    bool omitAuthoredArguments,
+  ) {
     final transport = _analyticsTransport;
     final identity = _analyticsIdentity;
     final appContext = _analyticsAppContext;
@@ -546,6 +553,7 @@ abstract final class Restage {
           appContext: appContext,
           now: DateTime.now().toUtc(),
           rootAttribution: rootAttribution,
+          omitAuthoredArguments: omitAuthoredArguments,
         ),
         label: event.name,
         flushAfterEnqueue: _isMeteredExposureEvent(event),

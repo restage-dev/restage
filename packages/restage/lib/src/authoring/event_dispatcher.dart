@@ -1,6 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
+import 'paywall_event_dispatch.dart';
 
 /// Signature for paywall event callbacks.
 ///
@@ -9,25 +13,6 @@ import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 typedef PaywallEventHandler = void Function(
     String name, Map<String, Object?> args);
 
-/// Stack of currently-active dispatchers. The top of the stack is queried
-/// by [paywallEvent] when invoked outside a codegen context.
-///
-/// This is a fallback for non-codegen invocations; in codegen-built paywalls
-/// these helpers are replaced by RFW references at build time and never run at
-/// runtime.
-///
-/// Design note: lookup is intentionally a module-level stack rather than an
-/// `InheritedWidget` + `BuildContext` lookup. The context-based approach is
-/// more idiomatic, but it would require the authoring helpers to accept a
-/// `BuildContext` (`paywallEvent(context, …)`) — a breaking change to the
-/// authoring API that the code-generation transpiler also pattern-matches on
-/// by signature. Because this path runs only as the non-codegen fallback, and
-/// because the dispatcher reference is captured when the helper is called
-/// (during the host's `build()`, not at tap time — see [paywallEvent]), a
-/// sibling surface mounted between build and tap cannot steal events via the
-/// stack-top read. So the stack is kept as the stable shape.
-final List<PaywallEventHandler> _dispatcherStack = <PaywallEventHandler>[];
-
 PaywallEventHandler _dropReservedEvents(PaywallEventHandler onEvent) {
   return (name, args) {
     if (isReservedCommerceEventName(name)) return;
@@ -35,13 +20,13 @@ PaywallEventHandler _dropReservedEvents(PaywallEventHandler onEvent) {
   };
 }
 
-/// Returns the most-recently-mounted [PaywallEventHandler], or `null` if no
-/// [RestagePaywallEventDispatcher] is active.
+/// Returns the exact current handler, or a refusing handler when lookup is
+/// ambiguous. Returns `null` when no dispatcher is mounted.
 ///
 /// Public so authoring helpers can look up the active dispatcher without a
 /// `BuildContext`.
 PaywallEventHandler? activeDispatcher() =>
-    _dispatcherStack.isEmpty ? null : _dispatcherStack.last;
+    RestagePaywallEventDispatchAuthority.capture();
 
 /// Provides an event-dispatch handler to its subtree.
 ///
@@ -49,9 +34,6 @@ PaywallEventHandler? activeDispatcher() =>
 /// author-fired events from the rendered paywall reach the host's `onEvent`
 /// callback.
 ///
-/// Tracks the handler in a module-level stack: `initState` pushes,
-/// `didUpdateWidget` swaps in place, `dispose` pops. Free-function authoring
-/// helpers read the top of the stack via [activeDispatcher].
 class RestagePaywallEventDispatcher extends StatefulWidget {
   /// Wraps [child] and routes paywall events fired in its subtree to [onEvent].
   const RestagePaywallEventDispatcher({
@@ -60,8 +42,7 @@ class RestagePaywallEventDispatcher extends StatefulWidget {
     required this.child,
   });
 
-  /// Called when an authored helper fires while this dispatcher is the topmost
-  /// in the stack.
+  /// Called when an authored helper fires for this dispatcher.
   final PaywallEventHandler onEvent;
 
   /// The subtree under which paywall event helpers should resolve to
@@ -75,36 +56,135 @@ class RestagePaywallEventDispatcher extends StatefulWidget {
 
 class _RestagePaywallEventDispatcherState
     extends State<RestagePaywallEventDispatcher> {
-  late PaywallEventHandler _dispatcher;
+  late final RestagePaywallEventDispatchRegistration _registration;
 
   @override
   void initState() {
     super.initState();
-    _dispatcher = _dropReservedEvents(widget.onEvent);
-    _dispatcherStack.add(_dispatcher);
+    _registration = RestagePaywallEventDispatchRegistration(
+      handler: _dropReservedEvents(widget.onEvent),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _registration.updateTarget(
+      RestagePaywallEventTargetScope.maybeOf(context),
+    );
   }
 
   @override
   void didUpdateWidget(RestagePaywallEventDispatcher old) {
     super.didUpdateWidget(old);
     if (!identical(old.onEvent, widget.onEvent)) {
-      final idx = _dispatcherStack.lastIndexOf(_dispatcher);
-      if (idx >= 0) {
-        _dispatcher = _dropReservedEvents(widget.onEvent);
-        _dispatcherStack[idx] = _dispatcher;
-      }
+      _registration.updateHandler(_dropReservedEvents(widget.onEvent));
     }
   }
 
   @override
   void dispose() {
-    final idx = _dispatcherStack.lastIndexOf(_dispatcher);
-    if (idx >= 0) {
-      _dispatcherStack.removeAt(idx);
-    }
+    _registration.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) => _RestagePaywallEventBuildScope(
+        registration: _registration,
+        child: widget.child,
+      );
+}
+
+final class _RestagePaywallEventBuildScope extends StatelessWidget {
+  const _RestagePaywallEventBuildScope({
+    required this.registration,
+    required this.child,
+  });
+
+  final RestagePaywallEventDispatchRegistration registration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+
+  @override
+  StatelessElement createElement() =>
+      _RestagePaywallEventBuildScopeElement(this);
+}
+
+final class _RestagePaywallEventBuildScopeElement extends StatelessElement {
+  _RestagePaywallEventBuildScopeElement(
+    _RestagePaywallEventBuildScope super.widget,
+  );
+
+  late final BuildScope _buildScope = BuildScope(
+    scheduleRebuild: _scheduleBuildScopeFlush,
+  );
+  int? _frameCallbackId;
+  var _postFrameCallbackScheduled = false;
+
+  @override
+  BuildScope get buildScope => _buildScope;
+
+  void _scheduleBuildScopeFlush() {
+    if (_frameCallbackId != null || _postFrameCallbackScheduled) return;
+    _frameCallbackId = SchedulerBinding.instance.scheduleFrameCallback(
+      _beginBuildScopeFlush,
+    );
+  }
+
+  void _beginBuildScopeFlush(Duration _) {
+    _frameCallbackId = null;
+    scheduleMicrotask(_flushWhenAncestorsAreClean);
+  }
+
+  void _flushWhenAncestorsAreClean() {
+    if (!mounted) return;
+    var hasDirtyAncestor = false;
+    visitAncestorElements((ancestor) {
+      hasDirtyAncestor = ancestor.dirty;
+      return !hasDirtyAncestor;
+    });
+    if (hasDirtyAncestor) {
+      _postFrameCallbackScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback(_flushAfterFrame);
+      return;
+    }
+    _flushBuildScope();
+  }
+
+  void _flushAfterFrame(Duration _) {
+    _postFrameCallbackScheduled = false;
+    _flushBuildScope();
+  }
+
+  void _flushBuildScope() {
+    final buildOwner = owner;
+    if (!mounted || buildOwner == null) return;
+    final scope = widget as _RestagePaywallEventBuildScope;
+    RestagePaywallEventDispatchAuthority.runBuild(
+      scope.registration,
+      () => buildOwner.buildScope(this),
+    );
+  }
+
+  @override
+  void performRebuild() {
+    final scope = widget as _RestagePaywallEventBuildScope;
+    RestagePaywallEventDispatchAuthority.runBuild(
+      scope.registration,
+      () => super.performRebuild(),
+    );
+  }
+
+  @override
+  void unmount() {
+    final callbackId = _frameCallbackId;
+    if (callbackId != null) {
+      SchedulerBinding.instance.cancelFrameCallbackWithId(callbackId);
+    }
+    _frameCallbackId = null;
+    _postFrameCallbackScheduled = false;
+    super.unmount();
+  }
 }

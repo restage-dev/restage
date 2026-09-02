@@ -8,6 +8,10 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:rfw/rfw.dart';
 
+import '../analytics/render_event_privacy.dart';
+import '../authoring/onboarding_event_dispatcher.dart'
+    show RestageFlowEventRegistration;
+import '../runtime/context_data.dart';
 import '../runtime/error_boundary.dart';
 import '../runtime/event_demux.dart' show isReservedCommerceEventName;
 import 'flow_chrome.dart';
@@ -65,6 +69,7 @@ final class RestageFlowView<R> extends StatefulWidget {
     this.skipBuilder,
     this.chromeBuilder,
     this.persistentChromeBuilder,
+    this.context,
   });
 
   /// The flow brain whose current screen this view renders.
@@ -149,6 +154,23 @@ final class RestageFlowView<R> extends StatefulWidget {
   /// persistent chrome.
   final FlowPersistentChromeBuilder? persistentChromeBuilder;
 
+  /// Host-supplied render data, published to the surface as `data.context.*`.
+  ///
+  /// Values support 32 collection levels below the root, 10,000 retained
+  /// normalized nodes including the root, and 100,000 inspected map entries or
+  /// list elements per normalization. Null map values are omitted; null list
+  /// elements are dropped and lists compact. Invalid values, unreadable
+  /// collections, and exceeded limits throw in debug. Release reports
+  /// diagnostics and omits the offending value or collection.
+  ///
+  /// Accepted input is normalized and copied synchronously. Equal normalized
+  /// snapshots issue no renderer update. Null (the default) publishes no
+  /// `data.context` namespace at all.
+  ///
+  /// An enclosing Restage surface that publishes its own render data supersedes
+  /// this value; it applies whenever no enclosing surface supplies any.
+  final Map<String, Object?>? context;
+
   @override
   State<RestageFlowView<R>> createState() => _RestageFlowViewState<R>();
 }
@@ -184,10 +206,21 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   int _popTargetIndex = 0;
   bool _dependenciesReady = false;
   bool _iosEdgeSwipeInProgress = false;
+  ContextSnapshot? _widgetContext;
+  ContextSnapshot? _context;
+  bool _inheritsContextSnapshot = false;
+
+  void _refreshWidgetContext() {
+    final raw = widget.context;
+    _widgetContext =
+        raw == null ? null : ContextSnapshot.of(raw, previous: _widgetContext);
+    if (!_inheritsContextSnapshot) _context = _widgetContext;
+  }
 
   @override
   void initState() {
     super.initState();
+    _refreshWidgetContext();
     _transition = AnimationController(
       vsync: this,
       duration: _transitionDuration,
@@ -223,6 +256,7 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
   @override
   void didUpdateWidget(RestageFlowView<R> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _refreshWidgetContext();
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_controllerChanged);
       widget.controller.addListener(_controllerChanged);
@@ -233,12 +267,19 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       _iosEdgeSwipeInProgress = false;
       _clearStack();
       _syncFromController();
+      return;
     }
+    _publishAllContext();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final scope = RestageContextSnapshotScope.maybeOf(context);
+    // Only a scope that actually carries a snapshot supersedes this widget's
+    // own [context]; an enclosing surface with none leaves us self-published.
+    _inheritsContextSnapshot = scope?.snapshot != null;
+    _context = scope?.snapshot ?? _widgetContext;
     _dependenciesReady = true;
     _populateAllData();
   }
@@ -330,7 +371,15 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
       context,
       screen.data,
       includeInheritedData: _dependenciesReady,
+      contextPublisher: screen.contextPublisher,
+      hostContext: _context,
     );
+  }
+
+  void _publishAllContext() {
+    for (final screen in _stack) {
+      screen.contextPublisher.publishSnapshot(_context);
+    }
   }
 
   /// Drops mounted screens the controller no longer lists as reachable (e.g. a
@@ -781,21 +830,31 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
         widget.onRuntimeError?.call(error, stack);
       },
       errorReplacement: (_, __, ___) => const SizedBox.shrink(),
-      child: RemoteWidget(
+      child: RestagePrivacyAwareRemoteWidget(
         runtime: screen.runtime,
         data: screen.data,
         widget: kFlowScreenWidget,
+        mayExposeNonEmptyHostContext: () =>
+            screen.contextPublisher.mayExposeNonEmptyHostContext,
         onEvent: (name, args) {
-          if (isReservedCommerceEventName(name)) return;
-          // Inert unless this is the owning controller's current screen.
-          if (screen.entryId != controller.currentScreenEntryId) return;
-          final normalized = normalizeEventArgs(
-            sanitizeAndRecordHostFlowEvent(controller, args),
+          RestageRenderEventPrivacy.run<void>(
+            mayExposeNonEmptyHostContext:
+                screen.contextPublisher.mayExposeNonEmptyHostContext,
+            body: () {
+              if (isReservedCommerceEventName(name)) return;
+              // Inert unless this is the owning controller's current screen.
+              if (screen.entryId != controller.currentScreenEntryId) return;
+              final normalized = normalizeEventArgs(
+                sanitizeAndRecordHostFlowEvent(controller, args),
+              );
+              // The owner's interceptor runs first. If it consumes the event,
+              // the controller never sees it.
+              if (widget.onScreenEvent?.call(name, normalized) ?? false) {
+                return;
+              }
+              controller.handleEvent(name, normalized);
+            },
           );
-          // The owner's interceptor runs first. If it consumes the event, the
-          // controller never sees it.
-          if (widget.onScreenEvent?.call(name, normalized) ?? false) return;
-          controller.handleEvent(name, normalized);
         },
       ),
     );
@@ -844,13 +903,24 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     // transition re-derives from the screen's current role instead of a stale
     // one — while [content]'s stable key moves the screen's element (and state)
     // into the new wrapper unharmed.
-    return Offstage(
-      offstage: !visible,
-      child: TickerMode(
-        enabled: visible,
-        child: KeyedSubtree(
-          key: ValueKey<int>(screen.episode),
-          child: transitioned,
+    return RestageFlowEventRegistration(
+      controller: controller,
+      registration: screen,
+      contentToken: screen.entryId,
+      associatedHandler: controller.handleEvent,
+      isCurrent: () =>
+          identical(widget.controller, controller) &&
+          controller.currentScreenEntryId == screen.entryId,
+      mayExposeNonEmptyHostContext: () =>
+          screen.contextPublisher.mayExposeNonEmptyHostContext,
+      child: Offstage(
+        offstage: !visible,
+        child: TickerMode(
+          enabled: visible,
+          child: KeyedSubtree(
+            key: ValueKey<int>(screen.episode),
+            child: transitioned,
+          ),
         ),
       ),
     );
@@ -869,6 +939,7 @@ class _MountedScreen {
   final int entryId;
   final Runtime runtime;
   final DynamicContent data;
+  late final ContextPublisher contextPublisher = ContextPublisher(data);
 
   /// A stable key for this screen's RFW content subtree. When a cover→reveal
   /// episode rebuilds the transition wrapper fresh (see [episode]), the content

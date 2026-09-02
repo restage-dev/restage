@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_runtime_support.dart'
     show populateFlowScreenData;
+import 'package:restage/src/runtime/context_data.dart'
+    show ContextPublisher, ContextSnapshot;
 import 'package:rfw/rfw.dart';
 
 /// Reads a top-level key from [DynamicContent] via its public `subscribe` API,
@@ -17,17 +19,8 @@ Object _read(DynamicContent dc, String key) {
 void main() {
   setUp(Restage.debugReset);
 
-  // Event-closure guard: the `EventFlowValueSource` / `onEvent` → analytics
-  // channel is safe ONLY because flow-state never reaches a screen — so no
-  // screen-fired event can carry app-supplied (incl. host-seeded) flow-state to
-  // analytics. That closure holds by construction because `populateFlowScreenData`
-  // projects ONLY device / theme onto a screen's `DynamicContent`. This test
-  // locks that: a future prefill-from-flow-state or `data.context.*`-into-
-  // screen change would silently reopen the Event→analytics path and MUST turn
-  // this red.
-  testWidgets(
-      'populateFlowScreenData projects only device/theme onto a screen '
-      '— never products, flow-state, or data.context', (tester) async {
+  testWidgets('omitting context arguments preserves the existing namespace set',
+      (tester) async {
     late final BuildContext ctx;
     await tester.pumpWidget(
       MaterialApp(
@@ -51,12 +44,97 @@ void main() {
     expect(_read(dc, 'device'), isA<Map<Object?, Object?>>());
     expect(_read(dc, 'theme'), isA<Map<Object?, Object?>>());
 
-    // Products, flow-state (incl. host-seeded), and host-context are NEVER
-    // projected onto a screen — absent keys read back as the RFW `missing`
-    // sentinel.
     expect(_read(dc, 'products'), same(missing));
     expect(_read(dc, 'flowState'), same(missing));
     expect(_read(dc, 'state'), same(missing));
     expect(_read(dc, 'context'), same(missing));
+  });
+
+  // The screen-event to analytics channel is safe only while flow state and
+  // products never reach a screen's data. Host context is the one deliberately
+  // projected namespace; admitting any other must turn this red.
+  testWidgets('projects host context without admitting products or flow state',
+      (tester) async {
+    late final BuildContext ctx;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (c) {
+            ctx = c;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    final dc = DynamicContent();
+    populateFlowScreenData(
+      ctx,
+      dc,
+      includeInheritedData: true,
+      contextPublisher: ContextPublisher(dc),
+      hostContext: ContextSnapshot.of(const <String, Object?>{'plan': 'pro'}),
+    );
+
+    expect(_read(dc, 'context'), <Object?, Object?>{'plan': 'pro'});
+    expect(_read(dc, 'device'), isA<Map<Object?, Object?>>());
+    expect(_read(dc, 'theme'), isA<Map<Object?, Object?>>());
+
+    expect(_read(dc, 'products'), same(missing));
+    expect(_read(dc, 'flowState'), same(missing));
+    expect(_read(dc, 'state'), same(missing));
+  });
+
+  testWidgets('publishes context before inherited data is available',
+      (tester) async {
+    late final BuildContext ctx;
+    await tester.pumpWidget(
+      Builder(
+        builder: (context) {
+          ctx = context;
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+
+    final dc = DynamicContent();
+    populateFlowScreenData(
+      ctx,
+      dc,
+      includeInheritedData: false,
+      contextPublisher: ContextPublisher(dc),
+      hostContext: ContextSnapshot.of(
+        const <String, Object?>{'status': 'ready'},
+      ),
+    );
+
+    expect(_read(dc, 'context'), <Object?, Object?>{'status': 'ready'});
+    expect(_read(dc, 'device'), same(missing));
+    expect(_read(dc, 'theme'), same(missing));
+  });
+
+  testWidgets('rejects a context snapshot without a target publisher',
+      (tester) async {
+    late final BuildContext ctx;
+    await tester.pumpWidget(
+      Builder(
+        builder: (context) {
+          ctx = context;
+          return const SizedBox.shrink();
+        },
+      ),
+    );
+
+    expect(
+      () => populateFlowScreenData(
+        ctx,
+        DynamicContent(),
+        includeInheritedData: false,
+        hostContext: ContextSnapshot.of(
+          const <String, Object?>{'status': 'ready'},
+        ),
+      ),
+      throwsAssertionError,
+    );
   });
 }

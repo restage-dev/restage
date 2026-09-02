@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:restage_shared/legacy_analytics.dart';
 import 'package:test/test.dart';
 
@@ -364,5 +366,19 @@ void main() {
       expect(decoded.toJson().containsKey('tier'), isFalse);
       expect(decoded.toJson().containsKey('source'), isFalse);
     });
+  });
+
+  test('properties documentation states recursive reserved-key removal', () {
+    final source = File(
+      'lib/src/legacy_analytics/analytics_event.dart',
+    ).readAsStringSync();
+
+    expect(
+      source,
+      contains('`data` and `context` are reserved keys at every map level'),
+    );
+    expect(source, contains('remove them recursively from nested maps'));
+    expect(source, contains('including maps inside lists'));
+    expect(source, isNot(contains('reservation is the top-level namespace')));
   });
 }
