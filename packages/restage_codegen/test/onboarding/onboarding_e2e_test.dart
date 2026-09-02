@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
@@ -298,7 +297,7 @@ void consumeGeneratedDescriptors() {
 ''',
   };
 
-  await resolveSources(
+  await resolveWorkspaceSources(
     resolvedSources,
     (resolver) async {
       final library = await resolver.libraryFor(
@@ -319,7 +318,6 @@ void consumeGeneratedDescriptors() {
     },
     resolverFor: 'apps_examples|lib/generated_consumer.dart',
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
 }
 

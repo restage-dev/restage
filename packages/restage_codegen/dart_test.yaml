@@ -1,8 +1,11 @@
-# Analyzer- and build_runner-backed fixtures can take several minutes while
-# multiple heavy package suites share the workstation. Ten minutes prevents
-# ordinary contention from becoming a false timeout without reducing
-# concurrency, while retaining a bound for genuinely stuck tests.
+# Analyzer- and build_runner-backed fixtures can take several minutes when
+# other heavy suites run alongside. Ten minutes keeps ordinary contention from
+# becoming a false timeout while still bounding a genuinely stuck test.
 timeout: 10m
+
+# Each analyzer-backed test file holds a warm driver of a few GB, so running
+# one per core would exhaust memory.
+concurrency: 6
 
 tags:
   # Live pub.dev fetch + `flutter pub get`. Declared so `@Tags(['network'])`

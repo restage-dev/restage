@@ -5,7 +5,6 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/measurement/measurement_publication_planner.dart';
@@ -52,7 +51,7 @@ part of '../categorized_screens.dart';
 final foreignGeneratedRef = Object();
 ''';
 
-      await resolveSources(
+      await resolveWorkspaceSources(
         {
           sourceId: source,
           'apps_examples|lib/surfaces/restage.generated/categorized_screens.restage.g.dart':
@@ -103,7 +102,6 @@ final foreignGeneratedRef = Object();
         },
         resolverFor: sourceId,
         rootPackage: 'apps_examples',
-        readAllSourcesFromFilesystem: true,
       );
     });
 
@@ -961,7 +959,7 @@ final class NoticeCard extends StatelessWidget {
 }
 ''';
   late PackageSurfaceCompilationResult compilation;
-  await resolveSources(
+  await resolveWorkspaceSources(
     const {sourceId: source},
     (resolver) async {
       final assetId = AssetId.parse(sourceId);
@@ -1020,7 +1018,6 @@ final class NoticeCard extends StatelessWidget {
     },
     resolverFor: sourceId,
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
   return compilation;
 }
@@ -1046,7 +1043,7 @@ final class BoundNotice extends StatelessWidget {
 final bindingFlow = Object();
 ''';
   late PackageSurfaceCompilationResult compilation;
-  await resolveSources(
+  await resolveWorkspaceSources(
     const {sourceId: source},
     (resolver) async {
       final assetId = AssetId.parse(sourceId);
@@ -1139,7 +1136,6 @@ final bindingFlow = Object();
     },
     resolverFor: sourceId,
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
   return compilation;
 }
@@ -1842,7 +1838,7 @@ Future<void> _assertGeneratedPartsAnalyze(
   Map<String, String> generatedParts,
 ) async {
   const sourceId = 'apps_examples|lib/authoring.dart';
-  await resolveSources(
+  await resolveWorkspaceSources(
     {
       sourceId: source,
       for (final entry in generatedParts.entries)
@@ -1865,7 +1861,6 @@ Future<void> _assertGeneratedPartsAnalyze(
     },
     resolverFor: sourceId,
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
 }
 

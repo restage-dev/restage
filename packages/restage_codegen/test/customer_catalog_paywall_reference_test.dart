@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_codegen/src/user_catalog_json_builder.dart';

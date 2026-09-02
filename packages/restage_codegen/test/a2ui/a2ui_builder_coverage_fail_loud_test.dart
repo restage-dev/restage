@@ -1,5 +1,4 @@
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
 import 'package:restage_codegen/src/native_screen_source_index.dart';
 import 'package:test/test.dart';

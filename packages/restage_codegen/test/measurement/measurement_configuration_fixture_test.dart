@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:build/build.dart';
 import 'package:build_config/build_config.dart' as build_config;
 import 'package:build_runner/src/internal.dart' as build_runner_internal;
-import 'package:build_test/build_test.dart';
 import 'package:build_test/src/internal_test_reader_writer.dart';
 import 'package:built_collection/built_collection.dart';
 import 'package:path/path.dart' as p;

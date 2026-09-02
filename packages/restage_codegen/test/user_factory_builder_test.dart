@@ -1,7 +1,6 @@
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -150,7 +149,7 @@ void main() {
         AssetId('apps_examples', 'lib/user_factories.g.dart'),
       );
 
-      await resolveSources(
+      await resolveWorkspaceSources(
         {
           'apps_examples|lib/widgets/acme_badge.dart': widgetSource,
           'apps_examples|lib/user_factories.g.dart': generated,
@@ -180,7 +179,6 @@ void main() {
         },
         resolverFor: 'apps_examples|lib/user_factories.g.dart',
         rootPackage: 'apps_examples',
-        readAllSourcesFromFilesystem: true,
       );
     });
 
@@ -234,7 +232,7 @@ void main() {
       expect(generated, contains('return s0.Badge('));
       expect(generated, contains('return s1.Badge('));
 
-      await resolveSources(
+      await resolveWorkspaceSources(
         {
           ...sources,
           'apps_examples|lib/user_factories.g.dart': generated,
@@ -260,7 +258,6 @@ void main() {
         },
         resolverFor: 'apps_examples|lib/user_factories.g.dart',
         rootPackage: 'apps_examples',
-        readAllSourcesFromFilesystem: true,
       );
     });
 
@@ -314,7 +311,7 @@ void main() {
         AssetId('apps_examples', 'lib/user_factories.g.dart'),
       );
 
-      await resolveSources(
+      await resolveWorkspaceSources(
         {
           ...sources,
           'apps_examples|lib/user_factories.g.dart': generated,
@@ -340,7 +337,6 @@ void main() {
         },
         resolverFor: 'apps_examples|lib/user_factories.g.dart',
         rootPackage: 'apps_examples',
-        readAllSourcesFromFilesystem: true,
       );
     });
 

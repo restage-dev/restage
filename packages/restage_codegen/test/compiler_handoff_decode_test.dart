@@ -10,7 +10,6 @@
 // one thing a bad handoff produces exactly once per decode: its report.
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:test/test.dart';

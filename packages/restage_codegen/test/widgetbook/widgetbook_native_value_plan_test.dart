@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_native_value_plan.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_property_capability.dart';

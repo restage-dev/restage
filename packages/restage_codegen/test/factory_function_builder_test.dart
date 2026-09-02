@@ -1,10 +1,11 @@
 import 'dart:io';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:logging/logging.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
+
+import 'helpers.dart';
 
 /// Properties every emitted `registration.g.dart` shares: the generated
 /// banner, the rfw import, and an empty `LocalWidgetBuilder` map. The

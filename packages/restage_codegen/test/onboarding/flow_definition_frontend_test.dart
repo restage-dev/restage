@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/onboarding/flow_definition_frontend.dart';
 import 'package:restage_shared/restage_shared.dart';

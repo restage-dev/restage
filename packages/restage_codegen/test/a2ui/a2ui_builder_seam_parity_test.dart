@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_catalog_adapter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_dart_emitter.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_seam_assembly.dart';

@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/a2ui/user_a2ui_catalog_builder.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';

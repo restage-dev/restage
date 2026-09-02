@@ -1,7 +1,6 @@
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -277,7 +276,7 @@ void main() {
               'required nullable ValueChanged<int>?.',
         );
 
-        await resolveSources(
+        await resolveWorkspaceSources(
           {
             widgetPath: widgetSource,
             generatedPath: generated,
@@ -306,7 +305,6 @@ void main() {
           },
           resolverFor: generatedPath,
           rootPackage: 'apps_examples',
-          readAllSourcesFromFilesystem: true,
         );
       },
     );

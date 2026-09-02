@@ -3,7 +3,6 @@
 // ignore_for_file: experimental_member_use
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/user_catalog_allocation.dart';
 import 'package:restage_codegen/src/user_catalog_builder.dart';
 import 'package:restage_shared/restage_shared.dart'

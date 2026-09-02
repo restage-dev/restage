@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:isolate';
@@ -7,7 +8,11 @@ import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
+import 'package:build_test/build_test.dart'
+    hide resolveSources, testBuilder, testBuilders;
+import 'package:build_test/build_test.dart' as build_test
+    show resolveSources, testBuilder, testBuilders;
+import 'package:logging/logging.dart';
 import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -25,6 +30,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 import 'design_package_sources.dart';
+import 'shared_resolvers.dart';
+
+export 'package:build_test/build_test.dart'
+    hide resolveSources, testBuilder, testBuilders;
 
 /// The library URI under which [parseExpressionFromSourceForTest] mounts a
 /// synthetic source — its value-type stubs AND (for the native-decompose
@@ -462,6 +471,7 @@ Future<OnboardingVisitorResult> runOnboardingVisitorOn(
     assetMap,
     rootPackage: packageName,
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   return results.fold<OnboardingVisitorResult>(
     OnboardingVisitorResult(sources: const [], issues: const []),
@@ -725,6 +735,7 @@ Future<List<T>> _runOnLibraries<T>(
     assetMap,
     rootPackage: packageName,
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   return results;
 }
@@ -813,6 +824,7 @@ Future<Expression> parseExpressionFromSourceForTest(
     {assetKey: source},
     rootPackage: rootPackage,
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   if (result == null) {
     throw StateError(
@@ -883,6 +895,7 @@ Future<ResolvedMethodExpressionForTest> parseMethodExpressionFromSourceForTest(
     {assetKey: source},
     rootPackage: rootPackage,
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   if (result == null) {
     throw StateError(
@@ -923,6 +936,182 @@ Future<TestReaderWriter> readerWriterWithFilesystemSources({
     }
   }
   return writer;
+}
+
+/// `build_test`'s `testBuilder`, resolving on [sharedResolvers] unless the
+/// call names its own resolvers or a custom package config.
+Future<TestBuilderResult> testBuilder(
+  Builder builder,
+  Map<String, Object> sourceAssets, {
+  Set<String>? generateFor,
+  bool Function(String assetId)? isInput,
+  String? rootPackage,
+  Map<String, Object>? outputs,
+  void Function(LogRecord log)? onLog,
+  void Function(AssetId, Iterable<AssetId>)? reportUnusedAssetsForInput,
+  PackageConfig? packageConfig,
+  Resolvers? resolvers,
+  TestReaderWriter? readerWriter,
+  bool verbose = false,
+  bool flattenOutput = false,
+}) =>
+    build_test.testBuilder(
+      builder,
+      sourceAssets,
+      generateFor: generateFor,
+      isInput: isInput,
+      rootPackage: rootPackage,
+      outputs: outputs,
+      onLog: onLog,
+      reportUnusedAssetsForInput: reportUnusedAssetsForInput,
+      packageConfig: packageConfig,
+      resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+      readerWriter: readerWriter,
+      verbose: verbose,
+      flattenOutput: flattenOutput,
+    );
+
+/// `build_test`'s `testBuilders`, resolving on [sharedResolvers] unless the
+/// call names its own resolvers or a custom package config.
+Future<TestBuilderResult> testBuilders(
+  Iterable<Builder> builders,
+  Map<String, Object> sourceAssets, {
+  Iterable<PostProcessBuilder> postProcessBuilders = const [],
+  Set<String>? generateFor,
+  bool Function(String assetId)? isInput,
+  String? rootPackage,
+  Map<String, Object>? outputs,
+  void Function(LogRecord log)? onLog,
+  void Function(AssetId, Iterable<AssetId>)? reportUnusedAssetsForInput,
+  PackageConfig? packageConfig,
+  Resolvers? resolvers,
+  Set<Builder> optionalBuilders = const {},
+  Set<Builder> visibleOutputBuilders = const {},
+  Map<Builder, List<String>> appliesBuilders = const {},
+  bool testingBuilderConfig = true,
+  TestReaderWriter? readerWriter,
+  bool verbose = false,
+  bool flattenOutput = false,
+}) =>
+    build_test.testBuilders(
+      builders,
+      sourceAssets,
+      postProcessBuilders: postProcessBuilders,
+      generateFor: generateFor,
+      isInput: isInput,
+      rootPackage: rootPackage,
+      outputs: outputs,
+      onLog: onLog,
+      reportUnusedAssetsForInput: reportUnusedAssetsForInput,
+      packageConfig: packageConfig,
+      resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+      optionalBuilders: optionalBuilders,
+      visibleOutputBuilders: visibleOutputBuilders,
+      appliesBuilders: appliesBuilders,
+      testingBuilderConfig: testingBuilderConfig,
+      readerWriter: readerWriter,
+      verbose: verbose,
+      flattenOutput: flattenOutput,
+    );
+
+/// `build_test`'s `resolveSources`, resolving on [sharedResolvers] unless the
+/// call names its own resolvers or a custom package config. Prefer
+/// [resolveWorkspaceSources] over `readAllSourcesFromFilesystem`.
+Future<T> resolveSources<T>(
+  Map<String, String> inputs,
+  FutureOr<T> Function(Resolver resolver) action, {
+  PackageConfig? packageConfig,
+  Set<AssetId>? nonInputsToReadFromFilesystem,
+  bool? readAllSourcesFromFilesystem,
+  String? resolverFor,
+  String? rootPackage,
+  FutureOr<void> Function(TestReaderWriter)? assetReaderChecks,
+  Future<void>? tearDown,
+  Resolvers? resolvers,
+}) =>
+    build_test.resolveSources(
+      inputs,
+      action,
+      packageConfig: packageConfig,
+      nonInputsToReadFromFilesystem: nonInputsToReadFromFilesystem,
+      readAllSourcesFromFilesystem: readAllSourcesFromFilesystem,
+      resolverFor: resolverFor,
+      rootPackage: rootPackage,
+      assetReaderChecks: assetReaderChecks,
+      tearDown: tearDown,
+      resolvers: resolvers ?? (packageConfig == null ? sharedResolvers : null),
+    );
+
+/// Resolves synthetic [inputs] (`'<package>|<path>'`-keyed) against the cached
+/// workspace sources and runs [action] with the resolver for [resolverFor].
+///
+/// Drop-in for `resolveSources(..., readAllSourcesFromFilesystem: true)`
+/// wherever the fixture only needs the workspace closure
+/// ([readerWriterWithFilesystemSources]); that flag enumerates every package
+/// in the package config on each call.
+Future<T> resolveWorkspaceSources<T>(
+  Map<String, String> inputs,
+  FutureOr<T> Function(Resolver resolver) action, {
+  required String resolverFor,
+  required String rootPackage,
+  bool? includeFlutter,
+  bool includeIntl = false,
+  bool includeDesignPackages = false,
+}) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: rootPackage,
+    includeFlutter: includeFlutter ??
+        (rootPackage == 'apps_examples' || _importsFlutter(inputs.values)),
+    includeIntl: includeIntl || _importsIntl(inputs.values),
+    includeDesignPackages:
+        includeDesignPackages || importsDesignPackages(inputs.values),
+  );
+  final builder = _ResolverProbeBuilder<T>(action, AssetId.parse(resolverFor));
+  await testBuilder(
+    builder,
+    inputs,
+    rootPackage: rootPackage,
+    readerWriter: readerWriter,
+    resolvers: sharedResolvers,
+  );
+  return builder.result();
+}
+
+/// Hands the build step's resolver for one asset to a callback.
+final class _ResolverProbeBuilder<T> implements Builder {
+  _ResolverProbeBuilder(this._action, this._resolverFor);
+
+  final FutureOr<T> Function(Resolver resolver) _action;
+  final AssetId _resolverFor;
+  late T _result;
+  late ({Object error, StackTrace stackTrace}) _failure;
+  bool _ran = false;
+  bool _failed = false;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+        '': ['.resolver_probe'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    if (buildStep.inputId != _resolverFor) return;
+    _ran = true;
+    try {
+      _result = await _action(buildStep.resolver);
+    } on Object catch (error, stackTrace) {
+      _failed = true;
+      _failure = (error: error, stackTrace: stackTrace);
+    }
+  }
+
+  T result() {
+    if (_failed) {
+      Error.throwWithStackTrace(_failure.error, _failure.stackTrace);
+    }
+    if (!_ran) throw StateError('$_resolverFor was not built.');
+    return _result;
+  }
 }
 
 void _writeSources(
@@ -1191,6 +1380,7 @@ Future<({ClassificationResult result, WidgetClassification named})>
     assetMap,
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
 
   final resolvedResult = result;

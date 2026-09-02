@@ -8,7 +8,6 @@ import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/build_body.dart';
@@ -1602,7 +1601,7 @@ Future<TranslationResult> _translateCustomBuildEntry(
   final assetId = AssetId('apps_examples', 'lib/navigation_widget_probe.dart');
   late final LibraryElement library;
   late final ResolvedLibraryResult resolved;
-  await resolveSources(
+  await resolveWorkspaceSources(
     {assetId.toString(): source},
     (resolver) async {
       library = await resolver.libraryFor(assetId);
@@ -1614,7 +1613,6 @@ Future<TranslationResult> _translateCustomBuildEntry(
     },
     resolverFor: assetId.toString(),
     rootPackage: assetId.package,
-    readAllSourcesFromFilesystem: true,
   );
 
   ({
@@ -1725,7 +1723,7 @@ Future<
   final assetId = AssetId('apps_examples', 'lib/navigation_build_probe.dart');
   late final LibraryElement library;
   late final ResolvedLibraryResult resolved;
-  await resolveSources(
+  await resolveWorkspaceSources(
     {assetId.toString(): source},
     (resolver) async {
       library = await resolver.libraryFor(assetId);
@@ -1737,7 +1735,6 @@ Future<
     },
     resolverFor: assetId.toString(),
     rootPackage: assetId.package,
-    readAllSourcesFromFilesystem: true,
   );
   final function = library.topLevelFunctions.singleWhere(
     (element) => element.name == 'x',

@@ -1,5 +1,4 @@
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';
 import 'package:restage_codegen/src/restage_source_roster_builder.dart';
 import 'package:restage_codegen/src/surface_publication/output_builder.dart';

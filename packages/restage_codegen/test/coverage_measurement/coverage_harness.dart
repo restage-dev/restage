@@ -1,5 +1,4 @@
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/coverage_measurement/coverage_report.dart';
 import 'package:restage_codegen/src/coverage_measurement/emit_outcomes.dart';

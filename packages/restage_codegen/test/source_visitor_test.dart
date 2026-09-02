@@ -1,6 +1,5 @@
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/source_visitor.dart';
 import 'package:test/test.dart';
