@@ -89,9 +89,12 @@ walks through all of it, including the `build.yaml` for bundled assets.
 One host widget per surface kind:
 
 - **Screens**: any single surface you write with `@Screen`, such as a welcome
-  page, a notice, or a settings card. Mount it with
-  `RestageScreen(screen: welcomeScreenRef, ...)` wherever it should appear;
-  the build generates `welcomeScreenRef`, and taps come back as typed Dart events.
+  page, a notice, or a settings card. The build generates a typed mount such as
+  `WelcomeScreenSurface(...)` with the authored constructor arguments and typed
+  events. If delivery or rendering becomes unavailable, including after an
+  event rejection or render failure, it displays the compiled-in authored
+  widget. Use `RestageScreen(screen: welcomeScreenRef, ...)` directly for a
+  different unavailable policy.
 - **Paywalls**: a `@Paywall` surface for upgrade or subscription content. Mount
   it with `RestagePaywall(id: 'pro_upgrade', ...)`.
 - **Flows**: a `@FlowGraph` sequence of screens, such as onboarding, a survey,

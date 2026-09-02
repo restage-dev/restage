@@ -48,20 +48,34 @@ final class SurfacePublicationScreenContractFacts {
     required this.contractVersion,
     required this.capabilities,
     required this.eventContract,
+    this.hostDataContract = const SurfaceScreenHostDataSchema.empty(),
   });
 
   final int contractVersion;
   final CapabilityManifest capabilities;
   final SurfaceScreenEventSchema eventContract;
 
+  /// Host-supplied inputs the screen declares, empty when it declares none.
+  final SurfaceScreenHostDataSchema hostDataContract;
+
   String get eventContractHash =>
       SurfaceScreenEventContractHash.hash(eventContract);
+
+  /// Null exactly when the screen declares no host data, which keeps such a
+  /// screen's fingerprint identical to a build made before host data existed.
+  String? get hostDataContractHash =>
+      SurfaceScreenHostDataContractHash.hash(hostDataContract);
+
+  /// The schema as published, omitted entirely when the screen declares none.
+  SurfaceScreenHostDataSchema? get publishedHostDataContract =>
+      hostDataContract.isEmpty ? null : hostDataContract;
 
   String get contractFingerprint => SurfaceScreenContractFingerprint.hash(
         sourceKind: SurfaceSourceKind.screen,
         payloadKind: SurfacePayloadKind.blob,
         capabilities: capabilities,
         eventContractHash: eventContractHash,
+        hostDataContractHash: hostDataContractHash,
       );
 }
 
@@ -418,6 +432,8 @@ abstract final class SurfacePublicationManifestAssembler {
       eventContract: contractFacts?.eventContract,
       eventContractHash: contractFacts?.eventContractHash,
       contractFingerprint: contractFacts?.contractFingerprint,
+      hostDataContract: contractFacts?.publishedHostDataContract,
+      hostDataContractHash: contractFacts?.hostDataContractHash,
     );
 
     artifacts.sort(_compareArtifacts);

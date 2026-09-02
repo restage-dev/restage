@@ -190,6 +190,9 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       adapterRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
   RfwCatalogOccurrenceSetByDeclarationIdentity
       standaloneRfwCatalogOccurrenceSetsByDeclarationIdentity = const {},
+  Set<String>? buildNoticeKeys,
+  void Function(Issue issue, bool isCanonical)? appFactoryNoticeCollector,
+  bool Function(PaywallSourceFound source)? retainSource,
 }) async {
   if (sources.isEmpty) {
     return ResolvedPaywallCompilationResult(
@@ -199,6 +202,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   }
 
   final issues = <Issue>[];
+  final noticeKeys = buildNoticeKeys ?? <String>{};
   LineInfo? lineInfo;
   final resolved = await library.session.getResolvedLibraryByElement(library);
   if (resolved is ResolvedLibraryResult && resolved.units.isNotEmpty) {
@@ -244,6 +248,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       );
   final compiled = <CompiledPaywallArtifacts>[];
   for (final source in sources) {
+    final sourceIsRetained = retainSource?.call(source) ?? true;
     final declarationIdentity = '${library.identifier}#${source.className}';
     final routePlan = measurementRoutePlans[declarationIdentity];
     final routeOwnership = measurementRouteOwnership[declarationIdentity];
@@ -304,9 +309,23 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
                 rootLocalBindings: source.build.localBindings,
               )
             : probe;
-    _addFatalTranslationIssues(issues, standalone.issues);
-    _addFatalTranslationIssues(issues, adapter.issues);
-    if (issues.isNotEmpty) continue;
+    _addFatalTranslationIssues(
+      issues,
+      standalone.issues,
+      buildNoticeKeys: noticeKeys,
+      sourceIsCanonical: source.isCanonical,
+      sourceIsRetained: sourceIsRetained,
+      appFactoryNoticeCollector: appFactoryNoticeCollector,
+    );
+    _addFatalTranslationIssues(
+      issues,
+      adapter.issues,
+      buildNoticeKeys: noticeKeys,
+      sourceIsCanonical: source.isCanonical,
+      sourceIsRetained: sourceIsRetained,
+      appFactoryNoticeCollector: appFactoryNoticeCollector,
+    );
+    if (issues.isNotEmpty || !sourceIsRetained) continue;
 
     _CompiledPaywallForm? standaloneForm;
     if (!standalone.suppressed) {
@@ -485,20 +504,26 @@ _CompiledPaywallForm? _compilePaywallForm({
 
 void _addFatalTranslationIssues(
   List<Issue> target,
-  Iterable<Issue> additions,
-) {
+  Iterable<Issue> additions, {
+  required Set<String> buildNoticeKeys,
+  bool sourceIsCanonical = false,
+  bool sourceIsRetained = true,
+  void Function(Issue issue, bool isCanonical)? appFactoryNoticeCollector,
+}) {
   final seen = {
-    for (final issue in target)
-      '${issue.code.name}\u0000${issue.message}\u0000${issue.location}',
+    for (final issue in target) issue.buildNoticeKey,
   };
   for (final issue in additions) {
     if (issue.code.isBuildNotice) {
-      log.info(issue.toLogString());
+      if (issue.code == IssueCode.customWidgetAppFactoryUsed &&
+          appFactoryNoticeCollector != null) {
+        appFactoryNoticeCollector(issue, sourceIsCanonical);
+      } else if (sourceIsRetained) {
+        logBuildNoticeOnce(log, buildNoticeKeys, issue);
+      }
       continue;
     }
-    final key =
-        '${issue.code.name}\u0000${issue.message}\u0000${issue.location}';
-    if (seen.add(key)) target.add(issue);
+    if (seen.add(issue.buildNoticeKey)) target.add(issue);
   }
 }
 
@@ -704,6 +729,7 @@ final class RestageCodegenBuilder implements Builder {
       customWidgetBlueprints: classification.blueprints,
     );
 
+    final buildNoticeKeys = <String>{};
     for (final src in state.paywallSources) {
       final standaloneTranslation = translator.translate(
         src.rootExpression,
@@ -731,8 +757,16 @@ final class RestageCodegenBuilder implements Builder {
               rootLocalBindings: src.build.localBindings,
             )
           : standaloneTranslation;
-      _addIssues(state.issues, standaloneTranslation.issues);
-      _addIssues(state.issues, adapterTranslation.issues);
+      _addFatalTranslationIssues(
+        state.issues,
+        standaloneTranslation.issues,
+        buildNoticeKeys: buildNoticeKeys,
+      );
+      _addFatalTranslationIssues(
+        state.issues,
+        adapterTranslation.issues,
+        buildNoticeKeys: buildNoticeKeys,
+      );
       // A build notice (e.g. an announced idiom auto-substitution) annotates a
       // complete, correct translation — it must not block the emit. Only a real
       // translation error (an expression that could not be lowered) skips it.
@@ -1034,8 +1068,7 @@ final class RestageCodegenBuilder implements Builder {
     }
   }
 
-  String _issueKey(Issue issue) =>
-      '${issue.code.name}\u0000${issue.message}\u0000${issue.location}';
+  String _issueKey(Issue issue) => issue.buildNoticeKey;
 
   Future<void> _buildFromRawDsl(BuildStep buildStep) async {
     final assetId = buildStep.inputId;

@@ -8,6 +8,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 void main() {
+  _hostDataDeliveryTests();
   group('SurfaceScreenEventSchema', () {
     test('matches the frozen empty and ordered canonical vectors', () {
       final empty = SurfaceScreenEventSchema(events: const []);
@@ -1305,6 +1306,132 @@ const String _screenDescriptorGolden =
 
 /// The artifact half of the frozen descriptor above, built from the same
 /// fixture so the two cannot drift apart.
+void _hostDataDeliveryTests() {
+  group('Host data contract delivery', () {
+    final hostDataContract = SurfaceScreenHostDataSchema(
+      const <String, SurfaceScreenHostDataShape>{
+        'habits': SurfaceScreenHostDataListShapeV1(
+          SurfaceScreenHostDataScalarShapeV1(
+            SurfaceScreenHostDataScalarKind.string,
+          ),
+        ),
+      },
+    );
+    final hostDataContractHash =
+        SurfaceScreenHostDataContractHash.hash(hostDataContract)!;
+
+    SurfaceScreenDeliveryDescriptor descriptorFor(
+      ({
+        SurfacePublicationManifest manifest,
+        SurfacePublicationUploadRequest upload,
+        SurfacePublication publication,
+        BlobSurfacePayload payload,
+        SurfaceDocument document,
+        Map<String, List<int>> files,
+        String sidecarPath,
+        String eventContractHash,
+        String contractFingerprint,
+      }) fixture, {
+      required bool wireCarriesHash,
+    }) =>
+        SurfaceScreenDeliveryDescriptor(
+          artifact: _screenArtifactDescriptor(fixture),
+          sourceKind: SurfaceSourceKind.screen,
+          contractVersion: 7,
+          publishedRevision: fixture.document.version,
+          // What the server stored at publish time: a fingerprint that already
+          // folds in the host-data contract.
+          contractFingerprint: SurfaceScreenContractFingerprint.hash(
+            sourceKind: SurfaceSourceKind.screen,
+            payloadKind: SurfacePayloadKind.blob,
+            capabilities: CapabilityManifest(
+              builtInFloor: fixture.document.minClient,
+              requiredLibraries: fixture.document.requiredLibraries,
+            ),
+            eventContractHash: fixture.eventContractHash,
+            hostDataContractHash: hostDataContractHash,
+          ),
+          eventContractHash: fixture.eventContractHash,
+          hostDataContractHash: wireCarriesHash ? hostDataContractHash : null,
+        );
+
+    test('a build declaring the same host data renders', () {
+      final fixture = _screenFixture();
+
+      final delivery =
+          descriptorFor(fixture, wireCarriesHash: false).completeWith(
+        fixture.document,
+        readerHostDataContractHash: hostDataContractHash,
+      );
+
+      expect(delivery.hostDataContractHash, hostDataContractHash);
+      expect(delivery.document.surfaceSlug, fixture.document.surfaceSlug);
+    });
+
+    test('a build declaring no host data fails closed', () {
+      final fixture = _screenFixture();
+
+      expect(
+        () => descriptorFor(fixture, wireCarriesHash: false)
+            .completeWith(fixture.document),
+        throwsA(isA<SurfaceScreenContractFingerprintMismatch>()),
+      );
+    });
+
+    test('a build declaring different host data fails closed', () {
+      final fixture = _screenFixture();
+      final other = SurfaceScreenHostDataSchema(
+        const <String, SurfaceScreenHostDataShape>{
+          'habits': SurfaceScreenHostDataListShapeV1(
+            SurfaceScreenHostDataScalarShapeV1(
+              SurfaceScreenHostDataScalarKind.integer,
+            ),
+          ),
+        },
+      );
+
+      expect(
+        () => descriptorFor(fixture, wireCarriesHash: false).completeWith(
+          fixture.document,
+          readerHostDataContractHash:
+              SurfaceScreenHostDataContractHash.hash(other),
+        ),
+        throwsA(isA<SurfaceScreenContractFingerprintMismatch>()),
+      );
+    });
+
+    test('the wire wins over the reader when it carries the hash', () {
+      final fixture = _screenFixture();
+
+      // A serve route that carries the hash makes the check purely
+      // server-side again, so a wrong reader value cannot affect it.
+      final delivery =
+          descriptorFor(fixture, wireCarriesHash: true).completeWith(
+        fixture.document,
+        readerHostDataContractHash: 'sha256:${'0' * 64}',
+      );
+
+      expect(delivery.hostDataContractHash, hostDataContractHash);
+    });
+
+    test('a surface declaring no host data is unaffected', () {
+      final fixture = _screenFixture();
+
+      final delivery = SurfaceScreenDeliveryDescriptor(
+        artifact: _screenArtifactDescriptor(fixture),
+        sourceKind: SurfaceSourceKind.screen,
+        contractVersion: 7,
+        publishedRevision: fixture.document.version,
+        contractFingerprint: fixture.contractFingerprint,
+        eventContractHash: fixture.eventContractHash,
+      ).completeWith(fixture.document);
+
+      expect(delivery.hostDataContractHash, isNull);
+      expect(delivery.contractFingerprint, fixture.contractFingerprint);
+    });
+  });
+}
+
 SurfaceArtifactDescriptor _screenArtifactDescriptor(
   ({
     SurfacePublicationManifest manifest,

@@ -42,3 +42,10 @@ String generatedHandleName(
   required String fallback,
 }) =>
     '${lowerCamelIdentifier(declarationName, fallback: fallback)}Ref';
+
+/// The generated widget that mounts the screen named [declarationName].
+String generatedSurfaceName(
+  String declarationName, {
+  required String fallback,
+}) =>
+    '${pascalIdentifier(declarationName, fallback: fallback)}Surface';

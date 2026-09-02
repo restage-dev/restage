@@ -24,6 +24,7 @@ void main() {
       // The announced-rewrite build notice — a non-failing annotation.
       IssueCode.idiomAutoSubstituted,
       IssueCode.navigationStandaloneArtifactSkipped,
+      IssueCode.customWidgetAppFactoryUsed,
     };
 
     test('classifies exactly the informational set as informational', () {
@@ -83,8 +84,35 @@ void main() {
         equals(<IssueCode>{
           IssueCode.idiomAutoSubstituted,
           IssueCode.navigationStandaloneArtifactSkipped,
+          IssueCode.customWidgetAppFactoryUsed,
         }),
       );
+
+      const firstRoute = Issue(
+        code: IssueCode.customWidgetAppFactoryUsed,
+        message: 'First reason.',
+        location: 'package:acme/panel.dart#Panel',
+        buildNoticeIdentity: 'package:acme/panel.dart#Panel\u0000acme.ds',
+      );
+      const secondRoute = Issue(
+        code: IssueCode.customWidgetAppFactoryUsed,
+        message: 'Second reason.',
+        location: 'package:acme/panel.dart#Panel',
+        buildNoticeIdentity: 'package:acme/panel.dart#Panel\u0000acme.ds',
+      );
+      expect(firstRoute.buildNoticeKey, secondRoute.buildNoticeKey);
+
+      const firstRewrite = Issue(
+        code: IssueCode.idiomAutoSubstituted,
+        message: 'First rewrite.',
+        location: 'lib/offer.dart#first',
+      );
+      const secondRewrite = Issue(
+        code: IssueCode.idiomAutoSubstituted,
+        message: 'Second rewrite.',
+        location: 'lib/offer.dart#second',
+      );
+      expect(firstRewrite.buildNoticeKey, isNot(secondRewrite.buildNoticeKey));
     });
 
     test('an unrendered-widget deferral is NOT a build notice', () {

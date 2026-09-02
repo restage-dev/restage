@@ -1009,8 +1009,9 @@ class RestageRpcClient {
   /// callers to apply their own fallback policy without accepting an
   /// untrusted response.
   Future<SurfaceScreenDeliveryResult> fetchSurfaceScreen(
-    SurfaceScreenDeliveryRequest request,
-  ) async {
+    SurfaceScreenDeliveryRequest request, {
+    String? readerHostDataContractHash,
+  }) async {
     final uri = Uri.parse('$_baseUrl/sdk/v1/surface');
     final body = SurfaceScreenDeliveryRequestV1Codec.encodeCanonicalJson(
       request,
@@ -1087,7 +1088,18 @@ class RestageRpcClient {
     switch (artifact) {
       case SurfaceArtifactAssembled(:final document):
         try {
-          delivery = described.completeWith(document);
+          delivery = described.completeWith(
+            document,
+            readerHostDataContractHash: readerHostDataContractHash,
+          );
+        } on SurfaceScreenContractFingerprintMismatch {
+          debugPrint(
+            '[restage] standalone-screen delivery contract does not match '
+            'this build',
+          );
+          return const SurfaceScreenDeliveryInvalidResponse(
+            SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
+          );
         } on FormatException {
           debugPrint(
             '[restage] standalone-screen delivery did not match its content',

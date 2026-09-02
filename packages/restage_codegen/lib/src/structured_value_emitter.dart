@@ -1508,13 +1508,8 @@ final class StructuredValueEmitter {
     List<Issue> issues,
     String loc,
   ) {
-    // Gate at the mechanism: this helper dispatches on the raw expression's
-    // SHAPE and diagnoses (no `_translate` fallback), so a named-intermediate
-    // binding (a helper param / `final` local) used as an alignment argument —
-    // e.g. a gradient `begin:`/`end:`, which reaches here OUTSIDE
-    // `_translateSlotValue` — must be resolved-through here or it would
-    // over-claim (classifier inlinable, translator a confusing diagnostic).
-    // Inert outside an inline (both binding maps empty).
+    // This helper dispatches on the raw expression's shape with no fallback,
+    // so a bound name or const chain is resolved through before dispatching.
     final expr = _resolveAlignmentSource(rawExpr);
     if (expr is PrefixedIdentifier && expr.prefix.name == 'Alignment') {
       // Nested name-only gate: an `Alignment.<member>` argument inside a real
@@ -1587,10 +1582,8 @@ final class StructuredValueEmitter {
     return '{x: 0.0, y: 0.0}';
   }
 
-  /// Resolves a bound name, then any same-file const declaration chain, so an
-  /// alignment held in a constant lowers like the inline value. Stops at an
-  /// `Alignment.<member>`, whose framework-identity gate the arm below owns;
-  /// the seen-set stops a cyclic declaration.
+  /// Resolves a bound name, then any same-file const declaration chain,
+  /// stopping at an `Alignment.<member>`; the seen-set stops a cycle.
   Expression _resolveAlignmentSource(Expression rawExpr) {
     var current = _resolveBoundIdentifier(rawExpr);
     final seen = <Element>{};

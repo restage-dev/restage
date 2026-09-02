@@ -9,13 +9,24 @@ abstract final class SurfaceScreenContractFingerprint {
   static const String _domain = 'restage.surface-screen-contract';
 
   /// Produces the exact V1 canonical JSON tuple.
+  ///
+  /// [hostDataContractHash] is omitted entirely when the screen declares no
+  /// host-supplied input, so such a screen encodes exactly as it did before
+  /// host data entered the contract.
   static String encodeCanonicalJson({
     required SurfaceSourceKind sourceKind,
     required SurfacePayloadKind payloadKind,
     required CapabilityManifest capabilities,
     required String eventContractHash,
+    String? hostDataContractHash,
   }) {
     SurfaceContractJson.requireSha256(eventContractHash, 'eventContractHash');
+    if (hostDataContractHash != null) {
+      SurfaceContractJson.requireSha256(
+        hostDataContractHash,
+        'hostDataContractHash',
+      );
+    }
     return SurfaceContractJson.encode(<String, Object?>{
       'schemaVersion': 1,
       'sourceKind': sourceKind.wireName,
@@ -25,6 +36,8 @@ abstract final class SurfaceScreenContractFingerprint {
         path: 'capabilities',
       ),
       'eventContractHash': eventContractHash,
+      if (hostDataContractHash != null)
+        'hostDataContractHash': hostDataContractHash,
     });
   }
 
@@ -34,6 +47,7 @@ abstract final class SurfaceScreenContractFingerprint {
     required SurfacePayloadKind payloadKind,
     required CapabilityManifest capabilities,
     required String eventContractHash,
+    String? hostDataContractHash,
   }) =>
       <int>[
         ...ascii.encode(_domain),
@@ -46,6 +60,7 @@ abstract final class SurfaceScreenContractFingerprint {
             payloadKind: payloadKind,
             capabilities: capabilities,
             eventContractHash: eventContractHash,
+            hostDataContractHash: hostDataContractHash,
           ),
         ),
       ];
@@ -56,6 +71,7 @@ abstract final class SurfaceScreenContractFingerprint {
     required SurfacePayloadKind payloadKind,
     required CapabilityManifest capabilities,
     required String eventContractHash,
+    String? hostDataContractHash,
   }) =>
       SurfaceContractJson.hash(
         preimage(
@@ -63,6 +79,7 @@ abstract final class SurfaceScreenContractFingerprint {
           payloadKind: payloadKind,
           capabilities: capabilities,
           eventContractHash: eventContractHash,
+          hostDataContractHash: hostDataContractHash,
         ),
       );
 }

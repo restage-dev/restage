@@ -277,7 +277,8 @@ class _RestageFlowViewState<R> extends State<RestageFlowView<R>>
     super.didChangeDependencies();
     final scope = RestageContextSnapshotScope.maybeOf(context);
     // Only a scope that actually carries a snapshot supersedes this widget's
-    // own [context]; an enclosing surface with none leaves us self-published.
+    // own [context]; an enclosing surface with none leaves this widget
+    // self-published.
     _inheritsContextSnapshot = scope?.snapshot != null;
     _context = scope?.snapshot ?? _widgetContext;
     _dependenciesReady = true;

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 /// Public GitHub repository URL used for one-click capability-gap issue links.
@@ -237,6 +238,10 @@ enum IssueCode {
   /// A referenced custom widget was recognised but could not be classified
   /// (its `build()` body shape, or its source, was not analysable).
   customWidgetUnclassified,
+
+  /// A source-defined custom widget was emitted through its registered app
+  /// factory because local RFW output was unavailable.
+  customWidgetAppFactoryUsed,
 
   /// Two custom widgets would emit under the same RFW widget name, or a
   /// custom widget's name shadows a catalog widget — either makes a
@@ -499,12 +504,8 @@ enum IssueCode {
   /// `terminalResult`; host-supplied state is branch-only.
   generalHostSeededResultRef;
 
-  /// Whether this code is a **build notice** — an annotation emitted *alongside
-  /// a complete, correct translation*, never a signal that something failed to
-  /// translate. The paywall builder partitions on this: a notice is logged but
-  /// does not block the emit or fail the build (the blob it annotates is
-  /// whole), whereas every other code means an expression could not be lowered
-  /// and the paywall must not ship.
+  /// Whether this code annotates a complete, correct translation without
+  /// blocking its output.
   ///
   /// This is deliberately **distinct from [isInformational]** (the
   /// catalog-build disposition): several informational catalog codes — e.g.
@@ -513,7 +514,8 @@ enum IssueCode {
   /// annotation belongs here.
   bool get isBuildNotice => switch (this) {
         IssueCode.idiomAutoSubstituted ||
-        IssueCode.navigationStandaloneArtifactSkipped =>
+        IssueCode.navigationStandaloneArtifactSkipped ||
+        IssueCode.customWidgetAppFactoryUsed =>
           true,
         _ => false,
       };
@@ -560,7 +562,8 @@ enum IssueCode {
         // a disclosed, semantically-equivalent rewrite, recorded on the audit
         // trail, never a failure.
         IssueCode.idiomAutoSubstituted ||
-        IssueCode.navigationStandaloneArtifactSkipped =>
+        IssueCode.navigationStandaloneArtifactSkipped ||
+        IssueCode.customWidgetAppFactoryUsed =>
           true,
         // Everything below is a real codegen error the author must resolve.
         IssueCode.annotationEvaluationFailed ||
@@ -681,11 +684,16 @@ final class Issue {
     required this.message,
     required this.location,
     this.capabilityGapSubject,
+    this.buildNoticeIdentity,
   })  : assert(message.length > 0, 'Issue.message must not be empty'),
         assert(location.length > 0, 'Issue.location must not be empty'),
         assert(
           capabilityGapSubject != '',
           'Issue.capabilityGapSubject must not be empty',
+        ),
+        assert(
+          buildNoticeIdentity != '',
+          'Issue.buildNoticeIdentity must not be empty',
         );
 
   /// Categorical code identifying the kind of issue.
@@ -704,6 +712,18 @@ final class Issue {
   /// This is deliberately separate from [message], which is written for humans
   /// and can change wording without breaking demand aggregation.
   final String? capabilityGapSubject;
+
+  /// Stable identity used to combine repeated copies of one build notice.
+  /// Notices without one retain code, message, and location identity.
+  final String? buildNoticeIdentity;
+
+  /// The stable key used to combine equivalent issues.
+  String get buildNoticeKey {
+    final identity = buildNoticeIdentity;
+    return identity == null
+        ? '${code.name}\u0000$message\u0000$location'
+        : '${code.name}\u0000$identity';
+  }
 
   /// Formats this issue for build logs, optionally appending a pre-filled
   /// GitHub issue link for capability-gap diagnostics.
@@ -783,6 +803,21 @@ final class Issue {
 
   @override
   String toString() => '[${code.name}] $location: $message';
+}
+
+/// Logs [issue] once for its stable build-notice identity.
+void logBuildNoticeOnce(
+  Logger logger,
+  Set<String> seenKeys,
+  Issue issue,
+) {
+  if (!seenKeys.add(issue.buildNoticeKey)) return;
+  final message = issue.toLogString();
+  if (issue.code == IssueCode.customWidgetAppFactoryUsed) {
+    logger.warning(message);
+    return;
+  }
+  logger.info(message);
 }
 
 String _trimCapabilityGapDetail(String detail) {

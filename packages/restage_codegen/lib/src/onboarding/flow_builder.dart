@@ -288,7 +288,11 @@ final class CompiledClassFlow {
     required this.isCanonical,
     required List<int> flowDocumentBytes,
     required this.generatedPart,
-  }) : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes);
+    required Iterable<String> generatedTopLevelSymbols,
+  })  : flowDocumentBytes = Uint8List.fromList(flowDocumentBytes),
+        generatedTopLevelSymbols = Set.unmodifiable(
+          generatedTopLevelSymbols,
+        );
 
   final ClassElement declaration;
   final String id;
@@ -296,6 +300,7 @@ final class CompiledClassFlow {
   final bool isCanonical;
   final Uint8List flowDocumentBytes;
   final String generatedPart;
+  final Set<String> generatedTopLevelSymbols;
 
   String get declarationIdentity =>
       '${declaration.library.identifier}#${declaration.name ?? '<unnamed>'}';
@@ -591,6 +596,10 @@ Future<CompiledClassFlowResult> compileResolvedClassFlows(
             effectiveSurface,
             measurementPublicationDraftDigest: sourceCarrierDraftDigest,
           ),
+        ),
+        generatedTopLevelSymbols: _flowGeneratedTopLevelSymbols(
+          flow,
+          lowered.document,
         ),
       ),
     );
@@ -4515,6 +4524,22 @@ ${_emitActionsConstructor(actionsClass, flow.actions)}
 ${_emitActionFields(flow.actions, flow.minClient, lowered.actionContracts)}
 }
 $seedClass''';
+}
+
+Set<String> _flowGeneratedTopLevelSymbols(
+  _FlowSource flow,
+  FlowDocument document,
+) {
+  final baseName = _flowBaseName(flow.className);
+  return {
+    generatedHandleName(flow.className, fallback: 'surfaceFlow'),
+    '_decode${flow.className}Result',
+    '${flow.className}Descriptor',
+    '${baseName}Actions',
+    if (flow.delivery == FlowDeliveryMode.typed) '${baseName}Result',
+    if (document.flowState.values.any((state) => state.hostSeedable))
+      '${baseName}Seed',
+  };
 }
 
 /// Emits a typed seed builder exposing only the flow's `hostSeedable` keys.

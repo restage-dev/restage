@@ -200,6 +200,65 @@ void main() {
       }
     });
 
+    test('classifies a host data contract change as a contract mismatch',
+        () async {
+      final hostDataHash = SurfaceScreenHostDataContractHash.hash(
+        SurfaceScreenHostDataSchema(
+          const <String, SurfaceScreenHostDataShape>{
+            'habits': SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataScalarShapeV1(
+                SurfaceScreenHostDataScalarKind.string,
+              ),
+            ),
+          },
+        ),
+      );
+      final served = _response(hostDataContractHash: hostDataHash);
+      final client = _client(
+        (_) async => http.Response(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(served),
+          200,
+        ),
+      );
+
+      // A build compiled before this screen required host data.
+      final result = await _fetch(client, _request());
+
+      expect(
+        (result as SurfaceScreenDeliveryInvalidResponse).reason,
+        SurfaceScreenDeliveryInvalidResponseReason.contractMismatch,
+      );
+    });
+
+    test('accepts a build declaring the same host data contract', () async {
+      final hostDataHash = SurfaceScreenHostDataContractHash.hash(
+        SurfaceScreenHostDataSchema(
+          const <String, SurfaceScreenHostDataShape>{
+            'habits': SurfaceScreenHostDataListShapeV1(
+              SurfaceScreenHostDataScalarShapeV1(
+                SurfaceScreenHostDataScalarKind.string,
+              ),
+            ),
+          },
+        ),
+      );
+      final served = _response(hostDataContractHash: hostDataHash);
+      final client = _client(
+        (_) async => http.Response(
+          SurfaceScreenDeliveryDescriptorV1Codec.encodeCanonicalJson(served),
+          200,
+        ),
+      );
+
+      final result = await _fetch(
+        client,
+        _request(),
+        readerHostDataContractHash: hostDataHash,
+      );
+
+      expect(result, isA<SurfaceScreenDeliveryAvailable>());
+    });
+
     test('rejects a malformed present response without treating it as absent',
         () async {
       final client = _client((_) async => http.Response('{}', 200));
@@ -265,9 +324,13 @@ void main() {
 
 Future<SurfaceScreenDeliveryResult> _fetch(
   RestageRpcClient client,
-  SurfaceScreenDeliveryRequest request,
-) =>
-    client.fetchSurfaceScreen(request);
+  SurfaceScreenDeliveryRequest request, {
+  String? readerHostDataContractHash,
+}) =>
+    client.fetchSurfaceScreen(
+      request,
+      readerHostDataContractHash: readerHostDataContractHash,
+    );
 
 RestageRpcClient _client(
         Future<http.Response> Function(http.Request) handler) =>
@@ -292,6 +355,7 @@ SurfaceScreenDeliveryRequest _request({
 SurfaceScreenDeliveryDescriptor _response({
   String slug = 'feature_announcement',
   int contractVersion = 7,
+  String? hostDataContractHash,
 }) {
   final capabilities = CapabilityManifest(
     builtInFloor: 1,
@@ -305,6 +369,7 @@ SurfaceScreenDeliveryDescriptor _response({
     payloadKind: SurfacePayloadKind.blob,
     capabilities: capabilities,
     eventContractHash: eventContractHash,
+    hostDataContractHash: hostDataContractHash,
   );
   final payload = BlobSurfacePayload(
     minClient: 1,

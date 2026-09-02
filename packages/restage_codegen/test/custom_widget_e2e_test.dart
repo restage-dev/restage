@@ -1612,7 +1612,7 @@ Object x() => AcmeBox(gap: 12);
       // the real `package:flutter/material.dart` class — the strict theme-
       // read recognizer requires a `package:flutter/` library URI. Uses a
       // local `Box` widget for catalog matching (decoupled from Flutter's
-      // internal `Container` library path).
+      // private `Container` library path).
       final result = await _transpile(
         '''
 $kFlutterClassifierStubs
@@ -4290,13 +4290,17 @@ Object x() => AcmeBox();
           widgets: widgets,
         );
 
-    WidgetEntry customEntry(String name, List<PropertyEntry> properties) =>
+    WidgetEntry customEntry(
+      String name,
+      List<PropertyEntry> properties, {
+      String rootPackage = 'restage_codegen',
+    }) =>
         entry(
           name: name,
           properties: properties,
           library: WidgetLibrary.custom('acme.ds'),
           category: WidgetCategory.decoration,
-          flutterType: 'package:restage_codegen/_e2e_probe.dart#$name',
+          flutterType: 'package:$rootPackage/_e2e_probe.dart#$name',
         );
 
     test('a registered inlineable customer widget emits a definition',
@@ -4337,6 +4341,173 @@ Object x() => InlineBadge(label: "Pro");
       );
       expect(_widget(decoded, 'InlineBadge').name, 'Text');
       expect(_widget(decoded, 'Paywall').name, 'InlineBadge');
+    });
+
+    test('registered inline calls use exact catalog property types', () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Pair extends StatelessWidget {
+  const Pair({this.first, this.second, super.key});
+  final Widget? first;
+  final Widget? second;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class Cell extends StatelessWidget {
+  const Cell({this.color, this.size, super.key});
+  final Color? color;
+  final double? size;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(name: 'DayTile',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration, description: 'day')
+class DayTile extends StatelessWidget {
+  const DayTile({required this.color, this.size = 20, super.key});
+  final Color color;
+  final double size;
+  @override
+  Widget build(BuildContext context) => Cell(color: color, size: size);
+}
+
+Object x(BuildContext context) => Pair(
+  first: const DayTile(color: Color(0xFF112233)),
+  second: DayTile(color: Theme.of(context).colorScheme.primary),
+);
+''',
+        catalogWithCustom([
+          _entry(
+            'Pair',
+            [
+              prop('first', PropertyType.widget),
+              prop('second', PropertyType.widget),
+            ],
+            rootPackage: 'apps_examples',
+          ),
+          _entry(
+            'Cell',
+            [
+              prop('color', PropertyType.color),
+              prop('size', PropertyType.real),
+            ],
+            rootPackage: 'apps_examples',
+          ),
+          customEntry(
+            'DayTile',
+            [
+              prop('color', PropertyType.color, required: true),
+              prop('size', PropertyType.real),
+            ],
+            rootPackage: 'apps_examples',
+          ),
+        ]),
+        rootPackage: 'apps_examples',
+      );
+
+      expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+      expect(result.translation.widgetDefinitions.keys, contains('DayTile'));
+      expect(
+        result.translation.widgetDefinitions.keys
+            .where((name) => name == 'DayTile'),
+        hasLength(1),
+      );
+      expect(result.translation.referencedCustomLibraries, isEmpty);
+      final root = _widget(result.decoded!, 'Paywall');
+      final literal = root.arguments['first']! as fmt.ConstructorCall;
+      final themed = root.arguments['second']! as fmt.ConstructorCall;
+      expect(literal.name, 'DayTile');
+      expect(themed.name, 'DayTile');
+      expect(literal.arguments['color'], 0xFF112233);
+      final themedColor = themed.arguments['color'];
+      expect(themedColor, isA<fmt.DataReference>());
+      expect(
+        (themedColor! as fmt.DataReference).parts,
+        ['theme', 'colorScheme', 'primary'],
+      );
+      expect(literal.arguments['size'], 20.0);
+      expect(themed.arguments['size'], 20.0);
+    });
+
+    test('registered call fallback applies to every matching occurrence',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Pair extends StatelessWidget {
+  const Pair({this.first, this.second});
+  final Widget? first;
+  final Widget? second;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class MapSink extends StatelessWidget {
+  const MapSink({this.values});
+  final Map<String, String>? values;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(name: 'InlinePanel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration, description: 'panel')
+class InlinePanel extends StatelessWidget {
+  const InlinePanel({this.values});
+  final Map<String, String>? values;
+  Widget build(BuildContext context) => MapSink(values: values);
+}
+
+Object x() => Pair(
+  first: InlinePanel(),
+  second: InlinePanel(values: const {'a': 'b'}),
+);
+''',
+        catalogWithCustom([
+          _entry('Pair', [
+            prop('first', PropertyType.widget),
+            prop('second', PropertyType.widget),
+          ]),
+          _entry('MapSink', [prop('values', PropertyType.unknown)]),
+          customEntry(
+            'InlinePanel',
+            [prop('values', PropertyType.unknown)],
+          ),
+        ]),
+      );
+
+      expect(
+        result.issues.where((issue) => !issue.code.isBuildNotice),
+        isEmpty,
+        reason: result.issues.join('\n'),
+      );
+      final notice = result.issues.singleWhere(
+        (issue) => issue.code == IssueCode.customWidgetAppFactoryUsed,
+      );
+      expect(notice.code.isBuildNotice, isTrue);
+      expect(notice.location, contains('#InlinePanel'));
+      expect(notice.message, contains("Custom widget 'InlinePanel'"));
+      expect(notice.message, contains("registered 'acme.ds' app factory"));
+      expect(notice.message, contains('Local RFW output was unavailable:'));
+      expect(notice.message, contains("installed app's compiled widget body"));
+      expect(notice.message, contains('defaults remain authoritative'));
+      expect(notice.message, contains('requires an app release'));
+      expect(notice.message, contains('Explicit call values remain supplied'));
+      expect(
+        result.translation.widgetDefinitions.keys,
+        isNot(contains('InlinePanel')),
+      );
+      expect(result.translation.referencedCustomLibraries, {'acme.ds'});
+      final root = _widget(result.decoded!, 'Paywall');
+      final first = root.arguments['first']! as fmt.ConstructorCall;
+      final second = root.arguments['second']! as fmt.ConstructorCall;
+      expect(first.name, 'InlinePanel');
+      expect(first.arguments, isEmpty);
+      expect(second.name, 'InlinePanel');
+      expect(second.arguments['values'], {'a': 'b'});
     });
 
     test(
@@ -4799,7 +4970,7 @@ class _TranspileProbeBuilder implements Builder {
       customWidgetBlueprints: classification.blueprints,
     );
     final translation = translator.translate(root);
-    if (translation.issues.isNotEmpty) {
+    if (translation.issues.any((issue) => !issue.code.isBuildNotice)) {
       onResult(
         _TranspileResult(
           translation.issues,
@@ -4821,14 +4992,24 @@ class _TranspileProbeBuilder implements Builder {
       final validation = validateModelAgainstCatalog(parsed, catalog);
       if (validation.isNotEmpty) {
         onResult(
-          _TranspileResult(validation, null, translation, classification),
+          _TranspileResult(
+            [...translation.issues, ...validation],
+            null,
+            translation,
+            classification,
+          ),
         );
         return;
       }
       final bytes = fmt.encodeLibraryBlob(parsed);
       final decoded = fmt.decodeLibraryBlob(Uint8List.fromList(bytes));
       onResult(
-        _TranspileResult(const [], decoded, translation, classification),
+        _TranspileResult(
+          translation.issues,
+          decoded,
+          translation,
+          classification,
+        ),
       );
     } on fmt.ParserException catch (e) {
       onResult(

@@ -10,6 +10,7 @@ import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/onboarding/onboarding_helpers.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
@@ -118,10 +119,22 @@ RootContextParam _rootParamFrom(
       .firstWhere((element) => element.name == name);
   final defaultValue =
       parameter.hasDefaultValue ? parameter.computeConstantValue() : null;
+  final hostData = isHostData
+      ? deriveHostDataShape(parameter.type, root: name)
+      : const HostDataShapeFact.refused(
+          HostDataShapeProblem(path: 'value', detail: 'test refusal'),
+        );
   return RootContextParam(
     name: name,
     type: parameter.type,
-    isHostData: isHostData,
+    typeCode: parameter.type.getDisplayString(),
+    kind: parameter.isOptionalPositional
+        ? RootContextParamKind.optionalPositional
+        : parameter.isNamed
+            ? RootContextParamKind.named
+            : RootContextParamKind.requiredPositional,
+    hostDataShape: hostData.shape,
+    hostDataProblem: hostData.problem,
     field: parameter is FieldFormalParameterElement ? parameter.field : null,
     isRequired: parameter.isRequired,
     defaultValueCode: parameter.defaultValueCode,
@@ -4336,7 +4349,7 @@ Object x() => Column(
           contains('does not support that type as host data'),
           contains('Tag'),
           contains('bool, int, double, num, String'),
-          contains('List of host-data values'),
+          contains('List of non-nullable host-data values'),
           contains('whose values are host data'),
         ),
       );
@@ -4696,6 +4709,57 @@ Object x() => Column(
       }
     });
 
+    test('refuses a nullable list element and names the position', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class P {
+          const P({required this.rows, required this.lookup, this.title});
+          final List<int?> rows;
+          final Map<String, int?> lookup;
+          final String? title;
+          Object render() => rows;
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final rows = _rootParamFrom(probe, className: 'P', name: 'rows');
+      final lookup = _rootParamFrom(probe, className: 'P', name: 'lookup');
+      final title = _rootParamFrom(probe, className: 'P', name: 'title');
+
+      // A null element would be dropped and shift every later index, so the
+      // element position is refused outright.
+      expect(rows.hostDataShape, isNull);
+      expect(rows.hostDataProblem!.path, 'rows[]');
+      expect(
+        rows.hostDataProblem!.detail,
+        contains('declare the element type without'),
+      );
+
+      // Absence is a faithful encoding everywhere a key can simply be missing,
+      // so these stay admitted.
+      expect(lookup.hostDataShape, isNotNull);
+      expect(title.hostDataShape, isNotNull);
+    });
+
+    test('refuses a nullable container nested at a list element', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class P {
+          const P({required this.groups});
+          final List<Map<String, int>?> groups;
+          Object render() => groups;
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final groups = _rootParamFrom(probe, className: 'P', name: 'groups');
+
+      expect(groups.hostDataShape, isNull);
+      expect(groups.hostDataProblem!.path, 'groups[]');
+    });
+
     test('uses one type refusal for non-host root reads', () async {
       final probe = await parseMethodExpressionFromSourceForTest(
         r'''
@@ -4739,8 +4803,9 @@ Object x() => Column(
           "Cannot read the parameter 'profile': it is declared 'Profile', and "
           'Restage does not support that type as host data. Host data '
           'parameters must be a scalar (bool, int, double, num, String), '
-          'Object?, a List of host-data values, or a Map<String, …> whose '
-          'values are host data, optionally nullable.';
+          'Object?, a List of non-nullable host-data values, or a '
+          'Map<String, …> whose values are host data, optionally nullable, or '
+          "a plain const data class. At 'value': test refusal.";
       expect(
         results.map((result) => result.issues.single.message),
         everyElement(expectedMessage),
@@ -5372,10 +5437,23 @@ Object x() => Column(
           ],
         ),
         entry(
+          name: 'TextRich',
+          flutterType: 'package:flutter/src/widgets/text.dart#Text.rich',
+          properties: [prop('textSpan', PropertyType.inlineSpan)],
+        ),
+        entry(
           name: 'Probe',
           properties: [
             prop('near', PropertyType.unknown),
             prop('far', PropertyType.unknown),
+          ],
+        ),
+        entry(
+          name: 'DataProbe',
+          properties: [
+            prop('near', PropertyType.string),
+            prop('far', PropertyType.string),
+            prop('size', PropertyType.real),
           ],
         ),
       ]),
@@ -5452,6 +5530,281 @@ Object x() => Column(
         'Column(children: [...for item in data.context.values: '
         'Text(text: item.name)])',
       );
+    });
+
+    test('lowers plain data through exact field identities', () async {
+      final directProbe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class Address {
+          const Address(this.city);
+          final String city;
+        }
+        class Habit {
+          const Habit(this.id, this.name, this.address);
+          final String id;
+          final String name;
+          final Address address;
+        }
+        extension HabitLabel on Habit {
+          String get label => name;
+        }
+        class P {
+          const P(this.habit);
+          final Habit habit;
+          Object render() => <Object>[
+            habit.name,
+            habit.address.city,
+            habit.label,
+            habit.name[0],
+          ];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final directParam = _rootParamFrom(
+        directProbe,
+        className: 'P',
+        name: 'habit',
+      );
+      final directExpressions =
+          (directProbe.expression as ListLiteral).elements.cast<Expression>();
+      final direct = [
+        for (final expression in directExpressions)
+          loopTranslator.translate(expression, rootParams: [directParam]),
+      ];
+
+      expect(direct[0].dsl, 'data.context.habit.name');
+      expect(direct[1].dsl, 'data.context.habit.address.city');
+      expect(direct.take(2).expand((result) => result.issues), isEmpty);
+      expect(direct[2].dsl, isEmpty);
+      expect(direct[2].issues.single.code, IssueCode.unrecognizedMethodCall);
+      expect(direct[3].dsl, isEmpty);
+      expect(direct[3].issues.single.code, IssueCode.unrecognizedMethodCall);
+
+      final readProbe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class Habit {
+          const Habit(this.name);
+          final String name;
+        }
+        class Control {
+          const Control();
+          String read() => 'value';
+        }
+        class P {
+          const P(this.habit, this.control);
+          final Habit habit;
+          final Control control;
+          Object render() => <Object>[habit.name, control];
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final readParams = [
+        _rootParamFrom(readProbe, className: 'P', name: 'habit'),
+        _rootParamFrom(readProbe, className: 'P', name: 'control'),
+      ];
+      final readExpressions =
+          (readProbe.expression as ListLiteral).elements.cast<Expression>();
+      final unreadInvalid = loopTranslator.translate(
+        readExpressions.first,
+        rootParams: readParams,
+      );
+      final readInvalid = loopTranslator.translate(
+        readExpressions.last,
+        rootParams: readParams,
+      );
+      expect(unreadInvalid.dsl, 'data.context.habit.name');
+      expect(unreadInvalid.issues, isEmpty);
+      expect(readInvalid.dsl, isEmpty);
+      expect(readInvalid.issues.single.message, contains("At 'control'"));
+
+      final loop = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class DataProbe extends Widget {
+          const DataProbe({this.near, this.far});
+          final String? near;
+          final String? far;
+        }
+        class Address {
+          const Address(this.city);
+          final String city;
+        }
+        class Habit {
+          const Habit(this.id, this.name, this.address);
+          final String id;
+          final String name;
+          final Address address;
+        }
+        class P extends StatelessWidget {
+          const P({required this.habits});
+          final List<Habit> habits;
+          Widget build(BuildContext context) => Column(
+            children: [
+              for (final habit in habits)
+                DataProbe(near: habit.name, far: habit.address.city),
+            ],
+          );
+        }
+      ''', params: const ['habits']);
+
+      expect(loop.issues, isEmpty, reason: loop.issues.join('\n'));
+      expect(
+        loop.dsl,
+        'Column(children: [...for habit in data.context.habits: '
+        'DataProbe(near: habit.name, far: habit.address.city)])',
+      );
+
+      final rootMismatch = await translate(
+        '''
+        $_kRootExpressionStubs
+        class DataProbe extends Widget {
+          const DataProbe({this.size});
+          final double? size;
+        }
+        class P extends StatelessWidget {
+          const P({required this.count});
+          final int count;
+          Widget build(BuildContext context) => DataProbe(size: count);
+        }
+      ''',
+        params: const ['count'],
+      );
+      final rootInterpolation = await translate(
+        '''
+        $_kRootExpressionStubs
+        class P extends StatelessWidget {
+          const P({required this.name});
+          final String name;
+          Widget build(BuildContext context) => Text(
+            text: 'Habit: \${name}!',
+          );
+        }
+      ''',
+        params: const ['name'],
+      );
+
+      expect(rootMismatch.issues.map((issue) => issue.code), [
+        IssueCode.propertyValueTypeMismatch,
+      ]);
+      expect(rootMismatch.dsl, isEmpty);
+      expect(rootInterpolation.issues, isEmpty);
+      expect(
+        rootInterpolation.dsl,
+        'TextRich(textSpan: { children: [{ text: "Habit: " }, '
+        '{ text: data.context.name }, { text: "!" }] })',
+      );
+
+      final loopMismatch = await translate(
+        '''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class DataProbe extends Widget {
+          const DataProbe({this.size});
+          final double? size;
+        }
+        class Habit {
+          const Habit(this.count);
+          final int count;
+        }
+        class P extends StatelessWidget {
+          const P({required this.habits});
+          final List<Habit> habits;
+          Widget build(BuildContext context) => Column(
+            children: [
+              for (final habit in habits) DataProbe(size: habit.count),
+            ],
+          );
+        }
+      ''',
+        params: const ['habits'],
+      );
+      final loopInterpolation = await translate(
+        '''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class Habit {
+          const Habit(this.name);
+          final String name;
+        }
+        class P extends StatelessWidget {
+          const P({required this.habits});
+          final List<Habit> habits;
+          Widget build(BuildContext context) => Column(
+            children: [
+              for (final habit in habits)
+                Text(text: 'Habit: \${habit.name}!'),
+            ],
+          );
+        }
+      ''',
+        params: const ['habits'],
+      );
+
+      expect(
+        {
+          'mismatchDsl': loopMismatch.dsl,
+          'mismatchCodes':
+              loopMismatch.issues.map((issue) => issue.code).toList(),
+          'mismatchMessages':
+              loopMismatch.issues.map((issue) => issue.message).toList(),
+          'interpolationDsl': loopInterpolation.dsl,
+          'interpolationCodes':
+              loopInterpolation.issues.map((issue) => issue.code).toList(),
+        },
+        {
+          'mismatchDsl': rootMismatch.dsl,
+          'mismatchCodes': [IssueCode.propertyValueTypeMismatch],
+          'mismatchMessages': [
+            rootMismatch.issues.single.message.replaceFirst(
+              'data.context.count',
+              'habit.count',
+            ),
+          ],
+          'interpolationDsl':
+              'Column(children: [...for habit in data.context.habits: '
+                  'TextRich(textSpan: { children: [{ text: "Habit: " }, '
+                  '{ text: habit.name }, { text: "!" }] })])',
+          'interpolationCodes': <IssueCode>[],
+        },
+      );
+
+      final computed = await translate('''
+        $_kRootExpressionStubs
+        class Column extends Widget {
+          const Column({required this.children});
+          final List<Widget> children;
+        }
+        class Habit {
+          const Habit(this.name);
+          final String name;
+        }
+        extension HabitLabel on Habit {
+          String get label => name;
+        }
+        class P extends StatelessWidget {
+          const P({required this.habits});
+          final List<Habit> habits;
+          Widget build(BuildContext context) => Column(
+            children: [for (final habit in habits) Text(text: habit.label)],
+          );
+        }
+      ''', params: const ['habits']);
+
+      expect(computed.dsl, 'Column(children: [])');
+      expect(computed.issues.single.code, IssueCode.unsupportedCollectionFlow);
     });
 
     test('nested loops preserve lexical reference depth', () async {

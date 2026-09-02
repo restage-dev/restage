@@ -1,4 +1,3 @@
-import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
@@ -190,7 +189,7 @@ Future<VisitorResult> visitPaywallSources(
     final build = await extractSourceBuildBlueprint(
       sourceClass: cls,
       library: library,
-      astNodeFor: _astNodeFor(library),
+      astNodeFor: resolvedAstNodeFor,
       issues: issues,
       location: location,
     );
@@ -259,22 +258,4 @@ bool _extendsSupportedSourceWidget(ClassElement cls) {
     current = current.element.supertype;
   }
   return false;
-}
-
-Future<AstNode?> Function(Fragment fragment) _astNodeFor(
-  LibraryElement library,
-) {
-  Future<ResolvedLibraryResult?>? resolved;
-  Future<ResolvedLibraryResult?> resolvedLibrary() async {
-    final cached = resolved;
-    if (cached != null) return cached;
-    return resolved = library.session
-        .getResolvedLibraryByElement(library)
-        .then((result) => result is ResolvedLibraryResult ? result : null);
-  }
-
-  return (fragment) async {
-    final libraryResult = await resolvedLibrary();
-    return libraryResult?.getFragmentDeclaration(fragment)?.node;
-  };
 }

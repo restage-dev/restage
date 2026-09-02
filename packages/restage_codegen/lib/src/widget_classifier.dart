@@ -1463,9 +1463,7 @@ class _Walk {
   }
 
   /// Accepts a resolved Flutter `Alignment` const field before the curated
-  /// fallback. Both paths gate on the PREFIX, which is what the translator
-  /// lowers on, so an alias that hides the prefix cannot classify here and
-  /// then fail to translate.
+  /// fallback, gating on the prefix the translator also lowers on.
   bool _isStructuredConstMember(PrefixedIdentifier expr) {
     if (expr.prefix.name == _alignmentTypeName &&
         isFrameworkValueTypeLibrary(expr.prefix.element)) {

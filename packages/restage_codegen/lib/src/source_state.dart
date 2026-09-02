@@ -1,14 +1,17 @@
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
-import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/owning_library_namespace.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
+import 'package:restage_codegen/src/widget_constructor_facts.dart';
 
 /// Root-source build material for `@PaywallSource` and `@OnboardingSource`.
 @immutable
@@ -19,10 +22,13 @@ final class SourceBuildBlueprint {
     this.buildContextParameter,
     List<CustomWidgetStateField>? state,
     List<RootContextParam> rootParams = const [],
+    List<RootContextParam>? constructorParams,
+    this.mountConstructorProblem,
     Map<String, RecognisedSetState> eventHandlers = const {},
     Map<Element, Expression> localBindings = const {},
   })  : state = state == null ? null : List.unmodifiable(state),
         rootParams = List.unmodifiable(rootParams),
+        constructorParams = List.unmodifiable(constructorParams ?? rootParams),
         eventHandlers = Map.unmodifiable(eventHandlers),
         localBindings = Map.unmodifiable(localBindings);
 
@@ -41,6 +47,12 @@ final class SourceBuildBlueprint {
 
   /// Root constructor parameters in declaration order.
   final List<RootContextParam> rootParams;
+
+  /// Every unnamed-constructor formal in declaration order.
+  final List<RootContextParam> constructorParams;
+
+  /// Why the selected constructor cannot preserve its key value in a mount.
+  final String? mountConstructorProblem;
 
   /// Referenced State method tear-offs recognised as `setState` handlers.
   final Map<String, RecognisedSetState> eventHandlers;
@@ -64,6 +76,15 @@ const Set<String> _kLifecycleMethods = {
   'activate',
   'reassemble',
 };
+
+/// Resolves [fragment] through the library that declares it.
+Future<AstNode?> resolvedAstNodeFor(Fragment fragment) async {
+  final library = fragment.libraryFragment?.element;
+  if (library == null) return null;
+  final result = await library.session.getResolvedLibraryByElement(library);
+  if (result is! ResolvedLibraryResult) return null;
+  return result.getFragmentDeclaration(fragment)?.node;
+}
 
 /// Extracts the effective root build expression and optional declarative state
 /// for a `@PaywallSource` / `@OnboardingSource` root class.
@@ -150,11 +171,17 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     return null;
   }
   final buildContextParameter = _buildContextParameter(buildMethod);
-  final rootParams = _rootContextParams(sourceClass);
+  final constructorFacts = await _constructorParams(sourceClass, astNodeFor);
+  final constructorParams = constructorFacts.params;
+  final rootParams = constructorParams
+      .where((parameter) => !parameter.forwardsFlutterKey)
+      .toList(growable: false);
   final blueprint = SourceBuildBlueprint(
     rootExpression: extracted.expression,
     buildContextParameter: buildContextParameter,
     rootParams: rootParams,
+    constructorParams: constructorParams,
+    mountConstructorProblem: constructorFacts.mountProblem,
     localBindings: localBindings,
   );
   if (stateClass == null) return blueprint;
@@ -192,67 +219,432 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     buildContextParameter: blueprint.buildContextParameter,
     state: state,
     rootParams: rootParams,
+    constructorParams: constructorParams,
+    mountConstructorProblem: blueprint.mountConstructorProblem,
     eventHandlers: eventHandlers,
     localBindings: blueprint.localBindings,
   );
 }
 
-/// Collects non-key unnamed-constructor parameters in declaration order.
-List<RootContextParam> _rootContextParams(ClassElement sourceClass) {
+Future<({List<RootContextParam> params, String? mountProblem})>
+    _constructorParams(
+  ClassElement sourceClass,
+  Future<AstNode?> Function(Fragment fragment) astNodeFor,
+) async {
   final constructor = sourceClass.unnamedConstructor;
-  if (constructor == null) return const [];
+  if (constructor == null) {
+    return (params: const <RootContextParam>[], mountProblem: null);
+  }
+  final namespace = OwningLibraryNamespace(sourceClass.library);
+  final resolvedConstructor = await resolveWidgetConstructorFormals(
+    sourceClass,
+    constructor,
+    astNodeFor,
+  );
   final params = <RootContextParam>[];
-  for (final parameter in constructor.formalParameters) {
+  for (var index = 0; index < constructor.formalParameters.length; index++) {
+    final parameter = constructor.formalParameters[index];
     final name = parameter.name;
-    if (name == null || name.isEmpty || name == 'key') continue;
+    if (name == null || name.isEmpty) continue;
+    final resolved = resolvedConstructor.formals[index];
     final defaultValue =
         parameter.hasDefaultValue ? parameter.computeConstantValue() : null;
+    final typeFact = await _rootParamTypeFact(
+      parameter,
+      resolved.type,
+      namespace,
+      astNodeFor,
+    );
+    final mountDefault = await _mountDefaultExpression(
+      resolved,
+      namespace,
+      astNodeFor,
+    );
+    final hostData = deriveHostDataShape(resolved.type, root: name);
     params.add(
       RootContextParam(
         name: name,
-        type: parameter.type,
-        isHostData: _isHostDataType(parameter.type),
-        field:
-            parameter is FieldFormalParameterElement ? parameter.field : null,
+        type: resolved.type,
+        typeCode: typeFact.code,
+        kind: parameter.isOptionalPositional
+            ? RootContextParamKind.optionalPositional
+            : parameter.isNamed
+                ? RootContextParamKind.named
+                : RootContextParamKind.requiredPositional,
+        hostDataShape: hostData.shape,
+        hostDataProblem: hostData.problem,
+        field: resolved.field,
         isRequired: parameter.isRequired,
         defaultValueCode: parameter.defaultValueCode,
         hasNullDefault: parameter.hasDefaultValue &&
             defaultValue != null &&
             defaultValue.isNull,
+        mountDefaultValueCode: mountDefault.code,
+        mountDefaultProblem: mountDefault.problem,
+        forwardsFlutterKey: resolved.forwardsFlutterKey,
+        usesSuperFormal: parameter is SuperFormalParameterElement,
+        usesStatelessWidgetSuperFormal: resolved.usesStatelessWidgetSuperFormal,
+        hasExplicitType: typeFact.hasExplicitType,
       ),
     );
   }
-  return params;
+  return (
+    params: params,
+    mountProblem: resolvedConstructor.mountProblem,
+  );
 }
 
-/// Whether [type] belongs to the closed host-data algebra.
-bool _isHostDataType(DartType type) {
-  if (type is! InterfaceType) return false;
-  final args = type.typeArguments;
-  // Nullable scalars and collections remain host data; bare Object must be
-  // Object?.
-  if (args.isEmpty) {
-    if (type.isDartCoreObject) {
-      return type.nullabilitySuffix == NullabilitySuffix.question;
+Future<({String? code, String? problem})> _mountDefaultExpression(
+  ResolvedWidgetConstructorFormal resolved,
+  OwningLibraryNamespace namespace,
+  Future<AstNode?> Function(Fragment fragment) astNodeFor,
+) async {
+  final parameter = resolved.formal;
+  if (!parameter.hasDefaultValue) return (code: null, problem: null);
+  for (final declaration in resolved.defaultDeclarations) {
+    final node = await astNodeFor(declaration.firstFragment);
+    final expression =
+        node is DefaultFormalParameter ? node.defaultValue : null;
+    if (expression == null) continue;
+    final contents = declaration.firstFragment.libraryFragment?.source.contents;
+    if (contents == null || expression.end > contents.data.length) {
+      return (
+        code: null,
+        problem: 'the resolved default source is unavailable',
+      );
     }
-    return type.isDartCoreBool ||
-        type.isDartCoreInt ||
-        type.isDartCoreDouble ||
-        type.isDartCoreNum ||
-        type.isDartCoreString;
+    final compiler = _ResolvedDefaultExpressionCompiler(
+      namespace,
+      expression.offset,
+    );
+    expression.accept(compiler);
+    if (compiler.problem case final problem?) {
+      return (code: null, problem: problem);
+    }
+    var source = contents.data.substring(expression.offset, expression.end);
+    final replacements = compiler.replacements
+      ..sort((left, right) => right.start.compareTo(left.start));
+    for (final replacement in replacements) {
+      source = source.replaceRange(
+        replacement.start,
+        replacement.end,
+        replacement.value,
+      );
+    }
+    return (code: source, problem: null);
   }
-  if (type.isDartCoreList && args.length == 1) {
-    return _isHostDataType(args.single);
-  }
-  if (type.isDartCoreMap && args.length == 2) {
-    return _isNonNullableCoreString(args.first) && _isHostDataType(args.last);
-  }
-  return false;
+  return (
+    code: null,
+    problem: 'the resolved default expression is unavailable',
+  );
 }
 
-/// Whether [type] is a non-nullable `dart:core` String map key.
-bool _isNonNullableCoreString(DartType type) =>
-    type.isDartCoreString && type.nullabilitySuffix == NullabilitySuffix.none;
+final class _ResolvedDefaultExpressionCompiler
+    extends RecursiveAstVisitor<void> {
+  _ResolvedDefaultExpressionCompiler(
+    this.namespace,
+    this.baseOffset,
+  );
+
+  final OwningLibraryNamespace namespace;
+  final int baseOffset;
+  final List<({int start, int end, String value})> replacements = [];
+  String? problem;
+
+  @override
+  void visitDotShorthandConstructorInvocation(
+    DotShorthandConstructorInvocation node,
+  ) {
+    final constructor = node.element;
+    final owner = constructor?.enclosingElement;
+    final ownerName = owner == null ? null : namespace.elementName(owner);
+    final constructorName = constructor?.name;
+    if (constructor == null ||
+        !_memberIsVisible(constructor) ||
+        ownerName == null ||
+        constructorName == null) {
+      _fail();
+      return;
+    }
+    final suffix = constructorName == 'new' ? '' : '.$constructorName';
+    _replace(node.period.offset, node.constructorName.end, '$ownerName$suffix');
+    node.typeArguments?.accept(this);
+    node.argumentList.accept(this);
+  }
+
+  @override
+  void visitDotShorthandInvocation(DotShorthandInvocation node) {
+    final element = node.memberName.element;
+    final spelling = element == null
+        ? null
+        : namespace.staticMemberName(element, includeAliases: false);
+    if (spelling == null) {
+      _fail();
+      return;
+    }
+    _replace(node.offset, node.memberName.end, spelling);
+    node.typeArguments?.accept(this);
+    node.argumentList.accept(this);
+  }
+
+  @override
+  void visitDotShorthandPropertyAccess(DotShorthandPropertyAccess node) {
+    final element = node.propertyName.element;
+    final spelling = element == null
+        ? null
+        : namespace.staticMemberName(element, includeAliases: false);
+    if (spelling == null) {
+      _fail();
+      return;
+    }
+    _replace(node.offset, node.end, spelling);
+  }
+
+  @override
+  void visitConstructorName(ConstructorName node) {
+    final constructor = node.element;
+    if (constructor == null || !_memberIsVisible(constructor)) {
+      _fail();
+      return;
+    }
+    node.type.accept(this);
+  }
+
+  @override
+  void visitMethodInvocation(MethodInvocation node) {
+    final element = node.methodName.element;
+    if (element == null) {
+      _fail();
+      return;
+    }
+    final spelling = _referenceSpelling(element);
+    final target = node.target;
+    if (spelling != null) {
+      final start = target?.offset ?? node.methodName.offset;
+      _replace(start, node.methodName.end, spelling);
+    } else if (target == null || !_memberIsVisible(element)) {
+      _fail();
+      return;
+    } else {
+      target.accept(this);
+    }
+    node.typeArguments?.accept(this);
+    node.argumentList.accept(this);
+  }
+
+  @override
+  void visitNamedType(NamedType node) {
+    final element = node.element;
+    if (element == null) {
+      if (node.name.lexeme != 'dynamic' && node.name.lexeme != 'void') {
+        _fail();
+      }
+    } else {
+      final spelling = namespace.elementName(element);
+      if (spelling == null) {
+        _fail();
+        return;
+      }
+      _replace(
+        node.importPrefix?.offset ?? node.name.offset,
+        node.name.end,
+        spelling,
+      );
+    }
+    node.typeArguments?.accept(this);
+  }
+
+  @override
+  void visitPrefixedIdentifier(PrefixedIdentifier node) {
+    final element = node.identifier.element;
+    if (element == null) {
+      _fail();
+      return;
+    }
+    final spelling = _referenceSpelling(element);
+    if (spelling != null) {
+      _replace(node.offset, node.end, spelling);
+      return;
+    }
+    if (!_memberIsVisible(element)) {
+      _fail();
+      return;
+    }
+    node.prefix.accept(this);
+  }
+
+  @override
+  void visitPropertyAccess(PropertyAccess node) {
+    final element = node.propertyName.element;
+    if (element == null) {
+      _fail();
+      return;
+    }
+    final spelling = _referenceSpelling(element);
+    if (spelling != null) {
+      _replace(node.offset, node.end, spelling);
+      return;
+    }
+    if (!_memberIsVisible(element) || node.target == null) {
+      _fail();
+      return;
+    }
+    node.target!.accept(this);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    if (node.inDeclarationContext() || _isSelectorName(node)) {
+      return;
+    }
+    final element = node.element;
+    final spelling = element == null ? null : _referenceSpelling(element);
+    if (spelling == null) {
+      _fail();
+      return;
+    }
+    _replace(node.offset, node.end, spelling);
+  }
+
+  String? _referenceSpelling(Element rawElement) {
+    final element = _referencedDefaultElement(rawElement);
+    final enclosing = element.enclosingElement;
+    if (enclosing is LibraryElement) {
+      return namespace.elementName(element);
+    }
+    return namespace.staticMemberName(element);
+  }
+
+  bool _memberIsVisible(Element rawElement) {
+    final element = _referencedDefaultElement(rawElement);
+    return !element.isPrivate || element.library == namespace.library;
+  }
+
+  void _replace(int start, int end, String value) {
+    replacements.add(
+      (
+        start: start - baseOffset,
+        end: end - baseOffset,
+        value: value,
+      ),
+    );
+  }
+
+  void _fail() {
+    problem ??= 'a referenced declaration has no visible spelling';
+  }
+}
+
+Element _referencedDefaultElement(Element element) =>
+    (element is PropertyAccessorElement ? element.variable : element)
+        .baseElement;
+
+bool _isSelectorName(SimpleIdentifier identifier) =>
+    switch (identifier.parent) {
+      ConstructorName(:final name) when identical(name, identifier) => true,
+      Label(:final label) when identical(label, identifier) => true,
+      MethodInvocation(:final methodName)
+          when identical(methodName, identifier) =>
+        true,
+      PrefixedIdentifier(identifier: final selector)
+          when identical(selector, identifier) =>
+        true,
+      PropertyAccess(:final propertyName)
+          when identical(propertyName, identifier) =>
+        true,
+      _ => false,
+    };
+
+Future<({String? code, bool hasExplicitType})> _rootParamTypeFact(
+  FormalParameterElement parameter,
+  DartType effectiveType,
+  OwningLibraryNamespace namespace,
+  Future<AstNode?> Function(Fragment fragment) astNodeFor,
+) async {
+  final node = await astNodeFor(parameter.firstFragment);
+  final formal = switch (node) {
+    DefaultFormalParameter(:final parameter) => parameter,
+    NormalFormalParameter() => node,
+    _ => null,
+  };
+  if (formal == null) {
+    return (
+      code: namespace.typeCode(effectiveType),
+      hasExplicitType: false,
+    );
+  }
+
+  final explicit = switch (formal) {
+    SimpleFormalParameter(:final type) => type?.toSource(),
+    FieldFormalParameter(:final type, :final parameters) =>
+      parameters == null ? type?.toSource() : _functionFormalType(formal),
+    SuperFormalParameter(:final type, :final parameters) =>
+      parameters == null ? type?.toSource() : _functionFormalType(formal),
+    FunctionTypedFormalParameter() => _functionFormalType(formal),
+  };
+  if (explicit != null) return (code: explicit, hasExplicitType: true);
+
+  final field =
+      parameter is FieldFormalParameterElement ? parameter.field : null;
+  if (field != null) {
+    for (var fieldNode = await astNodeFor(field.firstFragment);
+        fieldNode != null;
+        fieldNode = fieldNode.parent) {
+      if (fieldNode case VariableDeclarationList(:final type?)) {
+        return (code: type.toSource(), hasExplicitType: false);
+      }
+    }
+  }
+  return (
+    code: namespace.typeCode(effectiveType),
+    hasExplicitType: false,
+  );
+}
+
+String _functionFormalType(NormalFormalParameter parameter) {
+  final (returnType, typeParameters, parameters, nullable) =
+      switch (parameter) {
+    FunctionTypedFormalParameter(
+      :final returnType,
+      :final typeParameters,
+      :final parameters,
+      :final question,
+    ) =>
+      (
+        returnType?.toSource() ?? 'dynamic',
+        typeParameters?.toSource() ?? '',
+        parameters.toSource(),
+        question != null,
+      ),
+    FieldFormalParameter(
+      :final type,
+      :final typeParameters,
+      :final parameters!,
+      :final question,
+    ) =>
+      (
+        type?.toSource() ?? 'dynamic',
+        typeParameters?.toSource() ?? '',
+        parameters.toSource(),
+        question != null,
+      ),
+    SuperFormalParameter(
+      :final type,
+      :final typeParameters,
+      :final parameters!,
+      :final question,
+    ) =>
+      (
+        type?.toSource() ?? 'dynamic',
+        typeParameters?.toSource() ?? '',
+        parameters.toSource(),
+        question != null,
+      ),
+    _ => throw StateError('Expected a function-typed parameter.'),
+  };
+  final source = '$returnType Function$typeParameters$parameters';
+  return nullable ? '($source)?' : source;
+}
 
 Element? _buildContextParameter(MethodElement buildMethod) {
   final parameters = buildMethod.formalParameters;

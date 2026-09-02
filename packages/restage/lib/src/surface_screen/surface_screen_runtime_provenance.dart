@@ -152,6 +152,8 @@ final class SurfaceScreenRuntimeProvenance {
     required CapabilityManifest capabilities,
     required SurfaceScreenEventSchema eventSchema,
     SurfaceScreenBundleLocator? bundle,
+    SurfaceScreenHostDataSchema hostDataSchema =
+        const SurfaceScreenHostDataSchema.empty(),
   }) {
     if (contractVersion < 1) {
       throw ArgumentError.value(
@@ -168,11 +170,17 @@ final class SurfaceScreenRuntimeProvenance {
       capabilities: capabilities,
       eventSchema: eventSchema,
       eventContractHash: eventContractHash,
+      hostDataSchema: hostDataSchema,
+      hostDataContractHash: SurfaceScreenHostDataContractHash.hash(
+        hostDataSchema,
+      ),
       contractFingerprint: SurfaceScreenContractFingerprint.hash(
         sourceKind: sourceKind,
         payloadKind: payloadKind,
         capabilities: capabilities,
         eventContractHash: eventContractHash,
+        hostDataContractHash:
+            SurfaceScreenHostDataContractHash.hash(hostDataSchema),
       ),
       bundle: bundle,
     );
@@ -190,6 +198,7 @@ final class SurfaceScreenRuntimeProvenance {
     required CapabilityManifest capabilities,
     required String eventSchemaJson,
     SurfaceScreenBundleLocator? bundle,
+    String? hostDataSchemaJson,
   }) =>
       SurfaceScreenRuntimeProvenance(
         surface: surface,
@@ -198,6 +207,9 @@ final class SurfaceScreenRuntimeProvenance {
         capabilities: capabilities,
         eventSchema:
             SurfaceScreenEventSchemaV1Codec.decodeJson(eventSchemaJson),
+        hostDataSchema: hostDataSchemaJson == null
+            ? const SurfaceScreenHostDataSchema.empty()
+            : SurfaceScreenHostDataSchemaV1Codec.decodeJson(hostDataSchemaJson),
         bundle: bundle,
       );
 
@@ -208,6 +220,8 @@ final class SurfaceScreenRuntimeProvenance {
     required this.capabilities,
     required this.eventSchema,
     required this.eventContractHash,
+    required this.hostDataSchema,
+    required this.hostDataContractHash,
     required this.contractFingerprint,
     required this.bundle,
   });
@@ -235,6 +249,12 @@ final class SurfaceScreenRuntimeProvenance {
 
   /// Hash derived from [eventSchema].
   final String eventContractHash;
+
+  /// Host-supplied inputs this screen declares, empty when it declares none.
+  final SurfaceScreenHostDataSchema hostDataSchema;
+
+  /// Hash derived from [hostDataSchema], null when no host data is declared.
+  final String? hostDataContractHash;
 
   /// Fingerprint derived from the contract fields.
   final String contractFingerprint;

@@ -452,7 +452,11 @@ const Set<String> _qualifierAnnotations = {
   'Config',
 };
 
-const Set<String> _nonAnnotationClassNameGuards = {'Restage'};
+const Set<String> _nonAnnotationClassNameGuards = {
+  'Restage',
+  // A resolved Flutter superclass identity, not an annotation name.
+  'StatelessWidget',
+};
 
 /// Whether a file spelling [name] as an annotation is selected by either
 /// filter.
