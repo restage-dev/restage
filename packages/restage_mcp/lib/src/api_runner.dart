@@ -200,17 +200,17 @@ String legibleApiError(
     case EnvironmentNotFound(:final environmentSlug):
       return "No environment '$environmentSlug' was found.";
     case PublishConflict(:final paywallSlug, :final environmentSlug):
-      return "A concurrent publish conflicted for paywall '$paywallSlug' in "
+      return "A concurrent push conflicted for paywall '$paywallSlug' in "
           "environment '$environmentSlug'. Please try again.";
     case null:
       break;
   }
-  // Every surface family (paywalls included) publishes/lists through the
+  // Every surface family (paywalls included) pushes/lists through the
   // generic surface endpoint, so its typed exceptions surface here. Decode
   // them defensively (same unchecked-cast hazard as above) and phrase them
   // with [surfaceNoun] — 'paywall' for the paywall tools, the surface type's
   // wire name for the surface-family tools — otherwise a missing surface /
-  // publish conflict would degrade to a bare status code.
+  // push conflict would degrade to a bare status code.
   SurfaceException? surfaceTyped;
   try {
     surfaceTyped = decodeSurfaceTypedException(e.body);
@@ -221,7 +221,7 @@ String legibleApiError(
     case SurfaceNotFound(:final surfaceSlug):
       return "No $surfaceNoun '$surfaceSlug' was found.";
     case SurfacePublishConflict(:final surfaceSlug, :final environmentSlug):
-      return "A concurrent publish conflicted for $surfaceNoun '$surfaceSlug' "
+      return "A concurrent push conflicted for $surfaceNoun '$surfaceSlug' "
           "in environment '$environmentSlug'. Please try again.";
     case SurfaceEnvironmentNotFound(:final environmentSlug):
       return "No environment '$environmentSlug' was found.";

@@ -58,6 +58,7 @@ final class WelcomeScreen extends StatelessWidget {
 
 ```sh
 dart run build_runner build
+restage surface push welcome
 restage surface publish welcome
 ```
 
@@ -66,7 +67,7 @@ published surface. [`apps/examples`](apps/examples) has four
 starters to copy: a paywall, an onboarding flow, a one-screen message, and a
 custom widget.
 
-## Author and publish
+## Author, push, and publish
 
 Use the annotation that matches what you build:
 
@@ -77,17 +78,20 @@ Use the annotation that matches what you build:
 `@Screen()` with no category is a screen for use inside a flow. The categories
 are `onboarding`, `message`, `survey`, `paywall`, and `general`.
 
-`restage surface publish <id>` uploads the artifacts the build generated for
-that surface id. You can also name the file instead of the id:
+`restage surface push <id>` uploads the artifacts the build generated for that
+surface id. `restage surface publish <id>` then makes one pushed revision live.
+A push changes nothing that is running. Push ten variants; publish one.
+
+You can also name the file instead of the id:
 
 ```sh
-restage surface publish lib/screens/welcome.dart
+restage surface push lib/screens/welcome.dart
 ```
 
 The CLI resolves the file through the same generated manifest, so it selects
-what the build produced. Naming a screen that belongs to a flow publishes that
+what the build produced. Naming a screen that belongs to a flow pushes that
 flow. If a file produced more than one surface, the CLI lists them and asks;
-`--all` publishes all of them.
+`--all` pushes all of them.
 
 ## Why Restage
 

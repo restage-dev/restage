@@ -16,7 +16,7 @@ final class MeasurementBundledProfileFinalizeException implements Exception {
 /// optional Measurement candidate.
 ///
 /// The candidate is target-neutral. Target, revision, binding, policy, and
-/// activation authority remain with the publication API and service.
+/// active-pointer authority remain with the publication API and service.
 Future<SurfacePublicationUploadResult> publishAssembledSurfacePublication({
   required SurfacePublicationApi api,
   required AssembledSurfacePublication assembled,

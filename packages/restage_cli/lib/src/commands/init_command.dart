@@ -229,8 +229,9 @@ class InitCommand extends Command<int> {
       ..writeln()
       ..writeln(
         'Next: run `dart pub get && dart run build_runner build`, then '
-        '`restage surface publish starter` to push the starter to the '
-        '`${context.environment ?? '<environment>'}` environment.',
+        '`restage surface push starter` to push the starter to the '
+        '`${context.environment ?? '<environment>'}` environment, and '
+        '`restage surface publish starter` to make it live.',
       );
     return 0;
   }

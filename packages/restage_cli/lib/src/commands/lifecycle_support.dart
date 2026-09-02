@@ -371,7 +371,7 @@ String renderSurfaceException(SurfaceException e) => switch (e) {
   SurfaceEnvironmentNotFound(:final environmentSlug) =>
     "Environment '$environmentSlug' not found.",
   SurfacePublishConflict(:final surfaceSlug, :final environmentSlug) =>
-    "Concurrent publish conflict for '$surfaceSlug' in '$environmentSlug'. "
+    "Concurrent push conflict for '$surfaceSlug' in '$environmentSlug'. "
         'Retry the operation.',
   SurfaceRollbackUnsupported(:final surfaceSlug) =>
     "Rollback is not supported for '$surfaceSlug'.",
@@ -407,7 +407,7 @@ void writeAffectedFamilyMutation(
       '${_revisionLabel(family.activeRevisionBefore)} -> '
       '${_revisionLabel(family.activeRevisionAfter)}'
       '${family.publishedRevision == null ? '' : '  '
-                'published r${family.publishedRevision}'}',
+                'pushed r${family.publishedRevision}'}',
     );
   }
 }

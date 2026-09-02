@@ -39,9 +39,11 @@ dart run build_runner build
 
 The generated manifest at
 `lib/generated/restage.publication.json` records the surface identity
-and exact artifact closure. Publish by surface id:
+and exact artifact closure. Push by surface id, then publish the pushed
+revision:
 
 ```sh
+restage surface push welcome
 restage surface publish welcome
 ```
 

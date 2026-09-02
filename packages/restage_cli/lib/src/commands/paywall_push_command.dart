@@ -17,14 +17,14 @@ import 'package:restage_cli/src/publication/publication_errors.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Publish one generated specialized paywall from its exact manifest closure.
+/// Push one generated specialized paywall from its exact manifest closure.
 ///
 /// This is retained as a deprecated compatibility command. New workflows use
-/// `restage surface publish <slug>` so the generated manifest remains the
+/// `restage surface push <slug>` so the generated manifest remains the
 /// visible authority for every surface category.
-class PaywallPublishCommand extends Command<int> {
-  /// Construct a paywall publish command.
-  PaywallPublishCommand({
+class PaywallPushCommand extends Command<int> {
+  /// Construct a paywall push command.
+  PaywallPushCommand({
     required StringSink stdout,
     required StringSink stderr,
     required Interactive interactive,
@@ -50,7 +50,7 @@ class PaywallPublishCommand extends Command<int> {
       ..addOption(
         'env',
         help:
-            'Environment slug to publish to (overrides '
+            'Environment slug to push to (overrides '
             'restage_config.yaml `defaultEnvironment`).',
       )
       ..addOption(
@@ -61,7 +61,7 @@ class PaywallPublishCommand extends Command<int> {
             'Directory to locate restage_config.yaml and generated publication '
             'metadata. It does not select artifacts.',
       );
-    addPublishAllOption(argParser, noun: 'paywall');
+    addPushAllOption(argParser, noun: 'paywall');
     addRuntimePlaneOption(argParser);
   }
 
@@ -73,15 +73,15 @@ class PaywallPublishCommand extends Command<int> {
   final PublicationBundleReader? _bundleReader;
 
   @override
-  String get name => 'publish';
+  String get name => 'push';
 
   @override
   String get description =>
-      'Deprecated compatibility publish for a specialized paywall; prefer '
-      '`surface publish`.';
+      'Deprecated compatibility push for a specialized paywall; prefer '
+      '`surface push`.';
 
   @override
-  String get invocation => 'restage paywall publish <name|file.dart> [options]';
+  String get invocation => 'restage paywall push <name|file.dart> [options]';
 
   @override
   Future<int> run() async {
@@ -89,7 +89,7 @@ class PaywallPublishCommand extends Command<int> {
     if (rest.isEmpty) {
       _stderr.writeln(
         'Missing positional argument: <name|file.dart>. Run `restage paywall '
-        'publish <name>`, or name the .dart file the paywall is declared in.',
+        'push <name>`, or name the .dart file the paywall is declared in.',
       );
       return 1;
     }
@@ -128,24 +128,24 @@ class PaywallPublishCommand extends Command<int> {
         type: Surface.paywall,
         // Narrow rather than abort: a file that produced a specialized
         // paywall alongside an ordinary categorized screen should still
-        // publish its paywalls.
+        // push its paywalls.
         pathSourceKind: SurfaceSourceKind.paywall,
         interactive: _interactive,
         stderr: _stderr,
-        commandLine: 'restage paywall publish',
+        commandLine: 'restage paywall push',
       );
       if (entries == null) return 1;
       for (final entry in entries) {
         if (entry.publication.sourceKind != SurfaceSourceKind.paywall) {
           throw const PublicationManifestException(
             'The generated paywall identity is not a specialized paywall '
-            'source. Use `restage surface publish` for a categorized ordinary '
+            'source. Use `restage surface push` for a categorized ordinary '
             'screen.',
           );
         }
       }
       // Everything is assembled before any network work, so a broken
-      // closure fails the whole invocation instead of half-publishing.
+      // closure fails the whole invocation instead of half-pushing.
       final assembler = SurfacePublicationAssembler(
         bundleReader: _bundleReader,
       );
@@ -252,7 +252,7 @@ class PaywallPublishCommand extends Command<int> {
       );
       if (target == null) return 1;
 
-      return await runPublishRun(
+      return await runPush(
         api: api,
         assembled: assembled,
         packageRoot: packageRoot,
@@ -262,7 +262,7 @@ class PaywallPublishCommand extends Command<int> {
         target: target,
         noun: 'paywall',
         describe: (publication) =>
-            'Published paywall ${publication.entry.publication.slug}',
+            'Pushed paywall ${publication.entry.publication.slug}',
         onApiException: _handleApiException,
         stdout: _stdout,
         stderr: _stderr,
@@ -278,7 +278,7 @@ class PaywallPublishCommand extends Command<int> {
       _stderr.writeln(outcome.message);
       return outcome.exitCode;
     }
-    _stderr.writeln('Could not publish the generated paywall.');
+    _stderr.writeln('Could not push the generated paywall.');
     return 1;
   }
 

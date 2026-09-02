@@ -406,7 +406,7 @@ void main() {
     });
 
     test('restage paywall --help lists lifecycle subcommands alongside '
-        'list and publish', () async {
+        'list and push', () async {
       final cli = RestageCli(
         stdout: stdout,
         stderr: stderr,
@@ -417,6 +417,7 @@ void main() {
       expect(exit, 0, reason: stderr.toString());
       final out = stdout.toString();
       expect(out, contains('list'));
+      expect(out, contains('push'));
       expect(out, contains('publish'));
       expect(out, contains('status'));
       expect(out, contains('kill'));

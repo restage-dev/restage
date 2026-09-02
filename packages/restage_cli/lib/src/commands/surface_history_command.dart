@@ -53,7 +53,7 @@ class SurfaceHistoryCommand extends Command<int> {
   String get name => 'history';
 
   @override
-  String get description => 'Show published revisions for a surface family.';
+  String get description => 'Show pushed revisions for a surface family.';
 
   @override
   Future<int> run() async {
@@ -128,7 +128,7 @@ class SurfaceHistoryCommand extends Command<int> {
       'active: $active  payload: ${history.payloadKind ?? '—'}',
     );
     stdout.writeln(
-      'REVISION\tACTIVE\tPUBLISHED AT\tCONTENT HASH\tMIN CLIENT\tPAYLOAD',
+      'REVISION\tACTIVE\tPUSHED AT\tCONTENT HASH\tMIN CLIENT\tPAYLOAD',
     );
     for (final revision in history.revisions) {
       stdout.writeln(

@@ -99,37 +99,31 @@ void main() {
       ).run(const ['--help']);
 
       expect(exitCode, 0);
-      expect(
-        stdout.toString(),
-        contains('Manifest-driven publication and lifecycle'),
-      );
+      expect(stdout.toString(), contains('Manifest-driven push and lifecycle'));
       expect(
         stdout.toString(),
         contains('Compatibility commands for specialized paywalls'),
       );
     });
 
-    test(
-      'surface publication help marks compatibility selectors clearly',
-      () async {
-        final stdout = StringBuffer();
-        final exitCode = await RestageCli(
-          stdout: stdout,
-          stderr: StringBuffer(),
-        ).run(const ['surface', 'publish', '--help']);
+    test('surface push help marks compatibility selectors clearly', () async {
+      final stdout = StringBuffer();
+      final exitCode = await RestageCli(
+        stdout: stdout,
+        stderr: StringBuffer(),
+      ).run(const ['surface', 'push', '--help']);
 
-        expect(exitCode, 0);
-        expect(
-          stdout.toString(),
-          contains('Deprecated validation/disambiguation selector only'),
-        );
-        expect(
-          stdout.toString(),
-          contains('generated manifest is authoritative'),
-        );
-        expect(stdout.toString(), isNot(contains('--path')));
-      },
-    );
+      expect(exitCode, 0);
+      expect(
+        stdout.toString(),
+        contains('Deprecated validation/disambiguation selector only'),
+      );
+      expect(
+        stdout.toString(),
+        contains('generated manifest is authoritative'),
+      );
+      expect(stdout.toString(), isNot(contains('--path')));
+    });
 
     test('lifecycle help defaults to generated identity', () async {
       final stdout = StringBuffer();

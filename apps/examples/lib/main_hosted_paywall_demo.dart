@@ -19,8 +19,9 @@ import 'package:restage_shared/restage_shared.dart';
 ///        flutter run -t lib/main_hosted_paywall_demo.dart
 ///
 ///  - **Against a real backend (the device smoke).** Point the resolver at a
-///    live delivery origin with a publishable key. First publish a real blob
-///    (`restage surface publish narrate_membership --type paywall`), then:
+///    live delivery origin with a publishable key. First push a real blob and
+///    make it live (`restage surface push narrate_membership --type paywall`,
+///    then `restage surface publish narrate_membership --type paywall`), then:
 ///
 ///        flutter run -t lib/main_hosted_paywall_demo.dart \
 ///          --dart-define=RESTAGE_BASE_URL=https://your-backend.example \

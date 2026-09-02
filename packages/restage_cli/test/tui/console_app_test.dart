@@ -210,8 +210,8 @@ void main() {
       await tester.sendArrowDown();
       await tester.pump();
 
-      expect(tester.terminalState, containsText('surface publish'));
-      expect(tester.terminalState, containsText('p publish'));
+      expect(tester.terminalState, containsText('surface push'));
+      expect(tester.terminalState, containsText('p push'));
       expect(
         tester.terminalState,
         isNot(containsText('restage surfaces status')),
@@ -264,7 +264,7 @@ void main() {
       await tester.sendArrowDown();
       await tester.pump();
 
-      expect(tester.terminalState, containsText('> p publish'));
+      expect(tester.terminalState, containsText('> p push'));
       expect(tester.terminalState, containsText('f freeze'));
       expect(tester.terminalState, containsText('u unfreeze'));
       expect(tester.terminalState, containsText('r rollback'));
@@ -272,15 +272,15 @@ void main() {
       final lines = tester.renderToString().split('\n');
       int lineFor(String text) =>
           lines.indexWhere((line) => line.contains(text));
-      expect(lineFor('> p publish'), greaterThanOrEqualTo(0));
-      expect(lineFor('f freeze'), lineFor('> p publish') + 1);
+      expect(lineFor('> p push'), greaterThanOrEqualTo(0));
+      expect(lineFor('f freeze'), lineFor('> p push') + 1);
       expect(lineFor('u unfreeze'), lineFor('f freeze') + 1);
       expect(lineFor('r rollback'), lineFor('u unfreeze') + 1);
       expect(lineFor('k kill'), lineFor('r rollback') + 1);
       expect(
         tester.terminalState,
         containsText(
-          'surface publish pro --type paywall --project default --app default --env staging --plane live',
+          'surface push pro --type paywall --project default --app default --env staging --plane live',
         ),
       );
     }, size: const Size(160, 32));
@@ -331,7 +331,7 @@ void main() {
       expect(
         tester.terminalState,
         containsText(
-          'surface publish pro --project default --app default --env staging '
+          'surface push pro --project default --app default --env staging '
           '--plane live',
         ),
       );
@@ -387,12 +387,12 @@ void main() {
 
       expect(executor.calls, <String>[]);
       expect(tester.terminalState, containsText('Overview detail'));
-      expect(tester.terminalState, isNot(containsText('published pro')));
+      expect(tester.terminalState, isNot(containsText('pushed pro')));
     });
   });
 
-  test('enter on detail publish action runs publish', () async {
-    await testNocterm('detail enter publishes', (tester) async {
+  test('enter on detail push action runs push', () async {
+    await testNocterm('detail enter pushes', (tester) async {
       final executor = RecordingConsoleOperationExecutor();
       final controller = ConsoleController(
         repository: FakeConsoleRepository(),
@@ -411,8 +411,8 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(executor.calls, ['publish:pro:staging']);
-      expect(tester.terminalState, containsText('published pro'));
+      expect(executor.calls, ['push:pro:staging']);
+      expect(tester.terminalState, containsText('pushed pro'));
     });
   });
 
@@ -856,8 +856,8 @@ void main() {
       expect(tester.terminalState, containsText('surfacePublished pro'));
       expect(tester.terminalState, containsText('owner@example.com'));
       expect(tester.terminalState, containsText('Session activity'));
-      expect(tester.terminalState, containsText('publish pro exit 0'));
-      expect(tester.terminalState, containsText('published pro'));
+      expect(tester.terminalState, containsText('push pro exit 0'));
+      expect(tester.terminalState, containsText('pushed pro'));
       expect(tester.terminalState, containsText('Audit detail'));
       expect(tester.terminalState, containsText('Chain verdict'));
       expect(tester.terminalState, containsText('verified through entry 99'));
@@ -1874,14 +1874,14 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   }
 
   @override
-  Future<ConsoleOperationResult> publish({
+  Future<ConsoleOperationResult> push({
     required ConsoleContext context,
     required ConsoleSurface surface,
   }) async {
-    calls.add('publish:${surface.slug}:${context.environment}');
+    calls.add('push:${surface.slug}:${context.environment}');
     return ConsoleOperationResult(
       exitCode: 0,
-      stdout: 'published ${surface.slug}\n',
+      stdout: 'pushed ${surface.slug}\n',
       stderr: '',
     );
   }

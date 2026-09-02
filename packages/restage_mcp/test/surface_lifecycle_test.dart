@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 
 import '_support/harness.dart';
 
-/// The surface-family tools: list / status / history / publish, the read-only
+/// The surface-family tools: list / status / history / push, the read-only
 /// rollback preview, and the rollback mutation. Kept in deliberate parity with
 /// the CLI's `surface` command group — both are thin consumers of the same
 /// backend RPC and the same auth/role model.
@@ -87,7 +87,7 @@ void main() {
     for (final name in [
       'restage_surface_status',
       'restage_surface_history',
-      'restage_publish_surface',
+      'restage_push_surface',
     ]) {
       expect(
         tools[name]!.inputSchema.required,
@@ -127,7 +127,7 @@ void main() {
     for (final name in [
       'restage_surface_status',
       'restage_surface_history',
-      'restage_publish_surface',
+      'restage_push_surface',
       'restage_rollback_preflight',
       'restage_rollback_surface',
     ]) {
@@ -328,7 +328,7 @@ void main() {
     },
   );
 
-  test('publish_surface returns the new version number', () async {
+  test('push_surface returns the new version number', () async {
     Map<String, dynamic>? seenBody;
     final connection = await connectServer(
       store: store,
@@ -340,7 +340,7 @@ void main() {
 
     final result = await connection.callTool(
       CallToolRequest(
-        name: 'restage_publish_surface',
+        name: 'restage_push_surface',
         arguments: {
           'projectSlug': 'demo',
           'appSlug': 'mobile',
@@ -360,7 +360,7 @@ void main() {
     expect(result.structuredContent!['version'], 5);
   });
 
-  test('publish_surface forwards a mixed selector unchanged', () async {
+  test('push_surface forwards a mixed selector unchanged', () async {
     Map<String, dynamic>? seenBody;
     final connection = await connectServer(
       store: store,
@@ -372,7 +372,7 @@ void main() {
 
     final result = await connection.callTool(
       CallToolRequest(
-        name: 'restage_publish_surface',
+        name: 'restage_push_surface',
         arguments: {
           'projectSlug': 'demo',
           'appSlug': 'mobile',

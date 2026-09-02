@@ -1,307 +1,263 @@
-import 'dart:io';
+import 'dart:async';
 
 import 'package:args/command_runner.dart';
 import 'package:http/http.dart' as http;
-import 'package:restage_cli/src/api/discovery_models.dart';
 import 'package:restage_cli/src/api/restage_api.dart';
+import 'package:restage_cli/src/api/surface_api.dart';
+import 'package:restage_cli/src/api/surface_models.dart';
+import 'package:restage_cli/src/api/typed_error_models.dart';
 import 'package:restage_cli/src/api/typed_error_renderer.dart';
-import 'package:restage_cli/src/commands/publish_selection.dart';
-import 'package:restage_cli/src/commands/target_resolution.dart';
-import 'package:restage_cli/src/config/restage_config.dart';
-import 'package:restage_cli/src/credentials/credential.dart';
+import 'package:restage_cli/src/commands/lifecycle_support.dart';
+import 'package:restage_cli/src/commands/surface_identity.dart';
 import 'package:restage_cli/src/credentials/file_credential_store.dart';
 import 'package:restage_cli/src/io/interactive.dart';
-import 'package:restage_cli/src/publication/publication_assembler.dart';
-import 'package:restage_cli/src/publication/publication_bundle_reader.dart';
-import 'package:restage_cli/src/publication/publication_errors.dart';
-import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Publish one generated surface from its exact manifest artifact closure.
+/// The audit reason recorded when the operator does not supply one.
+const String kDefaultPublishReason = 'Published from the CLI';
+
+/// Publish one pushed revision in one exact surface family.
+///
+/// The revision defaults to the latest one pushed to the target environment.
+/// Standalone screens require the positive manifest contract version. Flow
+/// graphs and specialized paywalls use their existing non-versioned lineage.
 class SurfacePublishCommand extends Command<int> {
   /// Construct a publish command.
   SurfacePublishCommand({
     required StringSink stdout,
     required StringSink stderr,
     required Interactive interactive,
+    SurfaceType? fixedSurfaceType,
     FileCredentialStore? credentialStore,
     http.Client? httpClient,
-    PublicationBundleReader? bundleReader,
   }) : _stdout = stdout,
        _stderr = stderr,
        _interactive = interactive,
+       _fixedType = fixedSurfaceType,
        _credentialStore = credentialStore,
-       _httpClient = httpClient,
-       _bundleReader = bundleReader {
+       _httpClient = httpClient {
+    addLifecycleOptions(
+      argParser,
+      withType: fixedSurfaceType == null,
+      withReason: false,
+      withContractVersion: true,
+      withSourceKind: true,
+    );
     argParser
       ..addOption(
-        'organization',
-        help: 'Organization slug (overrides restage_config.yaml).',
-      )
-      ..addOption(
-        'type',
+        'revision',
         help:
-            'Deprecated validation/disambiguation selector only; the generated '
-            'manifest is authoritative. Values: ${_validSurfaceTypeList()}.',
+            'Pushed revision to publish. Defaults to the latest revision '
+            'pushed to the target environment.',
       )
+      ..addOption('pushed-revision', help: 'Alias for --revision.')
+      ..addOption('version', help: 'Alias for --revision.')
       ..addOption(
-        'project',
-        help: 'Project slug (overrides restage_config.yaml).',
-      )
-      ..addOption('app', help: 'App slug (overrides restage_config.yaml).')
-      ..addOption(
-        'env',
-        help:
-            'Environment slug to publish to (overrides '
-            'restage_config.yaml `defaultEnvironment`).',
-      )
-      ..addOption(
-        'directory',
-        abbr: 'C',
-        defaultsTo: '.',
-        help:
-            'Directory to locate restage_config.yaml and generated publication '
-            'metadata. It does not select artifacts.',
+        'reason',
+        help: 'Audit reason for this change. Defaults to a generic reason.',
       );
-    addPublishAllOption(argParser, noun: 'surface');
-    addRuntimePlaneOption(argParser);
   }
 
   final StringSink _stdout;
   final StringSink _stderr;
   final Interactive _interactive;
+  final SurfaceType? _fixedType;
   final FileCredentialStore? _credentialStore;
   final http.Client? _httpClient;
-  final PublicationBundleReader? _bundleReader;
 
   @override
   String get name => 'publish';
 
   @override
   String get description =>
-      'Publish a generated surface from its manifest artifact closure.';
-
-  @override
-  String get invocation => 'restage surface publish <id|file.dart> [options]';
+      'Publish a pushed revision in one exact surface family; defaults to '
+      'the latest pushed revision.';
 
   @override
   Future<int> run() async {
-    final rest = argResults?.rest ?? const <String>[];
-    if (rest.isEmpty) {
-      _stderr.writeln(
-        'Missing positional argument: <id|file.dart>. Run `restage surface '
-        'publish <id>`, or name the .dart file the surface is declared in.',
-      );
-      return 1;
-    }
-    if (rest.length > 1) {
-      _stderr.writeln(
-        'Too many positional arguments. Expected exactly one '
-        '<id|file.dart>.',
-      );
-      return 1;
-    }
-    final selector = rest.single;
+    final slug = resolveSingleSlug(argResults: argResults, stderr: _stderr);
+    if (slug == null) return 1;
 
-    final type = _parseType(argResults?['type'] as String?);
-    if (argResults?['type'] != null && type == null) return 1;
-
-    final directory = Directory(argResults?['directory'] as String? ?? '.');
-    final loadedConfig = await loadRestageConfig(from: directory);
-    final projectRoot = loadedConfig?.source.parent ?? directory.absolute;
-    final project =
-        (argResults?['project'] as String?) ?? loadedConfig?.config.project;
-    final app = (argResults?['app'] as String?) ?? loadedConfig?.config.app;
-    if (project == null || app == null) {
-      _stderr.writeln(
-        'No project / app context. Run `restage init` or pass '
-        '--project <slug> --app <slug>.',
-      );
-      return 1;
-    }
-
-    final List<AssembledSurfacePublication> assembled;
-    try {
-      final manifest = await SurfacePublicationManifestLoader().load(
-        projectRoot: projectRoot,
-      );
-      final entries = await resolvePublicationEntries(
-        manifest: manifest,
-        argument: selector,
-        all: argResults?['all'] as bool? ?? false,
-        type: type,
-        interactive: _interactive,
-        stderr: _stderr,
-        commandLine: 'restage surface publish',
-      );
-      if (entries == null) return 1;
-      // Everything is assembled before any network work, so a broken
-      // closure fails the whole invocation instead of half-publishing.
-      final assembler = SurfacePublicationAssembler(
-        bundleReader: _bundleReader,
-      );
-      assembled = <AssembledSurfacePublication>[
-        for (final entry in entries)
-          await assembler.assemble(loaded: manifest, entry: entry),
-      ];
-    } on PublicationException catch (error) {
-      _stderr.writeln(error.message);
-      return 1;
-    }
-
-    for (final publication in assembled) {
-      if (publication.capabilityWarning != null) {
-        _stderr.writeln(publication.capabilityWarning);
-      }
-    }
-    // The closure guard is per entry, so it has to hold across a multi-entry
-    // set and not only the single-entry one.
-    for (final publication in assembled) {
-      if (publication.measurementUpload != null &&
-          publication.hasMixedMeasurementSourceClosure) {
-        _stderr.writeln(
-          'The generated Measurement closure mixes bundled and non-bundled '
-          'source bundle placements. Re-run `dart run build_runner build` and '
-          'retry.',
-        );
-        return 1;
-      }
-    }
-
-    final store = _credentialStore ?? FileCredentialStore.atDefaultLocation();
-    final credential = await store.read();
-    if (credential == null) {
-      _stderr.writeln('Not signed in. Run `restage login`.');
-      return 1;
-    }
-
-    final Uri apiEndpoint;
-    try {
-      apiEndpoint = resolveApiEndpoint(
-        config: loadedConfig?.config,
-        credential: credential,
-      );
-    } on EndpointConfigurationException catch (error) {
-      _stderr.writeln(error.toString());
-      return 1;
-    }
-
-    final environment = await _resolveEnvironment(
-      argResults?['env'] as String?,
-      loadedConfig?.config.defaultEnvironment,
+    final identity = await resolveSurfaceLifecycleIdentity(
+      argResults: argResults,
+      fixedSurfaceType: _fixedType,
+      slug: slug,
+      stderr: _stderr,
+      requireExplicitSourceKindForFallback: _fixedType == null,
     );
-    if (environment == null) return 1;
+    if (identity == null) return 1;
 
-    return _runPipeline(
-      credential: credential,
-      apiEndpoint: apiEndpoint,
-      packageRoot: projectRoot,
-      project: project,
-      app: app,
-      environment: environment,
-      preferredOrganizationSlug:
-          (argResults?['organization'] as String?) ??
-          loadedConfig?.config.organization,
-      runtimePlane: runtimePlaneFromArgs(argResults),
-      assembled: assembled,
+    final explicit = _explicitRevision();
+    if (!explicit.valid) return 1;
+
+    final reasonFlag = (argResults?['reason'] as String?)?.trim();
+    final reason = reasonFlag == null || reasonFlag.isEmpty
+        ? kDefaultPublishReason
+        : reasonFlag;
+
+    final ctx = await loadLifecycleContext(
+      argResults: argResults,
+      interactive: _interactive,
+      stderr: _stderr,
+      credentialStore: _credentialStore,
+      httpClient: _httpClient,
     );
-  }
+    if (ctx == null) return 1;
 
-  Surface? _parseType(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    try {
-      return Surface.fromWireName(raw);
-    } on FormatException {
-      _stderr.writeln(
-        'Invalid --type "$raw". Valid values: ${_validSurfaceTypeList()}.',
-      );
-      return null;
-    }
-  }
-
-  Future<int> _runPipeline({
-    required Credential credential,
-    required Uri apiEndpoint,
-    required Directory packageRoot,
-    required String project,
-    required String app,
-    required String environment,
-    required String? preferredOrganizationSlug,
-    required RuntimePlane? runtimePlane,
-    required List<AssembledSurfacePublication> assembled,
-  }) async {
     final RestageApi api;
     try {
       api = RestageApi(
-        endpoint: apiEndpoint,
+        endpoint: ctx.apiEndpoint,
         httpClient: _httpClient,
-        credential: credential,
+        credential: ctx.credential,
       );
-    } on InsecureEndpointException catch (error) {
-      _stderr.writeln(error.toString());
+    } on InsecureEndpointException catch (e) {
+      _stderr.writeln(e.toString());
       return 1;
     }
-
     try {
-      final target = await resolveEnvironmentTargetContext(
-        api: api,
-        interactive: _interactive,
-        stderr: _stderr,
-        projectSlug: project,
-        appSlug: app,
-        environmentSlug: environment,
-        preferredOrganizationSlug: preferredOrganizationSlug,
-        runtimePlane: runtimePlane,
-      );
-      if (target == null) return 1;
+      var revision = explicit.revision;
+      if (revision == null) {
+        revision = await _latestPushedRevision(
+          api: api,
+          ctx: ctx,
+          identity: identity,
+          slug: slug,
+        );
+        if (revision == null) return 1;
+        _stdout.writeln(
+          'Latest pushed revision for "$slug" in ${ctx.environment}: '
+          'r$revision.',
+        );
+      }
 
-      return await runPublishRun(
-        api: api,
-        assembled: assembled,
-        packageRoot: packageRoot,
-        project: project,
-        app: app,
-        environment: environment,
-        target: target,
-        noun: 'surface',
-        describe: (publication) =>
-            'Published ${publication.entry.publication.slug} '
-            '(${publication.entry.publication.surface.wireName})',
-        onApiException: _handleApiException,
-        stdout: _stdout,
-        stderr: _stderr,
+      late final SurfaceFamilyMutationResult result;
+      try {
+        result = await SurfaceApi(api).activate(
+          project: ctx.project,
+          app: ctx.app,
+          surfaceType: identity.surface,
+          surfaceSlug: slug,
+          environment: ctx.environment,
+          publishedRevision: revision,
+          reason: reason,
+          environmentTargetId: ctx.environmentTargetId,
+          runtimePlane: ctx.runtimePlane,
+          organizationId: ctx.organizationId,
+          contractVersion: identity.contractVersion,
+        );
+      } on RestageApiException catch (e) {
+        if (decodeGenericTypedException(e.body) is UnauthorizedAccess) {
+          _stderr.writeln('Publishing requires an admin role.');
+          return 1;
+        }
+        final surface = decodeSurfaceTypedException(e.body);
+        if (surface != null) {
+          _stderr.writeln(renderSurfaceException(surface));
+          return 1;
+        }
+        final outcome = renderGenericTypedError(e);
+        if (outcome != null) {
+          _stderr.writeln(outcome.message);
+          return outcome.exitCode;
+        }
+        _stderr.writeln(e.toString());
+        return 1;
+      }
+
+      _stdout.writeln(
+        'Published "$slug" at r$revision in ${ctx.environment} '
+        '(${identity.familyAddress}).',
       );
+      _stdout.writeln(
+        'Active revision: ${result.activeRevisionAfter == null ? 'inactive' : 'r${result.activeRevisionAfter}'} '
+        '  frozen: ${result.frozen}',
+      );
+      return 0;
     } finally {
       if (_httpClient == null) api.close();
     }
   }
 
-  int _handleApiException(RestageApiException error) {
-    final outcome = renderGenericTypedError(error);
-    if (outcome != null) {
-      _stderr.writeln(outcome.message);
-      return outcome.exitCode;
+  /// The revision named on the command line, if any.
+  ///
+  /// A null revision alongside a true [valid] means no flag was passed and
+  /// the latest pushed revision should come from the family history.
+  ({bool valid, int? revision}) _explicitRevision() {
+    final values = <String, String?>{
+      '--revision': argResults?['revision'] as String?,
+      '--pushed-revision': argResults?['pushed-revision'] as String?,
+      '--version': argResults?['version'] as String?,
+    };
+    final provided = values.entries
+        .where((entry) => entry.value != null && entry.value!.trim().isNotEmpty)
+        .toList(growable: false);
+    if (provided.isEmpty) return (valid: true, revision: null);
+    final parsed = <String, int?>{
+      for (final entry in provided)
+        entry.key: int.tryParse(entry.value!.trim()),
+    };
+    if (parsed.values.any((value) => value == null || value < 1)) {
+      _stderr.writeln(
+        'Expected a positive integer for the revision to publish.',
+      );
+      return (valid: false, revision: null);
     }
-    _stderr.writeln('Could not publish the generated surface.');
-    return 1;
+    final distinct = parsed.values.toSet();
+    if (distinct.length != 1) {
+      _stderr.writeln('Revision flags must agree; pass only one revision.');
+      return (valid: false, revision: null);
+    }
+    return (valid: true, revision: distinct.single);
   }
 
-  Future<String?> _resolveEnvironment(
-    String? fromFlag,
-    String? fromConfig,
-  ) async {
-    if (fromFlag != null && fromFlag.isNotEmpty) return fromFlag;
-    if (fromConfig != null && fromConfig.isNotEmpty) return fromConfig;
-    if (_interactive.isInteractive) {
-      return _interactive.prompt('Environment slug?');
+  /// The highest revision pushed to the target environment for this family.
+  ///
+  /// Reads the family history rather than trusting its order, so a server
+  /// that returns revisions oldest-first still selects the newest.
+  Future<int?> _latestPushedRevision({
+    required RestageApi api,
+    required LifecycleContext ctx,
+    required SurfaceLifecycleIdentity identity,
+    required String slug,
+  }) async {
+    final SurfaceContractFamilyHistoryResult history;
+    try {
+      history = await SurfaceApi(api).surfaceContractHistory(
+        project: ctx.project,
+        app: ctx.app,
+        surfaceType: identity.surface,
+        surfaceSlug: slug,
+        environment: ctx.environment,
+        sourceKind: identity.sourceKind,
+        contractVersion: identity.contractVersion,
+        environmentTargetId: ctx.environmentTargetId,
+        runtimePlane: ctx.runtimePlane,
+        organizationId: ctx.organizationId,
+      );
+    } on RestageApiException catch (e) {
+      _renderLookupError(e);
+      return null;
     }
-    _stderr.writeln(
-      'Required: --env <slug>. Set `defaultEnvironment` in '
-      'restage_config.yaml or pass --env on the command line.',
-    );
-    return null;
+    if (history.revisions.isEmpty) {
+      _stderr.writeln(
+        'No pushed revisions for "$slug" in ${ctx.environment}. Run '
+        '`restage surface push $slug` first.',
+      );
+      return null;
+    }
+    return history.revisions
+        .map((revision) => revision.publishedRevision)
+        .reduce((a, b) => a > b ? a : b);
+  }
+
+  void _renderLookupError(RestageApiException e) {
+    final surface = decodeSurfaceTypedException(e.body);
+    if (surface != null) {
+      _stderr.writeln(renderSurfaceException(surface));
+      return;
+    }
+    final outcome = renderGenericTypedError(e);
+    _stderr.writeln(outcome?.message ?? e.toString());
   }
 }
-
-String _validSurfaceTypeList() =>
-    Surface.values.map((surface) => surface.wireName).join(', ');

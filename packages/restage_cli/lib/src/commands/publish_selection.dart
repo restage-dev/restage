@@ -10,15 +10,15 @@ import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';
 import 'package:restage_shared/restage_shared.dart';
 
-/// Declare the `--all` flag shared by every publish command.
+/// Declare the `--all` flag shared by every push command.
 ///
-/// [noun] names what is published ("surface", "paywall").
-void addPublishAllOption(ArgParser parser, {required String noun}) =>
+/// [noun] names what is pushed ("surface", "paywall").
+void addPushAllOption(ArgParser parser, {required String noun}) =>
     parser.addFlag(
       'all',
       negatable: false,
       help:
-          'Publish every $noun the given .dart file produced, instead of '
+          'Push every $noun the given .dart file produced, instead of '
           'choosing one. A flow counts the file of every screen it contains, '
           'so this can be wider than what the file declares.',
     );
@@ -31,12 +31,12 @@ void addPublishAllOption(ArgParser parser, {required String noun}) =>
 /// keeping the rule one a developer can predict without consulting anything.
 bool _isDartSourceArgument(String argument) => argument.endsWith('.dart');
 
-/// Resolve which generated publications one publish invocation addresses.
+/// Resolve which generated publications one push invocation addresses.
 ///
 /// The id stays the canonical key; a `.dart` path is a convenience resolved
 /// through the generated manifest. A path selects everything the manifest
 /// ATTRIBUTES to that file, which is wider than what the file declares: name
-/// a screen inside a flow and you select the flow that publishes it.
+/// a screen inside a flow and you select the flow that ships it.
 ///
 /// When that is more than one surface this asks rather than guesses:
 /// interactively where there is a terminal, and with a listing of runnable
@@ -65,7 +65,7 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
   if (!_isDartSourceArgument(argument)) {
     if (all) {
       stderr.writeln(
-        '--all publishes every surface a .dart file produced. "$argument" is '
+        '--all pushes every surface a .dart file produced. "$argument" is '
         'a surface id, which already names exactly one. Drop --all, or pass '
         'the file the surface is declared in.',
       );
@@ -94,7 +94,7 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
     }
     stderr.writeln(
       '$argument produced ${matches.length} surfaces. Name the one you want, '
-      'or publish them all:',
+      'or push them all:',
     );
     for (final entry in matches) {
       // A slug is unique only within a surface category, so a slug that
@@ -111,10 +111,10 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
     return null;
   }
 
-  const publishAll = -1;
+  const pushAll = -1;
   final choice = await interactive.select<int>(
     '$argument produced ${matches.length} surfaces. Which do you want to '
-    'publish?',
+    'push?',
     <({String label, int value})>[
       for (var index = 0; index < matches.length; index += 1)
         (
@@ -125,29 +125,29 @@ Future<List<SurfacePublicationManifestEntry>?> resolvePublicationEntries({
         ),
       (
         label: 'all ${matches.length} surfaces produced by $argument',
-        value: publishAll,
+        value: pushAll,
       ),
     ],
   );
-  return choice == publishAll
+  return choice == pushAll
       ? matches
       : <SurfacePublicationManifestEntry>[matches[choice]];
 }
 
-/// Publish [assembled] in order against one already-resolved target.
+/// Push [assembled] in order against one already-resolved target.
 ///
-/// There is no batch publish, so a run over several surfaces is not atomic.
+/// There is no batch push, so a run over several surfaces is not atomic.
 /// It stops at the first failure and reports exactly how far it got rather
 /// than leaving that to be reconstructed from the surfaces' live state.
 ///
-/// Returns the process exit code. [noun] names what is being published in the
+/// Returns the process exit code. [noun] names what is being pushed in the
 /// output; [onApiException] renders the command's typed-error handling.
 ///
 /// Each publication goes out through the operation its own optional
 /// measurement candidate selects, so a measurement-bound surface takes the
 /// bound operation and finalizes its local bundled profile under
-/// [packageRoot], while an ordinary one takes the plain publish.
-Future<int> runPublishRun({
+/// [packageRoot], while an ordinary one takes the plain upload.
+Future<int> runPush({
   required RestageApi api,
   required List<AssembledSurfacePublication> assembled,
   required Directory packageRoot,
@@ -161,17 +161,17 @@ Future<int> runPublishRun({
   required StringSink stdout,
   required StringSink stderr,
 }) async {
-  final publisher = SurfacePublicationApi(api);
+  final uploader = SurfacePublicationApi(api);
   for (var index = 0; index < assembled.length; index += 1) {
     final publication = assembled[index];
     int stopWith(int code) {
-      _reportPartialRun(assembled, publishedCount: index, stderr: stderr);
+      _reportPartialRun(assembled, pushedCount: index, stderr: stderr);
       return code;
     }
 
     try {
       final result = await publishAssembledSurfacePublication(
-        api: publisher,
+        api: uploader,
         assembled: publication,
         packageRoot: packageRoot,
         project: project,
@@ -187,7 +187,7 @@ Future<int> runPublishRun({
     } on RestageApiException catch (error) {
       return stopWith(onApiException(error));
     } on SocketException {
-      stderr.writeln('Could not publish the generated $noun.');
+      stderr.writeln('Could not push the generated $noun.');
       return stopWith(2);
     } on FormatException {
       stderr.writeln('Could not decode the publication response.');
@@ -196,32 +196,43 @@ Future<int> runPublishRun({
       // The backend committed this publication; only the local bundled
       // profile did not land, so the run stops without retrying the upload.
       stderr.writeln(
-        'The $noun was published, but its Measurement bundle profile could '
+        'The $noun was pushed, but its Measurement bundle profile could '
         'not be written.',
       );
       return stopWith(2);
     }
   }
+  if (assembled.isEmpty) return 0;
   if (assembled.length > 1) {
-    stdout.writeln('Published ${assembled.length} ${noun}s to $environment.');
+    stdout
+      ..writeln('Pushed ${assembled.length} ${noun}s to $environment.')
+      ..writeln(
+        'Nothing is live yet. Run `restage surface publish <id>` to publish '
+        'one.',
+      );
+  } else {
+    stdout.writeln(
+      'Nothing is live yet. Run `restage surface publish '
+      '${assembled.single.entry.publication.slug}` to publish it.',
+    );
   }
   return 0;
 }
 
-/// Report how far a multi-surface publish run got before it stopped.
+/// Report how far a multi-surface push run got before it stopped.
 void _reportPartialRun(
   List<AssembledSurfacePublication> assembled, {
-  required int publishedCount,
+  required int pushedCount,
   required StringSink stderr,
 }) {
   if (assembled.length == 1) return;
-  final failed = assembled[publishedCount].entry.publication.slug;
+  final failed = assembled[pushedCount].entry.publication.slug;
   final skipped = assembled
-      .skip(publishedCount + 1)
+      .skip(pushedCount + 1)
       .map((publication) => publication.entry.publication.slug)
       .join(', ');
   stderr.writeln(
-    'Published $publishedCount of ${assembled.length}; failed on $failed'
+    'Pushed $pushedCount of ${assembled.length}; failed on $failed'
     '${skipped.isEmpty ? '' : '; not attempted: $skipped'}.',
   );
 }

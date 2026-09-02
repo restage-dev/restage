@@ -318,7 +318,7 @@ abstract interface class ConsoleOperationExecutor {
     required String reason,
   });
 
-  Future<ConsoleOperationResult> publish({
+  Future<ConsoleOperationResult> push({
     required ConsoleContext context,
     required ConsoleSurface surface,
   });

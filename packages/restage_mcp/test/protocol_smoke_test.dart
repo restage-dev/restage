@@ -112,7 +112,7 @@ void main() {
           // Paywalls
           'restage_list_paywalls',
           'restage_get_paywall',
-          'restage_publish_paywall',
+          'restage_push_paywall',
           'restage_get_published_version',
           // Discovery
           'restage_list_organizations',

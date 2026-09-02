@@ -95,19 +95,19 @@ void main() {
     await controller.load();
 
     for (var index = 0; index < 6; index++) {
-      executor.nextStdout = 'published pro $index\n';
-      await controller.publishSelected();
+      executor.nextStdout = 'pushed pro $index\n';
+      await controller.pushSelected();
     }
 
     expect(controller.state.activity, hasLength(5));
     expect(controller.state.activity.map((entry) => entry.message), [
-      'published pro 5',
-      'published pro 4',
-      'published pro 3',
-      'published pro 2',
-      'published pro 1',
+      'pushed pro 5',
+      'pushed pro 4',
+      'pushed pro 3',
+      'pushed pro 2',
+      'pushed pro 1',
     ]);
-    expect(controller.state.activity.first.operation, 'publish');
+    expect(controller.state.activity.first.operation, 'push');
     expect(controller.state.activity.first.surfaceSlug, 'pro');
     expect(controller.state.activity.first.exitCode, 0);
   });
@@ -286,7 +286,7 @@ class RecordingConsoleOperationExecutor implements ConsoleOperationExecutor {
   }) async => _result();
 
   @override
-  Future<ConsoleOperationResult> publish({
+  Future<ConsoleOperationResult> push({
     required ConsoleContext context,
     required ConsoleSurface surface,
   }) async => _result();

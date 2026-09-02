@@ -44,7 +44,7 @@ void main() {
       };
 
       expect(
-        tools['restage_publish_paywall']!.inputSchema.required,
+        tools['restage_push_paywall']!.inputSchema.required,
         containsAll([
           'projectSlug',
           'appSlug',
@@ -67,15 +67,15 @@ void main() {
       );
       // organizationId is optional on the paywall tools.
       expect(
-        tools['restage_publish_paywall']!.inputSchema.properties,
+        tools['restage_push_paywall']!.inputSchema.properties,
         contains('organizationId'),
       );
       expect(
-        tools['restage_publish_paywall']!.inputSchema.required,
+        tools['restage_push_paywall']!.inputSchema.required,
         isNot(contains('organizationId')),
       );
       for (final name in [
-        'restage_publish_paywall',
+        'restage_push_paywall',
         'restage_get_published_version',
       ]) {
         expect(
@@ -96,7 +96,7 @@ void main() {
   );
 
   test(
-    'publish_paywall hits paywall.publish and returns the new version',
+    'push_paywall hits paywall.publish and returns the new version',
     () async {
       Map<String, dynamic>? seen;
       final connection = await connectServer(
@@ -109,7 +109,7 @@ void main() {
 
       final result = await connection.callTool(
         CallToolRequest(
-          name: 'restage_publish_paywall',
+          name: 'restage_push_paywall',
           arguments: {
             'projectSlug': 'acme',
             'appSlug': 'ios',
@@ -135,7 +135,7 @@ void main() {
   );
 
   test(
-    'publish_paywall maps an admin-only rejection to a not-permitted message',
+    'push_paywall maps an admin-only rejection to a not-permitted message',
     () async {
       final connection = await connectServer(
         store: store,
@@ -155,7 +155,7 @@ void main() {
 
       final result = await connection.callTool(
         CallToolRequest(
-          name: 'restage_publish_paywall',
+          name: 'restage_push_paywall',
           arguments: {
             'projectSlug': 'acme',
             'appSlug': 'ios',
@@ -173,9 +173,9 @@ void main() {
   );
 
   test(
-    'publish_paywall maps the surface not-found exception to a paywall message',
+    'push_paywall maps the surface not-found exception to a paywall message',
     () async {
-      // Paywalls publish via the surface endpoint, so a never-saved paywall
+      // Paywalls push via the surface endpoint, so a never-saved paywall
       // surfaces as SurfaceNotFoundException — the MCP must still present a
       // legible "no paywall" message, not a bare status code.
       final connection = await connectServer(
@@ -196,7 +196,7 @@ void main() {
 
       final result = await connection.callTool(
         CallToolRequest(
-          name: 'restage_publish_paywall',
+          name: 'restage_push_paywall',
           arguments: {
             'projectSlug': 'acme',
             'appSlug': 'ios',
@@ -215,7 +215,7 @@ void main() {
   );
 
   test(
-    'publish_paywall maps the surface publish-conflict to a retry message',
+    'push_paywall maps the surface publish-conflict to a retry message',
     () async {
       final connection = await connectServer(
         store: store,
@@ -236,7 +236,7 @@ void main() {
 
       final result = await connection.callTool(
         CallToolRequest(
-          name: 'restage_publish_paywall',
+          name: 'restage_push_paywall',
           arguments: {
             'projectSlug': 'acme',
             'appSlug': 'ios',
@@ -248,7 +248,7 @@ void main() {
 
       expect(result.isError, isTrue);
       final text = (result.content.single as TextContent).text;
-      expect(text.toLowerCase(), contains('concurrent publish'));
+      expect(text.toLowerCase(), contains('concurrent push'));
       expect(text, contains("paywall 'pro'"));
       expect(text, isNot(contains('#0')));
     },
@@ -359,7 +359,7 @@ void main() {
 
       final result = await connection.callTool(
         CallToolRequest(
-          name: 'restage_publish_paywall',
+          name: 'restage_push_paywall',
           arguments: {
             'projectSlug': 'acme',
             'appSlug': 'ios',

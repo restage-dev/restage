@@ -142,11 +142,14 @@ here so the gallery runs from a fresh clone; the manifest is not.
 `assets/paywalls/hello.rfw` is the one exception: a hand-written artifact kept
 to show what the format looks like. The build does not produce it.
 
-Publish a surface and iterate over the air:
+Push a surface, publish it, and iterate over the air:
 
 ```sh
+restage surface push fluent_pro
 restage surface publish fluent_pro
 ```
+
+A push uploads a version. A publish makes one pushed revision live.
 
 Flutter does not hot-reload bundled assets. After a rebuild, hot-restart the
 running app (press `R` in `flutter run`).

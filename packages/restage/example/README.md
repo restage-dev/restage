@@ -44,11 +44,14 @@ app bundles. The fixed
 `lib/generated/restage.publication.json` records the publication
 identity and exact artifact closure.
 
-Publish the generated surface by id:
+Push the generated surface by id, then publish the pushed revision:
 
 ```sh
+restage surface push welcome
 restage surface publish welcome
 ```
+
+A push uploads a version. A publish makes it live.
 
 ## 3. Render it
 

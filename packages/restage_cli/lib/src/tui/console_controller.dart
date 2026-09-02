@@ -246,11 +246,11 @@ class ConsoleController {
     );
   }
 
-  Future<void> publishSelected() async {
+  Future<void> pushSelected() async {
     await _runSelectedOperation(
       (executor, context, surface) =>
-          executor.publish(context: context, surface: surface),
-      operation: 'publish',
+          executor.push(context: context, surface: surface),
+      operation: 'push',
     );
   }
 

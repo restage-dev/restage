@@ -22,7 +22,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     'rollback',
     'freeze',
     'unfreeze',
-    'publish',
+    'push',
   ];
   static const _minNavWidth = 18;
   static const _minSurfaceWidth = 22;
@@ -38,7 +38,7 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
   _ConsoleView _activeView = _ConsoleView.overview;
   _SurfaceFilter _surfaceFilter = _SurfaceFilter.all;
   _SurfaceFocus _surfaceFocus = _SurfaceFocus.rows;
-  _DetailAction _detailAction = _DetailAction.publish;
+  _DetailAction _detailAction = _DetailAction.push;
   bool _leftEnvironmentFocused = false;
   int _leftEnvironmentFocusIndex = 0;
   _PanelDivider? _activeDivider;
@@ -357,8 +357,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
         _openPrompt(_PromptKind.unfreeze);
         return true;
       case LogicalKey.keyP:
-        _detailAction = _DetailAction.publish;
-        unawaited(_publishSelected());
+        _detailAction = _DetailAction.push;
+        unawaited(_pushSelected());
         return true;
       default:
         return false;
@@ -407,9 +407,9 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
       case 'unfreeze':
         _detailAction = _DetailAction.unfreeze;
         _openPrompt(_PromptKind.unfreeze);
-      case 'publish':
-        _detailAction = _DetailAction.publish;
-        await _publishSelected();
+      case 'push':
+        _detailAction = _DetailAction.push;
+        await _pushSelected();
     }
   }
 
@@ -616,8 +616,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
     });
   }
 
-  Future<void> _publishSelected() async {
-    await component.controller.publishSelected();
+  Future<void> _pushSelected() async {
+    await component.controller.pushSelected();
     if (!mounted) return;
     setState(() {});
   }
@@ -671,8 +671,8 @@ class _RestageConsoleAppState extends State<RestageConsoleApp> {
 
   Future<void> _triggerDetailAction(_DetailAction action) async {
     switch (action) {
-      case _DetailAction.publish:
-        await _publishSelected();
+      case _DetailAction.push:
+        await _pushSelected();
       case _DetailAction.freeze:
         _openPrompt(_PromptKind.freeze);
       case _DetailAction.unfreeze:
@@ -1944,7 +1944,7 @@ enum _SurfaceFilter {
 enum _SurfaceFocus { filters, rows }
 
 enum _DetailAction {
-  publish('p', 'publish', 'publish'),
+  push('p', 'push', 'push'),
   freeze('f', 'freeze', 'freeze'),
   unfreeze('u', 'unfreeze', 'unfreeze'),
   rollback('r', 'rollback', 'rollback'),

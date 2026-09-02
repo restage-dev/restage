@@ -177,35 +177,40 @@ flutter:
     - assets/restage/bundles/lib/paywalls/
 ```
 
-## 4. Publish it
+## 4. Push it and publish it
 
-When you want the surface on a server, publish it by id:
+When you want the surface on a server, push it by id, then publish the pushed
+revision:
 
 ```sh
+restage surface push pro_upgrade
 restage surface publish pro_upgrade
 ```
 
-Run it after `restage init` has configured the project and app, and after
-`restage login`. The CLI reads `lib/generated/restage.publication.json` and
+A push uploads a version and changes nothing that is running. A publish makes
+one pushed revision live. Push ten variants; publish one.
+
+Run these after `restage init` has configured the project and app, and after
+`restage login`. The push reads `lib/generated/restage.publication.json` and
 uploads the artifacts recorded there. `--type paywall` is optional validation.
 
 You can also name the file instead of the id:
 
 ```sh
-restage surface publish lib/paywalls/pro_upgrade.dart
+restage surface push lib/paywalls/pro_upgrade.dart
 ```
 
 The CLI resolves the file through the same generated manifest, so it selects
 what the build produced. If a file produced more than one surface, the CLI
-lists them and asks; `--all` publishes all of them.
+lists them and asks; `--all` pushes all of them.
 
 You can skip this step for now. The rest of the guide renders the bundled copy.
 
 ## 5. Render it in your app
 
 Configure Restage once at startup, then put `RestagePaywall` wherever you want
-the paywall. `AssetVariantResolver` tells it to load the bundled artifact you
-just compiled.
+the paywall. It loads the bundled artifact you just compiled by default, so
+there is nothing to point it at.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -214,7 +219,6 @@ import 'package:restage/restage.dart';
 void main() {
   Restage.configure(
     apiKey: 'local-dev',
-    resolver: const AssetVariantResolver(),
     // products: [ ... your store products ... ],
   );
   runApp(const MyApp());
@@ -229,7 +233,6 @@ class MyApp extends StatelessWidget {
       home: Scaffold(
         body: RestagePaywall(
           id: 'pro_upgrade',
-          resolver: const AssetVariantResolver(),
           onEvent: (event) {
             switch (event) {
               case PaywallViewed():
@@ -306,6 +309,7 @@ so far needs an account or a network.
   plan, the selection updates, the purchase re-targets) that travels inside the
   artifact with no host code. The examples README explains the pattern.
 - **Hosted delivery.** When you want a published surface to update installed
-  apps over the air, use hosted delivery and `restage surface publish`. Hosted
-  delivery is in private beta. The SDK falls back to your bundled artifact
-  until it is available, so nothing you build now has to change.
+  apps over the air, use hosted delivery with `restage surface push` and
+  `restage surface publish`. Hosted delivery is in private beta. The SDK falls
+  back to your bundled artifact until it is available, so nothing you build now
+  has to change.

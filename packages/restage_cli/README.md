@@ -2,7 +2,7 @@
 
 [![pub package](https://img.shields.io/pub/v/restage_cli.svg)](https://pub.dev/packages/restage_cli) [![ci](https://github.com/restage-dev/restage/actions/workflows/ci.yml/badge.svg)](https://github.com/restage-dev/restage/actions/workflows/ci.yml) [![license](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](LICENSE)
 
-The `restage` command line. Use it to set up a project, publish surfaces,
+The `restage` command line. Use it to set up a project, push surfaces,
 manage what is live, and preview compiled artifacts. It works the same for a
 person at a terminal, a CI job, and an agent.
 
@@ -42,11 +42,15 @@ restage logout
 # Set up a Flutter project for Restage.
 restage init
 
-# List and publish the surfaces the build generated.
+# List and push the surfaces the build generated.
 restage surface list --all
+restage surface push <id>
+restage surface push lib/screens/welcome.dart
+restage surface push lib/screens/onboarding.dart --all
+
+# Make a pushed revision live.
 restage surface publish <id>
-restage surface publish lib/screens/welcome.dart
-restage surface publish lib/screens/onboarding.dart --all
+restage surface publish <id> --revision <revision>
 
 # Manage one surface.
 restage surface status <id>
@@ -69,7 +73,10 @@ Every command accepts `--non-interactive` (or `--yes` / `-y`) to suppress
 prompts. A required value with no default then exits non-zero with a
 `required: --foo <value>` message.
 
-## Publishing
+## Pushing and publishing
+
+A push uploads a version to the server and changes nothing that is running. A
+publish makes one of those versions live. Push ten variants; publish one.
 
 After `dart run build_runner build`, the CLI reads the generated manifest at
 `lib/generated/restage.publication.json` and uploads the artifacts it records
@@ -78,23 +85,30 @@ for the surface you name. `--type` is optional validation.
 You can name the surface by id or by its `.dart` file:
 
 ```sh
-restage surface publish welcome
-restage surface publish lib/screens/welcome.dart
+restage surface push welcome
+restage surface push lib/screens/welcome.dart
 ```
 
 A file is resolved through the same manifest, so it selects what the build
 produced for that file. Nothing is parsed and no directory is scanned. A screen
 that belongs to a flow selects the flow, since the flow is what ships it. If a
-file produced more than one surface, the CLI lists them and asks, or publishes
+file produced more than one surface, the CLI lists them and asks, or pushes
 all of them under `--all`. A file that produced nothing is an error that names
 the manifest. A run over several surfaces stops at the first failure and
-reports what published and what was not attempted.
+reports what was pushed and what was not attempted.
 
 Surface categories are `paywall`, `onboarding`, `message`, `survey`, and
 `general`.
 
-`restage paywall publish <name>` still works for a `@Paywall` surface and reads
-the same manifest. New scripts should use `restage surface publish` for every
+`restage surface publish <id>` makes a pushed revision live. With no
+`--revision` it publishes the latest revision pushed to the target
+environment and prints which one that was; pass `--revision <n>` to name an
+older one. `--reason` is optional here and recorded in the audit trail.
+`restage surface history <id>` lists what has been pushed and marks which
+revision is live now.
+
+`restage paywall push <name>` still works for a `@Paywall` surface and reads
+the same manifest. New scripts should use `restage surface push` for every
 category.
 
 ## Render bundles (pre-release)
