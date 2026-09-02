@@ -137,6 +137,16 @@ Object x() => $body;
       expect(r.dsl, contains('maxLines: 2'));
       expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
     });
+
+    test('drops a resolved Flutter widget key', () async {
+      final r = await run(
+        'Text(NumberFormat().format(1234.5), '
+        "key: const ValueKey<String>('formatted-number'))",
+      );
+      expect(r.dsl, contains('RestageFormattedNumber('));
+      expect(r.dsl, isNot(contains('key:')));
+      expect(r.issues.where((i) => !i.code.isInformational), isEmpty);
+    });
   });
 
   group('defers — the look-alike defense (element-gated on package:intl/)', () {

@@ -56,6 +56,9 @@ sealed class MeasurementResolvedEvent {
   /// Exact compiler-only declaration provenance.
   MeasurementEventDeclarationProvenance get declarationProvenance;
 
+  /// Exact analyzer element that declares the callback slot.
+  Element get eventElement;
+
   /// Frozen source-event selector used by the point occurrence identity.
   SourceEventIdentity get sourceEventIdentity =>
       declarationProvenance.sourceSelector;

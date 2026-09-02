@@ -18,11 +18,17 @@ final class SourceBuildBlueprint {
     this.buildContextParameter,
     List<CustomWidgetStateField>? state,
     Map<String, RecognisedSetState> eventHandlers = const {},
+    Map<Element, Expression> localBindings = const {},
   })  : state = state == null ? null : List.unmodifiable(state),
-        eventHandlers = Map.unmodifiable(eventHandlers);
+        eventHandlers = Map.unmodifiable(eventHandlers),
+        localBindings = Map.unmodifiable(localBindings);
 
   /// The returned expression from the effective `build()` host.
   final Expression rootExpression;
+
+  /// The effective `build()`'s leading `final` locals, keyed by declared
+  /// element; each reference resolves-through to the initializer.
+  final Map<Element, Expression> localBindings;
 
   /// The effective `build()` method's `BuildContext` parameter element.
   final Element? buildContextParameter;
@@ -32,6 +38,13 @@ final class SourceBuildBlueprint {
 
   /// Referenced State method tear-offs recognised as `setState` handlers.
   final Map<String, RecognisedSetState> eventHandlers;
+
+  /// Roots for consumers that cannot resolve through [localBindings].
+  /// Resolving consumers should walk [rootExpression] alone.
+  late final List<Expression> collectorRoots = [
+    rootExpression,
+    ...localBindings.values,
+  ];
 }
 
 enum _SourceWidgetKind { stateless, stateful }
@@ -104,26 +117,38 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     );
     return null;
   }
-  final rootExpression = singleReturnExpressionOf(buildNode.body);
-  if (rootExpression == null) {
+  final extracted = extractInlinableBuildBody(buildNode.body);
+  if (extracted == null) {
     issues.add(
       Issue(
         code: IssueCode.buildMethodTooComplex,
-        message: 'build() must be a single returned widget expression.',
+        message: preludeDeclarationProblem(buildNode.body) ??
+            'build() must be one returned widget expression, optionally '
+                'preceded by initialized simple final or const variable '
+                'declarations.',
         location: '$location.build',
       ),
     );
     return null;
   }
-
-  final buildContextParameter = _buildContextParameter(buildMethod);
-
-  if (stateClass == null) {
-    return SourceBuildBlueprint(
-      rootExpression: rootExpression,
-      buildContextParameter: buildContextParameter,
+  final localBindings = extracted.localBindings;
+  final preludeProblem = inlinableBuildBodyProblem(extracted);
+  if (preludeProblem != null) {
+    issues.add(
+      Issue(
+        code: IssueCode.buildMethodTooComplex,
+        message: preludeProblem,
+        location: '$location.build',
+      ),
     );
+    return null;
   }
+  final blueprint = SourceBuildBlueprint(
+    rootExpression: extracted.expression,
+    buildContextParameter: _buildContextParameter(buildMethod),
+    localBindings: localBindings,
+  );
+  if (stateClass == null) return blueprint;
 
   final state = await _collectStateFields(
     stateClass,
@@ -133,7 +158,7 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
   );
   if (state == null) return null;
   final eventHandlers = await _collectReferencedHandlers(
-    rootExpression,
+    blueprint.collectorRoots,
     stateClass: stateClass,
     stateFieldNames: state.map((field) => field.name).toSet(),
     astNodeFor: astNodeFor,
@@ -154,10 +179,11 @@ Future<SourceBuildBlueprint?> extractSourceBuildBlueprint({
     }
   }
   return SourceBuildBlueprint(
-    rootExpression: rootExpression,
-    buildContextParameter: buildContextParameter,
+    rootExpression: blueprint.rootExpression,
+    buildContextParameter: blueprint.buildContextParameter,
     state: state,
     eventHandlers: eventHandlers,
+    localBindings: blueprint.localBindings,
   );
 }
 
@@ -287,13 +313,15 @@ Future<Object?> _foldFieldInitialiser(
 }
 
 Future<Map<String, RecognisedSetState>> _collectReferencedHandlers(
-  Expression rootExpression, {
+  Iterable<Expression> roots, {
   required ClassElement stateClass,
   required Set<String> stateFieldNames,
   required Future<AstNode?> Function(Fragment fragment) astNodeFor,
 }) async {
   final collector = _ReferencedStateMethodCollector(stateClass);
-  rootExpression.accept(collector);
+  for (final root in roots) {
+    root.accept(collector);
+  }
   final methods = collector.methods.toList();
   final methodNodes = await Future.wait([
     for (final method in methods) astNodeFor(method.firstFragment),

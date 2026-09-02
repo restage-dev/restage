@@ -1,3 +1,7 @@
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
+import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:test/test.dart';
 
@@ -7,6 +11,9 @@ import 'helpers.dart';
 /// the returned expression.
 Future<Object?> _fold(String source) async =>
     tryFoldConstant(await parseExpressionFromSourceForTest(source));
+
+Future<Object?> _scalar(String source) async =>
+    tryFoldScalarConstant(await parseExpressionFromSourceForTest(source));
 
 void main() {
   group('tryFoldConstant', () {
@@ -186,4 +193,255 @@ void main() {
       );
     });
   });
+
+  group('tryFoldScalarConstant', () {
+    test('bound operands match inline scalar values and verdicts', () async {
+      const skin = '''
+class Skin {
+  const Skin({required this.prefix});
+  final String prefix;
+}
+const skin = Skin(prefix: 'restage');
+''';
+      final cases = <(String, String, String, Object?)>[
+        (
+          'string',
+          'Object value(String p, String s) => p + s; '
+              "Object x() => value('restage', 'Nav0');",
+          "Object x() => 'restage' + 'Nav0';",
+          'restageNav0',
+        ),
+        (
+          'number',
+          'Object value(int a, int b, int c) => a * b + c; '
+              'Object x() => value(6, 7, 1);',
+          'Object x() => 6 * 7 + 1;',
+          43
+        ),
+        (
+          'boolean',
+          'Object value(bool enabled) => enabled; '
+              'Object x() => value(true);',
+          'Object x() => true;',
+          true
+        ),
+        (
+          'const object field',
+          '$skin\nObject value(String p, String s) => p + s; '
+              "Object x() => value(skin.prefix, 'Nav0');",
+          "$skin\nObject x() => skin.prefix + 'Nav0';",
+          'restageNav0'
+        ),
+        (
+          'const object local receiver',
+          '''
+$skin
+Object value() {
+  final selected = skin;
+  return selected.prefix + 'Nav0';
+}
+Object x() => value();''',
+          "$skin\nObject x() => skin.prefix + 'Nav0';",
+          'restageNav0'
+        ),
+        (
+          'const object parameter receiver',
+          '''
+$skin
+Object value(Skin selected) => selected.prefix + 'Nav0';
+Object x() => value(skin);''',
+          "$skin\nObject x() => skin.prefix + 'Nav0';",
+          'restageNav0'
+        ),
+        (
+          'conditional',
+          "Object value(bool pick) => pick ? 'first' : 'second'; "
+              'Object x() => value(true);',
+          "Object x() => true ? 'first' : 'second';",
+          null
+        ),
+        (
+          'interpolation',
+          r"Object value(String p) => '${p}Nav0'; "
+              "Object x() => value('restage');",
+          r"Object x() => '${'restage'}Nav0';",
+          null
+        ),
+      ];
+      for (final (name, boundSource, inlineSource, expected) in cases) {
+        final probe = await _boundScalarProbe(boundSource);
+        final bound = tryFoldScalarConstant(
+          probe.expression,
+          localBindings: probe.bindings,
+        );
+        final direct = await _scalar(inlineSource);
+        expect((bound, direct), (expected, expected), reason: name);
+      }
+    });
+
+    test('exposes a bound conditional without folding it', () async {
+      final probe = await _boundScalarProbe(
+        "Object value(bool pick) => pick ? 'continue' : 'restore'; "
+        'Object x() => value(false);',
+      );
+      final inspection = inspectScalarConstant(
+        probe.expression,
+        localBindings: probe.bindings,
+      );
+
+      expect(inspection.complete, isTrue);
+      expect(
+        inspection.expression.toSource(),
+        "pick ? 'continue' : 'restore'",
+      );
+      expect(inspection.value, isNull);
+    });
+
+    test('bounds a cyclic final-local binding', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        "Object x() => (() { final value = 'ready'; return value; })();",
+      );
+      final collector = _LocalIdentifierCollector()..visit(expression);
+      final identifier = collector.identifiers.singleWhere(
+        (candidate) => candidate.element is LocalVariableElement,
+      );
+      final element = identifier.element;
+      expect(element, isA<LocalVariableElement>());
+
+      expect(
+        tryFoldScalarConstant(
+          identifier,
+          localBindings: <Element, Expression>{element!: identifier},
+        ),
+        isNull,
+      );
+      expect(
+        inspectScalarConstant(
+          identifier,
+          localBindings: <Element, Expression>{element: identifier},
+        ).complete,
+        isFalse,
+      );
+    });
+
+    test('bounds a cycle reached through an operand', () async {
+      final probe = await _boundScalarProbe(
+        'Object value(String first, String second) => first + second; '
+        "Object x() => value('ready', 'set');",
+      );
+      probe.bindings[probe.bindings.keys.first] = probe.expression;
+      expect(
+        tryFoldScalarConstant(
+          probe.expression,
+          localBindings: probe.bindings,
+        ),
+        isNull,
+      );
+    });
+
+    test('keeps the exact scalar binding depth boundary', () async {
+      final names = List<String>.generate(256, (index) => 'value$index');
+      final expression = await parseExpressionFromSourceForTest(
+        'Object x(${names.map((name) => 'String $name').join(', ')}) => '
+        '[${names.join(', ')}, "ready"];',
+      );
+      final values = (expression as ListLiteral)
+          .elements
+          .whereType<SimpleIdentifier>()
+          .toList(growable: false);
+      final terminal =
+          expression.elements.whereType<SimpleStringLiteral>().single;
+
+      Map<Element, Expression> chain(int count) {
+        final bindings = Map<Element, Expression>.identity();
+        for (var index = 0; index < count; index++) {
+          bindings[values[index].element!] =
+              index + 1 == count ? terminal : values[index + 1];
+        }
+        return bindings;
+      }
+
+      expect(
+        tryFoldScalarConstant(values.first, localBindings: chain(255)),
+        'ready',
+      );
+      expect(
+        tryFoldScalarConstant(values.first, localBindings: chain(256)),
+        isNull,
+      );
+      expect(
+        inspectScalarConstant(
+          values.first,
+          localBindings: chain(255),
+        ).complete,
+        isTrue,
+      );
+      expect(
+        inspectScalarConstant(
+          values.first,
+          localBindings: chain(256),
+        ).complete,
+        isFalse,
+      );
+    });
+
+    test('does not use a same-spelling binding for an unresolved name',
+        () async {
+      final probe = await _boundScalarProbe(
+        'Object value(String value) => value; '
+        "Object x() => value('ready');",
+      );
+      final unresolved = await parseExpressionFromSourceForTest(
+        'Object x() => value;',
+      );
+      expect((unresolved as SimpleIdentifier).element, isNull);
+      expect(
+        tryFoldScalarConstant(
+          unresolved,
+          localBindings: probe.bindings,
+        ),
+        isNull,
+      );
+      final inspection = inspectScalarConstant(
+        unresolved,
+        localBindings: probe.bindings,
+      );
+      expect(inspection.complete, isTrue);
+      expect(inspection.expression, same(unresolved));
+    });
+  });
+}
+
+Future<({Expression expression, Map<Element, Expression> bindings})>
+    _boundScalarProbe(String source) async {
+  final call = await parseExpressionFromSourceForTest(source);
+  final unit = call.root as CompilationUnit;
+  final helper = unit.declarations
+      .whereType<FunctionDeclaration>()
+      .singleWhere((declaration) => declaration.name.lexeme == 'value');
+  final helperBody = extractInlinableBuildBody(
+    helper.functionExpression.body,
+  )!;
+  final parameters = helper.functionExpression.parameters!.parameters;
+  final arguments = (call as MethodInvocation).argumentList.arguments;
+  return (
+    expression: helperBody.expression,
+    bindings: <Element, Expression>{
+      ...helperBody.localBindings,
+      for (var index = 0; index < parameters.length; index++)
+        parameters[index].declaredFragment!.element: arguments[index],
+    },
+  );
+}
+
+final class _LocalIdentifierCollector extends RecursiveAstVisitor<void> {
+  final List<SimpleIdentifier> identifiers = <SimpleIdentifier>[];
+
+  void visit(AstNode node) => node.accept(this);
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    identifiers.add(node);
+    super.visitSimpleIdentifier(node);
+  }
 }

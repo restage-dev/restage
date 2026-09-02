@@ -2013,6 +2013,98 @@ class AcmeCard extends StatelessWidget {
     });
 
     test(
+        'a helper with a grouped prelude declaration defers naming the '
+        'declaration', () async {
+      final result = await classifyFixture(
+        {
+          'lib/card.dart': '''
+$kClassifierStubs
+
+class Container extends StatelessWidget {
+  const Container({this.child});
+  final Widget? child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String? data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'AcmeCard',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'card',
+)
+class AcmeCard extends StatelessWidget {
+  const AcmeCard();
+  Widget _row() {
+    const first = "a", second = "b";
+    return Text(first);
+  }
+  Widget build(BuildContext context) => Container(child: _row());
+}
+''',
+        },
+        inputPath: 'lib/card.dart',
+        widgetName: 'AcmeCard',
+        catalog: _stubCatalog(),
+      );
+
+      expect(result, isA<ImperativeWidget>());
+      final blocker = (result as ImperativeWidget).blockers.first;
+      expect(blocker.detail, contains("'first, second'"));
+      expect(blocker.detail, contains('split'));
+    });
+
+    test('a grouped prelude declaration in build() is refused by name',
+        () async {
+      final result = await classifyFixture(
+        {
+          'lib/card.dart': '''
+$kClassifierStubs
+
+class Container extends StatelessWidget {
+  const Container({this.child});
+  final Widget? child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String? data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'AcmeCard',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'card',
+)
+class AcmeCard extends StatelessWidget {
+  const AcmeCard();
+  Widget build(BuildContext context) {
+    const first = "a", second = "b";
+    return Text(first);
+  }
+}
+''',
+        },
+        inputPath: 'lib/card.dart',
+        widgetName: 'AcmeCard',
+        catalog: _stubCatalog(),
+      );
+
+      expect(result, isA<UnclassifiableWidget>());
+      final reason = (result as UnclassifiableWidget).reason;
+      expect(reason, contains("'first, second'"));
+      expect(reason, contains('split'));
+    });
+
+    test(
         'a widget-valued final local binding resolves-through to '
         'ComposableWidget', () async {
       final result = await classifyFixture(

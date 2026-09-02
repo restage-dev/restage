@@ -571,7 +571,21 @@ enum CollectionSemanticSourceKind {
   conditionalThen,
 
   /// The selected false branch of a conditional expression.
-  conditionalElse,
+  conditionalElse;
+
+  /// Whether this entrance distinguishes a directly authored occurrence.
+  bool get distinguishesDirectOccurrence => switch (this) {
+        CollectionSemanticSourceKind.helper => true,
+        CollectionSemanticSourceKind.parentheses ||
+        CollectionSemanticSourceKind.receiver ||
+        CollectionSemanticSourceKind.binding ||
+        CollectionSemanticSourceKind.source ||
+        CollectionSemanticSourceKind.constDeclaration ||
+        CollectionSemanticSourceKind.constObjectField ||
+        CollectionSemanticSourceKind.conditionalThen ||
+        CollectionSemanticSourceKind.conditionalElse =>
+          false,
+      };
 }
 
 /// One exact transparent edge in an occurrence's source provenance.
@@ -832,8 +846,25 @@ final class CollectionSemanticOccurrence {
   /// Transparent source edges crossed to reach [terminalExpression].
   final List<CollectionSemanticSourceStep> sourceProvenance;
 
+  /// Source entrances that distinguish this persistent occurrence.
+  Iterable<CollectionSemanticSourceStep> get identitySourceProvenance =>
+      isDirectListElement
+          ? sourceProvenance.where(
+              (step) => step.kind.distinguishesDirectOccurrence,
+            )
+          : sourceProvenance;
+
   /// Exact structural path that produced this occurrence.
   final List<CollectionStructuralOccurrenceStep> structuralPath;
+
+  /// Whether this is one directly authored element of the traversed list.
+  bool get isDirectListElement {
+    if (structuralPath case [final root]) {
+      return root.kind == CollectionStructuralOccurrenceKind.listElement &&
+          identical(root.node, authoredExpression);
+    }
+    return false;
+  }
 }
 
 /// One ordered result from traversing a list literal.

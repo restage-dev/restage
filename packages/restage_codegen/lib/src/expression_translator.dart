@@ -6,6 +6,7 @@ import 'package:analyzer/dart/element/type.dart';
 import 'package:analyzer/source/line_info.dart';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
@@ -18,6 +19,7 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
@@ -558,7 +560,8 @@ final class ExpressionTranslator {
   ///
   /// [sourcePath] and [lineInfo] improve issue location strings from byte
   /// offsets to `file:line:column`. Both default to null (offset-only
-  /// fallback).
+  /// fallback). [rootLocalBindings] carries the root `build()` prelude's
+  /// `final` locals, element-keyed to their initializers.
   TranslationResult translate(
     Expression expr, {
     String? sourcePath,
@@ -568,6 +571,7 @@ final class ExpressionTranslator {
     Map<String, RecognisedSetState> rootEventHandlers = const {},
     Element? buildContextParameter,
     bool flowScreenContext = false,
+    Map<Element, Expression> rootLocalBindings = const {},
   }) {
     final saved = _walk;
     final savedNavigation = _currentNavigation;
@@ -584,7 +588,11 @@ final class ExpressionTranslator {
           : {for (final field in rootState) field.name: field},
       eventHandlers: rootEventHandlers,
       rootStateContext: rootState != null,
-      inlined: const InlinedDefinitions.empty(),
+      // The root walk's prelude locals; a definition body substitutes its own.
+      inlined: InlinedDefinitions(localBindings: rootLocalBindings),
+      measurementScope: measurementRouteEmissionPlan?.rootScope,
+      measurementWidget: null,
+      measurementWidgetList: null,
     );
     _collectionHelpers = _collectionHelperDefinitions(expr);
     _collectionSession = CollectionSemanticTraversalSession();
@@ -1455,6 +1463,7 @@ final class ExpressionTranslator {
 
   String _listLiteral(ListLiteral expr, List<Issue> issues) {
     final parts = <String>[];
+    var ordinal = 0;
     final traversal = traverseCollectionList(
       expr,
       semantics: _collectionSemanticProbe(),
@@ -1463,7 +1472,17 @@ final class ExpressionTranslator {
     for (final entry in traversal.entries) {
       switch (entry) {
         case CollectionListElement(:final occurrence):
-          parts.add(_translateOccurrence(occurrence, issues));
+          parts.add(
+            _translateOccurrence(
+              occurrence,
+              issues,
+              measurementScope: _walk.measurementWidgetList?.element(
+                ordinal,
+                collectionOccurrence: occurrence,
+              ),
+            ),
+          );
+          ordinal++;
         case CollectionListRefusal(:final refusal):
           _recordCollectionRefusal(refusal, issues);
       }
@@ -1541,13 +1560,15 @@ final class ExpressionTranslator {
 
   String _translateOccurrence(
     CollectionSemanticOccurrence occurrence,
-    List<Issue> issues,
-  ) {
+    List<Issue> issues, {
+    MeasurementOccurrenceScope? measurementScope,
+  }) {
     return _translateWithBindings(
       occurrence.terminalExpression,
       occurrence.bindings,
       issues,
       _translate,
+      measurementScope: measurementScope,
     );
   }
 
@@ -1567,9 +1588,11 @@ final class ExpressionTranslator {
     Expression expression,
     Map<Element, Expression> bindings,
     List<Issue> issues,
-    TranslateCallback translate,
-  ) {
+    TranslateCallback translate, {
+    MeasurementOccurrenceScope? measurementScope,
+  }) {
     final saved = _walk;
+    final entersMeasurementScope = measurementScope != null;
     _walk = _walk.copyWith(
       inlined: InlinedDefinitions(
         localBindings: {
@@ -1578,6 +1601,11 @@ final class ExpressionTranslator {
         },
         helpers: _walk.inlined.helpers,
       ),
+      measurementScope: measurementScope ?? _walk.measurementScope,
+      measurementWidget:
+          !entersMeasurementScope ? _walk.measurementWidget : null,
+      measurementWidgetList:
+          !entersMeasurementScope ? _walk.measurementWidgetList : null,
     );
     try {
       return translate(expression, issues);
@@ -1676,7 +1704,7 @@ final class ExpressionTranslator {
       // The unified scalar boundary, so a const-object scalar field used as a
       // map key folds consistently with emission (this path bypasses _translate
       // and so the const-object hook there).
-      final folded = tryFoldScalarConstant(expr);
+      final folded = _foldScalarConstant(expr);
       if (folded is String) key = folded;
     }
     if (key == null) {
@@ -2123,7 +2151,7 @@ final class ExpressionTranslator {
       }
       // The unified scalar boundary, so a const-object scalar field used as a
       // Duration unit folds consistently with emission (bypasses _translate).
-      final folded = tryFoldScalarConstant(arg.expression);
+      final folded = _foldScalarConstant(arg.expression);
       if (folded is! int) {
         issues.add(
           Issue(
@@ -2632,7 +2660,7 @@ final class ExpressionTranslator {
     final carried = <NamedExpression>[];
     for (final a in args.whereType<NamedExpression>()) {
       final name = a.name.label.name;
-      if (name == 'key') continue;
+      if (isDiscardedWidgetKeyArgument(a)) continue;
       if (!kRestageFormattedTextProps.contains(name)) {
         return defer(
           'the Text `$name:` property is not reproduced by $adoptTarget (the '
@@ -2861,7 +2889,7 @@ final class ExpressionTranslator {
     final emitted = <String>['${_rfwMapKey(textSpanProp.name)}: $span'];
     for (final arg in args.whereType<NamedExpression>()) {
       final name = arg.name.label.name;
-      if (name == 'key') continue;
+      if (isDiscardedWidgetKeyArgument(arg)) continue;
 
       final before = issues.length;
       final decomposed = _tryDecompose(entry, name, arg.expression, issues);
@@ -3243,6 +3271,24 @@ final class ExpressionTranslator {
       return _inlineHelperBody(helper, expr, issues);
     }
 
+    // A same-unit helper refused for a named prelude shape reports that shape
+    // rather than falling through as an unrecognised widget.
+    final helperRefusal = isArtifactHelperInvocation(expr)
+        ? refusedHelperDefinitionsIn(expr)[expr.methodName.element]
+        : null;
+    if (helperRefusal != null) {
+      issues.add(
+        Issue(
+          code: IssueCode.customWidgetInliningDeferred,
+          capabilityGapSubject: 'helper:${expr.methodName.name}',
+          message: "The helper '${expr.methodName.name}' cannot be inlined: "
+              '$helperRefusal.',
+          location: _locationOf(expr),
+        ),
+      );
+      return '';
+    }
+
     final textRich = _tryTextRichMethodInvocation(expr, issues);
     if (textRich != null) return textRich;
 
@@ -3370,6 +3416,11 @@ final class ExpressionTranslator {
         helper = helpers.findByNameOnly(method);
       }
       if (helper != null) {
+        if (helper.name == 'paywallEvent') {
+          final helperArgs = _translatePaywallEventArgs(expr, issues);
+          if (helperArgs == null) return '';
+          return _safeHelperTranslate(expr, helper, helperArgs, issues);
+        }
         if (_kScreenEventHelperNames.contains(helper.name)) {
           final helperArgs = _translateOnboardingEventArgs(expr, issues);
           if (helperArgs == null) return '';
@@ -3483,6 +3534,49 @@ final class ExpressionTranslator {
     return _translate(expr, issues);
   }
 
+  Map<Element, Expression> get _scalarConstantBindings => <Element, Expression>{
+        ..._walk.inlined.localBindings,
+        ..._walk.paramBindings,
+      };
+
+  Object? _foldScalarConstant(Expression expression) => tryFoldScalarConstant(
+        expression,
+        localBindings: _scalarConstantBindings,
+      );
+
+  HelperCallArgs? _translatePaywallEventArgs(
+    MethodInvocation expr,
+    List<Issue> issues,
+  ) {
+    final positional = <String>[];
+    final named = <String, String>{};
+    for (final argument in expr.argumentList.arguments) {
+      if (argument is NamedExpression) {
+        named[argument.name.label.name] =
+            _translateHelperArgument(argument.expression, issues);
+        continue;
+      }
+      if (positional.isEmpty) {
+        final eventName = _foldScalarConstant(argument);
+        if (eventName is! String) {
+          issues.add(
+            Issue(
+              code: IssueCode.unrecognizedMethodCall,
+              message: 'paywallEvent requires a statically resolved String '
+                  'name.',
+              location: _locationOf(argument),
+            ),
+          );
+          return null;
+        }
+        positional.add(_stringLiteral(eventName));
+        continue;
+      }
+      positional.add(_translateHelperArgument(argument, issues));
+    }
+    return HelperCallArgs(positional: positional, named: named);
+  }
+
   /// Runs [helper]'s pure translation under the structured-diagnostic guard:
   /// a throw from its per-call validation (an `ArgumentError` on a bad arg
   /// shape, a `StateError`, …) becomes an `unrecognizedMethodCall` issue
@@ -3522,11 +3616,17 @@ final class ExpressionTranslator {
 
     String? blockedName(Expression eventName) {
       final stripped = _stripParens(eventName);
-      if (stripped is ConditionalExpression) {
-        return blockedName(stripped.thenExpression) ??
-            blockedName(stripped.elseExpression);
+      final inspection = inspectScalarConstant(
+        stripped,
+        localBindings: _scalarConstantBindings,
+      );
+      if (!inspection.complete) return null;
+      final resolved = _stripParens(inspection.expression);
+      if (resolved is ConditionalExpression) {
+        return blockedName(resolved.thenExpression) ??
+            blockedName(resolved.elseExpression);
       }
-      final folded = tryFoldScalarConstant(stripped);
+      final folded = inspection.value;
       return folded is String && unsupportedCommerceEventNames.contains(folded)
           ? folded
           : null;
@@ -3823,9 +3923,52 @@ final class ExpressionTranslator {
   }
 
   Iterable<String> _paywallEventNames(Expression expr) {
-    final scanner = _PaywallEventNameScanner(helpers);
-    expr.accept(scanner);
-    return scanner.names;
+    final names = <String>[];
+    void collect(Expression expression, InlinedDefinitions inlined) {
+      final scanner = _PaywallEventNameScanner(helpers, inlined: inlined);
+      expression.accept(scanner);
+      names.addAll(scanner.names);
+    }
+
+    collect(expr, _walk.inlined);
+    for (final blueprint in _reachableCustomWidgetBlueprints(expr)) {
+      visitStaticallyAdmittedExpressions(
+        blueprint.buildExpression,
+        inlined: blueprint.inlined,
+        visit: (expression, bindings) {
+          if (expression is! MethodInvocation) return;
+          final name = _paywallEventName(expression, helpers, bindings);
+          if (name != null) names.add(name);
+        },
+      );
+    }
+    return names;
+  }
+
+  Iterable<CustomWidgetBlueprint> _reachableCustomWidgetBlueprints(
+    Expression expr,
+  ) sync* {
+    final pending = [
+      for (final widgetClass
+          in customWidgetClassesIn(expr, inlined: _walk.inlined))
+        customWidgetKey(widgetClass),
+    ];
+    final visited = <String>{};
+    for (var index = 0; index < pending.length; index++) {
+      final key = pending[index];
+      if (!visited.add(key)) continue;
+      final classification = customWidgetClassifications[key];
+      if (classification is! ComposableWidget ||
+          classification.requiredMechanisms
+              .difference(_kImplementedMechanisms)
+              .isNotEmpty) {
+        continue;
+      }
+      final blueprint = customWidgetBlueprints[key];
+      if (blueprint == null) continue;
+      yield blueprint;
+      pending.addAll(classification.composedCustomWidgets);
+    }
   }
 
   String _mintNavigationEvent(int index, Set<String> existingEventNames) {
@@ -4224,7 +4367,7 @@ final class ExpressionTranslator {
         return '';
       }
       final name = arg.name.label.name;
-      if (name == 'key') continue; // the universal super.key convention
+      if (isDiscardedWidgetKeyArgument(arg)) continue;
       switch (name) {
         case 'children':
           childrenExpr = arg.expression;
@@ -5051,7 +5194,42 @@ final class ExpressionTranslator {
     required Expression anchor,
     required List<Issue> issues,
     String? constructorName,
+    bool occurrenceScoped = false,
   }) {
+    final occurrenceScope = _walk.measurementScope;
+    if (!occurrenceScoped && occurrenceScope != null) {
+      if (widgetClass == null) {
+        issues.add(
+          Issue(
+            code: IssueCode.invalidEventConfiguration,
+            message: 'A measured widget occurrence must resolve to its exact '
+                'class declaration.',
+            location: _locationOf(anchor),
+          ),
+        );
+        return '';
+      }
+      final saved = _walk;
+      _walk = _walk.copyWith(
+        measurementScope: null,
+        measurementWidget: occurrenceScope.widget(widgetClass),
+        measurementWidgetList: null,
+      );
+      try {
+        return _catalogWidgetConstruction(
+          widgetName: widgetName,
+          flutterType: flutterType,
+          widgetClass: widgetClass,
+          args: args,
+          anchor: anchor,
+          issues: issues,
+          constructorName: constructorName,
+          occurrenceScoped: true,
+        );
+      } finally {
+        _walk = saved;
+      }
+    }
     WidgetEntry? entry;
     // Whether the entry was resolved by an exact `flutterType` match that
     // INCLUDES the named constructor (e.g. `...#Card.filled` → the dedicated
@@ -5326,6 +5504,9 @@ final class ExpressionTranslator {
     // collide with their own named-arg form (e.g. Icon's `size` would absorb
     // the IconData positional and then duplicate when `size:` is also named).
     final positionals = args.where((a) => a is! NamedExpression).toList();
+    final sourceParameters = _walk.measurementWidget == null
+        ? const <Expression, FormalParameterElement>{}
+        : _resolvedSourceParameters(anchor, args);
     final positionalProps =
         entry.properties.where((p) => p.positional).toList();
     for (var i = 0; i < positionals.length; i++) {
@@ -5348,6 +5529,7 @@ final class ExpressionTranslator {
         positionalProp.type,
         issues,
         property: positionalProp,
+        sourceParameter: sourceParameters[positionals[i]],
       );
       if (value.isEmpty && issues.length > before) return '';
       emitted.add(
@@ -5356,10 +5538,10 @@ final class ExpressionTranslator {
       );
     }
 
-    // Named args map by name; ignore `key:` (super.key convention).
+    // Named args map by name; runtime widget keys are not serialized.
     for (final a in args.whereType<NamedExpression>()) {
       final name = a.name.label.name;
-      if (name == 'key') continue;
+      if (isDiscardedWidgetKeyArgument(a)) continue;
 
       // Structured-type decomposition. If this argument matches one of the
       // entry's native recipes, hoist mapped structured fields to flat
@@ -5394,6 +5576,7 @@ final class ExpressionTranslator {
         prop.type,
         issues,
         property: prop,
+        sourceParameter: sourceParameters[a.expression],
       );
       if (value.isEmpty && issues.length > before) return '';
       // An asymmetric `BorderRadius` value (a direct `borderRadius:` arg, e.g.
@@ -5429,6 +5612,39 @@ final class ExpressionTranslator {
     }
 
     return '${entry.name}(${emitted.join(', ')})';
+  }
+
+  Map<Expression, FormalParameterElement> _resolvedSourceParameters(
+    Expression anchor,
+    NodeList<Expression> arguments,
+  ) {
+    final constructor = switch (anchor) {
+      InstanceCreationExpression() => anchor.constructorName.element,
+      MethodInvocation() => anchor.methodName.element,
+      _ => null,
+    };
+    if (constructor is! ConstructorElement) {
+      return const <Expression, FormalParameterElement>{};
+    }
+    final positional = constructor.formalParameters
+        .where((parameter) => !parameter.isNamed)
+        .toList(growable: false);
+    var positionalIndex = 0;
+    final result = Map<Expression, FormalParameterElement>.identity();
+    for (final argument in arguments) {
+      if (argument is NamedExpression) {
+        final parameter = argument.name.label.element;
+        if (parameter is FormalParameterElement) {
+          result[argument.expression] = parameter;
+        }
+        continue;
+      }
+      if (positionalIndex < positional.length) {
+        result[argument] = positional[positionalIndex];
+      }
+      positionalIndex++;
+    }
+    return result;
   }
 
   void _recordRfwCatalogConstructorOrigin(WidgetEntry entry) {
@@ -5598,8 +5814,19 @@ final class ExpressionTranslator {
       return '';
     }
     final saved = _walk;
+    final helperElement = call.methodName.element;
+    final measurementScope = _walk.measurementScope;
+    final measurementWidgetList = _walk.measurementWidgetList;
     _walk = _walk.copyWith(
       paramBindings: {..._walk.paramBindings, ...binding},
+      measurementScope:
+          measurementScope != null && helperElement is ExecutableElement
+              ? measurementScope.enterHelper(helperElement)
+              : measurementScope,
+      measurementWidgetList:
+          measurementWidgetList != null && helperElement is ExecutableElement
+              ? measurementWidgetList.enterHelper(helperElement)
+              : measurementWidgetList,
     );
     try {
       return _translate(helper.body, issues);
@@ -5695,6 +5922,9 @@ final class ExpressionTranslator {
         eventHandlers: blueprint.eventHandlers,
         rootStateContext: false,
         inlined: blueprint.inlined,
+        measurementScope: saved.measurementWidget?.enterInlinedBody(),
+        measurementWidget: null,
+        measurementWidgetList: null,
       );
       try {
         if (_admitOrdinaryLeaf(blueprint.buildExpression, issues)) {
@@ -5752,16 +5982,28 @@ final class ExpressionTranslator {
     NodeList<Expression> args,
     List<Issue> issues,
   ) {
-    // Collect the call-site expressions by parameter name — a named argument
-    // by its label, a positional argument by the formal at its index. An
-    // argument matching no parameter is dropped untranslated; in resolved
-    // authoring the Dart constructor signature already rejects it.
+    // Collect call-site expressions by parameter name. Unmatched named
+    // arguments are diagnosed.
     final supplied = <String, Expression>{};
+    final parameterNames = {
+      for (final parameter in blueprint.params) parameter.name,
+    };
     var positionalIndex = 0;
     for (final arg in args) {
       if (arg is NamedExpression) {
         final argName = arg.name.label.name;
-        if (argName == 'key') continue;
+        if (isDiscardedWidgetKeyArgument(arg)) continue;
+        if (!parameterNames.contains(argName)) {
+          issues.add(
+            Issue(
+              code: IssueCode.unknownProperty,
+              message: "Argument '$argName' is not declared by "
+                  "'${blueprint.rfwName}'.",
+              location: _locationOf(arg),
+            ),
+          );
+          continue;
+        }
         supplied[argName] = arg.expression;
       } else {
         if (positionalIndex < blueprint.params.length) {
@@ -5908,8 +6150,14 @@ final class ExpressionTranslator {
       );
     }
     final value = _coerceParamValue(param, _translate(stripped, issues));
-    final marker = measurementRouteEmissionPlan?.markerFor(expr) ??
-        measurementRouteEmissionPlan?.markerFor(stripped);
+    final eventOccurrence =
+        switch ((_walk.measurementWidget, param.sourceField)) {
+      (final widget?, final field?) => widget.event(field),
+      _ => null,
+    };
+    final marker = eventOccurrence == null
+        ? null
+        : measurementRouteEmissionPlan?.markerFor(eventOccurrence);
     if (marker == null) return value;
     if (value.isEmpty || !value.trimLeft().startsWith('event ')) {
       issues.add(
@@ -5922,6 +6170,15 @@ final class ExpressionTranslator {
       );
       return '';
     }
+    return _attachMeasurementRouteMarker(value, marker, expr, issues);
+  }
+
+  String _attachMeasurementRouteMarker(
+    String value,
+    String marker,
+    Expression expression,
+    List<Issue> issues,
+  ) {
     try {
       return MeasurementRouteEventMarkerEmitter.attach(
         value,
@@ -5932,7 +6189,7 @@ final class ExpressionTranslator {
         Issue(
           code: IssueCode.invalidEventConfiguration,
           message: error.message?.toString() ?? error.toString(),
-          location: _locationOf(expr),
+          location: _locationOf(expression),
         ),
       );
       return '';
@@ -6292,16 +6549,47 @@ final class ExpressionTranslator {
     PropertyType type,
     List<Issue> issues, {
     PropertyEntry? property,
+    FormalParameterElement? sourceParameter,
   }) {
-    final marker = type == PropertyType.event
-        ? measurementRouteEmissionPlan?.markerFor(expr)
+    final widgetOccurrence = _walk.measurementWidget;
+    final eventOccurrence = type == PropertyType.event &&
+            widgetOccurrence != null &&
+            sourceParameter != null
+        ? widgetOccurrence.event(sourceParameter)
         : null;
-    final value = _translateSlotValueCore(
-      expr,
-      type,
-      issues,
-      property: property,
-    );
+    final marker = eventOccurrence == null
+        ? null
+        : measurementRouteEmissionPlan?.markerFor(eventOccurrence);
+    final saved = _walk;
+    if (widgetOccurrence != null && sourceParameter != null) {
+      if (type == PropertyType.widget) {
+        _walk = _walk.copyWith(
+          measurementScope: widgetOccurrence.child(
+            sourceParameter,
+            ordinal: 0,
+          ),
+          measurementWidget: null,
+          measurementWidgetList: null,
+        );
+      } else if (type == PropertyType.widgetList) {
+        _walk = _walk.copyWith(
+          measurementScope: null,
+          measurementWidget: null,
+          measurementWidgetList: widgetOccurrence.widgetList(sourceParameter),
+        );
+      }
+    }
+    final String value;
+    try {
+      value = _translateSlotValueCore(
+        expr,
+        type,
+        issues,
+        property: property,
+      );
+    } finally {
+      _walk = saved;
+    }
     if (type != PropertyType.event) return value;
     if (value.isEmpty) {
       if (marker != null) {
@@ -6327,21 +6615,8 @@ final class ExpressionTranslator {
       );
       return '';
     }
-    try {
-      return MeasurementRouteEventMarkerEmitter.attach(
-        value,
-        marker: marker,
-      );
-    } on ArgumentError catch (error) {
-      issues.add(
-        Issue(
-          code: IssueCode.invalidEventConfiguration,
-          message: error.message?.toString() ?? error.toString(),
-          location: _locationOf(expr),
-        ),
-      );
-      return '';
-    }
+    if (marker == null) return value;
+    return _attachMeasurementRouteMarker(value, marker, expr, issues);
   }
 
   String _translateSlotValueCore(
@@ -8118,51 +8393,87 @@ final class _RootNavigationTriggerScanner extends RecursiveAstVisitor<void> {
 }
 
 final class _PaywallEventNameScanner extends RecursiveAstVisitor<void> {
-  _PaywallEventNameScanner(this.helpers);
+  _PaywallEventNameScanner(
+    this.helpers, {
+    required InlinedDefinitions inlined,
+  })  : _inlinedHelpers = inlined.helpers,
+        _bindings = Map<Element, Expression>.of(inlined.localBindings);
 
   final HelperRegistry helpers;
+  final Map<Element, HelperDef> _inlinedHelpers;
+  final Map<Element, Expression> _bindings;
   final List<String> names = [];
+  final Set<Element> _activeBindings = {};
+  final Set<Element> _activeHelpers = {};
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    final element = node.element;
+    final binding = element == null ? null : _bindings[element];
+    if (element != null && binding != null && _activeBindings.add(element)) {
+      try {
+        binding.accept(this);
+      } finally {
+        _activeBindings.remove(element);
+      }
+    }
+    super.visitSimpleIdentifier(node);
+  }
 
   @override
   void visitMethodInvocation(MethodInvocation node) {
-    final name = _paywallEventName(node);
+    final name = _paywallEventName(node, helpers, _bindings);
     if (name != null) names.add(name);
+    final element = node.methodName.element;
+    final helper = _inlinedHelpers[element];
+    if (element != null && helper != null && _activeHelpers.add(element)) {
+      final bindings = bindHelperArguments(
+        helper.params,
+        node.argumentList.arguments.toList(),
+      );
+      if (bindings != null) {
+        final savedBindings = Map<Element, Expression>.of(_bindings);
+        _bindings.addAll(bindings);
+        try {
+          helper.body.accept(this);
+        } finally {
+          _bindings
+            ..clear()
+            ..addAll(savedBindings);
+        }
+      }
+      _activeHelpers.remove(element);
+    }
     super.visitMethodInvocation(node);
   }
+}
 
-  String? _paywallEventName(MethodInvocation node) {
-    if (node.realTarget != null || node.methodName.name != 'paywallEvent') {
-      return null;
-    }
-    final helper = _helperFor(node);
-    if (helper?.name != 'paywallEvent') return null;
-    final args = node.argumentList.arguments;
-    if (args.isEmpty || args.first is NamedExpression) return null;
-    final first = _stripParens(args.first);
-    // Use the unified scalar boundary so an authored event name carried by a
-    // const-object scalar field (`paywallEvent(_skin.nav)`) is collected here
-    // exactly as emission folds it — otherwise the synthetic navigation-event
-    // minter, blind to it, could reuse an authored name and collide.
-    final folded = tryFoldScalarConstant(first);
-    return folded is String ? folded : null;
+String? _paywallEventName(
+  MethodInvocation node,
+  HelperRegistry helpers,
+  Map<Element, Expression> bindings,
+) {
+  if (node.realTarget != null || node.methodName.name != 'paywallEvent') {
+    return null;
   }
-
-  HelperDefinition? _helperFor(MethodInvocation node) {
-    final element = node.methodName.element;
-    if (element != null) {
-      final libraryUri = element.library?.identifier ?? '';
-      return helpers.find(node.methodName.name, libraryUri);
-    }
-    return helpers.findByNameOnly(node.methodName.name);
+  final element = node.methodName.element;
+  final helper = element == null
+      ? helpers.findByNameOnly(node.methodName.name)
+      : helpers.find(
+          node.methodName.name,
+          element.library?.identifier ?? '',
+        );
+  if (helper?.name != 'paywallEvent') return null;
+  final args = node.argumentList.arguments;
+  if (args.isEmpty || args.first is NamedExpression) return null;
+  var first = args.first;
+  while (first is ParenthesizedExpression) {
+    first = first.expression;
   }
-
-  Expression _stripParens(Expression expr) {
-    var current = expr;
-    while (current is ParenthesizedExpression) {
-      current = current.expression;
-    }
-    return current;
-  }
+  // Fold authored names through the same scalar boundary as emission so
+  // generated navigation events cannot collide with them.
+  final folded = tryFoldScalarConstant(first, localBindings: bindings);
+  return folded is String ? folded : null;
 }
 
 final class _RootModalSheetTriggerScanner extends RecursiveAstVisitor<void> {
@@ -8323,6 +8634,9 @@ final class _WalkContext {
     required this.modalSheet,
     required this.modalSheetCloseFlag,
     required this.validatedCoalesceParams,
+    required this.measurementScope,
+    required this.measurementWidget,
+    required this.measurementWidgetList,
   });
 
   /// The initial root state — matches the pre-bundle field defaults. Not
@@ -8339,7 +8653,10 @@ final class _WalkContext {
         paramBindings = const {},
         modalSheet = null,
         modalSheetCloseFlag = null,
-        validatedCoalesceParams = {};
+        validatedCoalesceParams = {},
+        measurementScope = null,
+        measurementWidget = null,
+        measurementWidgetList = null;
 
   /// The constructor-parameter names of the custom-widget definition body
   /// currently being translated — empty while translating the root paywall.
@@ -8421,6 +8738,15 @@ final class _WalkContext {
   /// (via `.add`).
   final Set<String> validatedCoalesceParams;
 
+  /// Structural scope awaiting the next widget construction.
+  final MeasurementOccurrenceScope? measurementScope;
+
+  /// Exact widget occurrence whose arguments are being translated.
+  final MeasurementWidgetOccurrence? measurementWidget;
+
+  /// Exact widget-list slot whose elements are being translated.
+  final MeasurementWidgetListOccurrence? measurementWidgetList;
+
   /// Returns a copy with the named fields replaced. Omitted fields keep their
   /// current value (shared by reference). The four nullable fields use the
   /// [_kWalkUnset] sentinel so a caller can set them to null.
@@ -8436,6 +8762,9 @@ final class _WalkContext {
     Object? modalSheet = _kWalkUnset,
     Object? modalSheetCloseFlag = _kWalkUnset,
     Set<String>? validatedCoalesceParams,
+    Object? measurementScope = _kWalkUnset,
+    Object? measurementWidget = _kWalkUnset,
+    Object? measurementWidgetList = _kWalkUnset,
   }) {
     return _WalkContext(
       argNames: argNames ?? this.argNames,
@@ -8458,6 +8787,15 @@ final class _WalkContext {
           : modalSheetCloseFlag as String?,
       validatedCoalesceParams:
           validatedCoalesceParams ?? this.validatedCoalesceParams,
+      measurementScope: identical(measurementScope, _kWalkUnset)
+          ? this.measurementScope
+          : measurementScope as MeasurementOccurrenceScope?,
+      measurementWidget: identical(measurementWidget, _kWalkUnset)
+          ? this.measurementWidget
+          : measurementWidget as MeasurementWidgetOccurrence?,
+      measurementWidgetList: identical(measurementWidgetList, _kWalkUnset)
+          ? this.measurementWidgetList
+          : measurementWidgetList as MeasurementWidgetListOccurrence?,
     );
   }
 }

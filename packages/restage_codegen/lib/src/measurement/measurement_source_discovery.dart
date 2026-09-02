@@ -5,9 +5,9 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_resolved_event.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
-import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The source-root authority that admitted a static widget expression.
@@ -42,12 +42,14 @@ final class MeasurementSourceDiscoveryInput {
     required this.catalog,
     Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints = const {},
     Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
+    Map<Element, Expression> rootLocalBindings = const {},
   })  : inlinedCustomWidgetBlueprints = Map.unmodifiable(
           inlinedCustomWidgetBlueprints,
         ),
         inlinedCustomWidgetCollectionRefusals = Map.unmodifiable(
           inlinedCustomWidgetCollectionRefusals,
-        );
+        ),
+        rootLocalBindings = Map.unmodifiable(rootLocalBindings);
 
   /// Exact source-root annotation authority.
   final MeasurementSourceAuthority authority;
@@ -57,6 +59,10 @@ final class MeasurementSourceDiscoveryInput {
 
   /// Resolved expression returned by the source root's effective `build()`.
   final Expression rootExpression;
+
+  /// The root `build()`'s leading `final` locals, keyed by element. A widget
+  /// held in one resolves to its initializer at the widget position.
+  final Map<Element, Expression> rootLocalBindings;
 
   /// Exact merged catalog used by the same compiler pass.
   final Catalog catalog;
@@ -106,9 +112,7 @@ final class MeasurementSourceProvenance {
 final class MeasurementDiscoveredNode {
   MeasurementDiscoveredNode._({
     required this.sourceProvenance,
-    required this.structuralOccurrenceKey,
-    required this.parentStructuralOccurrenceKey,
-    required this.resolvedWidgetIdentity,
+    required this.occurrence,
     required List<String> inlinedCustomWidgetIdentities,
   }) : inlinedCustomWidgetIdentities = List.unmodifiable(
           inlinedCustomWidgetIdentities,
@@ -117,14 +121,18 @@ final class MeasurementDiscoveredNode {
   /// Root source and compiler authority that owns the node.
   final MeasurementSourceProvenance sourceProvenance;
 
+  /// Exact structural occurrence used during marker emission.
+  final MeasurementWidgetOccurrence occurrence;
+
   /// Deterministic static occurrence locator for ledger reconciliation.
-  final String structuralOccurrenceKey;
+  String get structuralOccurrenceKey => occurrence.structuralOccurrenceKey;
 
   /// Direct static Flutter-parent locator, absent for a root node.
-  final String? parentStructuralOccurrenceKey;
+  String? get parentStructuralOccurrenceKey =>
+      occurrence.parentStructuralOccurrenceKey;
 
   /// Exact resolved Flutter widget declaration identity.
-  final String resolvedWidgetIdentity;
+  String get resolvedWidgetIdentity => occurrence.widgetIdentity;
 
   /// Resolved custom definitions crossed while statically inlining this node.
   final List<String> inlinedCustomWidgetIdentities;
@@ -136,6 +144,7 @@ final class MeasurementDiscoveredEvent {
     required this.node,
     required this.resolvedEvent,
     required this.sourceExpression,
+    required this.emissionOccurrence,
   });
 
   /// Static node owning the exact callback slot.
@@ -144,13 +153,11 @@ final class MeasurementDiscoveredEvent {
   /// Strict Flutter or opaque-catalog identity derived from analyzer elements.
   final MeasurementResolvedEvent resolvedEvent;
 
-  /// The exact analyzer expression supplying this callback slot.
-  ///
-  /// This is not a source-path or ordinal identity. Carrier emission binds to
-  /// this object while the same resolved AST is translated; no later
-  /// compilation step reconstructs a callback from labels, event names, or
-  /// collection order.
+  /// Exact callback expression selected by semantic source resolution.
   final Expression sourceExpression;
+
+  /// Exact structural callback position that can emit this route marker.
+  final MeasurementEventOccurrence emissionOccurrence;
 }
 
 /// Complete source-discovery result, empty on rejection.
@@ -364,6 +371,7 @@ final class _MeasurementSourceDiscovery {
     final rootContext = _WidgetVisitContext.root(
       provenance,
       input.rootExpression,
+      input.rootLocalBindings,
     );
     _admitOrdinaryLeaf(input.rootExpression, rootContext);
     _visitWidgetExpression(
@@ -444,23 +452,8 @@ final class _MeasurementSourceDiscovery {
     Expression source,
     _WidgetVisitContext context,
   ) {
-    final expression = _withoutParentheses(source);
-    final binding = _boundWidgetExpression(expression, context);
-    if (binding != null) {
-      _visitWidgetExpression(binding, context);
-      return;
-    }
-    final helper = _resolvedInlinedHelper(expression, context);
-    if (helper != null) {
-      _visitWidgetExpression(
-        helper.definition.body,
-        context.enterHelper(
-          helperIdentity: helper.identity,
-          parameterBindings: helper.parameterBindings,
-        ),
-      );
-      return;
-    }
+    final resolved = _resolvedWidgetSource(source, context);
+    final expression = resolved.expression;
     if (expression is! InstanceCreationExpression) {
       throw ArgumentError(
         'A measurement widget occurrence must be a statically resolved '
@@ -475,7 +468,7 @@ final class _MeasurementSourceDiscovery {
       );
     }
     if (_isFlutterWidgetClass(classElement)) {
-      _visitFlutterWidget(expression, classElement, context);
+      _visitFlutterWidget(expression, classElement, resolved.context);
       return;
     }
     if (!_hasResolvedAnnotationFromOrigin(
@@ -488,7 +481,7 @@ final class _MeasurementSourceDiscovery {
         '@RestageWidget marker',
       );
     }
-    _visitCustomWidget(expression, classElement, context);
+    _visitCustomWidget(expression, classElement, resolved.context);
   }
 
   void _visitFlutterWidget(
@@ -497,10 +490,9 @@ final class _MeasurementSourceDiscovery {
     _WidgetVisitContext context,
   ) {
     final catalogEntry = _catalogEntryFor(expression, widgetClass);
-    final widgetIdentity = _classIdentity(widgetClass);
     final node = _recordNode(
       context: context,
-      widgetIdentity: widgetIdentity,
+      widgetClass: widgetClass,
     );
     final arguments = _resolvedArguments(expression, widgetClass);
     final eventPropertyNames = {
@@ -530,19 +522,17 @@ final class _MeasurementSourceDiscovery {
         // Measurement identity or source provenance.
         continue;
       }
-      final slotIdentity = '$widgetIdentity.$parameterName';
       if (_isWidgetType(parameter.type)) {
         final ordinal = childOrdinals.update(
-          slotIdentity,
+          parameterName,
           (value) => value + 1,
           ifAbsent: () => 0,
         );
         _visitWidgetExpression(
           value,
           context.child(
-            parentNodeKey: node.structuralOccurrenceKey,
-            parentWidgetIdentity: widgetIdentity,
-            slotIdentity: slotIdentity,
+            parent: node.occurrence,
+            slot: parameter,
             ordinal: ordinal,
           ),
         );
@@ -552,9 +542,8 @@ final class _MeasurementSourceDiscovery {
         _visitWidgetList(
           value,
           context: context,
-          parentNodeKey: node.structuralOccurrenceKey,
-          parentWidgetIdentity: widgetIdentity,
-          slotIdentity: slotIdentity,
+          parent: node.occurrence,
+          slot: parameter,
         );
         continue;
       }
@@ -570,19 +559,19 @@ final class _MeasurementSourceDiscovery {
   void _visitWidgetList(
     Expression source, {
     required _WidgetVisitContext context,
-    required String parentNodeKey,
-    required String parentWidgetIdentity,
-    required String slotIdentity,
+    required MeasurementWidgetOccurrence parent,
+    required FormalParameterElement slot,
   }) {
-    final semantics = _collectionSemanticProbe(context);
+    final resolved = _resolvedWidgetSource(source, context);
+    final semantics = _collectionSemanticProbe(resolved.context);
     final budget = CollectionUnrollBudget();
     final resolution = semantics.resolve(
-      source,
-      context.expressionBindings,
+      resolved.expression,
+      resolved.context.plainExpressionBindings,
       budget,
     );
     if (resolution.workLimitExceeded) {
-      throw ArgumentError(budget.workRefusal(source).detail);
+      throw ArgumentError(budget.workRefusal(resolved.expression).detail);
     }
     final expression = _withoutParentheses(resolution.expression);
     if (expression is! ListLiteral) {
@@ -603,22 +592,15 @@ final class _MeasurementSourceDiscovery {
         case CollectionListRefusal(:final refusal):
           throw ArgumentError(refusal.detail);
         case CollectionListElement(:final occurrence):
-          final directExpression = _isDirectListExpression(occurrence);
           _visitWidgetExpression(
-            directExpression
-                ? occurrence.authoredExpression
-                : occurrence.terminalExpression,
-            context
+            occurrence.terminalExpression,
+            resolved.context
                 .child(
-                  parentNodeKey: parentNodeKey,
-                  parentWidgetIdentity: parentWidgetIdentity,
-                  slotIdentity: slotIdentity,
+                  parent: parent,
+                  slot: slot,
                   ordinal: ordinal,
                 )
-                .withCollectionOccurrence(
-                  occurrence,
-                  includeStructure: !directExpression,
-                ),
+                .withCollectionOccurrence(occurrence),
           );
           ordinal++;
       }
@@ -631,7 +613,9 @@ final class _MeasurementSourceDiscovery {
       CollectionSemanticProbe(
         bindingFor: (identifier) {
           final element = _referencedElement(identifier);
-          return element == null ? null : context.expressionBindings[element];
+          return element == null
+              ? null
+              : context.expressionBindings[element]?.expression;
         },
         helperFor: (invocation) {
           if (!isArtifactHelperInvocation(invocation)) return null;
@@ -659,10 +643,29 @@ final class _MeasurementSourceDiscovery {
     final refusal = _collectionSession.admitOrdinaryLeaf(
       expression,
       _collectionSemanticProbe(context),
-      bindings: context.expressionBindings,
+      bindings: context.plainExpressionBindings,
       convergentSources: convergentSources,
     );
     if (refusal != null) throw ArgumentError(refusal.detail);
+  }
+
+  ({Expression expression, _WidgetVisitContext context}) _resolvedWidgetSource(
+    Expression source,
+    _WidgetVisitContext context,
+  ) {
+    final expression = _withoutParentheses(source);
+    final binding = _boundWidgetExpression(expression, context);
+    if (binding != null) return _resolvedWidgetSource(binding, context);
+    final helper = _resolvedInlinedHelper(expression, context);
+    if (helper == null) return (expression: expression, context: context);
+    return _resolvedWidgetSource(
+      helper.definition.body,
+      context.enterHelper(
+        helper: helper.executable,
+        helperIdentity: helper.identity,
+        parameterBindings: helper.parameterBindings,
+      ),
+    );
   }
 
   void _visitCustomWidget(
@@ -686,21 +689,29 @@ final class _MeasurementSourceDiscovery {
       _requireRegisteredOpaqueCustomWidget(expression, customClass);
       final node = _recordNode(
         context: context,
-        widgetIdentity: customIdentity,
+        widgetClass: customClass,
       );
       final slots = MeasurementResolvedOpaqueCustomWidgetEvent.discoverSlots(
         sourceRoot: input.sourceClass,
         occurrence: expression,
         catalog: input.catalog,
       );
+      final arguments = _resolvedArguments(expression, customClass);
       for (final slot in slots) {
+        final value = arguments
+            .singleWhere((argument) => argument.parameter == slot.eventElement)
+            .value;
+        final resolvedSource = _resolvedEventSource(
+          node: node,
+          eventElement: slot.eventElement,
+          value: value,
+          context: context,
+        );
         _recordResolvedEvent(
           node: node,
           resolvedEvent: slot,
-          sourceExpression: _opaqueEventExpression(
-            expression,
-            slot.sourceEventIdentity,
-          ),
+          sourceExpression: resolvedSource.expression,
+          emissionOccurrence: resolvedSource.emissionOccurrence,
         );
       }
       // The occurrence and its declared slots are in the emitted graph. Its
@@ -709,43 +720,37 @@ final class _MeasurementSourceDiscovery {
     }
     final node = _recordNode(
       context: context,
-      widgetIdentity: customIdentity,
+      widgetClass: customClass,
     );
-    final bindings = _customWidgetBindings(expression, customClass);
+    final bindings = _customWidgetBindings(
+      expression,
+      customClass,
+      node.occurrence,
+    );
     final inlineContext = context.enterInline(
-      parentNodeKey: node.structuralOccurrenceKey,
-      customIdentity: customIdentity,
+      parent: node.occurrence,
       fieldBindings: bindings,
       inlinedDefinitions: blueprint.inlined,
     );
     _admitOrdinaryLeaf(
       blueprint.buildExpression,
       inlineContext,
-      convergentSources: bindings.values,
+      convergentSources: bindings.values.map((binding) => binding.expression),
     );
     _visitWidgetExpression(blueprint.buildExpression, inlineContext);
   }
 
   MeasurementDiscoveredNode _recordNode({
     required _WidgetVisitContext context,
-    required String widgetIdentity,
+    required InterfaceElement widgetClass,
   }) {
-    final segments = [
-      ...context.pathSegments,
-      _StructuralPathSegment.widget(widgetIdentity),
-    ];
-    final structuralOccurrenceKey = _structuralOccurrenceKey(
-      context.sourceProvenance,
-      segments,
-    );
-    if (!_nodeKeys.add(structuralOccurrenceKey)) {
+    final occurrence = context.occurrenceScope.widget(widgetClass);
+    if (!_nodeKeys.add(occurrence.structuralOccurrenceKey)) {
       throw ArgumentError('A static measurement node occurrence is duplicated');
     }
     final node = MeasurementDiscoveredNode._(
       sourceProvenance: context.sourceProvenance,
-      structuralOccurrenceKey: structuralOccurrenceKey,
-      parentStructuralOccurrenceKey: context.parentNodeKey,
-      resolvedWidgetIdentity: widgetIdentity,
+      occurrence: occurrence,
       inlinedCustomWidgetIdentities: context.inlinedCustomWidgetIdentities,
     );
     _nodes.add(node);
@@ -759,12 +764,13 @@ final class _MeasurementSourceDiscovery {
     required Expression value,
     required _WidgetVisitContext context,
   }) {
-    var sourceExpression = value;
-    while (true) {
-      final binding = _boundWidgetExpression(sourceExpression, context);
-      if (binding == null) break;
-      sourceExpression = binding;
-    }
+    final resolvedSource = _resolvedEventSource(
+      node: node,
+      eventElement: parameter,
+      value: value,
+      context: context,
+    );
+    final sourceExpression = resolvedSource.expression;
     if (_withoutParentheses(sourceExpression) is NullLiteral) return;
     if (!_isFunctionType(sourceExpression.staticType)) {
       throw ArgumentError(
@@ -786,6 +792,43 @@ final class _MeasurementSourceDiscovery {
       node: node,
       resolvedEvent: resolvedEvent,
       sourceExpression: sourceExpression,
+      emissionOccurrence: resolvedSource.emissionOccurrence,
+    );
+  }
+
+  ({
+    Expression expression,
+    MeasurementEventOccurrence emissionOccurrence,
+  }) _resolvedEventSource({
+    required MeasurementDiscoveredNode node,
+    required Element eventElement,
+    required Expression value,
+    required _WidgetVisitContext context,
+  }) {
+    var sourceExpression = value;
+    final directOccurrence = node.occurrence.event(eventElement);
+    final forwardingOccurrences = <MeasurementEventOccurrence>[];
+    final seenBindings = <Element>{};
+    while (true) {
+      final binding = _boundExpression(sourceExpression, context);
+      if (binding == null) break;
+      final element = _referencedElement(_withoutParentheses(sourceExpression));
+      if (element == null || !seenBindings.add(element)) {
+        throw ArgumentError('A static measurement binding cycle is invalid');
+      }
+      final forwardingOccurrence = binding.eventOccurrence;
+      if (forwardingOccurrence != null &&
+          !forwardingOccurrences.contains(forwardingOccurrence)) {
+        forwardingOccurrences.add(forwardingOccurrence);
+      }
+      sourceExpression = binding.expression;
+    }
+    final emissionOccurrence = forwardingOccurrences.isEmpty
+        ? directOccurrence
+        : forwardingOccurrences.last;
+    return (
+      expression: sourceExpression,
+      emissionOccurrence: emissionOccurrence,
     );
   }
 
@@ -793,6 +836,7 @@ final class _MeasurementSourceDiscovery {
     required MeasurementDiscoveredNode node,
     required MeasurementResolvedEvent resolvedEvent,
     required Expression sourceExpression,
+    required MeasurementEventOccurrence emissionOccurrence,
   }) {
     if (recogniseModalSheetTrigger(sourceExpression)
         is! ModalSheetNotRecognised) {
@@ -807,6 +851,7 @@ final class _MeasurementSourceDiscovery {
       node: node,
       resolvedEvent: resolvedEvent,
       sourceExpression: sourceExpression,
+      emissionOccurrence: emissionOccurrence,
     );
     if (!_eventKeys.add(_eventKey(event))) {
       throw ArgumentError(
@@ -814,21 +859,6 @@ final class _MeasurementSourceDiscovery {
       );
     }
     _events.add(event);
-  }
-
-  Expression _opaqueEventExpression(
-    InstanceCreationExpression occurrence,
-    SourceEventIdentity sourceEventIdentity,
-  ) {
-    for (final argument in occurrence.argumentList.arguments) {
-      if (argument is NamedExpression &&
-          argument.name.label.name == sourceEventIdentity.value) {
-        return argument.expression;
-      }
-    }
-    throw ArgumentError(
-      'An opaque measurement event must retain its exact source expression',
-    );
   }
 
   WidgetEntry _catalogEntryFor(
@@ -924,9 +954,10 @@ final class _MeasurementSourceDiscovery {
     return arguments;
   }
 
-  Map<FieldElement, Expression> _customWidgetBindings(
+  Map<FieldElement, _MeasurementExpressionBinding> _customWidgetBindings(
     InstanceCreationExpression expression,
     InterfaceElement customClass,
+    MeasurementWidgetOccurrence occurrence,
   ) {
     final constructor = expression.constructorName.element;
     if (constructor is! ConstructorElement ||
@@ -939,7 +970,7 @@ final class _MeasurementSourceDiscovery {
         .where((parameter) => !parameter.isNamed)
         .toList(growable: false);
     var positionalIndex = 0;
-    final bindings = <FieldElement, Expression>{};
+    final bindings = <FieldElement, _MeasurementExpressionBinding>{};
     for (final argument in expression.argumentList.arguments) {
       FormalParameterElement? parameter;
       Expression value;
@@ -969,19 +1000,29 @@ final class _MeasurementSourceDiscovery {
             'A statically inlined custom-widget field parameter must resolve',
           );
         }
+        final binding = _MeasurementExpressionBinding(
+          expression: value,
+          eventOccurrence: occurrence.event(field),
+        );
         final previous = bindings[field];
-        if (previous != null && !identical(previous, value)) {
+        if (previous != null && !identical(previous.expression, value)) {
           throw ArgumentError(
             'A statically inlined custom-widget field was bound twice',
           );
         }
-        bindings[field] = value;
+        bindings[field] = binding;
       }
     }
     return UnmodifiableMapView(bindings);
   }
 
   Expression? _boundWidgetExpression(
+    Expression expression,
+    _WidgetVisitContext context,
+  ) =>
+      _boundExpression(expression, context)?.expression;
+
+  _MeasurementExpressionBinding? _boundExpression(
     Expression expression,
     _WidgetVisitContext context,
   ) {
@@ -1022,6 +1063,7 @@ final class _MeasurementSourceDiscovery {
       );
     }
     return _ResolvedInlinedHelper(
+      executable: executable,
       identity: helperIdentity,
       definition: definition,
       parameterBindings: parameterBindings,
@@ -1032,8 +1074,7 @@ final class _MeasurementSourceDiscovery {
 final class _WidgetVisitContext {
   const _WidgetVisitContext._({
     required this.sourceProvenance,
-    required this.pathSegments,
-    required this.parentNodeKey,
+    required this.occurrenceScope,
     required this.inlinedCustomWidgetIdentities,
     required this.expressionBindings,
     required this.helperDefinitions,
@@ -1043,13 +1084,15 @@ final class _WidgetVisitContext {
   factory _WidgetVisitContext.root(
     MeasurementSourceProvenance provenance,
     Expression rootExpression,
+    Map<Element, Expression> rootLocalBindings,
   ) =>
       _WidgetVisitContext._(
         sourceProvenance: provenance,
-        pathSegments: const [],
-        parentNodeKey: null,
+        occurrenceScope: MeasurementOccurrenceScope.root(
+          provenance.resolvedSourceIdentity,
+        ),
         inlinedCustomWidgetIdentities: const [],
-        expressionBindings: const {},
+        expressionBindings: _plainExpressionBindings(rootLocalBindings),
         helperDefinitions: Map.unmodifiable(
           inlinableHelperDefinitionsIn(rootExpression),
         ),
@@ -1057,30 +1100,28 @@ final class _WidgetVisitContext {
       );
 
   final MeasurementSourceProvenance sourceProvenance;
-  final List<_StructuralPathSegment> pathSegments;
-  final String? parentNodeKey;
+  final MeasurementOccurrenceScope occurrenceScope;
   final List<String> inlinedCustomWidgetIdentities;
-  final Map<Element, Expression> expressionBindings;
+  final Map<Element, _MeasurementExpressionBinding> expressionBindings;
   final Map<Element, HelperDef> helperDefinitions;
   final List<String> inlinedHelperIdentities;
 
+  Map<Element, Expression> get plainExpressionBindings => Map.unmodifiable({
+        for (final entry in expressionBindings.entries)
+          entry.key: entry.value.expression,
+      });
+
+  /// The slot scope continues from this context's scope, so a helper entered
+  /// before the slot keys the same way it does in the emitted translation.
   _WidgetVisitContext child({
-    required String parentNodeKey,
-    required String parentWidgetIdentity,
-    required String slotIdentity,
+    required MeasurementWidgetOccurrence parent,
+    required FormalParameterElement slot,
     required int ordinal,
   }) =>
       _WidgetVisitContext._(
         sourceProvenance: sourceProvenance,
-        pathSegments: [
-          ...pathSegments,
-          _StructuralPathSegment.child(
-            parentWidgetIdentity: parentWidgetIdentity,
-            slotIdentity: slotIdentity,
-            ordinal: ordinal,
-          ),
-        ],
-        parentNodeKey: parentNodeKey,
+        occurrenceScope:
+            parent.withScope(occurrenceScope).child(slot, ordinal: ordinal),
         inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
         expressionBindings: expressionBindings,
         helperDefinitions: helperDefinitions,
@@ -1088,53 +1129,44 @@ final class _WidgetVisitContext {
       );
 
   _WidgetVisitContext enterInline({
-    required String parentNodeKey,
-    required String customIdentity,
-    required Map<FieldElement, Expression> fieldBindings,
+    required MeasurementWidgetOccurrence parent,
+    required Map<FieldElement, _MeasurementExpressionBinding> fieldBindings,
     required InlinedDefinitions inlinedDefinitions,
-  }) =>
-      _WidgetVisitContext._(
-        sourceProvenance: sourceProvenance,
-        pathSegments: [
-          ...pathSegments,
-          _StructuralPathSegment.inline(customIdentity),
-          _StructuralPathSegment.inlinedBody(customIdentity),
-        ],
-        parentNodeKey: parentNodeKey,
-        inlinedCustomWidgetIdentities: [
-          ...inlinedCustomWidgetIdentities,
-          customIdentity,
-        ],
-        // A nested custom body can pass one of its own fields through to a
-        // descendant custom widget. Retaining the outer bindings lets the
-        // resolved field reference continue to its exact source call-site.
-        expressionBindings: Map.unmodifiable({
-          ...expressionBindings,
-          ...fieldBindings,
-          ...inlinedDefinitions.localBindings,
-        }),
-        helperDefinitions: Map.unmodifiable({
-          ...helperDefinitions,
-          ...inlinedDefinitions.helpers,
-        }),
-        inlinedHelperIdentities: inlinedHelperIdentities,
-      );
+  }) {
+    final customIdentity = parent.widgetIdentity;
+    return _WidgetVisitContext._(
+      sourceProvenance: sourceProvenance,
+      occurrenceScope: parent.enterInlinedBody(),
+      inlinedCustomWidgetIdentities: [
+        ...inlinedCustomWidgetIdentities,
+        customIdentity,
+      ],
+      // Preserve exact outer field bindings through nested custom calls.
+      expressionBindings: Map.unmodifiable({
+        ...expressionBindings,
+        ...fieldBindings,
+        ..._plainExpressionBindings(inlinedDefinitions.localBindings),
+      }),
+      helperDefinitions: Map.unmodifiable({
+        ...helperDefinitions,
+        ...inlinedDefinitions.helpers,
+      }),
+      inlinedHelperIdentities: inlinedHelperIdentities,
+    );
+  }
 
   _WidgetVisitContext enterHelper({
+    required ExecutableElement helper,
     required String helperIdentity,
     required Map<Element, Expression> parameterBindings,
   }) =>
       _WidgetVisitContext._(
         sourceProvenance: sourceProvenance,
-        pathSegments: [
-          ...pathSegments,
-          _StructuralPathSegment.helper(helperIdentity),
-        ],
-        parentNodeKey: parentNodeKey,
+        occurrenceScope: occurrenceScope.enterHelper(helper),
         inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
         expressionBindings: Map.unmodifiable({
           ...expressionBindings,
-          ...parameterBindings,
+          ..._plainExpressionBindings(parameterBindings),
         }),
         helperDefinitions: helperDefinitions,
         inlinedHelperIdentities: [
@@ -1144,77 +1176,22 @@ final class _WidgetVisitContext {
       );
 
   _WidgetVisitContext withCollectionOccurrence(
-    CollectionSemanticOccurrence occurrence, {
-    required bool includeStructure,
-  }) =>
+    CollectionSemanticOccurrence occurrence,
+  ) =>
       _WidgetVisitContext._(
         sourceProvenance: sourceProvenance,
-        pathSegments: [
-          ...pathSegments,
-          if (includeStructure) ...[
-            for (final step in occurrence.structuralPath)
-              _StructuralPathSegment.collectionStructure(step),
-            for (final (index, step) in occurrence.sourceProvenance.indexed)
-              _StructuralPathSegment.semanticSource(step, index),
-          ],
-        ],
-        parentNodeKey: parentNodeKey,
+        occurrenceScope: occurrenceScope.enterCollectionOccurrence(occurrence),
         inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
+        // Traversal bindings contribute the occurrence's own elements; an
+        // element this context already binds keeps its binding, which carries
+        // the forwarding occurrence a collapsed chain drops.
         expressionBindings: Map.unmodifiable({
+          ..._plainExpressionBindings(occurrence.bindings),
           ...expressionBindings,
-          ...occurrence.bindings,
         }),
         helperDefinitions: helperDefinitions,
         inlinedHelperIdentities: inlinedHelperIdentities,
       );
-}
-
-bool _isDirectListExpression(CollectionSemanticOccurrence occurrence) {
-  if (occurrence.structuralPath case [final root]) {
-    return root.kind == CollectionStructuralOccurrenceKind.listElement &&
-        identical(root.node, occurrence.authoredExpression);
-  }
-  return false;
-}
-
-final class _StructuralPathSegment {
-  const _StructuralPathSegment._(this.value);
-
-  factory _StructuralPathSegment.widget(String widgetIdentity) =>
-      _StructuralPathSegment._('widget:$widgetIdentity');
-
-  factory _StructuralPathSegment.child({
-    required String parentWidgetIdentity,
-    required String slotIdentity,
-    required int ordinal,
-  }) =>
-      _StructuralPathSegment._(
-        'child:$parentWidgetIdentity:$slotIdentity[$ordinal]',
-      );
-
-  factory _StructuralPathSegment.inline(String customIdentity) =>
-      _StructuralPathSegment._('inline:$customIdentity');
-
-  factory _StructuralPathSegment.inlinedBody(String customIdentity) =>
-      _StructuralPathSegment._('inlinedBody:$customIdentity');
-
-  factory _StructuralPathSegment.helper(String helperIdentity) =>
-      _StructuralPathSegment._('helper:$helperIdentity');
-
-  factory _StructuralPathSegment.collectionStructure(
-    CollectionStructuralOccurrenceStep step,
-  ) =>
-      _StructuralPathSegment._(
-        'collection:${step.kind.name}[${step.ordinal}]',
-      );
-
-  factory _StructuralPathSegment.semanticSource(
-    CollectionSemanticSourceStep step,
-    int ordinal,
-  ) =>
-      _StructuralPathSegment._('source:${step.kind.name}[$ordinal]');
-
-  final String value;
 }
 
 final class _ResolvedArgument {
@@ -1224,37 +1201,46 @@ final class _ResolvedArgument {
   final Expression value;
 }
 
+final class _MeasurementExpressionBinding {
+  const _MeasurementExpressionBinding({
+    required this.expression,
+    this.eventOccurrence,
+  });
+
+  final Expression expression;
+  final MeasurementEventOccurrence? eventOccurrence;
+}
+
+Map<Element, _MeasurementExpressionBinding> _plainExpressionBindings(
+  Map<Element, Expression> bindings,
+) =>
+    Map<Element, _MeasurementExpressionBinding>.unmodifiable(
+      <Element, _MeasurementExpressionBinding>{
+        for (final entry in bindings.entries)
+          entry.key: _MeasurementExpressionBinding(expression: entry.value),
+      },
+    );
+
 final class _ResolvedInlinedHelper {
   const _ResolvedInlinedHelper({
+    required this.executable,
     required this.identity,
     required this.definition,
     required this.parameterBindings,
   });
 
+  final ExecutableElement executable;
   final String identity;
   final HelperDef definition;
   final Map<Element, Expression> parameterBindings;
 }
 
-String _structuralOccurrenceKey(
-  MeasurementSourceProvenance provenance,
-  Iterable<_StructuralPathSegment> segments,
-) =>
-    '${provenance.resolvedSourceIdentity}|'
-    '${segments.map((segment) => segment.value).join('|')}';
-
 String _eventKey(MeasurementDiscoveredEvent event) =>
     '${event.node.structuralOccurrenceKey}\u0000'
     '${event.resolvedEvent.resolvedSemanticIdentity}';
 
-String _classIdentity(InterfaceElement element) {
-  final name = element.name;
-  final libraryUri = element.library.identifier;
-  if (name == null || name.isEmpty || libraryUri.isEmpty) {
-    throw ArgumentError('Resolved class identities must be stable');
-  }
-  return '$libraryUri#$name';
-}
+String _classIdentity(InterfaceElement element) =>
+    measurementClassIdentity(element);
 
 Expression _withoutParentheses(Expression expression) {
   var current = expression;
@@ -1294,20 +1280,8 @@ bool _isFlutterStateMethodTearOff(Expression expression) {
       );
 }
 
-String _helperIdentity(ExecutableElement executable) {
-  final libraryUri = executable.library.identifier;
-  final executableName = executable.name;
-  final owner = executable.enclosingElement;
-  final ownerName = owner is InterfaceElement ? owner.name : null;
-  if (libraryUri.isEmpty ||
-      executableName == null ||
-      executableName.isEmpty ||
-      (ownerName != null && ownerName.isEmpty)) {
-    throw ArgumentError('Resolved helper identities must be stable');
-  }
-  final ownerIdentity = ownerName ?? 'topLevel';
-  return '$libraryUri#$ownerIdentity.$executableName';
-}
+String _helperIdentity(ExecutableElement executable) =>
+    measurementHelperIdentity(executable);
 
 bool _hasResolvedAnnotationFromOrigin(
   Element element, {

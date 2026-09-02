@@ -264,7 +264,7 @@ void main() {
       expect(result.blueprint, isNotNull);
     });
 
-    test('rejects State.build() with non-const locals', () async {
+    test('captures a final prelude as element-keyed local bindings', () async {
       final result = await _extractBlueprint('''
         $kSourceStateStubs
 
@@ -283,6 +283,457 @@ void main() {
           Widget build(BuildContext context) {
             final label = 'Ready';
             return Text(label);
+          }
+        }
+      ''');
+
+      expect(result.issues, isEmpty);
+      final blueprint = result.blueprint;
+      expect(blueprint, isNotNull);
+      expect(blueprint!.localBindings, hasLength(1));
+      final binding = blueprint.localBindings.entries.single;
+      expect(binding.key.name, 'label');
+      expect(binding.value.toSource(), "'Ready'");
+    });
+
+    test('leaves localBindings empty for a const-only prelude', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            const label = 'Ready';
+            return Text(label);
+          }
+        }
+      ''');
+
+      expect(result.issues, isEmpty);
+      expect(result.blueprint, isNotNull);
+      expect(result.blueprint!.localBindings, isEmpty);
+    });
+
+    test('collects a State handler referenced only through a prelude local',
+        () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class GestureDetector extends Widget {
+          const GestureDetector({this.onTap});
+          final void Function()? onTap;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          void toggle() => setState(() => annual = !annual);
+          Widget build(BuildContext context) {
+            final onTap = toggle;
+            return GestureDetector(onTap: onTap);
+          }
+        }
+      ''');
+
+      expect(result.issues, isEmpty);
+      expect(result.blueprint, isNotNull);
+      expect(result.blueprint!.eventHandlers.keys, contains('toggle'));
+    });
+
+    test('rejects a prelude local that is never read', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            final unread = 'Ready';
+            return Text('Go');
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains("'unread'"));
+      expect(result.issues.single.message, contains('never read'));
+    });
+
+    test('rejects a grouped prelude declaration by name', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            const gap = 'a', radius = 'b';
+            return Text(gap);
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains("'gap, radius'"));
+      expect(result.issues.single.message, contains('split'));
+    });
+
+    test('rejects an unread local holding a call with an effect', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class Navigator {
+          static Object? push(BuildContext context, Object route) => null;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            final pushed = Navigator.push(context, 0);
+            return Text('Ready');
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains("'pushed'"));
+    });
+
+    test('accepts a local read only through another local', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            final base = 'Annual';
+            final label = base;
+            return Text(label);
+          }
+        }
+      ''');
+
+      expect(result.issues, isEmpty);
+      expect(result.blueprint, isNotNull);
+      expect(result.blueprint!.localBindings, hasLength(2));
+    });
+
+    test('counts a local consumed by a non-widget key API as read', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        String hostText({String? key}) => key ?? '';
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final lookup = 'plan';
+            return Text(hostText(key: lookup));
+          }
+        }
+      ''');
+
+      expect(result.issues, isEmpty);
+      expect(result.blueprint, isNotNull);
+      expect(result.blueprint!.localBindings, hasLength(1));
+    });
+
+    test('rejects a direct prelude binding cycle', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final Widget child = child;
+            return child;
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains('cyclic build() binding'));
+    });
+
+    test('rejects a transitive prelude binding cycle', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final Widget first = second;
+            final Widget second = first;
+            return first;
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains('cyclic build() binding'));
+    });
+
+    test('rejects a direct cycle through a discarded widget key', () async {
+      final result = await _extractBlueprint('''
+        import 'package:flutter/material.dart';
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final dynamic child = Text('Ready', key: child);
+            return child;
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains('cyclic build() binding'));
+    });
+
+    test('rejects a transitive cycle through a discarded widget key', () async {
+      final result = await _extractBlueprint('''
+        import 'package:flutter/material.dart';
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final dynamic first = second;
+            final dynamic second = Text('Ready', key: first);
+            return second;
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(result.issues.single.message, contains('cyclic build() binding'));
+    });
+
+    test('rejects grouped final declarations', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final first = 'A', second = 'B';
+            return Text(first + second);
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+    });
+
+    test('rejects grouped const declarations', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            const first = 'A', second = 'B';
+            return Text(first + second);
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+    });
+
+    test('rejects a final local without an initializer', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            final String label;
+            return Text('Ready');
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+      expect(
+        result.issues.single.message,
+        contains('no resolved declaration or initializer'),
+      );
+    });
+
+    test('rejects a late final prelude local', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatelessWidget {
+          const ProPaywall();
+          Widget build(BuildContext context) {
+            late final label = 'Ready';
+            return Text(label);
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+    });
+
+    test('rejects State.build() with a reassignable local', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            var label = 'Ready';
+            return Text(label);
+          }
+        }
+      ''');
+
+      expect(result.blueprint, isNull);
+      expect(result.issues.map((issue) => issue.code), [
+        IssueCode.buildMethodTooComplex,
+      ]);
+    });
+
+    test('rejects State.build() with a non-declaration statement', () async {
+      final result = await _extractBlueprint('''
+        $kSourceStateStubs
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        class ProPaywall extends StatefulWidget {
+          const ProPaywall();
+          _ProPaywallState createState() => _ProPaywallState();
+        }
+
+        class _ProPaywallState extends State<ProPaywall> {
+          bool annual = false;
+          Widget build(BuildContext context) {
+            annual = true;
+            return Text('Ready');
           }
         }
       ''');
@@ -326,7 +777,7 @@ Future<({SourceBuildBlueprint? blueprint, List<Issue> issues})>
   final assetMap = {inputId.toString(): source};
   final readerWriter = await readerWriterWithFilesystemSources(
     rootPackage: inputId.package,
-    includeFlutter: false,
+    includeFlutter: source.contains('package:flutter/'),
   );
   readerWriter.testing.writeString(inputId, source);
 

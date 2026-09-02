@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:build/build.dart';
@@ -126,6 +127,246 @@ final class MeasuredScreen extends StatelessWidget {
 }
 ''';
 
+const _preludeSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@Screen(id: 'measured', surface: Surface.general)
+final class MeasuredScreen extends StatelessWidget {
+  const MeasuredScreen({super.key});
+
+  static const activate = SurfaceEvent<void>('activate');
+
+  @override
+  Widget build(BuildContext context) {
+    final action = FilledButton(
+      onPressed: surfaceEvent(activate),
+      child: const Text('Go'),
+    );
+    return Column(children: [action]);
+  }
+}
+''';
+
+const _widgetListPreludeSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@Screen(id: 'measured', surface: Surface.general)
+final class MeasuredScreen extends StatelessWidget {
+  const MeasuredScreen({super.key});
+
+  static const activate = SurfaceEvent<void>('activate');
+
+  @override
+  Widget build(BuildContext context) {
+    final children = <Widget>[
+      const Text('First'),
+      FilledButton(
+        onPressed: surfaceEvent(activate),
+        child: const Text('Activate'),
+      ),
+      const Text('Last'),
+    ];
+    return Column(children: children);
+  }
+}
+''';
+
+const _widgetListHelperSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('acme.helperlist'),
+  capabilityVersion: 1,
+)
+const helperListLibrary = 0;
+
+@RestageWidget(
+  name: 'InlineActions',
+  library: WidgetLibrary.custom('acme.helperlist'),
+  category: WidgetCategory.input,
+  description: 'Inline actions.',
+)
+final class InlineActions extends StatelessWidget {
+  const InlineActions({required this.onPressed, super.key});
+
+  @RestageProperty(description: 'Activation callback.', required: true)
+  final VoidCallback onPressed;
+
+  List<Widget> _actions(VoidCallback callback) => <Widget>[
+        const Text('First'),
+        FilledButton(onPressed: callback, child: const Text('Inline')),
+        const Text('Last'),
+      ];
+
+  @override
+  Widget build(BuildContext context) => Column(children: _actions(onPressed));
+}
+
+@Screen(id: 'measured', surface: Surface.general)
+final class MeasuredScreen extends StatelessWidget {
+  const MeasuredScreen({super.key});
+
+  static const activate = SurfaceEvent<void>('activate');
+
+  @override
+  Widget build(BuildContext context) =>
+      InlineActions(onPressed: surfaceEvent(activate));
+}
+''';
+
+const _widgetListLiteralSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@Screen(id: 'measured', surface: Surface.general)
+final class MeasuredScreen extends StatelessWidget {
+  const MeasuredScreen({super.key});
+
+  static const activate = SurfaceEvent<void>('activate');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: <Widget>[
+          const Text('First'),
+          FilledButton(
+            onPressed: surfaceEvent(activate),
+            child: const Text('Activate'),
+          ),
+          const Text('Last'),
+        ],
+      );
+}
+''';
+
+const _occurrenceSource = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('acme.occurrence'),
+  capabilityVersion: 1,
+)
+const occurrenceLibrary = 0;
+
+@RestageWidget(
+  name: 'InlineAction',
+  library: WidgetLibrary.custom('acme.occurrence'),
+  category: WidgetCategory.input,
+  description: 'Inline action.',
+)
+final class InlineAction extends StatelessWidget {
+  const InlineAction({required this.onPressed, super.key});
+
+  @RestageProperty(description: 'Activation callback.', required: true)
+  final VoidCallback onPressed;
+
+  Widget _button(VoidCallback callback) => FilledButton(
+        onPressed: callback,
+        child: const Text('Inline'),
+      );
+
+  @override
+  Widget build(BuildContext context) => _button(onPressed);
+}
+
+@RestageWidget(
+  name: 'OpaqueAction',
+  library: WidgetLibrary.custom('acme.occurrence'),
+  category: WidgetCategory.input,
+  description: 'App-backed action.',
+)
+final class OpaqueAction extends StatelessWidget {
+  const OpaqueAction({required this.onPressed, super.key});
+
+  @RestageProperty(description: 'Activation callback.', required: true)
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: _ActionPainter());
+}
+
+final class _ActionPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {}
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+@Screen(id: 'measured', surface: Surface.general)
+final class MeasuredScreen extends StatelessWidget {
+  const MeasuredScreen({super.key});
+
+  static const direct = SurfaceEvent<void>('direct');
+  static const repeated = SurfaceEvent<void>('repeated');
+  static const local = SurfaceEvent<void>('local');
+  static const localTwice = SurfaceEvent<void>('localTwice');
+  static const aliased = SurfaceEvent<void>('aliased');
+
+  @override
+  Widget build(BuildContext context) {
+    final callback = surfaceEvent(aliased);
+    final oneLocal = FilledButton(
+      onPressed: surfaceEvent(local),
+      child: const Text('One local'),
+    );
+    final firstTwiceLocal = FilledButton(
+      onPressed: surfaceEvent(localTwice),
+      child: const Text('First twice local'),
+    );
+    final secondTwiceLocal = FilledButton(
+      onPressed: surfaceEvent(localTwice),
+      child: const Text('Second twice local'),
+    );
+    final children = <Widget>[
+      FilledButton(
+        onPressed: surfaceEvent(direct),
+        child: const Text('Direct'),
+      ),
+      FilledButton(
+        onPressed: surfaceEvent(repeated),
+        child: const Text('Repeated A'),
+      ),
+      FilledButton(
+        onPressed: surfaceEvent(repeated),
+        child: const Text('Repeated B'),
+      ),
+      oneLocal,
+      firstTwiceLocal,
+      secondTwiceLocal,
+      FilledButton(onPressed: callback, child: const Text('Alias A')),
+      FilledButton(
+        onPressed: surfaceEvent(aliased),
+        child: const Text('Alias B'),
+      ),
+      GestureDetector(
+        onTap: surfaceEvent(aliased),
+        onDoubleTap: surfaceEvent(aliased),
+        child: const Text('Two slots'),
+      ),
+      InlineAction(onPressed: surfaceEvent(aliased)),
+      OpaqueAction(onPressed: surfaceEvent(aliased)),
+    ];
+    return Column(children: children);
+  }
+}
+''';
+
 const _aliasSource = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -199,6 +440,310 @@ final class WitnessOffer extends StatelessWidget {
 ''';
 
 void main() {
+  test(
+    'a measured slot on a widget held in a build() local reaches the route '
+    'plan through the production compiler',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final compilation = await testBuilder(
+        const PackageSurfaceCompilerBuilder(_bundledPolicyOptions),
+        const <String, String>{_sourceAsset: _preludeSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        compilation.succeeded,
+        isTrue,
+        reason: compilation.errors.join('\n'),
+      );
+      final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+
+      expect(output.valid, isTrue);
+      final routes = output.publications.single.routePlan.routes;
+      expect(routes, hasLength(1));
+      expect(routes.single.generatedReferenceId.value, isNotEmpty);
+    },
+  );
+
+  test(
+    'a locally held widget list matches its publication twin',
+    () async {
+      Future<
+          ({
+            Uint8List measurementBytes,
+            String publicationBundle,
+            RestageMeasurementCompilerOutputV1 output,
+          })> compile(String source) async {
+        final readerWriter = await readerWriterWithFilesystemSources(
+          rootPackage: 'apps_examples',
+        );
+        final compilation = await testBuilder(
+          const PackageSurfaceCompilerBuilder(_bundledPolicyOptions),
+          <String, String>{_sourceAsset: source},
+          rootPackage: 'apps_examples',
+          readerWriter: readerWriter,
+          flattenOutput: true,
+        );
+        expect(
+          compilation.succeeded,
+          isTrue,
+          reason: compilation.errors.join('\n'),
+        );
+        final measurementBytes = readerWriter.testing.readBytes(
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        );
+        return (
+          measurementBytes: measurementBytes,
+          publicationBundle: readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
+          output: RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+            measurementBytes,
+          ),
+        );
+      }
+
+      final local = await compile(_widgetListPreludeSource);
+      final literal = await compile(_widgetListLiteralSource);
+
+      expect(local.output.valid, isTrue);
+      expect(
+        local.measurementBytes,
+        orderedEquals(literal.measurementBytes),
+      );
+      expect(local.publicationBundle, literal.publicationBundle);
+      expect(local.output.publications.single.routePlan.routes, hasLength(1));
+      expect(
+        local.output.ledgerNodes
+            .expand((node) => node.events)
+            .map((event) => event.sourceEventIdentity.value),
+        ['onPressed'],
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test(
+    'a measured slot inside a helper feeding a widget list reaches the route '
+    'plan through the production compiler',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final catalogBuild = await testBuilder(
+        const UserCatalogJsonBuilder(BuilderOptions.empty),
+        const <String, String>{_sourceAsset: _widgetListHelperSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        catalogBuild.succeeded,
+        isTrue,
+        reason: catalogBuild.errors.join('\n'),
+      );
+      final compilation = await testBuilder(
+        const PackageSurfaceCompilerBuilder(_bundledPolicyOptions),
+        <String, String>{
+          _sourceAsset: _widgetListHelperSource,
+          _catalogAsset: readerWriter.testing.readString(
+            AssetId.parse(_catalogAsset),
+          ),
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        compilation.succeeded,
+        isTrue,
+        reason: compilation.errors.join('\n'),
+      );
+      final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+
+      expect(output.valid, isTrue);
+      expect(output.publications.single.routePlan.routes, hasLength(1));
+      expect(
+        output.ledgerNodes
+            .expand((node) => node.events)
+            .map((event) => event.sourceEventIdentity.value),
+        ['onPressed'],
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
+  test(
+    'structural event occurrences survive every supported expansion route',
+    () async {
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final catalogBuild = await testBuilder(
+        const UserCatalogJsonBuilder(BuilderOptions.empty),
+        const <String, String>{_sourceAsset: _occurrenceSource},
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        catalogBuild.succeeded,
+        isTrue,
+        reason: catalogBuild.errors.join('\n'),
+      );
+      final catalog = readerWriter.testing.readString(
+        AssetId.parse(_catalogAsset),
+      );
+      final compilation = await testBuilder(
+        const PackageSurfaceCompilerBuilder(_bundledPolicyOptions),
+        <String, String>{
+          _sourceAsset: _occurrenceSource,
+          _catalogAsset: catalog,
+        },
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        compilation.succeeded,
+        isTrue,
+        reason: compilation.errors.join('\n'),
+      );
+
+      final output = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+      expect(output.valid, isTrue);
+      final publication = output.publications.single;
+      expect(publication.routePlan.routes, hasLength(12));
+      expect(
+        publication.routePlan.routes
+            .map((route) => route.generatedReferenceId.value)
+            .toSet(),
+        hasLength(12),
+      );
+
+      final bundle = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(
+          readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
+        ) as Map<String, Object?>,
+      );
+      final manifestEntry = bundle.manifest!.publications.single;
+      final blobPath = manifestEntry.artifacts
+          .singleWhere(
+            (artifact) =>
+                artifact.role == SurfacePublicationArtifactRole.screenBlob,
+          )
+          .path;
+      final decodedBlob = fmt.decodeLibraryBlob(
+        Uint8List.fromList(bundle.artifacts[blobPath]!),
+      );
+      final handlers = _eventHandlers(decodedBlob);
+      expect(handlers, hasLength(12));
+      final eventCounts = <String, int>{};
+      for (final handler in handlers) {
+        eventCounts.update(
+          handler.eventName,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+      expect(
+        eventCounts,
+        <String, int>{
+          'direct': 1,
+          'repeated': 2,
+          'local': 1,
+          'localTwice': 2,
+          'aliased': 6,
+        },
+      );
+
+      final carriersByEvent = <String, List<String>>{};
+      for (final handler in handlers) {
+        final carrier =
+            handler.eventArguments[kMeasurementRouteArgumentKeyV1] as String?;
+        expect(carrier, isNotNull);
+        carriersByEvent
+            .putIfAbsent(handler.eventName, () => <String>[])
+            .add(carrier!);
+      }
+      for (final entry in carriersByEvent.entries) {
+        expect(entry.value.toSet(), hasLength(entry.value.length));
+      }
+      final routesByCarrier = {
+        for (final route in publication.routePlan.routes) route.carrier: route,
+      };
+      final reusedCarriers = carriersByEvent['localTwice']!;
+      expect(reusedCarriers, hasLength(2));
+      expect(reusedCarriers.toSet(), hasLength(2));
+      expect(
+        reusedCarriers
+            .map(
+              (carrier) => routesByCarrier[carrier]!.generatedReferenceId.value,
+            )
+            .toSet(),
+        hasLength(2),
+      );
+      expect(
+        output.ledgerNodes
+            .expand((node) => node.events)
+            .map((event) => event.sourceEventIdentity.value),
+        containsAll(<String>['onTap', 'onDoubleTap']),
+      );
+      final twoSlotNode = output.ledgerNodes.singleWhere(
+        (node) => node.events
+            .map((event) => event.sourceEventIdentity.value)
+            .toSet()
+            .containsAll(<String>{'onTap', 'onDoubleTap'}),
+      );
+      expect(
+        twoSlotNode.events
+            .map((event) => event.sourceEventIdentity.value)
+            .toSet(),
+        <String>{'onTap', 'onDoubleTap'},
+      );
+      final twoSlotReferences = twoSlotNode.events
+          .map((event) => event.generatedReferenceId.value)
+          .toSet();
+      expect(twoSlotReferences, hasLength(2));
+      final twoSlotCarriers = publication.routePlan.routes
+          .where(
+            (route) =>
+                twoSlotReferences.contains(route.generatedReferenceId.value),
+          )
+          .map((route) => route.carrier)
+          .toSet();
+      expect(twoSlotCarriers, hasLength(2));
+      expect(
+        carriersByEvent['aliased']!.toSet(),
+        containsAll(twoSlotCarriers),
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
+
   test(
     'default tracked builder emits ordinary, inline, opaque, repeated, and '
     'multi-slot routes before final hashes',
@@ -1443,6 +1988,97 @@ final class QuietFlow extends RestageFlow {
   );
 
   test(
+    'ordinary parenthesized elements preserve stored measurement identities',
+    () async {
+      await _expectParenthesizedActionLedgerCompatibility(
+        mixed: false,
+        fixturePath:
+            'test/fixtures/measurement_ledger/parenthesized_action_ordinary.json',
+      );
+    },
+  );
+
+  test(
+    'mixed parenthesized elements preserve stored measurement identities',
+    () async {
+      await _expectParenthesizedActionLedgerCompatibility(
+        mixed: true,
+        fixturePath:
+            'test/fixtures/measurement_ledger/parenthesized_action_mixed.json',
+      );
+    },
+  );
+
+  test('semantic collection entrances retain distinct measurement identities',
+      () async {
+    final ordinaryInline = await _compileMeasuredScreenSource(
+      _semanticEntranceSource(mixed: false, includeHelper: false),
+    );
+    final expandedInline = await _compileMeasuredScreenSource(
+      _semanticEntranceSource(mixed: true, includeHelper: false),
+    );
+    final compiled = await _compileMeasuredScreenSource(
+      _semanticEntranceSource(mixed: true),
+    );
+
+    expect(
+      (
+        compiled.output.valid,
+        compiled.output.publications.length,
+        compiled.output.proposals.length,
+        compiled.output.errors.length,
+      ),
+      (true, 1, 0, 0),
+    );
+    expect(
+      (
+        ordinaryInline.output.valid,
+        ordinaryInline.output.publications.length,
+        expandedInline.output.valid,
+        expandedInline.output.publications.length,
+      ),
+      (true, 1, true, 1),
+    );
+    const source = 'package:apps_examples/features/measured.dart#Welcome';
+    const column = 'package:flutter/src/widgets/basic.dart#Column';
+    const button =
+        'package:flutter/src/material/elevated_button.dart#ElevatedButton';
+    const custom = 'package:apps_examples/features/measured.dart#InlineAction';
+    final eventNodes = compiled.output.ledgerNodes
+        .where(
+          (node) => node.active && node.events.any((event) => event.active),
+        )
+        .toList();
+    const listRoot = '$source|child:$column:$column.children';
+    final distinctLocators = {
+      '$listRoot[0]|helper:$source.action|widget:$button',
+      '$listRoot[1]|inline:$custom|inlinedBody:$custom|widget:$button',
+    };
+    const selectedLocator = '$listRoot[2]|collection:listElement[2]|'
+        'collection:selectedThen[0]|widget:$button';
+    expect(
+      eventNodes.map((node) => node.structuralOccurrenceKey).toSet(),
+      {
+        ...distinctLocators,
+        selectedLocator,
+      },
+    );
+    expect(
+      eventNodes.map((node) => node.codeIdentityId.value).toSet(),
+      hasLength(3),
+    );
+    const inlineOnlyLocator =
+        '$listRoot[0]|inline:$custom|inlinedBody:$custom|widget:$button';
+    final ordinaryInlineNode = ordinaryInline.output.ledgerNodes.singleWhere(
+      (node) => node.structuralOccurrenceKey == inlineOnlyLocator,
+    );
+    final expandedInlineNode = expandedInline.output.ledgerNodes.singleWhere(
+      (node) => node.structuralOccurrenceKey == inlineOnlyLocator,
+    );
+    expect(expandedInlineNode.toJson(), ordinaryInlineNode.toJson());
+  });
+
+  test(
     'ledger rebuild is stable and source movement requires explicit reviewed '
     'relocation',
     () async {
@@ -1649,8 +2285,8 @@ Future<
     })> _compileLedgerSource(
   String source, {
   RestageMeasurementCompilerOutputV1? priorOutput,
+  String asset = 'apps_examples|lib/features/ledger.dart',
 }) async {
-  const asset = 'apps_examples|lib/features/ledger.dart';
   final sources = <String, String>{
     asset: source,
     if (priorOutput != null)
@@ -1677,6 +2313,164 @@ Future<
   );
   return (result: result, output: output);
 }
+
+Future<void> _expectParenthesizedActionLedgerCompatibility({
+  required bool mixed,
+  required String fixturePath,
+}) async {
+  final prior = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+    utf8.encode(File(fixturePath).readAsStringSync().trim()),
+  );
+  final compiled = await _compileLedgerSource(
+    _parenthesizedActionSource(mixed: mixed),
+    priorOutput: prior,
+    asset: 'apps_examples|lib/onboarding/screens/parenthesized_action.dart',
+  );
+  expect(
+    (
+      compiled.result.succeeded,
+      compiled.output.valid,
+      compiled.output.publications.length,
+      compiled.output.proposals.length,
+      compiled.output.errors.length,
+    ),
+    (true, true, 1, 0, 0),
+    reason: compiled.result.errors.join('\n'),
+  );
+
+  const buttonLocator =
+      'package:apps_examples/onboarding/screens/parenthesized_action.dart#Welcome|'
+      'child:package:flutter/src/widgets/basic.dart#Column:'
+      'package:flutter/src/widgets/basic.dart#Column.children[0]|'
+      'widget:package:flutter/src/material/elevated_button.dart#ElevatedButton';
+  final priorButton = prior.ledgerNodes.singleWhere(
+    (node) => node.structuralOccurrenceKey == buttonLocator,
+  );
+  expect(
+    (
+      priorButton.reconciliationFingerprint,
+      priorButton.codeIdentityId.value,
+      priorButton.canonicalNodeTokenId.value,
+    ),
+    (
+      'fingerprint.v1.'
+          'c82ea16ca1beff79d4623353a7b58392b'
+          'b97bc8c9f81d7058d717d629fa67f63',
+      'code.auto.0000000000000002',
+      'node.auto.0000000000000002',
+    ),
+  );
+  final currentButton = compiled.output.ledgerNodes.singleWhere(
+    (node) => node.structuralOccurrenceKey == buttonLocator,
+  );
+  expect(currentButton.toJson(), priorButton.toJson());
+
+  const subtree =
+      'package:apps_examples/onboarding/screens/parenthesized_action.dart#Welcome|'
+      'child:package:flutter/src/widgets/basic.dart#Column:'
+      'package:flutter/src/widgets/basic.dart#Column.children[0]|';
+  final priorSubtree = {
+    for (final node in prior.ledgerNodes.where(
+      (node) => node.active && node.structuralOccurrenceKey.startsWith(subtree),
+    ))
+      node.structuralOccurrenceKey: node.toJson(),
+  };
+  final currentSubtree = {
+    for (final node in compiled.output.ledgerNodes.where(
+      (node) => node.active && node.structuralOccurrenceKey.startsWith(subtree),
+    ))
+      node.structuralOccurrenceKey: node.toJson(),
+  };
+  expect(currentSubtree, priorSubtree);
+}
+
+String _parenthesizedActionSource({required bool mixed}) => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/parenthesized_action.restage.g.dart';
+
+@Screen(id: 'welcome', surface: Surface.general)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  static const activate = SurfaceEvent<void>('activate');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          (ElevatedButton(
+            onPressed: surfaceEvent(activate),
+            child: const Text('Continue'),
+          )),
+          ${mixed ? "if (true) const Text('Sentinel')," : ''}
+        ],
+      );
+}
+''';
+
+String _semanticEntranceSource({
+  required bool mixed,
+  bool includeHelper = true,
+}) =>
+    '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+part 'restage.generated/measured.restage.g.dart';
+
+@RestageLibrary(
+  library: WidgetLibrary.custom('acme.identity'),
+  capabilityVersion: 1,
+)
+const entranceLibrary = 0;
+
+@RestageWidget(
+  name: 'InlineAction',
+  library: WidgetLibrary.custom('acme.identity'),
+  category: WidgetCategory.input,
+  description: 'Inline action.',
+)
+final class InlineAction extends StatelessWidget {
+  const InlineAction({required this.onPressed, super.key});
+
+  @RestageProperty(description: 'Activation callback.', required: true)
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => ElevatedButton(
+        onPressed: onPressed,
+        child: const Text('Inline'),
+      );
+}
+
+@Screen(id: 'welcome', surface: Surface.general)
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  static const activate = SurfaceEvent<void>('activate');
+
+  Widget action() => ElevatedButton(
+        onPressed: surfaceEvent(activate),
+        child: const Text('Helper'),
+      );
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          ${includeHelper ? 'action(),' : ''}
+          InlineAction(onPressed: surfaceEvent(activate)),
+          ${mixed ? '''
+if (true)
+            ElevatedButton(
+              onPressed: surfaceEvent(activate),
+              child: const Text('Selected'),
+            ),''' : ''}
+        ],
+      );
+}
+''';
 
 Future<
     ({

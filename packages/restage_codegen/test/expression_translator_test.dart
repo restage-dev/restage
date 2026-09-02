@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/source/line_info.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
@@ -60,6 +63,31 @@ String _stripTestQuotes(String s) {
     return s.substring(1, s.length - 1);
   }
   return s;
+}
+
+Future<TranslationResult> _translateResolvedBody(
+  ExpressionTranslator translator, {
+  required String expression,
+  String declaration = '',
+  String prelude = '',
+}) async {
+  final call = await parseExpressionFromSourceForTest('''
+$declaration
+Object value() {
+$prelude
+  return $expression;
+}
+Object x() => value();
+''');
+  final value = (call.root as CompilationUnit)
+      .declarations
+      .whereType<FunctionDeclaration>()
+      .singleWhere((candidate) => candidate.name.lexeme == 'value');
+  final body = extractInlinableBuildBody(value.functionExpression.body)!;
+  return translator.translate(
+    body.expression,
+    rootLocalBindings: body.localBindings,
+  );
 }
 
 void main() {
@@ -3587,16 +3615,37 @@ Object x() => Column(
       );
     });
 
-    test('ignores key: argument (super.key)', () async {
-      // Text('hi', key: ValueKey('k')) — key is implicit-Flutter; codegen
-      // ignores it. The test catalog has no 'key' property declared, but key
-      // should NOT trigger unknownProperty.
-      final r = t.translate(
-        await parseExpressionForTest("Text('hi', key: ValueKey('k'))"),
+    test('drops a resolved Flutter widget key', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+        Object x() => Text(
+          'hi',
+          key: const ValueKey<String>('text'),
+        );
+        ''',
+        rootPackage: 'apps_examples',
       );
-      // The key arg is filtered out; emitted DSL has no 'key:' segment.
+      final r = t.translate(expression);
+
+      expect(r.issues.where((issue) => !issue.code.isInformational), isEmpty);
       expect(r.dsl, contains('Text(text: "hi"'));
       expect(r.dsl, isNot(contains('key:')));
+    });
+
+    test('diagnoses a key argument with an unresolved formal', () async {
+      final r = t.translate(
+        await parseExpressionForTest("Text('hi', key: ValueKey('text'))"),
+      );
+
+      expect(
+        r.issues.map((issue) => issue.code),
+        contains(IssueCode.unknownProperty),
+      );
+      expect(
+        r.issues.map((issue) => issue.message).join('\n'),
+        contains("Property 'key'"),
+      );
     });
   });
 
@@ -3790,6 +3839,71 @@ Object x() => Column(
       catalog: kEmptyCatalog,
       helpers: HelperRegistry()..registerAll(_testHelpers),
     );
+
+    const eventDeclaration = '''
+Object paywallEvent(String name, {Map<String, Object?>? args}) => Object();''';
+    final scalarCases = [
+      (
+        name: 'map key',
+        declaration: eventDeclaration,
+        prelude: "  final key = 'term';",
+        bound: "paywallEvent('continue', args: {key: 'annual'})",
+        inline: "paywallEvent('continue', args: {'term': 'annual'})",
+        expected: 'event "continue" { term: "annual" }',
+      ),
+      (
+        name: 'duration unit',
+        declaration: '',
+        prelude: '  final seconds = 1;',
+        bound: 'Duration(seconds: seconds)',
+        inline: 'Duration(seconds: 1)',
+        expected: '1000',
+      ),
+    ];
+    for (final scalarCase in scalarCases) {
+      test('bound ${scalarCase.name} matches inline bytes', () async {
+        final inline = await _translateResolvedBody(
+          tHelpers,
+          declaration: scalarCase.declaration,
+          expression: scalarCase.inline,
+        );
+        expect(inline.issues, isEmpty);
+        expect(inline.dsl, scalarCase.expected);
+
+        final result = await _translateResolvedBody(
+          tHelpers,
+          declaration: scalarCase.declaration,
+          prelude: scalarCase.prelude,
+          expression: scalarCase.bound,
+        );
+        expect(result.issues, isEmpty, reason: result.issues.join('\n'));
+        expect(utf8.encode(result.dsl), utf8.encode(inline.dsl));
+      });
+    }
+
+    test('a helper refused for a grouped prelude declaration is named',
+        () async {
+      const source = '''
+        class Text {
+          const Text(this.data);
+          final String data;
+        }
+        Text label() {
+          const first = "a", second = "b";
+          return Text(first);
+        }
+        Object x() => label();
+      ''';
+      final expr = await parseExpressionFromSourceForTest(source);
+      final r = tHelpers.translate(expr);
+      expect(r.dsl, isEmpty);
+      expect(
+        r.issues.map((issue) => issue.code),
+        contains(IssueCode.customWidgetInliningDeferred),
+      );
+      expect(r.issues.first.message, contains("'first, second'"));
+      expect(r.issues.first.message, contains('split'));
+    });
 
     test('paywallEvent("restore") is rejected', () async {
       final expr = await parseExpressionForTest('paywallEvent("restore")');
@@ -4344,6 +4458,25 @@ Object x() => Switch(
         'fontWeight: "w700" } }, { text: "  per member / month", '
         'style: { color: 0xFF787774, fontSize: 13.0 } }] })',
       );
+    });
+
+    test('Text.rich drops a resolved Flutter widget key', () async {
+      final expr = await parseExpressionFromSourceForTest(
+        '''
+        import 'package:flutter/material.dart';
+        Object x() => Text.rich(
+          const TextSpan(text: 'Ready'),
+          key: const ValueKey<String>('rich-text'),
+        );
+        ''',
+        rootPackage: 'apps_examples',
+      );
+
+      final r = textRichTranslator.translate(expr);
+
+      expect(r.issues.where((issue) => !issue.code.isInformational), isEmpty);
+      expect(r.dsl, 'TextRich(textSpan: { text: "Ready" })');
+      expect(r.dsl, isNot(contains('key:')));
     });
 
     test('mixed-style legal paragraph emits nested span styles', () async {

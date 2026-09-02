@@ -1,7 +1,9 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -23,12 +25,16 @@ void main() {
 
       Object x() => Probe(onPressed: paywallEvent('activate'));
     ''');
-    final eventExpression = (root as InstanceCreationExpression)
-        .argumentList
-        .arguments
+    final widget = root as InstanceCreationExpression;
+    final eventParameter = widget.argumentList.arguments
         .whereType<NamedExpression>()
         .single
-        .expression;
+        .name
+        .label
+        .element! as FormalParameterElement;
+    final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
+        .widget(widget.constructorName.type.element! as InterfaceElement)
+        .event(eventParameter);
     final generatedReferenceId = GeneratedReferenceId(
       'reference.route-translator',
     );
@@ -51,7 +57,7 @@ void main() {
         ]),
       measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([
         MeasurementRouteEmissionBinding(
-          sourceExpression: eventExpression,
+          occurrence: eventOccurrence,
           generatedReferenceId: generatedReferenceId,
         ),
       ]),
@@ -82,12 +88,16 @@ void main() {
 
       Object x() => Probe(onPressed: paywallEvent('activate'));
     ''');
-    final eventExpression = (root as InstanceCreationExpression)
-        .argumentList
-        .arguments
+    final widget = root as InstanceCreationExpression;
+    final eventParameter = widget.argumentList.arguments
         .whereType<NamedExpression>()
         .single
-        .expression;
+        .name
+        .label
+        .element! as FormalParameterElement;
+    final eventOccurrence = MeasurementOccurrenceScope.root('test#Source')
+        .widget(widget.constructorName.type.element! as InterfaceElement)
+        .event(eventParameter);
     final translator = ExpressionTranslator(
       catalog: catalogWith([
         entry(
@@ -108,7 +118,7 @@ void main() {
         ]),
       measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([
         MeasurementRouteEmissionBinding(
-          sourceExpression: eventExpression,
+          occurrence: eventOccurrence,
           generatedReferenceId: GeneratedReferenceId(
             'reference.route-authored-reserved',
           ),

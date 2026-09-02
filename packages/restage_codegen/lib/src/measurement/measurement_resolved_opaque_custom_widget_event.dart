@@ -28,6 +28,7 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
     required this.widgetClassName,
     required this.catalogWidgetWireId,
     required this.catalogLibraryNamespace,
+    required this.eventElement,
     required this.declarationProvenance,
   });
 
@@ -169,6 +170,7 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
           widgetClassName: widgetClassName,
           catalogWidgetWireId: catalogWidget.wireId,
           catalogLibraryNamespace: catalogWidget.library.namespace,
+          eventElement: parameter,
           declarationProvenance: MeasurementEventDeclarationProvenance(
             libraryUri: eventLibraryUri,
             className: eventOwnerClassName,
@@ -201,6 +203,10 @@ final class MeasurementResolvedOpaqueCustomWidgetEvent
 
   /// Installed custom catalog library namespace.
   final String catalogLibraryNamespace;
+
+  /// Exact analyzer element declaring this callback slot.
+  @override
+  final FormalParameterElement eventElement;
 
   /// Exact compiler-only declaration provenance for this event slot.
   @override

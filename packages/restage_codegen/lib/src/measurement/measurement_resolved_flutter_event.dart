@@ -12,6 +12,7 @@ final class MeasurementResolvedFlutterEvent extends MeasurementResolvedEvent {
     required this.eventLibraryUri,
     required this.eventOwnerClassName,
     required this.eventElementName,
+    required this.eventElement,
     required this.declarationProvenance,
   });
 
@@ -62,6 +63,7 @@ final class MeasurementResolvedFlutterEvent extends MeasurementResolvedEvent {
       eventLibraryUri: eventLibraryUri!,
       eventOwnerClassName: eventOwnerClassName,
       eventElementName: eventElementName,
+      eventElement: eventElement,
       declarationProvenance: MeasurementEventDeclarationProvenance(
         libraryUri: eventLibraryUri,
         className: eventOwnerClassName,
@@ -85,6 +87,10 @@ final class MeasurementResolvedFlutterEvent extends MeasurementResolvedEvent {
 
   /// Resolved callback element name.
   final String eventElementName;
+
+  /// Exact analyzer element declaring this callback slot.
+  @override
+  final Element eventElement;
 
   /// Exact compiler-only declaration provenance for the callback slot.
   @override

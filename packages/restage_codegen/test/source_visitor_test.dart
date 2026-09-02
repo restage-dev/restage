@@ -142,7 +142,7 @@ void main() {
       );
     });
 
-    test('emits buildMethodTooComplex on multi-statement body', () async {
+    test('emits buildMethodTooComplex on a reassignable local', () async {
       final result = await runVisitorOn({
         'lib/foo.dart': '''
           $kStubAnnotationsAndBases
@@ -151,7 +151,7 @@ void main() {
           class FooPaywall extends StatelessWidget {
             const FooPaywall();
             Widget build(BuildContext context) {
-              final x = 1;
+              var x = 1;
               return x;
             }
           }
@@ -163,10 +163,51 @@ void main() {
       );
     });
 
+    test('emits buildMethodTooComplex on control flow in build()', () async {
+      final result = await runVisitorOn({
+        'lib/foo.dart': '''
+          $kStubAnnotationsAndBases
+
+          @PaywallSource(id: 'foo')
+          class FooPaywall extends StatelessWidget {
+            const FooPaywall();
+            Widget build(BuildContext context) {
+              if (1 > 0) {
+                return 1;
+              }
+              return 2;
+            }
+          }
+        ''',
+      });
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.buildMethodTooComplex),
+      );
+    });
+
+    test('extracts the root expression past a leading final local', () async {
+      final result = await runVisitorOn({
+        'lib/foo.dart': '''
+          $kStubAnnotationsAndBases
+
+          @PaywallSource(id: 'foo')
+          class FooPaywall extends StatelessWidget {
+            const FooPaywall();
+            Widget build(BuildContext context) {
+              final accent = 0xFF3366FF;
+              return accent;
+            }
+          }
+        ''',
+      });
+      expect(result.issues, isEmpty);
+      expect(result.sources, hasLength(1));
+      expect(result.sources.first.build.localBindings, hasLength(1));
+    });
+
     test('extracts the root expression past leading const locals', () async {
-      // A `const` local before the single return is inert compile-time data;
-      // the body still reduces to one returned widget (its reference folds at
-      // translation). `final` / `var` locals stay rejected (the test above).
+      // Const locals fold at use sites and are not captured as bindings.
       final result = await runVisitorOn({
         'lib/foo.dart': '''
           $kStubAnnotationsAndBases
@@ -184,6 +225,7 @@ void main() {
       expect(result.issues, isEmpty);
       expect(result.sources, hasLength(1));
       expect(result.sources.first.rootExpression, isNotNull);
+      expect(result.sources.first.build.localBindings, isEmpty);
     });
 
     test('emits duplicateId when two classes share the same id', () async {

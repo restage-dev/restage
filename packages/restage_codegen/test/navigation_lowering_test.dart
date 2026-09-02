@@ -4,16 +4,19 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:collection/collection.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/production_helpers.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
+import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
@@ -115,6 +118,810 @@ Object x(BuildContext context) => Column(
       expect(translation.issues, isEmpty);
       expect(translation.navigation, isNotNull);
       expect(translation.navigation!.transitions.single.event, 'restageNav1');
+    });
+
+    test('an event inside a build local reserves its authored name', () async {
+      final translation = await _translateBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) {
+  final terms = ElevatedButton(
+    onPressed: paywallEvent('restageNav0'),
+    child: const Text('Terms'),
+  );
+  return Column(
+    children: [
+      terms,
+      ElevatedButton(
+        onPressed: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+        ),
+        child: const Text('Choose'),
+      ),
+      ElevatedButton(
+        onPressed: paywallEvent('skip'),
+        child: const Text('Dismiss'),
+      ),
+    ],
+  );
+}
+''');
+
+      expect(translation.issues, isEmpty);
+      expect(
+        RegExp(r'event "restageNav0" \{\}').allMatches(translation.dsl),
+        hasLength(1),
+      );
+      expect(
+        RegExp(r'event "restageNav1" \{\}').allMatches(translation.dsl),
+        hasLength(1),
+      );
+      expect(translation.dsl, contains('event "skip" {}'));
+      expect(translation.dsl, contains('Text(text: "Terms")'));
+      expect(translation.dsl, contains('Text(text: "Choose")'));
+      expect(translation.dsl, contains('Text(text: "Dismiss")'));
+      expect(translation.navigation!.transitions.single.event, 'restageNav1');
+      expect(
+        translation.navigation!.transitions.single.pushedId,
+        'choose_plan',
+      );
+    });
+
+    test('an inlined action reserves its authored navigation name', () async {
+      final translation = await _translateCustomBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'TermsAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'terms action',
+)
+class TermsAction extends StatelessWidget {
+  const TermsAction();
+
+  Widget build(BuildContext context) => ElevatedButton(
+    onPressed: paywallEvent('restageNav0'),
+    child: const Text('Terms'),
+  );
+}
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => Column(
+  children: [
+    const TermsAction(),
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Dismiss'),
+    ),
+  ],
+);
+''');
+
+      expect(translation.issues, isEmpty);
+      final emitted = [
+        ...translation.widgetDefinitions.values,
+        translation.dsl,
+      ].join('\n');
+      expect(
+        (
+          event: translation.navigation!.transitions.single.event,
+          authoredHandlers:
+              RegExp(r'event "restageNav0" \{\}').allMatches(emitted).length,
+          generatedHandlers:
+              RegExp(r'event "restageNav1" \{\}').allMatches(emitted).length,
+        ),
+        (event: 'restageNav1', authoredHandlers: 1, generatedHandlers: 1),
+      );
+    });
+
+    test('a false collection branch leaves the first navigation name free',
+        () async {
+      final translation = await _translateCustomBuildEntry(
+        _navigationActionSource('''
+Column(
+  children: [
+    if (false)
+      ElevatedButton(
+        onPressed: paywallEvent('restageNav0'),
+        child: const Text('Hidden'),
+      ),
+    const Text('Terms'),
+  ],
+)
+'''),
+      );
+
+      expect(translation.issues, isEmpty);
+      final definition = translation.widgetDefinitions['TermsAction']!;
+      expect(
+        (
+          definition: definition,
+          authoredHandlers:
+              RegExp(r'event "restageNav0" \{\}').allMatches(definition).length,
+          generatedHandlers: RegExp(r'event "restageNav0" \{\}')
+              .allMatches(translation.dsl)
+              .length,
+          nextHandlers: RegExp(r'event "restageNav1" \{\}')
+              .allMatches(translation.dsl)
+              .length,
+          event: translation.navigation!.transitions.single.event,
+        ),
+        (
+          definition: 'Column(children: [Text(text: "Terms")])',
+          authoredHandlers: 0,
+          generatedHandlers: 1,
+          nextHandlers: 0,
+          event: 'restageNav0',
+        ),
+      );
+    });
+
+    test('a true collection branch reserves its authored navigation name',
+        () async {
+      final translation = await _translateCustomBuildEntry(
+        _navigationActionSource('''
+Column(
+  children: [
+    if (true)
+      ElevatedButton(
+        onPressed: paywallEvent('restageNav0'),
+        child: const Text('Terms'),
+      ),
+  ],
+)
+'''),
+      );
+
+      expect(translation.issues, isEmpty);
+      final definition = translation.widgetDefinitions['TermsAction']!;
+      expect(
+        (
+          definition: definition,
+          authoredHandlers:
+              RegExp(r'event "restageNav0" \{\}').allMatches(definition).length,
+          generatedHandlers: RegExp(r'event "restageNav1" \{\}')
+              .allMatches(translation.dsl)
+              .length,
+          event: translation.navigation!.transitions.single.event,
+        ),
+        (
+          definition: 'Column(children: [ElevatedButton(onPressed: event '
+              '"restageNav0" {}, child: Text(text: "Terms"))])',
+          authoredHandlers: 1,
+          generatedHandlers: 1,
+          event: 'restageNav1',
+        ),
+      );
+    });
+
+    test('a collection branch reserves only its selected event name', () async {
+      final translation = await _translateCustomBuildEntry(
+        _navigationActionSource('''
+Column(
+  children: [
+    if (false)
+      ElevatedButton(
+        onPressed: paywallEvent('restageNav0'),
+        child: const Text('First'),
+      )
+    else
+      ElevatedButton(
+        onPressed: paywallEvent('restageNav2'),
+        child: const Text('Second'),
+      ),
+  ],
+)
+'''),
+      );
+
+      expect(translation.issues, isEmpty);
+      final definition = translation.widgetDefinitions['TermsAction']!;
+      expect(
+        (
+          definition: definition,
+          firstHandlers:
+              RegExp(r'event "restageNav0" \{\}').allMatches(definition).length,
+          selectedHandlers:
+              RegExp(r'event "restageNav2" \{\}').allMatches(definition).length,
+          generatedHandlers: RegExp(r'event "restageNav0" \{\}')
+              .allMatches(translation.dsl)
+              .length,
+          event: translation.navigation!.transitions.single.event,
+        ),
+        (
+          definition: 'Column(children: [ElevatedButton(onPressed: event '
+              '"restageNav2" {}, child: Text(text: "Second"))])',
+          firstHandlers: 0,
+          selectedHandlers: 1,
+          generatedHandlers: 1,
+          event: 'restageNav0',
+        ),
+      );
+    });
+
+    test('static spread and for leaves reserve their authored names', () async {
+      final translation = await _translateCustomBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'TermsAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'terms action',
+)
+class TermsAction extends StatelessWidget {
+  const TermsAction();
+
+  Widget build(BuildContext context) => ElevatedButton(
+    onPressed: paywallEvent('restageNav1'),
+    child: const Text('Terms'),
+  );
+}
+
+@RestageWidget(
+  name: 'TermsGroup',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'terms group',
+)
+class TermsGroup extends StatelessWidget {
+  const TermsGroup();
+
+  Widget build(BuildContext context) => Column(
+    children: [
+      ...<Widget>[
+        ElevatedButton(
+          onPressed: paywallEvent('restageNav0'),
+          child: const Text('Spread'),
+        ),
+      ],
+      for (final action in const <Widget>[TermsAction()]) action,
+    ],
+  );
+}
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => Column(
+  children: [
+    const TermsGroup(),
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Dismiss'),
+    ),
+  ],
+);
+''');
+
+      expect(translation.issues, isEmpty);
+      expect(
+        (
+          spreadHandlers: RegExp(r'event "restageNav0" \{\}')
+              .allMatches(translation.widgetDefinitions['TermsGroup']!)
+              .length,
+          loopHandlers: RegExp(r'event "restageNav1" \{\}')
+              .allMatches(translation.widgetDefinitions['TermsAction']!)
+              .length,
+          generatedHandlers: RegExp(r'event "restageNav2" \{\}')
+              .allMatches(translation.dsl)
+              .length,
+          event: translation.navigation!.transitions.single.event,
+        ),
+        (
+          spreadHandlers: 1,
+          loopHandlers: 1,
+          generatedHandlers: 1,
+          event: 'restageNav2',
+        ),
+      );
+    });
+
+    test('a nested action reached through a helper list reserves its name',
+        () async {
+      final translation = await _translateCustomBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'TermsAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'terms action',
+)
+class TermsAction extends StatelessWidget {
+  const TermsAction();
+
+  Widget build(BuildContext context) => ElevatedButton(
+    onPressed: paywallEvent('restageNav0'),
+    child: const Text('Terms'),
+  );
+}
+
+@RestageWidget(
+  name: 'TermsGroup',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'terms group',
+)
+class TermsGroup extends StatelessWidget {
+  const TermsGroup();
+
+  Widget action() => const TermsAction();
+
+  Widget build(BuildContext context) {
+    final actions = <Widget>[action()];
+    return Column(children: actions);
+  }
+}
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => Column(
+  children: [
+    const TermsGroup(),
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Dismiss'),
+    ),
+  ],
+);
+''');
+
+      expect(translation.issues, isEmpty);
+      expect(
+        translation.widgetDefinitions['TermsAction'],
+        contains('event "restageNav0" {}'),
+      );
+      expect(translation.widgetDefinitions, contains('TermsGroup'));
+      expect(translation.navigation!.transitions.single.event, 'restageNav1');
+    });
+
+    test('an unused inlined action does not reserve a navigation name',
+        () async {
+      final translation = await _translateCustomBuildEntry(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'UnusedAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'unused action',
+)
+class UnusedAction extends StatelessWidget {
+  const UnusedAction();
+
+  Widget build(BuildContext context) => ElevatedButton(
+    onPressed: paywallEvent('restageNav0'),
+    child: const Text('Unused'),
+  );
+}
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => Column(
+  children: [
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Dismiss'),
+    ),
+  ],
+);
+
+Object unused() => const UnusedAction();
+''',
+        additionalFunctions: const ['unused'],
+      );
+
+      expect(translation.issues, isEmpty);
+      expect(translation.widgetDefinitions, isEmpty);
+      expect(translation.navigation!.transitions.single.event, 'restageNav0');
+    });
+
+    test('a parenthesized final chain reserves the exact shadowed name',
+        () async {
+      final translation = await _translateBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+const eventName = 'restageNav9';
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) {
+  const seed = 'restageNav0';
+  final eventName = (seed);
+  final chainedName = ((eventName));
+  return Column(
+    children: [
+      ElevatedButton(
+        onPressed: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+        ),
+        child: const Text('Choose'),
+      ),
+      ElevatedButton(
+        onPressed: paywallEvent(chainedName),
+        child: const Text('Terms'),
+      ),
+      ElevatedButton(
+        onPressed: paywallEvent('skip'),
+        child: const Text('Dismiss'),
+      ),
+    ],
+  );
+}
+''');
+
+      expect(translation.issues, isEmpty);
+      expect(
+        RegExp(r'event "restageNav0" \{\}').allMatches(translation.dsl),
+        hasLength(1),
+      );
+      expect(
+        RegExp(r'event "restageNav1" \{\}').allMatches(translation.dsl),
+        hasLength(1),
+      );
+      expect(translation.dsl, isNot(contains('restageNav9')));
+      expect(translation.navigation!.transitions.single.event, 'restageNav1');
+    });
+
+    test('bound event names match inline navigation bytes', () async {
+      const skin = '''
+class Skin {
+  const Skin({required this.prefix});
+  final String prefix;
+}
+const skin = Skin(prefix: 'restage');
+''';
+      for (final (declarations, prelude, inlineName)
+          in <(String, String, String)>[
+        (
+          '',
+          "final prefix = 'restage';\n"
+              "final eventName = prefix + 'Nav0';",
+          "'restage' + 'Nav0'",
+        ),
+        (
+          skin,
+          'final selected = skin;\n'
+              "final eventName = selected.prefix + 'Nav0';",
+          "skin.prefix + 'Nav0'",
+        ),
+      ]) {
+        final bound = await _translateBuildEntry(
+          _paywallSourceWithRoot(
+            _eventNavigationRoot('eventName'),
+            declarations: declarations,
+            prelude: prelude,
+          ),
+        );
+        final inline = await _translateBuildEntry(
+          _paywallSourceWithRoot(
+            _eventNavigationRoot(inlineName),
+            declarations: declarations,
+          ),
+        );
+
+        expect(bound.issues, isEmpty);
+        expect(inline.issues, isEmpty);
+        expect(utf8.encode(bound.dsl), utf8.encode(inline.dsl));
+        expect(
+          RegExp(r'event "restageNav0" \{\}').allMatches(bound.dsl),
+          hasLength(1),
+        );
+        expect(
+          RegExp(r'event "restageNav1" \{\}').allMatches(bound.dsl),
+          hasLength(1),
+        );
+        expect(bound.navigation!.transitions.single.event, 'restageNav1');
+        expect(
+          inline.navigation!.transitions.single.event,
+          bound.navigation!.transitions.single.event,
+        );
+      }
+    });
+
+    test('reserved event names keep their diagnostic through bindings',
+        () async {
+      final inline = await _translateBuildEntry(
+        _paywallSourceWithRoot(
+          _eventButton("false ? 'continue' : 'restore'"),
+        ),
+      );
+      final local = await _translateBuildEntry(
+        _paywallSourceWithRoot(
+          _eventButton('eventName'),
+          prelude: "final eventName = false ? 'continue' : 'restore';",
+        ),
+      );
+      final formal = await _translateCustomBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'RestoreHelperAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'Restore helper action',
+)
+class RestoreHelperAction extends StatelessWidget {
+  const RestoreHelperAction();
+
+  Widget action(String eventName) => ElevatedButton(
+    onPressed: paywallEvent(eventName),
+    child: const Text('Restore'),
+  );
+
+  Widget build(BuildContext context) =>
+      action(false ? 'continue' : 'restore');
+}
+
+Object x(BuildContext context) => const RestoreHelperAction();
+''');
+      final inlined = await _translateCustomBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'RestoreAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'Restore action',
+)
+class RestoreAction extends StatelessWidget {
+  const RestoreAction();
+
+  Widget build(BuildContext context) {
+    final eventName = false ? 'continue' : 'restore';
+    return ElevatedButton(
+      onPressed: paywallEvent(eventName),
+      child: const Text('Restore'),
+    );
+  }
+}
+
+Object x(BuildContext context) => const RestoreAction();
+''');
+
+      const expectedMessage =
+          "The authored commerce event 'restore' is unsupported. Authored "
+          'surfaces cannot initiate purchases or restores. Applications '
+          'invoke the typed commerce boundary from explicit host-controlled '
+          'code. The current facade is unavailable until activated.';
+      expect(
+        [
+          for (final (name, result) in <(String, TranslationResult)>[
+            ('inline', inline),
+            ('local', local),
+            ('formal', formal),
+            ('inlined', inlined),
+          ])
+            (
+              name,
+              result.dsl,
+              result.issues.single.code,
+              result.issues.single.message,
+            ),
+        ],
+        [
+          for (final name in <String>['inline', 'local', 'formal', 'inlined'])
+            (
+              name,
+              '',
+              IssueCode.unsupportedCommerceAuthoring,
+              expectedMessage,
+            ),
+        ],
+      );
+    });
+
+    test('runtime and conditional event-name values refuse identically',
+        () async {
+      for (final initializer in <String>[
+        'runtimeName()',
+        "true ? 'first' : 'second'",
+        r"'${'custom'}Event'",
+      ]) {
+        final translation = await _translateBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+String runtimeName() => 'runtime';
+
+Object x(BuildContext context) {
+  final name = $initializer;
+  return ElevatedButton(
+    onPressed: paywallEvent(name),
+    child: const Text('Go'),
+  );
+}
+''');
+
+        expect(translation.dsl, isEmpty, reason: initializer);
+        expect(translation.issues, hasLength(1), reason: initializer);
+        expect(
+          (translation.issues.single.code, translation.issues.single.message),
+          (
+            IssueCode.unrecognizedMethodCall,
+            'paywallEvent requires a statically resolved String name.',
+          ),
+          reason: initializer,
+        );
+      }
+    });
+
+    test('a dismiss event inside a build local terminates navigation',
+        () async {
+      final translation = await _translateBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) {
+  final dismiss = ElevatedButton(
+    onPressed: paywallEvent('skip'),
+    child: const Text('Dismiss'),
+  );
+  return Column(
+    children: [
+      ElevatedButton(
+        onPressed: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+        ),
+        child: const Text('Choose'),
+      ),
+      dismiss,
+    ],
+  );
+}
+''');
+
+      expect(translation.issues, isEmpty);
+      expect(translation.dsl, contains('event "restageNav0" {}'));
+      expect(translation.dsl, contains('event "skip" {}'));
+      expect(translation.dsl, contains('Text(text: "Choose")'));
+      expect(translation.dsl, contains('Text(text: "Dismiss")'));
+      expect(translation.navigation!.transitions.single.event, 'restageNav0');
+      expect(translation.navigation!.terminatingEvent, 'skip');
+    });
+
+    test('a navigation trigger held in a build local refuses', () async {
+      final translation = await _translateBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) {
+  final next = ElevatedButton(
+    onPressed: () => Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+    ),
+    child: const Text('Choose'),
+  );
+  return Column(
+    children: [
+      next,
+      ElevatedButton(
+        onPressed: paywallEvent('skip'),
+        child: const Text('Dismiss'),
+      ),
+    ],
+  );
+}
+''');
+
+      expect(translation.dsl, isEmpty);
+      expect(
+        translation.issues.map((issue) => issue.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(translation.navigation, isNull);
+    });
+
+    test('a modal trigger held in a build local refuses', () async {
+      final translation = await _translateBuildEntry('''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+Object x(BuildContext context) {
+  final open = ElevatedButton(
+    onPressed: () => showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => const SizedBox(),
+    ),
+    child: const Text('Open'),
+  );
+  return Column(children: [open]);
+}
+''');
+
+      expect(translation.dsl, isEmpty);
+      expect(
+        translation.issues.map((issue) => issue.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(translation.navigation, isNull);
     });
 
     test('root push rewrites both artifacts and exposes a navigation plan',
@@ -533,7 +1340,7 @@ ElevatedButton(
   });
 
   group('Navigation lowering builder emission', () {
-    test('emits the internal navplan JSON for a lowered root push', () async {
+    test('emits the navplan JSON for a lowered root push', () async {
       const entrySource = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -775,6 +1582,186 @@ Future<TranslationResult> _translateEntry(
   );
 }
 
+Future<TranslationResult> _translateBuildEntry(String source) async {
+  final parsed = await _parseEntryBuildRoot(source);
+  return ExpressionTranslator(
+    catalog: _navigationCatalog,
+    helpers: productionPaywallHelperRegistry(),
+  ).translate(
+    parsed.rootExpression,
+    entryId: 'entry',
+    buildContextParameter: parsed.buildContextParameter,
+    rootLocalBindings: parsed.localBindings,
+  );
+}
+
+Future<TranslationResult> _translateCustomBuildEntry(
+  String source, {
+  List<String> additionalFunctions = const [],
+}) async {
+  final assetId = AssetId('apps_examples', 'lib/navigation_widget_probe.dart');
+  late final LibraryElement library;
+  late final ResolvedLibraryResult resolved;
+  await resolveSources(
+    {assetId.toString(): source},
+    (resolver) async {
+      library = await resolver.libraryFor(assetId);
+      final result = await library.session.getResolvedLibraryByElement(library);
+      if (result is! ResolvedLibraryResult) {
+        throw StateError('Navigation widget fixture did not resolve.');
+      }
+      resolved = result;
+    },
+    resolverFor: assetId.toString(),
+    rootPackage: assetId.package,
+    readAllSourcesFromFilesystem: true,
+  );
+
+  ({
+    Expression rootExpression,
+    Element? buildContextParameter,
+    Map<Element, Expression> localBindings,
+  }) functionBuild(String name) {
+    final function = library.topLevelFunctions.singleWhere(
+      (element) => element.name == name,
+    );
+    final node = resolved.getFragmentDeclaration(function.firstFragment)?.node;
+    if (node is! FunctionDeclaration) {
+      throw StateError('Navigation widget fixture has no $name() declaration.');
+    }
+    final extracted = extractInlinableBuildBody(node.functionExpression.body);
+    if (extracted == null) {
+      throw StateError('Navigation widget fixture has no $name() value.');
+    }
+    final parameters = node.functionExpression.parameters?.parameters ??
+        const <FormalParameter>[];
+    final contextParameter = parameters
+        .where((parameter) => parameter.name?.lexeme == 'context')
+        .firstOrNull;
+    return (
+      rootExpression: extracted.expression,
+      buildContextParameter: contextParameter?.declaredFragment?.element,
+      localBindings: extracted.localBindings,
+    );
+  }
+
+  final entry = functionBuild('x');
+  final otherEntries = additionalFunctions.map(functionBuild).toList();
+  final helpers = productionPaywallHelperRegistry();
+  final classification = await classifyReferencedCustomWidgets(
+    rootExpressions: [
+      entry.rootExpression,
+      ...entry.localBindings.values,
+      for (final other in otherEntries) ...[
+        other.rootExpression,
+        ...other.localBindings.values,
+      ],
+    ],
+    catalog: _navigationCatalog,
+    helpers: helpers,
+    astNodeFor: (fragment) async =>
+        resolved.getFragmentDeclaration(fragment)?.node,
+  );
+  return ExpressionTranslator(
+    catalog: _navigationCatalog,
+    helpers: helpers,
+    customWidgetClassifications: classification.classifications,
+    customWidgetBlueprints: classification.blueprints,
+  ).translate(
+    entry.rootExpression,
+    entryId: 'entry',
+    buildContextParameter: entry.buildContextParameter,
+    rootLocalBindings: entry.localBindings,
+  );
+}
+
+String _navigationActionSource(String body) => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+@RestageWidget(
+  name: 'TermsAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.input,
+  description: 'terms action',
+)
+class TermsAction extends StatelessWidget {
+  const TermsAction();
+
+  Widget build(BuildContext context) => $body;
+}
+
+@PaywallSource(id: 'choose_plan')
+class ChoosePlan extends StatelessWidget {
+  const ChoosePlan();
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+Object x(BuildContext context) => Column(
+  children: [
+    const TermsAction(),
+    ElevatedButton(
+      onPressed: () => Navigator.push<void>(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ChoosePlan()),
+      ),
+      child: const Text('Choose'),
+    ),
+    ElevatedButton(
+      onPressed: paywallEvent('skip'),
+      child: const Text('Dismiss'),
+    ),
+  ],
+);
+''';
+
+Future<
+    ({
+      Expression rootExpression,
+      Element? buildContextParameter,
+      Map<Element, Expression> localBindings,
+    })> _parseEntryBuildRoot(String source) async {
+  final assetId = AssetId('apps_examples', 'lib/navigation_build_probe.dart');
+  late final LibraryElement library;
+  late final ResolvedLibraryResult resolved;
+  await resolveSources(
+    {assetId.toString(): source},
+    (resolver) async {
+      library = await resolver.libraryFor(assetId);
+      final result = await library.session.getResolvedLibraryByElement(library);
+      if (result is! ResolvedLibraryResult) {
+        throw StateError('Navigation fixture did not resolve.');
+      }
+      resolved = result;
+    },
+    resolverFor: assetId.toString(),
+    rootPackage: assetId.package,
+    readAllSourcesFromFilesystem: true,
+  );
+  final function = library.topLevelFunctions.singleWhere(
+    (element) => element.name == 'x',
+  );
+  final node = resolved.getFragmentDeclaration(function.firstFragment)?.node;
+  if (node is! FunctionDeclaration) {
+    throw StateError('Navigation fixture has no resolved x() declaration.');
+  }
+  final extracted = extractInlinableBuildBody(node.functionExpression.body);
+  if (extracted == null) {
+    throw StateError('Navigation fixture has no supported build body.');
+  }
+  final parameters = node.functionExpression.parameters?.parameters ??
+      const <FormalParameter>[];
+  final contextParameter = parameters
+      .where((parameter) => parameter.name?.lexeme == 'context')
+      .firstOrNull;
+  return (
+    rootExpression: extracted.expression,
+    buildContextParameter: contextParameter?.declaredFragment?.element,
+    localBindings: extracted.localBindings,
+  );
+}
+
 Future<({Expression rootExpression, Element? buildContextParameter})>
     _parseEntryRoot(String source) async {
   final rootExpression = await parseExpressionFromSourceForTest(
@@ -800,18 +1787,50 @@ Future<({Expression rootExpression, Element? buildContextParameter})>
 String _paywallSourceWithRoot(
   String rootExpression, {
   String annotation = "@PaywallSource(id: 'choose_plan')",
-}) =>
-    '''
+  String declarations = '',
+  String prelude = '',
+}) {
+  final function = prelude.isEmpty
+      ? 'Object x(BuildContext context) => $rootExpression;'
+      : '''
+Object x(BuildContext context) {
+$prelude
+  return $rootExpression;
+}
+''';
+  return '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
+$declarations
 $annotation
 class ChoosePlan extends StatelessWidget {
   const ChoosePlan();
   Widget build(BuildContext context) => const SizedBox();
 }
 
-Object x(BuildContext context) => $rootExpression;
+$function
+''';
+}
+
+String _eventNavigationRoot(String eventName) => '''
+Column(children: [
+  ElevatedButton(
+    onPressed: () => Navigator.push<void>(context,
+      MaterialPageRoute<void>(builder: (_) => const ChoosePlan())),
+    child: const Text('Choose')),
+  ElevatedButton(onPressed: paywallEvent($eventName),
+    child: const Text('Terms')),
+  ElevatedButton(onPressed: paywallEvent('skip'),
+    child: const Text('Dismiss')),
+])
+''';
+
+String _eventButton(String eventName) => '''
+ElevatedButton(
+  onPressed: paywallEvent($eventName),
+  child: const Text('Restore'),
+)
 ''';
 
 final Catalog _navigationCatalog = Catalog(
