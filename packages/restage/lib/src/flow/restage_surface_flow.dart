@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:restage_material/restage_material_runtime.dart';
 
+import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/onboarding_event_dispatcher.dart';
 import '../events/restage_event.dart'
@@ -18,8 +19,9 @@ import '../measurement/measurement_host_session.dart';
 import '../refresh/surface_refresh_registry.dart';
 import '../refresh/surface_refresh_trigger.dart';
 import '../refresh/surface_update_channel.dart';
-import '../runtime/restage.dart';
+import '../runtime/context_data.dart';
 import '../runtime/first_paint_lease_guard.dart';
+import '../runtime/restage.dart';
 import 'flow_chrome.dart';
 import 'flow_controller.dart';
 import 'flow_descriptors.dart';
@@ -97,6 +99,7 @@ final class RestageFlowGraph<R> extends StatefulWidget {
     this.chromeBuilder,
     this.persistentChromeBuilder,
     this.liveRefresh,
+    this.context,
   });
 
   /// Generated flow descriptor to load.
@@ -185,6 +188,21 @@ final class RestageFlowGraph<R> extends StatefulWidget {
   /// (an empty set opts this surface out entirely).
   final Set<SurfaceRefreshTrigger>? liveRefresh;
 
+  /// Host-supplied render data, published to each screen as `data.context.*`.
+  ///
+  /// Values support 32 collection levels below the root, 10,000 retained
+  /// normalized nodes including the root, and 100,000 inspected map entries or
+  /// list elements per normalization. Null map values are omitted; null list
+  /// elements are dropped and lists compact. Invalid values, unreadable
+  /// collections, and exceeded limits throw in debug. Release reports
+  /// diagnostics and omits the offending value or collection. Accepted input
+  /// is normalized and copied synchronously. Equal normalized snapshots issue
+  /// no renderer update; null withdraws the namespace.
+  ///
+  /// An enclosing Restage surface that publishes its own render data supersedes
+  /// this value; it applies whenever no enclosing surface supplies any.
+  final Map<String, Object?>? context;
+
   @override
   State<RestageFlowGraph<R>> createState() => _RestageFlowGraphState<R>();
 }
@@ -200,6 +218,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   final Map<RestageFlowController<R>, MeasurementHostSessionController>
       _measurementSessions =
       <RestageFlowController<R>, MeasurementHostSessionController>{};
+  final Expando<SurfaceEventHandler> _authoredEventHandlers =
+      Expando<SurfaceEventHandler>();
 
   /// The accepted Measurement owner. This remains on the retained controller
   /// while a live-refresh controller is only provisionally painted, so a
@@ -224,12 +244,33 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   RootAnalyticsPresentation? _presentationToDisposeAfterPromotion;
   FlowUnavailableError? _unavailableError;
   SurfaceRefreshHandle? _refreshHandle;
+  ContextSnapshot? _widgetContext;
+  ContextSnapshot? _context;
+  bool _inheritsContextSnapshot = false;
+
+  void _refreshWidgetContext() {
+    final raw = widget.context;
+    _widgetContext =
+        raw == null ? null : ContextSnapshot.of(raw, previous: _widgetContext);
+    if (!_inheritsContextSnapshot) _context = _widgetContext;
+  }
 
   @override
   void initState() {
     super.initState();
+    _refreshWidgetContext();
     _start();
     _registerRefreshHandle();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scope = RestageContextSnapshotScope.maybeOf(context);
+    // Only a scope that actually carries a snapshot supersedes this widget's
+    // own [context]; an enclosing surface with none leaves us self-published.
+    _inheritsContextSnapshot = scope?.snapshot != null;
+    _context = scope?.snapshot ?? _widgetContext;
   }
 
   void _registerRefreshHandle() {
@@ -510,6 +551,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   @override
   void didUpdateWidget(RestageFlowGraph<R> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _refreshWidgetContext();
     final replaceRefreshHandle =
         oldWidget.flow.surfaceType != widget.flow.surfaceType ||
             oldWidget.flow.id != widget.flow.id ||
@@ -900,15 +942,37 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     Object? value,
   ) {
     if (!identical(_controller, controller)) return;
-    // Normalize through the same point the RFW render paths use so a scalar
-    // authored-event value reaches the controller in the canonical shape and a
-    // flow `.capture()` resolves identically on the local-Dart path.
+    final owner = currentSurfaceEventDispatcherOwner;
+    if (owner == null) return;
+    final hasRegistration =
+        RestageFlowRenderEventPrivacyRegistry.hasRegistration(
+      controller: controller,
+      owner: owner,
+    );
+    if (!hasRegistration) return;
     final businessValue = _sanitizeAndRecordEvent(controller, value);
     controller.handleEvent(
       eventId,
       normalizeEventArgs(businessValue),
     );
   }
+
+  SurfaceEventHandler _authoredEventHandlerFor(
+    RestageFlowController<R> controller,
+  ) =>
+      _authoredEventHandlers[controller] ??= (eventId, value) {
+        _handleAuthoredEvent(controller, eventId, value);
+      };
+
+  bool _isAuthoredEventHandlerCurrent(
+    RestageFlowController<R> controller,
+    SurfaceEventHandler handler,
+  ) =>
+      mounted &&
+      _ownedControllers.contains(controller) &&
+      _authoredEventHandlers[controller] == handler &&
+      (identical(_controller, controller) ||
+          identical(_pendingController, controller));
 
   @override
   void dispose() {
@@ -938,12 +1002,15 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
     // controller (its `onUnavailable` drives the fallback above), so there is
     // no private back-channel here that an advanced composition could not use.
     final pending = _pendingIsStaged ? _pendingController : null;
-    return Stack(
-      fit: StackFit.passthrough,
-      children: <Widget>[
-        _buildFlowLayer(controller, staged: false),
-        if (pending != null) _buildFlowLayer(pending, staged: true),
-      ],
+    return RestageContextSnapshotScope(
+      snapshot: _context,
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          _buildFlowLayer(controller, staged: false),
+          if (pending != null) _buildFlowLayer(pending, staged: true),
+        ],
+      ),
     );
   }
 
@@ -956,21 +1023,27 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
         : _transaction;
     final candidatePending =
         transaction != null && transaction.isReady && !transaction.isCommitted;
+    final handler = _authoredEventHandlerFor(controller);
     Widget child = RestageEventDispatcher(
-      onEvent: (eventId, value) =>
-          _handleAuthoredEvent(controller, eventId, value),
-      child: RestageFlowView<R>(
+      key: ObjectKey(controller),
+      onEvent: handler,
+      child: RestageFlowEventHandlerAssociation(
         controller: controller,
-        transition: widget.transition,
-        loadingBuilder: widget.loadingBuilder,
-        systemBack: widget.systemBack,
-        enableSkip: widget.enableSkip,
-        chromeTheme: widget.chromeTheme,
-        persistentChrome: widget.persistentChrome,
-        backBuilder: widget.backBuilder,
-        skipBuilder: widget.skipBuilder,
-        chromeBuilder: widget.chromeBuilder,
-        persistentChromeBuilder: widget.persistentChromeBuilder,
+        handler: handler,
+        isCurrent: () => _isAuthoredEventHandlerCurrent(controller, handler),
+        child: RestageFlowView<R>(
+          controller: controller,
+          transition: widget.transition,
+          loadingBuilder: widget.loadingBuilder,
+          systemBack: widget.systemBack,
+          enableSkip: widget.enableSkip,
+          chromeTheme: widget.chromeTheme,
+          persistentChrome: widget.persistentChrome,
+          backBuilder: widget.backBuilder,
+          skipBuilder: widget.skipBuilder,
+          chromeBuilder: widget.chromeBuilder,
+          persistentChromeBuilder: widget.persistentChromeBuilder,
+        ),
       ),
     );
     final session = _measurementSessions[controller];

@@ -176,5 +176,21 @@ Object x() => surfaceEvent(Probe.blocked);
         allOf(contains('data.products'), contains("event 'restore'")),
       );
     });
+
+    test('rejects product data in a list loop output', () {
+      const source = '''
+        import restage.core;
+        widget Paywall = Column(children: [
+          ...for row in data.context.rows:
+            Text(text: data.products.primary.localizedPrice)
+        ]);
+      ''';
+      final library = parseLibraryFile(source, sourceIdentifier: 'test');
+      final issues = validateCommerceAuthoring(library);
+
+      expect(issues, hasLength(1));
+      expect(issues.single.code.name, 'unsupportedCommerceAuthoring');
+      expect(issues.single.message, contains('data.products'));
+    });
   });
 }

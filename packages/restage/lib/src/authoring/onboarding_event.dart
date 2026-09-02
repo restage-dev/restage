@@ -1,7 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../analytics/render_event_privacy.dart';
 import '../flow/flow_descriptors.dart';
+import 'authoring_dispatch_access.dart';
+import 'authoring_refusal_diagnostic.dart';
 import 'onboarding_event_dispatcher.dart';
 
 /// Returns a callback that fires a flow event.
@@ -13,7 +15,16 @@ VoidCallback onboardingEvent<T, V extends T>(
   SurfaceEvent<T> event, [
   V? value,
 ]) {
-  return _flowEvent('onboardingEvent', event, value);
+  final access = captureAuthoringDispatcherAccess(
+    activeSurfaceEventDispatcher,
+  );
+  return _flowEvent(
+    AuthoringHelperKind.onboardingEvent,
+    event,
+    value,
+    dispatcher: access.dispatcher,
+    captureRefusal: access.refusal,
+  );
 }
 
 /// Returns a callback that fires a neutral flow screen event.
@@ -24,43 +35,58 @@ VoidCallback surfaceEvent<T, V extends T>(
   SurfaceEvent<T> event, [
   V? value,
 ]) {
-  return _flowEvent('surfaceEvent', event, value);
+  final access = captureAuthoringDispatcherAccess(
+    activeSurfaceEventDispatcher,
+  );
+  return _flowEvent(
+    AuthoringHelperKind.surfaceEvent,
+    event,
+    value,
+    dispatcher: access.dispatcher,
+    captureRefusal: access.refusal,
+  );
+}
+
+/// Returns a flow event callback bound to the nearest mounted dispatcher.
+VoidCallback surfaceEventWithContext<T, V extends T>(
+  BuildContext context,
+  SurfaceEvent<T> event, [
+  V? value,
+]) {
+  final access = captureAuthoringDispatcherAccess(
+    () => surfaceEventDispatcherOf(context),
+  );
+  return _flowEvent(
+    AuthoringHelperKind.surfaceEventWithContext,
+    event,
+    value,
+    dispatcher: access.dispatcher,
+    captureRefusal: access.refusal,
+  );
 }
 
 VoidCallback _flowEvent<T, V extends T>(
-  String helperName,
+  AuthoringHelperKind helper,
   SurfaceEvent<T> event,
-  V? value,
-) {
-  final dispatcher = activeSurfaceEventDispatcher();
+  V? value, {
+  required SurfaceEventHandler? dispatcher,
+  required AuthoringRefusalKind? captureRefusal,
+}) {
+  void onRefused(AuthoringRefusalKind refusal) {
+    reportAuthoringRefusal(
+      helper: helper,
+      refusal: refusal,
+    );
+  }
+
   return () {
     if (dispatcher != null) {
-      dispatcher(event.id, value);
+      RestageFlowRenderEventPrivacyRegistry.runWithControllerEventRefusal<void>(
+        body: () => dispatcher(event.id, value),
+        onRefused: () => onRefused(AuthoringRefusalKind.callbackRefused),
+      );
       return;
     }
-    _reportNoDispatcher(helperName, <String, Object?>{
-      'eventId': event.id,
-      'value': value,
-    });
+    onRefused(captureRefusal ?? AuthoringRefusalKind.missingDispatcher);
   };
-}
-
-void _reportNoDispatcher(String helperName, Map<String, Object?> details) {
-  assert(
-    false,
-    '[restage] $helperName invoked without a '
-    'RestageEventDispatcher in scope. Either run this widget under '
-    'a Restage surface runtime or use restage_codegen so the helper is replaced '
-    'with a flow event reference at build time. details=$details',
-  );
-  FlutterError.reportError(
-    FlutterErrorDetails(
-      exception: StateError(
-        '[restage] $helperName invoked without a '
-        'RestageEventDispatcher: $details',
-      ),
-      library: 'restage',
-      context: ErrorDescription('handling a surface authoring helper tap'),
-    ),
-  );
 }

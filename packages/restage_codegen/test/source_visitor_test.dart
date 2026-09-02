@@ -29,6 +29,28 @@ void main() {
       expect(result.sources.first.rootExpression, isNotNull);
     });
 
+    test('carries root constructor params through @PaywallSource', () async {
+      final result = await runVisitorOn({
+        'lib/foo.dart': '''
+          $kStubAnnotationsAndBases
+
+          @PaywallSource(id: 'foo')
+          class FooPaywall extends StatelessWidget {
+            const FooPaywall({required this.title, this.count});
+            final String title;
+            final int? count;
+            Widget build(BuildContext context) => 42;
+          }
+        ''',
+      });
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.sources.single.build.rootParams.map((param) => param.name),
+        ['title', 'count'],
+      );
+    });
+
     test('extracts root expression from single-return block body', () async {
       final result = await runVisitorOn({
         'lib/foo.dart': '''

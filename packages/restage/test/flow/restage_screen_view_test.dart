@@ -4,8 +4,16 @@ import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
+import 'package:rfw/rfw.dart' show DynamicContent, RemoteWidget;
 
 import 'flow_test_support.dart';
+
+Map<Object?, Object?> _readContext(DynamicContent data) {
+  void noop(Object _) {}
+  final value = data.subscribe(const <Object>['context'], noop);
+  data.unsubscribe(const <Object>['context'], noop);
+  return value as Map<Object?, Object?>;
+}
 
 void main() {
   RestageFlowController<FirstRunResult> controllerFor(
@@ -35,6 +43,67 @@ void main() {
 
     expect(find.text('Welcome'), findsOneWidget);
     expect(controller.hasRenderedContent, isTrue);
+  });
+
+  testWidgets('publishes current context after each controlled screen advance',
+      (tester) async {
+    final resolver = ControlledFlowResolver();
+    final controller = RestageFlowController<FirstRunResult>(
+      flow: firstRunFlowRef,
+      resolver: resolver,
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+    );
+    addTearDown(controller.dispose);
+    var hostContext = <String, Object?>{'label': 'first'};
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          updateHost = setState;
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: RestageScreenView<FirstRunResult>(
+              controller: controller,
+              context: hostContext,
+            ),
+          );
+        },
+      ),
+    );
+    unawaited(controller.load());
+    await tester.pump();
+    expect(find.byType(RemoteWidget), findsNothing);
+
+    hostContext['label'] = 'later';
+    resolver.response.complete(contextResolvedFlow());
+    await tester.pumpAndSettle();
+    expect(find.text('first'), findsOneWidget);
+    expect(find.text('later'), findsNothing);
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'second'});
+    await tester.pump();
+    await tester.tap(find.text('second'));
+    await tester.pumpAndSettle();
+
+    final data = tester.widget<RemoteWidget>(find.byType(RemoteWidget)).data;
+    expect(_readContext(data)['label'], 'second');
+    var notifications = 0;
+    void onContext(Object _) => notifications += 1;
+    data.subscribe(const <Object>['context'], onContext);
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'third'});
+    await tester.pump();
+    expect(find.text('third'), findsOneWidget);
+    expect(notifications, 1);
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'third'});
+    await tester.pump();
+    expect(notifications, 1);
+    data.unsubscribe(const <Object>['context'], onContext);
   });
 
   testWidgets(

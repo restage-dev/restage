@@ -189,6 +189,44 @@ void main() {
     );
   });
 
+  test('rewrites an event in a list loop output', () {
+    final routePlan = _routePlan(const ['reference.presentation.loop']);
+    final source = _library(
+      fmt.ConstructorCall(
+        'Column',
+        <String, Object?>{
+          'children': <Object?>[
+            fmt.Loop(
+              const fmt.DataReference(<Object>['context', 'values']),
+              fmt.ConstructorCall(
+                'Button',
+                <String, Object?>{
+                  'onPressed': _markedEvent('reference.presentation.loop'),
+                },
+              ),
+            ),
+          ],
+        },
+      ),
+    );
+
+    final composed = _compose(source, routePlan);
+    final root = composed.widgets.single.root as fmt.ConstructorCall;
+    final loop =
+        (root.arguments['children']! as List<Object?>).single! as fmt.Loop;
+    final wrapper = loop.output as fmt.ConstructorCall;
+    final button = wrapper.arguments['child']! as fmt.ConstructorCall;
+
+    expect((loop.input as fmt.DataReference).parts, ['context', 'values']);
+    expect(wrapper.name, 'MeasurementSourcePresented');
+    expect(button.name, 'Button');
+    expect(
+      (button.arguments['onPressed']! as fmt.EventHandler)
+          .eventArguments[kMeasurementRouteArgumentKeyV1],
+      routePlan.routes.single.carrier,
+    );
+  });
+
   test('leaves an unused measurement import unchanged', () {
     const source = fmt.RemoteWidgetLibrary(
       [
@@ -325,6 +363,35 @@ void main() {
       () => MeasurementRfwRouteComposer.composeBlob(
         blob: Uint8List.fromList(fmt.encodeLibraryBlob(source)),
         routePlan: routePlan,
+      ),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('rejects a reserved presentation constructor in a list loop output', () {
+    final source = _library(
+      fmt.ConstructorCall(
+        'Column',
+        <String, Object?>{
+          'children': <Object?>[
+            fmt.Loop(
+              const fmt.DataReference(<Object>['context', 'values']),
+              fmt.ConstructorCall(
+                'MeasurementSourcePresented',
+                <String, Object?>{
+                  'onPressed': _markedEvent('reference.presentation.reserved'),
+                },
+              ),
+            ),
+          ],
+        },
+      ),
+    );
+
+    expect(
+      () => MeasurementRfwRouteComposer.composeBlob(
+        blob: Uint8List.fromList(fmt.encodeLibraryBlob(source)),
+        routePlan: _routePlan(const ['reference.presentation.reserved']),
       ),
       throwsA(isA<FormatException>()),
     );

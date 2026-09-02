@@ -588,22 +588,19 @@ final class _MeasurementSourceDiscovery {
       bindings: resolution.bindings,
     );
     for (final entry in traversal.entries) {
-      switch (entry) {
-        case CollectionListRefusal(:final refusal):
-          throw ArgumentError(refusal.detail);
-        case CollectionListElement(:final occurrence):
-          _visitWidgetExpression(
-            occurrence.terminalExpression,
-            resolved.context
-                .child(
-                  parent: parent,
-                  slot: slot,
-                  ordinal: ordinal,
-                )
-                .withCollectionOccurrence(occurrence),
-          );
-          ordinal++;
-      }
+      final occurrence = switch (entry) {
+        CollectionListElement(:final occurrence) => occurrence,
+        CollectionListRefusal(:final refusal) =>
+          refusal.runtimeLoop?.template ??
+              (throw ArgumentError(refusal.detail)),
+      };
+      _visitWidgetExpression(
+        occurrence.terminalExpression,
+        resolved.context
+            .child(parent: parent, slot: slot, ordinal: ordinal)
+            .withCollectionOccurrence(occurrence),
+      );
+      ordinal++;
     }
   }
 

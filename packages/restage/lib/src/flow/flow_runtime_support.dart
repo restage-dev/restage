@@ -8,7 +8,9 @@ import 'package:restage_material/library_registration.dart' as restage_material;
 import 'package:restage_shared/restage_shared.dart' show kCapturedEventValueKey;
 import 'package:rfw/rfw.dart';
 
+import '../analytics/render_event_privacy.dart';
 import '../measurement/measurement_rfw_presentation.dart';
+import '../runtime/context_data.dart';
 import '../runtime/library_runtime_registry.dart';
 import '../runtime/state_variables.dart'
     show currentDevicePlatform, populateDeviceData, populateThemeData;
@@ -49,11 +51,19 @@ Map<String, Object?> normalizeEventArgs(Object? args) {
 /// [includeInheritedData] is false before a `State` has reached
 /// `didChangeDependencies`, because the ambient device/theme values depend on
 /// inherited widgets.
+/// [contextPublisher] publishes [hostContext] independently of inherited data.
 void populateFlowScreenData(
   BuildContext context,
   DynamicContent target, {
   required bool includeInheritedData,
+  ContextPublisher? contextPublisher,
+  ContextSnapshot? hostContext,
 }) {
+  assert(
+    hostContext == null || contextPublisher != null,
+    'hostContext requires a contextPublisher bound to the target.',
+  );
+  contextPublisher?.publishSnapshot(hostContext);
   if (!includeInheritedData) return;
   final mediaQuery = MediaQuery.maybeOf(context);
   if (mediaQuery != null) {
@@ -94,7 +104,7 @@ final class FlowScreenLibraries {
   /// A fresh [Runtime] importing the base libraries plus the given [screen]
   /// blob under [kFlowScreenLibrary], with the customer widget registry applied.
   Runtime runtimeFor(WidgetLibrary screen) {
-    final runtime = Runtime()
+    final runtime = RestageRenderRuntime()
       ..update(kFlowCoreLibrary, _core)
       ..update(kFlowMaterialLibrary, _material)
       ..update(kFlowCupertinoLibrary, _cupertino)

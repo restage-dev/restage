@@ -56,6 +56,147 @@ void main() {
       );
     });
 
+    test('an unread constructor parameter does not change the emitted surface',
+        () async {
+      const baseSource = '''
+        $kStubAnnotationsAndBases
+
+        @PaywallSource(id: 'unread_param_base')
+        class P extends StatelessWidget {
+          const P();
+          Widget build(BuildContext context) => Center(child: SizedBox());
+        }
+      ''';
+      const unreadParamSource = '''
+        $kStubAnnotationsAndBases
+
+        class Tag {
+          const Tag();
+        }
+
+        @PaywallSource(id: 'unread_param_tag')
+        class P extends StatelessWidget {
+          const P({this.tag});
+          final Tag? tag;
+          Widget build(BuildContext context) => Center(child: SizedBox());
+        }
+      ''';
+      final baseReaderWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: false,
+      );
+      baseReaderWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/unread_param_base.dart'),
+        baseSource,
+      );
+      late List<int> baseCapabilityBytes;
+      late List<int> baseScreenCapabilityBytes;
+      late String baseRfwtxt;
+
+      await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/paywalls/unread_param_base.dart': baseSource},
+        rootPackage: 'apps_examples',
+        readerWriter: baseReaderWriter,
+        outputs: {
+          'apps_examples|assets/paywalls/unread_param_base.capability.json':
+              predicate<List<int>>((value) {
+            baseCapabilityBytes = List<int>.unmodifiable(value);
+            return true;
+          }),
+          'apps_examples|assets/paywalls/unread_param_base.rfwtxt':
+              decodedMatches(
+            predicate<String>((value) {
+              baseRfwtxt = value;
+              return true;
+            }),
+          ),
+          'apps_examples|assets/paywalls/unread_param_base.rfw': isNotEmpty,
+          'apps_examples|assets/paywalls/screens/paywall_unread_param_base.capability.json':
+              predicate<List<int>>((value) {
+            baseScreenCapabilityBytes = List<int>.unmodifiable(value);
+            return true;
+          }),
+          'apps_examples|assets/paywalls/screens/paywall_unread_param_base.rfw':
+              const _RootWidgetMatcher('OnboardingScreen'),
+        },
+      );
+
+      final unreadParamReaderWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: false,
+      );
+      unreadParamReaderWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/unread_param_tag.dart'),
+        unreadParamSource,
+      );
+      final logs = <String>[];
+      final result = await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/paywalls/unread_param_tag.dart': unreadParamSource},
+        rootPackage: 'apps_examples',
+        readerWriter: unreadParamReaderWriter,
+        onLog: (record) => logs.add(record.message),
+        outputs: {
+          'apps_examples|assets/paywalls/unread_param_tag.capability.json':
+              orderedEquals(baseCapabilityBytes),
+          'apps_examples|assets/paywalls/unread_param_tag.rfwtxt':
+              decodedMatches(equals(baseRfwtxt)),
+          'apps_examples|assets/paywalls/unread_param_tag.rfw': isNotEmpty,
+          'apps_examples|assets/paywalls/screens/paywall_unread_param_tag.capability.json':
+              orderedEquals(baseScreenCapabilityBytes),
+          'apps_examples|assets/paywalls/screens/paywall_unread_param_tag.rfw':
+              const _RootWidgetMatcher('OnboardingScreen'),
+        },
+      );
+
+      expect(result.succeeded, isTrue);
+      final diagnostic = RegExp(r'\[[a-z][A-Za-z]+\]');
+      expect(logs.where(diagnostic.hasMatch), isEmpty);
+
+      const usedParamSource = '''
+        $kStubAnnotationsAndBases
+
+        class Text extends Widget {
+          const Text(this.text);
+          final String text;
+        }
+
+        @PaywallSource(id: 'used_param_title')
+        class P extends StatelessWidget {
+          const P({required this.title});
+          final String title;
+          Widget build(BuildContext context) => Text(title);
+        }
+      ''';
+      final usedParamReaderWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+        includeFlutter: false,
+      );
+      usedParamReaderWriter.testing.writeString(
+        AssetId('apps_examples', 'lib/paywalls/used_param_title.dart'),
+        usedParamSource,
+      );
+      final usedParamResult = await testBuilder(
+        restageCodegenBuilder(BuilderOptions.empty),
+        {'apps_examples|lib/paywalls/used_param_title.dart': usedParamSource},
+        rootPackage: 'apps_examples',
+        readerWriter: usedParamReaderWriter,
+        outputs: {
+          'apps_examples|assets/paywalls/used_param_title.capability.json':
+              anything,
+          'apps_examples|assets/paywalls/used_param_title.rfwtxt':
+              decodedMatches(contains('data.context.title')),
+          'apps_examples|assets/paywalls/used_param_title.rfw': isNotEmpty,
+          'apps_examples|assets/paywalls/screens/paywall_used_param_title.capability.json':
+              anything,
+          'apps_examples|assets/paywalls/screens/paywall_used_param_title.rfw':
+              const _RootWidgetMatcher('OnboardingScreen'),
+        },
+      );
+      expect(usedParamResult.succeeded, isTrue);
+    });
+
     test('emits a capability-manifest sidecar for a built-in-only paywall',
         () async {
       const source = '''

@@ -1,6 +1,7 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
@@ -19,6 +20,7 @@ final class CustomWidgetParam {
     required this.defaultValue,
     this.coalesceFallback,
     this.sourceField,
+    this.type,
   });
 
   /// The `this.x` formal name — matched against call-site arguments and read
@@ -29,6 +31,9 @@ final class CustomWidgetParam {
   /// call-site literal bound to such a parameter is coerced to a double
   /// literal, so it survives an rfw `source.v<double>` decode in the body.
   final bool isNumeric;
+
+  /// The resolved parameter type used to preserve its runtime decoder shape.
+  final DartType? type;
 
   /// The constructor default, folded to a scalar — an [int], [double],
   /// [bool], or [String] — or `null` when the parameter has no default (or a
@@ -51,6 +56,49 @@ final class CustomWidgetParam {
 
   /// Exact field read by the emitted definition body.
   final FieldElement? sourceField;
+}
+
+/// One constructor parameter of a root source — a value the host supplies at
+/// render time, read inside the blob as a `data.context.<name>` reference.
+@immutable
+final class RootContextParam {
+  /// Creates a root host-data parameter descriptor.
+  const RootContextParam({
+    required this.name,
+    required this.type,
+    required this.isHostData,
+    required this.field,
+    required this.isRequired,
+    required this.defaultValueCode,
+    required this.hasNullDefault,
+  });
+
+  /// The declared formal name — the `data.context` key the host must supply.
+  final String name;
+
+  /// The parameter's static Dart type, nullability included.
+  final DartType type;
+
+  /// Whether [type] is valid host data. Unread parameters may use any type.
+  final bool isHostData;
+
+  /// The instance field initialized by this formal, when one exists.
+  final FieldElement? field;
+
+  /// Whether callers must supply the constructor parameter.
+  final bool isRequired;
+
+  /// The explicit constructor default, or `null` when none is declared.
+  final String? defaultValueCode;
+
+  /// Whether the explicit constructor default evaluates to `null`.
+  final bool hasNullDefault;
+
+  /// Whether omission would select a non-null Dart default.
+  bool get hasNonNullDefault => defaultValueCode != null && !hasNullDefault;
+
+  /// Whether the host may omit this value.
+  bool get isNullable => type.nullabilitySuffix == NullabilitySuffix.question;
 }
 
 /// One declarative-state field of a custom widget's `State` class — captured

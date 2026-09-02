@@ -108,6 +108,6 @@ void main() {
       runtimeSource.contains('_recordingSink = _bridgeEventToAnalytics;'),
       isTrue,
     );
-    expect(runtimeSource.contains('_recordingSink?.call(event);'), isTrue);
+    expect(runtimeSource.contains('_recordingSink?.call('), isTrue);
   });
 }

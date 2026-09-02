@@ -5,6 +5,8 @@ import 'package:flutter/material.dart'
     show ColorScheme, IconThemeData, MediaQueryData, TextStyle;
 import 'package:rfw/rfw.dart';
 
+import 'context_data.dart';
+
 /// Populates the `data.device.*` namespace on [target].
 ///
 /// Includes locale, platform identifier, screen size, device pixel ratio, and
@@ -147,3 +149,26 @@ Map<String, Object?> _colorSchemeData(ColorScheme cs) => <String, Object?>{
       'inversePrimary': cs.inversePrimary.toARGB32(),
       'surfaceTint': cs.surfaceTint.toARGB32(),
     };
+
+/// Publishes host-supplied render data under `data.context.*`
+/// unconditionally on every call, writing only the `context` root key.
+/// Mount widgets' `context:` parameter skips unchanged republishes.
+/// Signed zero is canonicalized to `0.0`; keep each path's numeric runtime type
+/// stable because renderer scalar `==` can miss `int`/`double` transitions.
+///
+/// ```dart
+/// populateContextData(
+///   content,
+///   <String, Object?>{
+///     'profile': <String, Object?>{
+///       'plan': 'pro',
+///     },
+///   },
+/// );
+/// ```
+void populateContextData(
+  DynamicContent target,
+  Map<String, Object?> context,
+) {
+  target.update(kContextDataKey, ContextSnapshot.of(context).value);
+}

@@ -246,6 +246,11 @@ widget Root = Column(children: [
       ]);
       expect(result.text, isNot(contains('analyticsId')));
       expect(() => fmt.parseLibraryFile(result.text), returnsNormally);
+      final root = result.library.widgets.single.root as fmt.ConstructorCall;
+      final loop =
+          (root.arguments['children']! as List<Object?>)[1]! as fmt.Loop;
+      final loopCard = loop.output as fmt.ConstructorCall;
+      expect(loopCard.arguments, isNot(contains('analyticsId')));
       expect(
         result.declarations
             .map((declaration) => declaration.presentationHandle)

@@ -152,8 +152,7 @@ final class NoticeScreen extends StatelessWidget {
       );
     });
 
-    test('unsupported ScreenSource instance field reference fails generation',
-        () async {
+    test('a defaulted ScreenSource host-data read fails generation', () async {
       const source = '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
@@ -193,7 +192,9 @@ final class NoticeScreen extends StatelessWidget {
         logs.map((log) => log.message).join('\n'),
         allOf(
           contains('[unrecognizedMethodCall]'),
-          contains('SimpleIdentifierImpl `enabled`'),
+          contains("parameter 'enabled' as host data"),
+          contains('Dart default `true`'),
+          contains('Make the parameter required'),
         ),
       );
     });

@@ -100,11 +100,16 @@ ResolvedFlow _brokenFlow(String welcomeText) {
   );
 }
 
-Widget _host(FlowResolver resolver) => Directionality(
+Widget _host(
+  FlowResolver resolver, {
+  Map<String, Object?>? context,
+}) =>
+    Directionality(
       textDirection: TextDirection.ltr,
       child: RestageOnboarding<FirstRunResult>(
         flow: firstRunFlowRef,
         resolver: resolver,
+        context: context,
         unavailable: const FlowUnavailablePolicy.hide(),
       ),
     );
@@ -124,6 +129,29 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Second'), findsOneWidget);
     expect(find.text('First'), findsNothing);
+  });
+
+  testWidgets('a pending onboarding retains its accepted context',
+      (tester) async {
+    final resolver = _MutableFlowResolver(contextResolvedFlow());
+    final hostContext = <String, Object?>{'label': 'accepted'};
+    await tester.pumpWidget(_host(resolver, context: hostContext));
+    await tester.pumpAndSettle();
+    expect(find.text('accepted'), findsOneWidget);
+
+    resolver.flow = resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': contextScreenBlob('candidate-next'),
+        'profile': contextScreenBlob('candidate-finish'),
+      },
+    );
+    final refresh = Restage.reloadSurfaces();
+    hostContext['label'] = 'later';
+    await refresh;
+    await tester.pumpAndSettle();
+
+    expect(find.text('accepted'), findsOneWidget);
+    expect(find.text('later'), findsNothing);
   });
 
   testWidgets(

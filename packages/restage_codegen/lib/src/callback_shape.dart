@@ -27,13 +27,26 @@ final class SingleValueCallback extends ResolvedCallbackShape {
   final DartType valueType;
 }
 
-/// A callable shape outside the chapter's accepted structural set.
+/// A callable shape outside the structural set every target admits.
 final class UnsupportedCallback extends ResolvedCallbackShape {
   /// Creates an unsupported callback disposition with a diagnostic [reason].
   const UnsupportedCallback(this.reason);
 
   /// Target-independent reason the shape is not accepted.
   final String reason;
+}
+
+/// Whether [type] is carried as an event handler at an event slot — a callable
+/// returning `void`, or `Future<void>` for fire-and-forget handlers. A
+/// deliberate event-slot widening of the structural set below.
+bool isEventCallbackType(DartType type) {
+  if (type is! FunctionType) return false;
+  final returnType = type.returnType;
+  if (returnType is VoidType) return true;
+  return returnType is InterfaceType &&
+      returnType.isDartAsyncFuture &&
+      returnType.typeArguments.length == 1 &&
+      returnType.typeArguments.single is VoidType;
 }
 
 /// Classifies [type] by the shared callback structure admitted by all targets.

@@ -49,6 +49,14 @@ final class StaticFlowResolver implements FlowResolver {
   Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) async => this.flow;
 }
 
+/// Resolver whose first response remains under explicit test control.
+final class ControlledFlowResolver implements FlowResolver {
+  final Completer<ResolvedFlow> response = Completer<ResolvedFlow>();
+
+  @override
+  Future<ResolvedFlow> resolve<R>(OnboardingFlowRef<R> flow) => response.future;
+}
+
 /// Resolver whose root artifact can change while child resolution stays under
 /// explicit test control.
 final class ControlledInitialSubFlowResolver implements FlowResolver {
@@ -237,6 +245,26 @@ Uint8List screenBlob(String text, String event) {
   ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
+
+/// Encodes a tappable screen whose label comes from host context.
+Uint8List contextScreenBlob(String event) {
+  final source = '''
+    import restage.core;
+    widget OnboardingScreen = GestureDetector(
+      onTap: event "$event" { },
+      child: Text(text: data.context.label)
+    );
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+/// Builds the standard two-screen flow with context-bound labels.
+ResolvedFlow contextResolvedFlow() => resolvedFlow(
+      screenBlobs: <String, Uint8List>{
+        'welcome': contextScreenBlob('next'),
+        'profile': contextScreenBlob('finish'),
+      },
+    );
 
 /// Builds the default linear first-run flow document (welcome -> profile ->
 /// done), or [states] when supplied.

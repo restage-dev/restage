@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:restage_shared/restage_shared.dart' show Surface;
 
 import '../refresh/surface_refresh_trigger.dart';
+import '../runtime/context_data.dart';
 import 'flow_chrome.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
@@ -42,6 +43,7 @@ final class RestageOnboarding<R> extends StatefulWidget {
     this.chromeBuilder,
     this.persistentChromeBuilder,
     this.liveRefresh,
+    this.context,
   });
 
   /// Generated flow descriptor to load.
@@ -101,6 +103,18 @@ final class RestageOnboarding<R> extends StatefulWidget {
   /// Per-widget live-refresh override.
   final Set<SurfaceRefreshTrigger>? liveRefresh;
 
+  /// Host-supplied render data, published to each screen as `data.context.*`.
+  ///
+  /// Values support 32 collection levels below the root, 10,000 retained
+  /// normalized nodes including the root, and 100,000 inspected map entries or
+  /// list elements per normalization. Null map values are omitted; null list
+  /// elements are dropped and lists compact. Invalid values, unreadable
+  /// collections, and exceeded limits throw in debug. Release reports
+  /// diagnostics and omits the offending value or collection. Accepted input
+  /// is normalized and copied synchronously. Equal normalized snapshots issue
+  /// no renderer update; null withdraws the namespace.
+  final Map<String, Object?>? context;
+
   @override
   State<RestageOnboarding<R>> createState() => _RestageOnboardingState<R>();
 }
@@ -108,6 +122,12 @@ final class RestageOnboarding<R> extends StatefulWidget {
 class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   String? _reportedUnsupportedIdentity;
   int _unavailableCallbackGeneration = 0;
+  ContextSnapshot? _context;
+
+  void _refreshContext() {
+    final raw = widget.context;
+    _context = raw == null ? null : ContextSnapshot.of(raw, previous: _context);
+  }
 
   bool get _acceptsFlow => widget.flow.surfaceType == Surface.onboarding;
 
@@ -130,12 +150,14 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
   @override
   void initState() {
     super.initState();
+    _refreshContext();
     _scheduleUnavailableCallback();
   }
 
   @override
   void didUpdateWidget(RestageOnboarding<R> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _refreshContext();
     if (oldWidget.flow.surfaceType != widget.flow.surfaceType ||
         oldWidget.flow.id != widget.flow.id ||
         oldWidget.flow.version != widget.flow.version) {
@@ -180,26 +202,29 @@ class _RestageOnboardingState<R> extends State<RestageOnboarding<R>> {
       }
       return const SizedBox.shrink();
     }
-    return RestageFlowGraph<R>(
-      flow: widget.flow,
-      initialState: widget.initialState,
-      unavailable: widget.unavailable,
-      actions: widget.actions,
-      installedSignalNames: widget.installedSignalNames,
-      resolver: widget.resolver,
-      onFlowUnavailable: widget.onFlowUnavailable,
-      onComplete: widget.onComplete,
-      loadingBuilder: widget.loadingBuilder,
-      transition: widget.transition,
-      systemBack: widget.systemBack,
-      enableSkip: widget.enableSkip,
-      chromeTheme: widget.chromeTheme,
-      persistentChrome: widget.persistentChrome,
-      backBuilder: widget.backBuilder,
-      skipBuilder: widget.skipBuilder,
-      chromeBuilder: widget.chromeBuilder,
-      persistentChromeBuilder: widget.persistentChromeBuilder,
-      liveRefresh: widget.liveRefresh,
+    return RestageContextSnapshotScope(
+      snapshot: _context,
+      child: RestageFlowGraph<R>(
+        flow: widget.flow,
+        initialState: widget.initialState,
+        unavailable: widget.unavailable,
+        actions: widget.actions,
+        installedSignalNames: widget.installedSignalNames,
+        resolver: widget.resolver,
+        onFlowUnavailable: widget.onFlowUnavailable,
+        onComplete: widget.onComplete,
+        loadingBuilder: widget.loadingBuilder,
+        transition: widget.transition,
+        systemBack: widget.systemBack,
+        enableSkip: widget.enableSkip,
+        chromeTheme: widget.chromeTheme,
+        persistentChrome: widget.persistentChrome,
+        backBuilder: widget.backBuilder,
+        skipBuilder: widget.skipBuilder,
+        chromeBuilder: widget.chromeBuilder,
+        persistentChromeBuilder: widget.persistentChromeBuilder,
+        liveRefresh: widget.liveRefresh,
+      ),
     );
   }
 }

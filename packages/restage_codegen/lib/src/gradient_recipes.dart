@@ -1,4 +1,5 @@
 import 'package:restage_codegen/src/translator_recipe.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Translator recipes for the gradient value types and the `Alignment`
 /// type they lean on.
@@ -38,7 +39,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
       EmitMapEntry('type', EmitFragmentLiteral('"radial"')),
       EmitMapEntry(
         'colors',
-        EmitFragmentArg(ArgRef.named('colors')),
+        EmitFragmentArg(
+          ArgRef.named('colors'),
+          itemPropertyType: PropertyType.color,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -53,7 +57,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
       ),
       EmitMapEntry(
         'radius',
-        EmitFragmentArg(ArgRef.named('radius')),
+        EmitFragmentArg(
+          ArgRef.named('radius'),
+          propertyType: PropertyType.real,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -63,7 +70,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
       ),
       EmitMapEntry(
         'focalRadius',
-        EmitFragmentArg(ArgRef.named('focalRadius')),
+        EmitFragmentArg(
+          ArgRef.named('focalRadius'),
+          propertyType: PropertyType.real,
+        ),
         omitWhenArgUnset: true,
       ),
     ]),
@@ -76,7 +86,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
       EmitMapEntry('type', EmitFragmentLiteral('"sweep"')),
       EmitMapEntry(
         'colors',
-        EmitFragmentArg(ArgRef.named('colors')),
+        EmitFragmentArg(
+          ArgRef.named('colors'),
+          itemPropertyType: PropertyType.color,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
@@ -91,12 +104,18 @@ const List<TranslatorRecipe> kGradientRecipes = [
       ),
       EmitMapEntry(
         'startAngle',
-        EmitFragmentArg(ArgRef.named('startAngle')),
+        EmitFragmentArg(
+          ArgRef.named('startAngle'),
+          propertyType: PropertyType.real,
+        ),
         omitWhenArgUnset: true,
       ),
       EmitMapEntry(
         'endAngle',
-        EmitFragmentArg(ArgRef.named('endAngle')),
+        EmitFragmentArg(
+          ArgRef.named('endAngle'),
+          propertyType: PropertyType.real,
+        ),
         omitWhenArgUnset: true,
       ),
     ]),
@@ -111,7 +130,10 @@ const List<TranslatorRecipe> kGradientRecipes = [
 const EmitFragment _kCenterAlignmentArg = EmitFragmentMemberTable(
   ArgRef.named('center'),
   _kAlignmentMemberFragments,
-  fallback: EmitFragmentArg(ArgRef.named('center')),
+  fallback: EmitFragmentArg(
+    ArgRef.named('center'),
+    propertyType: PropertyType.alignmentXY,
+  ),
 );
 
 /// The `focal` alignment argument fragment for the radial recipe; same
@@ -119,7 +141,10 @@ const EmitFragment _kCenterAlignmentArg = EmitFragmentMemberTable(
 const EmitFragment _kFocalAlignmentArg = EmitFragmentMemberTable(
   ArgRef.named('focal'),
   _kAlignmentMemberFragments,
-  fallback: EmitFragmentArg(ArgRef.named('focal')),
+  fallback: EmitFragmentArg(
+    ArgRef.named('focal'),
+    propertyType: PropertyType.alignmentXY,
+  ),
 );
 
 /// Coordinate-pair fragments for Flutter's nine `Alignment` constants, in

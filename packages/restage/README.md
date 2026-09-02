@@ -102,6 +102,45 @@ One host widget per surface kind:
   [doc/flow_navigation_and_customization.md](doc/flow_navigation_and_customization.md)
   for back and skip chrome.
 
+## Host data
+
+Every surface host accepts an optional `context:` map. Its values are available
+to authored widgets under `data.context.*`.
+
+Context accepts strings, integers, finite doubles, booleans, lists, and maps
+with string keys through 32 collection levels below the root. A context may
+contain up to 10,000 retained normalized nodes including the root and may
+inspect up to 100,000 map entries or list elements per normalization. Null map
+values are omitted, and null list elements are dropped and compacted.
+Normalization synchronously deep-copies accepted input. Invalid values,
+unreadable collections, and exceeded limits throw in debug; release reports
+diagnostics and omits the offending value or collection.
+
+For example, a screen can render state already owned by the app:
+
+```dart
+RestageScreen(
+  screen: accountSummaryScreenRef,
+  unavailable: const SurfaceScreenUnavailablePolicy.hide(),
+  context: <String, Object?>{
+    'profile': <String, Object?>{
+      'displayName': profile.displayName,
+      'tasksRemaining': remainingTasks.length,
+    },
+  },
+)
+```
+
+Accepted input is normalized and copied synchronously. Equal normalized
+snapshots issue no renderer update. Setting `context:` back to null withdraws
+the namespace.
+
+Changing one scalar rebuilds the node whose own arguments read that path and
+the node's subtree; unchanged scalar siblings stay untouched. A list change
+rebuilds the list host and its rows. Reconciliation is positional: on insert
+and reorder, persistent row state stays with its position while authored row
+ids move.
+
 ### Commerce
 
 `Restage.commerce` is the inert typed commerce seam. Using the facade with its

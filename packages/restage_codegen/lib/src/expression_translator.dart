@@ -7,6 +7,7 @@ import 'package:analyzer/source/line_info.dart';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/build_body.dart';
+import 'package:restage_codegen/src/callback_shape.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
@@ -15,6 +16,7 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/customer_structured_value_emitter.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
+import 'package:restage_codegen/src/dsl_emission.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -36,6 +38,7 @@ import 'package:restage_codegen/src/synthetic_property.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/toggle_buttons_recognition.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
+import 'package:restage_codegen/src/type_inference.dart';
 import 'package:restage_codegen/src/widget_catalog/translator_tables.g.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
@@ -59,9 +62,40 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart'
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 const String _kRestageFlutterSdkLibraryOrigin = 'package:restage';
+const String _kSelectionOptionLibraryOrigin =
+    'package:restage_core/src/runtime/decoders.dart';
+const Set<String> _kTranslatedTypedListFrameworkItems = {
+  'AssetImage',
+  'Border',
+  'BorderRadius',
+  'BorderSide',
+  'BoxShadow',
+  'DecorationImage',
+  'FontFeature',
+  'FontVariation',
+  'LinearGradient',
+  'Locale',
+  'NetworkImage',
+  'Paint',
+  'RadialGradient',
+  'Shadow',
+  'Size',
+  'SweepGradient',
+  'TextDecoration',
+  'TextStyle',
+};
 const Set<String> _kScreenEventHelperNames = {
   'onboardingEvent',
   'surfaceEvent',
+};
+const Set<String> _kRfwLoopReservedWords = {
+  'args',
+  'data',
+  'event',
+  'false',
+  'set',
+  'state',
+  'true',
 };
 
 /// The synthetic-strategy marker on the uniform `borderRadius` slot. The
@@ -327,10 +361,15 @@ final class ExpressionTranslator {
   /// translator's primitives through injected closures. `late final` so the
   /// method tear-offs bind to a fully-constructed `this`.
   late final StructuredValueEmitter _structured = StructuredValueEmitter(
-    translate: _translate,
+    translate: (expr, issues) =>
+        _translateSlotValue(expr, PropertyType.unknown, issues),
+    translateSlotValue: _translateSlotValue,
+    translateSlotElement: _translateSlotElement,
+    translateTypedListTerminal: _translateTypedListTerminal,
     translateDoubleScalar: _translateDoubleScalar,
     translateDoubleElement: _translateDoubleElement,
     resolveDoubleListSource: _resolveDoubleListSource,
+    translateDoubleLiteral: _translateDoubleLiteral,
     stripParens: _stripParens,
     stringLiteral: _stringLiteral,
     frameworkOrUnresolved: _frameworkOrUnresolved,
@@ -339,8 +378,6 @@ final class ExpressionTranslator {
     isResolvedNonFrameworkCtor: _isResolvedNonFrameworkCtor,
     deferFrameworkConstLookalike: _deferFrameworkConstLookalike,
     deferFrameworkCtorLookalike: _deferFrameworkCtorLookalike,
-    conditionalSwitch: _conditionalSwitch,
-    validateThemeValueForSlot: _validateThemeValueForSlot,
     locationOf: _locationOf,
   );
 
@@ -433,10 +470,7 @@ final class ExpressionTranslator {
   /// emitting an RFW remote-widget definition — rather than deferring it.
   final Map<String, CustomWidgetBlueprint> customWidgetBlueprints;
 
-  /// The walk-scoped translation state, bundled into one immutable value so a
-  /// push/pop is a single whole-object swap: save `_walk`, set it to a
-  /// `copyWith` of the touched subset, restore the saved value in `finally`.
-  /// The eleven walk-scoped fields are read off `_walk`.
+  /// Walk-scoped state replaced atomically around nested translations.
   _WalkContext _walk = _WalkContext.initial();
 
   Map<Element, HelperDef> _collectionHelpers = const {};
@@ -510,13 +544,17 @@ final class ExpressionTranslator {
   /// hand-authored per-type dispatch; an unregistered call falls through.
   late final RecipeDispatcher _recipeDispatcher = RecipeDispatcher(
     recipes: kTranslatorRecipes,
-    translate: _translate,
+    translate: (expr, issues) =>
+        _translateSlotValue(expr, PropertyType.unknown, issues),
     translateDouble: _translateDoubleScalar,
     translateDoubleElement: _translateDoubleElement,
     resolveDoubleListSource: _resolveDoubleListSource,
     resolveTypedListExpression: _resolveBoundIdentifier,
     collectionSemanticProbe: _collectionSemanticProbe,
     locationOf: _locationOf,
+    translateSlot: _translateSlotValue,
+    translateSlotElement: _translateSlotElement,
+    translateTypedListTerminal: _translateTypedListTerminal,
     // Inject the (forTesting-aware) framework-value-type predicate so the
     // member-table nested-value gate defers a resolved customer look-alike
     // consistently with the hand-authored helpers.
@@ -568,6 +606,7 @@ final class ExpressionTranslator {
     LineInfo? lineInfo,
     String? entryId,
     List<CustomWidgetStateField>? rootState,
+    List<RootContextParam> rootParams = const [],
     Map<String, RecognisedSetState> rootEventHandlers = const {},
     Element? buildContextParameter,
     bool flowScreenContext = false,
@@ -586,6 +625,7 @@ final class ExpressionTranslator {
       stateFields: rootState == null
           ? null
           : {for (final field in rootState) field.name: field},
+      rootParams: {for (final p in rootParams) p.name: p},
       eventHandlers: rootEventHandlers,
       rootStateContext: rootState != null,
       // The root walk's prelude locals; a definition body substitutes its own.
@@ -759,12 +799,17 @@ final class ExpressionTranslator {
   /// standalone CLI). Callers map the result to an `EmitOutcome`.
   TranslationResult attemptInlineEmit(
     WidgetClassification classification,
-    CustomWidgetBlueprint blueprint,
-  ) {
+    CustomWidgetBlueprint blueprint, {
+    List<RootContextParam> rootParams = const [],
+  }) {
     final savedCollectionSession = _collectionSession;
     _collectionSession = CollectionSemanticTraversalSession();
     try {
-      return _attemptInlineEmit(classification, blueprint);
+      return _attemptInlineEmit(
+        classification,
+        blueprint,
+        rootParams: rootParams,
+      );
     } finally {
       _collectionSession = savedCollectionSession;
     }
@@ -772,8 +817,9 @@ final class ExpressionTranslator {
 
   TranslationResult _attemptInlineEmit(
     WidgetClassification classification,
-    CustomWidgetBlueprint blueprint,
-  ) {
+    CustomWidgetBlueprint blueprint, {
+    required List<RootContextParam> rootParams,
+  }) {
     _currentSourcePath = null;
     _currentLineInfo = null;
     final issues = <Issue>[];
@@ -836,6 +882,8 @@ final class ExpressionTranslator {
     _walk = _walk.copyWith(
       argNames: blueprint.params.map((p) => p.name).toSet(),
       params: {for (final p in blueprint.params) p.name: p},
+      // Custom-widget definitions cannot read root host data.
+      rootParams: const {},
       classKey: blueprint.classKey,
       validatedCoalesceParams: {},
       stateFields: stateFields == null
@@ -882,6 +930,36 @@ final class ExpressionTranslator {
     // bare ints the runtime `v<double>` decode silently nulls.
     if (expr is ParenthesizedExpression) {
       return _translate(expr.expression, issues);
+    }
+    final rootAccess = _rootParamAccess(expr);
+    if (rootAccess != null) {
+      if (!rootAccess.param.isHostData) {
+        issues.add(
+          rootAccess.stateful
+              ? _hostDataStateShapeIssue(rootAccess.param, expr)
+              : _hostDataTypeIssue(rootAccess.param, expr),
+        );
+        return '';
+      }
+      if (rootAccess.isMember && _isPropertyMemberAccess(expr)) {
+        issues.add(_hostDataMemberIssue(rootAccess.param, expr));
+        return '';
+      }
+    }
+    final loopReference = _runtimeLoopReference(expr);
+    if (loopReference != null) {
+      if (loopReference.indexed) {
+        issues.add(
+          Issue(
+            code: IssueCode.unsupportedCollectionFlow,
+            message: 'A run-time loop value cannot be read by index. Read the '
+                'value itself or one of its named members.',
+            location: _locationOf(expr),
+          ),
+        );
+        return '';
+      }
+      return loopReference.dsl(_rfwPathPart);
     }
     if (expr is FunctionExpression) {
       final navigation = _currentNavigation;
@@ -1054,12 +1132,8 @@ final class ExpressionTranslator {
     if (expr is ConditionalExpression) {
       return _conditionalExpression(expr, issues);
     }
-    // Null-coalescing optional property — `<prop> ?? <fallback>`. Handled here
-    // (not only at the catalog-slot path) so a `??` nested inside a structured
-    // value (`Border.all(color: color ?? scheme.primary)`) is rewritten too.
-    // The fallback was validated against its slot in
-    // `_validateThemeValueForSlot` before the rewrite. Inert outside an inline
-    // (no `_walk.params`).
+    // Rewrites coalesced custom-widget params after fallback validation.
+    // Outside an inline definition, this lookup is inert.
     final coalesce = _coalesceParamAt(expr);
     if (coalesce != null) {
       return _translateCoalesce(coalesce, issues);
@@ -1149,6 +1223,21 @@ final class ExpressionTranslator {
           // stateless-only path stays consistent.
           return 'args${_rfwPathPart(expr.name)}';
         }
+        // Root constructor parameters use the host-data namespace.
+        final rootParam = _rootParamRead(expr);
+        if (rootParam != null) {
+          if (!rootParam.isHostData) {
+            issues.add(_hostDataTypeIssue(rootParam, expr));
+            return '';
+          }
+          if (rootParam.hasNonNullDefault) {
+            issues.add(
+              _hostDataDefaultIssue(rootParam, expr, stateful: false),
+            );
+            return '';
+          }
+          return 'data.context${_rfwPathPart(expr.name)}';
+        }
       }
     }
     if (expr is InstanceCreationExpression) {
@@ -1158,7 +1247,10 @@ final class ExpressionTranslator {
       return _methodInvocation(expr, issues);
     }
     if (expr is CascadeExpression) {
-      return _structured.cascadeExpression(expr, issues);
+      return _normalizePresentDsl(
+        issues,
+        () => _structured.cascadeExpression(expr, issues),
+      );
     }
     if (expr is PropertyAccess) {
       // Theme-as-data: a `Theme.of(<ident>).<x>(.<y>)` chain lowers to a
@@ -1361,7 +1453,138 @@ final class ExpressionTranslator {
 
   String _rfwPathPart(String name) => '.${_rfwMapKey(name)}';
 
+  /// Shared refusal text for stateless and stateful host-data reads.
+  String _hostDataRefusal(String subject, RootContextParam param) =>
+      'Cannot read $subject: it is declared '
+      "'${param.type.getDisplayString()}', and Restage does "
+      'not support that type as host data. Host data parameters must be a '
+      'scalar (bool, int, double, num, String), Object?, a List of host-data '
+      'values, or a Map<String, …> whose values are host data, optionally '
+      'nullable.';
+
+  String _hostDataDefaultRefusal(String subject, RootContextParam param) =>
+      'Cannot read $subject as host data: omitting the value would select its '
+      'Dart default `${param.defaultValueCode}`, which the emitted surface '
+      'cannot apply. Make the parameter required or remove its non-null '
+      'default.';
+
+  /// Rejects a non-host-data parameter read in a stateless root.
+  Issue _hostDataTypeIssue(RootContextParam param, AstNode node) => Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        capabilityGapSubject: 'hostDataType:${param.type.getDisplayString()}',
+        message: _hostDataRefusal("the parameter '${param.name}'", param),
+        location: _locationOf(node),
+      );
+
+  /// Rejects the same read through a stateful root's widget.
+  Issue _hostDataStateShapeIssue(RootContextParam param, AstNode node) => Issue(
+        code: IssueCode.stateShapeUnsupported,
+        message: _hostDataRefusal('widget.${param.name}', param),
+        location: _locationOf(node),
+      );
+
+  Issue _hostDataMemberIssue(RootContextParam param, Expression node) => Issue(
+        code: IssueCode.unrecognizedMethodCall,
+        message: "Cannot read '${node.toSource()}': Restage does not support "
+            "reading a member of the host data parameter '${param.name}'. "
+            'Supply the value itself, or declare a separate parameter for it.',
+        location: _locationOf(node),
+      );
+
+  Issue _hostDataDefaultIssue(
+    RootContextParam param,
+    AstNode node, {
+    required bool stateful,
+  }) =>
+      Issue(
+        code: stateful
+            ? IssueCode.stateShapeUnsupported
+            : IssueCode.unrecognizedMethodCall,
+        capabilityGapSubject: stateful ? null : 'hostDataDefault:${param.name}',
+        message: _hostDataDefaultRefusal(
+          stateful ? 'widget.${param.name}' : "the parameter '${param.name}'",
+          param,
+        ),
+        location: _locationOf(node),
+      );
+
+  /// Returns the root field identity at the base of [source], if any.
+  _RootParamAccess? _rootParamAccess(Expression source) {
+    final expr = _stripParens(source);
+    if (expr is SimpleIdentifier && !_walk.rootStateContext) {
+      final param = _rootParamForElement(expr.element);
+      return param == null
+          ? null
+          : _RootParamAccess(param: param, stateful: false, isMember: false);
+    }
+    if (expr is PrefixedIdentifier) {
+      if (_isInheritedStateWidgetReceiver(expr.prefix) &&
+          _walk.rootStateContext) {
+        final param = _rootParamForElement(expr.identifier.element);
+        if (param != null) {
+          return _RootParamAccess(
+            param: param,
+            stateful: true,
+            isMember: false,
+          );
+        }
+      }
+      final base = _rootParamAccess(expr.prefix);
+      return base?.asMember();
+    }
+    if (expr is PropertyAccess) {
+      final target = expr.target;
+      if (target != null) return _rootParamAccess(target)?.asMember();
+    }
+    if (expr is MethodInvocation) {
+      final target = expr.target;
+      if (target != null) return _rootParamAccess(target)?.asMember();
+    }
+    if (expr is IndexExpression) {
+      final target = expr.target;
+      if (target != null) return _rootParamAccess(target)?.asMember();
+    }
+    if (expr is CascadeExpression) {
+      return _rootParamAccess(expr.target)?.asMember();
+    }
+    return null;
+  }
+
+  /// Returns an exact, unextended root parameter read.
+  RootContextParam? _rootParamRead(Expression expr) {
+    final access = _rootParamAccess(expr);
+    return access == null || access.isMember ? null : access.param;
+  }
+
+  bool _isPropertyMemberAccess(Expression source) {
+    final expr = _stripParens(source);
+    return expr is PrefixedIdentifier || expr is PropertyAccess;
+  }
+
+  bool _isInheritedStateWidgetReceiver(SimpleIdentifier receiver) {
+    final element = receiver.element;
+    if (element is! GetterElement || element.name != 'widget') return false;
+    final base = element.baseElement;
+    return base.enclosingElement is ClassElement &&
+        base.enclosingElement.name == 'State' &&
+        _isFrameworkValueType(base);
+  }
+
+  RootContextParam? _rootParamForElement(Element? element) {
+    final field = _unwrapPropertyAccessor(element);
+    if (field is! FieldElement || field.isStatic) return null;
+    for (final param in _walk.rootParams.values) {
+      final rootField = param.field;
+      if (rootField != null &&
+          identical(rootField.baseElement, field.baseElement)) {
+        return param;
+      }
+    }
+    return null;
+  }
+
   String _stringInterpolation(StringInterpolation expr, List<Issue> issues) {
+    final issueStart = issues.length;
     final segments = <_InterpSegment>[];
 
     for (final element in expr.elements) {
@@ -1387,7 +1610,13 @@ final class ExpressionTranslator {
       return s.text;
     }).toList();
 
-    return '__rfw_interp(${encoded.join(', ')})';
+    return unwrapDslEmission(
+      normalizePresentValue(
+        issues,
+        issueStart,
+        '__rfw_interp(${encoded.join(', ')})',
+      ),
+    );
   }
 
   String _escapeForDsl(String s) =>
@@ -1448,6 +1677,39 @@ final class ExpressionTranslator {
         return 'state${_rfwPathPart(resolved.name)}';
       }
     }
+    final rootAccess = _rootParamAccess(resolved);
+    if (rootAccess != null) {
+      if (!rootAccess.param.isHostData) {
+        issues.add(
+          rootAccess.stateful
+              ? _hostDataStateShapeIssue(rootAccess.param, inner)
+              : _hostDataTypeIssue(rootAccess.param, inner),
+        );
+        return null;
+      }
+      if (rootAccess.isMember && _isPropertyMemberAccess(resolved)) {
+        issues.add(_hostDataMemberIssue(rootAccess.param, inner));
+        return null;
+      }
+    }
+    // A String-typed host data parameter interpolates as a `data.context`
+    // reference; other types would stringify differently at render time.
+    final rootParam = rootAccess?.param;
+    if (rootParam != null && rootParam.isHostData) {
+      if (rootParam.hasNonNullDefault) {
+        issues.add(
+          _hostDataDefaultIssue(
+            rootParam,
+            inner,
+            stateful: _walk.rootStateContext,
+          ),
+        );
+        return null;
+      }
+      if (rootParam.type.isDartCoreString && !rootParam.isNullable) {
+        return 'data.context${_rfwPathPart(rootParam.name)}';
+      }
+    }
 
     issues.add(
       Issue(
@@ -1461,7 +1723,11 @@ final class ExpressionTranslator {
     return null;
   }
 
-  String _listLiteral(ListLiteral expr, List<Issue> issues) {
+  String _listLiteral(
+    ListLiteral expr,
+    List<Issue> issues, {
+    PropertyType? itemType,
+  }) {
     final parts = <String>[];
     var ordinal = 0;
     final traversal = traverseCollectionList(
@@ -1476,6 +1742,7 @@ final class ExpressionTranslator {
             _translateOccurrence(
               occurrence,
               issues,
+              itemType: itemType,
               measurementScope: _walk.measurementWidgetList?.element(
                 ordinal,
                 collectionOccurrence: occurrence,
@@ -1484,10 +1751,192 @@ final class ExpressionTranslator {
           );
           ordinal++;
         case CollectionListRefusal(:final refusal):
-          _recordCollectionRefusal(refusal, issues);
+          final runtimeLoop = refusal.runtimeLoop;
+          if (runtimeLoop == null) {
+            _recordCollectionRefusal(refusal, issues);
+            continue;
+          }
+          final emitted = _emitRuntimeLoop(
+            runtimeLoop,
+            refusal,
+            issues,
+            itemType: itemType,
+            measurementScope: _walk.measurementWidgetList?.element(
+              ordinal,
+              collectionOccurrence: runtimeLoop.template,
+            ),
+          );
+          if (emitted != null) parts.add(emitted);
+          ordinal++;
       }
     }
     return '[${parts.join(', ')}]';
+  }
+
+  String? _emitRuntimeLoop(
+    CollectionRuntimeLoopCandidate candidate,
+    CollectionUnrollRefused refusal,
+    List<Issue> issues, {
+    PropertyType? itemType,
+    MeasurementOccurrenceScope? measurementScope,
+  }) {
+    final identifier = candidate.identifier;
+    if (!isRfwIdentifier(identifier) ||
+        _kRfwLoopReservedWords.contains(identifier)) {
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: "The collection-for name '$identifier' cannot be used in "
+              'an RFW loop. Choose a non-reserved name containing only '
+              'letters, digits, and underscores.',
+          location: _locationOf(candidate.template.authoredExpression),
+        ),
+      );
+      return null;
+    }
+    final input = _runtimeLoopInput(candidate, refusal, issues);
+    if (input == null) return null;
+
+    final before = issues.length;
+    final saved = _walk;
+    _walk = _walk.copyWith(
+      runtimeLoops: [
+        ..._walk.runtimeLoops,
+        _RuntimeLoopBinding(candidate.binding, identifier),
+      ],
+    );
+    late final String template;
+    try {
+      template = _translateOccurrence(
+        candidate.template,
+        issues,
+        itemType: itemType,
+        measurementScope: measurementScope,
+      );
+    } finally {
+      _walk = saved;
+    }
+    if (template.isEmpty || issues.length != before) return null;
+    if (_containsConstructorCall(template, identifier)) {
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: "The collection-for name '$identifier' conflicts with an "
+              'RFW constructor used by its template. Rename the loop value.',
+          location: _locationOf(candidate.template.authoredExpression),
+        ),
+      );
+      return null;
+    }
+    return '...for $identifier in $input: $template';
+  }
+
+  String? _runtimeLoopInput(
+    CollectionRuntimeLoopCandidate candidate,
+    CollectionUnrollRefused refusal,
+    List<Issue> issues,
+  ) {
+    final iterable = candidate.iterable;
+    if (!_isResolvedList(iterable.staticType)) {
+      _recordCollectionRefusal(refusal, issues);
+      return null;
+    }
+    final outer = _runtimeLoopReference(iterable);
+    if (outer != null && !outer.indexed) {
+      return outer.dsl(_rfwPathPart);
+    }
+    final rootParam = _rootParamRead(iterable);
+    if (rootParam == null ||
+        !rootParam.isHostData ||
+        rootParam.hasNonNullDefault ||
+        !_isResolvedList(rootParam.type)) {
+      _recordCollectionRefusal(refusal, issues);
+      return null;
+    }
+    return 'data.context${_rfwPathPart(rootParam.name)}';
+  }
+
+  bool _containsConstructorCall(String dsl, String identifier) {
+    var quoted = false;
+    var escaped = false;
+    var index = 0;
+    while (index < dsl.length) {
+      final unit = dsl.codeUnitAt(index);
+      if (quoted) {
+        if (escaped) {
+          escaped = false;
+        } else if (unit == 0x5C) {
+          escaped = true;
+        } else if (unit == 0x22) {
+          quoted = false;
+        }
+        index++;
+        continue;
+      }
+      if (unit == 0x22) {
+        quoted = true;
+        index++;
+        continue;
+      }
+      if (!dsl.startsWith(identifier, index)) {
+        index++;
+        continue;
+      }
+      final before = index == 0 ? null : dsl.codeUnitAt(index - 1);
+      var cursor = index + identifier.length;
+      final after = cursor == dsl.length ? null : dsl.codeUnitAt(cursor);
+      if ((before == null || !_isRfwIdentifierUnit(before)) &&
+          (after == null || !_isRfwIdentifierUnit(after))) {
+        while (
+            cursor < dsl.length && _isRfwWhitespace(dsl.codeUnitAt(cursor))) {
+          cursor++;
+        }
+        if (cursor < dsl.length && dsl.codeUnitAt(cursor) == 0x28) return true;
+      }
+      index += identifier.length;
+    }
+    return false;
+  }
+
+  bool _isRfwIdentifierUnit(int unit) =>
+      unit == 0x5F ||
+      (unit >= 0x30 && unit <= 0x39) ||
+      (unit >= 0x41 && unit <= 0x5A) ||
+      (unit >= 0x61 && unit <= 0x7A);
+
+  bool _isRfwWhitespace(int unit) =>
+      unit == 0x20 || unit == 0x09 || unit == 0x0A || unit == 0x0D;
+
+  bool _isResolvedList(DartType? type) =>
+      type is InterfaceType &&
+      type.isDartCoreList &&
+      type.nullabilitySuffix == NullabilitySuffix.none;
+
+  _RuntimeLoopReference? _runtimeLoopReference(Expression expression) {
+    if (expression is ParenthesizedExpression) {
+      return _runtimeLoopReference(expression.expression);
+    }
+    if (expression is SimpleIdentifier) {
+      for (final binding in _walk.runtimeLoops.reversed) {
+        if (identical(binding.element, expression.element)) {
+          return _RuntimeLoopReference(binding, const [], indexed: false);
+        }
+      }
+      return null;
+    }
+    if (expression is PrefixedIdentifier) {
+      final target = _runtimeLoopReference(expression.prefix);
+      return target?.append(expression.identifier.name);
+    }
+    if (expression is PropertyAccess && expression.target != null) {
+      final target = _runtimeLoopReference(expression.target!);
+      return target?.append(expression.propertyName.name);
+    }
+    if (expression is IndexExpression) {
+      final target = _runtimeLoopReference(expression.realTarget);
+      return target?.withIndex();
+    }
+    return null;
   }
 
   void _recordCollectionRefusal(
@@ -1561,8 +2010,18 @@ final class ExpressionTranslator {
   String _translateOccurrence(
     CollectionSemanticOccurrence occurrence,
     List<Issue> issues, {
+    PropertyType? itemType,
     MeasurementOccurrenceScope? measurementScope,
   }) {
+    if (itemType != null) {
+      return _translateSlotElement(
+        occurrence.terminalExpression,
+        occurrence.bindings,
+        itemType,
+        issues,
+        measurementScope: measurementScope,
+      );
+    }
     return _translateWithBindings(
       occurrence.terminalExpression,
       occurrence.bindings,
@@ -1582,6 +2041,21 @@ final class ExpressionTranslator {
         bindings,
         issues,
         _translateDoubleScalar,
+      );
+
+  String _translateSlotElement(
+    Expression expression,
+    Map<Element, Expression> bindings,
+    PropertyType type,
+    List<Issue> issues, {
+    MeasurementOccurrenceScope? measurementScope,
+  }) =>
+      _translateWithBindings(
+        expression,
+        bindings,
+        issues,
+        (bound, sink) => _translateSlotValue(bound, type, sink),
+        measurementScope: measurementScope,
       );
 
   String _translateWithBindings(
@@ -1737,6 +2211,21 @@ final class ExpressionTranslator {
         _walk.stateFields != null &&
         _walk.argNames.contains(identifier)) {
       return 'args${_rfwPathPart(identifier)}';
+    }
+    // Stateful roots read constructor parameters through `widget`.
+    final rootParam = _rootParamRead(expr);
+    if (rootParam != null) {
+      if (!rootParam.isHostData) {
+        issues.add(_hostDataStateShapeIssue(rootParam, expr));
+        return '';
+      }
+      if (rootParam.hasNonNullDefault) {
+        issues.add(
+          _hostDataDefaultIssue(rootParam, expr, stateful: true),
+        );
+        return '';
+      }
+      return 'data.context${_rfwPathPart(identifier)}';
     }
     if (prefix == 'widget' && _walk.rootStateContext) {
       issues.add(
@@ -1980,6 +2469,13 @@ final class ExpressionTranslator {
           IssueCode.unresolvedIdentifier,
         ),
       );
+      return '';
+    }
+
+    // A dotted read would name a key the host never supplies for this param.
+    final memberRootAccess = _rootParamAccess(expr);
+    if (memberRootAccess?.isMember ?? false) {
+      issues.add(_hostDataMemberIssue(memberRootAccess!.param, expr));
       return '';
     }
     issues.add(
@@ -2275,6 +2771,27 @@ final class ExpressionTranslator {
     String loc, {
     required bool fromConstructor,
   }) {
+    return _normalizeNullablePresentDsl(
+      issues,
+      () => _emitValueType(
+        type,
+        variant,
+        args,
+        issues,
+        loc,
+        fromConstructor: fromConstructor,
+      ),
+    );
+  }
+
+  String? _emitValueType(
+    String type,
+    String? variant,
+    NodeList<Expression> args,
+    List<Issue> issues,
+    String loc, {
+    required bool fromConstructor,
+  }) {
     switch (type) {
       case 'Locale':
         return _structured.locale(variant, args, issues, loc);
@@ -2347,12 +2864,16 @@ final class ExpressionTranslator {
     required bool fromConstructor,
   }) {
     final key = recipeKey(library: null, typeName: type, variant: variant);
+    String? value;
     if (_recipeDispatcher.hasRecipe(key)) {
-      final recipeHit =
-          _recipeDispatcher.tryTranslate(key, args.toList(), issues, loc);
-      if (recipeHit != null) return recipeHit;
+      value = _recipeDispatcher.tryTranslate(
+        key,
+        args.toList(),
+        issues,
+        loc,
+      );
     }
-    return _tryValueType(
+    value ??= _tryValueType(
       type,
       variant,
       args,
@@ -2360,6 +2881,7 @@ final class ExpressionTranslator {
       loc,
       fromConstructor: fromConstructor,
     );
+    return value;
   }
 
   String _instanceCreation(
@@ -2459,13 +2981,16 @@ final class ExpressionTranslator {
     // in Flutter; its supported box-border constructors are handled above, so
     // any other `Border`/ShapeBorder factory falls to this generic path before
     // the unsupported-shape diagnostic.
-    final shapeBorder = _structured.shapeBorder(
-      prefix: prefix,
-      typeName: typeName,
-      constructorName: constructorName,
-      args: expr.argumentList.arguments,
-      issues: issues,
-      loc: _locationOf(expr),
+    final shapeBorder = _normalizeNullablePresentDsl(
+      issues,
+      () => _structured.shapeBorder(
+        prefix: prefix,
+        typeName: typeName,
+        constructorName: constructorName,
+        args: expr.argumentList.arguments,
+        issues: issues,
+        loc: _locationOf(expr),
+      ),
     );
     if (shapeBorder != null) return shapeBorder;
     if (_isShapeBorderClass(_classOfInstanceCreation(expr))) {
@@ -2686,7 +3211,6 @@ final class ExpressionTranslator {
     String? lowerSlot(String propName, Expression value) {
       final p = entry.properties.where((pr) => pr.name == propName).firstOrNull;
       if (p == null) return null; // caller defers — missing widget property.
-      _validateThemeValueForSlot(value, p.type, scratch);
       return _translateSlotValue(value, p.type, scratch, property: p);
     }
 
@@ -2920,7 +3444,6 @@ final class ExpressionTranslator {
         );
         return '';
       }
-      _validateThemeValueForSlot(arg.expression, prop.type, issues);
       final value = _translateSlotValue(
         arg.expression,
         prop.type,
@@ -3354,13 +3877,16 @@ final class ExpressionTranslator {
     // as InstanceCreationExpression; only these factory statics reach here).
     if (target is SimpleIdentifier &&
         (target.name == 'LinearBorder' || target.name == 'StarBorder')) {
-      final shapeBorder = _structured.shapeBorder(
-        prefix: target.name,
-        typeName: method,
-        constructorName: null,
-        args: args,
-        issues: issues,
-        loc: _locationOf(expr),
+      final shapeBorder = _normalizeNullablePresentDsl(
+        issues,
+        () => _structured.shapeBorder(
+          prefix: target.name,
+          typeName: method,
+          constructorName: null,
+          args: args,
+          issues: issues,
+          loc: _locationOf(expr),
+        ),
       );
       if (shapeBorder != null) return shapeBorder;
     }
@@ -4269,7 +4795,6 @@ final class ExpressionTranslator {
       return null;
     }
     final before = issues.length;
-    _validateThemeValueForSlot(expr, property.type, issues);
     final value = _translateSlotValue(
       expr,
       property.type,
@@ -4417,7 +4942,6 @@ final class ExpressionTranslator {
         return false;
       }
       final before = issues.length;
-      _validateThemeValueForSlot(expr, p.type, issues);
       final value = _translateSlotValue(expr, p.type, issues, property: p);
       if (value.isEmpty && issues.length > before) return false;
       emitted.add(
@@ -4652,7 +5176,6 @@ final class ExpressionTranslator {
       } else if (mapped.containsKey(property.name)) {
         final expr = mapped[property.name]!;
         final before = issues.length;
-        _validateThemeValueForSlot(expr, property.type, issues);
         final value = _translateSlotValue(
           expr,
           property.type,
@@ -4917,7 +5440,6 @@ final class ExpressionTranslator {
         return false;
       }
       final before = issues.length;
-      _validateThemeValueForSlot(expr, p.type, issues);
       final value = _translateSlotValue(expr, p.type, issues, property: p);
       if (value.isEmpty && issues.length > before) return false;
       emitted.add(
@@ -5523,7 +6045,6 @@ final class ExpressionTranslator {
       final positionalProp = positionalProps[i];
       final propName = positionalProp.name;
       final before = issues.length;
-      _validateThemeValueForSlot(positionals[i], positionalProp.type, issues);
       final value = _translateSlotValue(
         positionals[i],
         positionalProp.type,
@@ -5570,7 +6091,6 @@ final class ExpressionTranslator {
         continue;
       }
       final before = issues.length;
-      _validateThemeValueForSlot(a.expression, prop.type, issues);
       final value = _translateSlotValue(
         a.expression,
         prop.type,
@@ -5914,6 +6434,8 @@ final class ExpressionTranslator {
       _walk = _walk.copyWith(
         argNames: blueprint.params.map((p) => p.name).toSet(),
         params: {for (final p in blueprint.params) p.name: p},
+        // Custom-widget definitions cannot read root host data.
+        rootParams: const {},
         classKey: blueprint.classKey,
         validatedCoalesceParams: {},
         stateFields: stateFields == null
@@ -5948,7 +6470,15 @@ final class ExpressionTranslator {
 
     // The call-site arguments translate in the caller's context — restored
     // above after any definition-body translation.
-    return '$name(${_customWidgetCallArgs(blueprint, args, issues)})';
+    final callArgs = normalizeOptionalChild(
+      issues,
+      () => _customWidgetCallArgs(blueprint, args, issues),
+    );
+    return switch (callArgs) {
+      CompleteDslEmission(:final value) => '$name($value)',
+      AbsentDslEmission() => '$name()',
+      RefusedDslEmission() => '',
+    };
   }
 
   /// Diagnostic for a custom widget [key] whose emitted RFW name [name]
@@ -6138,18 +6668,29 @@ final class ExpressionTranslator {
     Expression expr,
     List<Issue> issues,
   ) {
-    // Unwrap parens before the conditional check so a parenthesized ternary
-    // bound to a parameter still applies the per-branch numeric coercion
-    // (mirrors the slot path via [_resolveBoundIdentifier]).
     final stripped = _stripParens(expr);
-    if (stripped is ConditionalExpression) {
-      return _conditionalSwitch(
-        stripped,
-        issues,
-        (branch) => _translateParamValue(param, branch, issues),
-      );
-    }
-    final value = _coerceParamValue(param, _translate(stripped, issues));
+    final paramType = param.type;
+    final declaredListItemType =
+        paramType == null ? null : _dartCoreListElementType(paramType);
+    final listItemType = _listItemPropertyTypeForDartType(paramType);
+    final rootParam = _rootParamRead(stripped);
+    final type = param.isNumeric
+        ? PropertyType.real
+        : _propertyTypeForParameter(paramType) ??
+            _propertyTypeForParameter(rootParam?.type) ??
+            PropertyType.unknown;
+    final translated = listItemType == null
+        ? _translateSlotValue(stripped, type, issues)
+        : _translateTypedListTerminal(
+            stripped,
+            listItemType,
+            issues,
+            declaredItemType: declaredListItemType,
+          );
+    final value = _coerceParamValue(
+      param,
+      translated,
+    );
     final eventOccurrence =
         switch ((_walk.measurementWidget, param.sourceField)) {
       (final widget?, final field?) => widget.event(field),
@@ -6216,15 +6757,16 @@ final class ExpressionTranslator {
   /// switch (each arm is double-coerced). Byte-identical to
   /// `_translateDoubleScalar(expr, issues)` for a non-conditional value.
   String _translateDoubleScalar(Expression expr, List<Issue> issues) {
-    final stripped = _stripParens(expr);
-    if (stripped is ConditionalExpression) {
-      return _conditionalSwitch(
-        stripped,
-        issues,
-        (branch) => _translateDoubleScalar(branch, issues),
-      );
-    }
-    return asDoubleLiteral(_translate(stripped, issues));
+    return _translateSlotValue(expr, PropertyType.real, issues);
+  }
+
+  String _translateDoubleLiteral(Expression expr, List<Issue> issues) {
+    return _translateSlotValue(
+      expr,
+      PropertyType.real,
+      issues,
+      coerce: false,
+    );
   }
 
   /// Renders a State field's initial value as a DSL literal for the emitted
@@ -6417,7 +6959,13 @@ final class ExpressionTranslator {
   ) {
     final intSwitch = _tryIntStateEqualitySwitch(expr, issues, branch);
     if (intSwitch != null) return intSwitch;
-    final cond = _translate(expr.condition, issues);
+    final beforeCondition = issues.length;
+    final cond = _translateSlotValue(
+      expr.condition,
+      PropertyType.boolean,
+      issues,
+    );
+    if (cond.isEmpty && issues.length > beforeCondition) return '';
     final thenDsl = branch(expr.thenExpression);
     final elseDsl = branch(expr.elseExpression);
     return 'switch $cond { true: $thenDsl, false: $elseDsl }';
@@ -6537,6 +7085,152 @@ final class ExpressionTranslator {
         _intStateFieldOf(cond.rightOperand) != null;
   }
 
+  String _normalizePresentDsl(
+    List<Issue> issues,
+    String Function() emit,
+  ) =>
+      unwrapDslEmission(normalizePresentChild(issues, emit));
+
+  String? _normalizeNullablePresentDsl(
+    List<Issue> issues,
+    String? Function() emit,
+  ) {
+    final issueStart = issues.length;
+    final value = emit();
+    return value == null
+        ? null
+        : unwrapDslEmission(normalizePresentValue(issues, issueStart, value));
+  }
+
+  String _translateTypedListTerminal(
+    Expression source,
+    PropertyType itemType,
+    List<Issue> issues, {
+    PropertyType? listType,
+    DartType? declaredItemType,
+  }) {
+    final resolved = _resolveBoundIdentifier(_stripParens(source));
+    final param = _rootParamRead(resolved);
+    if (param == null) {
+      if (resolved is ListLiteral) {
+        return _listLiteral(resolved, issues, itemType: itemType);
+      }
+      final sourceType = resolved.staticType;
+      final elementType =
+          sourceType == null ? null : _dartCoreListElementType(sourceType);
+      if (elementType != null &&
+          _typedListItemDecoderAcceptsDartType(
+            itemType,
+            elementType,
+            listType: listType,
+            declaredItemType: declaredItemType,
+          )) {
+        return _translateTypedListValue(resolved, itemType, issues);
+      }
+      issues.add(
+        Issue(
+          code: IssueCode.propertyValueTypeMismatch,
+          message: "The list expression '${source.toSource()}' is declared "
+              "'${sourceType?.getDisplayString() ?? '<unresolved>'}' and its "
+              "elements cannot be assigned to a '${itemType.name}' item "
+              'decoder at this site.',
+          location: _locationOf(source),
+        ),
+      );
+      return '';
+    }
+    if (!param.isHostData || param.hasNonNullDefault) {
+      return _translate(resolved, issues);
+    }
+    final elementType = _dartCoreListElementType(param.type);
+    if (elementType != null &&
+        _propertyTypeAcceptsHostDataType(itemType, elementType)) {
+      return _translate(resolved, issues);
+    }
+    issues.add(
+      Issue(
+        code: IssueCode.propertyValueTypeMismatch,
+        message: "Host data list 'data.context.${param.name}' is declared "
+            "'${param.type.getDisplayString()}' and its elements cannot be "
+            "assigned to a '${itemType.name}' item decoder at this site.",
+        location: _locationOf(source),
+      ),
+    );
+    return '';
+  }
+
+  String _translateTypedListValue(
+    Expression source,
+    PropertyType itemType,
+    List<Issue> issues,
+  ) {
+    final resolved = _resolveBoundIdentifier(_stripParens(source));
+    if (resolved is ConditionalExpression) {
+      return _conditionalSwitch(
+        resolved,
+        issues,
+        (branch) => _translateTypedListValue(branch, itemType, issues),
+      );
+    }
+    if (resolved is ListLiteral) {
+      return _listLiteral(resolved, issues, itemType: itemType);
+    }
+    return _translate(resolved, issues);
+  }
+
+  bool _typedListItemDecoderAcceptsDartType(
+    PropertyType itemType,
+    DartType dartType, {
+    PropertyType? listType,
+    DartType? declaredItemType,
+  }) {
+    final frameworkItemName = switch (listType) {
+      PropertyType.boxShadowList => 'BoxShadow',
+      PropertyType.shadowList => 'Shadow',
+      PropertyType.fontFeatureList => 'FontFeature',
+      PropertyType.fontVariationList => 'FontVariation',
+      _ => null,
+    };
+    if (frameworkItemName != null) {
+      return _isExactFrameworkType(dartType, frameworkItemName);
+    }
+    if (listType == PropertyType.selectionOptionList) {
+      return _isSelectionOptionType(dartType);
+    }
+    if (_propertyTypeAcceptsHostDataType(itemType, dartType) ||
+        inferPropertyType(dartType) == itemType) {
+      return true;
+    }
+    if (itemType == PropertyType.textDecoration) {
+      return _isExactFrameworkType(dartType, 'TextDecoration');
+    }
+    if (declaredItemType == null || declaredItemType != dartType) return false;
+    if (inferPropertyType(declaredItemType) != null ||
+        _isSelectionOptionType(declaredItemType)) {
+      return true;
+    }
+    final element = declaredItemType.element;
+    if (element != null &&
+        _kTranslatedTypedListFrameworkItems.contains(element.name) &&
+        _isFrameworkValueType(element)) {
+      return true;
+    }
+    if (element is! ClassElement) return false;
+    final ref = _dartTypeRefOfClass(element);
+    return ref != null && _customerStructuredByDartType.containsKey(ref);
+  }
+
+  bool _isExactFrameworkType(DartType type, String name) {
+    final element = type.element;
+    return element?.name == name && _isFrameworkValueType(element);
+  }
+
+  bool _isSelectionOptionType(DartType type) {
+    final element = type.element;
+    return element?.name == 'RestageSelectionOption' &&
+        element?.library?.identifier == _kSelectionOptionLibraryOrigin;
+  }
+
   /// Translates a value bound to a slot of [type] with the slot's coercion
   /// applied through the branches of a conditional: each branch feeds the
   /// same slot, so a bare integer in either branch of a ternary bound to a
@@ -6550,7 +7244,11 @@ final class ExpressionTranslator {
     List<Issue> issues, {
     PropertyEntry? property,
     FormalParameterElement? sourceParameter,
+    bool coerce = true,
   }) {
+    final beforeValidation = issues.length;
+    _validateDataRefForSlot(expr, type, issues);
+    if (issues.length > beforeValidation) return '';
     final widgetOccurrence = _walk.measurementWidget;
     final eventOccurrence = type == PropertyType.event &&
             widgetOccurrence != null &&
@@ -6586,9 +7284,15 @@ final class ExpressionTranslator {
         type,
         issues,
         property: property,
+        coerce: coerce,
       );
     } finally {
       _walk = saved;
+    }
+    if (issues
+        .skip(beforeValidation)
+        .any((issue) => issue.code == IssueCode.propertyValueTypeMismatch)) {
+      return '';
     }
     if (type != PropertyType.event) return value;
     if (value.isEmpty) {
@@ -6624,16 +7328,14 @@ final class ExpressionTranslator {
     PropertyType type,
     List<Issue> issues, {
     PropertyEntry? property,
+    bool coerce = true,
   }) {
     // A value-callback closure `(v) => <event>` carries only the event on the
     // wire; any other closure stays intact for the recognisers that match it.
     final expr = type == PropertyType.event && _wrapsEventHelper(rawExpr)
         ? _eventBodyOf(rawExpr)
         : rawExpr;
-    // Null-coalescing optional property — `<prop> ?? <fallback>`. Handled ahead
-    // of the type-special dispatch so the slot value is `args.<prop>` without
-    // the catalog coercion mangling the reference. The fallback was validated
-    // against this slot in `_validateThemeValueForSlot` before the rewrite.
+    // Rewrite only when this slot accepts the coalesced fallback.
     final coalesce = _coalesceParamAt(expr);
     if (coalesce != null) {
       return _translateCoalesce(coalesce, issues);
@@ -6648,13 +7350,20 @@ final class ExpressionTranslator {
       return _conditionalSwitch(
         resolved,
         issues,
-        (branch) => _translateSlotValue(
+        (branch) => _translateSlotValueCore(
           branch,
           type,
           issues,
           property: property,
         ),
       );
+    }
+    // Preserve the authored TextDecoration member before const-object expansion
+    // reaches the private constructor behind the static constant.
+    if (type == PropertyType.textDecoration &&
+        resolved is PrefixedIdentifier &&
+        resolved.prefix.name == 'TextDecoration') {
+      return _prefixedIdentifier(resolved, issues);
     }
     // A const-object field at a slot — resolve it BEFORE the type-special
     // dispatch below, because the `alignmentXY` / `enumValue` branches call
@@ -6667,16 +7376,18 @@ final class ExpressionTranslator {
     if (isConstObjectFieldAccess(resolved)) {
       final initializer = resolveConstObjectFieldInitializer(resolved);
       if (initializer != null) {
-        return _translateSlotValue(
+        return _translateSlotValueCore(
           initializer,
           type,
           issues,
           property: property,
+          coerce: coerce,
         );
       }
       final scalar = tryScalarFoldConstObjectField(resolved);
       if (scalar != null) {
-        return _coerceForPropertyType(type, _foldedLiteral(scalar));
+        final value = _foldedLiteral(scalar);
+        return coerce ? _coerceForPropertyType(type, value) : value;
       }
       issues.add(_constObjectFieldUnresolvedIssue(resolved));
       return '';
@@ -6698,6 +7409,32 @@ final class ExpressionTranslator {
       );
       if (constDsl != null) return constDsl;
     }
+    final inspectedItemType = _inspectedListItemPropertyType(type);
+    if (inspectedItemType != null) {
+      return emitTypedList(
+        expr,
+        _translate,
+        issues,
+        _locationOf(expr),
+        resolveExpression: _resolveBoundIdentifier,
+        semanticProbe: _collectionSemanticProbe(),
+        locationOf: _locationOf,
+        translateElement: (element, bindings, issues) =>
+            _translateSlotElement(element, bindings, inspectedItemType, issues),
+        terminalItemType: inspectedItemType,
+        translateTerminal: (source, itemType, issues) =>
+            _translateTypedListTerminal(
+          source,
+          itemType,
+          issues,
+          listType: type,
+        ),
+      );
+    }
+    final traversedItemType = _traversedListItemPropertyType(type);
+    if (traversedItemType != null && resolved is ListLiteral) {
+      return _listLiteral(resolved, issues, itemType: traversedItemType);
+    }
     final valueShape = property?.valueShape;
     if (valueShape is ScalarShape && valueShape.isOpaqueStringKeyedMap) {
       return _customerMapSlotValue(resolved, issues);
@@ -6713,13 +7450,21 @@ final class ExpressionTranslator {
     // value or a bare string), and diagnoses `AlignmentDirectional` /
     // unsupported members.
     if (type == PropertyType.alignmentXY) {
-      return _structured.alignmentGeometry(resolved, issues, _locationOf(expr));
+      return _normalizePresentDsl(
+        issues,
+        () => _structured.alignmentGeometry(
+          resolved,
+          issues,
+          _locationOf(expr),
+        ),
+      );
     }
     if (type == PropertyType.enumValue && property != null) {
       final enumValue = _enumValueSlot(resolved, property, issues);
       if (enumValue != null) return enumValue;
     }
-    return _coerceForPropertyType(type, _translate(resolved, issues));
+    final value = _translate(resolved, issues);
+    return coerce ? _coerceForPropertyType(type, value) : value;
   }
 
   String _customerMapSlotValue(Expression expr, List<Issue> issues) {
@@ -7395,14 +8140,9 @@ final class ExpressionTranslator {
     }
   }
 
-  /// Validates a contract theme read supplied as the value of a slot of
-  /// [type] — through any parenthesis wrapping and through both branches of
-  /// a conditional (each branch feeds the same slot). Deliberately does not
-  /// descend into nested constructions or collection literals: their values
-  /// are validated at their own property sites. An out-of-contract read is
-  /// not re-diagnosed here — the theme-read lowering already fails it closed
-  /// with its own diagnostic.
-  void _validateThemeValueForSlot(
+  /// Validates theme and root host-data references against [type], including
+  /// conditional branches and coalesced fallbacks.
+  void _validateDataRefForSlot(
     Expression source,
     PropertyType type,
     List<Issue> issues,
@@ -7412,8 +8152,8 @@ final class ExpressionTranslator {
       current = current.expression;
     }
     if (current is ConditionalExpression) {
-      _validateThemeValueForSlot(current.thenExpression, type, issues);
-      _validateThemeValueForSlot(current.elseExpression, type, issues);
+      _validateDataRefForSlot(current.thenExpression, type, issues);
+      _validateDataRefForSlot(current.elseExpression, type, issues);
       return;
     }
     // Null-coalescing optional property — `<prop> ?? <fallback>`. The fallback
@@ -7422,7 +8162,7 @@ final class ExpressionTranslator {
     // before the rewrite, exactly as if it were written directly.
     final coalesce = _coalesceParamAt(current);
     if (coalesce != null) {
-      _validateThemeValueForSlot(coalesce.fallback, type, issues);
+      _validateDataRefForSlot(coalesce.fallback, type, issues);
       // Record that this property's fallback was validated against a slot —
       // the body rewrite is sound only for validated coalesced reads (see
       // [_translateCoalesce]).
@@ -7434,7 +8174,10 @@ final class ExpressionTranslator {
     // theme-local bindings, so a PropertyAccess-only guard would silently skip
     // it and bypass this kind check.
     final segments = _recognizeThemeRead(current);
-    if (segments == null) return;
+    if (segments == null) {
+      _validateRootParamForSlot(current, type, issues);
+      return;
+    }
     final kind = kThemeContractPathKinds[segments.join('.')];
     if (kind == null) return;
     if (propertyTypeAcceptsThemeKind(type, kind)) return;
@@ -7444,6 +8187,26 @@ final class ExpressionTranslator {
         message: "Theme value 'data.theme.${segments.join('.')}' cannot be "
             "assigned to a '${type.name}' property type at this site.",
         location: _locationOf(current),
+      ),
+    );
+  }
+
+  /// Validates a root host-data read against a property slot.
+  void _validateRootParamForSlot(
+    Expression source,
+    PropertyType type,
+    List<Issue> issues,
+  ) {
+    final param = _rootParamRead(_resolveBoundIdentifier(source));
+    if (param == null || !param.isHostData) return;
+    if (_propertyTypeAcceptsHostDataType(type, param.type)) return;
+    issues.add(
+      Issue(
+        code: IssueCode.propertyValueTypeMismatch,
+        message: "Host data value 'data.context.${param.name}' is declared "
+            "'${param.type.getDisplayString()}' and cannot be assigned to a "
+            "'${type.name}' property type at this site.",
+        location: _locationOf(source),
       ),
     );
   }
@@ -7609,10 +8372,6 @@ final class ExpressionTranslator {
         final destProp =
             index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
         if (destProp == null) continue;
-        // Validate against the destination slot BEFORE translating, so a
-        // coalesced `??` fallback is recorded as validated before the body
-        // rewrite (see [_translateCoalesce] / [_walk.validatedCoalesceParams]).
-        _validateThemeValueForSlot(sourceExpr, destProp.type, issues);
         // Precise funnel: an asymmetric / `.all` `BorderRadius` hoisted through
         // the uniform `borderRadius` field cannot pass the frozen circular-only
         // construct-variant transform. Route those specific ctors through the
@@ -7667,10 +8426,6 @@ final class ExpressionTranslator {
         final destProp =
             index.widgetProperty(_widgetRef(entry), mapping.propertyRef);
         if (destProp == null) continue;
-        // Validate against the destination slot BEFORE translating, so a
-        // coalesced `??` fallback is recorded as validated before the body
-        // rewrite (see [_translateCoalesce] / [_walk.validatedCoalesceParams]).
-        _validateThemeValueForSlot(sourceExpr, destProp.type, issues);
         final translated = _decompositionValue(
           mapping.transform,
           sourceExpr,
@@ -7748,17 +8503,15 @@ final class ExpressionTranslator {
         return translated;
       case ProjectListTransform(:final itemTransform):
         if (itemTransform is IdentityTransform) {
-          final translated = emitTypedList(
+          final before = issues.length;
+          final translated = _translateSlotValue(
             sourceExpr,
-            _translate,
+            destination.type,
             issues,
-            _locationOf(sourceExpr),
-            resolveExpression: _resolveBoundIdentifier,
-            semanticProbe: _collectionSemanticProbe(),
-            locationOf: _locationOf,
+            property: destination,
           );
-          if (translated.refused) return null;
-          return translated.value;
+          if (translated.isEmpty && issues.length > before) return null;
+          return translated;
         }
         _unsupportedNativeTransform(
           'Only projectList(identity) is supported for ${destination.name}.',
@@ -7881,10 +8634,6 @@ final class ExpressionTranslator {
             issues: issues,
           );
         }
-        // The bound argument becomes the destination property's value
-        // directly, so a theme read here is validated — and the value
-        // coerced — against the destination slot's type.
-        _validateThemeValueForSlot(expr, destination.type, issues);
         return _translateSlotValue(
           expr,
           destination.type,
@@ -8595,6 +9344,132 @@ bool propertyTypeAcceptsThemeKind(
         false,
     };
 
+/// Whether [dartType] exactly matches [type]'s runtime decoder.
+bool _propertyTypeAcceptsHostDataType(PropertyType type, DartType dartType) {
+  final shape = _hostDataShapeOf(dartType);
+  return switch (type) {
+    PropertyType.length ||
+    PropertyType.real =>
+      shape == _HostDataShape.doubleValue,
+    PropertyType.color ||
+    PropertyType.duration ||
+    PropertyType.integer =>
+      shape == _HostDataShape.integer,
+    PropertyType.string => shape == _HostDataShape.string,
+    PropertyType.boolean => shape == _HostDataShape.boolean,
+    PropertyType.stringList => shape == _HostDataShape.stringList,
+    PropertyType.booleanList => shape == _HostDataShape.booleanList,
+    _ => false,
+  };
+}
+
+PropertyType? _inspectedListItemPropertyType(PropertyType type) =>
+    switch (type) {
+      PropertyType.stringList => PropertyType.string,
+      PropertyType.booleanList => PropertyType.boolean,
+      PropertyType.boxShadowList ||
+      PropertyType.shadowList ||
+      PropertyType.fontFeatureList ||
+      PropertyType.fontVariationList ||
+      PropertyType.selectionOptionList =>
+        PropertyType.unknown,
+      _ => null,
+    };
+
+PropertyType? _traversedListItemPropertyType(PropertyType type) =>
+    switch (type) {
+      PropertyType.widgetList => PropertyType.widget,
+      _ => null,
+    };
+
+PropertyType? _listItemPropertyTypeForDartType(DartType? type) {
+  final elementType = type == null ? null : _dartCoreListElementType(type);
+  if (elementType == null) return null;
+  if (elementType.isDartCoreString) return PropertyType.string;
+  if (elementType.isDartCoreBool) return PropertyType.boolean;
+  if (elementType.isDartCoreInt) return PropertyType.integer;
+  if (elementType.isDartCoreDouble || elementType.isDartCoreNum) {
+    return PropertyType.real;
+  }
+  return PropertyType.unknown;
+}
+
+/// Returns the exact element type of a core List.
+DartType? _dartCoreListElementType(DartType type) {
+  if (type is! InterfaceType ||
+      !type.isDartCoreList ||
+      type.typeArguments.length != 1) {
+    return null;
+  }
+  final elementType = type.typeArguments.single;
+  return elementType.nullabilitySuffix == NullabilitySuffix.none
+      ? elementType
+      : null;
+}
+
+PropertyType? _propertyTypeForParameter(DartType? type) {
+  if (type == null) return null;
+  if (isEventCallbackType(type)) return PropertyType.event;
+  final shape = _hostDataShapeOf(type);
+  return switch (shape) {
+    _HostDataShape.string => PropertyType.string,
+    _HostDataShape.boolean => PropertyType.boolean,
+    _HostDataShape.integer => PropertyType.integer,
+    _HostDataShape.doubleValue || _HostDataShape.number => PropertyType.real,
+    _HostDataShape.stringList => PropertyType.stringList,
+    _HostDataShape.booleanList => PropertyType.booleanList,
+    _HostDataShape.other => PropertyType.unknown,
+  };
+}
+
+/// Returns the runtime shape used for slot validation.
+_HostDataShape _hostDataShapeOf(DartType type) {
+  if (type.isDartCoreString) return _HostDataShape.string;
+  if (type.isDartCoreBool) return _HostDataShape.boolean;
+  if (type.isDartCoreInt) return _HostDataShape.integer;
+  if (type.isDartCoreDouble) return _HostDataShape.doubleValue;
+  if (type.isDartCoreNum) return _HostDataShape.number;
+  if (type is InterfaceType && type.isDartCoreList) {
+    final elementType =
+        type.typeArguments.length == 1 ? type.typeArguments.single : null;
+    if (elementType != null &&
+        elementType.nullabilitySuffix == NullabilitySuffix.none) {
+      if (elementType.isDartCoreString) return _HostDataShape.stringList;
+      if (elementType.isDartCoreBool) return _HostDataShape.booleanList;
+    }
+  }
+  return _HostDataShape.other;
+}
+
+enum _HostDataShape {
+  string,
+  boolean,
+  integer,
+  doubleValue,
+  number,
+  stringList,
+  booleanList,
+  other,
+}
+
+final class _RootParamAccess {
+  const _RootParamAccess({
+    required this.param,
+    required this.stateful,
+    required this.isMember,
+  });
+
+  final RootContextParam param;
+  final bool stateful;
+  final bool isMember;
+
+  _RootParamAccess asMember() => _RootParamAccess(
+        param: param,
+        stateful: stateful,
+        isMember: true,
+      );
+}
+
 /// Sentinel for [_WalkContext.copyWith] that distinguishes "argument omitted"
 /// (keep the current value) from "argument explicitly null" (set to null) for
 /// the nullable walk-scoped fields.
@@ -8604,23 +9479,7 @@ class _WalkUnset {
   const _WalkUnset();
 }
 
-/// The walk-scoped translation state — the eleven fields saved → mutated →
-/// restored around custom-widget definition-body and helper-inline translation.
-///
-/// Bundled into one immutable value object so a push/pop is a single
-/// whole-object swap — `final saved = _walk; _walk = saved.copyWith(<subset>);`
-/// then `finally { _walk = saved; }` — rather than eleven hand-mirrored field
-/// saves. Fields are shared by
-/// reference across [copyWith] (none of the ten non-`validatedCoalesceParams`
-/// fields is ever mutated through the live object — they are only reassigned),
-/// so a child scope that does not touch a field keeps the parent's reference.
-///
-/// [validatedCoalesceParams] is the one field mutated in place (`.add`). Its
-/// reset sites pass a fresh mutable set, and the initial state allocates one,
-/// so a child scope's additions land in the child's set and the whole-object
-/// restore discards them — while an addition made at a scope that did not reset
-/// it mutates the shared set and survives the restore (the saved context holds
-/// the same reference). This reproduces the pre-bundle behaviour exactly.
+/// Immutable translation state saved and restored around nested walks.
 final class _WalkContext {
   const _WalkContext({
     required this.argNames,
@@ -8629,8 +9488,10 @@ final class _WalkContext {
     required this.rootStateContext,
     required this.inlined,
     required this.params,
+    required this.rootParams,
     required this.classKey,
     required this.paramBindings,
+    required this.runtimeLoops,
     required this.modalSheet,
     required this.modalSheetCloseFlag,
     required this.validatedCoalesceParams,
@@ -8649,8 +9510,10 @@ final class _WalkContext {
         rootStateContext = false,
         inlined = const InlinedDefinitions.empty(),
         params = const {},
+        rootParams = const {},
         classKey = null,
         paramBindings = const {},
+        runtimeLoops = const [],
         modalSheet = null,
         modalSheetCloseFlag = null,
         validatedCoalesceParams = {},
@@ -8707,6 +9570,10 @@ final class _WalkContext {
   /// Saved/restored around each definition-body translation.
   final Map<String, CustomWidgetParam> params;
 
+  /// Root constructor parameters by name; empty in custom-widget definitions.
+  /// Bare root reads lower through the matching `data.context` key.
+  final Map<String, RootContextParam> rootParams;
+
   /// The classKey of the custom-widget definition body currently being
   /// translated — the key under which its coalesce-fallback completions are
   /// cached. Null while translating the root paywall.
@@ -8719,6 +9586,9 @@ final class _WalkContext {
   /// each helper-body inline, element-keyed so nested helpers don't collide.
   final Map<Element, Expression> paramBindings;
 
+  /// Active run-time loop values in lexical order.
+  final List<_RuntimeLoopBinding> runtimeLoops;
+
   /// Active root-level modal-sheet lowering, when the root paywall contains
   /// exactly one supported show*Sheet trigger. The context lets the event-slot
   /// translator rewrite that source closure to a set-state handler, and lets
@@ -8730,12 +9600,7 @@ final class _WalkContext {
   /// a sheet-close control.
   final String? modalSheetCloseFlag;
 
-  /// Coalesced property names whose fallback was kind-validated against its
-  /// slot (by `_validateThemeValueForSlot`) BEFORE the body rewrite. The
-  /// rewrite is only sound when the fallback was validated, so
-  /// `_translateCoalesce` defers a `??` reached through a path that did not
-  /// validate it. Reset per definition body; the one field mutated in place
-  /// (via `.add`).
+  /// Coalesced parameters whose fallbacks match their target slots.
   final Set<String> validatedCoalesceParams;
 
   /// Structural scope awaiting the next widget construction.
@@ -8757,8 +9622,10 @@ final class _WalkContext {
     bool? rootStateContext,
     InlinedDefinitions? inlined,
     Map<String, CustomWidgetParam>? params,
+    Map<String, RootContextParam>? rootParams,
     Object? classKey = _kWalkUnset,
     Map<Element, Expression>? paramBindings,
+    List<_RuntimeLoopBinding>? runtimeLoops,
     Object? modalSheet = _kWalkUnset,
     Object? modalSheetCloseFlag = _kWalkUnset,
     Set<String>? validatedCoalesceParams,
@@ -8775,10 +9642,12 @@ final class _WalkContext {
       rootStateContext: rootStateContext ?? this.rootStateContext,
       inlined: inlined ?? this.inlined,
       params: params ?? this.params,
+      rootParams: rootParams ?? this.rootParams,
       classKey: identical(classKey, _kWalkUnset)
           ? this.classKey
           : classKey as String?,
       paramBindings: paramBindings ?? this.paramBindings,
+      runtimeLoops: runtimeLoops ?? this.runtimeLoops,
       modalSheet: identical(modalSheet, _kWalkUnset)
           ? this.modalSheet
           : modalSheet as _ModalSheetEmitContext?,
@@ -8798,4 +9667,38 @@ final class _WalkContext {
           : measurementWidgetList as MeasurementWidgetListOccurrence?,
     );
   }
+}
+
+final class _RuntimeLoopBinding {
+  const _RuntimeLoopBinding(this.element, this.identifier);
+
+  final Element element;
+  final String identifier;
+}
+
+final class _RuntimeLoopReference {
+  const _RuntimeLoopReference(
+    this.binding,
+    this.parts, {
+    required this.indexed,
+  });
+
+  final _RuntimeLoopBinding binding;
+  final List<String> parts;
+  final bool indexed;
+
+  _RuntimeLoopReference append(String part) => _RuntimeLoopReference(
+        binding,
+        [...parts, part],
+        indexed: indexed,
+      );
+
+  _RuntimeLoopReference withIndex() => _RuntimeLoopReference(
+        binding,
+        parts,
+        indexed: true,
+      );
+
+  String dsl(String Function(String) pathPart) =>
+      '${binding.identifier}${parts.map(pathPart).join()}';
 }

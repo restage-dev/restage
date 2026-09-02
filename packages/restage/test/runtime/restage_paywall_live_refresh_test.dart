@@ -13,6 +13,7 @@ import 'package:restage/src/restage_rpc_client/restage_rpc_client.dart';
 import 'package:restage/src/resolver/resolved_paywall_payload.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:rfw/formats.dart' hide WidgetLibrary;
+import 'package:rfw/rfw.dart' show RemoteWidget;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../flow/flow_test_support.dart';
@@ -21,6 +22,17 @@ Uint8List _blob(String text) {
   final source = '''
     import restage.core;
     widget Paywall = Text(text: "$text");
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
+Uint8List _contextBlob(String marker) {
+  final source = '''
+    import restage.core;
+    widget Paywall = Column(children: [
+      Text(text: "$marker"),
+      Text(text: data.context.label)
+    ]);
   ''';
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
@@ -121,6 +133,86 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('B'), findsOneWidget);
     expect(find.text('A'), findsNothing);
+  });
+
+  testWidgets('a pending blob receives context changes before promotion',
+      (tester) async {
+    final resolver = _ControlledBlobResolver();
+    var hostContext = <String, Object?>{'label': 'first'};
+    late StateSetter updateHost;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateHost = setState;
+            return Scaffold(
+              body: RestagePaywall(
+                id: 'p',
+                resolver: resolver,
+                context: hostContext,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(resolver.responses, hasLength(1));
+    expect(find.byType(RemoteWidget), findsNothing);
+
+    hostContext['label'] = 'later';
+    resolver.responses.single.complete(
+      ResolvedVariant(
+        bytes: _contextBlob('current'),
+        surfaceVersion: '1',
+        paywallId: 'p',
+        paywallPublishedVersion: 1,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('current'), findsOneWidget);
+    expect(find.text('first'), findsOneWidget);
+    expect(find.text('later'), findsNothing);
+
+    final initialData =
+        tester.widget<RemoteWidget>(find.byType(RemoteWidget)).data;
+    var notifications = 0;
+    void onContext(Object _) => notifications += 1;
+    initialData.subscribe(const <Object>['context'], onContext);
+    updateHost(() => hostContext = <String, Object?>{'label': 'first'});
+    await tester.pump();
+    expect(notifications, 0);
+    initialData.unsubscribe(const <Object>['context'], onContext);
+
+    final refresh = Restage.reloadSurfaces();
+    await tester.pump();
+    expect(resolver.responses, hasLength(2));
+    hostContext['label'] = 'unaccepted';
+    resolver.responses[1].complete(
+      ResolvedVariant(
+        bytes: _contextBlob('candidate'),
+        surfaceVersion: '2',
+        paywallId: 'p',
+        paywallPublishedVersion: 2,
+      ),
+    );
+    await refresh;
+    await tester.pumpAndSettle();
+    expect(find.text('candidate'), findsOneWidget);
+    expect(find.text('first'), findsOneWidget);
+    expect(find.text('unaccepted'), findsNothing);
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'second'});
+    await tester.pumpAndSettle();
+    final candidateCount = find.text('candidate').evaluate().length;
+    final secondCount = find.text('second').evaluate().length;
+    final currentCount = find.text('current').evaluate().length;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    expect(candidateCount, 1);
+    expect(secondCount, 1);
+    expect(currentCount, 0);
   });
 
   testWidgets(

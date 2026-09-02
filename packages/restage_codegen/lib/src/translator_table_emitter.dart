@@ -1,6 +1,7 @@
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/translator_recipe.dart';
 import 'package:restage_codegen/src/translator_recipes.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// Renders the built-in translator table — the hand-authored recipes for
 /// the framework value types — as `translator_tables.g.dart` source. The
@@ -20,6 +21,7 @@ String emitTranslatorTableSource(List<TranslatorRecipe> recipes) {
   buf
     ..writeln('// ignore_for_file: type=lint')
     ..writeln("import 'package:restage_codegen/src/translator_recipe.dart';")
+    ..writeln("import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';")
     ..writeln()
     ..writeln('/// Translator recipes keyed by their (library, type, variant) '
         'triple.')
@@ -75,8 +77,17 @@ String _fragment(EmitFragment f) => switch (f) {
         :final ifUnset,
         :final asLength,
         :final asDoubleList,
+        :final propertyType,
+        :final itemPropertyType,
       ) =>
-        _emitFragmentArg(arg, ifUnset, asLength, asDoubleList),
+        _emitFragmentArg(
+          arg,
+          ifUnset,
+          asLength,
+          asDoubleList,
+          propertyType,
+          itemPropertyType,
+        ),
       EmitFragmentList(:final items) =>
         'EmitFragmentList([${items.map(_fragment).join(', ')}])',
       EmitFragmentMap(:final entries) =>
@@ -101,11 +112,19 @@ String _emitFragmentArg(
   EmitFragment? ifUnset,
   bool asLength,
   bool asDoubleList,
+  PropertyType? propertyType,
+  PropertyType? itemPropertyType,
 ) {
   final parts = <String>[_argRef(arg)];
   if (ifUnset != null) parts.add('ifUnset: ${_fragment(ifUnset)}');
   if (asLength) parts.add('asLength: true');
   if (asDoubleList) parts.add('asDoubleList: true');
+  if (propertyType != null) {
+    parts.add('propertyType: PropertyType.${propertyType.name}');
+  }
+  if (itemPropertyType != null) {
+    parts.add('itemPropertyType: PropertyType.${itemPropertyType.name}');
+  }
   return 'EmitFragmentArg(${parts.join(', ')})';
 }
 

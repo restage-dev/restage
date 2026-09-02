@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/restage.dart';
 import 'package:restage/src/flow/flow_controller.dart'
     show createHostMeasurementFlowController;
+import 'package:rfw/rfw.dart' show DynamicContent, RemoteWidget;
 
 import 'flow_test_support.dart';
 
@@ -72,6 +73,13 @@ bool _chromeIgnoring(WidgetTester tester, Finder leaf) {
     return widget is! RestageFlowView;
   });
   return ignoring;
+}
+
+Object? _readContextLabel(DynamicContent data) {
+  void noop(Object _) {}
+  final value = data.subscribe(const <Object>['context'], noop);
+  data.unsubscribe(const <Object>['context'], noop);
+  return value is Map<Object?, Object?> ? value['label'] : value;
 }
 
 void main() {
@@ -149,6 +157,90 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Profile'), findsOneWidget);
+  });
+
+  testWidgets(
+      'publishes context to controlled landings and every stacked screen',
+      (tester) async {
+    final resolver = ControlledFlowResolver();
+    final controller = RestageFlowController<FirstRunResult>(
+      flow: firstRunFlowRef,
+      resolver: resolver,
+      actions: null,
+      onEvent: (_) {},
+      onComplete: (_) {},
+      onUnavailable: (_) {},
+    );
+    addTearDown(controller.dispose);
+    var hostContext = <String, Object?>{'label': 'first'};
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          updateHost = setState;
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: RestageFlowView<FirstRunResult>(
+              controller: controller,
+              context: hostContext,
+            ),
+          );
+        },
+      ),
+    );
+    unawaited(controller.load());
+    await tester.pump();
+    expect(find.byType(RemoteWidget), findsNothing);
+
+    hostContext['label'] = 'later';
+    resolver.response.complete(contextResolvedFlow());
+    await tester.pumpAndSettle();
+    final firstData =
+        tester.widget<RemoteWidget>(find.byType(RemoteWidget)).data;
+    final initialLabel = _readContextLabel(firstData);
+    final laterVisibleInitially = find.text('later').evaluate().length;
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'second'});
+    await tester.pump();
+    controller.handleEvent('next', const <String, Object?>{});
+    await tester.pumpAndSettle();
+    final data = tester
+        .widgetList<RemoteWidget>(
+          find.byType(RemoteWidget, skipOffstage: false),
+        )
+        .map((widget) => widget.data)
+        .toList();
+    final labelsAfterPush = data.map(_readContextLabel).toList();
+
+    final notifications = <int>[0, 0];
+    final callbacks = <void Function(Object)>[];
+    for (var index = 0; index < data.length; index += 1) {
+      void onContext(Object _) => notifications[index] += 1;
+      callbacks.add(onContext);
+      data[index].subscribe(const <Object>['context'], onContext);
+    }
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'third'});
+    await tester.pump();
+    final changedNotifications = List<int>.of(notifications);
+    final changedLabels = data.map(_readContextLabel).toList();
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'third'});
+    await tester.pump();
+    final equalNotifications = List<int>.of(notifications);
+    for (var index = 0; index < data.length; index += 1) {
+      data[index].unsubscribe(const <Object>['context'], callbacks[index]);
+    }
+    await unmountView(tester);
+
+    expect(initialLabel, 'first');
+    expect(laterVisibleInitially, 0);
+    expect(data, hasLength(2));
+    expect(labelsAfterPush, everyElement('second'));
+    expect(changedNotifications, <int>[1, 1]);
+    expect(changedLabels, everyElement('third'));
+    expect(equalNotifications, <int>[1, 1]);
   });
 
   testWidgets(

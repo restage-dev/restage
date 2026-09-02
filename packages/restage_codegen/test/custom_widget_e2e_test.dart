@@ -48,6 +48,72 @@ final _hostTextHelper = HelperDefinition(
   translate: (_) => 'data.context.label',
 );
 
+final class _ListDecoderCase {
+  const _ListDecoderCase({
+    required this.property,
+    required this.decoder,
+    required this.acceptedType,
+    required this.siblingType,
+    this.lookalikeType,
+  });
+
+  final String property;
+  final PropertyType decoder;
+  final String acceptedType;
+  final String siblingType;
+  final String? lookalikeType;
+}
+
+const _listDecoderCases = <_ListDecoderCase>[
+  _ListDecoderCase(
+    property: 'strings',
+    decoder: PropertyType.stringList,
+    acceptedType: 'String',
+    siblingType: 'bool',
+  ),
+  _ListDecoderCase(
+    property: 'flags',
+    decoder: PropertyType.booleanList,
+    acceptedType: 'bool',
+    siblingType: 'String',
+  ),
+  _ListDecoderCase(
+    property: 'boxShadows',
+    decoder: PropertyType.boxShadowList,
+    acceptedType: 'ui.BoxShadow',
+    siblingType: 'ui.Shadow',
+    lookalikeType: 'BoxShadow',
+  ),
+  _ListDecoderCase(
+    property: 'shadows',
+    decoder: PropertyType.shadowList,
+    acceptedType: 'ui.Shadow',
+    siblingType: 'ui.BoxShadow',
+    lookalikeType: 'Shadow',
+  ),
+  _ListDecoderCase(
+    property: 'features',
+    decoder: PropertyType.fontFeatureList,
+    acceptedType: 'ui.FontFeature',
+    siblingType: 'ui.FontVariation',
+    lookalikeType: 'FontFeature',
+  ),
+  _ListDecoderCase(
+    property: 'variations',
+    decoder: PropertyType.fontVariationList,
+    acceptedType: 'ui.FontVariation',
+    siblingType: 'ui.FontFeature',
+    lookalikeType: 'FontVariation',
+  ),
+  _ListDecoderCase(
+    property: 'options',
+    decoder: PropertyType.selectionOptionList,
+    acceptedType: 'core.RestageSelectionOption',
+    siblingType: 'ui.Shadow',
+    lookalikeType: 'RestageSelectionOption',
+  ),
+];
+
 void main() {
   group('custom-widget transpilation end-to-end', () {
     test('a pure-composition custom widget transpiles and round-trips',
@@ -1165,6 +1231,148 @@ Object x() => AcmeCard(child: Text("passed"));
       expect(result.decoded, isNotNull);
       expect(definition, contains('stops: [0.0, 1.0]'));
       expect(definition, isNot(contains('stops: [0, 1]')));
+    });
+
+    for (final gradient in ['LinearGradient', 'RadialGradient']) {
+      test('$gradient validates a typed list through a helper and final local',
+          () async {
+        final matching = await _transpile(
+          _indirectColorListFixture(
+            gradient: gradient,
+            alternateType: 'Color',
+            helperType: 'Color',
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        expect(matching.issues, isEmpty);
+        expect(matching.decoded, isNotNull);
+        expect(
+          matching.translation.widgetDefinitions['AcmeGradient'],
+          contains(
+            'colors: switch args.flag { true: args.colors, '
+            'false: args.alternate }',
+          ),
+        );
+
+        final mismatched = await _transpile(
+          _indirectColorListFixture(
+            gradient: gradient,
+            alternateType: 'double',
+            helperType: 'Object',
+          ),
+          _gradientBoxCatalog(),
+          rootPackage: 'apps_examples',
+        );
+        expect(mismatched.decoded, isNull);
+        expect(
+          mismatched.translation.widgetDefinitions['AcmeGradient'],
+          isEmpty,
+        );
+        expect(
+          mismatched.issues.map((issue) => issue.code),
+          [IssueCode.propertyValueTypeMismatch],
+        );
+        expect(
+          mismatched.issues.single.message,
+          allOf(contains("'List<Object>'"), contains("'color' item decoder")),
+        );
+        expect(mismatched.issues.single.location, isNotEmpty);
+      });
+    }
+
+    test('distinguishes every indirect list decoder by resolved item type',
+        () async {
+      final accepted = await _transpile(
+        _listDecoderFixture(
+          _listDecoderCases,
+          (entry) => entry.acceptedType,
+        ),
+        _listDecoderCatalog(_listDecoderCases),
+        rootPackage: 'apps_examples',
+      );
+      expect(accepted.issues, isEmpty);
+      expect(accepted.decoded, isNotNull);
+      final definition =
+          accepted.translation.widgetDefinitions['TypedListValues'];
+      for (final entry in _listDecoderCases) {
+        expect(
+          definition,
+          contains(
+            '${entry.property}: switch args.flag { '
+            'true: args.${entry.property}, '
+            'false: args.${entry.property}Alternate }',
+          ),
+          reason: entry.property,
+        );
+      }
+
+      for (final entry in _listDecoderCases) {
+        final siblings = await _transpile(
+          _listDecoderFixture([entry], (entry) => entry.siblingType),
+          _listDecoderCatalog([entry]),
+          rootPackage: 'apps_examples',
+        );
+        expect(siblings.decoded, isNull, reason: entry.property);
+        expect(siblings.issues, isNotEmpty, reason: entry.property);
+        expect(
+          siblings.issues.map((issue) => issue.code),
+          everyElement(IssueCode.propertyValueTypeMismatch),
+          reason: entry.property,
+        );
+        expect(
+          siblings.issues.map((issue) => issue.location),
+          everyElement(isNotEmpty),
+          reason: entry.property,
+        );
+      }
+
+      final lookalikeCases = _listDecoderCases
+          .where((entry) => entry.lookalikeType != null)
+          .toList();
+      for (final entry in lookalikeCases) {
+        final lookalikes = await _transpile(
+          _listDecoderFixture(
+            [entry],
+            (entry) => entry.lookalikeType!,
+            declareLookalikes: true,
+          ),
+          _listDecoderCatalog([entry]),
+          rootPackage: 'apps_examples',
+        );
+        expect(lookalikes.decoded, isNull, reason: entry.property);
+        expect(lookalikes.issues, isNotEmpty, reason: entry.property);
+        expect(
+          lookalikes.issues.map((issue) => issue.code),
+          everyElement(IssueCode.propertyValueTypeMismatch),
+          reason: entry.property,
+        );
+      }
+
+      final declared = await _transpile(
+        _declaredListFixture('ui.Shadow'),
+        _declaredListCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      expect(declared.issues, isEmpty);
+      expect(declared.decoded, isNotNull);
+      expect(
+        declared.translation.dsl,
+        contains(
+          'DeclaredListValue(values: switch true { true: [], false: [] })',
+        ),
+      );
+
+      final unknown = await _transpile(
+        _declaredListFixture('UnknownValue', declareType: true),
+        _declaredListCatalog(),
+        rootPackage: 'apps_examples',
+      );
+      expect(unknown.decoded, isNull);
+      expect(
+        unknown.issues.map((issue) => issue.code),
+        [IssueCode.propertyValueTypeMismatch],
+      );
     });
 
     test('composition with constant-folding transpiles and round-trips',
@@ -2986,10 +3194,8 @@ Object x() => Price(label: hostText());
       );
     });
 
-    test(
-        'gate 4 (unvalidated position): a coalesced `??` the slot validator '
-        'does not reach (a list element) defers rather than hoist an '
-        'unvalidated fallback', () async {
+    test('a coalesced widget list item validates its fallback before emission',
+        () async {
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -3021,15 +3227,116 @@ Object x() => const Wrap();
         ]),
       );
 
-      // The `??` sits inside a list literal, which the slot validator does not
-      // descend into — so the fallback is never kind-checked. Rather than
-      // rewrite + hoist an unvalidated fallback, the widget defers.
+      expect(result.issues, isEmpty);
+      final decoded = result.decoded!;
+      final wrap = _widget(decoded, 'Wrap');
+      expect(wrap.name, 'Column');
+      final children = wrap.arguments['children']! as List<Object?>;
+      expect((children.single! as fmt.ArgsReference).parts, ['child']);
+      final paywall = _widget(decoded, 'Paywall');
+      expect(paywall.name, 'Wrap');
+      expect((paywall.arguments['child']! as fmt.ConstructorCall).name, 'Box');
+    });
+
+    test('a coalesced widget list item refuses a color fallback', () async {
+      final result = await _transpile(
+        '''
+$kFlutterClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({this.children, super.key});
+  final List<Widget>? children;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'Wrap',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'w',
+)
+class Wrap extends StatelessWidget {
+  const Wrap({this.child, super.key});
+  final Widget? child;
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(children: [child ?? scheme.primary]);
+  }
+}
+
+Object x() => const Wrap();
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+            rootPackage: 'apps_examples',
+          ),
+        ]),
+        rootPackage: 'apps_examples',
+      );
+
       expect(result.decoded, isNull);
       expect(
-        result.issues
-            .any((i) => i.code == IssueCode.customWidgetUnsupportedReducible),
-        isTrue,
+        result.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
       );
+      expect(
+        result.issues.map((issue) => issue.message).join('\n'),
+        contains("cannot be assigned to a 'widget' property type"),
+      );
+    });
+
+    test('coalesced widget items retain mixed static collection traversal',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Box extends StatelessWidget {
+  const Box();
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(name: 'Wrap', library: WidgetLibrary.custom('acme.ds'), category: WidgetCategory.layout, description: 'w')
+class Wrap extends StatelessWidget {
+  const Wrap({this.child});
+  final Widget? child;
+  Widget build(BuildContext context) => Column(
+        children: [
+          const Box(),
+          for (final include in const [true]) child ?? const Box(),
+          if (true) const Box(),
+        ],
+      );
+}
+
+Object x() => const Wrap();
+''',
+        catalogWith([
+          _entry('Column', [prop('children', PropertyType.widgetList)]),
+          _entry('Box', const []),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      final decoded = result.decoded!;
+      final wrap = _widget(decoded, 'Wrap');
+      final children = wrap.arguments['children']! as List<Object?>;
+      expect(children, hasLength(3));
+      expect((children[0]! as fmt.ConstructorCall).name, 'Box');
+      expect((children[1]! as fmt.ArgsReference).parts, ['child']);
+      expect((children[2]! as fmt.ConstructorCall).name, 'Box');
+      final paywall = _widget(decoded, 'Paywall');
+      expect((paywall.arguments['child']! as fmt.ConstructorCall).name, 'Box');
     });
 
     test(
@@ -4176,6 +4483,191 @@ Catalog _gradientBoxCatalog() => catalogWith([
         rootPackage: 'apps_examples',
       ),
     ]);
+
+Catalog _listDecoderCatalog(List<_ListDecoderCase> cases) => catalogWith([
+      _entry(
+        'ListDecoderSink',
+        [
+          for (final entry in cases) prop(entry.property, entry.decoder),
+        ],
+        rootPackage: 'apps_examples',
+      ),
+    ]);
+
+Catalog _declaredListCatalog() => catalogWith([
+      entry(
+        name: 'SizedBox',
+        properties: const [],
+        flutterType: 'package:flutter/src/widgets/basic.dart#SizedBox',
+      ),
+    ]);
+
+String _listDecoderFixture(
+  List<_ListDecoderCase> cases,
+  String Function(_ListDecoderCase) itemType, {
+  bool declareLookalikes = false,
+}) {
+  final declarations = declareLookalikes
+      ? cases.map((entry) => 'class ${entry.lookalikeType} {}').join('\n')
+      : '';
+  final sinkParameters =
+      cases.map((entry) => 'this.${entry.property},').join('\n');
+  final sinkFields =
+      cases.map((entry) => 'final Object? ${entry.property};').join('\n');
+  final valueParameters = cases
+      .expand(
+        (entry) => [
+          'required this.${entry.property},',
+          'required this.${entry.property}Alternate,',
+        ],
+      )
+      .join('\n');
+  final valueFields = cases.expand((entry) {
+    final type = itemType(entry);
+    return [
+      'final List<$type> ${entry.property};',
+      'final List<$type> ${entry.property}Alternate;',
+    ];
+  }).join('\n');
+  final localValues = cases
+      .map(
+        (entry) => 'final ${entry.property}Value = flag ? ${entry.property} : '
+            '${entry.property}Alternate;',
+      )
+      .join('\n');
+  final sinkArguments = cases
+      .map((entry) => '${entry.property}: ${entry.property}Value,')
+      .join('\n');
+  final rootArguments = cases.expand((entry) {
+    final type = itemType(entry);
+    return [
+      '${entry.property}: const <$type>[],',
+      '${entry.property}Alternate: const <$type>[],',
+    ];
+  }).join('\n');
+
+  return '''
+import 'package:flutter/material.dart' as ui;
+import 'package:restage_core/restage_core.dart' as core;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+$declarations
+
+class ListDecoderSink extends ui.StatelessWidget {
+  const ListDecoderSink({$sinkParameters});
+  $sinkFields
+
+  @override
+  ui.Widget build(ui.BuildContext context) => const ui.SizedBox();
+}
+
+@RestageWidget(
+  name: 'TypedListValues',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'typed list values',
+)
+class TypedListValues extends ui.StatelessWidget {
+  const TypedListValues({
+    required this.flag,
+    $valueParameters
+  });
+
+  final bool flag;
+  $valueFields
+
+  @override
+  ui.Widget build(ui.BuildContext context) {
+    $localValues
+    return ListDecoderSink($sinkArguments);
+  }
+}
+
+Object x() => TypedListValues(
+  flag: true,
+  $rootArguments
+);
+''';
+}
+
+String _declaredListFixture(String itemType, {bool declareType = false}) => '''
+import 'package:flutter/material.dart' as ui;
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+${declareType ? 'class $itemType {}' : ''}
+
+@RestageWidget(
+  name: 'DeclaredListValue',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'declared list value',
+)
+class DeclaredListValue extends ui.StatelessWidget {
+  const DeclaredListValue({required this.values});
+  final List<$itemType> values;
+
+  @override
+  ui.Widget build(ui.BuildContext context) => const ui.SizedBox();
+}
+
+Object x() => DeclaredListValue(
+  values: true ? const <$itemType>[] : const <$itemType>[],
+);
+''';
+
+String _indirectColorListFixture({
+  required String gradient,
+  required String alternateType,
+  required String helperType,
+}) {
+  final alternateValue = alternateType == 'Color'
+      ? 'const [Color(0xFF111111), Color(0xFFEEEEEE)]'
+      : 'const <double>[0.0, 1.0]';
+  return '''
+$kFlutterClassifierStubs
+
+class Box extends StatelessWidget {
+  const Box({this.gradient, super.key});
+  final Gradient? gradient;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+@RestageWidget(
+  name: 'AcmeGradient',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.decoration,
+  description: 'gradient',
+)
+class AcmeGradient extends StatelessWidget {
+  const AcmeGradient({
+    required this.flag,
+    required this.colors,
+    required this.alternate,
+    super.key,
+  });
+  final bool flag;
+  final List<Color> colors;
+  final List<$alternateType> alternate;
+
+  List<$helperType> selected() => flag ? colors : alternate;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedColors = selected();
+    return Box(
+      gradient: $gradient(colors: selectedColors),
+    );
+  }
+}
+
+Object x() => AcmeGradient(
+  flag: true,
+  colors: const [Color(0xFF000000), Color(0xFFFFFFFF)],
+  alternate: $alternateValue,
+);
+''';
+}
 
 Future<void> _expectNestedGradientChildRefusal(
   String gradient, {

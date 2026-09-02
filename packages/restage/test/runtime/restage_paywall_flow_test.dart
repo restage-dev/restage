@@ -56,6 +56,17 @@ Uint8List _screenBlob(Map<String, String> labelToEvent) {
   return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
 }
 
+Uint8List _contextScreenBlob({String marker = ''}) {
+  final source = '''
+    import restage.core;
+    widget OnboardingScreen = Column(children: [
+      Text(text: data.context.label),
+      Text(text: "$marker")
+    ]);
+  ''';
+  return Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
+}
+
 /// Builds the lowered 2-screen flow document: entry (pushes "plans" via
 /// restageNav0, dismisses via skip) -> plans (a pushed paywall, on:{}).
 FlowDocument _navFlowDocument({
@@ -279,7 +290,14 @@ ResolvedFlow _initialSubFlowThatFailsBeforeScreen() {
 }
 
 ResolvedFlow _singleScreenResolvedFlow(String text) {
-  final screen = _screenBlob({text: 'noop'});
+  return _singleScreenResolvedFlowFromBlob(_screenBlob({text: 'noop'}));
+}
+
+ResolvedFlow _contextSingleScreenResolvedFlow({String marker = ''}) {
+  return _singleScreenResolvedFlowFromBlob(_contextScreenBlob(marker: marker));
+}
+
+ResolvedFlow _singleScreenResolvedFlowFromBlob(Uint8List screen) {
   return ResolvedFlow(
     document: FlowDocument(
       flow: 'pro_upgrade',
@@ -342,6 +360,86 @@ void main() {
   setUp(() {
     Restage.debugReset();
     SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  testWidgets('a flow-shaped paywall forwards context after controlled load',
+      (tester) async {
+    final resolver = _ControlledFlowPayloadResolver();
+    var hostContext = <String, Object?>{'label': 'first'};
+    late StateSetter updateHost;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateHost = setState;
+            return Scaffold(
+              body: RestagePaywall(
+                id: 'pro_upgrade',
+                resolver: resolver,
+                context: hostContext,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(resolver.responses, hasLength(1));
+
+    hostContext['label'] = 'later';
+    resolver.responses.single.complete(
+      FlowPaywallPayload(
+        flow: _contextSingleScreenResolvedFlow(),
+        paywallId: 'pro_upgrade',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('first'), findsOneWidget);
+    expect(find.text('later'), findsNothing);
+
+    updateHost(() => hostContext = <String, Object?>{'label': 'second'});
+    await tester.pump();
+    expect(find.text('second'), findsOneWidget);
+  });
+
+  testWidgets('a pending flow-shaped paywall retains its accepted context',
+      (tester) async {
+    final resolver = _ControlledFlowPayloadResolver();
+    final hostContext = <String, Object?>{'label': 'accepted'};
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RestagePaywall(
+          id: 'pro_upgrade',
+          resolver: resolver,
+          context: hostContext,
+        ),
+      ),
+    );
+    await tester.pump();
+    resolver.responses.single.complete(
+      FlowPaywallPayload(
+        flow: _contextSingleScreenResolvedFlow(marker: 'Current content'),
+        paywallId: 'pro_upgrade',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final refresh = Restage.reloadSurfaces();
+    await tester.pump();
+    expect(resolver.responses, hasLength(2));
+    hostContext['label'] = 'later';
+    resolver.responses[1].complete(
+      FlowPaywallPayload(
+        flow: _contextSingleScreenResolvedFlow(marker: 'Candidate content'),
+        paywallId: 'pro_upgrade',
+      ),
+    );
+    await refresh;
+    await tester.pumpAndSettle();
+
+    expect(find.text('Candidate content'), findsOneWidget);
+    expect(find.text('accepted'), findsOneWidget);
+    expect(find.text('later'), findsNothing);
   });
 
   testWidgets(

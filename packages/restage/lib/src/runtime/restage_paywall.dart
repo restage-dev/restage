@@ -11,8 +11,10 @@ import 'package:restage_material/restage_material_runtime.dart';
 import 'package:restage_shared/restage_shared.dart' hide WidgetLibrary;
 import 'package:rfw/rfw.dart';
 
+import '../analytics/render_event_privacy.dart';
 import '../analytics/root_analytics_context.dart';
 import '../authoring/event_dispatcher.dart';
+import '../authoring/paywall_event_dispatch.dart';
 import '../events/event_enums.dart';
 import '../events/restage_event.dart';
 import '../flow/flow_controller.dart';
@@ -34,6 +36,7 @@ import 'error_boundary.dart';
 import 'event_demux.dart';
 import 'first_paint_lease_guard.dart';
 import 'library_runtime_registry.dart';
+import 'context_data.dart';
 import 'restage.dart';
 import 'paywall_controller.dart';
 import 'paywall_error.dart';
@@ -104,7 +107,19 @@ class RestagePaywall extends StatefulWidget {
     this.errorBuilder,
     this.locale,
     this.liveRefresh,
-  });
+
+    /// Host-supplied render data published as `data.context.*`.
+    ///
+    /// Values support 32 collection levels below the root, 10,000 retained
+    /// normalized nodes including the root, and 100,000 inspected map entries or
+    /// list elements per normalization. Null map values are omitted; null list
+    /// elements are dropped and lists compact. Invalid values, unreadable
+    /// collections, and exceeded limits throw in debug. Release reports
+    /// diagnostics and omits the offending value or collection. Accepted input
+    /// is normalized and copied synchronously. Equal normalized snapshots issue
+    /// no renderer update; null withdraws the namespace.
+    Map<String, Object?>? context,
+  }) : _context = context;
 
   /// Stable paywall identifier (e.g. `'pro_upgrade'`).
   final String id;
@@ -141,6 +156,8 @@ class RestagePaywall extends StatefulWidget {
   /// configuration (`Restage.configure`); a provided set replaces it wholesale
   /// (an empty set opts this surface out entirely).
   final Set<SurfaceRefreshTrigger>? liveRefresh;
+
+  final Map<String, Object?>? _context;
 
   @override
   State<RestagePaywall> createState() => _RestagePaywallState();
@@ -237,10 +254,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
   ColorScheme? _lastThemeColorScheme;
   IconThemeData? _lastThemeIconTheme;
   TextStyle? _lastThemeTextStyle;
+  ContextSnapshot? _context;
+
+  void _refreshContext() {
+    final raw = widget._context;
+    _context = raw == null ? null : ContextSnapshot.of(raw, previous: _context);
+  }
 
   @override
   void initState() {
     super.initState();
+    _refreshContext();
     _anonymousAnalyticsOwner = RootAnalyticsAnonymousContext(
       surface: Surface.paywall.wireName,
       surfaceId: widget.id,
@@ -251,7 +275,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
         _fireDismissed(reason);
       },
       onFireEvent: (name, {Map<String, Object?>? args}) {
-        _handleRfwEvent(name, args ?? const <String, Object?>{});
+        RestageRenderEventPrivacy.run<void>(
+          mayExposeNonEmptyHostContext: _presentedContextExposure,
+          body: () => _handleRfwEvent(name, args ?? const <String, Object?>{}),
+        );
       },
     );
     _load();
@@ -355,6 +382,18 @@ class _RestagePaywallState extends State<RestagePaywall> {
     }
   }
 
+  @override
+  void didUpdateWidget(RestagePaywall oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _refreshContext();
+    for (final stage in <_BlobStage?>[
+      _blobPresentation,
+      _pendingBlobStage,
+    ]) {
+      stage?.contextPublisher.publishSnapshot(_context);
+    }
+  }
+
   /// Fire [event] on both the per-widget [RestagePaywall.onEvent] callback
   /// and the app-wide [Restage.events] stream.
   ///
@@ -362,9 +401,12 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// unmounts still reach app-wide listeners. The per-paywall
   /// callback is mounted-guarded so the host doesn't receive callbacks
   /// for a widget that no longer exists.
+  /// The presented-content arbiter: a live flow wins, else the blob. Both
+  /// presentation-derived accessors below branch on this one decision.
+  bool get _flowIsPresented => _flowController != null;
+
   RootAnalyticsPresentation? get _activeAnalyticsPresentation {
-    final flow = _flowController;
-    if (flow != null) return _flowPresentations[flow];
+    if (_flowIsPresented) return _flowPresentations[_flowController];
     return _blobPresentation?.analyticsPresentation;
   }
 
@@ -1744,6 +1786,13 @@ class _RestagePaywallState extends State<RestagePaywall> {
       analyticsPresentation: analyticsPresentation,
       measurementSession: measurementSession,
     );
+    final eventLease = RestageTargetEventDispatchLease(
+      mayExposeNonEmptyHostContext: false,
+      resolveLiveExposure: () => _blobStageLiveExposure(stage),
+    );
+    stage.eventHandler = (name, args) {
+      eventLease.invoke(() => _handleBlobRfwEvent(stage, name, args));
+    };
     _populateBlobData(stage);
 
     final superseded = _pendingBlobStage;
@@ -1757,7 +1806,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   Runtime _createBlobRuntime() {
-    final runtime = Runtime()
+    final runtime = RestageRenderRuntime()
       ..update(
         const LibraryName(<String>['restage', 'core']),
         restage_core.buildCoreWidgetLibrary(),
@@ -1776,6 +1825,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
   }
 
   void _populateBlobData(_BlobStage stage) {
+    stage.contextPublisher.publishSnapshot(_context);
     final mq = MediaQuery.maybeOf(context);
     if (mq != null) {
       populateDeviceData(
@@ -1807,6 +1857,30 @@ class _RestagePaywallState extends State<RestagePaywall> {
       return false;
     }
     return !stage.isRefresh || _canSwap();
+  }
+
+  bool _isBlobEventStageCurrent(_BlobStage stage) =>
+      mounted &&
+      !stage._disposed &&
+      identical(_blobPresentation, stage) &&
+      stage.transaction.isCommitted;
+
+  bool? _blobStageLiveExposure(_BlobStage stage) {
+    if (!_isBlobEventStageCurrent(stage)) return null;
+    return stage.contextPublisher.mayExposeNonEmptyHostContext;
+  }
+
+  /// Whether the presented content may currently carry non-empty host render
+  /// data. A blob reports its own published state; a flow renders under this
+  /// surface's snapshot, and an unresolved surface falls back to it too.
+  bool get _presentedContextExposure {
+    if (!_flowIsPresented) {
+      final stage = _blobPresentation;
+      if (stage != null) {
+        return stage.contextPublisher.mayExposeNonEmptyHostContext;
+      }
+    }
+    return _context?.value.isNotEmpty ?? false;
   }
 
   /// Paint-time authority mutation. Keep this synchronous and callback-free.
@@ -2077,6 +2151,7 @@ class _RestagePaywallState extends State<RestagePaywall> {
     String name,
     Object? args, {
     MeasurementHostSessionController? measurementSession,
+    RootAnalyticsContextSource? attribution,
   }) {
     if (isReservedCommerceEventName(name)) return;
     final businessArgs = measurementSession == null
@@ -2096,19 +2171,21 @@ class _RestagePaywallState extends State<RestagePaywall> {
       name: name,
       args: argsMap,
     );
-    if (event != null) _fireEvent(event);
+    if (event != null) _fireEvent(event, attribution: attribution);
   }
 
   void _handleBlobRfwEvent(
     _BlobStage stage,
     String name,
     Object? args,
-  ) =>
-      _handleRfwEvent(
-        name,
-        args,
-        measurementSession: stage.measurementSession,
-      );
+  ) {
+    _handleRfwEvent(
+      name,
+      args,
+      measurementSession: stage.measurementSession,
+      attribution: stage.analyticsPresentation,
+    );
+  }
 
   bool _canBuildHostedFlow(RestageFlowController<void> controller) {
     if (identical(_flowController, controller)) {
@@ -2169,13 +2246,16 @@ class _RestagePaywallState extends State<RestagePaywall> {
         : _flowTransaction;
     final candidatePending =
         transaction != null && transaction.isReady && !transaction.isCommitted;
-    Widget child = RestageFlowView<void>(
-      controller: controller,
-      onScreenEvent: _interceptFlowScreenEvent,
-      loadingBuilder: widget.loadingBuilder,
-      // A paywall is fully self-authored, so built-in flow chrome never
-      // overlaps its authored back and dismiss affordances.
-      chromeBuilder: (context, state, screen) => screen,
+    Widget child = RestageContextSnapshotScope(
+      snapshot: _context,
+      child: RestageFlowView<void>(
+        controller: controller,
+        onScreenEvent: _interceptFlowScreenEvent,
+        loadingBuilder: widget.loadingBuilder,
+        // A paywall is fully self-authored, so built-in flow chrome never
+        // overlaps its authored back and dismiss affordances.
+        chromeBuilder: (context, state, screen) => screen,
+      ),
     );
     final measurementSession = _flowMeasurementSessions[controller];
     if (measurementSession != null) {
@@ -2238,45 +2318,49 @@ class _RestagePaywallState extends State<RestagePaywall> {
               armed: true,
               child: RestagePagerEventScope(
                 sink: _pagerSinkForBlobStage(stage),
-                child: RestagePaywallEventDispatcher(
-                  onEvent: (name, args) =>
-                      _handleBlobRfwEvent(stage, name, args),
-                  child: RuntimeErrorBoundary(
-                    onError: (error, _) {
-                      _handleBlobBuildFailure(stage, error);
-                    },
-                    errorReplacement: (context, _, __) {
-                      if (!stage.transaction.isCommitted) {
-                        return const SizedBox.shrink();
-                      }
-                      final eb = widget.errorBuilder;
-                      if (eb == null) return const SizedBox.shrink();
-                      return eb(
-                        context,
-                        const RestagePaywallError(
-                          code: RestageErrorCodes.renderError,
-                          message:
-                              'A widget in the paywall threw during build.',
-                        ),
-                      );
-                    },
-                    child: stage.measurementSession.wrapRootSubtree(
-                      // The Measurement commit hook owns an inner first-paint
-                      // lease. Re-expose this candidate's lease at the actual
-                      // RFW boundary so a trapped build error rejects the
-                      // candidate rather than being mistaken for a successful
-                      // Measurement-only paint.
-                      FirstPaintLeaseScope(
-                        transaction: stage.transaction,
-                        child: RemoteWidget(
-                          runtime: stage.runtime,
-                          data: stage.data,
-                          widget: const FullyQualifiedWidgetName(
-                            _paywallLibrary,
-                            'Paywall',
+                child: RestagePaywallEventTargetScope(
+                  owner: this,
+                  content: stage,
+                  isCurrent: () => _isBlobEventStageCurrent(stage),
+                  mayExposeNonEmptyHostContext: () =>
+                      stage.contextPublisher.mayExposeNonEmptyHostContext,
+                  child: RestagePaywallEventDispatcher(
+                    onEvent: stage.eventHandler,
+                    child: RuntimeErrorBoundary(
+                      onError: (error, _) {
+                        _handleBlobBuildFailure(stage, error);
+                      },
+                      errorReplacement: (context, _, __) {
+                        if (!stage.transaction.isCommitted) {
+                          return const SizedBox.shrink();
+                        }
+                        final eb = widget.errorBuilder;
+                        if (eb == null) return const SizedBox.shrink();
+                        return eb(
+                          context,
+                          const RestagePaywallError(
+                            code: RestageErrorCodes.renderError,
+                            message:
+                                'A widget in the paywall threw during build.',
                           ),
-                          onEvent: (name, args) =>
-                              _handleBlobRfwEvent(stage, name, args),
+                        );
+                      },
+                      child: stage.measurementSession.wrapRootSubtree(
+                        // Keep paint authority at the RFW boundary so a build
+                        // failure rejects the candidate.
+                        FirstPaintLeaseScope(
+                          transaction: stage.transaction,
+                          child: RestagePrivacyAwareRemoteWidget(
+                            runtime: stage.runtime,
+                            data: stage.data,
+                            widget: const FullyQualifiedWidgetName(
+                              _paywallLibrary,
+                              'Paywall',
+                            ),
+                            mayExposeNonEmptyHostContext: () => stage
+                                .contextPublisher.mayExposeNonEmptyHostContext,
+                            onEvent: stage.eventHandler,
+                          ),
                         ),
                       ),
                     ),
@@ -2356,6 +2440,7 @@ final class _BlobStage {
   final BlobPaywallPayload payload;
   final Runtime runtime;
   final DynamicContent data;
+  late final ContextPublisher contextPublisher = ContextPublisher(data);
   final int epoch;
   final bool isRefresh;
   final Duration loadDuration;
@@ -2363,6 +2448,7 @@ final class _BlobStage {
   final FirstPaintLeaseTransaction transaction;
   final RootAnalyticsPresentation analyticsPresentation;
   final MeasurementHostSessionController measurementSession;
+  late final PaywallEventHandler eventHandler;
 
   _BlobStage? previousBlob;
   RestageFlowController<void>? previousFlow;

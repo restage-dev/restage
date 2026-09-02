@@ -3,6 +3,7 @@ import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
+import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
@@ -25,6 +26,99 @@ Catalog _stubCatalog({String file = 'card.dart'}) => catalogWith([
     ]);
 
 void main() {
+  test('a run-time list template exposes its custom widget entry point',
+      () async {
+    final expression = await parseExpressionFromSourceForTest('''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'RepeatedLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'repeated label',
+)
+class RepeatedLabel extends StatelessWidget {
+  const RepeatedLabel(this.value);
+  final String value;
+  Widget build(BuildContext context) => const Widget();
+}
+
+Object x(List<String> values) => Column(
+      children: [for (final value in values) RepeatedLabel(value)],
+    );
+''');
+
+    expect(
+      customWidgetClassesIn(expression).map((element) => element.name),
+      orderedEquals(['RepeatedLabel']),
+    );
+  });
+
+  test('a custom definition keeps refusing a run-time list', () async {
+    final result = await classifyFixtureResult(
+      {
+        'lib/dynamic_labels.dart': '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'DynamicLabels',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'dynamic labels',
+)
+class DynamicLabels extends StatelessWidget {
+  const DynamicLabels();
+  List<String> values() => List<String>.generate(1, (index) => '\$index');
+  Widget build(BuildContext context) => Column(
+        children: [for (final value in values()) Text(value)],
+      );
+}
+''',
+      },
+      inputPath: 'lib/dynamic_labels.dart',
+      widgetName: 'DynamicLabels',
+      catalog: catalogWith([
+        entry(
+          name: 'Column',
+          properties: [prop('children', PropertyType.widgetList)],
+          flutterType: 'package:apps_examples/dynamic_labels.dart#Column',
+        ),
+        entry(
+          name: 'Text',
+          properties: [prop('text', PropertyType.string, positional: true)],
+          flutterType: 'package:apps_examples/dynamic_labels.dart#Text',
+        ),
+      ]),
+    );
+    const key = 'package:apps_examples/dynamic_labels.dart#DynamicLabels';
+
+    final classification = result.classifications[key];
+    expect(classification, isA<UnclassifiableWidget>());
+    expect(
+      (classification! as UnclassifiableWidget).reason,
+      contains('known only at run time'),
+    );
+    expect(result.blueprints, isNot(contains(key)));
+  });
+
   group('WidgetClassifier — pure composition', () {
     test(
         'a pure-composition StatelessWidget is ComposableWidget with no '

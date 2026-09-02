@@ -9,7 +9,13 @@ export 'src/authoring/event_dispatcher.dart';
 export 'src/authoring/flow_definition.dart';
 export 'src/authoring/flow_source.dart';
 export 'src/authoring/onboarding_event.dart';
-export 'src/authoring/onboarding_event_dispatcher.dart';
+export 'src/authoring/onboarding_event_dispatcher.dart'
+    hide
+        currentSurfaceEventDispatcherOwner,
+        RestageFlowEventRegistration,
+        RestageFlowEventHandlerAssociation,
+        surfaceEventDispatcherOf,
+        surfaceEventDispatcherOwnerOf;
 export 'src/authoring/onboarding_source.dart';
 export 'src/authoring/paywall_event.dart';
 export 'src/authoring/paywall_source.dart';
@@ -262,4 +268,8 @@ export 'src/runtime/restage_paywall.dart' hide debugClearRestagePaywallCache;
 export 'src/runtime/paywall_controller.dart';
 export 'src/runtime/paywall_error.dart';
 export 'src/runtime/state_variables.dart'
-    show currentDevicePlatform, populateDeviceData, populateThemeData;
+    show
+        currentDevicePlatform,
+        populateContextData,
+        populateDeviceData,
+        populateThemeData;

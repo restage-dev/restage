@@ -68,6 +68,54 @@ void main() {
     expect(result.issues, isEmpty);
   });
 
+  test('only a resolved run-time for carries its template occurrence',
+      () async {
+    final expression = await parseExpressionFromSourceForTest('''
+      Object x(List<String> values, bool enabled) => [
+        for (final value in values) value,
+        ...values,
+        if (enabled) 'enabled',
+      ];
+    ''');
+    final traversal = traverseCollectionList(expression as ListLiteral);
+
+    expect(traversal.entries, hasLength(3));
+    final forRefusal = (traversal.entries[0] as CollectionListRefusal).refusal;
+    final spreadRefusal =
+        (traversal.entries[1] as CollectionListRefusal).refusal;
+    final ifRefusal = (traversal.entries[2] as CollectionListRefusal).refusal;
+    final candidate = forRefusal.runtimeLoop;
+
+    expect(forRefusal.reason, CollectionUnrollRefusal.runtimeValue);
+    expect(candidate, isNotNull);
+    expect(candidate!.iterable.toSource(), 'values');
+    expect(candidate.identifier, 'value');
+    expect(candidate.template.authoredExpression.toSource(), 'value');
+    expect(candidate.template.terminalExpression.toSource(), 'value');
+    expect(
+      identical(
+        candidate.binding,
+        (candidate.template.terminalExpression as SimpleIdentifier).element,
+      ),
+      isTrue,
+    );
+    expect(
+      candidate.template.structuralPath.map((step) => step.kind),
+      [
+        CollectionStructuralOccurrenceKind.listElement,
+        CollectionStructuralOccurrenceKind.loopTemplate,
+      ],
+    );
+    expect(
+      candidate.template.structuralPath.map((step) => step.ordinal),
+      [0, 0],
+    );
+    expect(spreadRefusal.reason, CollectionUnrollRefusal.runtimeValue);
+    expect(spreadRefusal.runtimeLoop, isNull);
+    expect(ifRefusal.reason, CollectionUnrollRefusal.runtimeValue);
+    expect(ifRefusal.runtimeLoop, isNull);
+  });
+
   test('a loop variable lowers inside a nested widget argument', () async {
     final expression = await parseExpressionFromSourceForTest('''
       Object x() => Column(
@@ -76,6 +124,13 @@ void main() {
         ],
       );
     ''');
+    final children = (expression as MethodInvocation)
+        .argumentList
+        .arguments
+        .whereType<NamedExpression>()
+        .single
+        .expression as ListLiteral;
+    expect(inspectTypedList(children), isA<CollectionTypedListElement>());
     final result = _widgetTranslator(HelperRegistry()).translate(expression);
 
     expect(
@@ -2144,8 +2199,7 @@ Object x() => [
       );
 
       expect(issues, isEmpty);
-      expect(emission.refused, isFalse);
-      expect(emission.value, '[$values]');
+      expect(emission, '[$values]');
     });
 
     test('$count plain numeric elements preserve double coercion', () async {
@@ -2165,9 +2219,8 @@ Object x() => [
       );
 
       expect(issues, isEmpty);
-      expect(emission.refused, isFalse);
       expect(
-        emission.value,
+        emission,
         '[${List<String>.generate(count, (index) => '$index.0').join(', ')}]',
       );
     });

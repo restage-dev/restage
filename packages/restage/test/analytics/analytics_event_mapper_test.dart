@@ -18,6 +18,7 @@ void main() {
     RootAnalyticsEventBinding? rootAttribution,
     String? surfaceSessionId,
     String? userId,
+    bool omitAuthoredArguments = false,
   }) {
     return mapRestageEventToEnvelope(
       event,
@@ -29,6 +30,7 @@ void main() {
       appContext: appContext,
       now: now,
       rootAttribution: rootAttribution,
+      omitAuthoredArguments: omitAuthoredArguments,
     );
   }
 
@@ -279,6 +281,70 @@ void main() {
       'eventName': 'continue',
       'fields': cleanedFlowFields,
     });
+  });
+
+  test('marked paywall custom events omit every authored argument', () {
+    final envelope = map(
+      const PaywallCustomEvent(
+        paywallId: 'upgrade',
+        eventName: 'selected_plan',
+        args: <String, Object?>{
+          'selection': 'private-plan',
+          'eventName': 'forged-name',
+          'paywallId': 'forged-root',
+        },
+      ),
+      omitAuthoredArguments: true,
+    );
+
+    expect(envelope.name, 'paywall_custom_event');
+    expect(envelope.surfaceId, 'upgrade');
+    expect(envelope.properties, <String, Object?>{
+      'eventName': 'selected_plan',
+    });
+  });
+
+  test('marked flow custom events omit the complete authored fields map', () {
+    final envelope = map(
+      const FlowCustomEvent(
+        flowId: 'first_run',
+        flowVersion: 3,
+        resolvedVersion: 8,
+        eventName: 'selected_plan',
+        fields: <String, Object?>{'selection': 'private-plan'},
+      ),
+      omitAuthoredArguments: true,
+    );
+
+    expect(envelope.name, 'flow_custom_event');
+    expect(envelope.surfaceId, 'first_run');
+    expect(envelope.surfaceVersion, '3');
+    expect(envelope.properties, <String, Object?>{
+      'resolvedVersion': 8,
+      'eventName': 'selected_plan',
+    });
+  });
+
+  test('the privacy marker does not alter non-custom events', () {
+    final ordinary = map(
+      const OnboardingStepViewed(
+        flowId: 'first_run',
+        flowVersion: 1,
+        screenId: 'welcome',
+        stepIndex: 0,
+      ),
+    );
+    final marked = map(
+      const OnboardingStepViewed(
+        flowId: 'first_run',
+        flowVersion: 1,
+        screenId: 'welcome',
+        stepIndex: 0,
+      ),
+      omitAuthoredArguments: true,
+    );
+
+    expect(marked, ordinary);
   });
 
   group('onboarding events conform to the onboarding envelope', () {

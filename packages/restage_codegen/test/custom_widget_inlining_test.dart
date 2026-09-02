@@ -1,3 +1,5 @@
+import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/element/element.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
@@ -12,6 +14,68 @@ import 'helpers.dart';
 /// `AcmeCard` — the synthetic probe file is mounted at
 /// `package:restage_codegen/_expr_probe.dart`.
 const String _cardKey = 'package:restage_codegen/_expr_probe.dart#AcmeCard';
+
+RootContextParam _rootParamFrom(
+  ResolvedMethodExpressionForTest probe, {
+  String className = 'P',
+  String name = 'label',
+}) {
+  final parameter = probe
+      .classes[className]!.unnamedConstructor!.formalParameters
+      .firstWhere((element) => element.name == name);
+  return RootContextParam(
+    name: parameter.name!,
+    type: parameter.type,
+    isHostData: true,
+    field: parameter is FieldFormalParameterElement ? parameter.field : null,
+    isRequired: parameter.isRequired,
+    defaultValueCode: parameter.defaultValueCode,
+    hasNullDefault: false,
+  );
+}
+
+/// The callback parameter [name] of [className], carrying its resolved type.
+CustomWidgetParam _callbackParamFrom(
+  ResolvedMethodExpressionForTest probe, {
+  String className = 'AcmeCard',
+  String name = 'onTap',
+}) {
+  final parameter = probe
+      .classes[className]!.unnamedConstructor!.formalParameters
+      .firstWhere((element) => element.name == name);
+  return CustomWidgetParam(
+    name: name,
+    isNumeric: false,
+    defaultValue: null,
+    type: parameter.type,
+  );
+}
+
+/// Source declaring an `AcmeCard` whose `onTap` has the given callback type,
+/// constructed from a host class with a closure firing the event helper.
+String _callbackCardSource(String callbackType) => '''
+  class AcmeCard {
+    const AcmeCard({required this.onTap});
+    final $callbackType onTap;
+  }
+  void cardEvent(String name) {}
+  class P {
+    const P();
+    Object build() => AcmeCard(onTap: () => cardEvent("tapped"));
+  }
+''';
+
+final List<HelperDefinition> _eventHelpers = [
+  HelperDefinition(
+    name: 'cardEvent',
+    libraryOrigin: 'package:restage_codegen',
+    returnCategory: HelperReturnCategory.voidCallback,
+    translate: (args) {
+      final name = args.positional.first;
+      return 'event ${name.startsWith('"') ? name : '"$name"'} {}';
+    },
+  ),
+];
 
 void main() {
   group('ExpressionTranslator — custom-widget inlining', () {
@@ -74,6 +138,55 @@ void main() {
       );
     });
 
+    test('attemptInlineEmit clears enclosing root parameters', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class Text { const Text(this.text); final String text; }
+        class AcmeCard {
+          const AcmeCard({required this.label});
+          final String label;
+          Object build() => Text(label);
+        }
+      ''',
+        className: 'AcmeCard',
+      );
+      final rootLabel = _rootParamFrom(probe, className: 'AcmeCard');
+      final classification = ComposableWidget(
+        _cardKey,
+        requiredMechanisms: const {},
+        composedCustomWidgets: const [],
+      );
+      final blueprint = CustomWidgetBlueprint(
+        classKey: _cardKey,
+        rfwName: 'AcmeCard',
+        buildExpression: probe.expression,
+        params: const [],
+      );
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {_cardKey: classification},
+        customWidgetBlueprints: {_cardKey: blueprint},
+      );
+
+      final result = translator.attemptInlineEmit(
+        classification,
+        blueprint,
+        rootParams: [rootLabel],
+      );
+
+      expect(result.issues, isNotEmpty);
+      expect(
+        result.widgetDefinitions['AcmeCard'],
+        isNot(contains('data.context')),
+      );
+    });
+
     test('lowers constructor parameters to args. references in the definition',
         () async {
       final body = await parseExpressionForTest('Text(label)');
@@ -121,6 +234,121 @@ void main() {
       // an `args.` reference.
       expect(result.dsl, 'AcmeCard(label: "Pro")');
       expect(result.widgetDefinitions['AcmeCard'], 'Text(text: args.label)');
+    });
+
+    test('does not leak root params into custom widget definitions', () async {
+      final body = await parseExpressionForTest('Text(label)');
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class AcmeCard {
+          const AcmeCard({this.label});
+          final String? label;
+        }
+        class P {
+          const P({required this.label});
+          final String label;
+          Object build() => AcmeCard(label: label);
+        }
+      ''',
+        className: 'P',
+      );
+      final rootLabel = _rootParamFrom(probe);
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          _cardKey: CustomWidgetBlueprint(
+            classKey: _cardKey,
+            rfwName: 'AcmeCard',
+            buildExpression: body,
+            params: const [
+              CustomWidgetParam(
+                name: 'label',
+                isNumeric: false,
+                defaultValue: null,
+              ),
+            ],
+          ),
+        },
+      );
+      final result =
+          translator.translate(probe.expression, rootParams: [rootLabel]);
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'AcmeCard(label: data.context.label)');
+      expect(result.widgetDefinitions['AcmeCard'], 'Text(text: args.label)');
+      expect(
+        result.widgetDefinitions['AcmeCard'],
+        isNot(contains('data.context')),
+      );
+    });
+
+    test('a definition body cannot read a root param it does not declare',
+        () async {
+      final bodyProbe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class Text { const Text(this.text); final String text; }
+        class AcmeCard {
+          const AcmeCard({required this.label});
+          final String label;
+          Object build() => Text(label);
+        }
+      ''',
+        className: 'AcmeCard',
+      );
+      final body = bodyProbe.expression;
+      final rootLabel = _rootParamFrom(bodyProbe, className: 'AcmeCard');
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          _cardKey: CustomWidgetBlueprint(
+            classKey: _cardKey,
+            rfwName: 'AcmeCard',
+            buildExpression: body,
+            params: const [],
+          ),
+        },
+      );
+      final expr = await parseExpressionFromSourceForTest('''
+        class AcmeCard {
+          const AcmeCard();
+        }
+
+        String label = '';
+        Object x() => AcmeCard();
+      ''');
+      final result = translator.translate(expr, rootParams: [rootLabel]);
+
+      expect(
+        result.widgetDefinitions['AcmeCard'],
+        isNot(contains('data.context')),
+      );
+      expect(result.issues, isNotEmpty);
     });
 
     test(
@@ -173,6 +401,206 @@ void main() {
       expect(
         result.dsl,
         'AcmeCard(size: switch true { true: 24.0, false: 16.0 })',
+      );
+    });
+
+    test('rejects an integer root reference used as a double-decoded arg',
+        () async {
+      final body = await parseExpressionForTest('Text(size)');
+      final blueprint = CustomWidgetBlueprint(
+        classKey: _cardKey,
+        rfwName: 'AcmeCard',
+        buildExpression: body,
+        params: const [
+          CustomWidgetParam(
+            name: 'size',
+            isNumeric: true,
+            defaultValue: null,
+          ),
+        ],
+      );
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('size', PropertyType.real, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {_cardKey: blueprint},
+      );
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class AcmeCard {
+          const AcmeCard({required this.size});
+          final num size;
+        }
+        class P {
+          const P({required this.count, required this.size});
+          final int count;
+          final double size;
+          Object build() => <AcmeCard>[
+            AcmeCard(size: count),
+            AcmeCard(size: size),
+          ];
+        }
+      ''',
+        className: 'P',
+      );
+      final params = [
+        _rootParamFrom(
+          probe,
+          name: 'count',
+        ),
+        _rootParamFrom(
+          probe,
+          name: 'size',
+        ),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final integerResult =
+          translator.translate(expressions[0], rootParams: params);
+      final doubleResult =
+          translator.translate(expressions[1], rootParams: params);
+
+      expect(
+        integerResult.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
+      );
+      expect(integerResult.dsl, isEmpty);
+      expect(doubleResult.issues, isEmpty);
+      expect(doubleResult.dsl, contains('data.context.size'));
+    });
+
+    test('keeps static list traversal for inlined arguments', () async {
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class Labels {
+          const Labels({required this.values});
+          final List<String> values;
+        }
+        class P {
+          Object render() => Labels(
+            values: [for (final value in const ['a', 'b']) value],
+          );
+        }
+      ''',
+        className: 'P',
+        methodName: 'render',
+      );
+      final parameter =
+          probe.classes['Labels']!.unnamedConstructor!.formalParameters.single;
+      final labelsKey = _cardKey.replaceFirst('AcmeCard', 'Labels');
+      final translator = ExpressionTranslator(
+        catalog: kEmptyCatalog,
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          labelsKey: ComposableWidget(
+            labelsKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          labelsKey: CustomWidgetBlueprint(
+            classKey: labelsKey,
+            rfwName: 'Labels',
+            buildExpression: await parseExpressionForTest('"labels"'),
+            params: [
+              CustomWidgetParam(
+                name: 'values',
+                isNumeric: false,
+                defaultValue: null,
+                type: parameter.type,
+              ),
+            ],
+          ),
+        },
+      );
+
+      final result = translator.translate(probe.expression);
+
+      expect(result.dsl, 'Labels(values: ["a", "b"])');
+      expect(result.issues, isEmpty);
+    });
+
+    test('validates root values against inlined parameter types', () async {
+      final body = await parseExpressionForTest('Text(label)');
+      final probe = await parseMethodExpressionFromSourceForTest(
+        '''
+        class AcmeCard {
+          const AcmeCard({required this.label});
+          final String label;
+        }
+        class P {
+          const P({required this.title, required this.count});
+          final String title;
+          final int count;
+          Object build() => <AcmeCard>[
+            AcmeCard(label: title),
+            AcmeCard(label: count),
+          ];
+        }
+      ''',
+        className: 'P',
+      );
+      final widgetParameter = probe
+          .classes['AcmeCard']!.unnamedConstructor!.formalParameters.single;
+      final blueprint = CustomWidgetBlueprint(
+        classKey: _cardKey,
+        rfwName: 'AcmeCard',
+        buildExpression: body,
+        params: [
+          CustomWidgetParam(
+            name: 'label',
+            isNumeric: false,
+            defaultValue: null,
+            type: widgetParameter.type,
+          ),
+        ],
+      );
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry(),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {_cardKey: blueprint},
+      );
+      final params = [
+        _rootParamFrom(probe, name: 'title'),
+        _rootParamFrom(probe, name: 'count'),
+      ];
+      final expressions =
+          (probe.expression as ListLiteral).elements.cast<Expression>();
+
+      final valid = translator.translate(expressions[0], rootParams: params);
+      expect(valid.issues, isEmpty);
+      expect(valid.dsl, contains('data.context.title'));
+
+      final invalid = translator.translate(expressions[1], rootParams: params);
+      expect(invalid.dsl, isNot(contains('data.context.count')));
+      expect(
+        invalid.issues.map((issue) => issue.code),
+        contains(IssueCode.propertyValueTypeMismatch),
       );
     });
 
@@ -547,6 +975,54 @@ Object x() => AcmeCard();
 
       expect(result.issues, isEmpty);
       expect(result.widgetDefinitions['AcmeCard'], 'Container(width: 12.0)');
+    });
+
+    Future<TranslationResult> translateCallbackCard(String callbackType) async {
+      final body = await parseExpressionForTest('Tappable(onTap)');
+      final probe = await parseMethodExpressionFromSourceForTest(
+        _callbackCardSource(callbackType),
+        className: 'P',
+      );
+      final translator = ExpressionTranslator(
+        catalog: catalogWith([
+          entry(
+            name: 'Tappable',
+            properties: [prop('onTap', PropertyType.event, positional: true)],
+          ),
+        ]),
+        helpers: HelperRegistry()..registerAll(_eventHelpers),
+        customWidgetClassifications: {
+          _cardKey: ComposableWidget(
+            _cardKey,
+            requiredMechanisms: const {},
+            composedCustomWidgets: const [],
+          ),
+        },
+        customWidgetBlueprints: {
+          _cardKey: CustomWidgetBlueprint(
+            classKey: _cardKey,
+            rfwName: 'AcmeCard',
+            buildExpression: body,
+            params: [_callbackParamFrom(probe)],
+          ),
+        },
+      );
+      return translator.translate(probe.expression);
+    }
+
+    test('unwraps a closure bound to a void-callback parameter', () async {
+      final result = await translateCallbackCard('void Function()');
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
+    });
+
+    test('unwraps a closure bound to a future-returning callback parameter',
+        () async {
+      final result = await translateCallbackCard('Future<void> Function()');
+
+      expect(result.issues, isEmpty);
+      expect(result.dsl, 'AcmeCard(onTap: event "tapped" {})');
     });
   });
 

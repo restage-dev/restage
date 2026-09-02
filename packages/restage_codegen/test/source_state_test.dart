@@ -39,6 +39,155 @@ void main() {
       expect(blueprint.rootExpression, isNotNull);
     });
 
+    test('derives stateless root host data params in declaration order',
+        () async {
+      final result = await _extractBlueprint(
+        '''
+        $kSourceStateStubs
+
+        class Foo extends StatelessWidget {
+          const Foo({
+            super.key,
+            required this.title,
+            this.count,
+            this.nickname = null,
+            this.heading = 'Welcome',
+          });
+          final String title;
+          final int? count;
+          final String? nickname;
+          final String heading;
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''',
+        className: 'Foo',
+      );
+
+      expect(result.issues, isEmpty);
+      final params = result.blueprint!.rootParams;
+      expect(
+        params.map((param) => param.name),
+        ['title', 'count', 'nickname', 'heading'],
+      );
+      expect(params[0].isNullable, isFalse);
+      expect(params[1].isNullable, isTrue);
+      expect(params.map((param) => param.field), everyElement(isNotNull));
+      expect(
+        params.map((param) => param.isRequired),
+        [true, false, false, false],
+      );
+      expect(params[0].defaultValueCode, isNull);
+      expect(params[1].defaultValueCode, isNull);
+      expect(params[2].defaultValueCode, 'null');
+      expect(params[2].hasNullDefault, isTrue);
+      expect(params[3].defaultValueCode, "'Welcome'");
+      expect(params[3].hasNonNullDefault, isTrue);
+    });
+
+    test('admits List and Map root host data params', () async {
+      final result = await _extractBlueprint(
+        '''
+        $kSourceStateStubs
+
+        class Foo extends StatelessWidget {
+          const Foo({required this.tags, required this.counts});
+          final List<String> tags;
+          final Map<String, int> counts;
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''',
+        className: 'Foo',
+      );
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.blueprint!.rootParams.map((param) => param.name),
+        ['tags', 'counts'],
+      );
+      expect(
+        result.blueprint!.rootParams.map((param) => param.isHostData),
+        everyElement(isTrue),
+      );
+    });
+
+    test('keeps non-field formals without assigning a readable field',
+        () async {
+      final result = await _extractBlueprint(
+        '''
+        $kSourceStateStubs
+
+        class Foo extends StatelessWidget {
+          factory Foo({String? label}) => const Foo._();
+          const Foo._();
+          static String get label => 'fixed';
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''',
+        className: 'Foo',
+      );
+
+      expect(result.issues, isEmpty);
+      final param = result.blueprint!.rootParams.single;
+      expect(param.name, 'label');
+      expect(param.field, isNull);
+      expect(param.isRequired, isFalse);
+    });
+
+    test(
+        'records application-defined types in root host data params for '
+        'read refusal', () async {
+      final result = await _extractBlueprint(
+        '''
+        $kSourceStateStubs
+
+        class Habit {
+          const Habit();
+        }
+
+        class Foo extends StatelessWidget {
+          const Foo({required this.title, required this.habits});
+          final String title;
+          final List<Habit> habits;
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''',
+        className: 'Foo',
+      );
+
+      expect(result.issues, isEmpty);
+      final params = result.blueprint!.rootParams;
+      expect(params.map((param) => param.name), ['title', 'habits']);
+      expect(params[0].isHostData, isTrue);
+      expect(params[1].isHostData, isFalse);
+    });
+
+    test('derives StatefulWidget root host data from the widget class',
+        () async {
+      final result = await _extractBlueprint(
+        '''
+        $kSourceStateStubs
+
+        class Foo extends StatefulWidget {
+          const Foo({required this.title, this.count});
+          final String title;
+          final int? count;
+          _FooState createState() => _FooState();
+        }
+
+        class _FooState extends State<Foo> {
+          Widget build(BuildContext context) => const Widget();
+        }
+      ''',
+        className: 'Foo',
+      );
+
+      expect(result.issues, isEmpty);
+      expect(
+        result.blueprint!.rootParams.map((param) => param.name),
+        ['title', 'count'],
+      );
+    });
+
     test('rejects lifecycle methods on the State class', () async {
       final result = await _extractBlueprint('''
         $kSourceStateStubs
@@ -753,8 +902,13 @@ class Widget {
 
 class BuildContext {}
 
+class Key {
+  const Key();
+}
+
 abstract class StatelessWidget extends Widget {
-  const StatelessWidget();
+  const StatelessWidget({this.key});
+  final Key? key;
 }
 
 abstract class StatefulWidget extends Widget {
