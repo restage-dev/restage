@@ -15,9 +15,9 @@ const List<({String name, String value})> _compatibleRecoveredTokens = [
 ];
 
 void main() {
-  group('SECURITY — additive purchase-intent report response', () {
+  group('Additive purchase-intent report response compatibility', () {
     test(
-        'optional field absence preserves pre-chapter server compatibility '
+        'optional field absence preserves legacy server compatibility '
         'and every required key', () {
       final parsed = ReportTransactionResponse.fromJson(_legacyResponseJson());
 
@@ -33,8 +33,8 @@ void main() {
       });
     });
 
-    test('freezes the coordinator-adjudicated disposition wire values', () {
-      const adjudicatedWireValues = {
+    test('uses the exact response disposition wire values', () {
+      const wireValues = {
         'notProvided': PurchaseIntentDisposition.notProvided,
         'associated': PurchaseIntentDisposition.associated,
         'alreadyAssociated': PurchaseIntentDisposition.alreadyAssociated,
@@ -43,9 +43,9 @@ void main() {
 
       expect(
         PurchaseIntentDisposition.values.map((value) => value.name),
-        orderedEquals(adjudicatedWireValues.keys),
+        orderedEquals(wireValues.keys),
       );
-      for (final entry in adjudicatedWireValues.entries) {
+      for (final entry in wireValues.entries) {
         expect(entry.value.name, entry.key);
         expect(PurchaseIntentDisposition.fromJson(entry.key), entry.value);
       }
@@ -206,7 +206,7 @@ void main() {
       );
     });
 
-    test('a frozen legacy decoder ignores the two additive response keys', () {
+    test('a legacy decoder ignores the two additive response keys', () {
       final modernJson = _response(
         disposition: PurchaseIntentDisposition.associated,
         recoveredToken: _recoveredToken,
@@ -253,8 +253,8 @@ Map<String, dynamic> _legacyResponseJson() => {
       'entitlements': <Object?>[],
     };
 
-/// A minimal copy of the previously published reader: it consumes the required
-/// response fields and deliberately ignores fields it does not understand.
+/// A legacy reader consumes the required response fields and ignores unknown
+/// fields.
 final class _LegacyReportResponse {
   const _LegacyReportResponse({
     required this.accepted,

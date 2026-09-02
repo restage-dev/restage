@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:restage/commerce.dart' as commerce;
-import 'package:restage/restage.dart' show Restage;
+import 'package:restage/restage.dart' show Restage, RestageEnvironment;
 
 void main() {
   group('commerce values', () {
@@ -174,6 +174,52 @@ void main() {
       }
       expect(performed, same(state));
       expect(facade.currentState, same(state));
+    });
+
+    test('ordinary configuration does not activate or replace commerce',
+        () async {
+      Restage.debugReset();
+      addTearDown(Restage.debugReset);
+
+      final facade = Restage.commerce;
+      final initialState = facade.currentState;
+      final observedStates = <commerce.CommerceCustomerState>[];
+      final subscription = facade.states.listen(observedStates.add);
+      addTearDown(subscription.cancel);
+      final offer = commerce.CommerceOfferId('offer.monthly');
+
+      Restage.configure(
+        apiKey: 'rs_pk_test',
+        baseUrl: 'https://api.example.com',
+        environment: RestageEnvironment.sandbox,
+      );
+
+      final availability = await facade.availability(
+        commerce.CommerceAvailabilityRequest(
+          commerce.CommerceCapabilityCode.purchase,
+          offerId: offer,
+        ),
+      );
+      final purchase = await facade.purchase(
+        commerce.CommercePurchaseRequest(offer),
+      );
+
+      expect(Restage.commerce, same(facade));
+      expect(facade.currentState, same(initialState));
+      expect(observedStates, [same(initialState)]);
+      expect(availability.available, isFalse);
+      expect(
+        availability.failureCode,
+        same(commerce.CommerceFailureCode.notActivated),
+      );
+      expect(
+        purchase.status,
+        same(commerce.CommerceActionStatusCode.unavailable),
+      );
+      expect(
+        purchase.failureCode,
+        same(commerce.CommerceFailureCode.notActivated),
+      );
     });
   });
 }
