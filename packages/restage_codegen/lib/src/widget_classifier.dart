@@ -4,6 +4,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/annotation_lookup.dart';
 import 'package:restage_codegen/src/build_body.dart';
+import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
@@ -285,7 +286,10 @@ final class WidgetClassifier {
 
   final Map<String, WidgetClassification> _results = {};
   final Map<String, CustomWidgetBlueprint> _blueprints = {};
+  final Map<String, String> _collectionRefusals = {};
   final Set<String> _inProgress = {};
+  var _classificationDepth = 0;
+  CollectionSemanticTraversalSession? _collectionSession;
 
   /// Every widget classified so far this pass, keyed by
   /// [WidgetClassification.classKey] — the map the translator consults.
@@ -304,21 +308,31 @@ final class WidgetClassifier {
     final key = customWidgetKey(widgetClass);
     final cached = _results[key];
     if (cached != null) return cached;
-    if (_inProgress.contains(key)) {
-      return UnclassifiableWidget(
-        key,
-        reason: 'the widget is part of a composition cycle',
-      );
+    final ownsSession = _classificationDepth == 0;
+    if (ownsSession) {
+      _collectionSession = CollectionSemanticTraversalSession();
     }
-    _inProgress.add(key);
-    final WidgetClassification result;
+    _classificationDepth++;
     try {
-      result = await _classify(widgetClass, key);
+      if (_inProgress.contains(key)) {
+        return UnclassifiableWidget(
+          key,
+          reason: 'the widget is part of a composition cycle',
+        );
+      }
+      _inProgress.add(key);
+      final WidgetClassification result;
+      try {
+        result = await _classify(widgetClass, key);
+      } finally {
+        _inProgress.remove(key);
+      }
+      _results[key] = result;
+      return result;
     } finally {
-      _inProgress.remove(key);
+      _classificationDepth--;
+      if (ownsSession) _collectionSession = null;
     }
-    _results[key] = result;
-    return result;
   }
 
   Future<WidgetClassification> _classify(
@@ -379,12 +393,25 @@ final class WidgetClassifier {
       }
     }
 
-    final walk = _Walk(this, widgetClass, stateClass, localBindings);
+    final walk = _Walk(
+      this,
+      widgetClass,
+      stateClass,
+      localBindings,
+      inlinableHelperDefinitionsIn(returnExpr),
+      _collectionSession!,
+    );
     if (stateClass != null) {
       await walk.classifyStateShape(stateClass);
     }
-    await walk.classify(returnExpr);
+    if (walk.admitOrdinaryLeaf(returnExpr)) {
+      await walk.classify(returnExpr);
+    }
     final classification = walk.toClassification(key);
+    final collectionRefusal = walk.collectionRefusal;
+    if (collectionRefusal != null) {
+      _collectionRefusals[key] = collectionRefusal;
+    }
     if (classification is! ComposableWidget) return classification;
 
     // An inlineable widget is a candidate for inlining. Capture the emission
@@ -514,6 +541,8 @@ class _Walk {
     this._widgetClass,
     this._stateClass,
     this._localBindings,
+    this._indexedHelpers,
+    this._collectionSession,
   );
 
   final WidgetClassifier _classifier;
@@ -524,6 +553,8 @@ class _Walk {
   /// reference to one resolves-through to its initializer. Captured before the
   /// walk; carried onto the blueprint for the translator.
   final Map<Element, Expression> _localBindings;
+  final Map<Element, HelperDef> _indexedHelpers;
+  final CollectionSemanticTraversalSession _collectionSession;
 
   final Set<InliningMechanism> _mechanisms = {};
   final List<Blocker> _blockers = [];
@@ -533,6 +564,9 @@ class _Walk {
   final List<RecognisedModalSheet> _modalSheets = [];
   String? _unclassifiableReason;
   IssueCode? _unclassifiableDiagnosticCode;
+  String? _collectionRefusal;
+
+  String? get collectionRefusal => _collectionRefusal;
 
   /// Own helper methods resolved-through during the walk, keyed by the
   /// helper's resolved [Element] — the emission material the translator
@@ -551,6 +585,19 @@ class _Walk {
   /// exit; element-keyed so nested helpers and same-named params don't
   /// collide.
   final Map<Element, Expression> _paramBindings = {};
+
+  final Map<Element, Expression> _collectionBindings = {};
+
+  Map<Element, Expression> get _activeBindings => {
+        ..._localBindings,
+        ..._paramBindings,
+        ..._collectionBindings,
+      };
+
+  Expression? _activeBindingFor(Element? element) =>
+      _collectionBindings[element] ??
+      _paramBindings[element] ??
+      _localBindings[element];
 
   /// Optional constructor properties the body reads as `<name> ?? <fallback>`,
   /// keyed by property name with the fallback expression — the call-site
@@ -703,18 +750,11 @@ class _Walk {
   /// outcome into this accumulator.
   Future<void> classify(Expression? expr) async {
     if (expr == null) return;
-    // A reference to a bound helper parameter resolves-through to its argument,
-    // classified in the caller's context — the inlined body's structure. A
-    // reference to a leading `final` local resolves-through to its initializer.
+    // Resolve through the active element-keyed binding before classifying.
     if (expr is SimpleIdentifier) {
-      final boundArg = _paramBindings[expr.element];
-      if (boundArg != null) {
-        await classify(boundArg);
-        return;
-      }
-      final localInitializer = _localBindings[expr.element];
-      if (localInitializer != null) {
-        await classify(localInitializer);
+      final binding = _activeBindingFor(expr.element);
+      if (binding != null) {
+        await classify(binding);
         return;
       }
     }
@@ -727,14 +767,28 @@ class _Walk {
       return;
     }
     if (expr is ListLiteral) {
-      for (final element in expr.elements) {
-        if (element is Expression) {
-          await classify(element);
-        } else {
-          _unclassifiable('a list with a spread / if / for element this '
-              'transpiler increment does not yet expand');
+      final followed = <Element, HelperDef>{};
+      final traversal = traverseCollectionList(
+        expr,
+        semantics: _collectionSemanticProbe(followed: followed),
+        session: _collectionSession,
+      );
+      for (final entry in traversal.entries) {
+        switch (entry) {
+          case CollectionListElement(:final occurrence):
+            await _classifyCollectionOccurrence(occurrence);
+          case CollectionListRefusal(:final refusal):
+            _collectionRefusal ??= refusal.detail;
+            _unclassifiable(
+              refusal.detail,
+              diagnosticCode: IssueCode.unsupportedCollectionFlow,
+            );
+            return;
         }
       }
+      // Every terminal this traversal produced was classified above, so the
+      // helpers it resolved through are vetted and may inline.
+      _capturedHelpers.addAll(followed);
       return;
     }
     if (expr is MethodInvocation) {
@@ -787,6 +841,21 @@ class _Walk {
       'an expression this transpiler increment does not yet recognise '
       '(${expr.runtimeType})',
     );
+  }
+
+  bool admitOrdinaryLeaf(Expression expression) {
+    final refusal = _collectionSession.admitOrdinaryLeaf(
+      expression,
+      _collectionSemanticProbe(),
+      bindings: _activeBindings,
+    );
+    if (refusal == null) return true;
+    _collectionRefusal ??= refusal.detail;
+    _unclassifiable(
+      refusal.detail,
+      diagnosticCode: IssueCode.unsupportedCollectionFlow,
+    );
+    return false;
   }
 
   Future<void> _construction(InstanceCreationExpression expr) async {
@@ -922,6 +991,7 @@ class _Walk {
           dispositionOverride: nested.disposition,
         );
       case UnclassifiableWidget():
+        _collectionRefusal ??= _classifier._collectionRefusals[nested.classKey];
         _unclassifiable(
           "the custom widget '${type.name}', which this transpiler "
           'increment does not yet classify (${nested.reason})',
@@ -997,28 +1067,9 @@ class _Walk {
   /// resolution is out of scope.
   ExecutableElement? _resolveInlinableHelper(MethodInvocation expr) {
     final element = expr.methodName.element;
-    if (element is! ExecutableElement || element.name == 'build') return null;
-    // Scope: only a Widget-/value-RETURNING helper inlines. A function whose
-    // return is a callback (a `FunctionType`, e.g. an event-handler factory)
-    // or `void`/`dynamic` is a Dart call,
-    // not a composition helper — it must defer as a `dartCall`, not be pulled
-    // into the inline path (which would then fail to classify its body). A
-    // Widget or a value type is an `InterfaceType`.
-    if (element.returnType is! InterfaceType) return null;
-    // An own instance method, called bare — the original rule.
-    if (element is MethodElement && !element.isStatic) {
-      if (expr.target != null) return null;
-      final owner = element.enclosingElement;
-      return (owner == _widgetClass || owner == _stateClass) ? element : null;
-    }
-    // A top-level function or a static method declared in the widget's own
-    // library. A target (the class reference for a static) is permitted; the
-    // element's library identity is the gate.
-    if (element is TopLevelFunctionElement ||
-        (element is MethodElement && element.isStatic)) {
-      return element.library == _widgetClass.library ? element : null;
-    }
-    return null;
+    return element is ExecutableElement && isArtifactHelperInvocation(expr)
+        ? element
+        : null;
   }
 
   /// Resolves [helper]'s body and recurses the walk into it so the inlined
@@ -1039,49 +1090,100 @@ class _Walk {
       return;
     }
     try {
-      final node = await _classifier.astNodeFor(helper.firstFragment);
-      // A method (own instance, or a static) is a `MethodDeclaration`; a
-      // top-level function is a `FunctionDeclaration` — both carry a
-      // `FunctionBody` the single-return extractor reads.
-      final fnBody = switch (node) {
-        MethodDeclaration() => node.body,
-        FunctionDeclaration() => node.functionExpression.body,
-        _ => null,
-      };
-      if (fnBody == null) {
-        _blocker(BlockerKind.dartCall, call, _truncateSource(call));
-        return;
-      }
-      final body = singleReturnExpressionOf(fnBody);
-      if (body == null) {
-        _blocker(BlockerKind.dartCall, call, _truncateSource(call));
-        return;
-      }
+      final definition = await _resolveHelperDefinition(helper, call);
+      if (definition == null) return;
       // Bind the call's arguments to the helper's parameters, 1:1. A binding
       // that is not provably 1:1 (count/name mismatch, a defaulted param) is
       // NOT inlinable — defer with a diagnostic rather than guess.
-      final params = helper.formalParameters.toList();
       final binding = bindHelperArguments(
-        params,
+        definition.params,
         call.argumentList.arguments.toList(),
       );
       if (binding == null) {
         _blocker(BlockerKind.dartCall, call, _truncateSource(call));
         return;
       }
-      _capturedHelpers[helper] = HelperDef(params: params, body: body);
+      _capturedHelpers[helper] = definition;
       // Resolve-through the helper body with the parameter bindings active, so
       // each parameter reference classifies as its bound argument (the inlined
       // composition). The bindings are removed on exit so a sibling call's
       // arguments don't leak.
       _paramBindings.addAll(binding);
       try {
-        await classify(body);
+        await classify(definition.body);
       } finally {
         binding.keys.forEach(_paramBindings.remove);
       }
     } finally {
       _helperStack.remove(helper);
+    }
+  }
+
+  /// Resolves [helper]'s `(params, body)` without capturing it — the caller
+  /// captures only once the call's arguments bind.
+  Future<HelperDef?> _resolveHelperDefinition(
+    ExecutableElement helper,
+    MethodInvocation call,
+  ) async {
+    final existing = _capturedHelpers[helper] ?? _indexedHelpers[helper];
+    if (existing != null) return existing;
+    final node = await _classifier.astNodeFor(helper.firstFragment);
+    final functionBody = switch (node) {
+      MethodDeclaration() => node.body,
+      FunctionDeclaration() => node.functionExpression.body,
+      _ => null,
+    };
+    final body =
+        functionBody == null ? null : singleReturnExpressionOf(functionBody);
+    if (body == null) {
+      _blocker(BlockerKind.dartCall, call, _truncateSource(call));
+      return null;
+    }
+    return HelperDef(
+      params: helper.formalParameters.toList(),
+      body: body,
+    );
+  }
+
+  /// Resolves helpers for the collection probe without capturing them — the
+  /// probe runs over subtrees the walk may never classify, so only the vetted
+  /// capture path may authorise inlining. A [followed] map records what the
+  /// probe resolved, for promotion once the traversal's terminals classify.
+  CollectionSemanticProbe _collectionSemanticProbe({
+    Map<Element, HelperDef>? followed,
+  }) =>
+      CollectionSemanticProbe(
+        bindingFor: (identifier) => _activeBindingFor(identifier.element),
+        helperFor: (invocation) {
+          final helper = _resolveInlinableHelper(invocation);
+          if (helper == null) return null;
+          final definition =
+              _capturedHelpers[helper] ?? _indexedHelpers[helper];
+          if (definition == null) return null;
+          final bindings = bindHelperArguments(
+            definition.params,
+            invocation.argumentList.arguments.toList(),
+          );
+          if (bindings == null) return null;
+          followed?[helper] = definition;
+          return CollectionResolvedHelper(
+            body: definition.body,
+            parameterBindings: bindings,
+          );
+        },
+      );
+
+  Future<void> _classifyCollectionOccurrence(
+    CollectionSemanticOccurrence occurrence,
+  ) async {
+    final saved = Map<Element, Expression>.of(_collectionBindings);
+    _collectionBindings.addAll(occurrence.bindings);
+    try {
+      await classify(occurrence.terminalExpression);
+    } finally {
+      _collectionBindings
+        ..clear()
+        ..addAll(saved);
     }
   }
 
@@ -1128,7 +1230,7 @@ class _Walk {
   void _propertyAccess(PropertyAccess expr) {
     // Binding-aware: `scheme.x.y` where `final scheme = Theme.of(c)...;` is in
     // scope resolves through the captured local bindings to a theme read.
-    if (isThemeReadChain(expr, bindings: _localBindings)) {
+    if (isThemeReadChain(expr, bindings: _activeBindings)) {
       _mechanisms.add(InliningMechanism.themeAsData);
       return;
     }
@@ -1302,7 +1404,7 @@ class _Walk {
     // A theme read through a bound `final` theme-local — `scheme.primary`
     // where `final scheme = Theme.of(c).colorScheme;` is in scope. The prefix
     // resolves element-keyed against the captured local bindings.
-    if (isThemeReadChain(expr, bindings: _localBindings)) {
+    if (isThemeReadChain(expr, bindings: _activeBindings)) {
       _mechanisms.add(InliningMechanism.themeAsData);
       return;
     }
@@ -1664,8 +1766,7 @@ class _OwnArgsStateFinder extends RecursiveAstVisitor<void> {
       // A fallback that reaches own args/state THROUGH a captured `final` local
       // or a bound helper parameter is still context-dependent — resolve the
       // binding and recurse so the hidden own-arg/state read is caught.
-      final bound = _walk._localBindings[node.element] ??
-          _walk._paramBindings[node.element];
+      final bound = _walk._activeBindingFor(node.element);
       bound?.accept(this);
     }
     super.visitSimpleIdentifier(node);
@@ -1703,33 +1804,122 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
     helpers: helpers,
   );
   final entryPoints = <ClassElement>{};
-  final collector = _CustomWidgetCollector(entryPoints);
-  for (final root in rootExpressions) {
-    root.accept(collector);
-  }
+  final census = _CustomWidgetOccurrenceCensus(entryPoints);
+  rootExpressions.forEach(census.collect);
   for (final widgetClass in entryPoints) {
     await classifier.classify(widgetClass);
   }
   return ClassificationResult(
     classifications: classifier.results,
     blueprints: classifier.blueprints,
+    collectionRefusals: classifier._collectionRefusals,
   );
 }
 
-/// Collects the `@RestageWidget`-annotated classes constructed anywhere in a
-/// paywall's `build()` expression — the classifier's entry points.
-class _CustomWidgetCollector extends RecursiveAstVisitor<void> {
-  _CustomWidgetCollector(this._entryPoints);
+final class _CustomWidgetOccurrenceCensus {
+  _CustomWidgetOccurrenceCensus(this._entryPoints);
 
   final Set<ClassElement> _entryPoints;
+  final Set<Expression> _active = <Expression>{};
 
-  @override
-  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+  void collect(Expression expression) {
+    final session = CollectionSemanticTraversalSession();
+    if (session.admitOrdinaryLeaf(expression, _semanticsFor(expression)) !=
+        null) {
+      return;
+    }
+    _collect(expression, session: session);
+  }
+
+  void _collect(
+    Expression expression, {
+    required CollectionSemanticTraversalSession session,
+    Map<Element, Expression> bindings = const {},
+  }) {
+    if (!_active.add(expression)) return;
+    try {
+      final semantics = _semanticsFor(expression);
+      final budget = CollectionUnrollBudget();
+      final resolution = semantics.resolve(expression, bindings, budget);
+      if (!resolution.workLimitExceeded &&
+          !identical(resolution.expression, expression)) {
+        _collect(
+          resolution.expression,
+          session: session,
+          bindings: resolution.bindings,
+        );
+        return;
+      }
+      if (expression is ListLiteral) {
+        final traversal = traverseCollectionList(
+          expression,
+          semantics: semantics,
+          budget: budget,
+          session: session,
+          bindings: bindings,
+        );
+        for (final entry in traversal.entries) {
+          if (entry case CollectionListElement(:final occurrence)) {
+            _collect(
+              occurrence.terminalExpression,
+              session: session,
+              bindings: occurrence.bindings,
+            );
+          }
+        }
+        return;
+      }
+      if (expression is InstanceCreationExpression) {
+        _record(expression);
+      }
+      for (final child in expression.childEntities.whereType<AstNode>()) {
+        _collectNestedExpressions(child, bindings, session);
+      }
+    } finally {
+      _active.remove(expression);
+    }
+  }
+
+  CollectionSemanticProbe _semanticsFor(Expression expression) {
+    final helpers = inlinableHelperDefinitionsIn(expression);
+    return CollectionSemanticProbe(
+      helperFor: (invocation) {
+        if (!isArtifactHelperInvocation(invocation)) return null;
+        final element = invocation.methodName.element;
+        final definition = helpers[element];
+        if (definition == null) return null;
+        final parameterBindings = bindHelperArguments(
+          definition.params,
+          invocation.argumentList.arguments.toList(),
+        );
+        if (parameterBindings == null) return null;
+        return CollectionResolvedHelper(
+          body: definition.body,
+          parameterBindings: parameterBindings,
+        );
+      },
+    );
+  }
+
+  void _record(InstanceCreationExpression node) {
     final type = node.constructorName.type.element;
     if (type is ClassElement &&
         firstAnnotation(type, 'RestageWidget') != null) {
       _entryPoints.add(type);
     }
-    super.visitInstanceCreationExpression(node);
+  }
+
+  void _collectNestedExpressions(
+    AstNode node,
+    Map<Element, Expression> bindings,
+    CollectionSemanticTraversalSession session,
+  ) {
+    if (node is Expression) {
+      _collect(node, bindings: bindings, session: session);
+      return;
+    }
+    for (final child in node.childEntities.whereType<AstNode>()) {
+      _collectNestedExpressions(child, bindings, session);
+    }
   }
 }

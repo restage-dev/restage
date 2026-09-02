@@ -167,34 +167,36 @@ void main() {
       expect(r.issues, isEmpty);
     });
 
-    test('rejects spread element', () async {
+    test('expands a spread of a list literal', () async {
       final r = translator.translate(
         await parseExpressionForTest('[...const [1, 2]]'),
       );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unsupportedCollectionFlow),
-      );
+      expect(r.dsl, '[1, 2]');
+      expect(r.issues, isEmpty);
     });
 
-    test('rejects collection-if', () async {
-      final r = translator.translate(
+    test('expands a collection-if with a constant condition', () async {
+      final trueResult = translator.translate(
         await parseExpressionForTest('[if (true) 1]'),
       );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unsupportedCollectionFlow),
+      expect(trueResult.dsl, '[1]');
+      expect(trueResult.issues, isEmpty);
+
+      final falseResult = translator.translate(
+        await parseExpressionForTest('[if (false) 1, 2]'),
       );
+      expect(falseResult.dsl, '[2]');
+      expect(falseResult.issues, isEmpty);
     });
 
-    test('rejects collection-for', () async {
+    test('expands a collection-for over a list literal', () async {
       final r = translator.translate(
-        await parseExpressionForTest('[for (var i in const [1, 2, 3]) i]'),
+        await parseExpressionFromSourceForTest('''
+          Object x() => [for (final i in const [1, 2, 3]) i];
+        '''),
       );
-      expect(
-        r.issues.map((i) => i.code),
-        contains(IssueCode.unsupportedCollectionFlow),
-      );
+      expect(r.dsl, '[1, 2, 3]');
+      expect(r.issues, isEmpty);
     });
   });
 
@@ -2784,6 +2786,239 @@ SegmentedButton<String>(
       expect(r.dsl, contains('stops: [0.0, 1.0]'));
     });
 
+    test('LinearGradient refuses collection elements in stops', () async {
+      const source = '''
+Object x() => LinearGradient(
+  colors: [Color(0xFF112233), Color(0xFF445566)],
+  stops: ([for (final stop in const [0, 1]) stop]),
+);''';
+      final r = translator.translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/gradient_collection_stops.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
+
+      expect(r.dsl, isNot(contains('stops: [0, 1]')));
+      expect(r.issues, hasLength(1));
+      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        r.issues.single.message,
+        'Collection elements in a numeric list are unsupported; '
+        'write the values out.',
+      );
+      expect(
+        r.issues.single.location,
+        startsWith('lib/gradient_collection_stops.dart:3:'),
+      );
+    });
+
+    test('LinearGradient refuses a conditional collection list in stops',
+        () async {
+      const source = '''
+Object x() => LinearGradient(
+  colors: [Color(0xFF112233), Color(0xFF445566)],
+  stops: true
+      ? [0.0]
+      : [for (final stop in const [0, 1]) stop],
+);''';
+      final r = translator.translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/gradient_conditional_stops.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
+
+      expect(r.dsl, isNot(contains('stops: [0, 1]')));
+      expect(r.issues, hasLength(1));
+      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        r.issues.single.location,
+        startsWith(
+          'lib/gradient_conditional_stops.dart:'
+          '${_sourceLineOf(source, 'for (final stop in')}:',
+        ),
+      );
+    });
+
+    for (final gradientName in ['LinearGradient', 'SweepGradient']) {
+      test('$gradientName refuses collection flow from a const field',
+          () async {
+        final source = _gradientStopsSource(
+          gradientName,
+          declarations: '''
+const stopSet = StopSet(<double>[
+  if (true) 0,
+  1,
+]);
+''',
+          stopsExpression: 'stopSet.values',
+        );
+
+        await _expectConstStopsRefusal(
+          translator,
+          source,
+          'lib/${gradientName.toLowerCase()}_const_stops.dart',
+        );
+      });
+
+      test('$gradientName refuses collection flow from a nested const field',
+          () async {
+        final source = _gradientStopsSource(
+          gradientName,
+          declarations: '''
+class GradientStops {
+  const GradientStops(this.primary);
+  final StopSet primary;
+}
+
+const gradientStops = GradientStops(StopSet(<double>[
+  if (true) 0,
+  1,
+]));
+''',
+          stopsExpression: 'gradientStops.primary.values',
+        );
+
+        await _expectConstStopsRefusal(
+          translator,
+          source,
+          'lib/${gradientName.toLowerCase()}_nested_stops.dart',
+        );
+      });
+
+      test('$gradientName refuses collection flow through a const alias',
+          () async {
+        final source = _gradientStopsSource(
+          gradientName,
+          declarations: '''
+const stopSet = StopSet(<double>[
+  if (true) 0,
+  1,
+]);
+const selectedStops = stopSet.values;
+''',
+          stopsExpression: 'selectedStops',
+        );
+
+        await _expectConstStopsRefusal(
+          translator,
+          source,
+          'lib/${gradientName.toLowerCase()}_aliased_stops.dart',
+        );
+      });
+
+      test('$gradientName refuses collection flow in a conditional branch',
+          () async {
+        final source = _gradientStopsSource(
+          gradientName,
+          declarations: '''
+const stopSet = StopSet(<double>[
+  if (true) 0,
+  1,
+]);
+''',
+          stopsExpression:
+              'useSelected ? stopSet.values : const <double>[0, 1]',
+          parameter: 'bool useSelected',
+        );
+
+        await _expectConstStopsRefusal(
+          translator,
+          source,
+          'lib/${gradientName.toLowerCase()}_conditional_field_stops.dart',
+        );
+      });
+
+      test('$gradientName preserves plain numeric and structured const fields',
+          () async {
+        final source = _gradientStopsSource(
+          gradientName,
+          declarations: '''
+class GradientTheme {
+  const GradientTheme(this.primary, this.stops);
+  final Color primary;
+  final StopSet stops;
+}
+
+const gradientTheme = GradientTheme(
+  Color(0xFF112233),
+  StopSet(<double>[0, 1]),
+);
+''',
+          colorsExpression:
+              'const <Color>[gradientTheme.primary, Color(0xFF445566)]',
+          stopsExpression: 'gradientTheme.stops.values',
+        );
+        final result = translator.translate(
+          await parseExpressionFromSourceForTest(
+            source,
+            rootPackage: 'apps_examples',
+          ),
+        );
+
+        expect(result.issues, isEmpty);
+        expect(
+          result.dsl,
+          contains('colors: [0xFF112233, 0xFF445566]'),
+        );
+        expect(result.dsl, contains('stops: [0.0, 1.0]'));
+        expect(result.dsl, isNot(contains('stops: [0, 1]')));
+      });
+    }
+
+    test('LinearGradient refuses mixed const and runtime stop receivers',
+        () async {
+      final source = _gradientStopsSource(
+        'LinearGradient',
+        declarations: '',
+        stopsExpression: '''
+(selectConstant
+      ? const StopSet(<double>[0.25, 1])
+      : StopSet(<double>[0.75, 1]))
+    .values''',
+        parameter: 'bool selectConstant',
+      );
+      final result = translator.translate(
+        await parseExpressionFromSourceForTest(
+          source,
+          rootPackage: 'apps_examples',
+        ),
+      );
+
+      expect(result.dsl, isEmpty);
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unrecognizedMethodCall);
+      expect(
+        result.issues.single.message,
+        startsWith('Unsupported expression:'),
+      );
+    });
+
+    test('LinearGradient refuses collection elements in colors', () async {
+      const source = '''
+Object x() => LinearGradient(
+  colors: [
+    for (final color in const [Color(0xFF112233)]) color,
+  ],
+);''';
+      final r = translator.translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/gradient_collection_colors.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
+
+      expect(r.issues, hasLength(1));
+      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        r.issues.single.message,
+        'Collection elements in a typed list are unsupported; '
+        'write the values out.',
+      );
+      expect(
+        r.issues.single.location,
+        startsWith('lib/gradient_collection_colors.dart:3:'),
+      );
+    });
+
     test('RadialGradient coerces int stops to double literals', () async {
       final r = translator.translate(
         await parseExpressionForTest(
@@ -4152,6 +4387,35 @@ Object x() => Switch(
       );
     });
 
+    test('TextSpan.children refuses wrapped collection elements', () async {
+      const source = '''
+import 'package:flutter/material.dart';
+Object x() => Text.rich(
+  TextSpan(
+    children: ([
+      for (final label in const ['first', 'second']) TextSpan(text: label),
+    ]),
+  ),
+);''';
+      final expr = await parseExpressionFromSourceForTest(
+        source,
+        rootPackage: 'apps_examples',
+      );
+      final r = textRichTranslator.translate(
+        expr,
+        sourcePath: 'lib/text_span_collection.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
+
+      expect(r.dsl, isEmpty);
+      expect(r.issues, hasLength(1));
+      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        r.issues.single.location,
+        startsWith('lib/text_span_collection.dart:5:'),
+      );
+    });
+
     test('TextSpan(recognizer:) defers loud instead of dropping the prop',
         () async {
       final expr = await parseExpressionForTest('''
@@ -4564,6 +4828,40 @@ Object x() => Switch(
       );
     });
 
+    test('projectList(identity) refuses collection elements', () async {
+      const source = '''
+        $_nativeExpressionSourceStubs
+        Object x() => Container(
+          decoration: BoxDecoration(
+            boxShadow: ([
+              for (final shadow in const <BoxShadow>[])
+                shadow,
+            ]),
+          ),
+        );
+      ''';
+      final r = t.translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/project_list_collection.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
+
+      expect(r.issues, hasLength(1));
+      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        r.issues.single.message,
+        'Collection elements in a typed list are unsupported; '
+        'write the values out.',
+      );
+      expect(
+        r.issues.single.location,
+        startsWith(
+          'lib/project_list_collection.dart:'
+          '${_sourceLineOf(source, 'for (final shadow in')}:',
+        ),
+      );
+    });
+
     test('matches owning-widget static factories by native receiver metadata',
         () async {
       final r = t.translate(
@@ -4697,6 +4995,35 @@ Object x() => Switch(
         'decoration: ["underline", "overline"], '
         'fontFamilyFallback: ["Inter", "SF Pro"], '
         'fontPackage: "brand_fonts")',
+      );
+    });
+
+    test('TextDecoration.combine refuses wrapped collection elements',
+        () async {
+      const source = '''
+$_nativeExpressionSourceStubs
+Object x() => Text(
+  text: "Hi",
+  style: TextStyle(
+    decoration: TextDecoration.combine(([
+      for (final decoration in const [TextDecoration.underline]) decoration,
+    ])),
+  ),
+);''';
+      final r = t.translate(
+        await parseExpressionFromSourceForTest(source),
+        sourcePath: 'lib/text_decoration_collection.dart',
+        lineInfo: LineInfo.fromContent(source),
+      );
+
+      expect(r.issues, hasLength(1));
+      expect(r.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        r.issues.single.location,
+        startsWith(
+          'lib/text_decoration_collection.dart:'
+          '${_sourceLineOf(source, 'for (final decoration in')}:',
+        ),
       );
     });
 
@@ -5477,12 +5804,69 @@ Catalog _segmentedButtonCatalog() => catalogWith([
       ),
     ]);
 
+String _gradientStopsSource(
+  String gradientName, {
+  required String declarations,
+  required String stopsExpression,
+  String colorsExpression =
+      'const <Color>[Color(0xFF112233), Color(0xFF445566)]',
+  String parameter = '',
+}) =>
+    '''
+import 'package:flutter/material.dart';
+
+class StopSet {
+  const StopSet(this.values);
+  final List<double> values;
+}
+
+$declarations
+Object x($parameter) => $gradientName(
+  colors: $colorsExpression,
+  stops: $stopsExpression,
+);''';
+
+Future<void> _expectConstStopsRefusal(
+  ExpressionTranslator translator,
+  String source,
+  String sourcePath,
+) async {
+  final result = translator.translate(
+    await parseExpressionFromSourceForTest(
+      source,
+      rootPackage: 'apps_examples',
+    ),
+    sourcePath: sourcePath,
+    lineInfo: LineInfo.fromContent(source),
+  );
+
+  expect(result.dsl, isNot(contains('[0, 1]')));
+  expect(result.issues, hasLength(1));
+  expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+  expect(
+    result.issues.single.message,
+    'Collection elements in a numeric list are unsupported; '
+    'write the values out.',
+  );
+  final collectionLine = _sourceLineOf(source, 'if (true) 0');
+  expect(
+    result.issues.single.location,
+    startsWith('$sourcePath:$collectionLine:'),
+  );
+}
+
 String _nestedTextSpanSource(int depth) {
   var source = "TextSpan(text: 'leaf')";
   for (var i = 0; i < depth; i++) {
     source = 'TextSpan(children: [$source])';
   }
   return source;
+}
+
+int _sourceLineOf(String source, String marker) {
+  final offset = source.indexOf(marker);
+  if (offset < 0) throw ArgumentError.value(marker, 'marker');
+  return '\n'.allMatches(source.substring(0, offset)).length + 1;
 }
 
 const String _nativeExpressionSourceStubs = '''

@@ -1,6 +1,9 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:analyzer/dart/element/type.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
@@ -99,6 +102,77 @@ final class HelperDef {
 
   /// The helper's single returned expression — inlined at the call site.
   final Expression body;
+}
+
+/// Returns all same-unit helpers with one statically inlinable return value.
+Map<Element, HelperDef> inlinableHelperDefinitionsIn(AstNode node) {
+  final root = node.root;
+  if (root is! CompilationUnit) return const {};
+  final cached = _helperDefinitionCache[root];
+  if (cached != null) return cached;
+  final definitions = Map<Element, HelperDef>.identity();
+  root.accept(_HelperDefinitionIndexer(definitions));
+  _helperDefinitionCache[root] = definitions;
+  return definitions;
+}
+
+/// Whether [invocation] is statically bound within its source artifact.
+bool isArtifactHelperInvocation(MethodInvocation invocation) {
+  final element = invocation.methodName.element;
+  if (element is! ExecutableElement ||
+      element.name == 'build' ||
+      element.returnType is! InterfaceType) {
+    return false;
+  }
+  if (element is MethodElement && !element.isStatic) {
+    if (invocation.target != null) return false;
+    final owner = invocation
+        .thisOrAncestorOfType<ClassDeclaration>()
+        ?.declaredFragment
+        ?.element;
+    return owner != null && element.enclosingElement == owner;
+  }
+  if (element is TopLevelFunctionElement ||
+      (element is MethodElement && element.isStatic)) {
+    final root = invocation.root;
+    return root is CompilationUnit &&
+        element.library == root.declaredFragment?.element;
+  }
+  return false;
+}
+
+final Expando<Map<Element, HelperDef>> _helperDefinitionCache =
+    Expando<Map<Element, HelperDef>>();
+
+final class _HelperDefinitionIndexer extends RecursiveAstVisitor<void> {
+  _HelperDefinitionIndexer(this.definitions);
+
+  final Map<Element, HelperDef> definitions;
+
+  @override
+  void visitMethodDeclaration(MethodDeclaration node) {
+    _add(node.declaredFragment?.element, node.body);
+    super.visitMethodDeclaration(node);
+  }
+
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    _add(
+      node.declaredFragment?.element,
+      node.functionExpression.body,
+    );
+    super.visitFunctionDeclaration(node);
+  }
+
+  void _add(ExecutableElement? element, FunctionBody body) {
+    if (element == null || element.returnType is! InterfaceType) return;
+    final expression = singleReturnExpressionOf(body);
+    if (expression == null) return;
+    definitions[element] = HelperDef(
+      params: element.formalParameters.toList(),
+      body: expression,
+    );
+  }
 }
 
 /// The named intermediates the classifier resolved so the translator can
@@ -259,8 +333,10 @@ final class ClassificationResult {
   ClassificationResult({
     required Map<String, WidgetClassification> classifications,
     required Map<String, CustomWidgetBlueprint> blueprints,
+    Map<String, String> collectionRefusals = const {},
   })  : classifications = Map.unmodifiable(classifications),
-        blueprints = Map.unmodifiable(blueprints);
+        blueprints = Map.unmodifiable(blueprints),
+        collectionRefusals = Map.unmodifiable(collectionRefusals);
 
   /// Every custom widget classified this pass, keyed by
   /// [WidgetClassification.classKey].
@@ -270,4 +346,7 @@ final class ClassificationResult {
   /// widget that classified [ComposableWidget]. An imperative or
   /// unclassifiable widget has no blueprint.
   final Map<String, CustomWidgetBlueprint> blueprints;
+
+  /// Static collection refusals keyed by the custom widget they invalidate.
+  final Map<String, String> collectionRefusals;
 }

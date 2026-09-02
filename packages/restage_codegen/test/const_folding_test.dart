@@ -112,5 +112,78 @@ void main() {
       // `DoubleLiteral`; the operand filter makes the whole expression null.
       expect(await _fold('Object x() => -1e400;'), isNull);
     });
+
+    test('returns null for a String.fromEnvironment constant', () async {
+      expect(
+        await _fold(
+          "const String flavor = String.fromEnvironment('FLAVOR'); "
+          'Object x() => flavor;',
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null for an int.fromEnvironment constant', () async {
+      expect(
+        await _fold(
+          "const int build = int.fromEnvironment('BUILD'); "
+          'Object x() => build;',
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null for a bool.fromEnvironment constant', () async {
+      expect(
+        await _fold(
+          "const bool verbose = bool.fromEnvironment('VERBOSE'); "
+          'Object x() => verbose;',
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null for a bool.hasEnvironment constant', () async {
+      expect(
+        await _fold(
+          "const bool declared = bool.hasEnvironment('FLAVOR'); "
+          'Object x() => declared;',
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null for a constant derived from the build environment',
+        () async {
+      expect(
+        await _fold(
+          "const int build = int.fromEnvironment('BUILD'); "
+          'const int next = build + 1; Object x() => next;',
+        ),
+        isNull,
+      );
+    });
+
+    test('returns null for an operation over a build-environment operand',
+        () async {
+      expect(
+        await _fold(
+          "const int build = int.fromEnvironment('BUILD'); "
+          'const int base = 2; Object x() => base + build;',
+        ),
+        isNull,
+      );
+    });
+
+    test('still folds a const whose initializer names another plain const',
+        () async {
+      expect(
+        await _fold(
+          'const int base = 2; const int total = base + 3; '
+          'Object x() => total;',
+        ),
+        5,
+      );
+    });
   });
 }

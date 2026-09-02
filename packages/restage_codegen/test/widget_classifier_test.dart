@@ -1,3 +1,4 @@
+import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/paywall_helpers.dart';
@@ -68,6 +69,298 @@ class AcmeCard extends StatelessWidget {
       expect(composable.requiredMechanisms, isEmpty);
       expect(composable.composedCustomWidgets, isEmpty);
       expect(composable.classKey, 'package:apps_examples/card.dart#AcmeCard');
+    });
+
+    test('static collection leaves classify with their exact bindings',
+        () async {
+      final result = await classifyFixture(
+        {
+          'lib/repeated_labels.dart': '''
+$kFlutterClassifierStubs
+
+class BoxColumn extends StatelessWidget {
+  const BoxColumn({required this.children, super.key});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class LabelBox extends StatelessWidget {
+  const LabelBox({required this.label, required this.color, super.key});
+  final String label;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+List<bool> flags(bool first) => [first, false];
+const accent = Color(0xFF123456);
+
+@RestageWidget(
+  name: 'RepeatedLabels',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'repeated labels',
+)
+class RepeatedLabels extends StatelessWidget {
+  const RepeatedLabels({super.key});
+  @override
+  Widget build(BuildContext context) => BoxColumn(
+        children: [
+          for (final flag in flags(true))
+            if (flag)
+              LabelBox(
+                label: 'first',
+                color: accent,
+              ),
+        ],
+      );
+}
+''',
+        },
+        inputPath: 'lib/repeated_labels.dart',
+        widgetName: 'RepeatedLabels',
+        catalog: catalogWith([
+          entry(
+            name: 'BoxColumn',
+            properties: [prop('children', PropertyType.widgetList)],
+            flutterType: 'package:apps_examples/repeated_labels.dart#BoxColumn',
+          ),
+          entry(
+            name: 'LabelBox',
+            properties: [
+              prop('label', PropertyType.string),
+              prop('color', PropertyType.color),
+            ],
+            flutterType: 'package:apps_examples/repeated_labels.dart#LabelBox',
+          ),
+        ]),
+      );
+
+      expect(
+        result,
+        isA<ComposableWidget>(),
+        reason: result is UnclassifiableWidget ? result.reason : '$result',
+      );
+      expect(
+        (result as ComposableWidget).requiredMechanisms,
+        {InliningMechanism.constantFolding},
+      );
+    });
+
+    test('an ordinary helper result refuses one callback source in two slots',
+        () async {
+      final result = await classifyFixtureResult(
+        {
+          'lib/shared_action.dart': '''
+$kClassifierStubs
+
+class GestureDetector extends StatelessWidget {
+  const GestureDetector({this.onTap, this.onDoubleTap, required this.child});
+  final void Function()? onTap;
+  final void Function()? onDoubleTap;
+  final Widget child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'SharedAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.action,
+  description: 'shared action',
+)
+class SharedAction extends StatelessWidget {
+  const SharedAction();
+
+  Widget action(void Function() callback) => GestureDetector(
+        onTap: callback,
+        onDoubleTap: callback,
+        child: const Text('Activate'),
+      );
+
+  Widget build(BuildContext context) => action(() {});
+}
+''',
+        },
+        inputPath: 'lib/shared_action.dart',
+        widgetName: 'SharedAction',
+        catalog: catalogWith([
+          entry(
+            name: 'GestureDetector',
+            flutterType:
+                'package:apps_examples/shared_action.dart#GestureDetector',
+            properties: [
+              prop('onTap', PropertyType.event),
+              prop('onDoubleTap', PropertyType.event),
+              prop('child', PropertyType.widget),
+            ],
+          ),
+          entry(
+            name: 'Text',
+            flutterType: 'package:apps_examples/shared_action.dart#Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+      const key = 'package:apps_examples/shared_action.dart#SharedAction';
+      final classification = result.classifications[key];
+
+      expect(
+        classification,
+        isA<UnclassifiableWidget>().having(
+          (value) => value.reason,
+          'reason',
+          contains('static collection source is reused'),
+        ),
+      );
+      expect(result.blueprints, isNot(contains(key)));
+    });
+
+    test('a helper-bound const-object receiver classifies its widget field',
+        () async {
+      final result = await classifyFixtureResult(
+        {
+          'lib/bound_label.dart': '''
+$kFlutterClassifierStubs
+
+class BoxColumn extends StatelessWidget {
+  const BoxColumn({required this.children, super.key});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class LabelBox extends StatelessWidget {
+  const LabelBox({required this.label, super.key});
+  final String label;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class ActionSet {
+  const ActionSet(this.widget);
+  final Widget widget;
+}
+
+@RestageWidget(
+  name: 'BoundLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'bound label',
+)
+class BoundLabel extends StatelessWidget {
+  const BoundLabel({super.key});
+  static const set = ActionSet(LabelBox(label: 'accepted'));
+
+  List<Widget> select(ActionSet source) => [if (true) source.widget];
+
+  @override
+  Widget build(BuildContext context) =>
+      BoxColumn(children: [...select(set)]);
+}
+''',
+        },
+        inputPath: 'lib/bound_label.dart',
+        widgetName: 'BoundLabel',
+        catalog: catalogWith([
+          entry(
+            name: 'BoxColumn',
+            properties: [prop('children', PropertyType.widgetList)],
+            flutterType: 'package:apps_examples/bound_label.dart#BoxColumn',
+          ),
+          entry(
+            name: 'LabelBox',
+            properties: [prop('label', PropertyType.string)],
+            flutterType: 'package:apps_examples/bound_label.dart#LabelBox',
+          ),
+        ]),
+      );
+      const key = 'package:apps_examples/bound_label.dart#BoundLabel';
+      final classification = result.classifications[key];
+
+      expect(
+        classification,
+        isA<ComposableWidget>(),
+        reason: classification is UnclassifiableWidget
+            ? classification.reason
+            : '$classification',
+      );
+      expect(result.blueprints, contains(key));
+      expect(result.collectionRefusals, isEmpty);
+    });
+
+    test('a mixed object receiver remains unclassifiable', () async {
+      final result = await classifyFixtureResult(
+        {
+          'lib/mixed_labels.dart': '''
+$kFlutterClassifierStubs
+
+class BoxColumn extends StatelessWidget {
+  const BoxColumn({required this.children, super.key});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class LabelBox extends StatelessWidget {
+  const LabelBox({required this.label, super.key});
+  final String label;
+  @override
+  Widget build(BuildContext context) => const SizedBox();
+}
+
+class WidgetSet {
+  const WidgetSet(this.widgets);
+  final List<Widget> widgets;
+}
+
+@RestageWidget(
+  name: 'MixedLabels',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'mixed labels',
+)
+class MixedLabels extends StatelessWidget {
+  const MixedLabels({required this.selectConstant, super.key});
+  final bool selectConstant;
+
+  @override
+  Widget build(BuildContext context) => BoxColumn(
+    children: [
+      ...(selectConstant
+            ? const WidgetSet(<Widget>[LabelBox(label: 'constant')])
+            : WidgetSet(<Widget>[LabelBox(label: 'runtime')]))
+          .widgets,
+    ],
+  );
+}
+''',
+        },
+        inputPath: 'lib/mixed_labels.dart',
+        widgetName: 'MixedLabels',
+        catalog: catalogWith([
+          entry(
+            name: 'BoxColumn',
+            properties: [prop('children', PropertyType.widgetList)],
+            flutterType: 'package:apps_examples/mixed_labels.dart#BoxColumn',
+          ),
+          entry(
+            name: 'LabelBox',
+            properties: [prop('label', PropertyType.string)],
+            flutterType: 'package:apps_examples/mixed_labels.dart#LabelBox',
+          ),
+        ]),
+      );
+      const key = 'package:apps_examples/mixed_labels.dart#MixedLabels';
+
+      expect(result.classifications[key], isA<UnclassifiableWidget>());
+      expect(result.blueprints, isNot(contains(key)));
     });
   });
 
@@ -1520,6 +1813,58 @@ class AcmeCard extends StatelessWidget {
       expect(result, isA<ComposableWidget>());
     });
 
+    test('a targeted virtual helper stays outside composition', () async {
+      final result = await classifyFixtureResult(
+        {
+          'lib/card.dart': '''
+$kClassifierStubs
+
+class Container extends StatelessWidget {
+  const Container({this.child});
+  final Widget? child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String? data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Provider {
+  Widget action() => Text('base');
+}
+
+class DerivedProvider extends Provider {
+  @override
+  Widget action() => Text('derived');
+}
+
+Provider provider() => DerivedProvider();
+
+@RestageWidget(
+  name: 'AcmeCard',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'card',
+)
+class AcmeCard extends StatelessWidget {
+  const AcmeCard();
+  Widget build(BuildContext context) =>
+      Container(child: provider().action());
+}
+''',
+        },
+        inputPath: 'lib/card.dart',
+        widgetName: 'AcmeCard',
+        catalog: _stubCatalog(),
+      );
+
+      const key = 'package:apps_examples/card.dart#AcmeCard';
+      expect(result.classifications[key], isA<ImperativeWidget>());
+      expect(result.blueprints, isNot(contains(key)));
+    });
+
     test(
         'a same-NAMED static helper on a DIFFERENT-library class does NOT '
         'inline — it defers (the same-library S13 boundary)', () async {
@@ -2112,8 +2457,157 @@ class AcmeSized extends StatelessWidget {
       );
       expect(result, isA<UnclassifiableWidget>());
     });
+
+    test(
+        'a helper reached only through a subtree the walk does not classify '
+        'is not authorised for inlining', () async {
+      // A registered helper's arguments are not classified, so a helper called
+      // there never has its body vetted. Speculative resolution must not put
+      // it in the blueprint, or the translator would inline a body whose
+      // blockers never reached the verdict.
+      final result = await _classifyUnreachedHelperFixture(
+        '''
+  String _headingKey() => DateTime.now().toString();
+
+  Widget build(BuildContext context) => Text(localisedText(_headingKey()));
+''',
+      );
+
+      const key = 'package:apps_examples/heading.dart#AcmeHeading';
+      expect(result.classifications[key], isA<ComposableWidget>());
+      expect(
+        result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
+        isEmpty,
+        reason: 'an unvetted helper must not reach the blueprint',
+      );
+    });
+
+    test('a helper the walk does classify is still authorised for inlining',
+        () async {
+      final result = await _classifyUnreachedHelperFixture(
+        '''
+  String _heading() => 'welcome';
+
+  Widget build(BuildContext context) => Text(_heading());
+''',
+      );
+
+      const key = 'package:apps_examples/heading.dart#AcmeHeading';
+      expect(result.classifications[key], isA<ComposableWidget>());
+      expect(
+        result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
+        ['_heading'],
+      );
+    });
+
+    test('a helper a collection traversal follows and classifies is captured',
+        () async {
+      final result = await classifyFixtureResult(
+        {
+          'lib/tiles.dart': '''
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String? data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Column extends StatelessWidget {
+  const Column({this.children = const []});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'AcmeList',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'list',
+)
+class AcmeList extends StatelessWidget {
+  const AcmeList();
+  List<Widget> _tiles() => [Text('a'), Text('b')];
+  Widget build(BuildContext context) => Column(children: [..._tiles()]);
+}
+''',
+        },
+        inputPath: 'lib/tiles.dart',
+        widgetName: 'AcmeList',
+        catalog: catalogWith([
+          entry(
+            name: 'Text',
+            properties: [prop('text', PropertyType.string, positional: true)],
+            flutterType: 'package:apps_examples/tiles.dart#Text',
+          ),
+          entry(
+            name: 'Column',
+            properties: [prop('children', PropertyType.widgetList)],
+            flutterType: 'package:apps_examples/tiles.dart#Column',
+          ),
+        ]),
+      );
+
+      const key = 'package:apps_examples/tiles.dart#AcmeList';
+      expect(result.classifications[key], isA<ComposableWidget>());
+      expect(
+        result.blueprints[key]?.inlined.helpers.keys.map((e) => e.name),
+        ['_tiles'],
+        reason: 'a traversal-classified helper must reach the blueprint',
+      );
+    });
   });
 }
+
+/// Classifies a widget whose [members] may call `localisedText`, a helper
+/// registered from a separate library so its arguments go unclassified.
+Future<ClassificationResult> _classifyUnreachedHelperFixture(String members) =>
+    classifyFixtureResult(
+      {
+        'lib/copy.dart': '''
+String localisedText(String key) => key;
+''',
+        'lib/heading.dart': '''
+import 'copy.dart';
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String? data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'AcmeHeading',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.display,
+  description: 'heading',
+)
+class AcmeHeading extends StatelessWidget {
+  const AcmeHeading();
+$members
+}
+''',
+      },
+      inputPath: 'lib/heading.dart',
+      widgetName: 'AcmeHeading',
+      catalog: catalogWith([
+        entry(
+          name: 'Text',
+          properties: [prop('text', PropertyType.string, positional: true)],
+          flutterType: 'package:apps_examples/heading.dart#Text',
+        ),
+      ]),
+      helpers: HelperRegistry()
+        ..registerAll([
+          HelperDefinition(
+            name: 'localisedText',
+            libraryOrigin: 'package:apps_examples/copy.dart',
+            returnCategory: HelperReturnCategory.string,
+            translate: (args) => args.positional.single,
+          ),
+        ]),
+    );
 
 final Catalog _mechanismsCatalog = catalogWith([
   entry(

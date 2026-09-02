@@ -88,11 +88,11 @@ Object? _foldConstReference(Element? element) {
   }
   if (resolved is FieldElement) {
     if (!resolved.isConst || resolved.isEnumConstant) return null;
-    return decodeConstScalar(resolved.computeConstantValue());
+    return _foldConstValue(resolved);
   }
   if (resolved is TopLevelVariableElement) {
     if (!resolved.isConst) return null;
-    return decodeConstScalar(resolved.computeConstantValue());
+    return _foldConstValue(resolved);
   }
   // A `const` local declared in the `build()` body — the body-shape rule
   // (`singleReturnExpressionOf`) allows leading const locals before the single
@@ -101,10 +101,17 @@ Object? _foldConstReference(Element? element) {
   // body.
   if (resolved is LocalVariableElement) {
     if (!resolved.isConst) return null;
-    return decodeConstScalar(resolved.computeConstantValue());
+    return _foldConstValue(resolved);
   }
   return null;
 }
+
+/// The scalar value of const [element], or `null` when that value comes from
+/// the build environment — see [dependsOnBuildEnvironment].
+Object? _foldConstValue(VariableElement element) =>
+    dependsOnBuildEnvironment(element)
+        ? null
+        : decodeConstScalar(element.computeConstantValue());
 
 /// Decodes a constant [value] to a plain scalar — [int], [double], [bool], or
 /// [String] — or `null` for any other shape. Shared with the
@@ -122,6 +129,52 @@ Object? decodeConstScalar(DartObject? value) {
     return number;
   }
   return value.toBoolValue() ?? value.toStringValue();
+}
+
+/// Whether const [element]'s value comes from the build environment — a
+/// `fromEnvironment` / `hasEnvironment` constant anywhere in its initializer
+/// graph, which covers the framework's build-mode constants. Folding one would
+/// bake a build-time answer into published output, so callers refuse the fold.
+bool dependsOnBuildEnvironment(Element element) {
+  final seen = Set<Element>.identity();
+  final pending = <Element>[element];
+  while (pending.isNotEmpty) {
+    final current = pending.removeLast();
+    if (!seen.add(current) || current is! VariableElement) continue;
+    final initializer = current.constantInitializer;
+    if (initializer == null) continue;
+    final scan = _BuildEnvironmentScan();
+    initializer.accept(scan);
+    if (scan.found) return true;
+    pending.addAll(scan.references);
+  }
+  return false;
+}
+
+/// Finds a direct environment constant in one initializer, and collects the
+/// declarations it names so the caller can follow them.
+final class _BuildEnvironmentScan extends RecursiveAstVisitor<void> {
+  bool found = false;
+  final List<Element> references = [];
+
+  @override
+  void visitInstanceCreationExpression(InstanceCreationExpression node) {
+    final constructor = node.constructorName.element;
+    final name = constructor?.name;
+    if ((name == 'fromEnvironment' || name == 'hasEnvironment') &&
+        (constructor?.library.isDartCore ?? false)) {
+      found = true;
+      return;
+    }
+    super.visitInstanceCreationExpression(node);
+  }
+
+  @override
+  void visitSimpleIdentifier(SimpleIdentifier node) {
+    final element = _unwrapAccessor(node.element);
+    if (element != null) references.add(element);
+    super.visitSimpleIdentifier(node);
+  }
 }
 
 /// Returns the bare name of an enum constant when [expr] is a `Foo.bar`
@@ -189,14 +242,16 @@ String? enumConstantName(Expression expr) {
 /// to fall through to the bare-name emit.
 bool isConstObjectFieldAccess(Expression expr) {
   final access = _asFieldAccess(expr);
-  if (access == null) return false;
-  final field = _unwrapAccessor(access.field);
-  // The identifier must be an instance field — never a static field (a
-  // static-const reference like `Tokens.gap`) or an enum constant.
-  if (field is! FieldElement || field.isStatic || field.isEnumConstant) {
-    return false;
-  }
-  return _receiverIsConstValue(access.receiver);
+  return access != null &&
+      canResolveConstObjectFieldReceiver(expr) &&
+      _receiverIsConstValue(access.receiver);
+}
+
+/// Whether [expr] selects an instance field that can follow a const receiver.
+bool canResolveConstObjectFieldReceiver(Expression expr) {
+  final access = _asFieldAccess(expr);
+  final field = access == null ? null : _unwrapAccessor(access.field);
+  return field is FieldElement && !field.isStatic && !field.isEnumConstant;
 }
 
 /// Resolves a const-object field access [expr] to the AST initializer
@@ -215,6 +270,22 @@ Expression? resolveConstObjectFieldInitializer(Expression expr) {
   final ctorCall = _receiverInstanceCreation(access.receiver);
   if (ctorCall == null) return null;
   return _boundArgumentForField(ctorCall, field);
+}
+
+/// Resolves [expr] after its receiver has reached [resolvedReceiver].
+Expression? resolveConstObjectFieldInitializerFromReceiver(
+  Expression expr,
+  Expression resolvedReceiver, {
+  required bool receiverIsConstValue,
+}) {
+  if (!canResolveConstObjectFieldReceiver(expr)) return null;
+  final field = _unwrapAccessor(_asFieldAccess(expr)!.field);
+  if (field is! FieldElement) return null;
+  final ctorCall =
+      resolvedReceiver is InstanceCreationExpression && receiverIsConstValue
+          ? resolvedReceiver
+          : _receiverInstanceCreation(resolvedReceiver);
+  return ctorCall == null ? null : _boundArgumentForField(ctorCall, field);
 }
 
 /// Folds a const-object field access [expr] to a plain scalar — [int],
@@ -268,6 +339,15 @@ Expression? resolveConstIdentifierInitializer(Expression expr) {
     return null;
   }
   return _findVariableDeclaration(element, unit)?.initializer;
+}
+
+/// Resolves a same-unit const declaration to its authored initializer.
+Expression? resolveConstDeclarationInitializer(Expression expr) {
+  final resolved = _receiverElement(expr);
+  if (resolved == null || !_isConstValueElement(resolved)) return null;
+  final unit = expr.root;
+  if (unit is! CompilationUnit) return null;
+  return _findVariableDeclaration(resolved, unit)?.initializer;
 }
 
 /// Unwraps a getter [PropertyAccessorElement] to its backing variable so an
@@ -406,8 +486,10 @@ DartObject? _receiverConstValue(Expression receiver) {
   return _computeConstValue(element!);
 }
 
-/// Computes the constant value of a const value-holding [element].
+/// Computes the constant value of a const value-holding [element] — refusing a
+/// value that comes from the build environment, as the scalar fold does.
 DartObject? _computeConstValue(Element element) {
+  if (dependsOnBuildEnvironment(element)) return null;
   if (element is TopLevelVariableElement) return element.computeConstantValue();
   if (element is FieldElement) return element.computeConstantValue();
   if (element is LocalVariableElement) return element.computeConstantValue();
@@ -421,23 +503,26 @@ DartObject? _computeConstValue(Element element) {
 VariableDeclaration? _findVariableDeclaration(
   Element target,
   CompilationUnit unit,
-) {
-  final finder = _ConstVariableFinder(target);
-  unit.accept(finder);
-  return finder.found;
-}
+) =>
+    (_constVariableIndexes[unit] ??= _ConstVariableIndex(unit))[target];
 
-class _ConstVariableFinder extends RecursiveAstVisitor<void> {
-  _ConstVariableFinder(this.target);
+final Expando<_ConstVariableIndex> _constVariableIndexes =
+    Expando<_ConstVariableIndex>('const variable declarations');
 
-  final Element target;
-  VariableDeclaration? found;
+final class _ConstVariableIndex extends RecursiveAstVisitor<void> {
+  _ConstVariableIndex(CompilationUnit unit) {
+    unit.accept(this);
+  }
+
+  final Map<Element, VariableDeclaration> _declarations =
+      Map<Element, VariableDeclaration>.identity();
+
+  VariableDeclaration? operator [](Element element) => _declarations[element];
 
   @override
   void visitVariableDeclaration(VariableDeclaration node) {
-    if (found == null && node.declaredFragment?.element == target) {
-      found = node;
-    }
+    final element = node.declaredFragment?.element;
+    if (element != null) _declarations[element] = node;
     super.visitVariableDeclaration(node);
   }
 }

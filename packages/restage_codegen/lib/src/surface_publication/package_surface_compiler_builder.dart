@@ -1241,6 +1241,8 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
           rootExpression: screen.build.rootExpression,
           catalog: catalog,
           inlinedCustomWidgetBlueprints: classification.blueprints,
+          inlinedCustomWidgetCollectionRefusals:
+              classification.collectionRefusals,
         ),
       );
     }
@@ -1286,6 +1288,8 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
           rootExpression: entry.source.rootExpression,
           catalog: catalog,
           inlinedCustomWidgetBlueprints: classification.blueprints,
+          inlinedCustomWidgetCollectionRefusals:
+              classification.collectionRefusals,
         ),
       );
     }

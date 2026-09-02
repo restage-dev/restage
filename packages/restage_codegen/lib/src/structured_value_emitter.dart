@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -22,30 +23,19 @@ const List<String> _kBorderRadiusCornerOrder = [
   'bottomRight',
 ];
 
-/// Emits the RFW DSL fragments for structured Flutter value types — the
-/// `EdgeInsets` / `Color` / `Offset` / `Border` / `ShapeBorder` / `Gradient` /
-/// `BoxShadow` / `Locale` / `FontFeature` / `FontVariation` / `TextDecoration` /
-/// `Alignment` family — that a paywall body references as property values.
-///
-/// This collaborator owns no walk state. It is a pure function of its argument
-/// nodes plus a narrow set of host primitives injected as closures (the
-/// back-interface). The host (`ExpressionTranslator`) constructs one of these,
-/// passing tear-offs of its own private methods, and routes the matching
-/// node-dispatch arms here. Output is byte-identical to the in-host emission it
-/// replaces.
-///
-/// The injected back-interface has thirteen callbacks, including
-/// `resolveDoubleListSource`; each delegates to its matching host operation.
+/// Emits RFW DSL fragments for structured Flutter value types.
 final class StructuredValueEmitter {
   /// Creates an emitter wired to the host primitives it delegates back to.
   StructuredValueEmitter({
     required String Function(Expression, List<Issue>) translate,
     required String Function(Expression, List<Issue>) translateDoubleScalar,
+    required TranslateBoundCallback translateDoubleElement,
     required DoubleListSourceResolver resolveDoubleListSource,
     required Expression Function(Expression) stripParens,
     required String Function(String) stringLiteral,
     required bool Function(Element?) frameworkOrUnresolved,
     required Expression Function(Expression) resolveBoundIdentifier,
+    required CollectionSemanticProbe Function() collectionSemanticProbe,
     required bool Function(InstanceCreationExpression)
         isResolvedNonFrameworkCtor,
     required String Function(PrefixedIdentifier, String, String, List<Issue>)
@@ -62,11 +52,13 @@ final class StructuredValueEmitter {
     required String Function(AstNode) locationOf,
   })  : _translate = translate,
         _translateDoubleScalar = translateDoubleScalar,
+        _translateDoubleElement = translateDoubleElement,
         _resolveDoubleListSource = resolveDoubleListSource,
         _stripParens = stripParens,
         _stringLiteral = stringLiteral,
         _frameworkOrUnresolved = frameworkOrUnresolved,
         _resolveBoundIdentifier = resolveBoundIdentifier,
+        _collectionSemanticProbe = collectionSemanticProbe,
         _isResolvedNonFrameworkCtor = isResolvedNonFrameworkCtor,
         _deferFrameworkConstLookalike = deferFrameworkConstLookalike,
         _deferFrameworkCtorLookalike = deferFrameworkCtorLookalike,
@@ -80,6 +72,8 @@ final class StructuredValueEmitter {
   /// Translates an expression to an RFW scalar that strict-decodes as a
   /// `double` (an author-written `int` literal is forced to a double literal).
   final String Function(Expression, List<Issue>) _translateDoubleScalar;
+
+  final TranslateBoundCallback _translateDoubleElement;
 
   /// Resolves a list expression through the host's active source bindings.
   final DoubleListSourceResolver _resolveDoubleListSource;
@@ -96,6 +90,9 @@ final class StructuredValueEmitter {
 
   /// Resolves an identifier bound in the active inline scope to its expression.
   final Expression Function(Expression) _resolveBoundIdentifier;
+
+  /// Supplies the semantic bindings and helpers visible to the host walk.
+  final CollectionSemanticProbe Function() _collectionSemanticProbe;
 
   /// Whether a construction resolves to a non-framework (customer) ctor.
   final bool Function(InstanceCreationExpression) _isResolvedNonFrameworkCtor;
@@ -465,7 +462,17 @@ final class StructuredValueEmitter {
         case 'end':
           parts.add('$name: ${alignmentGeometry(a.expression, issues, loc)}');
         case 'colors':
-          parts.add('$name: ${_translate(a.expression, issues)}');
+          final colorsDsl = emitTypedList(
+            a.expression,
+            _translate,
+            issues,
+            loc,
+            resolveExpression: _resolveBoundIdentifier,
+            semanticProbe: _collectionSemanticProbe(),
+            locationOf: _locationOf,
+          );
+          if (colorsDsl.refused) return '';
+          parts.add('$name: ${colorsDsl.value}');
         case 'stops':
           // `stops` decodes as `list<double>`, so coerce int elements to
           // double literals (the scalar slots already coerce via
@@ -477,6 +484,10 @@ final class StructuredValueEmitter {
             _resolveDoubleListSource,
             issues,
             loc,
+            resolveExpression: _resolveBoundIdentifier,
+            semanticProbe: _collectionSemanticProbe(),
+            translateDoubleElement: _translateDoubleElement,
+            locationOf: _locationOf,
           );
           if (stopsDsl.refused) return '';
           parts.add('$name: ${stopsDsl.value}');
@@ -1368,7 +1379,15 @@ final class StructuredValueEmitter {
       );
       return '[]';
     }
-    return _translate(positional.first, issues);
+    return emitTypedList(
+      positional.first,
+      _translate,
+      issues,
+      loc,
+      resolveExpression: _resolveBoundIdentifier,
+      semanticProbe: _collectionSemanticProbe(),
+      locationOf: _locationOf,
+    ).value;
   }
 
   List<Expression> _positionalArgs(Iterable<Expression> args) =>

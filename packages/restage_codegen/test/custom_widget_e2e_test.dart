@@ -5,6 +5,7 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
+import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -20,7 +21,12 @@ import 'helpers.dart';
 /// Outcome of transpiling a custom-widget fixture through the full
 /// chain — classify → translate → emit → parse → validate → encode → decode.
 class _TranspileResult {
-  _TranspileResult(this.issues, this.decoded, this.translation);
+  _TranspileResult(
+    this.issues,
+    this.decoded,
+    this.translation,
+    this.classification,
+  );
 
   /// Every diagnostic from translation and catalog validation.
   final List<Issue> issues;
@@ -31,6 +37,8 @@ class _TranspileResult {
 
   /// Translation output used for exact-value refusal assertions.
   final TranslationResult translation;
+
+  final ClassificationResult classification;
 }
 
 final _hostTextHelper = HelperDefinition(
@@ -98,6 +106,476 @@ Object x() => AcmeCard(label: "Pro");
       final text = card.arguments['child'];
       expect(text, isA<fmt.ConstructorCall>());
       expect((text! as fmt.ConstructorCall).name, 'Text');
+    });
+
+    test('a custom widget emits statically repeated children in order',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+List<String> labels(String first) => [first, 'second'];
+
+@RestageWidget(
+  name: 'RepeatedLabels',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'repeated labels',
+)
+class RepeatedLabels extends StatelessWidget {
+  const RepeatedLabels();
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final label in labels('first')) Text(label),
+        ],
+      );
+}
+
+Object x() => const RepeatedLabels();
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+          ),
+          _entry(
+            'Text',
+            [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(
+        result.translation.widgetDefinitions['RepeatedLabels'],
+        'Column(children: [Text(text: "first"), Text(text: "second")])',
+      );
+    });
+
+    test('a local list from a helper emits statically repeated children',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+List<String> labels(String first) => [first, 'second'];
+
+@RestageWidget(
+  name: 'LocalLabels',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'local labels',
+)
+class LocalLabels extends StatelessWidget {
+  const LocalLabels();
+  Widget build(BuildContext context) {
+    final values = labels('first');
+    return Column(
+      children: [for (final label in values) Text(label)],
+    );
+  }
+}
+
+Object x() => const LocalLabels();
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+          ),
+          _entry(
+            'Text',
+            [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(
+        result.translation.widgetDefinitions['LocalLabels'],
+        'Column(children: [Text(text: "first"), Text(text: "second")])',
+      );
+    });
+
+    test('nested sources expose a composed custom widget and its blueprint',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class WidgetSet {
+  const WidgetSet(this.widget);
+  final Widget widget;
+}
+
+@RestageWidget(
+  name: 'HiddenLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'hidden label',
+)
+class HiddenLabel extends StatelessWidget {
+  const HiddenLabel();
+  Widget build(BuildContext context) => const Text('resolved');
+}
+
+@RestageWidget(
+  name: 'NestedLabels',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.layout,
+  description: 'nested labels',
+)
+class NestedLabels extends StatelessWidget {
+  const NestedLabels();
+  static const hidden = HiddenLabel();
+  static const set = WidgetSet(hidden);
+
+  List<Widget> entries(Widget value) => [if (true) value];
+
+  Widget build(BuildContext context) {
+    final values = entries(set.widget);
+    return Column(children: [...values]);
+  }
+}
+
+Object x() => const NestedLabels();
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+          ),
+          _entry(
+            'Text',
+            [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(
+        result.translation.widgetDefinitions['NestedLabels'],
+        'Column(children: [HiddenLabel()])',
+      );
+      expect(
+        result.translation.widgetDefinitions['HiddenLabel'],
+        'Text(text: "resolved")',
+      );
+    });
+
+    test('root collection sources expose a custom widget entry point',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class WidgetSet {
+  const WidgetSet(this.widget);
+  final Widget widget;
+}
+
+@RestageWidget(
+  name: 'HiddenRootLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'hidden root label',
+)
+class HiddenRootLabel extends StatelessWidget {
+  const HiddenRootLabel();
+  Widget build(BuildContext context) => const Text('resolved');
+}
+
+const hiddenRootLabel = HiddenRootLabel();
+const rootSet = WidgetSet(hiddenRootLabel);
+const rootEntries = <Widget>[if (true) rootSet.widget];
+
+Object x() => Column(children: [...rootEntries]);
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+          ),
+          _entry(
+            'Text',
+            [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+
+      expect(result.issues, isEmpty);
+      expect(result.decoded, isNotNull);
+      expect(result.translation.dsl, 'Column(children: [HiddenRootLabel()])');
+      expect(
+        result.translation.widgetDefinitions['HiddenRootLabel'],
+        'Text(text: "resolved")',
+      );
+    });
+
+    test('custom discovery stops at a reused ordinary callback source',
+        () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Shell extends StatelessWidget {
+  const Shell({required this.child, required this.children});
+  final Widget child;
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class GestureDetector extends StatelessWidget {
+  const GestureDetector({this.onTap, required this.child});
+  final void Function()? onTap;
+  final Widget child;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'HiddenAction',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'hidden action',
+)
+class HiddenAction extends StatelessWidget {
+  const HiddenAction();
+  Widget build(BuildContext context) => const Text('Hidden');
+}
+
+void activate() {}
+const void Function() sharedAction = activate;
+
+Object x() => Shell(
+      child: GestureDetector(
+        onTap: sharedAction,
+        child: const Text('Visible'),
+      ),
+      children: [
+        GestureDetector(
+          onTap: sharedAction,
+          child: const HiddenAction(),
+        ),
+      ],
+    );
+''',
+        catalogWith([
+          _entry(
+            'Shell',
+            [
+              prop('child', PropertyType.widget),
+              prop('children', PropertyType.widgetList),
+            ],
+          ),
+          _entry(
+            'GestureDetector',
+            [
+              prop('onTap', PropertyType.event),
+              prop('child', PropertyType.widget),
+            ],
+          ),
+          _entry(
+            'Text',
+            [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+      const hiddenKey = 'package:restage_codegen/_e2e_probe.dart#HiddenAction';
+
+      expect(result.issues, isNotEmpty);
+      expect(result.classification.classifications, isNot(contains(hiddenKey)));
+      expect(result.classification.blueprints, isNot(contains(hiddenKey)));
+    });
+
+    test('a mixed receiver creates no partial custom entry points', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Column extends StatelessWidget {
+  const Column({required this.children});
+  final List<Widget> children;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+class WidgetSet {
+  const WidgetSet(this.widgets);
+  final List<Widget> widgets;
+}
+
+@RestageWidget(
+  name: 'ConstantLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'constant label',
+)
+class ConstantLabel extends StatelessWidget {
+  const ConstantLabel();
+  Widget build(BuildContext context) => const Text('constant');
+}
+
+@RestageWidget(
+  name: 'RuntimeLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'runtime label',
+)
+class RuntimeLabel extends StatelessWidget {
+  const RuntimeLabel();
+  Widget build(BuildContext context) => const Text('runtime');
+}
+
+Object x(bool selectConstant) => Column(
+  children: [
+    ...(selectConstant
+          ? const WidgetSet(<Widget>[ConstantLabel()])
+          : WidgetSet(<Widget>[const RuntimeLabel()]))
+        .widgets,
+  ],
+);
+''',
+        catalogWith([
+          _entry(
+            'Column',
+            [prop('children', PropertyType.widgetList)],
+          ),
+          _entry(
+            'Text',
+            [prop('text', PropertyType.string, positional: true)],
+          ),
+        ]),
+      );
+      expect(result.classification.classifications, isEmpty);
+      expect(result.classification.blueprints, isEmpty);
+      expect(result.translation.dsl, 'Column(children: [])');
+      expect(result.issues, hasLength(1));
+      expect(result.issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(result.translation.widgetDefinitions, isEmpty);
+    });
+
+    test('a targeted virtual root exposes no custom widget identity', () async {
+      final result = await _transpile(
+        '''
+$kClassifierStubs
+
+class Text extends StatelessWidget {
+  const Text(this.data);
+  final String data;
+  Widget build(BuildContext context) => const Widget();
+}
+
+@RestageWidget(
+  name: 'BaseLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'base label',
+)
+class BaseLabel extends StatelessWidget {
+  const BaseLabel();
+  Widget build(BuildContext context) => const Text('base');
+}
+
+@RestageWidget(
+  name: 'DerivedLabel',
+  library: WidgetLibrary.custom('acme.ds'),
+  category: WidgetCategory.content,
+  description: 'derived label',
+)
+class DerivedLabel extends StatelessWidget {
+  const DerivedLabel();
+  Widget build(BuildContext context) => const Text('derived');
+}
+
+class Provider {
+  Widget action() => const BaseLabel();
+}
+
+class DerivedProvider extends Provider {
+  @override
+  Widget action() => const DerivedLabel();
+}
+
+Provider provider() => DerivedProvider();
+
+Object x() => provider().action();
+''',
+        catalogWith([
+          _entry('Text', [prop('text', PropertyType.string, positional: true)]),
+        ]),
+      );
+
+      const baseKey = 'package:restage_codegen/_e2e_probe.dart#BaseLabel';
+      const derivedKey = 'package:restage_codegen/_e2e_probe.dart#DerivedLabel';
+      expect(result.issues, isNotEmpty);
+      expect(result.classification.classifications, isNot(contains(baseKey)));
+      expect(
+        result.classification.classifications,
+        isNot(contains(derivedKey)),
+      );
+      expect(result.classification.blueprints, isEmpty);
     });
 
     test(
@@ -3830,7 +4308,14 @@ class _TranspileProbeBuilder implements Builder {
     );
     final translation = translator.translate(root);
     if (translation.issues.isNotEmpty) {
-      onResult(_TranspileResult(translation.issues, null, translation));
+      onResult(
+        _TranspileResult(
+          translation.issues,
+          null,
+          translation,
+          classification,
+        ),
+      );
       return;
     }
 
@@ -3843,12 +4328,16 @@ class _TranspileProbeBuilder implements Builder {
       final parsed = fmt.parseLibraryFile(text, sourceIdentifier: 'e2e');
       final validation = validateModelAgainstCatalog(parsed, catalog);
       if (validation.isNotEmpty) {
-        onResult(_TranspileResult(validation, null, translation));
+        onResult(
+          _TranspileResult(validation, null, translation, classification),
+        );
         return;
       }
       final bytes = fmt.encodeLibraryBlob(parsed);
       final decoded = fmt.decodeLibraryBlob(Uint8List.fromList(bytes));
-      onResult(_TranspileResult(const [], decoded, translation));
+      onResult(
+        _TranspileResult(const [], decoded, translation, classification),
+      );
     } on fmt.ParserException catch (e) {
       onResult(
         _TranspileResult(
@@ -3861,6 +4350,7 @@ class _TranspileProbeBuilder implements Builder {
           ],
           null,
           translation,
+          classification,
         ),
       );
     }
