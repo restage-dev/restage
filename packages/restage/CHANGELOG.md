@@ -5,6 +5,14 @@
 A breaking release. The breaking changes are called out below; everything
 else is additive.
 
+**Breaking. Hosted delivery no longer exposes experiment assignment metadata.**
+`FlowAssignment`, `ResolvedFlow.assignment`, `ResolvedSurfaceScreen.assignment`,
+and `RestageFlowController.renderedAssignment` are removed. The `experimentId`,
+`variantId`, and `experimentEpoch` fields on `ResolvedVariant` and
+`PaywallViewed` are also removed. There is no alias or replacement.
+Responses carrying the retired decision or assignment tuple are refused and use
+the normal bundled/default fallback ladder.
+
 **Breaking. The app-global recording controls are removed from `Restage`:**
 
 - `Restage.identify(String, {Map?})`

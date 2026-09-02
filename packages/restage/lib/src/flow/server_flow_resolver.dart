@@ -27,7 +27,6 @@ import '../resolver/surface_assignment_key_provider.dart';
 import '../runtime/builtin_catalog_capabilities.dart';
 import '../runtime/library_runtime_registry.dart';
 import 'bundled_flow_loader.dart';
-import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_artifact_metadata.dart';
 import 'flow_experiment_mount.dart';
@@ -236,7 +235,6 @@ final class ServerFlowResolver
       document,
       screenBlobs,
       surfaceDocument.requiredLibraries,
-      assignment: _assignmentOf(result),
       publicationBindingReference: result.publicationBindingReference,
     );
     _cache[cacheKey] = cachedFlow;
@@ -392,18 +390,10 @@ final class ServerFlowResolver
       return null;
     }
 
-    final assignment = _assignmentOf(result);
-    if ((assignment != null) != (result.decision == 'assigned')) {
-      return null;
-    }
-    if (assignment != null && snapshot.assignmentKey == null) {
-      return null;
-    }
     final cached = _CachedServerFlow.from(
       payload.flowDocument,
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
-      assignment: assignment,
       publicationBindingReference: result.publicationBindingReference,
     );
     return _ExperimentFreshFlow(
@@ -411,8 +401,6 @@ final class ServerFlowResolver
         cached.toResolvedFlow(cacheHit: false),
         requiredLibraries: cached.requiredLibraries,
       ),
-      serverVerdictAccepted:
-          assignment == null || result.decision == 'assigned',
     );
   }
 
@@ -485,9 +473,6 @@ final class ServerFlowResolver
     );
     if (result == null) return null;
 
-    // Flow requests intentionally omit an assignment key. Any valid assignment
-    // metadata on the response remains passive and is attached only after the
-    // artifact passes the validation checks below.
     // Both artifact refusals reach the same `null` the decode failure always
     // did — this arm's ladder treats an unrenderable active exactly like an
     // absent one.
@@ -527,7 +512,6 @@ final class ServerFlowResolver
       document,
       payload.screenBlobs,
       surfaceDocument.requiredLibraries,
-      assignment: _assignmentOf(result),
       publicationBindingReference: result.publicationBindingReference,
     );
   }
@@ -853,7 +837,6 @@ final class _ServerFlowExperimentPresentation
             captureSeed: captureSeed,
             candidateRoot: fresh.candidateRoot,
             resolver: this,
-            serverVerdictAccepted: fresh.serverVerdictAccepted,
           );
           if (_disposed) throw _unavailable('disposed');
           if (prefetched is FlowCandidatePrefetchAccepted) {
@@ -999,13 +982,9 @@ final class _BundledExperimentResolver
 }
 
 final class _ExperimentFreshFlow {
-  const _ExperimentFreshFlow({
-    required this.candidateRoot,
-    required this.serverVerdictAccepted,
-  });
+  const _ExperimentFreshFlow({required this.candidateRoot});
 
   final ResolvedFlow candidateRoot;
-  final bool serverVerdictAccepted;
 }
 
 final class _ExperimentHostedFlow {
@@ -1067,14 +1046,11 @@ void _requireExperimentSnapshotCurrent(
 }
 
 final class _CachedServerFlow {
-  final FlowAssignment? assignment;
-
   const _CachedServerFlow(
     this.document,
     this.screenBlobs,
     this.contentHash,
     this.requiredLibraries,
-    this.assignment,
     this.publicationBindingReference,
   );
 
@@ -1084,7 +1060,6 @@ final class _CachedServerFlow {
     FlowDocument document,
     Map<String, Uint8List> screenBlobs,
     List<LibraryRequirement> requiredLibraries, {
-    required FlowAssignment? assignment,
     required MeasurementPublicationBindingReferenceV1?
         publicationBindingReference,
   }) {
@@ -1093,7 +1068,6 @@ final class _CachedServerFlow {
       screenBlobs,
       FlowContentHash.compute(FlowDocumentCodec.encodeCanonicalJson(document)),
       requiredLibraries,
-      assignment,
       publicationBindingReference,
     );
   }
@@ -1116,24 +1090,8 @@ final class _CachedServerFlow {
         screenBlobs: screenBlobs,
         contentHash: contentHash,
         cacheHit: cacheHit,
-        assignment: assignment,
       ),
       publicationBindingReference,
     );
   }
-}
-
-FlowAssignment? _assignmentOf(SurfaceFetchResult result) {
-  final experimentId = result.experimentId;
-  final variantId = result.variantId;
-  final experimentEpoch = result.experimentEpoch;
-  if (experimentId == null || variantId == null || experimentEpoch == null) {
-    return null;
-  }
-
-  return FlowAssignment(
-    experimentId: experimentId,
-    variantId: variantId,
-    experimentEpoch: experimentEpoch,
-  );
 }

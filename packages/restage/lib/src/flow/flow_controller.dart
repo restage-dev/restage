@@ -8,7 +8,6 @@ import 'package:rfw/rfw.dart';
 import '../analytics/root_analytics_context.dart';
 import '../events/restage_event.dart';
 import '../measurement/measurement_event_sanitizer.dart';
-import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_resolver.dart';
 import 'flow_seed.dart';
@@ -253,27 +252,6 @@ final class RestageFlowController<R> extends ChangeNotifier {
   /// subtree has not yet completed its first build.
   @internal
   bool get hasRenderedContent => _hasRenderedContent;
-
-  /// The root artifact assignment for an installed current screen, before its
-  /// Flutter subtree has necessarily committed a successful first build.
-  ///
-  /// Package-internal pre-staging gate. Hosts use this only to reject an
-  /// experiment-assigned live-refresh candidate before making it visible;
-  /// [renderedAssignment] remains the identity of content actually rendered.
-  @internal
-  FlowAssignment? get installedArtifactAssignment =>
-      _currentScreenEntryId == null || _frames.isEmpty
-          ? null
-          : _frames.first.resolved.assignment;
-
-  FlowAssignment? _renderedAssignment;
-
-  /// The assignment carried by the rendered root artifact, or null when the
-  /// artifact is unassigned or has not rendered successfully.
-  ///
-  /// Once set, this survives the flow becoming unavailable so the host retains
-  /// the identity of the content the user actually saw.
-  FlowAssignment? get renderedAssignment => _renderedAssignment;
 
   /// Loads and decodes the initial flow screen.
   Future<void> load() async {
@@ -699,7 +677,6 @@ final class RestageFlowController<R> extends ChangeNotifier {
     // Commit the root artifact's identity and readiness atomically. A first
     // screen may belong to a child flow, but the presentation is still owned by
     // the resolved root artifact.
-    _renderedAssignment = _frames.first.resolved.assignment;
     _hasRenderedContent = true;
     _notifyHostListeners();
   }

@@ -17,13 +17,7 @@ void main() {
     test('posts the canonical request and returns the typed response',
         () async {
       late http.Request seen;
-      final expected = _response(
-        assignment: SurfaceExperimentAssignment(
-          experimentId: 'exp_1',
-          variantId: 'treatment',
-          experimentEpoch: 3,
-        ),
-      );
+      final expected = _response();
       final bindingReference = _bindingReference('a');
       final request = _request(
         assignmentKey: 'actor',
@@ -58,7 +52,6 @@ void main() {
       expect(response.document.surfaceSlug, 'feature_announcement');
       expect(response.contractVersion, 7);
       expect(response.publishedRevision, 12);
-      expect(response.assignment!.variantId, 'treatment');
       expect(available.publicationBindingReference, bindingReference);
     });
 
@@ -299,7 +292,6 @@ SurfaceScreenDeliveryRequest _request({
 SurfaceScreenDeliveryDescriptor _response({
   String slug = 'feature_announcement',
   int contractVersion = 7,
-  SurfaceExperimentAssignment? assignment,
 }) {
   final capabilities = CapabilityManifest(
     builtInFloor: 1,
@@ -331,7 +323,6 @@ SurfaceScreenDeliveryDescriptor _response({
     contractVersion: contractVersion,
     contractFingerprint: contractFingerprint,
     eventContractHash: eventContractHash,
-    assignment: assignment,
   );
 }
 

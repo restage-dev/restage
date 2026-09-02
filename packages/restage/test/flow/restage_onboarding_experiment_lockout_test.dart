@@ -6,35 +6,19 @@ import 'package:restage/restage.dart';
 
 import 'flow_test_support.dart';
 
-/// Symmetric refresh lockout on the onboarding host: a live refresh must never
-/// move a mounted surface INTO or OUT OF an experiment arm. Mirrors the paywall
-/// host's four-boundary lockout. Test artifacts carry assignments to pin the
-/// invariant without a request-side assignment key.
-///
-/// The four refresh boundaries map to two host check-sites (the ladder TIER that
-/// sourced a candidate is pinned separately in the resolver attribution matrix):
-///  - boundary 1 (current assignment) → `_canSwap` gate, BEFORE any fetch;
-///  - boundaries 2/3/4 (candidate / promotion / hold-last-good) → the candidate
-///    is fetched but its promotion is refused when it carries an arm.
+/// Refreshes keep an ordinary mounted surface eligible for new content.
 void main() {
   setUp(Restage.debugReset);
 
-  const armA = FlowAssignment(
-    experimentId: 'exp_copy',
-    variantId: 'variant_a',
-    experimentEpoch: 3,
-  );
-
-  testWidgets(
-      'boundary 1: a currently-arm-assigned surface never refreshes '
-      '(gated BEFORE the fetch)', (tester) async {
-    final resolver = _MutableFlowResolver(_assignedFlow('First', armA));
+  testWidgets('a pristine surface refreshes its active content',
+      (tester) async {
+    final resolver = _MutableFlowResolver(_resolvedFlow('First'));
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
     expect(find.text('First'), findsOneWidget);
-    expect(resolver.calls, 1); // the mount resolve
+    expect(resolver.calls, 1);
 
-    resolver.flow = _assignedFlow('Second', armA);
+    resolver.flow = _resolvedFlow('Second');
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
 
@@ -44,24 +28,19 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    // The render is arm-assigned → the swap gate is closed BEFORE re-resolving:
-    // no second fetch, and the original content stays.
-    expect(firstCount, 1);
-    expect(secondCount, 0);
-    expect(resolveCalls, 1);
+    expect(firstCount, 0);
+    expect(secondCount, 1);
+    expect(resolveCalls, 2);
   });
 
-  testWidgets(
-      'boundary 2/3: a pristine surface refuses to promote a candidate that '
-      'carries an arm (fetched, never swapped IN)', (tester) async {
-    final resolver = _MutableFlowResolver(_assignedFlow('First', null));
+  testWidgets('a pristine surface promotes an active refresh candidate',
+      (tester) async {
+    final resolver = _MutableFlowResolver(_resolvedFlow('First'));
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
     expect(find.text('First'), findsOneWidget);
 
-    // The current render carries no arm, so the gate opens and the refresh
-    // fetches — but the candidate resolves INTO an arm, so it is never promoted.
-    resolver.flow = _assignedFlow('Second', armA);
+    resolver.flow = _resolvedFlow('Second');
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
 
@@ -71,26 +50,22 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
 
-    expect(resolveCalls, 2); // the candidate WAS fetched (gate was open)
-    expect(firstCount, 1); // but never swapped in
-    expect(secondCount, 0);
+    expect(resolveCalls, 2);
+    expect(firstCount, 0);
+    expect(secondCount, 1);
   });
 
-  testWidgets(
-      'a refused arm promotion never moves the rendered assignment '
-      '(a later no-arm candidate can still promote)', (tester) async {
-    final resolver = _MutableFlowResolver(_assignedFlow('First', null));
+  testWidgets('successive pristine refreshes promote ordinary content',
+      (tester) async {
+    final resolver = _MutableFlowResolver(_resolvedFlow('First'));
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
 
-    // Rejecting the arm-bearing pending controller must not move the current
-    // render's assignment. A later no-arm candidate is therefore still
-    // eligible to refresh and promotes normally.
-    resolver.flow = _assignedFlow('Second', armA);
+    resolver.flow = _resolvedFlow('Second');
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
 
-    resolver.flow = _assignedFlow('Third', null);
+    resolver.flow = _resolvedFlow('Third');
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
 
@@ -108,23 +83,18 @@ void main() {
   });
 
   testWidgets(
-      'an assigned initial-sub-flow candidate stays pending until its child '
-      'screen is ready and never replaces the current render', (tester) async {
-    const childArm = FlowAssignment(
-      experimentId: 'exp_child',
-      variantId: 'variant_child',
-      experimentEpoch: 8,
-    );
-    final child = childScreenFlow(assignment: childArm);
+      'an initial sub-flow candidate stays pending until its child screen is '
+      'ready', (tester) async {
+    final child = childScreenFlow();
     final childCompleter = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: _assignedFlow('Current', null),
+      root: _resolvedFlow('Current'),
       child: childCompleter,
     );
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
 
-    resolver.root = initialSubFlowRoot(child: child, assignment: armA);
+    resolver.root = initialSubFlowRoot(child: child);
     await Restage.reloadSurfaces();
     await tester.pump();
     final currentWhileChildPending = find.text('Current').evaluate().length;
@@ -134,9 +104,7 @@ void main() {
     final currentAfterChildReady = find.text('Current').evaluate().length;
     final childAfterReady = find.text('Child').evaluate().length;
 
-    // The assigned pending controller was discarded. Its readiness listener
-    // must be detached so a later ordinary refresh can promote normally.
-    resolver.root = _assignedFlow('Replacement', null);
+    resolver.root = _resolvedFlow('Replacement');
     resolver.child = Completer<ResolvedFlow>();
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
@@ -147,8 +115,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(currentWhileChildPending, 1);
-    expect(currentAfterChildReady, 1);
-    expect(childAfterReady, 0);
+    expect(currentAfterChildReady, 0);
+    expect(childAfterReady, 1);
     expect(replacementAfterDiscard, 1);
     expect(rootCalls, 3);
     expect(childCalls, 1);
@@ -160,28 +128,22 @@ void main() {
     final child = childScreenFlow();
     final childCompleter = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: _assignedFlow('Current', null),
+      root: _resolvedFlow('Current'),
       child: childCompleter,
     );
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
 
-    resolver.root = initialSubFlowRoot(child: child, assignment: armA);
+    resolver.root = initialSubFlowRoot(child: child);
     await Restage.reloadSurfaces();
     await tester.pump();
     final currentWhileChildPending = find.text('Current').evaluate().length;
 
-    // Complete resolution with an artifact that does not match the root's
-    // pinned child hash. Validation fails inside the controller's guarded
-    // resolution path without injecting an unhandled Future error into the
-    // mounted RuntimeErrorBoundary test zone.
     childCompleter.complete(childScreenFlow(text: 'Wrong child'));
     await tester.pumpAndSettle();
     final currentAfterChildFailure = find.text('Current').evaluate().length;
 
-    // Failure discards only the pending controller and its readiness listener;
-    // the current host remains refreshable.
-    resolver.root = _assignedFlow('Replacement', null);
+    resolver.root = _resolvedFlow('Replacement');
     resolver.child = Completer<ResolvedFlow>();
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
@@ -201,22 +163,15 @@ void main() {
   testWidgets(
       'promotion observes readiness when a screenless child returns to the '
       'already-started root', (tester) async {
-    const childArm = FlowAssignment(
-      experimentId: 'exp_child',
-      variantId: 'variant_child',
-      experimentEpoch: 8,
-    );
-    final child = screenlessChildFlow(assignment: childArm);
+    final child = screenlessChildFlow();
     final childCompleter = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: _assignedFlow('Current', null),
+      root: _resolvedFlow('Current'),
       child: childCompleter,
     );
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
 
-    // Root assignment governs the presentation. The assigned child completes
-    // without rendering, then the unassigned root installs its first screen.
     resolver.root = initialSubFlowThenScreenRoot(
       child: child,
       text: 'Replacement',
@@ -242,7 +197,7 @@ void main() {
       (tester) async {
     final abandonedChild = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: _assignedFlow('Current', null),
+      root: _resolvedFlow('Current'),
       child: abandonedChild,
     );
     await tester.pumpWidget(_host(resolver));
@@ -255,9 +210,7 @@ void main() {
     await tester.pump();
     final currentWhileFirstPending = find.text('Current').evaluate().length;
 
-    // A second refresh supersedes the first pending controller before its
-    // child resolves and promotes its own ready screen.
-    resolver.root = _assignedFlow('Replacement', null);
+    resolver.root = _resolvedFlow('Replacement');
     resolver.child = Completer<ResolvedFlow>();
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
@@ -282,7 +235,7 @@ void main() {
       (tester) async {
     final childCompleter = Completer<ResolvedFlow>();
     final resolver = ControlledInitialSubFlowResolver(
-      root: _assignedFlow('Current', null),
+      root: _resolvedFlow('Current'),
       child: childCompleter,
     );
     await tester.pumpWidget(_host(resolver));
@@ -300,15 +253,13 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-      'a pristine → pristine (no-arm) refresh still swaps normally '
-      '(the lockout does not over-block)', (tester) async {
-    final resolver = _MutableFlowResolver(_assignedFlow('First', null));
+  testWidgets('a pristine refresh swaps normally', (tester) async {
+    final resolver = _MutableFlowResolver(_resolvedFlow('First'));
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
     expect(find.text('First'), findsOneWidget);
 
-    resolver.flow = _assignedFlow('Second', null);
+    resolver.flow = _resolvedFlow('Second');
     await Restage.reloadSurfaces();
     await tester.pumpAndSettle();
 
@@ -316,18 +267,14 @@ void main() {
     expect(find.text('First'), findsNothing);
   });
 
-  testWidgets(
-      '_start (a config-identity change) is a NEW PRESENTATION: mounting into '
-      'an arm is allowed, not an in-place swap', (tester) async {
-    final resolver = _MutableFlowResolver(_assignedFlow('First', null));
+  testWidgets('a resolver identity change starts a new presentation',
+      (tester) async {
+    final resolver = _MutableFlowResolver(_resolvedFlow('First'));
     await tester.pumpWidget(_host(resolver));
     await tester.pumpAndSettle();
     expect(find.text('First'), findsOneWidget);
 
-    // A different resolver identity → didUpdateWidget → _start: a hard restart,
-    // which is a NEW presentation. Mounting fresh into an arm is allowed (it is
-    // not a live in-place swap of an existing session).
-    final restarted = _MutableFlowResolver(_assignedFlow('Second', armA));
+    final restarted = _MutableFlowResolver(_resolvedFlow('Second'));
     await tester.pumpWidget(_host(restarted));
     await tester.pumpAndSettle();
 
@@ -345,9 +292,8 @@ Widget _host(FlowResolver resolver) => Directionality(
       ),
     );
 
-/// A pristine two-screen first-run flow rendering [welcomeText], tagged with
-/// [assignment] (null = no experiment arm).
-ResolvedFlow _assignedFlow(String welcomeText, FlowAssignment? assignment) {
+/// A pristine two-screen first-run flow rendering [welcomeText].
+ResolvedFlow _resolvedFlow(String welcomeText) {
   final welcome = screenBlob(welcomeText, 'next');
   final profile = screenBlob('Profile', 'finish');
   return ResolvedFlow(
@@ -360,7 +306,6 @@ ResolvedFlow _assignedFlow(String welcomeText, FlowAssignment? assignment) {
     ),
     screenBlobs: {'welcome': welcome, 'profile': profile},
     cacheHit: false,
-    assignment: assignment,
   );
 }
 

@@ -305,7 +305,6 @@ void main() {
         captureSeed: source.capture,
         candidateRoot: _resolved(_document(version: 2)),
         resolver: resolver,
-        serverVerdictAccepted: true,
       );
 
       _expectCandidateSeedDrift(outcome);
@@ -331,7 +330,6 @@ void main() {
         },
         candidateRoot: root,
         resolver: resolver,
-        serverVerdictAccepted: true,
       );
 
       _expectCandidateSeedDrift(outcome);
@@ -354,7 +352,6 @@ void main() {
         captureSeed: () => snapshot.seed,
         candidateRoot: root,
         resolver: resolver,
-        serverVerdictAccepted: true,
       )..then((value) => outcome = value);
 
       await _waitFor(() => resolver.calls.contains('child'));
@@ -392,7 +389,6 @@ void main() {
         captureSeed: () => snapshot.seed,
         candidateRoot: candidateRoot,
         resolver: resolver,
-        serverVerdictAccepted: true,
       );
       await _waitFor(() => resolver.calls.contains('child'));
       var completed = false;
@@ -487,7 +483,6 @@ void main() {
         captureSeed: source.capture,
         candidateRoot: candidate,
         resolver: _ControlledResolver({}),
-        serverVerdictAccepted: true,
         beforePromotion: () {
           channelValues[0] = 'sms';
           payloadFields.clear();
@@ -558,7 +553,6 @@ void main() {
         resolver: _ControlledResolver({
           'child': Future.value(mismatchedChild),
         }),
-        serverVerdictAccepted: true,
       );
 
       expect(
@@ -571,58 +565,7 @@ void main() {
       );
     });
 
-    test('shared-verdict mismatch and post-prefetch drift are never renderable',
-        () async {
-      final snapshot = await _sealedSnapshot();
-      final candidate = _resolved(_document(version: 2));
-
-      final mismatch = await FlowCandidatePrefetcher.prefetch(
-        snapshot: snapshot,
-        captureSeed: () => snapshot.seed,
-        candidateRoot: candidate,
-        resolver: _ControlledResolver({}),
-        serverVerdictAccepted: false,
-      );
-      expect(
-        mismatch,
-        isA<FlowCandidatePrefetchRejected>().having(
-          (value) => value.reason,
-          'reason',
-          FlowCandidatePrefetchRejection.serverVerdictMismatch,
-        ),
-      );
-
-      final source = _MutableSeedSource();
-      final driftSnapshot = await _sealedSnapshot(source: source);
-      final child = _resolved(_document(flow: 'child', version: 2));
-      final root = _resolved(_parentDocument(child: child, version: 2));
-      final childCompleter = Completer<ResolvedFlow>();
-      final resolver = _ControlledResolver({
-        'child': childCompleter.future,
-      });
-      final future = FlowCandidatePrefetcher.prefetch(
-        snapshot: driftSnapshot,
-        captureSeed: source.capture,
-        candidateRoot: root,
-        resolver: resolver,
-        serverVerdictAccepted: true,
-      );
-      await _waitFor(() => resolver.calls.contains('child'));
-      source.libraryGeneration += 1;
-      childCompleter.complete(child);
-
-      expect(
-        await future,
-        isA<FlowCandidatePrefetchRejected>().having(
-          (value) => value.reason,
-          'reason',
-          FlowCandidatePrefetchRejection.seedDrift,
-        ),
-      );
-    });
-
-    test('server acceptance cannot override local action parity rejection',
-        () async {
+    test('local action parity rejects an incompatible candidate', () async {
       final snapshot = await _sealedSnapshot();
       final candidate = _resolved(
         _document(version: 2).copyWith(
@@ -646,8 +589,7 @@ void main() {
       );
     });
 
-    test('server acceptance cannot override local library parity rejection',
-        () async {
+    test('local library parity rejects an incompatible candidate', () async {
       final snapshot = await _sealedSnapshot();
       final candidate = _resolved(_document(version: 2));
 
@@ -666,8 +608,7 @@ void main() {
       );
     });
 
-    test('server acceptance cannot override local signal parity rejection',
-        () async {
+    test('local signal parity rejects an incompatible candidate', () async {
       final source = _MutableSeedSource(
         deliveryMode: FlowDeliveryMode.general,
       );
@@ -723,7 +664,6 @@ void main() {
         captureSeed: source.capture,
         candidateRoot: candidateRoot,
         resolver: resolver,
-        serverVerdictAccepted: true,
         beforePromotion: () {
           reachedPromotionBoundary.complete();
           return releasePromotionBoundary.future;
@@ -784,7 +724,6 @@ void main() {
           captureSeed: source.capture,
           candidateRoot: candidate,
           resolver: _ControlledResolver({}),
-          serverVerdictAccepted: true,
         );
 
         expect(
@@ -1154,7 +1093,6 @@ Future<void> _expectLocalParityRejection({
     captureSeed: captureSeed ?? () => snapshot.seed,
     candidateRoot: candidate,
     resolver: resolver,
-    serverVerdictAccepted: true,
   );
 
   expect(

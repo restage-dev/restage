@@ -84,7 +84,6 @@ final class ControlledInitialSubFlowResolver implements FlowResolver {
 /// Builds a root artifact whose initial state enters [child].
 ResolvedFlow initialSubFlowRoot({
   required ResolvedFlow child,
-  FlowAssignment? assignment,
 }) {
   return ResolvedFlow(
     document: FlowDocument(
@@ -112,7 +111,6 @@ ResolvedFlow initialSubFlowRoot({
     ),
     screenBlobs: const {},
     cacheHit: false,
-    assignment: assignment,
   );
 }
 
@@ -121,7 +119,6 @@ ResolvedFlow initialSubFlowRoot({
 ResolvedFlow initialSubFlowThenScreenRoot({
   required ResolvedFlow child,
   String text = 'Root after child',
-  FlowAssignment? assignment,
 }) {
   final welcome = screenBlob(text, 'finish');
   return ResolvedFlow(
@@ -162,14 +159,12 @@ ResolvedFlow initialSubFlowThenScreenRoot({
     ),
     screenBlobs: {'welcome': welcome},
     cacheHit: false,
-    assignment: assignment,
   );
 }
 
 /// Builds a child artifact whose first state installs a real screen.
 ResolvedFlow childScreenFlow({
   String text = 'Child',
-  FlowAssignment? assignment,
 }) {
   final welcome = screenBlob(text, 'finish');
   final document = FlowDocument(
@@ -203,12 +198,11 @@ ResolvedFlow childScreenFlow({
       Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
     ),
     cacheHit: false,
-    assignment: assignment,
   );
 }
 
 /// Builds a child that completes without installing a screen.
-ResolvedFlow screenlessChildFlow({FlowAssignment? assignment}) {
+ResolvedFlow screenlessChildFlow() {
   final document = FlowDocument(
     flow: 'child_flow',
     version: 1,
@@ -228,7 +222,6 @@ ResolvedFlow screenlessChildFlow({FlowAssignment? assignment}) {
       Uint8List.fromList(FlowDocumentCodec.encodeCanonicalJson(document)),
     ),
     cacheHit: false,
-    assignment: assignment,
   );
 }
 

@@ -45,7 +45,6 @@ void main() {
       captureSeed: source.capture,
       candidateRoot: root,
       resolver: candidateResolver,
-      serverVerdictAccepted: true,
     );
     expect(prefetch, isA<FlowCandidatePrefetchAccepted>());
     final accepted = prefetch as FlowCandidatePrefetchAccepted;

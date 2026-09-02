@@ -55,9 +55,6 @@ void main() {
         baseUrl: baseUrl,
         httpClient: _server(
           envelope,
-          experimentId: 'exp_paywall_copy',
-          variantId: 'variant_a',
-          experimentEpoch: 3,
           onRequest: requests.add,
         ),
       );
@@ -82,9 +79,6 @@ void main() {
       // The resolved variant carries the blob, the id, and the SERVED version.
       expect(variant.bytes, blob);
       expect(variant.paywallId, 'pro_upgrade');
-      expect(variant.experimentId, 'exp_paywall_copy');
-      expect(variant.variantId, 'variant_a');
-      expect(variant.experimentEpoch, 3);
       expect(variant.paywallPublishedVersion, 5);
       expect(variant.cacheHit, isFalse);
     });
@@ -175,7 +169,6 @@ void main() {
             return http.Response(
               jsonEncode({
                 ..._delivery.describeEnvelope(envelope),
-                'decision': 'clientIncompatible',
                 'contractRequired': true,
               }),
               200,
@@ -184,10 +177,6 @@ void main() {
           return http.Response(
             jsonEncode({
               ..._delivery.describeEnvelope(envelope),
-              'decision': 'assigned',
-              'experimentId': 'exp_paywall_copy',
-              'variantId': 'variant_a',
-              'experimentEpoch': 3,
             }),
             200,
           );
@@ -204,10 +193,8 @@ void main() {
       expect(first.containsKey('contract'), isFalse);
       expect(second['contractHash'], startsWith('sha256:'));
       expect(second['contract'], isA<Map<String, dynamic>>());
-      // The retried (assigned) arm renders with its attribution.
+      // The retried ordinary delivery renders its artifact.
       expect(variant.bytes, blob);
-      expect(variant.experimentId, 'exp_paywall_copy');
-      expect(variant.variantId, 'variant_a');
     });
 
     test(
@@ -225,7 +212,6 @@ void main() {
           return http.Response(
             jsonEncode({
               ..._delivery.describeEnvelope(envelope),
-              'decision': 'clientIncompatible',
               'contractRequired': true,
             }),
             200,
@@ -239,39 +225,6 @@ void main() {
       );
       // The hot-path fetch + exactly one upload retry — never more.
       expect(requests, hasLength(2));
-    });
-
-    test(
-        'a clientIncompatible response (no contractRequired) renders the '
-        'pinned active version with NO experiment attribution', () async {
-      final envelope =
-          _blobEnvelope(slug: 'pro_upgrade', version: 5, blob: blob);
-      final resolver = RestageVariantResolver(
-        apiKey: apiKey,
-        environment: RestageEnvironment.production,
-        baseUrl: baseUrl,
-        httpClient: _delivery.client((request) async {
-          // The client cannot render every arm: it sits out the experiment and
-          // is served the pinned active version — no assignment metadata, no
-          // contractRequired.
-          return http.Response(
-            jsonEncode({
-              ..._delivery.describeEnvelope(envelope),
-              'decision': 'clientIncompatible',
-            }),
-            200,
-          );
-        }),
-      );
-
-      final variant = await resolver.resolve('pro_upgrade');
-
-      // The pinned active version renders...
-      expect(variant.bytes, blob);
-      expect(variant.paywallPublishedVersion, 5);
-      // ...with NO experiment attribution (it did not join an arm).
-      expect(variant.experimentId, isNull);
-      expect(variant.variantId, isNull);
     });
   });
 
@@ -509,9 +462,6 @@ void main() {
           http.Response(
             _surfaceResponseJson(
               envelope,
-              experimentId: 'exp_paywall_copy',
-              variantId: 'variant_a',
-              experimentEpoch: 3,
             ),
             200,
             headers: {
@@ -525,9 +475,6 @@ void main() {
 
       final first = await resolver.resolve('pro_upgrade');
       expect(first.cacheHit, isFalse);
-      expect(first.experimentId, 'exp_paywall_copy');
-      expect(first.variantId, 'variant_a');
-      expect(first.experimentEpoch, 3);
       expect(first.paywallPublishedVersion, 5);
       expect(first.surfaceVersion, '5');
       expect(
@@ -539,9 +486,6 @@ void main() {
       // Fetch failed -> served from the in-memory hold-last-good cache.
       expect(second.cacheHit, isTrue);
       expect(second.bytes, blob);
-      expect(second.experimentId, 'exp_paywall_copy');
-      expect(second.variantId, 'variant_a');
-      expect(second.experimentEpoch, 3);
       expect(second.paywallPublishedVersion, 5);
       expect(second.surfaceVersion, '5');
       expect(
@@ -678,9 +622,6 @@ void main() {
           http.Response(
             _surfaceResponseJson(
               envelope,
-              experimentId: 'exp_paywall_copy',
-              variantId: 'variant_a',
-              experimentEpoch: 3,
             ),
             200,
           ),
@@ -692,16 +633,10 @@ void main() {
       final second = await resolver.resolvePayload('pro_upgrade');
 
       expect((first as BlobPaywallPayload).variant.cacheHit, isFalse);
-      expect(first.variant.experimentId, 'exp_paywall_copy');
-      expect(first.variant.variantId, 'variant_a');
-      expect(first.variant.experimentEpoch, 3);
       expect(second, isA<BlobPaywallPayload>());
       final secondBlob = second as BlobPaywallPayload;
       expect(secondBlob.variant.cacheHit, isTrue);
       expect(secondBlob.variant.bytes, blob);
-      expect(secondBlob.variant.experimentId, 'exp_paywall_copy');
-      expect(secondBlob.variant.variantId, 'variant_a');
-      expect(secondBlob.variant.experimentEpoch, 3);
       expect(secondBlob.variant.paywallPublishedVersion, 5);
       expect(secondBlob.variant.surfaceVersion, '5');
     });
@@ -777,7 +712,7 @@ void main() {
 
     test(
         'resolves a compatible hosted flow via the active arm '
-        '(served version + experiment)', () async {
+        '(served version)', () async {
       final bundledScreen = _reservedCommerceEventScreen('Subscribe');
       final hostedScreen = _reservedCommerceEventScreen(
         'Subscribe now',
@@ -794,9 +729,6 @@ void main() {
         baseUrl: baseUrl,
         httpClient: _server(
           _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
-          experimentId: 'exp_flow',
-          variantId: 'variant_a',
-          experimentEpoch: 3,
         ),
         assetFallback: AssetVariantResolver(bundle: bundle),
       );
@@ -807,9 +739,6 @@ void main() {
       final flow = payload as FlowPaywallPayload;
       expect(
           flow.paywallPublishedVersion, 9); // the SERVED version, not bundled
-      expect(flow.experimentId, 'exp_flow');
-      expect(flow.variantId, 'variant_a');
-      expect(flow.experimentEpoch, 3);
       expect(flow.resolvedFromActiveArm, isTrue);
       expect(
           flow.flow.screenBlobs['welcome'], hostedScreen); // the HOSTED screen
@@ -834,9 +763,6 @@ void main() {
           http.Response(
             _surfaceResponseJson(
               _paywallFlowEnvelope(screenBytes: hostedScreen, version: 9),
-              experimentId: 'exp_flow',
-              variantId: 'variant_a',
-              experimentEpoch: 3,
             ),
             200,
             headers: {
@@ -854,8 +780,6 @@ void main() {
 
       // First: the fresh hosted active flow.
       expect((first as FlowPaywallPayload).paywallPublishedVersion, 9);
-      expect(first.variantId, 'variant_a');
-      expect(first.experimentEpoch, 3);
       expect(
         measurementPublicationBindingReferenceFor(first.flow),
         bindingReference,
@@ -865,8 +789,6 @@ void main() {
       expect(second, isA<FlowPaywallPayload>());
       final held = second as FlowPaywallPayload;
       expect(held.paywallPublishedVersion, 9);
-      expect(held.variantId, 'variant_a');
-      expect(held.experimentEpoch, 3);
       expect(held.flow.cacheHit, isTrue);
       expect(held.flow.screenBlobs['welcome'], hostedScreen);
       expect(
@@ -908,9 +830,6 @@ void main() {
 /// A `MockClient` serving [envelope] (base64-wrapped) from the surface route.
 MockClient _server(
   Uint8List envelope, {
-  String? experimentId,
-  String? variantId,
-  int? experimentEpoch,
   void Function(http.Request request)? onRequest,
 }) {
   return _delivery.client((request) async {
@@ -918,26 +837,15 @@ MockClient _server(
     return http.Response(
       _surfaceResponseJson(
         envelope,
-        experimentId: experimentId,
-        variantId: variantId,
-        experimentEpoch: experimentEpoch,
       ),
       200,
     );
   });
 }
 
-String _surfaceResponseJson(
-  Uint8List envelope, {
-  String? experimentId,
-  String? variantId,
-  int? experimentEpoch,
-}) {
+String _surfaceResponseJson(Uint8List envelope) {
   return jsonEncode({
     ..._delivery.describeEnvelope(envelope),
-    if (experimentId != null) 'experimentId': experimentId,
-    if (variantId != null) 'variantId': variantId,
-    if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
   });
 }
 

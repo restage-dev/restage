@@ -5,12 +5,11 @@ import 'package:meta/meta.dart';
 /// Result of resolving a paywall variant — the `.rfw` blob + delivery metadata.
 ///
 /// Returned by [VariantResolver.resolve]. Carries the encoded bytes the runtime
-/// will hand to RFW for rendering, plus identifiers needed for analytics
-/// attribution (which paywall, which variant, which experiment, which version).
+/// will hand to RFW for rendering, plus identifiers needed for lifecycle
+/// reporting (which paywall and which version).
 ///
-/// Equality is defined over the **identity tuple** — [paywallId], [variantId],
-/// [experimentId], [experimentEpoch], [paywallVersion],
-/// [paywallPublishedVersion], and [surfaceVersion] — so two
+/// Equality is defined over the **identity tuple** — [paywallId],
+/// [paywallVersion], [paywallPublishedVersion], and [surfaceVersion] — so two
 /// resolutions of the same variant compare equal, and a host caching layer can
 /// use `==` for a "same variant, skip re-render" check. Two fields are
 /// deliberately **excluded** from equality:
@@ -35,9 +34,6 @@ class ResolvedVariant {
     required this.bytes,
     required this.paywallId,
     required this.surfaceVersion,
-    this.variantId,
-    this.experimentId,
-    this.experimentEpoch,
     this.paywallVersion,
     this.paywallPublishedVersion,
     this.cacheHit = false,
@@ -63,15 +59,6 @@ class ResolvedVariant {
   /// uses a deterministic content hash. Custom resolvers must change this value
   /// whenever they return different bytes.
   final String surfaceVersion;
-
-  /// Variant identifier when an experiment assigned a specific arm.
-  final String? variantId;
-
-  /// Experiment identifier when this variant came from an A/B test.
-  final String? experimentId;
-
-  /// Experiment epoch when this variant came from an A/B test.
-  final int? experimentEpoch;
 
   /// Authoring version of the paywall blob — an author-facing label (e.g. a
   /// semver or editor revision string). This is distinct from
@@ -102,9 +89,6 @@ class ResolvedVariant {
     Uint8List? bytes,
     String? paywallId,
     String? surfaceVersion,
-    String? variantId,
-    String? experimentId,
-    int? experimentEpoch,
     String? paywallVersion,
     int? paywallPublishedVersion,
     bool? cacheHit,
@@ -121,9 +105,6 @@ class ResolvedVariant {
       bytes: bytes ?? this.bytes,
       paywallId: paywallId ?? this.paywallId,
       surfaceVersion: surfaceVersion ?? this.surfaceVersion,
-      variantId: variantId ?? this.variantId,
-      experimentId: experimentId ?? this.experimentId,
-      experimentEpoch: experimentEpoch ?? this.experimentEpoch,
       paywallVersion: paywallVersion ?? this.paywallVersion,
       paywallPublishedVersion:
           paywallPublishedVersion ?? this.paywallPublishedVersion,
@@ -137,9 +118,6 @@ class ResolvedVariant {
       other is ResolvedVariant &&
           other.paywallId == paywallId &&
           other.surfaceVersion == surfaceVersion &&
-          other.variantId == variantId &&
-          other.experimentId == experimentId &&
-          other.experimentEpoch == experimentEpoch &&
           other.paywallVersion == paywallVersion &&
           other.paywallPublishedVersion == paywallPublishedVersion;
 
@@ -147,9 +125,6 @@ class ResolvedVariant {
   int get hashCode => Object.hash(
         paywallId,
         surfaceVersion,
-        variantId,
-        experimentId,
-        experimentEpoch,
         paywallVersion,
         paywallPublishedVersion,
       );

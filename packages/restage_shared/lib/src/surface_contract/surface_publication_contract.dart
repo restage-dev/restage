@@ -982,65 +982,6 @@ abstract final class SurfaceScreenDeliveryRequestV1Codec {
 }
 
 @immutable
-final class SurfaceExperimentAssignment {
-  factory SurfaceExperimentAssignment({
-    required String experimentId,
-    required String variantId,
-    required int experimentEpoch,
-  }) {
-    _requireIdentity(experimentId, 'assignment.experimentId');
-    _requireIdentity(variantId, 'assignment.variantId');
-    if (experimentEpoch < 1) {
-      throw const FormatException(
-          'assignment.experimentEpoch must be positive.');
-    }
-    return SurfaceExperimentAssignment._(
-      experimentId: experimentId,
-      variantId: variantId,
-      experimentEpoch: experimentEpoch,
-    );
-  }
-
-  const SurfaceExperimentAssignment._({
-    required this.experimentId,
-    required this.variantId,
-    required this.experimentEpoch,
-  });
-
-  final String experimentId;
-  final String variantId;
-  final int experimentEpoch;
-
-  Map<String, Object?> toJson() => <String, Object?>{
-        'experimentId': experimentId,
-        'variantId': variantId,
-        'experimentEpoch': experimentEpoch,
-      };
-
-  static SurfaceExperimentAssignment fromJson(
-    Object? value, {
-    required String path,
-  }) {
-    final json = SurfaceContractJson.requireObject(value, path);
-    SurfaceContractJson.exactKeys(
-      json,
-      const {'experimentId', 'variantId', 'experimentEpoch'},
-      path,
-    );
-    return SurfaceExperimentAssignment(
-      experimentId:
-          SurfaceContractJson.requiredString(json, 'experimentId', path),
-      variantId: SurfaceContractJson.requiredString(json, 'variantId', path),
-      experimentEpoch: SurfaceContractJson.requiredPositiveInt(
-        json,
-        'experimentEpoch',
-        path,
-      ),
-    );
-  }
-}
-
-@immutable
 final class SurfaceScreenDeliveryResponse {
   factory SurfaceScreenDeliveryResponse({
     required SurfaceDocument document,
@@ -1050,7 +991,6 @@ final class SurfaceScreenDeliveryResponse {
     required int publishedRevision,
     required String contractFingerprint,
     required String eventContractHash,
-    SurfaceExperimentAssignment? assignment,
   }) {
     if (sourceKind != SurfaceSourceKind.screen ||
         payloadKind != SurfacePayloadKind.blob ||
@@ -1107,7 +1047,6 @@ final class SurfaceScreenDeliveryResponse {
       publishedRevision: publishedRevision,
       contractFingerprint: contractFingerprint,
       eventContractHash: eventContractHash,
-      assignment: assignment,
     );
   }
 
@@ -1119,7 +1058,6 @@ final class SurfaceScreenDeliveryResponse {
     required this.publishedRevision,
     required this.contractFingerprint,
     required this.eventContractHash,
-    required this.assignment,
   });
 
   static const int schemaVersion = _surfacePublicationSchemaVersion;
@@ -1131,7 +1069,6 @@ final class SurfaceScreenDeliveryResponse {
   final int publishedRevision;
   final String contractFingerprint;
   final String eventContractHash;
-  final SurfaceExperimentAssignment? assignment;
 }
 
 /// What a standalone-screen delivery puts on the wire.
@@ -1159,7 +1096,6 @@ final class SurfaceScreenDeliveryDescriptor {
     required int publishedRevision,
     required String contractFingerprint,
     required String eventContractHash,
-    SurfaceExperimentAssignment? assignment,
   }) {
     if (sourceKind != SurfaceSourceKind.screen) {
       throw const FormatException(
@@ -1200,7 +1136,6 @@ final class SurfaceScreenDeliveryDescriptor {
       publishedRevision: publishedRevision,
       contractFingerprint: contractFingerprint,
       eventContractHash: eventContractHash,
-      assignment: assignment,
     );
   }
 
@@ -1211,7 +1146,6 @@ final class SurfaceScreenDeliveryDescriptor {
     required this.publishedRevision,
     required this.contractFingerprint,
     required this.eventContractHash,
-    required this.assignment,
   });
 
   /// The publication schema this descriptor speaks.
@@ -1236,9 +1170,6 @@ final class SurfaceScreenDeliveryDescriptor {
   /// Content hash of the family's event contract.
   final String eventContractHash;
 
-  /// The experiment arm this delivery was assigned, when there was one.
-  final SurfaceExperimentAssignment? assignment;
-
   /// The descriptor as wire JSON.
   Map<String, Object?> toJson() => <String, Object?>{
         'schemaVersion': schemaVersion,
@@ -1248,7 +1179,6 @@ final class SurfaceScreenDeliveryDescriptor {
         'publishedRevision': publishedRevision,
         'contractFingerprint': contractFingerprint,
         'eventContractHash': eventContractHash,
-        if (assignment != null) 'assignment': assignment!.toJson(),
       };
 
   /// Decodes a descriptor strictly.
@@ -1264,7 +1194,6 @@ final class SurfaceScreenDeliveryDescriptor {
         'publishedRevision',
         'contractFingerprint',
         'eventContractHash',
-        'assignment',
       },
       r'$',
     );
@@ -1296,12 +1225,6 @@ final class SurfaceScreenDeliveryDescriptor {
         'eventContractHash',
         r'$',
       ),
-      assignment: json.containsKey('assignment')
-          ? SurfaceExperimentAssignment.fromJson(
-              SurfaceContractJson.requiredValue(json, 'assignment', r'$'),
-              path: r'$.assignment',
-            )
-          : null,
     );
   }
 
@@ -1321,7 +1244,6 @@ final class SurfaceScreenDeliveryDescriptor {
         publishedRevision: publishedRevision,
         contractFingerprint: contractFingerprint,
         eventContractHash: eventContractHash,
-        assignment: assignment,
       );
 }
 

@@ -6,7 +6,6 @@ import '../assets/bundled_asset_source.dart';
 import '../measurement/bundled_measurement_publication_binding_read_port.dart';
 import '../measurement/measurement_resolved_publication_provenance.dart';
 import 'bundled_flow_loader.dart';
-import 'flow_assignment.dart';
 import 'flow_descriptors.dart';
 import 'flow_experiment_artifact_metadata.dart';
 
@@ -56,7 +55,6 @@ final class ResolvedFlow {
     required Map<String, Uint8List> screenBlobs,
     this.contentHash,
     required this.cacheHit,
-    this.assignment,
   })  : document = _freezeDocument(document),
         screenBlobs = Map.unmodifiable({
           for (final entry in screenBlobs.entries)
@@ -68,7 +66,6 @@ final class ResolvedFlow {
     required this.screenBlobs,
     required this.contentHash,
     required this.cacheHit,
-    this.assignment,
   });
 
   /// Decoded and validated flow document.
@@ -83,13 +80,9 @@ final class ResolvedFlow {
   /// Whether this result came from the in-memory identity cache.
   final bool cacheHit;
 
-  /// The experiment assignment carried by this artifact, when assigned.
-  final FlowAssignment? assignment;
-
   ResolvedFlow _withCacheHit() {
     final cacheHit = attachMeasurementPublicationBindingReference(
       ResolvedFlow._(
-        assignment: assignment,
         document: document,
         screenBlobs: screenBlobs,
         contentHash: contentHash,

@@ -175,11 +175,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// pulls the rug from under a user who has started engaging.
   bool _userInteracted = false;
 
-  /// The experiment id of the currently-rendered resolution, when it was
-  /// served under an A/B arm. Non-null locks the surface out of live swaps so
-  /// exposure accounting stays clean (a remount re-resolves fresh).
-  String? _renderedExperimentId;
-
   /// The anonymous-identity generation that selected the rendered hosted
   /// artifact. A later generation cannot replace it within this presentation.
   SurfaceAssignmentResolutionLease? _renderedAssignmentLease;
@@ -303,7 +298,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
 
   bool _canSwap() =>
       !_userInteracted &&
-      _renderedExperimentId == null &&
       (_renderedAssignmentLease?.isCurrent ?? true) &&
       _controllerPresentationIsCurrent(
         _flowController,
@@ -532,14 +526,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
           payload.abandonHostedLastGood();
           return;
         }
-        // Never live-swap a surface INTO a new experiment arm: enrolling a live
-        // view would count an exposure the user never freshly saw. Defer to
-        // remount (symmetric to the current-render experiment lockout in the
-        // gate).
-        if (variant.experimentId != null) {
-          payload.abandonHostedLastGood();
-          return;
-        }
         // User interaction, flow activity, or an assignment change during the
         // async resolve makes the surface unsafe; abort the swap (defer =
         // drop — the next remount is fresh-first anyway).
@@ -646,12 +632,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
         freshVersion == renderedVersion) {
       payload.abandonHostedLastGood();
       return; // unchanged — nothing to re-host
-    }
-    // Never live-swap INTO a new experiment arm (symmetric to the blob path +
-    // the current-render lockout); defer enrolling a live view to remount.
-    if (payload.experimentId != null) {
-      payload.abandonHostedLastGood();
-      return;
     }
     // Re-check the gate after the async resolve (an interaction could have
     // landed during it); defer = drop if the surface went dirty.
@@ -869,7 +849,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _flowEpoch = epoch;
     _blobPresentation = null;
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
-    _renderedExperimentId = payload.experimentId;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedSurfaceVersion = null;
   }
@@ -1212,9 +1191,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       stopwatch.elapsed,
       fromCache || payload.flow.cacheHit,
       publishedVersion: payload.paywallPublishedVersion,
-      experimentId: payload.experimentId,
-      variantId: payload.variantId,
-      experimentEpoch: payload.experimentEpoch,
     );
   }
 
@@ -1368,7 +1344,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     FirstPaintLeaseTransaction transaction,
   ) {
     _resolvedPaywallPublishedVersion = payload.paywallPublishedVersion;
-    _renderedExperimentId = payload.experimentId;
     _renderedAssignmentLease = payload.assignmentLease;
     _renderedSurfaceVersion = null;
   }
@@ -1378,33 +1353,17 @@ class _RestagePaywallState extends State<RestagePaywall> {
     ResolvedPaywallPayload payload,
   ) {
     final attribution = switch (payload) {
-      BlobPaywallPayload(:final variant) => (
-          version: variant.surfaceVersion,
-          experimentId: variant.experimentId,
-          variantId: variant.variantId,
-          experimentEpoch: variant.experimentEpoch,
-        ),
+      BlobPaywallPayload(:final variant) => (version: variant.surfaceVersion),
       FlowPaywallPayload(
         :final flow,
         :final paywallPublishedVersion,
-        :final experimentId,
-        :final variantId,
-        :final experimentEpoch,
       ) =>
         (
           version:
               (paywallPublishedVersion ?? flow.document.version).toString(),
-          experimentId: experimentId,
-          variantId: variantId,
-          experimentEpoch: experimentEpoch,
         ),
     };
-    presentation.stage(
-      surfaceVersion: attribution.version,
-      experimentId: attribution.experimentId,
-      variantId: attribution.variantId,
-      experimentEpoch: attribution.experimentEpoch,
-    );
+    presentation.stage(surfaceVersion: attribution.version);
   }
 
   void _finishInitialFlowPaintCommit(
@@ -1592,9 +1551,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       stopwatch.elapsed,
       fromCache || payload.flow.cacheHit,
       publishedVersion: payload.paywallPublishedVersion,
-      experimentId: payload.experimentId,
-      variantId: payload.variantId,
-      experimentEpoch: payload.experimentEpoch,
     );
   }
 
@@ -1602,16 +1558,10 @@ class _RestagePaywallState extends State<RestagePaywall> {
   /// exactly once: `PaywallLoadCompleted` now + `PaywallViewed` after the first
   /// frame. Mirrors [_finishCommittedBlobStage]'s blob lifecycle, keyed on
   /// paywallId.
-  /// [experimentId], [variantId], and [experimentEpoch] are the server-selected
-  /// experiment assignment for a hosted active flow (null for a bundled/custom
-  /// resolution) — threaded onto `PaywallViewed` at parity with the blob path.
   void _announceFlowLoaded(
     Duration loadDuration,
     bool cacheHit, {
     required int? publishedVersion,
-    String? experimentId,
-    String? variantId,
-    int? experimentEpoch,
   }) {
     if (_flowLoadAnnounced || !mounted) return;
     _flowLoadAnnounced = true;
@@ -1629,9 +1579,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       loadDuration: loadDuration,
       cacheHit: cacheHit,
       publishedVersion: publishedVersion,
-      experimentId: experimentId,
-      variantId: variantId,
-      experimentEpoch: experimentEpoch,
     );
   }
 
@@ -1640,9 +1587,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     required Duration loadDuration,
     required bool cacheHit,
     required int? publishedVersion,
-    String? variantId,
-    String? experimentId,
-    int? experimentEpoch,
   }) {
     presentation.captureDeferredContextOnActivation((attribution) {
       _fireEvent(
@@ -1657,30 +1601,20 @@ class _RestagePaywallState extends State<RestagePaywall> {
         presentation: presentation,
         attribution: attribution,
         publishedVersion: publishedVersion,
-        experimentId: experimentId,
-        variantId: variantId,
-        experimentEpoch: experimentEpoch,
       );
     });
   }
 
   /// Fires `PaywallViewed` exactly once in a post-frame callback after the first
   /// render. Shared by the blob lifecycle ([_finishCommittedBlobStage]) and the
-  /// flow-hosted lifecycle ([_announceFlowLoaded]); assignment fields default
-  /// to null for resolutions that are not part of an experiment.
+  /// flow-hosted lifecycle ([_announceFlowLoaded]).
   void _schedulePaywallViewed({
     required RootAnalyticsPresentation presentation,
     required RootAnalyticsDeferredContext attribution,
     required int? publishedVersion,
-    String? variantId,
-    String? experimentId,
-    int? experimentEpoch,
   }) {
     final event = PaywallViewed(
       paywallId: widget.id,
-      variantId: variantId,
-      experimentId: experimentId,
-      experimentEpoch: experimentEpoch,
       publishedVersion: publishedVersion,
     );
     void fire() {
@@ -1886,7 +1820,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
     _flowTransaction = null;
     _flowEpoch = null;
     _resolvedPaywallPublishedVersion = variant.paywallPublishedVersion;
-    _renderedExperimentId = variant.experimentId;
     _renderedAssignmentLease = stage.payload.assignmentLease;
     _renderedSurfaceVersion = variant.surfaceVersion;
   }
@@ -1905,9 +1838,6 @@ class _RestagePaywallState extends State<RestagePaywall> {
       loadDuration: stage.loadDuration,
       cacheHit: stage.cacheHit,
       publishedVersion: variant.paywallPublishedVersion,
-      variantId: variant.variantId,
-      experimentId: variant.experimentId,
-      experimentEpoch: variant.experimentEpoch,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final previousBlob = stage.previousBlob;

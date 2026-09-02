@@ -13,17 +13,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _StaticResolver implements VariantResolver {
   _StaticResolver(
     this.bytes, {
-    this.experimentId,
-    this.variantId,
-    this.experimentEpoch,
     this.publishedVersion,
     String? surfaceVersion,
   }) : surfaceVersion =
             surfaceVersion ?? publishedVersion?.toString() ?? 'test';
   final Uint8List bytes;
-  final String? experimentId;
-  final String? variantId;
-  final int? experimentEpoch;
   final int? publishedVersion;
   final String surfaceVersion;
 
@@ -37,9 +31,6 @@ class _StaticResolver implements VariantResolver {
         bytes: bytes,
         surfaceVersion: surfaceVersion,
         paywallId: id,
-        experimentId: experimentId,
-        variantId: variantId,
-        experimentEpoch: experimentEpoch,
         paywallPublishedVersion: publishedVersion,
       );
 }
@@ -97,12 +88,7 @@ void main() {
       home: Scaffold(
         body: RestagePaywall(
           id: 'hi',
-          resolver: _StaticResolver(
-            bytes,
-            experimentId: 'exp_paywall_copy',
-            variantId: 'variant_a',
-            experimentEpoch: 3,
-          ),
+          resolver: _StaticResolver(bytes),
           onEvent: received.add,
         ),
       ),
@@ -118,9 +104,7 @@ void main() {
       ]),
     );
     final viewed = received.whereType<PaywallViewed>().single;
-    expect(viewed.experimentId, 'exp_paywall_copy');
-    expect(viewed.variantId, 'variant_a');
-    expect(viewed.experimentEpoch, 3);
+    expect(viewed.publishedVersion, isNull);
   });
 
   testWidgets('a blob paywall emits one canonical root after successful paint',
@@ -145,13 +129,7 @@ void main() {
       home: Scaffold(
         body: RestagePaywall(
           id: 'upgrade',
-          resolver: _StaticResolver(
-            bytes,
-            experimentId: 'exp-blob',
-            variantId: 'variant-c',
-            experimentEpoch: 4,
-            publishedVersion: 12,
-          ),
+          resolver: _StaticResolver(bytes, publishedVersion: 12),
         ),
       ),
     ));
@@ -171,9 +149,9 @@ void main() {
     expect(presentations.single['surfaceId'], 'upgrade');
     expect(presentations.single['surfaceVersion'], '12');
     expect(presentations.single['surfaceSessionId'], isNotNull);
-    expect(presentations.single['experimentId'], 'exp-blob');
-    expect(presentations.single['variantId'], 'variant-c');
-    expect(presentations.single['experimentEpoch'], 4);
+    expect(presentations.single, isNot(contains('experimentId')));
+    expect(presentations.single, isNot(contains('variantId')));
+    expect(presentations.single, isNot(contains('experimentEpoch')));
 
     final viewed =
         events.singleWhere((event) => event['name'] == 'paywall_viewed');
@@ -184,9 +162,9 @@ void main() {
       viewed['surfaceSessionId'],
       presentations.single['surfaceSessionId'],
     );
-    expect(viewed['experimentId'], 'exp-blob');
-    expect(viewed['variantId'], 'variant-c');
-    expect(viewed['experimentEpoch'], 4);
+    expect(viewed, isNot(contains('experimentId')));
+    expect(viewed, isNot(contains('variantId')));
+    expect(viewed, isNot(contains('experimentEpoch')));
   });
 
   testWidgets('a custom blob version reaches the active root attribution',
@@ -313,9 +291,9 @@ void main() {
     expect(started['surfaceId'], 'pending');
     expect(started['surfaceVersion'], isNull);
     expect(started['surfaceSessionId'], isNull);
-    expect(started['experimentId'], isNull);
-    expect(started['variantId'], isNull);
-    expect(started['experimentEpoch'], isNull);
+    expect(started, isNot(contains('experimentId')));
+    expect(started, isNot(contains('variantId')));
+    expect(started, isNot(contains('experimentEpoch')));
 
     resolver.response.complete(
       ResolvedVariant(
@@ -360,9 +338,9 @@ void main() {
       expect(event['surfaceId'], 'failed');
       expect(event['surfaceVersion'], isNull);
       expect(event['surfaceSessionId'], isNull);
-      expect(event['experimentId'], isNull);
-      expect(event['variantId'], isNull);
-      expect(event['experimentEpoch'], isNull);
+      expect(event, isNot(contains('experimentId')));
+      expect(event, isNot(contains('variantId')));
+      expect(event, isNot(contains('experimentEpoch')));
     }
   });
 

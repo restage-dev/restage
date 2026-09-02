@@ -43,7 +43,7 @@ final class FlowPaywallActiveRejected extends FlowPaywallActiveResolution {
 
 /// Evaluates a server-resolved (active) flow-paywall document against the
 /// client's [bundled] contract and, if safe, returns a renderable
-/// [FlowPaywallPayload] carrying the served version + experiment arm.
+/// [FlowPaywallPayload] carrying the served version and flow content.
 ///
 /// Fail-closed: a retained-check failure or a render-gate rejection returns a
 /// [FlowPaywallActiveRejected] so the caller falls back to the bundled flow — an
@@ -61,9 +61,6 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
   required FlowDocument bundledDocument,
   required String paywallId,
   required int activeVersion,
-  String? experimentId,
-  String? variantId,
-  int? experimentEpoch,
   MeasurementPublicationBindingReferenceV1? publicationBindingReference,
   bool cacheHit = false,
 }) {
@@ -106,9 +103,6 @@ FlowPaywallActiveResolution resolveFlowActiveArm({
       flow: resolvedFlow,
       paywallId: paywallId,
       paywallPublishedVersion: activeVersion,
-      experimentId: experimentId,
-      variantId: variantId,
-      experimentEpoch: experimentEpoch,
       resolvedFromActiveArm: true,
     ),
   );

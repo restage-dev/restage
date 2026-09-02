@@ -269,12 +269,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
   }
 
   /// The swap-safety gate: a flow is safe to re-host only while it is pristine
-  /// (no user-contributed state), idle (no transition/action in flight), not
-  /// yet complete, and not experiment-assigned. An assigned presentation stays
-  /// pinned until remount so a live refresh cannot move it out of its arm.
+  /// (no user-contributed state), idle (no transition/action in flight), and
+  /// not yet complete.
   bool _canSwap() =>
-      _controller?.renderedAssignment == null &&
-      _controller?.installedArtifactAssignment == null &&
       !(_controller?.hasUserContributedState ?? false) &&
       !(_controller?.isBusy ?? false) &&
       !(_controller?.isComplete ?? false);
@@ -332,8 +329,7 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           identical(_pendingController, pending) &&
           identical(_pendingTransaction, transaction) &&
           identical(_pendingPresentation, presentation),
-      canCommitPresentation: () =>
-          pending.installedArtifactAssignment == null && _canSwap(),
+      canCommitPresentation: _canSwap,
       commitPresentation: () => _commitPendingAtPaint(
         pending,
         transaction,
@@ -355,9 +351,8 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
           return;
         }
         // Re-check before the candidate becomes visible. The user may have
-        // interacted while resolution was in flight, and an assigned artifact
-        // must never be live-staged even for a single frame.
-        if (pending.installedArtifactAssignment != null || !_canSwap()) {
+        // interacted while resolution was in flight.
+        if (!_canSwap()) {
           _scheduleDiscardPending(pending);
           return;
         }
@@ -697,13 +692,9 @@ class _RestageFlowGraphState<R> extends State<RestageFlowGraph<R>> {
               ) ??
               true),
       commit: () {
-        final assignment = controller.installedArtifactAssignment;
         presentation.stage(
           surfaceVersion:
               RootAnalyticsArtifactRegistry.surfaceVersionFor(controller),
-          experimentId: assignment?.experimentId,
-          variantId: assignment?.variantId,
-          experimentEpoch: assignment?.experimentEpoch,
         );
         commitPresentation?.call();
       },

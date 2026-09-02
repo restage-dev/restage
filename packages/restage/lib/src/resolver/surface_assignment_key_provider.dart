@@ -2,12 +2,13 @@ import 'dart:async';
 
 import 'package:meta/meta.dart';
 
-/// Internal provider for hosted surface experiment assignment keys.
+/// Internal provider for the SDK-owned identity key used with hosted surface
+/// requests.
 ///
-/// This is deliberately not exported from `restage.dart`: hosts do not choose
-/// experiment assignments. `Restage.configure` installs it from the SDK-owned
-/// analytics identity when hosted analytics is active; hosted resolvers read it
-/// just before fetching an active experiment arm.
+/// This is deliberately not exported from `restage.dart`: hosts do not supply
+/// the key. `Restage.configure` installs it from the SDK-owned analytics
+/// identity. Hosted resolvers capture it immediately before fetching active
+/// content; the accompanying lease rejects work when that identity changes.
 abstract final class SurfaceAssignmentKeyProvider {
   static FutureOr<String?> Function()? _current;
   static int Function()? _identityGeneration;

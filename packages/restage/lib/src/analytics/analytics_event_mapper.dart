@@ -35,9 +35,6 @@ const Set<String> _promotedKeys = <String>{
   'firedAt',
   'productId',
   'offerId',
-  'variantId',
-  'experimentId',
-  'experimentEpoch',
   'surfaceVersion',
   'publishedVersion',
 };
@@ -49,13 +46,12 @@ const Set<String> _promotedKeys = <String>{
 /// data-driven off [RestageEvent.toMap]: a `flowId` maps to onboarding, a
 /// non-null `paywallId` maps to paywall, and any other event is app-wide. An
 /// authoritative root binding instead supplies the actual root surface, ID,
-/// version, session, and experiment assignment.
+/// version, and session.
 /// Promoted conversion dims (`productId`/`offerId`) land on typed envelope
-/// fields. Experiment dimensions come only from a complete authoritative root
-/// binding; payload claims are scrubbed but never trusted. Every other residual
-/// field goes to `properties` **after the reserved-key scrub** (so a custom
-/// event can never smuggle render context). `tier`/`source` are NOT set here —
-/// the server stamps them.
+/// fields. Payload claims are scrubbed but never trusted. Every other residual
+/// field goes to `properties` **after the reserved-key scrub** (so a custom event
+/// can never smuggle render context). `tier`/`source` are NOT set here — the
+/// server stamps them.
 AnalyticsEvent mapRestageEventToEnvelope(
   RestageEvent event, {
   required String eventId,
@@ -112,10 +108,6 @@ AnalyticsEvent mapRestageEventToEnvelope(
       ? rootContext?.surfaceVersion
       : (map['flowVersion'] ?? map['surfaceVersion'] ?? map['publishedVersion'])
           ?.toString();
-  final hasCompleteRootExperiment = rootContext?.experimentId != null &&
-      rootContext?.variantId != null &&
-      rootContext?.experimentEpoch != null;
-
   final properties = scrubReservedKeys(<String, Object?>{
     for (final entry in map.entries)
       if (!_promotedKeys.contains(entry.key)) entry.key: entry.value,
@@ -135,10 +127,6 @@ AnalyticsEvent mapRestageEventToEnvelope(
     appContext: appContext,
     productId: map['productId'] as String?,
     offerId: map['offerId'] as String?,
-    variantId: hasCompleteRootExperiment ? rootContext?.variantId : null,
-    experimentId: hasCompleteRootExperiment ? rootContext?.experimentId : null,
-    experimentEpoch:
-        hasCompleteRootExperiment ? rootContext?.experimentEpoch : null,
     properties: properties,
   );
 }

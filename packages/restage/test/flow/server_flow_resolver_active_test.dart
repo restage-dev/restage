@@ -123,9 +123,7 @@ void main() {
     expect(metadata.payloadIntegrityVerified, isTrue);
   });
 
-  test(
-      'active onboarding response metadata is not stamped onto flow analytics '
-      'events', () async {
+  test('active onboarding content emits ordinary flow analytics', () async {
     final bundledBytes = screenBlob('Bundled', 'next');
     final activeBytes = screenBlob('Active', 'next');
     final resolver = ServerFlowResolver(
@@ -135,9 +133,6 @@ void main() {
       bundle: _bundleFor(_doc(screenBytes: bundledBytes), bundledBytes),
       httpClient: _server(
         _envelope(_doc(version: 2, screenBytes: activeBytes), activeBytes),
-        experimentId: 'exp_onboarding_copy',
-        variantId: 'variant_a',
-        experimentEpoch: 3,
       ),
     );
     final events = <RestageEvent>[];
@@ -156,9 +151,10 @@ void main() {
 
     final started = events.whereType<FlowStarted>().single;
     expect(started.resolvedVersion, 2);
-    expect(started.toMap().containsKey('experimentId'), isFalse);
-    expect(started.toMap().containsKey('variantId'), isFalse);
-    expect(started.toMap().containsKey('experimentEpoch'), isFalse);
+    expect(started.toMap(), containsPair('name', 'flow_started'));
+    expect(started.toMap(), containsPair('flowId', 'first_run'));
+    expect(started.toMap(), containsPair('flowVersion', 1));
+    expect(started.toMap(), containsPair('resolvedVersion', 2));
 
     final envelope = mapRestageEventToEnvelope(
       started,
@@ -174,9 +170,6 @@ void main() {
     );
     expect(envelope.surface, AnalyticsSurface.onboarding);
     expect(envelope.surfaceId, 'first_run');
-    expect(envelope.experimentId, isNull);
-    expect(envelope.variantId, isNull);
-    expect(envelope.experimentEpoch, isNull);
   });
 
   test('new client → breaking active: fails closed to the BUNDLED doc',
@@ -557,9 +550,6 @@ AssetBundle _emptyBundle() => _TestBundle(const {});
 /// A `MockClient` serving [envelope] (base64-wrapped) on every request.
 MockClient _server(
   Uint8List envelope, {
-  String? experimentId,
-  String? variantId,
-  int? experimentEpoch,
   void Function(http.Request request)? onRequest,
 }) {
   return _delivery.client((request) async {
@@ -567,9 +557,6 @@ MockClient _server(
     return http.Response(
       jsonEncode({
         ..._delivery.describeEnvelope(envelope),
-        if (experimentId != null) 'experimentId': experimentId,
-        if (variantId != null) 'variantId': variantId,
-        if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
       }),
       200,
     );

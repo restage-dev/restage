@@ -86,7 +86,7 @@ final class HostedArtifactFixture {
   /// Describes [document] and holds its content ready to serve.
   ///
   /// Returns the JSON body a delivery response carries. Callers merge their own
-  /// sibling keys — decision, assignment, contract-retry flags — around it.
+  /// sibling contract-retry flags around it.
   Map<String, Object?> describe(
     SurfaceDocument document, {
     String? payloadKind,
@@ -175,7 +175,6 @@ final class HostedArtifactFixture {
     required int contractVersion,
     required String contractFingerprint,
     required String eventContractHash,
-    SurfaceExperimentAssignment? assignment,
     String? declaredContentHash,
   }) =>
       SurfaceScreenDeliveryDescriptor(
@@ -193,7 +192,6 @@ final class HostedArtifactFixture {
         publishedRevision: document.version,
         contractFingerprint: contractFingerprint,
         eventContractHash: eventContractHash,
-        assignment: assignment,
       );
 
   /// The complete body for a delivery of [document], ready to `jsonEncode`.

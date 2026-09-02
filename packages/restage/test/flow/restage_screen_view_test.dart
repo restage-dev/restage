@@ -107,6 +107,5 @@ void main() {
     expect(controller.isUnavailable, isTrue);
     expect(captured?.reason, 'render_failed');
     expect(controller.hasRenderedContent, isFalse);
-    expect(controller.renderedAssignment, isNull);
   });
 }

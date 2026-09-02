@@ -39,12 +39,6 @@ const _paywallFlowRef = SurfaceFlowRef<FirstRunResult>(
   decodeResult: FirstRunResult.decode,
 );
 
-const _rootAssignment = FlowAssignment(
-  experimentId: 'exp-root',
-  variantId: 'variant-b',
-  experimentEpoch: 7,
-);
-
 final class _ControlledResolver implements FlowResolver {
   _ControlledResolver(this.first, this.afterFirst);
 
@@ -92,8 +86,7 @@ void main() {
     (surface: 'survey', flow: _surveyFlowRef),
     (surface: 'paywall', flow: _paywallFlowRef),
   ]) {
-    testWidgets(
-        '${testCase.surface} emits one assigned canonical root after paint',
+    testWidgets('${testCase.surface} emits one canonical root after paint',
         (tester) async {
       final requests = <http.Request>[];
       _configureAnalytics(requests);
@@ -103,9 +96,7 @@ void main() {
           textDirection: TextDirection.ltr,
           child: RestageFlowGraph<FirstRunResult>(
             flow: testCase.flow,
-            resolver: StaticFlowResolver(
-              _withAssignment(resolvedFlow(), _rootAssignment),
-            ),
+            resolver: StaticFlowResolver(resolvedFlow()),
             unavailable: const FlowUnavailablePolicy.hide(),
           ),
         ),
@@ -139,9 +130,6 @@ void main() {
       expect(presentation['surfaceId'], 'first_run');
       expect(presentation['surfaceVersion'], '1');
       expect(presentation['surfaceSessionId'], isNotNull);
-      expect(presentation['experimentId'], 'exp-root');
-      expect(presentation['variantId'], 'variant-b');
-      expect(presentation['experimentEpoch'], 7);
       for (final exposure in exposureEvents.skip(1)) {
         expect(exposure['surface'], testCase.surface);
         expect(exposure['surfaceId'], 'first_run');
@@ -150,9 +138,6 @@ void main() {
           exposure['surfaceSessionId'],
           presentation['surfaceSessionId'],
         );
-        expect(exposure['experimentId'], 'exp-root');
-        expect(exposure['variantId'], 'variant-b');
-        expect(exposure['experimentEpoch'], 7);
       }
     });
   }
@@ -213,7 +198,6 @@ void main() {
           resolver: ControlledInitialSubFlowResolver(
             root: initialSubFlowRoot(
               child: child,
-              assignment: _rootAssignment,
             ),
             child: childCompleter,
           ),
@@ -245,13 +229,9 @@ void main() {
     expect(childOutcome['surfaceId'], 'first_run');
     expect(childOutcome['surfaceVersion'], '1');
     expect(childOutcome['surfaceSessionId'], rootSession);
-    expect(childOutcome['experimentId'], 'exp-root');
-    expect(childOutcome['variantId'], 'variant-b');
-    expect(childOutcome['experimentEpoch'], 7);
   });
 
-  testWidgets('an unassigned general flow emits one assignment-null root',
-      (tester) async {
+  testWidgets('a general flow emits one canonical root', (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
     final typed = resolvedFlow();
@@ -280,9 +260,6 @@ void main() {
     expect(presentation['surfaceId'], 'first_run');
     expect(presentation['surfaceVersion'], '1');
     expect(presentation['surfaceSessionId'], isNotNull);
-    expect(presentation['experimentId'], isNull);
-    expect(presentation['variantId'], isNull);
-    expect(presentation['experimentEpoch'], isNull);
   });
 
   testWidgets('screenless and build-failed roots emit zero canonical events',
@@ -388,14 +365,14 @@ void main() {
       (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
-    final assigned = _withAssignment(resolvedFlow(), _rootAssignment);
+    final initial = resolvedFlow();
 
     Widget surface(Key key) => Directionality(
           textDirection: TextDirection.ltr,
           child: RestageFlowGraph<FirstRunResult>(
             key: key,
             flow: _messageFlowRef,
-            resolver: StaticFlowResolver(assigned),
+            resolver: StaticFlowResolver(initial),
             unavailable: const FlowUnavailablePolicy.hide(),
           ),
         );
@@ -417,9 +394,6 @@ void main() {
     expect(oldUiOutcome['surface'], 'message');
     expect(oldUiOutcome['surfaceId'], 'first_run');
     expect(oldUiOutcome['surfaceSessionId'], isNull);
-    expect(oldUiOutcome['experimentId'], isNull);
-    expect(oldUiOutcome['variantId'], isNull);
-    expect(oldUiOutcome['experimentEpoch'], isNull);
     requests.clear();
 
     await tester.pumpWidget(surface(const ValueKey<String>('after-reset')));
@@ -428,9 +402,6 @@ void main() {
       (event) => event['name'] == 'surface_presented',
     );
     expect(remounted['surfaceSessionId'], isNot(before['surfaceSessionId']));
-    expect(remounted['experimentId'], 'exp-root');
-    expect(remounted['variantId'], 'variant-b');
-    expect(remounted['experimentEpoch'], 7);
   });
 
   testWidgets(
@@ -439,17 +410,9 @@ void main() {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
     final stale = Completer<ResolvedFlow>();
-    const retryAssignment = FlowAssignment(
-      experimentId: 'exp-retry',
-      variantId: 'variant-new-actor',
-      experimentEpoch: 12,
-    );
     final resolver = _ControlledResolver(
       stale,
-      _withAssignment(
-        resolvedFlow(welcomeText: 'Retry actor'),
-        retryAssignment,
-      ),
+      resolvedFlow(welcomeText: 'Retry actor'),
     );
 
     await tester.pumpWidget(
@@ -465,12 +428,7 @@ void main() {
     await tester.pump();
 
     Restage.reset();
-    stale.complete(
-      _withAssignment(
-        resolvedFlow(welcomeText: 'Stale actor'),
-        _rootAssignment,
-      ),
-    );
+    stale.complete(resolvedFlow(welcomeText: 'Stale actor'));
     await _pumpFrames(tester);
 
     final presentations = (await _capturedEvents(requests))
@@ -484,14 +442,11 @@ void main() {
     expect(presentations.single['surfaceId'], 'first_run');
     expect(presentations.single['surfaceVersion'], '1');
     expect(presentations.single['surfaceSessionId'], isNotNull);
-    expect(presentations.single['experimentId'], 'exp-retry');
-    expect(presentations.single['variantId'], 'variant-new-actor');
-    expect(presentations.single['experimentEpoch'], 12);
   });
 
   testWidgets(
-      'refresh canonical matrix: unchanged/failed/assigned-blocked emit zero '
-      'and promoted emits one', (tester) async {
+      'refresh canonical matrix: unchanged and failed emit zero while ordinary '
+      'content changes emit one', (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
     final initial = resolvedFlow(welcomeText: 'Initial');
@@ -535,15 +490,11 @@ void main() {
     final retainedAfterFailure = find.text('Promoted').evaluate().length;
 
     requests.clear();
-    resolver.current = _withAssignment(
-      resolvedFlow(welcomeText: 'Assigned blocked'),
-      _rootAssignment,
-    );
+    resolver.current = resolvedFlow(welcomeText: 'Promoted again');
     await Restage.reloadSurfaces();
     await _pumpFrames(tester);
-    final assignedBlocked = _canonicalEvents(await _capturedEvents(requests));
-    final retainedAfterAssigned = find.text('Promoted').evaluate().length;
-    final assignedVisible = find.text('Assigned blocked').evaluate().length;
+    final promotedAgain = _canonicalEvents(await _capturedEvents(requests));
+    final promotedAgainVisible = find.text('Promoted again').evaluate().length;
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -556,14 +507,10 @@ void main() {
     expect(promoted.first['surfaceId'], 'first_run');
     expect(promoted.first['surfaceVersion'], '1');
     expect(promoted.first['surfaceSessionId'], isNot(initialSession));
-    expect(promoted.first['experimentId'], isNull);
-    expect(promoted.first['variantId'], isNull);
-    expect(promoted.first['experimentEpoch'], isNull);
     expect(retainedAfterFailure, 1);
     expect(failed, isEmpty, reason: 'failed refresh');
-    expect(retainedAfterAssigned, 1);
-    expect(assignedVisible, 0);
-    expect(assignedBlocked, isEmpty, reason: 'assigned-blocked refresh');
+    expect(promotedAgain, hasLength(1));
+    expect(promotedAgainVisible, 1);
   });
 
   testWidgets(
@@ -763,8 +710,8 @@ void main() {
   });
 
   testWidgets(
-      'same analytics authority preserves active child attribution without a '
-      'duplicate canonical root', (tester) async {
+      'same analytics authority preserves child context without a duplicate '
+      'canonical root', (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
     final child = childScreenFlow(text: 'Child');
@@ -777,7 +724,6 @@ void main() {
           resolver: ControlledInitialSubFlowResolver(
             root: initialSubFlowRoot(
               child: child,
-              assignment: _rootAssignment,
             ),
             child: Completer<ResolvedFlow>()..complete(child),
           ),
@@ -802,9 +748,6 @@ void main() {
     expect(outcome['surfaceId'], 'first_run');
     expect(outcome['surfaceVersion'], '1');
     expect(outcome['surfaceSessionId'], initial['surfaceSessionId']);
-    expect(outcome['experimentId'], 'exp-root');
-    expect(outcome['variantId'], 'variant-b');
-    expect(outcome['experimentEpoch'], 7);
   });
 
   testWidgets('same analytics authority does not strand a pending root',
@@ -829,12 +772,7 @@ void main() {
     );
     await tester.pump();
     Restage.configure(apiKey: 'rs_pk_test', baseUrl: _baseUrl);
-    pending.complete(
-      _withAssignment(
-        resolvedFlow(welcomeText: 'Accepted pending'),
-        _rootAssignment,
-      ),
-    );
+    pending.complete(resolvedFlow(welcomeText: 'Accepted pending'));
     await _pumpFrames(tester);
 
     expect(resolver.calls, 1);
@@ -851,17 +789,9 @@ void main() {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
     final pending = Completer<ResolvedFlow>();
-    const retryAssignment = FlowAssignment(
-      experimentId: 'exp-new-authority',
-      variantId: 'variant-new',
-      experimentEpoch: 11,
-    );
     final resolver = _ControlledResolver(
       pending,
-      _withAssignment(
-        resolvedFlow(welcomeText: 'Accepted retry'),
-        retryAssignment,
-      ),
+      resolvedFlow(welcomeText: 'Accepted retry'),
     );
 
     await tester.pumpWidget(
@@ -876,12 +806,7 @@ void main() {
     );
     await tester.pump();
     Restage.configure(apiKey: 'rs_pk_changed', baseUrl: _baseUrl);
-    pending.complete(
-      _withAssignment(
-        resolvedFlow(welcomeText: 'Rejected old authority'),
-        _rootAssignment,
-      ),
-    );
+    pending.complete(resolvedFlow(welcomeText: 'Rejected old authority'));
     await _pumpFrames(tester);
 
     final presentations = _canonicalEvents(await _capturedEvents(requests));
@@ -889,9 +814,6 @@ void main() {
     expect(find.text('Rejected old authority'), findsNothing);
     expect(find.text('Accepted retry'), findsOneWidget);
     expect(presentations, hasLength(1));
-    expect(presentations.single['experimentId'], 'exp-new-authority');
-    expect(presentations.single['variantId'], 'variant-new');
-    expect(presentations.single['experimentEpoch'], 11);
   });
 
   testWidgets(
@@ -899,14 +821,14 @@ void main() {
       'remount', (tester) async {
     final requests = <http.Request>[];
     _configureAnalytics(requests);
-    final assigned = _withAssignment(resolvedFlow(), _rootAssignment);
+    final resolved = resolvedFlow();
 
     Widget surface(Key key) => Directionality(
           textDirection: TextDirection.ltr,
           child: RestageFlowGraph<FirstRunResult>(
             key: key,
             flow: _messageFlowRef,
-            resolver: StaticFlowResolver(assigned),
+            resolver: StaticFlowResolver(resolved),
             unavailable: const FlowUnavailablePolicy.hide(),
           ),
         );
@@ -926,18 +848,12 @@ void main() {
     expect(oldUiOutcome['surfaceId'], 'first_run');
     expect(oldUiOutcome['surfaceVersion'], isNull);
     expect(oldUiOutcome['surfaceSessionId'], isNull);
-    expect(oldUiOutcome['experimentId'], isNull);
-    expect(oldUiOutcome['variantId'], isNull);
-    expect(oldUiOutcome['experimentEpoch'], isNull);
     requests.clear();
 
     await tester.pumpWidget(surface(const ValueKey<String>('authority-b')));
     await _pumpFrames(tester);
     final remounted = _canonicalEvents(await _capturedEvents(requests)).single;
     expect(remounted['surfaceSessionId'], isNot(initial['surfaceSessionId']));
-    expect(remounted['experimentId'], 'exp-root');
-    expect(remounted['variantId'], 'variant-b');
-    expect(remounted['experimentEpoch'], 7);
   });
 }
 
@@ -949,24 +865,12 @@ void _configureAnalytics(List<http.Request> requests) {
   Restage.configure(apiKey: 'rs_pk_test', baseUrl: _baseUrl);
 }
 
-ResolvedFlow _withAssignment(
-  ResolvedFlow flow,
-  FlowAssignment assignment,
-) =>
-    ResolvedFlow(
-      document: flow.document,
-      screenBlobs: flow.screenBlobs,
-      cacheHit: flow.cacheHit,
-      assignment: assignment,
-    );
-
 ResolvedFlow _withTransportHash(ResolvedFlow flow, String rawDocument) =>
     ResolvedFlow(
       document: flow.document,
       screenBlobs: flow.screenBlobs,
       contentHash: FlowContentHash.computeString(rawDocument),
       cacheHit: flow.cacheHit,
-      assignment: flow.assignment,
     );
 
 Future<List<Map<String, Object?>>> _capturedEvents(

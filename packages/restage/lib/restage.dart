@@ -16,7 +16,6 @@ export 'src/authoring/paywall_source.dart';
 export 'src/authoring/screen.dart';
 export 'src/events/event_enums.dart';
 export 'src/events/restage_event.dart';
-export 'src/flow/flow_assignment.dart';
 export 'src/flow/flow_chrome.dart';
 export 'src/flow/flow_controller.dart' show RestageFlowController;
 export 'src/flow/flow_descriptors.dart';
@@ -50,7 +49,6 @@ export 'package:restage_shared/restage_shared.dart'
         SurfaceType,
         SurfacePayloadKind,
         SurfaceSourceKind,
-        SurfaceExperimentAssignment,
         FlowActionSchema,
         FlowActionSchemaField,
         FlowBranchPredicate,

@@ -265,9 +265,9 @@ widget OnboardingScreen = Throwing();
     expect(find.text('fallback:renderFailure'), findsOneWidget);
   });
 
-  testWidgets('stages root attribution on first paint using delivery revision',
+  testWidgets('stages root presentation on first paint using delivery revision',
       (tester) async {
-    final fixture = stringScreenFixture(text: 'Hosted attribution');
+    final fixture = stringScreenFixture(text: 'Hosted content');
     final contexts = <RootAnalyticsEventContext>[];
     var nextId = 0;
     RootAnalyticsRuntime.install(
@@ -279,14 +279,7 @@ widget OnboardingScreen = Throwing();
       _host(
         fixture: fixture,
         resolver: FixedScreenResolver(
-          fixture.hosted(
-            publishedRevision: 9,
-            assignment: SurfaceExperimentAssignment(
-              experimentId: 'experiment',
-              variantId: 'variant',
-              experimentEpoch: 2,
-            ),
-          ),
+          fixture.hosted(publishedRevision: 9),
         ),
       ),
     );
@@ -299,9 +292,6 @@ widget OnboardingScreen = Throwing();
     expect(context.surfaceVersion, '9');
     expect(context.sourceKind, SurfaceSourceKind.screen);
     expect(context.payloadKind, SurfacePayloadKind.blob);
-    expect(context.experimentId, 'experiment');
-    expect(context.variantId, 'variant');
-    expect(context.experimentEpoch, 2);
   });
 
   testWidgets('stages the generated contract version for bundled attribution',

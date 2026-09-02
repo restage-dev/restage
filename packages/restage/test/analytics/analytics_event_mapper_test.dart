@@ -32,16 +32,11 @@ void main() {
     );
   }
 
-  test(
-      'a paywall event maps to surface=paywall without trusting payload '
-      'experiment fields', () {
+  test('a paywall event maps to surface=paywall', () {
     final firedAt = DateTime.utc(2026, 6, 13, 11, 59);
     final envelope = map(
       PaywallViewed(
         paywallId: 'pw-1',
-        variantId: 'variant-A',
-        experimentId: 'exp-1',
-        experimentEpoch: 3,
         firedAt: firedAt,
       ),
       surfaceSessionId: 'surf-9',
@@ -57,12 +52,6 @@ void main() {
     expect(envelope.appContext, appContext);
     expect(envelope.eventId, 'evt-1');
     expect(envelope.occurredAt, firedAt);
-    expect(envelope.variantId, isNull);
-    expect(envelope.experimentId, isNull);
-    expect(envelope.experimentEpoch, isNull);
-    expect(envelope.properties.containsKey('variantId'), isFalse);
-    expect(envelope.properties.containsKey('experimentId'), isFalse);
-    expect(envelope.properties.containsKey('experimentEpoch'), isFalse);
   });
 
   test('firedAt absent falls back to now', () {
@@ -91,9 +80,6 @@ void main() {
       surfaceId: 'account-recovery',
       surfaceVersion: '4',
       surfaceSessionId: 'general-session-1',
-      experimentId: null,
-      variantId: null,
-      experimentEpoch: null,
       sourceKind: SurfaceSourceKind.flowGraph,
       payloadKind: SurfacePayloadKind.flow,
     );
@@ -120,9 +106,6 @@ void main() {
       surfaceId: 'maintenance-notice',
       surfaceVersion: '3',
       surfaceSessionId: 'general-session-1',
-      experimentId: null,
-      variantId: null,
-      experimentEpoch: null,
       sourceKind: SurfaceSourceKind.screen,
       payloadKind: SurfacePayloadKind.blob,
     );
@@ -169,6 +152,133 @@ void main() {
     expect(envelope.properties.containsKey('context'), isFalse);
     expect(envelope.properties['plan'], 'pro');
     expect(envelope.properties['eventName'], 'tapped_plan');
+  });
+
+  test('a custom event drops retired property tuples at any casing', () {
+    const preserved = <String, Object?>{
+      'plan': 'pro',
+      'experimentIdentifier': 'keep',
+      'variantIdentity': 'keep',
+      'experimentEpochId': 'keep',
+    };
+
+    for (final args in <Map<String, Object?>>[
+      <String, Object?>{
+        ...preserved,
+        'experimentId': 'exp-1',
+        'variantId': 'variant-a',
+        'experimentEpoch': 7,
+      },
+      <String, Object?>{
+        ...preserved,
+        'ExPeRiMeNtId': 'exp-2',
+        'vArIaNtId': 'variant-b',
+        'eXpErImEnTePoCh': 8,
+      },
+    ]) {
+      final envelope = map(
+        PaywallCustomEvent(
+          paywallId: 'pw-1',
+          eventName: 'tapped_plan',
+          args: args,
+        ),
+      );
+
+      expect(envelope.properties, <String, Object?>{
+        'eventName': 'tapped_plan',
+        ...preserved,
+      });
+    }
+  });
+
+  test('custom event payloads drop nested retired property keys', () {
+    const paywallArgs = <String, Object?>{
+      'payload': <String, Object?>{
+        'ExPeRiMeNtId': 'exp-1',
+        'label': 'visible',
+        'data': <String, Object?>{'context': 'local'},
+        'context': 'nested',
+        'data.context.locale': 'en_US',
+        'items': <Object?>[
+          <String, Object?>{
+            'vArIaNtId': 'variant-a',
+            'label': 'first',
+          },
+          <String, Object?>{
+            'nested': <String, Object?>{
+              'eXpErImEnTePoCh': 7,
+              'experimentEpochId': 'keep',
+            },
+          },
+          'ordinary',
+        ],
+      },
+    };
+    const cleanedPayload = <String, Object?>{
+      'label': 'visible',
+      'data': <String, Object?>{'context': 'local'},
+      'context': 'nested',
+      'data.context.locale': 'en_US',
+      'items': <Object?>[
+        <String, Object?>{'label': 'first'},
+        <String, Object?>{
+          'nested': <String, Object?>{'experimentEpochId': 'keep'},
+        },
+        'ordinary',
+      ],
+    };
+    const flowFields = <String, Object?>{
+      'ExPeRiMeNtId': 'exp-2',
+      'data': <String, Object?>{'context': 'local-flow'},
+      'context': 'nested-flow',
+      'context.locale': 'en_US',
+      'items': <Object?>[
+        <String, Object?>{
+          'vArIaNtId': 'variant-b',
+          'nested': <String, Object?>{
+            'eXpErImEnTePoCh': 8,
+            'experimentIdentifier': 'keep',
+          },
+        },
+      ],
+    };
+    const cleanedFlowFields = <String, Object?>{
+      'data': <String, Object?>{'context': 'local-flow'},
+      'context': 'nested-flow',
+      'context.locale': 'en_US',
+      'items': <Object?>[
+        <String, Object?>{
+          'nested': <String, Object?>{
+            'experimentIdentifier': 'keep',
+          },
+        },
+      ],
+    };
+
+    final paywall = map(
+      const PaywallCustomEvent(
+        paywallId: 'pw-1',
+        eventName: 'tapped_plan',
+        args: paywallArgs,
+      ),
+    );
+    final flow = map(
+      const FlowCustomEvent(
+        flowId: 'flow-1',
+        flowVersion: 1,
+        eventName: 'continue',
+        fields: flowFields,
+      ),
+    );
+
+    expect(paywall.properties, <String, Object?>{
+      'eventName': 'tapped_plan',
+      'payload': cleanedPayload,
+    });
+    expect(flow.properties, <String, Object?>{
+      'eventName': 'continue',
+      'fields': cleanedFlowFields,
+    });
   });
 
   group('onboarding events conform to the onboarding envelope', () {
@@ -316,7 +426,7 @@ void main() {
     });
   });
 
-  group('authoritative internal root attribution', () {
+  group('authoritative internal root context', () {
     test('a child flow outcome inherits the exact rendered root envelope', () {
       const root = RootAnalyticsEventContext(
         identityGeneration: 3,
@@ -324,9 +434,6 @@ void main() {
         surfaceId: 'welcome-message',
         surfaceVersion: '14',
         surfaceSessionId: 'root-session-1',
-        experimentId: 'exp-message',
-        variantId: 'variant-b',
-        experimentEpoch: 8,
       );
 
       final envelope = map(
@@ -344,9 +451,6 @@ void main() {
       expect(envelope.surfaceId, 'welcome-message');
       expect(envelope.surfaceVersion, '14');
       expect(envelope.surfaceSessionId, 'root-session-1');
-      expect(envelope.experimentId, 'exp-message');
-      expect(envelope.variantId, 'variant-b');
-      expect(envelope.experimentEpoch, 8);
       expect(envelope.properties['eventName'], 'cta_tapped');
       expect(envelope.properties['fields'], <String, Object?>{
         'cta': 'continue',
@@ -359,9 +463,6 @@ void main() {
         const PaywallViewed(
           paywallId: 'upgrade',
           publishedVersion: 4,
-          experimentId: 'event-exp',
-          variantId: 'event-variant',
-          experimentEpoch: 99,
         ),
         surfaceSessionId: 'global-slot',
         rootAttribution: const RootAnalyticsEventBinding.anonymous(
@@ -374,55 +475,6 @@ void main() {
       expect(envelope.surfaceId, 'upgrade');
       expect(envelope.surfaceVersion, isNull);
       expect(envelope.surfaceSessionId, isNull);
-      expect(envelope.experimentId, isNull);
-      expect(envelope.variantId, isNull);
-      expect(envelope.experimentEpoch, isNull);
-    });
-
-    test('one- and two-field payload triples remain assignment-null', () {
-      for (final event in const <PaywallViewed>[
-        PaywallViewed(
-          paywallId: 'upgrade',
-          experimentId: 'event-exp',
-        ),
-        PaywallViewed(
-          paywallId: 'upgrade',
-          variantId: 'event-variant',
-          experimentEpoch: 99,
-        ),
-      ]) {
-        final envelope = map(event);
-        expect(envelope.experimentId, isNull);
-        expect(envelope.variantId, isNull);
-        expect(envelope.experimentEpoch, isNull);
-      }
-    });
-
-    test('active root attribution wins over a conflicting payload triple', () {
-      const root = RootAnalyticsEventContext(
-        identityGeneration: 3,
-        surface: 'paywall',
-        surfaceId: 'upgrade',
-        surfaceVersion: '4',
-        surfaceSessionId: 'root-session-1',
-        experimentId: 'root-exp',
-        variantId: 'root-variant',
-        experimentEpoch: 7,
-      );
-
-      final envelope = map(
-        const PaywallViewed(
-          paywallId: 'upgrade',
-          experimentId: 'event-exp',
-          variantId: 'event-variant',
-          experimentEpoch: 99,
-        ),
-        rootAttribution: RootAnalyticsEventBinding.active(root),
-      );
-
-      expect(envelope.experimentId, 'root-exp');
-      expect(envelope.variantId, 'root-variant');
-      expect(envelope.experimentEpoch, 7);
     });
   });
 }

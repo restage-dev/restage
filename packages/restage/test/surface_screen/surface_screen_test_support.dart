@@ -92,7 +92,6 @@ final class ScreenFixture<E> {
   ResolvedSurfaceScreen hosted({
     Uint8List? hostedBlob,
     int publishedRevision = 7,
-    SurfaceExperimentAssignment? assignment,
   }) {
     final blob = hostedBlob ?? this.blob;
     return ResolvedSurfaceScreen.hosted(
@@ -107,7 +106,6 @@ final class ScreenFixture<E> {
       eventContractHash: ref.eventContract.hash,
       blob: blob,
       contentHash: _payloadHash(blob, capabilities),
-      assignment: assignment,
       cacheHit: false,
     );
   }
@@ -122,7 +120,6 @@ final class ScreenFixture<E> {
     Uint8List? hostedBlob,
     int publishedRevision = 7,
     int? contractVersion,
-    SurfaceExperimentAssignment? assignment,
   }) {
     final blob = hostedBlob ?? this.blob;
     final payload = BlobSurfacePayload(
@@ -144,7 +141,6 @@ final class ScreenFixture<E> {
       contractVersion: contractVersion ?? ref.contractVersion,
       contractFingerprint: ref.contractFingerprint,
       eventContractHash: ref.eventContract.hash,
-      assignment: assignment,
     );
   }
 }

@@ -1,6 +1,13 @@
 import 'package:meta/meta.dart';
 import 'package:restage_shared/src/legacy_analytics/analytics_app_context.dart';
+import 'package:restage_shared/src/legacy_analytics/analytics_reserved_keys.dart';
 import 'package:restage_shared/src/legacy_analytics/analytics_wire_enums.dart';
+
+const _unsupportedTopLevelFields = <String>{
+  'variantId',
+  'experimentId',
+  'experimentEpoch',
+};
 
 /// The behavioral-analytics event envelope every surface emits.
 ///
@@ -30,16 +37,13 @@ final class AnalyticsEvent {
     this.surfaceSessionId,
     this.userId,
     this.appContext,
-    this.variantId,
-    this.experimentId,
-    this.experimentEpoch,
     this.productId,
     this.offerId,
     Map<String, Object?> properties = const <String, Object?>{},
     // Deep defensive copy: the envelope is `@immutable`, so a caller can
     // neither mutate `properties` (or any nested map/list) after construction
     // nor leak in a later mutation of the source structure.
-  }) : properties = _deepUnmodifiableMap(properties);
+  }) : properties = _deepUnmodifiableMap(scrubReservedKeys(properties));
 
   /// Decodes an envelope from [json].
   ///
@@ -53,6 +57,7 @@ final class AnalyticsEvent {
     Map<String, Object?> json, {
     required String source,
   }) {
+    _rejectUnsupportedTopLevelFields(json);
     final appContextJson = json['appContext'];
     if (appContextJson != null && appContextJson is! Map) {
       throw FormatException(
@@ -117,9 +122,6 @@ final class AnalyticsEvent {
       surfaceSessionId: _optionalString(json, 'surfaceSessionId'),
       userId: _optionalString(json, 'userId'),
       appContext: appContext,
-      variantId: _optionalString(json, 'variantId'),
-      experimentId: _optionalString(json, 'experimentId'),
-      experimentEpoch: _optionalInt(json, 'experimentEpoch'),
       productId: _optionalString(json, 'productId'),
       offerId: _optionalString(json, 'offerId'),
       properties: properties,
@@ -166,15 +168,6 @@ final class AnalyticsEvent {
   /// Client app context (required for `source=client`).
   final AnalyticsAppContext? appContext;
 
-  /// Promoted cohort dim.
-  final String? variantId;
-
-  /// Promoted cohort dim.
-  final String? experimentId;
-
-  /// Promoted cohort dim.
-  final int? experimentEpoch;
-
   /// Promoted conversion dim.
   final String? productId;
 
@@ -188,7 +181,8 @@ final class AnalyticsEvent {
   /// The transport + ingest filter drop them (see `scrubReservedKeys`,
   /// case-insensitive); emitters should not place them at the top level. The
   /// reservation is the top-level namespace only — a nested `{'result':
-  /// {'data': ...}}` is preserved.
+  /// {'data': ...}}` is preserved. Retired property keys are removed at every
+  /// map depth.
   final Map<String, Object?> properties;
 
   /// Encodes to the SDK→ingest wire map. Non-null fields only; `tier`/`source`
@@ -207,9 +201,6 @@ final class AnalyticsEvent {
         if (surfaceSessionId != null) 'surfaceSessionId': surfaceSessionId,
         if (userId != null) 'userId': userId,
         if (appContext != null) 'appContext': appContext!.toJson(),
-        if (variantId != null) 'variantId': variantId,
-        if (experimentId != null) 'experimentId': experimentId,
-        if (experimentEpoch != null) 'experimentEpoch': experimentEpoch,
         if (productId != null) 'productId': productId,
         if (offerId != null) 'offerId': offerId,
         if (properties.isNotEmpty) 'properties': properties,
@@ -231,9 +222,6 @@ final class AnalyticsEvent {
       other.surfaceSessionId == surfaceSessionId &&
       other.userId == userId &&
       other.appContext == appContext &&
-      other.variantId == variantId &&
-      other.experimentId == experimentId &&
-      other.experimentEpoch == experimentEpoch &&
       other.productId == productId &&
       other.offerId == offerId &&
       _deepEquals(other.properties, properties);
@@ -254,14 +242,19 @@ final class AnalyticsEvent {
           surfaceSessionId,
           userId,
           appContext,
-          variantId,
-          experimentId,
-          experimentEpoch,
           productId,
           offerId,
         ),
         _deepHash(properties),
       );
+}
+
+void _rejectUnsupportedTopLevelFields(Map<String, Object?> json) {
+  for (final field in _unsupportedTopLevelFields) {
+    if (json.containsKey(field)) {
+      throw FormatException('AnalyticsEvent.$field is not supported.');
+    }
+  }
 }
 
 String _requireNonEmptyString(Map<String, Object?> json, String key) {
@@ -278,15 +271,6 @@ String? _optionalString(Map<String, Object?> json, String key) {
   if (value is String) return value;
   throw FormatException(
     'AnalyticsEvent.$key must be a string when present, got: $value',
-  );
-}
-
-int? _optionalInt(Map<String, Object?> json, String key) {
-  final value = json[key];
-  if (value == null) return null;
-  if (value is int) return value;
-  throw FormatException(
-    'AnalyticsEvent.$key must be an int when present, got: $value',
   );
 }
 

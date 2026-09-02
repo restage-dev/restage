@@ -353,7 +353,6 @@ final class FlowMountContractSnapshot {
 enum FlowCandidatePrefetchRejection {
   prefetchFailed,
   parityRejected,
-  serverVerdictMismatch,
   seedDrift,
 }
 
@@ -400,7 +399,6 @@ abstract final class FlowCandidatePrefetcher {
     required FlowMountSeedCapture captureSeed,
     required ResolvedFlow candidateRoot,
     required FlowResolver resolver,
-    required bool serverVerdictAccepted,
     FlowCandidatePromotionBarrier? beforePromotion,
   }) async {
     try {
@@ -444,11 +442,6 @@ abstract final class FlowCandidatePrefetcher {
       if (!verdict.accepted) {
         return const FlowCandidatePrefetchRejected(
           FlowCandidatePrefetchRejection.parityRejected,
-        );
-      }
-      if (!serverVerdictAccepted) {
-        return const FlowCandidatePrefetchRejected(
-          FlowCandidatePrefetchRejection.serverVerdictMismatch,
         );
       }
       if (beforePromotion != null) {
@@ -527,7 +520,6 @@ ResolvedFlow _resolvedFlowAsCacheHit(ResolvedFlow flow) {
       screenBlobs: flow.screenBlobs,
       contentHash: flow.contentHash,
       cacheHit: true,
-      assignment: flow.assignment,
     ),
     measurementPublicationBindingReferenceFor(flow),
   );
