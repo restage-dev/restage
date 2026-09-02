@@ -1,7 +1,1 @@
-{
-  "blobSha256": "sha256:3b099690ffd1f574a0139c8681e0ddf7828a5cde5deb30e808b10c3eb308f2b7",
-  "manifest": {
-    "builtInFloor": 1,
-    "requiredLibraries": []
-  }
-}
+{"blobSha256":"sha256:62cda5c154453f1ffd2cb7dde14f12f7ff9f1e6420c86ee1452d3090330ca280","manifest":{"builtInFloor":1,"requiredLibraries":[]}}

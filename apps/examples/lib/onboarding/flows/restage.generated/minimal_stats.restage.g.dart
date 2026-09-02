@@ -1,12 +1,15 @@
 part of '../minimal_stats.dart';
 
-const minimalStatsFlowRef = SurfaceFlowRef<MinimalStatsResult>(
+const minimalStatsFlowRef = SurfaceFlowRef<
+    MinimalStatsResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'minimal_stats',
   version: 1,
   minClient: 1,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeMinimalStatsFlowResult,
+  measurementPublicationDraftDigest:
+      '62f3ea5354684cf9aafbec68ba6892bb0dee837fd79f361ed65cc0bf50cb97ed',
 );
 
 MinimalStatsResult _decodeMinimalStatsFlowResult(Map<String, Object?> result) {

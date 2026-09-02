@@ -477,20 +477,25 @@ abstract final class MeasurementRfwRouteComposer {
       );
     }
     if (value is Map) {
-      return {
-        for (final entry in value.entries)
-          entry.key: _rewriteValue(
-            entry.value,
-            routes,
-            presentationRoutesByReference,
-            consumed,
-            consumedPresentations,
-            presentation,
-          ),
-      };
+      final result = <String, Object?>{};
+      for (final entry in value.entries) {
+        final key = entry.key;
+        if (key is! String) {
+          throw const FormatException('RFW map keys must be strings');
+        }
+        result[key] = _rewriteValue(
+          entry.value,
+          routes,
+          presentationRoutesByReference,
+          consumed,
+          consumedPresentations,
+          presentation,
+        );
+      }
+      return result;
     }
     if (value is List) {
-      return [
+      return <Object?>[
         for (final item in value)
           _rewriteValue(
             item,

@@ -109,7 +109,7 @@ Future<_MountedBundle> _mountBundle(
             flutterVersion: '3.47.0',
             renderer: 'skwasm',
           ),
-          registerCustomerWidgets: registerRestageWidgets,
+          registerAppWidgets: registerRestageWidgets,
           initialize: (_) {},
         ),
       ),
@@ -157,10 +157,10 @@ void main() {
 
   test('uses the exact canonical PulseBadge blob', () {
     final blob = readDeliveryArtifact('assets/paywalls/pulse_paywall.rfw');
-    expect(blob, hasLength(1393));
+    expect(blob, hasLength(5640));
     expect(
       sha256.convert(blob).toString(),
-      'eff5702d81976903c6bf8ab7236f66a5b95323257187438e7bb8c57c4a0c1482',
+      'ff4abb0b106ff3156294e7d173cdfa8616a484e7b75bba9a5c7ed9bc2e3ebe2c',
     );
     expect(
       decodeLibraryBlob(Uint8List.fromList(blob))

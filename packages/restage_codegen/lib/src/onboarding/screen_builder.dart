@@ -638,6 +638,20 @@ final class OnboardingScreenBuilder implements Builder {
     final text = publication.ownedOutputs['$canonicalRoot.rfwtxt'];
     final blob = publication.artifacts['$canonicalRoot.rfw'];
     final sidecar = publication.artifacts['$canonicalRoot.capability.json'];
+    if (blob == null &&
+        _hasMeasurementScreenVariants(
+          publication.artifacts.keys,
+          canonicalRoot: canonicalRoot,
+        )) {
+      // Measured flow screens have one artifact per presentation context,
+      // leaving no standalone family for this compatibility entrypoint.
+      log.warning(
+        'Standalone canonical screen artifacts are unavailable for '
+        '${selected.id} under Measurement: the aggregate owns one variant '
+        'per presentation context.',
+      );
+      return;
+    }
     if (text == null || blob == null || sidecar == null) {
       _surfaceIssues([
         Issue(
@@ -666,6 +680,17 @@ final class OnboardingScreenBuilder implements Builder {
       ),
     ]);
   }
+}
+
+bool _hasMeasurementScreenVariants(
+  Iterable<String> artifactKeys, {
+  required String canonicalRoot,
+}) {
+  final dir = p.posix.dirname(canonicalRoot);
+  final id = p.posix.basename(canonicalRoot);
+  return artifactKeys.any(
+    (key) => key.startsWith('$dir/measurement/') && key.endsWith('/$id.rfw'),
+  );
 }
 
 bool _hasTopLevelDeclaration(LibraryElement library, String name) {

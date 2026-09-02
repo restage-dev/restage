@@ -10,6 +10,11 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
+/// The generated flow-reference declaration, matched across the line wrap
+/// Measurement introduces by lengthening the constructor.
+final _constFirstRunFlowRef =
+    RegExp(r'const firstRunFlowRef = SurfaceFlowRef<\s*FirstRunResult>');
+
 void main() {
   test('public README documents the current asset-backed flow API', () {
     final readme = _readFlutterSdkReadme();
@@ -519,7 +524,8 @@ final class FirstRunFlow extends RestageFlow {
         // The handle is the subject; the deprecated holder must still forward
         // to it, or a source written against the old spelling breaks silently
         // rather than at its deprecation warning.
-        contains('const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>('),
+        // `const` is the consumer contract and stays pinned.
+        matches(_constFirstRunFlowRef),
         contains("@Deprecated('Use firstRunFlowRef')"),
         contains(
           'static const SurfaceFlowRef<FirstRunResult> ref = firstRunFlowRef;',

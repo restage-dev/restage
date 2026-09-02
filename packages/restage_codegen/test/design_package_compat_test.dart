@@ -30,7 +30,7 @@ void main() {
       );
     });
 
-    test('leaves framework, SDK and customer libraries untouched', () {
+    test('leaves framework, SDK and application libraries untouched', () {
       for (final uri in const [
         'package:flutter/src/material/card.dart',
         'package:flutter/widgets.dart',
@@ -106,6 +106,7 @@ void main() {
       await _expectPaywallRfwText(
         source,
         path: 'lib/paywalls/design.dart',
+        className: 'DesignPaywall',
         matcher: allOf(
           contains('Scaffold('),
           contains('Card('),
@@ -146,6 +147,7 @@ void main() {
       await _expectPaywallRfwText(
         source,
         path: 'lib/paywalls/variant.dart',
+        className: 'VariantPaywall',
         matcher: allOf(
           contains('CardFilled('),
           contains('FilledButtonTonal('),
@@ -175,6 +177,7 @@ void main() {
       await _expectPaywallRfwText(
         source,
         path: 'lib/paywalls/themed.dart',
+        className: 'ThemedPaywall',
         matcher: contains('Scaffold('),
       );
     });
@@ -189,14 +192,32 @@ void main() {
 Future<void> _expectPaywallRfwText(
   String source, {
   required String path,
+  required String className,
   required Matcher matcher,
 }) async {
+  final stem = path.split('/').last.replaceAll('.dart', '');
   final diagnostics = await _buildPaywall(
     {path: source},
-    stem: path.split('/').last.replaceAll('.dart', ''),
+    stem: stem,
     rfwTextMatcher: matcher,
   );
-  expect(diagnostics, isEmpty, reason: 'the surface must build clean');
+  final diagnosticPrefix = 'RestageCodegenBuilder on $path:\n';
+  final declarationDiagnostic = <String>[
+    '${diagnosticPrefix}Measurement is unavailable for ',
+    'package:apps_examples/paywalls/$stem.dart#$className: ',
+    'Invalid argument(s): A non-Flutter widget occurrence must resolve ',
+    'to the real @RestageWidget marker. The surface compiles unmeasured.',
+  ].join();
+  final artifactDiagnostic = <String>[
+    '${diagnosticPrefix}Measurement is unavailable for paywall/$stem: ',
+    'no resolved source for assets/paywalls/$stem.rfw. ',
+    'The surface compiles unmeasured.',
+  ].join();
+  expect(
+    diagnostics,
+    <String>[declarationDiagnostic, artifactDiagnostic],
+    reason: 'the surface must build clean',
+  );
 }
 
 /// Builds [sources] through the real paywall builder, asserting the emitted

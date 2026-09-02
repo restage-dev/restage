@@ -1,4 +1,4 @@
-// Internal build-owned Measurement documents are consumed through builders.
+// Build-owned Measurement documents are consumed through builders.
 // ignore_for_file: public_member_api_docs
 
 import 'dart:convert';
@@ -26,7 +26,18 @@ const String kRestageMeasurementCompilerLedgerSourcePath =
 const String kRestageMeasurementOutputIndexFileName =
     'restage.measurement.index.json';
 
-/// Builder option names for the immutable Measurement policy input.
+/// The manifest privacy policy revision this compiler stamps.
+const String kMeasurementDefaultPrivacyPolicyRevisionId =
+    'restage.manifest-privacy.v1';
+
+/// The collection budget revision this compiler stamps.
+const String kMeasurementDefaultCollectionBudgetRevisionId =
+    'restage.collection-budget.v1';
+
+/// The Measurement client revision floor this compiler stamps.
+const int kMeasurementDefaultMinimumClient = 1;
+
+/// Builder option names that override the stamped Measurement policy.
 const String kMeasurementMinimumClientOption = 'measurement_minimum_client';
 const String kMeasurementPrivacyPolicyRevisionOption =
     'measurement_privacy_policy_revision_id';
@@ -67,18 +78,18 @@ final class MeasurementCompilerPolicyInput {
     );
   }
 
-  /// Parses an all-or-nothing policy from merged builder options.
-  static MeasurementCompilerPolicyInput? fromBuilderOptions(
+  /// Resolves the stamped policy, which the options override all-or-nothing.
+  factory MeasurementCompilerPolicyInput.fromBuilderOptions(
     BuilderOptions options,
   ) {
     final config = options.config;
-    final values = <Object?>[
-      config[kMeasurementMinimumClientOption],
-      config[kMeasurementPrivacyPolicyRevisionOption],
-      config[kMeasurementCollectionBudgetRevisionOption],
-    ];
-    if (values.every((value) => value == null)) return null;
-    if (values.any((value) => value == null)) {
+    final minimumClient = config[kMeasurementMinimumClientOption];
+    final privacy = config[kMeasurementPrivacyPolicyRevisionOption];
+    final budget = config[kMeasurementCollectionBudgetRevisionOption];
+    if (minimumClient == null && privacy == null && budget == null) {
+      return shippedDefault;
+    }
+    if (minimumClient == null || privacy == null || budget == null) {
       throw const FormatException(
         'Measurement policy options are all-or-nothing: '
         '$kMeasurementMinimumClientOption, '
@@ -86,14 +97,11 @@ final class MeasurementCompilerPolicyInput {
         '$kMeasurementCollectionBudgetRevisionOption are required together.',
       );
     }
-    final minimumClient = values[0];
     if (minimumClient is! int || minimumClient <= 0) {
       throw const FormatException(
         '$kMeasurementMinimumClientOption must be a positive integer.',
       );
     }
-    final privacy = values[1];
-    final budget = values[2];
     if (privacy is! String || privacy.isEmpty) {
       throw const FormatException(
         '$kMeasurementPrivacyPolicyRevisionOption must be a non-empty '
@@ -112,6 +120,18 @@ final class MeasurementCompilerPolicyInput {
       collectionBudgetRevisionId: AuthorityRevisionId(budget),
     );
   }
+
+  /// The policy stamped when the build names none.
+  static final MeasurementCompilerPolicyInput shippedDefault =
+      MeasurementCompilerPolicyInput(
+    minimumMeasurementClient: kMeasurementDefaultMinimumClient,
+    privacyPolicyRevisionId: AuthorityRevisionId(
+      kMeasurementDefaultPrivacyPolicyRevisionId,
+    ),
+    collectionBudgetRevisionId: AuthorityRevisionId(
+      kMeasurementDefaultCollectionBudgetRevisionId,
+    ),
+  );
 
   final int minimumMeasurementClient;
   final AuthorityRevisionId privacyPolicyRevisionId;

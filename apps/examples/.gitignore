@@ -56,6 +56,10 @@ app.*.map.json
 # source the analyzer and the compiler read.
 restage.outputs.json
 restage.publication.json
+restage.measurement.compiler.json
+restage.analytics-id.control.json
+restage.measurement.index.json
+restage.analytics-id.metadata.json
 restage_a2ui_catalog.a2ui.json
 surface_publication.compiler.json
 assets/restage/source-index.json

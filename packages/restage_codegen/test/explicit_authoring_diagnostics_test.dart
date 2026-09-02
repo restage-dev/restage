@@ -131,6 +131,42 @@ void main() {
       isTrue,
       reason: 'identity/new emitted no canonical flow artifact',
     );
+
+    // The Measurement boundary is loud, owned by the aggregate, and narrow.
+    final buildLog = _logs[result] ?? '';
+    // The aggregate owns them instead — packed into its own containers, so
+    // the index is where their existence is visible.
+    final measurementIndex = result.readerWriter.testing.readString(
+      AssetId('apps_examples', 'lib/generated/restage.measurement.index.json'),
+    );
+    for (final id in ['derived_notice', 'stable_notice']) {
+      expect(
+        buildLog,
+        contains(
+          'Standalone canonical screen artifacts are unavailable for $id',
+        ),
+        reason: 'the boundary must announce itself, not skip silently',
+      );
+      expect(
+        measurementIndex,
+        contains('"slug":"$id"'),
+        reason: '$id must still have aggregate-owned Measurement artifacts',
+      );
+    }
+    for (final path in [
+      'assets/general/screens/derived_notice.rfw',
+      'assets/message/screens/stable_notice.rfw',
+    ]) {
+      expect(outputs.keys, isNot(contains(path)));
+    }
+    // The skip is scoped to flow-referenced screens: a colocated screen the
+    // aggregate does not own per context keeps its standalone family.
+    expect(
+      outputs.keys.any(
+        (path) => path.startsWith('assets/general/screens/colocated.'),
+      ),
+      isTrue,
+    );
   });
 
   test('composes a paywall into a general flow without a category fence',
@@ -196,6 +232,7 @@ Future<TestBuilderResult> _compileScenario(String scenario) async {
       // Produces the compiler handoff the generated-Dart builder reads;
       // without it that builder silently emits nothing.
       restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      restageOutputsBuilder(BuilderOptions.empty),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ],
     sources,

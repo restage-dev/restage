@@ -365,7 +365,8 @@ final class PackageSurfaceCompilationBundle {
   }) {
     if (!measurementPresentationMaterializations.contains(materialization)) {
       throw ArgumentError(
-        'The presentation materialization does not belong to this package output',
+        'The presentation materialization does not belong to this package '
+        'output',
       );
     }
     return materialization.requireFinalizedPresentationReferenceForHandle(
@@ -1650,6 +1651,11 @@ PackageSurfaceCompilationResult compilePackageSurfacePublications(
         aggregateOwnedOutputPaths.remove(path);
         artifactLibraryPaths.remove(path);
       }
+      for (final path in finalized.reconciledUnmeasuredOutputPaths) {
+        outputFiles.remove(path);
+        aggregateOwnedOutputPaths.remove(path);
+        artifactLibraryPaths.remove(path);
+      }
       for (final artifact in finalized.artifacts) {
         _putOutputFile(
           outputFiles,
@@ -2625,8 +2631,6 @@ String? _emitCompatibilityScreenDescriptor({
     );
     return null;
   }
-  final declarationKeyword =
-      measurementPublicationDraftDigest == null ? 'const' : 'final';
   final referenceConstructor = measurementPublicationDraftDigest == null
       ? '${sdkPrefix}NeutralFlowScreenRef'
       : '${sdkPrefix}NeutralFlowScreenRef'
@@ -2639,7 +2643,7 @@ String? _emitCompatibilityScreenDescriptor({
 abstract final class $descriptor {
   const $descriptor._();
 
-  static $declarationKeyword ${sdkPrefix}NeutralFlowScreenRef ref =
+  static const ${sdkPrefix}NeutralFlowScreenRef ref =
       $referenceConstructor(
     id: ${_dartSingleString(id)},
     artifactPath: ${_dartSingleString(artifactPath)},
@@ -2663,8 +2667,6 @@ String? _emitFlowReference({
   String? measurementPublicationDraftDigest,
 }) {
   final support = _emitCanonicalActions(resultName, graph.actions, sdkPrefix);
-  final declarationKeyword =
-      measurementPublicationDraftDigest == null ? 'const' : 'final';
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
           ? '${sdkPrefix}SurfaceFlowRef<$resultType>'
@@ -2676,7 +2678,7 @@ String? _emitFlowReference({
           '${_dartSingleString(measurementPublicationDraftDigest)},\n';
   if (flow.delivery == FlowDeliveryMode.general) {
     return '''
-$declarationKeyword $refName = ${referenceConstructor('Map<String, Object?>')}(
+const $refName = ${referenceConstructor('Map<String, Object?>')}(
   id: ${_dartSingleString(flow.id)},
   version: ${flow.version},
   minClient: ${graph.minClient},
@@ -2711,7 +2713,7 @@ $support''';
   );
   final result = _emitTypedResultClass(resultName, fields);
   return '''
-$declarationKeyword $refName = ${referenceConstructor(resultName)}(
+const $refName = ${referenceConstructor(resultName)}(
   id: ${_dartSingleString(flow.id)},
   version: ${flow.version},
   minClient: ${graph.minClient},
@@ -3018,6 +3020,8 @@ ResolvedStandaloneScreenContract? _refreshStandaloneContractBundleMetadata(
         blobByteLength: blob.length,
         sidecarSha256: CapabilitySidecar.hashBlob(sidecar),
         sidecarByteLength: sidecar.length,
+        blobPath: blobs.single.path,
+        sidecarPath: sidecars.single.path,
       ),
     ),
   );
@@ -3181,16 +3185,31 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
   }
   final finalizedInputs = <SurfacePublicationAssemblyInput>[];
   final finalizedArtifacts = <_FinalizedMeasurementArtifact>[];
+  final reconciledUnmeasuredOutputPaths = <String>{};
   final publications = <MeasurementCompilerPublication>[];
   final presentationMaterializations =
       <MeasurementRfwPresentationArtifactMaterialization>[];
   final claimedPlans = <String>{};
+  final staged = <_StagedMeasurementPublication>[];
 
   for (final input in inputs) {
     final selector = _measurementSelectorForAssembly(input);
     final routePlan = routePlansByPublicationKey[selector.key];
     if (routePlan == null) {
-      finalizedInputs.add(input);
+      // An unmeasured publication still takes part in hash reconciliation: it
+      // can be the child a measured parent records, or the parent of one.
+      staged.add(
+        _StagedMeasurementPublication(
+          input: input,
+          selector: selector,
+          routePlan: null,
+          bytesBySlot: {
+            for (final artifact in input.artifacts)
+              _measurementArtifactSlot(artifact.role, artifact.id):
+                  Uint8List.fromList(artifact.bytes),
+          },
+        ),
+      );
       continue;
     }
     claimedPlans.add(selector.key);
@@ -3216,7 +3235,8 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       final source = sourcesByOutputPath[entry.value.path];
       if (source == null) {
         throw FormatException(
-          'Measurement artifact ${entry.value.path} has no roster source owner.',
+          'Measurement artifact ${entry.value.path} has no roster source '
+          'owner.',
         );
       }
       final artifactId = measurementArtifactIdForPublicationArtifactV1(
@@ -3314,17 +3334,27 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       final flow = FlowDocumentCodec.decodeJson(utf8.decode(flowBytes));
       final screenArtifacts = <String, ScreenArtifact>{};
       for (final entry in flow.screenArtifacts.entries) {
-        final blob = finalBytesBySlot[_measurementArtifactSlot(
+        final blobSlot = _measurementArtifactSlot(
           SurfacePublicationArtifactRole.screenBlob,
           entry.key,
-        )];
-        if (blob == null) {
+        );
+        final blob = finalBytesBySlot[blobSlot];
+        final claimed = bySlot[blobSlot];
+        if (blob == null || claimed == null) {
           throw FormatException(
             'Measured flow screen ${entry.key} has no exact final blob.',
           );
         }
         screenArtifacts[entry.key] = ScreenArtifact(
-          path: entry.value.path,
+          // Keep the document's location aligned with a publication-owned
+          // blob path.
+          path: _measurementFlowScreenLocation(
+            recorded: entry.value.path,
+            claimed: claimed.path,
+            relocated: pathClaims[claimed.path]! > 1
+                ? _measurementPublicationOwnedPath(claimed.path, selector)
+                : claimed.path,
+          ),
           version: entry.value.version,
           schemaVersion: entry.value.schemaVersion,
           minClient: entry.value.minClient,
@@ -3338,6 +3368,67 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       );
     }
 
+    staged.add(
+      _StagedMeasurementPublication(
+        input: input,
+        selector: selector,
+        routePlan: routePlan,
+        bytesBySlot: finalBytesBySlot,
+      ),
+    );
+  }
+
+  // Reconcile parent hashes before drafts are computed from final bytes.
+  _reconcileSubFlowContentHashes(staged);
+
+  for (final stage in staged) {
+    final input = stage.input;
+    final selector = stage.selector;
+    final routePlan = stage.routePlan;
+    final finalBytesBySlot = stage.bytesBySlot;
+    if (routePlan == null) {
+      final finalArtifacts = <SurfacePublicationArtifactInput>[];
+      for (final artifact in input.artifacts) {
+        final slot = _measurementArtifactSlot(artifact.role, artifact.id);
+        final bytes = finalBytesBySlot[slot]!;
+        finalArtifacts.add(
+          SurfacePublicationArtifactInput(
+            path: artifact.path,
+            role: artifact.role,
+            id: artifact.id,
+            bytes: bytes,
+          ),
+        );
+        if (_sameBytes(artifact.bytes, bytes)) continue;
+        final source = sourcesByOutputPath[artifact.path];
+        if (source == null) {
+          throw FormatException(
+            'Reconciled artifact ${artifact.path} has no roster source owner.',
+          );
+        }
+        finalizedArtifacts.add(
+          _FinalizedMeasurementArtifact(
+            path: artifact.path,
+            bytes: bytes,
+            source: source,
+          ),
+        );
+        reconciledUnmeasuredOutputPaths.add(artifact.path);
+      }
+      finalizedInputs.add(
+        SurfacePublicationAssemblyInput(
+          surface: input.surface,
+          slug: input.slug,
+          sourceKind: input.sourceKind,
+          payloadKind: input.payloadKind,
+          artifacts: finalArtifacts,
+          sources: input.sources,
+          flowFacts: input.flowFacts,
+          screenContractFacts: input.screenContractFacts,
+        ),
+      );
+      continue;
+    }
     final finalArtifacts = <SurfacePublicationArtifactInput>[];
     final draftArtifacts = <MeasurementPublicationDraftArtifactV1>[];
     for (final artifact in input.artifacts) {
@@ -3409,6 +3500,8 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
         sourceKind: input.sourceKind,
         payloadKind: input.payloadKind,
         artifacts: finalArtifacts,
+        // Artifact rewrites do not change the publication's source files.
+        sources: input.sources,
         flowFacts: input.flowFacts,
         screenContractFacts: input.screenContractFacts,
       ),
@@ -3445,9 +3538,12 @@ _FinalizedMeasurementAssemblies _finalizeMeasurementAssemblies({
       '$unclaimedPresentationPlans',
     );
   }
+  final reconciledOutputPaths = reconciledUnmeasuredOutputPaths.toList()
+    ..sort();
   return _FinalizedMeasurementAssemblies(
     inputs: finalizedInputs,
     artifacts: finalizedArtifacts,
+    reconciledUnmeasuredOutputPaths: reconciledOutputPaths,
     publications: publications,
     presentationMaterializations: presentationMaterializations,
   );
@@ -3502,16 +3598,121 @@ String _measurementPublicationOwnedPath(
   );
 }
 
+/// Re-roots a flow document's relative screen location onto its emitted blob.
+String _measurementFlowScreenLocation({
+  required String recorded,
+  required String claimed,
+  required String relocated,
+}) {
+  if (!claimed.endsWith(recorded)) {
+    throw FormatException(
+      'Measured flow screen location "$recorded" is not a suffix of its '
+      'emitted artifact "$claimed".',
+    );
+  }
+  return relocated.substring(claimed.length - recorded.length);
+}
+
+/// One publication whose artifact bytes are settled but not yet emitted.
+final class _StagedMeasurementPublication {
+  _StagedMeasurementPublication({
+    required this.input,
+    required this.selector,
+    required this.routePlan,
+    required this.bytesBySlot,
+  });
+
+  final SurfacePublicationAssemblyInput input;
+  final MeasurementPublicationSelectorV1 selector;
+  final MeasurementPublicationRoutePlanV1? routePlan;
+  final Map<String, Uint8List> bytesBySlot;
+}
+
+/// Rebinds sub-flow references to the child documents actually emitted.
+void _reconcileSubFlowContentHashes(
+  List<_StagedMeasurementPublication> staged,
+) {
+  final documentSlot = _measurementArtifactSlot(
+    SurfacePublicationArtifactRole.flowDocument,
+    null,
+  );
+  final flowsByIdentity = <String, _StagedMeasurementPublication>{};
+  for (final stage in staged) {
+    if (stage.input.payloadKind != SurfacePayloadKind.flow) continue;
+    flowsByIdentity['${stage.input.surface.wireName}/${stage.input.slug}'] =
+        stage;
+  }
+  if (flowsByIdentity.isEmpty) return;
+  // Rewriting a child moves its own bytes, which moves whatever records it,
+  // so this sweeps to a fixpoint. The graph is acyclic, making one sweep per
+  // flow the ceiling; exceeding it signals a bug in this reconciliation.
+  for (var sweep = 0; sweep <= flowsByIdentity.length; sweep += 1) {
+    var moved = false;
+    for (final stage in flowsByIdentity.values) {
+      final bytes = stage.bytesBySlot[documentSlot];
+      if (bytes == null) continue;
+      final document = FlowDocumentCodec.decodeJson(utf8.decode(bytes));
+      final states = <String, FlowState>{...document.states};
+      var changed = false;
+      for (final entry in document.states.entries) {
+        final state = entry.value;
+        if (state is! SubFlowState) continue;
+        final identity = '${stage.input.surface.wireName}/${state.flow}';
+        final child = flowsByIdentity[identity];
+        if (child == null) {
+          // Only a document in this set is rewritten here, so a child from
+          // outside it still matches the hash the parent recorded.
+          continue;
+        }
+        final childBytes = child.bytesBySlot[documentSlot];
+        if (childBytes == null) {
+          throw FormatException(
+            'Measurement finalization has no exact child flow document for '
+            '$identity.',
+          );
+        }
+        final emitted = FlowContentHash.compute(childBytes);
+        if (emitted == state.contentHash) continue;
+        changed = true;
+        states[entry.key] = SubFlowState(
+          flow: state.flow,
+          version: state.version,
+          schemaVersion: state.schemaVersion,
+          minClient: state.minClient,
+          contentHash: emitted,
+          input: state.input,
+          onComplete: state.onComplete,
+          defaultBranch: state.defaultBranch,
+          subFlowUnavailable: state.subFlowUnavailable,
+        );
+      }
+      if (!changed) continue;
+      stage.bytesBySlot[documentSlot] = Uint8List.fromList(
+        FlowDocumentCodec.encodeCanonicalJson(
+          document.copyWith(states: states),
+        ),
+      );
+      moved = true;
+    }
+    if (!moved) return;
+  }
+  throw const FormatException(
+    'Measurement sub-flow hash reconciliation did not reach a fixpoint.',
+  );
+}
+
 final class _FinalizedMeasurementAssemblies {
   const _FinalizedMeasurementAssemblies({
     required this.inputs,
     required this.artifacts,
+    required this.reconciledUnmeasuredOutputPaths,
     required this.publications,
     required this.presentationMaterializations,
   });
 
   final List<SurfacePublicationAssemblyInput> inputs;
   final List<_FinalizedMeasurementArtifact> artifacts;
+  final List<String> reconciledUnmeasuredOutputPaths;
   final List<MeasurementCompilerPublication> publications;
   final List<MeasurementRfwPresentationArtifactMaterialization>
       presentationMaterializations;

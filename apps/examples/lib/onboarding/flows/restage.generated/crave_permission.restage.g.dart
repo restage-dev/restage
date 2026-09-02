@@ -1,12 +1,15 @@
 part of '../crave_permission.dart';
 
-const cravePermissionFlowRef = SurfaceFlowRef<CravePermissionResult>(
+const cravePermissionFlowRef = SurfaceFlowRef<
+    CravePermissionResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'crave_permission',
   version: 1,
   minClient: 1,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeCravePermissionFlowResult,
+  measurementPublicationDraftDigest:
+      '8b05dd57da096455d11ed4c194c46e40680eed74a140f95e22d819b707b7cf3c',
 );
 
 CravePermissionResult _decodeCravePermissionFlowResult(

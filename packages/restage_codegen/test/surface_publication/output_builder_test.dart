@@ -80,7 +80,15 @@ const launch = FlowDefinition(
       ),
     );
     expect(compilerControl.packageName, 'apps_examples');
-    expect(compilerControl.publications, isEmpty);
+    // Measurement is stamped by default, so the compiler emits one
+    // analytics-id control scope per measured surface.
+    expect(
+      compilerControl.publications
+          .map((publication) => publication.scope.selector.slug)
+          .toList()
+        ..sort(),
+      orderedEquals(<String>['announcement', 'launch']),
+    );
 
     final outputsResult = await testBuilder(
       RestageOutputsBuilder(BuilderOptions.empty),
@@ -111,13 +119,13 @@ const launch = FlowDefinition(
       announcementBundle.authoredLibraryPath,
       'lib/features/announcement.dart',
     );
-    expect(
+    expectArtifactsFor(
       announcementBundle.entries.map((entry) => entry.logicalPath),
-      containsAll(<String>[
+      <String>[
         'assets/general/screens/announcement.rfw',
         'assets/general/screens/announcement.capability.json',
         'assets/general/screens/announcement.rfwtxt',
-      ]),
+      ],
     );
     final rfwTextEntry = announcementBundle.entries.singleWhere(
       (entry) =>
@@ -198,8 +206,16 @@ const launch = FlowDefinition(
       for (final entry in indexEntries.cast<Map<String, Object?>>())
         entry['path']! as String: entry,
     };
+    final announcementBlobPath = manifest.publications
+        .singleWhere((entry) => entry.publication.slug == 'announcement')
+        .artifacts
+        .singleWhere(
+          (artifact) =>
+              artifact.role == SurfacePublicationArtifactRole.screenBlob,
+        )
+        .path;
     expect(
-      byPath['assets/general/screens/announcement.rfw']!['bundle'],
+      byPath[announcementBlobPath]!['bundle'],
       'lib/features/restage.generated/announcement.rsbundle',
     );
     // The index is an exact bijection with the manifest's own artifact

@@ -85,8 +85,8 @@ final class TrackedPackageSurfaceCompilation {
 Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
   BuildStep buildStep, {
   required String builderKey,
+  required MeasurementCompilerPolicyInput measurementPolicy,
   RestageOutputPlacementPlan? plan,
-  MeasurementCompilerPolicyInput? measurementPolicy,
 }) async {
   final cache = await buildStep.fetchResource(_trackedCompilationResource);
   return cache.get(
@@ -100,7 +100,7 @@ Future<TrackedPackageSurfaceCompilation> compileTrackedPackageSurfaces(
 Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   BuildStep buildStep,
   RestageOutputPlacementPlan plan,
-  MeasurementCompilerPolicyInput? measurementPolicy,
+  MeasurementCompilerPolicyInput measurementPolicy,
 ) async {
   final issues = <Issue>[];
   // One selection, shared with the roster below: this compiler and the roster
@@ -541,30 +541,6 @@ Future<TrackedPackageSurfaceCompilation> _compileTrackedPackageSurfaces(
   if (issues.isNotEmpty || provisionalBundle == null) {
     return _invalidCompilation(issues);
   }
-  if (measurementPolicy == null) {
-    final measurementCompilerOutput =
-        RestageMeasurementCompilerOutputV1.empty();
-    if (provisionalAnalyticsIdControlCaptures.isNotEmpty) {
-      issues.add(
-        Issue(
-          code: IssueCode.invalidAnalyticsId,
-          message: 'analyticsId requires a finalized Measurement presentation '
-              'witness.',
-          location: buildStep.inputId.path,
-        ),
-      );
-    }
-    if (issues.isNotEmpty) return _invalidCompilation(issues);
-    return _validCompilation(
-      provisionalBundle,
-      measurementCompilerOutput,
-      buildEmptyAnalyticsIdControlOutput(
-        packageName: buildStep.inputId.package,
-        scopes: _analyticsIdControlScopes(measurementCompilerOutput),
-      ),
-    );
-  }
-
   final priorMeasurementOutput = await _readPriorMeasurementOutput(
     buildStep,
     issues,
@@ -983,12 +959,14 @@ final Resource<_TrackedCompilationCache> _trackedCompilationResource =
     Resource<_TrackedCompilationCache>(_TrackedCompilationCache.new);
 
 final class _TrackedCompilationCache {
-  final Map<String, Future<TrackedPackageSurfaceCompilation>> _byKey = {};
+  final Map<String, Future<TrackedPackageSurfaceCompilation>> _byPackage = {};
+  final Map<String, ({String cacheKey, String builderKey})>
+      _measurementPolicyByPackage = {};
 
   Future<TrackedPackageSurfaceCompilation> get(
     BuildStep buildStep,
     RestageOutputPlacementPlan plan,
-    MeasurementCompilerPolicyInput? measurementPolicy, {
+    MeasurementCompilerPolicyInput measurementPolicy, {
     required String builderKey,
   }) async {
     await registerRestagePlacementSignature(
@@ -996,14 +974,27 @@ final class _TrackedCompilationCache {
       plan,
       builderKey: builderKey,
     );
-    // Keyed by package AND measurement policy: builders in one package share a
-    // compilation, but only when they asked for the same policy. The builder
-    // key names who disagreed about placement and is deliberately NOT part of
-    // this key — sharing across builders is what the memo is for.
-    final key = '${buildStep.inputId.package}\u0000'
-        '${measurementPolicy?.cacheKey ?? '<measurement-disabled>'}';
-    return _byKey.putIfAbsent(
-      key,
+    final package = buildStep.inputId.package;
+    final policyKey = measurementPolicy.cacheKey;
+    final registeredPolicy = _measurementPolicyByPackage.putIfAbsent(
+      package,
+      () => (cacheKey: policyKey, builderKey: builderKey),
+    );
+    if (registeredPolicy.cacheKey != policyKey) {
+      return _invalidCompilation([
+        Issue(
+          code: IssueCode.conflictingTargetConfig,
+          message: 'Measurement policy options conflict for package $package: '
+              '${registeredPolicy.builderKey} resolved '
+              '[${registeredPolicy.cacheKey}] while '
+              '$builderKey resolved [$policyKey]. Every Restage builder key '
+              'for a package must carry identical Measurement policy options.',
+          location: package,
+        ),
+      ]);
+    }
+    return _byPackage.putIfAbsent(
+      package,
       () => _compileTrackedPackageSurfaces(
         buildStep,
         plan,
@@ -1013,13 +1004,23 @@ final class _TrackedCompilationCache {
   }
 }
 
+typedef MeasurementCompilerLedgerWriter = Future<void> Function({
+  required String package,
+  required RestageMeasurementCompilerOutputV1 output,
+});
+
 /// Fixed aggregate builder consumed by the outputs builder, which owns bundle
 /// and artifact placement.
 @internal
 final class PackageSurfaceCompilerBuilder implements Builder {
-  const PackageSurfaceCompilerBuilder(this.options);
+  const PackageSurfaceCompilerBuilder(
+    this.options, {
+    MeasurementCompilerLedgerWriter ledgerWriter =
+        _persistMeasurementCompilerLedgerSource,
+  }) : _ledgerWriter = ledgerWriter;
 
   final BuilderOptions options;
+  final MeasurementCompilerLedgerWriter _ledgerWriter;
 
   @override
   Map<String, List<String>> get buildExtensions => const {
@@ -1045,7 +1046,7 @@ final class PackageSurfaceCompilerBuilder implements Builder {
     }
     if (compilation.isValid &&
         compilation.measurementCompilerOutput.policy != null) {
-      await _persistMeasurementCompilerLedgerSource(
+      await _ledgerWriter(
         package: buildStep.inputId.package,
         output: compilation.measurementCompilerOutput,
       );
@@ -1094,7 +1095,7 @@ Future<RestageMeasurementCompilerOutputV1?> _readPriorMeasurementOutput(
     if (!output.valid) {
       throw const FormatException(
         'The committed Measurement ledger source must be a valid compiler '
-        'state. Review its proposals without replacing the last valid state.',
+        'state. Resolve its proposals without replacing the last valid state.',
       );
     }
     return output;
@@ -1123,7 +1124,18 @@ Future<void> _persistMeasurementCompilerLedgerSource({
   final file = File.fromUri(
     root.resolve(kRestageMeasurementCompilerLedgerSourcePath),
   );
-  final bytes = output.canonicalBytes;
+  writeMeasurementCompilerLedgerSource(
+    file: file,
+    bytes: output.canonicalBytes,
+  );
+}
+
+@visibleForTesting
+void writeMeasurementCompilerLedgerSource({
+  required File file,
+  required List<int> bytes,
+  int? processId,
+}) {
   if (file.existsSync()) {
     final existing = file.readAsBytesSync();
     if (existing.length == bytes.length &&
@@ -1132,7 +1144,7 @@ Future<void> _persistMeasurementCompilerLedgerSource({
     }
   }
   file.parent.createSync(recursive: true);
-  final temporary = File('$file.path.tmp.$pid');
+  final temporary = File('${file.path}.tmp.${processId ?? pid}');
   try {
     temporary
       ..writeAsBytesSync(bytes, flush: true)
@@ -1159,13 +1171,10 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
     final discovery = MeasurementSourceDiscovery.discover(input);
     if (discovery.disposition !=
         MeasurementSourceDiscoveryDisposition.accepted) {
-      issues.add(
-        Issue(
-          code: IssueCode.annotationEvaluationFailed,
-          message: 'Measurement source discovery rejected '
-              '$declarationIdentity: ${discovery.rejectionReason}',
-          location: declarationIdentity,
-        ),
+      // Omitting the whole surface preserves its unmeasured output.
+      log.warning(
+        'Measurement is unavailable for $declarationIdentity: '
+        '${discovery.rejectionReason}. The surface compiles unmeasured.',
       );
       return;
     }
@@ -1379,6 +1388,14 @@ Map<String, fmt.ResolvedRfwCatalogOccurrenceSet>
   return Map.unmodifiable(result);
 }
 
+/// Output roles that can appear as a screen-blob publication artifact.
+const _measurementScreenBlobOutputRoles = <String>{
+  'screen-blob',
+  'binary',
+  'flow-screen-blob',
+  'flow-screen-binary',
+};
+
 List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   SurfacePublicationManifest manifest, {
   required RestageSourceRoster roster,
@@ -1394,7 +1411,10 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
         source.kind == RestageRosterSourceKind.screen ||
         source.kind == RestageRosterSourceKind.paywall,
   )) {
-    for (final output in source.outputs) {
+    // Other outputs can share a generated part and are never looked up here.
+    for (final output in source.outputs.where(
+      (output) => _measurementScreenBlobOutputRoles.contains(output.role),
+    )) {
       final previous = sourcesByOutputPath[output.path];
       if (previous != null &&
           previous.declarationIdentity != source.declarationIdentity) {
@@ -1414,6 +1434,7 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
   final result = <MeasurementPublicationPlanningInput>[];
   for (final entry in manifest.publications) {
     final sourceArtifacts = <MeasurementPublicationSourceArtifact>[];
+    var unresolved = '';
     for (final artifact in entry.artifacts.where(
       (artifact) => artifact.role == SurfacePublicationArtifactRole.screenBlob,
     )) {
@@ -1424,17 +1445,8 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
       final occurrenceSet =
           rfwCatalogOccurrenceSetsByArtifactPath[artifact.path];
       if (source == null || discovery == null || occurrenceSet == null) {
-        issues.add(
-          Issue(
-            code: IssueCode.missingScreenDescriptor,
-            message: 'Measurement publication '
-                '${entry.publication.surface.wireName}/'
-                '${entry.publication.slug} cannot reconcile screen artifact '
-                '${artifact.path} to one discovered source.',
-            location: artifact.path,
-          ),
-        );
-        continue;
+        unresolved = artifact.path;
+        break;
       }
       sourceArtifacts.add(
         MeasurementPublicationSourceArtifact(
@@ -1448,13 +1460,15 @@ List<MeasurementPublicationPlanningInput> _measurementPlanningInputs(
         ),
       );
     }
-    if (sourceArtifacts.length !=
-        entry.artifacts
-            .where(
-              (artifact) =>
-                  artifact.role == SurfacePublicationArtifactRole.screenBlob,
-            )
-            .length) {
+    if (unresolved.isNotEmpty) {
+      // Whole surface or none: partial carriers would misreport the analytics
+      // Measurement exists to feed.
+      log.warning(
+        'Measurement is unavailable for '
+        '${entry.publication.surface.wireName}/${entry.publication.slug}: '
+        'no resolved source for $unresolved. '
+        'The surface compiles unmeasured.',
+      );
       continue;
     }
     result.add(

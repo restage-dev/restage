@@ -97,7 +97,7 @@ abstract final class MeasurementPublicationPlanner {
   static MeasurementPublicationPlanningResult plan({
     required Iterable<MeasurementPublicationPlanningInput> publications,
     required RestageMeasurementCompilerOutputV1 priorOutput,
-    required MeasurementCompilerPolicyInput? policy,
+    required MeasurementCompilerPolicyInput policy,
   }) {
     final orderedPublications = publications.toList()
       ..sort((left, right) => left.selector.key.compareTo(right.selector.key));
@@ -110,7 +110,7 @@ abstract final class MeasurementPublicationPlanner {
     final plans = <String, MeasurementPublicationRoutePlanV1>{};
     final presentationPlans =
         <String, MeasurementRfwPresentationPublicationPlan>{};
-    if (errors.isEmpty && policy != null) {
+    if (errors.isEmpty) {
       for (final publication in orderedPublications) {
         try {
           final plan = _routePlan(

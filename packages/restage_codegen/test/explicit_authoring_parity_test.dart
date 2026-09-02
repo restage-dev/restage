@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
@@ -7,8 +8,10 @@ import 'package:glob/glob.dart';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -40,13 +43,52 @@ void main() {
         final oldCanonical = _canonicalArtifacts(oldOutputs);
         final newCanonical = _canonicalArtifacts(newOutputs);
         expect(newCanonical.keys, orderedEquals(oldCanonical.keys));
+
+        // The deprecated fixtures have no resolved Measurement source, so
+        // their blobs remain unmeasured while all other bytes stay exact.
+        var sawMeasuredBlob = false;
+        final measurementBlobPaths = <String>{};
+        for (final path in oldCanonical.keys) {
+          if (path.endsWith('.rfw')) {
+            expect(
+              _measurementSegments(oldCanonical[path]!),
+              isEmpty,
+              reason: 'unresolved deprecated fixture must carry no Measurement '
+                  'at $path',
+            );
+            if (_measurementSegments(newCanonical[path]!).isNotEmpty) {
+              sawMeasuredBlob = true;
+              if (newCanonical[path] != oldCanonical[path]) {
+                measurementBlobPaths.add(path);
+              }
+            }
+          }
+        }
+        final normalization = _MeasurementParityNormalization(
+          oldArtifacts: oldCanonical,
+          newArtifacts: newCanonical,
+          measurementBlobPaths: measurementBlobPaths,
+        );
         for (final path in oldCanonical.keys) {
           expect(
-            newCanonical[path],
-            oldCanonical[path],
+            normalization.artifact(
+              path,
+              newCanonical[path]!,
+              newAuthoring: true,
+            ),
+            normalization.artifact(
+              path,
+              oldCanonical[path]!,
+              newAuthoring: false,
+            ),
             reason: 'canonical artifact drift at $path',
           );
         }
+        expect(
+          sawMeasuredBlob,
+          isTrue,
+          reason: 'canonical authoring must carry Measurement somewhere',
+        );
 
         final oldDescriptors = _descriptorArtifacts(oldOutputs);
         final newDescriptors = _descriptorArtifacts(newOutputs);
@@ -235,5 +277,322 @@ void _expectFlowDocumentsAgree(
       newDocument.screenArtifacts.keys,
       orderedEquals(oldDocument.screenArtifacts.keys),
     );
+  }
+}
+
+/// The Measurement constructor names an artifact may carry.
+const _measurementPresentationConstructors = <String>{
+  'MeasurementPresented',
+  'MeasurementSourcePresented',
+};
+
+/// Measurement presentation constructors found in an encoded RFW blob.
+List<String> _measurementSegments(String base64Blob) {
+  final library = fmt.decodeLibraryBlob(
+    Uint8List.fromList(base64Decode(base64Blob)),
+  );
+  final found = <String>[];
+  void visit(Object? node) {
+    switch (node) {
+      case final fmt.ConstructorCall call:
+        if (_measurementPresentationConstructors.contains(call.name)) {
+          found.add(call.name);
+        }
+        visit(call.arguments);
+      case final fmt.EventHandler handler:
+        visit(handler.eventArguments);
+      case final fmt.WidgetBuilderDeclaration builder:
+        visit(builder.widget);
+      case final fmt.Loop loop:
+        visit(loop.input);
+        visit(loop.output);
+      case final fmt.Switch node:
+        visit(node.input);
+        node.outputs.values.forEach(visit);
+      case final Map<Object?, Object?> map:
+        map.values.forEach(visit);
+      case final List<Object?> list:
+        list.forEach(visit);
+      default:
+        break;
+    }
+  }
+
+  for (final widget in library.widgets) {
+    visit(widget.initialState);
+    visit(widget.root);
+  }
+  return found;
+}
+
+const _measurementDerivedHash = '<measurement-derived-hash>';
+const _comparisonJson = JsonEncoder.withIndent('  ');
+
+final class _MeasurementParityNormalization {
+  _MeasurementParityNormalization({
+    required Map<String, String> oldArtifacts,
+    required Map<String, String> newArtifacts,
+    required Set<String> measurementBlobPaths,
+  })  : _oldArtifacts = oldArtifacts,
+        _newArtifacts = newArtifacts,
+        _measurementBlobPaths = Set.unmodifiable(measurementBlobPaths) {
+    _oldFlowDocuments = _flowDocuments(_oldArtifacts);
+    _newFlowDocuments = _flowDocuments(_newArtifacts);
+    _measurementFlowPaths = _findMeasurementFlowPaths();
+  }
+
+  final Map<String, String> _oldArtifacts;
+  final Map<String, String> _newArtifacts;
+  final Set<String> _measurementBlobPaths;
+  late final Map<String, FlowDocument> _oldFlowDocuments;
+  late final Map<String, FlowDocument> _newFlowDocuments;
+  late final Set<String> _measurementFlowPaths;
+
+  String artifact(
+    String path,
+    String value, {
+    required bool newAuthoring,
+  }) {
+    final artifacts = newAuthoring ? _newArtifacts : _oldArtifacts;
+    final flowDocuments = newAuthoring ? _newFlowDocuments : _oldFlowDocuments;
+    if (path.endsWith('.rfw')) {
+      return _withoutMeasurementRfw(value);
+    }
+    if (path.endsWith('.capability.json')) {
+      return _capabilitySidecar(path, value, artifacts);
+    }
+    if (path.endsWith('.flow.json')) {
+      return _flowDocument(path, value, artifacts, flowDocuments);
+    }
+    return value;
+  }
+
+  Set<String> _findMeasurementFlowPaths() {
+    final paths = <String>{};
+    var found = true;
+    while (found) {
+      found = false;
+      for (final entry in _oldFlowDocuments.entries) {
+        final path = entry.key;
+        if (paths.contains(path) ||
+            _oldArtifacts[path] == _newArtifacts[path]) {
+          continue;
+        }
+        final document = entry.value;
+        final measuredScreen = document.screenArtifacts.values.any(
+          (artifact) => _measurementBlobPaths.contains(
+            _flowScreenBlobPath(path, artifact.path, _oldArtifacts.keys),
+          ),
+        );
+        final measuredSubFlow =
+            document.states.values.whereType<SubFlowState>().any(
+                  (state) => paths.contains(
+                    _subFlowArtifactPath(path, state.flow, _oldArtifacts.keys),
+                  ),
+                );
+        if (measuredScreen || measuredSubFlow) {
+          paths.add(path);
+          found = true;
+        }
+      }
+    }
+    return Set.unmodifiable(paths);
+  }
+
+  String _capabilitySidecar(
+    String path,
+    String value,
+    Map<String, String> artifacts,
+  ) {
+    final json = _jsonObject(value, path);
+    final sidecar = CapabilitySidecar.fromJson(json);
+    final blobPath = _singleArtifactPath(
+      artifacts.keys,
+      path.replaceFirst(RegExp(r'\.capability\.json$'), '.rfw'),
+    );
+    if (!_measurementBlobPaths.contains(blobPath)) {
+      return _comparisonJson.convert(json);
+    }
+    final expectedHash = CapabilitySidecar.hashBlob(
+      base64Decode(artifacts[blobPath]!),
+    );
+    expect(
+      sidecar.blobSha256,
+      expectedHash,
+      reason: '$path must hash its exact blob $blobPath',
+    );
+    json['blobSha256'] = _measurementDerivedHash;
+    return _comparisonJson.convert(json);
+  }
+
+  String _flowDocument(
+    String path,
+    String value,
+    Map<String, String> artifacts,
+    Map<String, FlowDocument> flowDocuments,
+  ) {
+    final document = flowDocuments[path];
+    if (document == null) {
+      throw StateError('Missing decoded flow document $path.');
+    }
+    final json = _jsonObject(value, path);
+    final screenArtifacts = _jsonObjectValue(
+      json['screenArtifacts'],
+      '$path screenArtifacts',
+    );
+    for (final entry in document.screenArtifacts.entries) {
+      final blobPath = _flowScreenBlobPath(
+        path,
+        entry.value.path,
+        artifacts.keys,
+      );
+      if (!_measurementBlobPaths.contains(blobPath)) continue;
+      final expectedHash = FlowContentHash.compute(
+        base64Decode(artifacts[blobPath]!),
+      );
+      expect(
+        entry.value.contentHash,
+        expectedHash,
+        reason: '$path screen ${entry.key} must hash $blobPath',
+      );
+      _jsonObjectValue(
+        screenArtifacts[entry.key],
+        '$path screenArtifacts.${entry.key}',
+      )['contentHash'] = _measurementDerivedHash;
+    }
+
+    final states = _jsonObjectValue(json['states'], '$path states');
+    for (final entry in document.states.entries) {
+      final state = entry.value;
+      if (state is! SubFlowState) continue;
+      final childPath = _subFlowArtifactPath(
+        path,
+        state.flow,
+        artifacts.keys,
+      );
+      if (!_measurementFlowPaths.contains(childPath)) continue;
+      final expectedHash = FlowContentHash.compute(
+        base64Decode(artifacts[childPath]!),
+      );
+      expect(
+        state.contentHash,
+        expectedHash,
+        reason: '$path sub-flow ${entry.key} must hash $childPath',
+      );
+      _jsonObjectValue(
+        states[entry.key],
+        '$path states.${entry.key}',
+      )['contentHash'] = _measurementDerivedHash;
+    }
+    return _comparisonJson.convert(json);
+  }
+}
+
+Map<String, FlowDocument> _flowDocuments(Map<String, String> artifacts) => {
+      for (final entry in artifacts.entries)
+        if (entry.key.endsWith('.flow.json'))
+          entry.key: FlowDocumentCodec.decodeJson(
+            utf8.decode(base64Decode(entry.value)),
+          ),
+    };
+
+String _withoutMeasurementRfw(String value) {
+  final library = fmt.decodeLibraryBlob(
+    Uint8List.fromList(base64Decode(value)),
+  );
+  return fmt.RemoteWidgetLibrary(
+    library.imports
+        .where(
+          (import) => import.name.parts.join('.') != 'restage.measurement',
+        )
+        .toList(),
+    [
+      for (final widget in library.widgets)
+        fmt.WidgetDeclaration(
+          widget.name,
+          widget.initialState,
+          _strippedNode(widget.root)! as fmt.BlobNode,
+        ),
+    ],
+  ).toString();
+}
+
+String _flowScreenBlobPath(
+  String flowPath,
+  String artifactPath,
+  Iterable<String> paths,
+) {
+  final flowDirectory = p.posix.dirname(flowPath);
+  final surfaceDirectory = p.posix.basename(flowDirectory) == 'flows'
+      ? p.posix.dirname(flowDirectory)
+      : flowDirectory;
+  final String basePath;
+  if (artifactPath.startsWith('assets/')) {
+    basePath = artifactPath;
+  } else if (isPaywallScreenArtifact(artifactPath)) {
+    basePath = p.posix.join(kPaywallScreensAssetDir, artifactPath);
+  } else {
+    basePath = p.posix.join(surfaceDirectory, 'screens', artifactPath);
+  }
+  return _singleArtifactPath(paths, basePath);
+}
+
+String _subFlowArtifactPath(
+  String flowPath,
+  String flowId,
+  Iterable<String> paths,
+) =>
+    _singleArtifactPath(
+      paths,
+      p.posix.join(p.posix.dirname(flowPath), '$flowId.flow.json'),
+    );
+
+String _singleArtifactPath(Iterable<String> paths, String basePath) {
+  final matches = measurementArtifactPaths(paths, basePath).toList();
+  if (matches.length != 1) {
+    throw StateError(
+      'Expected exactly one emitted artifact for $basePath, '
+      'found ${matches.length}.',
+    );
+  }
+  return matches.single;
+}
+
+Map<String, dynamic> _jsonObject(String value, String path) {
+  final decoded = jsonDecode(utf8.decode(base64Decode(value)));
+  return _jsonObjectValue(decoded, path);
+}
+
+Map<String, dynamic> _jsonObjectValue(Object? value, String path) {
+  if (value is! Map<String, dynamic>) {
+    throw StateError('$path must be a JSON object.');
+  }
+  return value;
+}
+
+Object? _strippedNode(Object? node) {
+  switch (node) {
+    case final fmt.ConstructorCall call:
+      if (_measurementPresentationConstructors.contains(call.name)) {
+        return _strippedNode(call.arguments['child']);
+      }
+      return fmt.ConstructorCall(call.name, {
+        for (final entry in call.arguments.entries)
+          entry.key: _strippedNode(entry.value),
+      });
+    case final fmt.EventHandler handler:
+      return fmt.EventHandler(handler.eventName, {
+        for (final entry in handler.eventArguments.entries)
+          if (entry.key != kMeasurementRouteArgumentKeyV1)
+            entry.key: _strippedNode(entry.value),
+      });
+    case final Map<Object?, Object?> map:
+      return {
+        for (final entry in map.entries) entry.key: _strippedNode(entry.value),
+      };
+    case final List<Object?> list:
+      return [for (final item in list) _strippedNode(item)];
+    default:
+      return node;
   }
 }

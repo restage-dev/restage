@@ -32,26 +32,31 @@ final _generalStatusProvenance = SurfaceScreenRuntimeProvenance.generated(
     authoredLibraryPath: "lib/surfaces/categorized_screens.dart",
     entries: [
       SurfaceScreenBundleEntryReference(
-        logicalPath: "assets/general/screens/general_status.rfw",
+        logicalPath:
+            "assets/general/screens/measurement/d53671985f67f2f1/general_status.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 294,
+        byteLength: 1384,
         sha256:
-            "sha256:1ae8f2705bb19f252828dcee6ebf290eae269a5dee6b25a54931920d168ebcd3",
+            "sha256:9bd510626971079d0843cddade7907a1a6b5998a9866b60f286f6a16e4492ba3",
       ),
       SurfaceScreenBundleEntryReference(
-        logicalPath: "assets/general/screens/general_status.capability.json",
+        logicalPath:
+            "assets/general/screens/measurement/d53671985f67f2f1/general_status.capability.json",
         role: RestageBundleEntryRole.capabilitySidecar,
-        byteLength: 165,
+        byteLength: 141,
         sha256:
-            "sha256:89e64f177e966fc319d3c51c6dd669bacffdbdb157c2778d0e2059f3d13a53bb",
+            "sha256:73d685423ad52506cd9d40545997ed889ea99217e1ab3662d894b3e1a3c9490f",
       ),
     ],
   ),
 );
 
-final generalStatusRef = SurfaceScreenRef<GeneralStatusEvent>.generated(
+final generalStatusRef = SurfaceScreenRef<
+    GeneralStatusEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _generalStatusProvenance,
   eventContract: _generalStatusEvents,
+  measurementPublicationDraftDigest:
+      "5d5d00d87fb1c872b6e84596518674e876b020cdf6f1ad748023650adb44d553",
 );
 
 GeneralStatusEvent _decodeValidatedGeneralStatusEvent(
@@ -97,26 +102,31 @@ final _messageNoticeProvenance = SurfaceScreenRuntimeProvenance.generated(
     authoredLibraryPath: "lib/surfaces/categorized_screens.dart",
     entries: [
       SurfaceScreenBundleEntryReference(
-        logicalPath: "assets/message/screens/message_notice.rfw",
+        logicalPath:
+            "assets/message/screens/measurement/7dd571bceb502385/message_notice.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 304,
+        byteLength: 1394,
         sha256:
-            "sha256:7b8dec85c690f81ab2ef4ded9e73965d6993a6ce424e80230eb94735d4b68ea4",
+            "sha256:1b2c04e4cf5c3c7f95047cfbebfd7e7407132768ceb2e2f5ed00d3d85b347997",
       ),
       SurfaceScreenBundleEntryReference(
-        logicalPath: "assets/message/screens/message_notice.capability.json",
+        logicalPath:
+            "assets/message/screens/measurement/7dd571bceb502385/message_notice.capability.json",
         role: RestageBundleEntryRole.capabilitySidecar,
-        byteLength: 165,
+        byteLength: 141,
         sha256:
-            "sha256:8d950cdbcb7265b9849492b15461d92033e8e6b3a9b38d63bc85f3573a3779d2",
+            "sha256:6705bf9edd36cc0948a96c45d1cbd01b7c950befdda4ed698649ddf3cd39d4c9",
       ),
     ],
   ),
 );
 
-final messageNoticeRef = SurfaceScreenRef<MessageNoticeEvent>.generated(
+final messageNoticeRef = SurfaceScreenRef<
+    MessageNoticeEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _messageNoticeProvenance,
   eventContract: _messageNoticeEvents,
+  measurementPublicationDraftDigest:
+      "1eb2128ae924a21274d5fffbe200a8f590e4e18c06a70a9cd022eca3bb0d953b",
 );
 
 MessageNoticeEvent _decodeValidatedMessageNoticeEvent(
@@ -164,25 +174,28 @@ final _onboardingWelcomeProvenance = SurfaceScreenRuntimeProvenance.generated(
       SurfaceScreenBundleEntryReference(
         logicalPath: "assets/onboarding/screens/onboarding_welcome.rfw",
         role: RestageBundleEntryRole.screenBlob,
-        byteLength: 300,
+        byteLength: 1390,
         sha256:
-            "sha256:2001e30b617bd2b5f1a5c374b65e06f0d1ca6466d285f1ad7e451af4dc5cd9e4",
+            "sha256:667cabaddede2c48d7b234acc448272d4019a7bbc6fe7278eeb324a52ebbef4f",
       ),
       SurfaceScreenBundleEntryReference(
         logicalPath:
             "assets/onboarding/screens/onboarding_welcome.capability.json",
         role: RestageBundleEntryRole.capabilitySidecar,
-        byteLength: 165,
+        byteLength: 141,
         sha256:
-            "sha256:af0e5bfbdf4b1978c046f46bfecc34911059b21cdb879281c9d1a87085279192",
+            "sha256:03f299c0b9facc1dae3e5e95e95a63e66fd8a10313e13b27daf67aa2ae7b79d0",
       ),
     ],
   ),
 );
 
-final onboardingWelcomeRef = SurfaceScreenRef<OnboardingWelcomeEvent>.generated(
+final onboardingWelcomeRef = SurfaceScreenRef<
+    OnboardingWelcomeEvent>.generatedWithMeasurementPublicationDraftDigest(
   provenance: _onboardingWelcomeProvenance,
   eventContract: _onboardingWelcomeEvents,
+  measurementPublicationDraftDigest:
+      "52d44bf8e889993d0fd4ab5117362366ee6ad075aaf552defaa871cda757bba3",
 );
 
 OnboardingWelcomeEvent _decodeValidatedOnboardingWelcomeEvent(

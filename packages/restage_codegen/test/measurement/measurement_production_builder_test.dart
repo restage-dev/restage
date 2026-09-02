@@ -287,7 +287,7 @@ void main() {
           'Text',
         ]),
         reason: 'only final RFW catalog occurrences are presented: outer '
-            'customer calls stay distinct, repeated sibling calls stay '
+            'app-defined calls stay distinct, repeated sibling calls stay '
             'distinct, and the generated InlineAction body remains opaque',
       );
       expect(
@@ -426,8 +426,7 @@ void main() {
   );
 
   test(
-    'default tracked builder leaves Measurement disabled without policy while '
-    'emitting no carrier or transient marker',
+    'default tracked builder stamps the shipped policy and emits carriers',
     () async {
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
@@ -462,9 +461,15 @@ void main() {
         ),
       );
       expect(compilerOutput.valid, isTrue);
-      expect(compilerOutput.policy, isNull);
-      expect(compilerOutput.publications, isEmpty);
-      expect(compilerOutput.ledgerNodes, isEmpty);
+      expect(compilerOutput.policy, isNotNull);
+      expect(compilerOutput.policy!.toJson(), <String, Object?>{
+        'collectionBudgetRevisionId':
+            kMeasurementDefaultCollectionBudgetRevisionId,
+        'minimumMeasurementClient': kMeasurementDefaultMinimumClient,
+        'privacyPolicyRevisionId': kMeasurementDefaultPrivacyPolicyRevisionId,
+      });
+      expect(compilerOutput.publications, isNotEmpty);
+      expect(compilerOutput.ledgerNodes, isNotEmpty);
 
       final handoff = RestageSurfacePublicationBundle.fromJson(
         jsonDecode(
@@ -476,18 +481,16 @@ void main() {
           ),
         ),
       );
-      for (final bytes in {
+      final artifactTexts = {
         ...handoff.artifacts,
         ...handoff.borrowedArtifacts,
         ...handoff.ownedOutputs,
-      }.values) {
-        final text = utf8.decode(bytes, allowMalformed: true);
-        expect(text, isNot(contains('__restage_measurement_')));
-        expect(
-          text,
-          isNot(contains('generatedWithMeasurementPublicationDraftDigest')),
-        );
-      }
+      }.values.map((bytes) => utf8.decode(bytes, allowMalformed: true));
+      expect(
+        artifactTexts.any((text) => text.contains('__restage_measurement_')),
+        isTrue,
+        reason: 'a stamped policy must put carriers in the emitted artifacts',
+      );
     },
   );
 
@@ -818,6 +821,240 @@ const offer = FlowDefinition(
   );
 
   test(
+    'unmeasured parent publishes the finalized measured child hash',
+    () async {
+      const childScreen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/measured_child_entry.restage.g.dart';
+
+@Screen(id: 'measured_child_entry')
+final class MeasuredChildEntry extends StatelessWidget {
+  const MeasuredChildEntry({super.key});
+
+  static const finish = SurfaceEvent<void>('finish');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(finish),
+        child: const Text('Finish child'),
+      );
+}
+''';
+      const childFlow = '''
+import 'package:restage/restage.dart';
+
+import '../screens/measured_child_entry.dart';
+
+part 'restage.generated/measured_child.restage.g.dart';
+
+@FlowGraph(id: 'measured_child', surface: Surface.general)
+final class MeasuredChild extends RestageFlow {
+  const MeasuredChild();
+
+  @override
+  FlowDef buildFlow() {
+    final done = endState('done');
+    return flow(
+      initial: measuredChildEntryRef,
+      states: [
+        screen(measuredChildEntryRef)
+            .on(MeasuredChildEntry.finish)
+            .goTo(done),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''';
+      const parentScreen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/parent_entry.restage.g.dart';
+
+@Screen(id: 'parent_entry')
+final class ParentEntry extends StatelessWidget {
+  const ParentEntry({super.key});
+
+  static const advance = SurfaceEvent<void>('advance');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          FilledButton(
+            onPressed: surfaceEvent(advance),
+            child: const Text('Continue'),
+          ),
+          FilledButton(
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              builder: (_) => const Text('Details'),
+            ),
+            child: const Text('Details'),
+          ),
+        ],
+      );
+}
+''';
+      const parentFlow = '''
+import 'package:restage/restage.dart';
+
+import '../screens/parent_entry.dart';
+
+part 'restage.generated/unmeasured_parent.restage.g.dart';
+
+Map<String, Object?> _decodeMeasuredChild(Map<String, Object?> result) =>
+    result;
+
+const measuredChildRef = SurfaceFlowRef<Map<String, Object?>>(
+  id: 'measured_child',
+  version: 1,
+  minClient: 1,
+  surface: Surface.general,
+  decodeResult: _decodeMeasuredChild,
+);
+
+@FlowGraph(id: 'unmeasured_parent', surface: Surface.general)
+final class UnmeasuredParent extends RestageFlow {
+  const UnmeasuredParent();
+
+  @override
+  FlowDef buildFlow() {
+    final child = flowNode('child');
+    final done = endState('done');
+    return flow(
+      initial: parentEntryRef,
+      states: [
+        screen(parentEntryRef).on(ParentEntry.advance).goTo(child),
+        subFlow(
+          child,
+          flow: measuredChildRef,
+          input: const {},
+          onComplete: [
+            flowBranch(
+              when: const FlowBranchPredicate(fields: {}),
+              target: done,
+            ),
+          ],
+          defaultBranch: flowBranchTarget(done),
+        ),
+        end(done, result: {}),
+      ],
+    );
+  }
+}
+''';
+      const sources = <String, String>{
+        'apps_examples|lib/screens/measured_child_entry.dart': childScreen,
+        'apps_examples|lib/flows/measured_child.dart': childFlow,
+        'apps_examples|lib/screens/parent_entry.dart': parentScreen,
+        'apps_examples|lib/flows/unmeasured_parent.dart': parentFlow,
+      };
+      final readerWriter = await readerWriterWithFilesystemSources(
+        rootPackage: 'apps_examples',
+      );
+      final compilerResult = await testBuilder(
+        const PackageSurfaceCompilerBuilder(_bundledPolicyOptions),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        compilerResult.succeeded,
+        isTrue,
+        reason: compilerResult.errors.join('\n'),
+      );
+
+      final measurement = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+        readerWriter.testing.readBytes(
+          AssetId('apps_examples', kRestageMeasurementCompilerOutputPath),
+        ),
+      );
+      final childPublication = measurement.publications.singleWhere(
+        (publication) => publication.selector.slug == 'measured_child',
+      );
+      expect(childPublication.routePlan.routes, isNotEmpty);
+      expect(
+        measurement.publications
+            .map((publication) => publication.selector.slug),
+        isNot(contains('unmeasured_parent')),
+      );
+
+      final publicationBundle = RestageSurfacePublicationBundle.fromJson(
+        jsonDecode(
+          readerWriter.testing.readString(
+            AssetId(
+              'apps_examples',
+              kRestageSurfacePublicationCompilerBundlePath,
+            ),
+          ),
+        ),
+      );
+      final publications = publicationBundle.manifest!.publications;
+      final parentPublication = publications.singleWhere(
+        (entry) => entry.publication.slug == 'unmeasured_parent',
+      );
+      const parentDocumentPath =
+          'assets/general/flows/unmeasured_parent.flow.json';
+      const childDocumentPath = 'assets/general/flows/measured_child.flow.json';
+      final parentArtifact = parentPublication.artifacts.singleWhere(
+        (artifact) => artifact.path == parentDocumentPath,
+      );
+      final parentBytes = publicationBundle.artifacts[parentDocumentPath]!;
+      final childBytes = publicationBundle.artifacts[childDocumentPath]!;
+      final parentDocument = FlowDocumentCodec.decodeJson(
+        utf8.decode(parentBytes),
+      );
+      final childState = parentDocument.states['child']! as SubFlowState;
+      expect(childState.contentHash, FlowContentHash.compute(childBytes));
+      expect(
+        parentArtifact.contentHash,
+        CapabilitySidecar.hashBlob(parentBytes),
+      );
+      expect(
+        publicationBundle.artifactLibraryPaths[parentDocumentPath],
+        'lib/flows/unmeasured_parent.dart',
+      );
+      expect(
+        () => publicationBundle.manifest!.validateArtifactClosure({
+          ...publicationBundle.artifacts,
+          ...publicationBundle.borrowedArtifacts,
+        }),
+        returnsNormally,
+      );
+
+      final outputsResult = await testBuilder(
+        RestageOutputsBuilder(_bundledPolicyOptions),
+        sources,
+        rootPackage: 'apps_examples',
+        readerWriter: readerWriter,
+        flattenOutput: true,
+      );
+      expect(
+        outputsResult.succeeded,
+        isTrue,
+        reason: outputsResult.errors.join('\n'),
+      );
+      final emittedBundle = RestageBundleCodec.decode(
+        readerWriter.testing.readBytes(
+          AssetId(
+            'apps_examples',
+            'assets/restage/bundles/lib/flows/unmeasured_parent.rsbundle',
+          ),
+        ),
+      );
+      final parentEntry = emittedBundle.entries.singleWhere(
+        (entry) => entry.logicalPath == parentDocumentPath,
+      );
+      expect(parentEntry.bytes, orderedEquals(parentBytes));
+      expect(parentEntry.sha256, parentArtifact.contentHash);
+    },
+  );
+
+  test(
     'legacy FlowSource closes over recompiled ScreenSource artifacts and '
     'their final hashes',
     () async {
@@ -873,6 +1110,7 @@ final class WelcomeFlow extends RestageFlow {
       final readerWriter = await readerWriterWithFilesystemSources(
         rootPackage: 'apps_examples',
       );
+      final compilerLogs = <String>[];
       final screenResult = await testBuilder(
         onboardingScreenBuilder(BuilderOptions.empty),
         sources,
@@ -903,11 +1141,22 @@ final class WelcomeFlow extends RestageFlow {
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
         flattenOutput: true,
+        onLog: (record) => compilerLogs.add(record.message),
       );
       expect(
         compilerResult.succeeded,
         isTrue,
         reason: compilerResult.errors.join('\n'),
+      );
+      expect(
+        compilerLogs.where(
+          (message) =>
+              message.startsWith('Measurement is unavailable for ') &&
+              (message.contains('for welcome:') ||
+                  message.contains('for screen/welcome:')),
+        ),
+        isEmpty,
+        reason: 'resolved ScreenSource must not be reported as unavailable',
       );
 
       final measurement = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(

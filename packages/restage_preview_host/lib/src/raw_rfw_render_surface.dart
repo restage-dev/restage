@@ -132,9 +132,7 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     assert(widget.library != null);
     _loadError = null;
     if (!listEquals(oldWidget.registrations, widget.registrations)) {
-      // Runtime has no per-library removal API. Clear and deterministically
-      // restore the complete registry on the same Runtime so dropped customer
-      // namespaces cannot leave stale builders behind.
+      // Clear first so removed registrations cannot leave stale builders.
       _replaceRuntimeLibraries(widget.library!, clearExisting: true);
     } else if (!identical(oldWidget.library, widget.library)) {
       _runtime.update(_documentLibrary, widget.library!);
@@ -143,9 +141,7 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
     final data = _renderData(widget);
     final dataKeys = data.keys.toSet();
     if (_dataKeys.difference(dataKeys).isNotEmpty) {
-      // RFW 1.1.3's updateAll deliberately retains omitted top-level keys and
-      // exposes no removal operation. Replacing only DynamicContent is the
-      // bounded removal path; the Runtime and RemoteWidget tree stay stable.
+      // updateAll retains omitted keys, so replace data when keys are removed.
       _data = DynamicContent(data);
     } else {
       _data.updateAll(data);
@@ -197,6 +193,7 @@ class _RawRfwRenderSurfaceState extends State<RawRfwRenderSurface> {
         }),
       );
     }
+    registerMeasurementRfwPresentationLibrary(_runtime);
     _runtime.update(_documentLibrary, document);
   }
 

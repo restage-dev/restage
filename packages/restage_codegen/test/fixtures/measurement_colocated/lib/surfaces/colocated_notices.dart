@@ -1,0 +1,30 @@
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/colocated_notices.restage.g.dart';
+
+@Screen(id: 'first_colocated_notice', surface: Surface.general)
+final class FirstColocatedNotice extends StatelessWidget {
+  const FirstColocatedNotice({super.key});
+
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(dismiss),
+        child: const Text('First'),
+      );
+}
+
+@Screen(id: 'second_colocated_notice', surface: Surface.general)
+final class SecondColocatedNotice extends StatelessWidget {
+  const SecondColocatedNotice({super.key});
+
+  static const dismiss = SurfaceEvent<void>('dismiss');
+
+  @override
+  Widget build(BuildContext context) => FilledButton(
+        onPressed: surfaceEvent(dismiss),
+        child: const Text('Second'),
+      );
+}

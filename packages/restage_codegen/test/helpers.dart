@@ -22,6 +22,7 @@ import 'package:restage_codegen/src/widget_classifier.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+import 'package:test/test.dart';
 
 import 'design_package_sources.dart';
 
@@ -38,8 +39,8 @@ const String kSyntheticProbeLibraryUri =
 /// DECLARE that its `_expr_probe.dart` stubs ARE its framework value types —
 /// making the framework set explicit rather than relying on the absence of the
 /// production value-substitution gate (which the production-constructor sweep
-/// tests prove deferring a non-framework look-alike). A customer look-alike in
-/// any OTHER package is still rejected.
+/// tests prove deferring a non-framework look-alike).
+/// An app-defined look-alike in any OTHER package is still rejected.
 bool syntheticFrameworkLibrary(Element? element) =>
     isFrameworkValueTypeLibrary(element) ||
     element?.library?.identifier == kSyntheticProbeLibraryUri;
@@ -181,7 +182,7 @@ abstract class State<T extends StatefulWidget> {
 /// against the real `package:flutter/material.dart` `Theme` /
 /// `DefaultTextStyle` classes. The codegen-side theme-read recognition
 /// requires the resolved `.of(...)` method's library URI to start with
-/// `package:flutter/` (so a customer's lookalike `class Theme` does not
+/// `package:flutter/` (so an app-defined lookalike `class Theme` does not
 /// silently produce a wrong `data.theme.*` reference) — synthetic test
 /// inputs that stub `Theme` locally cannot satisfy that gate.
 const String kFlutterClassifierStubs = '''
@@ -196,7 +197,7 @@ String widgetbookConstrainedConstructorDefaultFixture({
   required bool matching,
   bool collectionMaximumMismatch = false,
 }) {
-  if (family == 'customer structured-list length') {
+  if (family == 'app-defined structured-list length') {
     return widgetbookConstrainedStructuredListDefaultFixture(
       defaultExpression: defaultExpression,
       matching: matching,
@@ -298,8 +299,9 @@ String _widgetbookCollectionConstraints({
   return 'minItems: 3';
 }
 
-/// Builds a genuine customer structured-list constructor-default fixture for
-/// Widgetbook planner and source-renderer tests.
+/// Builds a genuine app-defined structured-list
+/// constructor-default fixture for Widgetbook planner and
+/// source-renderer tests.
 String widgetbookConstrainedStructuredListDefaultFixture({
   required String defaultExpression,
   required bool matching,
@@ -313,33 +315,33 @@ String widgetbookConstrainedStructuredListDefaultFixture({
 import 'package:flutter/widgets.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-class CustomerItem {
-  const CustomerItem(this.label);
+class FixtureItem {
+  const FixtureItem(this.label);
 
-  @RestageProperty(description: 'Customer item label.')
+  @RestageProperty(description: 'Custom item label.')
   final String label;
 }
 
-const defaultItems = <CustomerItem>[
-  CustomerItem('one'),
-  CustomerItem('two'),
+const defaultItems = <FixtureItem>[
+  FixtureItem('one'),
+  FixtureItem('two'),
 ];
 const chainedItems = defaultItems;
 
 @RestageWidget(
-  name: 'ConstrainedCustomerItemsCard',
+  name: 'ConstrainedFixtureItemsCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'A constrained customer structured-list card.',
+  description: 'A constrained custom structured-list card.',
 )
-class ConstrainedCustomerItemsCard extends StatelessWidget {
-  const ConstrainedCustomerItemsCard({this.items = $defaultExpression});
+class ConstrainedFixtureItemsCard extends StatelessWidget {
+  const ConstrainedFixtureItemsCard({this.items = $defaultExpression});
 
   @RestageProperty(
-    description: 'Customer-defined structured items.',
+    description: 'App-defined structured items.',
     constraints: RestageConstraints($constraints),
   )
-  final List<CustomerItem> items;
+  final List<FixtureItem> items;
 
   @override
   Widget build(BuildContext context) => const SizedBox();
@@ -470,7 +472,7 @@ Future<OnboardingVisitorResult> runOnboardingVisitorOn(
   );
 }
 
-/// Runs the customer-widget visitor against a map of synthetic source files
+/// Runs the custom-widget visitor against a map of synthetic source files
 /// (keyed `'lib/foo.dart'`-style) and returns the merged
 /// [WidgetVisitorResult].
 ///
@@ -1170,3 +1172,59 @@ class _ClassifierProbeBuilder implements Builder {
     );
   }
 }
+
+/// The emitted paths for [base].
+///
+/// Measurement gives a screen presented in more than one context one artifact
+/// per context under a `measurement/<digest>/` segment, so a test asserts the
+/// artifact exists for its screen rather than pinning one layout.
+Iterable<String> measurementArtifactPaths(
+  Iterable<String> keys,
+  String base,
+) {
+  final separator = base.lastIndexOf('/');
+  final directory = base.substring(0, separator);
+  final name = base.substring(separator + 1);
+  return keys.where(
+    (key) =>
+        key == base ||
+        (key.startsWith('$directory/measurement/') && key.endsWith('/$name')),
+  );
+}
+
+/// Asserts every [bases] artifact exists, in whichever layout it was emitted.
+void expectArtifactsFor(Iterable<String> keys, List<String> bases) {
+  for (final base in bases) {
+    expect(
+      measurementArtifactPaths(keys, base),
+      isNotEmpty,
+      reason: 'no emitted artifact for $base',
+    );
+  }
+}
+
+/// The one emitted artifact for [base], in whichever layout.
+///
+/// Requires exactly one match so a rename or a lost artifact fails loudly
+/// rather than resolving to null.
+List<int> artifactFor(Map<String, List<int>> artifacts, String base) {
+  final matches = measurementArtifactPaths(artifacts.keys, base).toList();
+  if (matches.length != 1) {
+    throw StateError(
+      'Expected exactly one emitted artifact for $base, '
+      'found ${matches.length}.',
+    );
+  }
+  return artifacts[matches.single]!;
+}
+
+/// Every emitted variant of [base], as comparable byte strings.
+Set<String> variantBytes(Map<String, List<int>> artifacts, String base) => {
+      for (final key in measurementArtifactPaths(artifacts.keys, base))
+        base64Encode(artifacts[key]!),
+    };
+
+/// Collapses runs of whitespace so a wrapped generated declaration still
+/// matches the type it declares.
+String collapsedWhitespace(String source) =>
+    source.replaceAll(RegExp(r'\s+'), ' ');

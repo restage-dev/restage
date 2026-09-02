@@ -3078,7 +3078,7 @@ FlowBranchPredicate? _flowBranchPredicate(
   }
   // Predicate sugar: `allOf([...])` and `state(K).<op>(...)`. The `allOf`, the
   // operator method, and the `state(...)` receiver are each resolved to the
-  // Restage SDK library so a same-named customer construct is not silently
+  // Restage SDK library so a same-named app-defined construct is not silently
   // reinterpreted as sugar.
   if (expression is MethodInvocation) {
     if (expression.methodName.name == 'allOf' &&
@@ -3249,7 +3249,8 @@ bool _isStateInvocation(Expression? expression) {
 
 /// Whether [invocation]'s invoked function/method resolves to the Restage SDK
 /// library. A name-only match would let a same-named non-Restage `state(...)` /
-/// `allOf(...)` / operator (a customer DSL) be silently reinterpreted as Restage
+/// `allOf(...)` / operator (an app-defined DSL) be silently
+/// reinterpreted as Restage
 /// sugar and lowered to our wire while the runtime runs the other function;
 /// resolving the element to the SDK origin closes that drift. Falls back to
 /// accepting an unresolved element (a test AST without a resolved SDK element)
@@ -4430,8 +4431,6 @@ String _emitFlowDescriptor(
     '${baseName}Seed',
     lowered.document.flowState,
   );
-  final referenceKeyword =
-      measurementPublicationDraftDigest == null ? 'const' : 'final';
   String referenceConstructor(String resultType) =>
       measurementPublicationDraftDigest == null
           ? 'SurfaceFlowRef<$resultType>'
@@ -4461,7 +4460,7 @@ String _emitFlowDescriptor(
     return '''
 part of '$stem.dart';
 
-$referenceKeyword $refName = ${referenceConstructor('Map<String, Object?>')}(
+const $refName = ${referenceConstructor('Map<String, Object?>')}(
   id: '${flow.id}',
   version: ${flow.version},
   minClient: ${flow.minClient},
@@ -4476,7 +4475,7 @@ Map<String, Object?> $decoderName(Map<String, Object?> result) => result;
 abstract final class $descriptorClass {
   const $descriptorClass._();
 
-  static $referenceKeyword SurfaceFlowRef<Map<String, Object?>> ref = $refName;
+  static const SurfaceFlowRef<Map<String, Object?>> ref = $refName;
 }
 
 class $actionsClass implements FlowActionRegistry, FlowSignalRegistry {
@@ -4491,7 +4490,7 @@ $seedClass''';
   return '''
 part of '$stem.dart';
 
-$referenceKeyword $refName = ${referenceConstructor(resultClass)}(
+const $refName = ${referenceConstructor(resultClass)}(
   id: '${flow.id}',
   version: ${flow.version},
   minClient: ${flow.minClient},
@@ -4506,7 +4505,7 @@ ${_emitResultDecoder(decoderName, resultClass, result)}
 abstract final class $descriptorClass {
   const $descriptorClass._();
 
-  static $referenceKeyword SurfaceFlowRef<$resultClass> ref = $refName;
+  static const SurfaceFlowRef<$resultClass> ref = $refName;
 }
 
 ${_emitResultClass(resultClass, result)}
