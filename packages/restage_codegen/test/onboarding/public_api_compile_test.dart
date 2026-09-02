@@ -27,7 +27,8 @@ void main() {
     // facade over it.
     expect(readme, contains('RestageFlowGraph'));
     expect(readme, contains('FlowUnavailablePolicy'));
-    expect(readme, contains('AssetVariantResolver'));
+    expect(readme, contains('asset resolvers'));
+    expect(readme, contains('RestageVariantResolver'));
     expect(readme, isNot(contains('?? false')));
 
     // The flow API details moved from the README to the package's flow guide;

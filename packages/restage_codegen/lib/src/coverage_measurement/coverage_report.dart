@@ -187,7 +187,7 @@ class CoverageReport {
   List<String> widgetsIn(CoverageBucket bucket) => _entries[bucket]!;
 
   /// Sum of counts across the four `inlinable*` buckets — the headline
-  /// "what fraction inlines today" number, useful for chapter-level
+  /// "what fraction inlines today" number, useful for top-line
   /// roll-up. Keyed off [CoverageBucket.isInlinable], the single source of
   /// truth for the inlinable set.
   int get inlinableTotal => CoverageBucket.values
