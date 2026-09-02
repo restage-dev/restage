@@ -1068,7 +1068,10 @@ final class ExpressionTranslator {
       // name-based behavior; the shadowing path requires the element-aware
       // classifier to fold first, which requires resolution, so it never
       // reaches here unresolved.)
-      if (expr.element is! LocalVariableElement) {
+      // A `FormalParameterElement` is a closure's own parameter, never a field
+      // or constructor arg; a same-named one must defer, not match by name.
+      if (expr.element is! LocalVariableElement &&
+          expr.element is! FormalParameterElement) {
         // A bare identifier resolving to a State event-handler method —
         // lowered to a `set state.<field> = …` handler emitted from the
         // classifier-captured verdict.
@@ -4630,6 +4633,22 @@ final class ExpressionTranslator {
     return '${target.name}(${parts.join(', ')})';
   }
 
+  /// Whether [expr] is a single-expression closure whose body is a call to a
+  /// registered event helper; the lookup mirrors [_methodInvocation].
+  bool _wrapsEventHelper(Expression expr) {
+    final stripped = _stripParens(expr);
+    if (stripped is! FunctionExpression) return false;
+    final body = stripped.body;
+    if (body is! ExpressionFunctionBody) return false;
+    final call = _stripParens(body.expression);
+    if (call is! MethodInvocation || call.target != null) return false;
+    final element = call.methodName.element;
+    final helper = element != null
+        ? helpers.find(call.methodName.name, element.library?.identifier ?? '')
+        : helpers.findByNameOnly(call.methodName.name);
+    return helper?.returnCategory == HelperReturnCategory.voidCallback;
+  }
+
   /// Unwraps a single-expression callback closure to its body expression so the
   /// declarative event lowers at the event slot. `(s) => paywallEvent('x')`
   /// yields `paywallEvent('x')`; a direct `paywallEvent('x')` (no closure)
@@ -5980,11 +5999,16 @@ final class ExpressionTranslator {
   }
 
   String _translateSlotValueCore(
-    Expression expr,
+    Expression rawExpr,
     PropertyType type,
     List<Issue> issues, {
     PropertyEntry? property,
   }) {
+    // A value-callback closure `(v) => <event>` carries only the event on the
+    // wire; any other closure stays intact for the recognisers that match it.
+    final expr = type == PropertyType.event && _wrapsEventHelper(rawExpr)
+        ? _eventBodyOf(rawExpr)
+        : rawExpr;
     // Null-coalescing optional property — `<prop> ?? <fallback>`. Handled ahead
     // of the type-special dispatch so the slot value is `args.<prop>` without
     // the catalog coercion mangling the reference. The fallback was validated

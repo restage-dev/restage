@@ -3651,6 +3651,221 @@ Object x() => surfaceEvent(Probe.next);
   });
 
   // -------------------------------------------------------------------------
+  // Generic value-callback closure unwrap at any event slot.
+  //
+  // `_wrapsEventHelper`/`_eventBodyOf` unwrap `onFoo: (v) => paywallEvent(…)`
+  // shaped closures at ANY widget's ANY event slot — not only the two
+  // catalog widgets (segmented button, single-select) whose own recognisers
+  // pre-unwrap by hand. These tests exercise that generic path directly, on
+  // a plain widget with no dedicated recogniser of its own.
+  // -------------------------------------------------------------------------
+
+  group('generic value-callback closure unwrap at any event slot', () {
+    final valueCallbackCatalog = catalogWith([
+      entry(
+        name: 'Switch',
+        properties: [
+          prop('value', PropertyType.boolean),
+          prop('onChanged', PropertyType.event),
+        ],
+      ),
+    ]);
+    final tPaywall = ExpressionTranslator(
+      catalog: valueCallbackCatalog,
+      helpers: HelperRegistry()..registerAll(paywallHelpers),
+    );
+    final tOnboarding = ExpressionTranslator(
+      catalog: valueCallbackCatalog,
+      helpers: HelperRegistry()..registerAll(onboardingHelpers),
+    );
+
+    test(
+        'a State field sharing the closure parameter name defers loud '
+        'instead of silently substituting the stale state value', () async {
+      // The State field and the closure's own parameter are both named
+      // "value" — the exact idiomatic-name collision the fix guards
+      // against. A resolved FormalParameterElement reference must never
+      // silently fall through to the NAME-based state lookup.
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) => paywallEvent("changed", args: {"v": value}),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(
+        expression,
+        rootState: [
+          const CustomWidgetStateField(
+            name: 'value',
+            isNumeric: false,
+            initialValue: false,
+          ),
+        ],
+      );
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(result.dsl, isNot(contains('state.value')));
+      expect(result.dsl, isNot(contains('args.value')));
+    });
+
+    test(
+        'a value-callback closure that does not reference its own '
+        'parameter unwraps to its declarative event on an arbitrary widget',
+        () async {
+      // Switch has no dedicated recogniser, so this exercises the generic
+      // unwrap at an ordinary catalog widget's event slot.
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) => paywallEvent("toggled"),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+      expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
+      expect(result.dsl, contains('onChanged: event "toggled" {}'));
+    });
+
+    test('a block-bodied closure at a generic event slot defers loud',
+        () async {
+      // `_wrapsEventHelper` only recognises an ExpressionFunctionBody; a
+      // block body must fall through to the pre-existing loud diagnostic,
+      // not a silent drop.
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) {
+    paywallEvent("toggled");
+  },
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(result.dsl, isNot(contains('event "toggled"')));
+    });
+
+    test(
+        'a closure calling an unregistered free function is not mistaken '
+        'for a value-callback wrapper', () async {
+      // Proves the helper-registry gate is load-bearing, not just the
+      // closure shape gate.
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+void someOtherHelper(bool v) {}
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) => someOtherHelper(value),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+    });
+
+    test(
+        'a string-category helper at an event slot is not unwrapped as a '
+        'value callback', () async {
+      // paywallPriceFor returns HelperReturnCategory.string — not a valid
+      // closure-unwrap target at an event slot.
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) => paywallPriceFor(slot: "basic"),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(result.dsl, isNot(contains('data.products')));
+    });
+
+    test(
+        'the screen-event helper special case unwraps through the generic '
+        'event slot, not only through the onboarding screen builder', () async {
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+abstract final class Probe {
+  static const next = SurfaceEvent<void>('next');
+}
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) => surfaceEvent(Probe.next),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tOnboarding.translate(expression);
+      expect(result.issues.where((i) => !i.code.isInformational), isEmpty);
+      expect(result.dsl, contains('onChanged: event "next" {}'));
+    });
+
+    test(
+        'a navigation call at a generic event slot is left wrapped, not '
+        'mistaken for a value-callback helper', () async {
+      // `Navigator.of(context).push(...)` has a non-null target, so the
+      // event-helper unwrap must leave it for the navigation lowering.
+      final expression = await parseExpressionFromSourceForTest(
+        '''
+import 'package:flutter/material.dart';
+
+final BuildContext ctx = throw UnimplementedError();
+
+Object x() => Switch(
+  value: false,
+  onChanged: (value) => Navigator.of(ctx).push<void>(
+    MaterialPageRoute(builder: (_) => const SizedBox()),
+  ),
+);
+''',
+        rootPackage: 'apps_examples',
+      );
+      final result = tPaywall.translate(expression);
+      expect(
+        result.issues.map((i) => i.code),
+        contains(IssueCode.unrecognizedMethodCall),
+      );
+      expect(result.dsl, isNot(contains('Navigator')));
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // String interpolation tests.
   // -------------------------------------------------------------------------
 
