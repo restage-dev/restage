@@ -8,6 +8,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
+import 'package:restage_codegen/src/user_catalog_json_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
@@ -192,6 +193,583 @@ const launch = FlowDefinition(
             'lib/journeys/restage.generated/launch.restage.g.dart']!,
       ),
       contains('SurfaceFlowRef<LaunchResult>'),
+    );
+  });
+
+  test('compiles callback-free static collection leaves with measurement',
+      () async {
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/collection_labels.restage.g.dart';
+
+@Screen(id: 'collection_labels', surface: Surface.general)
+final class CollectionLabels extends StatelessWidget {
+  const CollectionLabels({super.key});
+  static const third = Text('third');
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (final label in const ['first', 'second']) Text(label),
+          if (true) third,
+          ...const [Text('fourth')],
+        ],
+      );
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/collection_labels.dart': screen,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final text = utf8.decode(
+      bundle.ownedOutputs['assets/general/screens/collection_labels.rfwtxt']!,
+    );
+    expect(text, contains('"first"'));
+    expect(text, contains('"second"'));
+    expect(text, contains('"third"'));
+    expect(text, contains('"fourth"'));
+  });
+
+  test('publishes helper-bound const-object widget fields', () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/bound_receiver.restage.g.dart';
+
+final class ActionSet {
+  const ActionSet(this.widget);
+  final Widget widget;
+}
+
+@Screen(id: 'bound_receiver', surface: Surface.general)
+final class BoundReceiver extends StatelessWidget {
+  const BoundReceiver({super.key});
+  static const set = ActionSet(Text('accepted'));
+
+  List<Widget> select(ActionSet source) => [if (true) source.widget];
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...select(set)]);
+}
+
+@Paywall(id: 'bound_receiver_offer')
+final class BoundReceiverOffer extends StatelessWidget {
+  const BoundReceiverOffer({super.key});
+  static const set = ActionSet(Text('accepted'));
+
+  List<Widget> select(ActionSet source) => [if (true) source.widget];
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...select(set)]);
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/bound_receiver.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    for (final path in [
+      'assets/general/screens/bound_receiver.rfwtxt',
+      'assets/paywalls/bound_receiver_offer.rfwtxt',
+    ]) {
+      final text = utf8.decode(bundle.ownedOutputs[path]!);
+      expect(text, contains('Text(text: "accepted")'));
+      expect(text, isNot(contains('source.widget')));
+    }
+  });
+
+  test('rejects mixed const and runtime object receivers', () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/mixed_receiver.restage.g.dart';
+
+final class WidgetSet {
+  const WidgetSet(this.widgets);
+  final List<Widget> widgets;
+}
+
+@Screen(id: 'mixed_receiver', surface: Surface.general)
+final class MixedReceiver extends StatelessWidget {
+  const MixedReceiver({required this.selectConstant, super.key});
+  final bool selectConstant;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      ...(selectConstant
+            ? const WidgetSet(<Widget>[Text('constant')])
+            : WidgetSet(<Widget>[const Text('runtime')]))
+          .widgets,
+    ],
+  );
+}
+
+@Paywall(id: 'mixed_receiver_offer')
+final class MixedReceiverOffer extends StatelessWidget {
+  const MixedReceiverOffer({required this.selectConstant, super.key});
+  final bool selectConstant;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      ...(selectConstant
+            ? const WidgetSet(<Widget>[Text('constant')])
+            : WidgetSet(<Widget>[const Text('runtime')]))
+          .widgets,
+    ],
+  );
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/mixed_receiver.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    final errors = result.errors.join('\n');
+
+    expect(result.succeeded, isFalse);
+    expect(
+      errors,
+      contains('A spread of a value known only at run time is unsupported'),
+    );
+    expect(errors, isNot(contains('Text(text: "constant")')));
+  });
+
+  test('compiles hidden custom collection leaves for screens and paywalls',
+      () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
+
+part 'restage.generated/hidden_collection.restage.g.dart';
+
+final class WidgetSet {
+  const WidgetSet(this.widget);
+  final Widget widget;
+}
+
+@RestageWidget(
+  name: 'HiddenLabel',
+  library: WidgetLibrary.custom('fixture.hidden'),
+  category: WidgetCategory.content,
+  description: 'Hidden label.',
+)
+final class HiddenLabel extends StatelessWidget {
+  const HiddenLabel({super.key});
+
+  @override
+  Widget build(BuildContext context) => const Text('resolved');
+}
+
+const hiddenLabel = HiddenLabel();
+const widgetSet = WidgetSet(hiddenLabel);
+const collectionEntries = <Widget>[if (true) widgetSet.widget];
+
+@Screen(id: 'hidden_collection', surface: Surface.general)
+final class HiddenCollection extends StatelessWidget {
+  const HiddenCollection({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...collectionEntries]);
+}
+
+@Paywall(id: 'hidden_collection_offer')
+final class HiddenCollectionOffer extends StatelessWidget {
+  const HiddenCollectionOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...collectionEntries]);
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final catalogBuild = await testBuilder(
+      const UserCatalogJsonBuilder(BuilderOptions.empty),
+      const <String, String>{
+        'apps_examples|lib/features/hidden_collection.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    expect(
+      catalogBuild.succeeded,
+      isTrue,
+      reason: catalogBuild.errors.join('\n'),
+    );
+    final catalog = readerWriter.testing.readString(
+      AssetId(
+        'apps_examples',
+        'lib/src/widget_catalog/catalog.json',
+      ),
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      <String, String>{
+        'apps_examples|lib/features/hidden_collection.dart': sources,
+        'apps_examples|lib/src/widget_catalog/catalog.json': catalog,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    for (final path in [
+      'assets/general/screens/hidden_collection.rfwtxt',
+      'assets/paywalls/hidden_collection_offer.rfwtxt',
+    ]) {
+      final text = utf8.decode(bundle.ownedOutputs[path]!);
+      expect(text, contains('HiddenLabel()'));
+      expect(text, contains('Text(text: "resolved")'));
+    }
+  });
+
+  test('rejects reused callback collection sources before publication',
+      () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/reused_actions.restage.g.dart';
+
+final class ActionSet {
+  const ActionSet(this.widget);
+  final Widget widget;
+}
+
+List<Widget> selectAction(Widget value) => [value];
+
+@Screen(id: 'reused_actions', surface: Surface.general)
+final class ReusedActions extends StatelessWidget {
+  const ReusedActions({super.key});
+  static void activate() {}
+  static const action = ElevatedButton(
+    onPressed: activate,
+    child: Text('Activate'),
+  );
+  static const set = ActionSet(action);
+  List<Widget> actions() => selectAction(set.widget);
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...actions(), ...actions()]);
+}
+
+@Paywall(id: 'reused_actions_offer')
+final class ReusedActionsOffer extends StatelessWidget {
+  const ReusedActionsOffer({super.key});
+  static void activate() {}
+  static const action = ElevatedButton(
+    onPressed: activate,
+    child: Text('Activate'),
+  );
+  static const set = ActionSet(action);
+  List<Widget> actions() => selectAction(set.widget);
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...actions(), ...actions()]);
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/reused_actions.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isFalse);
+    expect(
+      result.errors.join('\n'),
+      contains('callback-bearing static collection source is reused'),
+    );
+  });
+
+  test('rejects callback reuse across nested sibling lists', () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/nested_actions.restage.g.dart';
+
+List<Widget> actions() => [
+      ElevatedButton(
+        onPressed: () {},
+        child: const Text('Activate'),
+      ),
+    ];
+
+@Screen(id: 'nested_actions', surface: Surface.general)
+final class NestedActions extends StatelessWidget {
+  const NestedActions({super.key});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Row(children: [...actions()]),
+          Row(children: [...actions()]),
+        ],
+      );
+}
+
+@Paywall(id: 'nested_actions_offer')
+final class NestedActionsOffer extends StatelessWidget {
+  const NestedActionsOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          Row(children: [...actions()]),
+          Row(children: [...actions()]),
+        ],
+      );
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/nested_actions.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    final errors = result.errors.join('\n');
+
+    expect(result.succeeded, isFalse);
+    expect(
+      errors,
+      contains('callback-bearing static collection source is reused'),
+    );
+    expect(
+      errors,
+      isNot(
+        contains(
+          'One exact callback expression cannot carry two measurement routes',
+        ),
+      ),
+    );
+  });
+
+  test('rejects one callback source shared by two event slots', () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/shared_slots.restage.g.dart';
+
+List<Widget> actions(VoidCallback callback) => [
+      GestureDetector(
+        onTap: callback,
+        onDoubleTap: callback,
+        child: const Text('Activate'),
+      ),
+    ];
+
+@Screen(id: 'shared_slots', surface: Surface.general)
+final class SharedSlots extends StatelessWidget {
+  const SharedSlots({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...actions(() {})]);
+}
+
+@Paywall(id: 'shared_slots_offer')
+final class SharedSlotsOffer extends StatelessWidget {
+  const SharedSlotsOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      Column(children: [...actions(() {})]);
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/shared_slots.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    final errors = result.errors.join('\n');
+
+    expect(result.succeeded, isFalse);
+    expect(
+      errors,
+      contains('callback-bearing static collection source is reused'),
+    );
+    expect(
+      errors,
+      isNot(
+        contains(
+          'One exact callback expression cannot carry two measurement routes',
+        ),
+      ),
+    );
+  });
+
+  test('rejects a helper root sharing one callback across event slots',
+      () async {
+    const sources = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/helper_slots.restage.g.dart';
+
+Widget action(VoidCallback callback) => GestureDetector(
+      onTap: callback,
+      onDoubleTap: callback,
+      child: const Text('Activate'),
+    );
+
+@Screen(id: 'helper_slots', surface: Surface.general)
+final class HelperSlots extends StatelessWidget {
+  const HelperSlots({super.key});
+
+  @override
+  Widget build(BuildContext context) => action(() {});
+}
+
+@Paywall(id: 'helper_slots_offer')
+final class HelperSlotsOffer extends StatelessWidget {
+  const HelperSlotsOffer({super.key});
+
+  @override
+  Widget build(BuildContext context) => action(() {});
+}
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(
+        BuilderOptions({
+          kMeasurementMinimumClientOption: 1,
+          kMeasurementPrivacyPolicyRevisionOption: 'privacy.default',
+          kMeasurementCollectionBudgetRevisionOption: 'budget.default',
+        }),
+      ),
+      const <String, String>{
+        'apps_examples|lib/features/helper_slots.dart': sources,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+    final errors = result.errors.join('\n');
+
+    expect(result.succeeded, isFalse);
+    expect(
+      errors,
+      contains('callback-bearing static collection source is reused'),
+    );
+    expect(
+      errors,
+      isNot(
+        contains(
+          'One exact callback expression cannot carry two measurement routes',
+        ),
+      ),
     );
   });
 

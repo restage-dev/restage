@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
+import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/measurement/measurement_resolved_event.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
@@ -40,8 +41,12 @@ final class MeasurementSourceDiscoveryInput {
     required this.rootExpression,
     required this.catalog,
     Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints = const {},
-  }) : inlinedCustomWidgetBlueprints = Map.unmodifiable(
+    Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
+  })  : inlinedCustomWidgetBlueprints = Map.unmodifiable(
           inlinedCustomWidgetBlueprints,
+        ),
+        inlinedCustomWidgetCollectionRefusals = Map.unmodifiable(
+          inlinedCustomWidgetCollectionRefusals,
         );
 
   /// Exact source-root annotation authority.
@@ -62,6 +67,9 @@ final class MeasurementSourceDiscoveryInput {
   /// has one exact registered catalog entry. It remains a static boundary, and
   /// its private descendants are not discovered.
   final Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints;
+
+  /// Static collection refusals produced with the supplied blueprints.
+  final Map<String, String> inlinedCustomWidgetCollectionRefusals;
 }
 
 /// Resolved provenance for one source-root closure.
@@ -348,12 +356,19 @@ final class _MeasurementSourceDiscovery {
   final List<MeasurementDiscoveredEvent> _events = [];
   final Set<String> _nodeKeys = {};
   final Set<String> _eventKeys = {};
+  final CollectionSemanticTraversalSession _collectionSession =
+      CollectionSemanticTraversalSession();
 
   MeasurementSourceDiscoveryResult discover() {
     final provenance = _sourceProvenance();
+    final rootContext = _WidgetVisitContext.root(
+      provenance,
+      input.rootExpression,
+    );
+    _admitOrdinaryLeaf(input.rootExpression, rootContext);
     _visitWidgetExpression(
       input.rootExpression,
-      _WidgetVisitContext.root(provenance),
+      rootContext,
     );
     if (_nodes.isEmpty) {
       throw ArgumentError(
@@ -559,31 +574,95 @@ final class _MeasurementSourceDiscovery {
     required String parentWidgetIdentity,
     required String slotIdentity,
   }) {
-    final expression = _withoutParentheses(source);
+    final semantics = _collectionSemanticProbe(context);
+    final budget = CollectionUnrollBudget();
+    final resolution = semantics.resolve(
+      source,
+      context.expressionBindings,
+      budget,
+    );
+    if (resolution.workLimitExceeded) {
+      throw ArgumentError(budget.workRefusal(source).detail);
+    }
+    final expression = _withoutParentheses(resolution.expression);
     if (expression is! ListLiteral) {
       throw ArgumentError(
         'A measurement widget list must be a static literal list',
       );
     }
     var ordinal = 0;
-    for (final element in expression.elements) {
-      if (element is! Expression) {
-        throw ArgumentError(
-          'Conditional, spread, and loop widget-list elements are not a '
-          'static measurement closure',
-        );
+    final traversal = traverseCollectionList(
+      expression,
+      semantics: semantics,
+      budget: budget,
+      session: _collectionSession,
+      bindings: resolution.bindings,
+    );
+    for (final entry in traversal.entries) {
+      switch (entry) {
+        case CollectionListRefusal(:final refusal):
+          throw ArgumentError(refusal.detail);
+        case CollectionListElement(:final occurrence):
+          final directExpression = _isDirectListExpression(occurrence);
+          _visitWidgetExpression(
+            directExpression
+                ? occurrence.authoredExpression
+                : occurrence.terminalExpression,
+            context
+                .child(
+                  parentNodeKey: parentNodeKey,
+                  parentWidgetIdentity: parentWidgetIdentity,
+                  slotIdentity: slotIdentity,
+                  ordinal: ordinal,
+                )
+                .withCollectionOccurrence(
+                  occurrence,
+                  includeStructure: !directExpression,
+                ),
+          );
+          ordinal++;
       }
-      _visitWidgetExpression(
-        element,
-        context.child(
-          parentNodeKey: parentNodeKey,
-          parentWidgetIdentity: parentWidgetIdentity,
-          slotIdentity: slotIdentity,
-          ordinal: ordinal,
-        ),
-      );
-      ordinal++;
     }
+  }
+
+  CollectionSemanticProbe _collectionSemanticProbe(
+    _WidgetVisitContext context,
+  ) =>
+      CollectionSemanticProbe(
+        bindingFor: (identifier) {
+          final element = _referencedElement(identifier);
+          return element == null ? null : context.expressionBindings[element];
+        },
+        helperFor: (invocation) {
+          if (!isArtifactHelperInvocation(invocation)) return null;
+          final executable = invocation.methodName.element;
+          if (executable == null) return null;
+          final definition = context.helperDefinitions[executable];
+          if (definition == null) return null;
+          final bindings = bindHelperArguments(
+            definition.params,
+            invocation.argumentList.arguments.toList(growable: false),
+          );
+          if (bindings == null) return null;
+          return CollectionResolvedHelper(
+            body: definition.body,
+            parameterBindings: bindings,
+          );
+        },
+      );
+
+  void _admitOrdinaryLeaf(
+    Expression expression,
+    _WidgetVisitContext context, {
+    Iterable<Expression> convergentSources = const [],
+  }) {
+    final refusal = _collectionSession.admitOrdinaryLeaf(
+      expression,
+      _collectionSemanticProbe(context),
+      bindings: context.expressionBindings,
+      convergentSources: convergentSources,
+    );
+    if (refusal != null) throw ArgumentError(refusal.detail);
   }
 
   void _visitCustomWidget(
@@ -599,6 +678,11 @@ final class _MeasurementSourceDiscovery {
     }
     final blueprint = input.inlinedCustomWidgetBlueprints[customIdentity];
     if (blueprint == null) {
+      final collectionRefusal =
+          input.inlinedCustomWidgetCollectionRefusals[customIdentity];
+      if (collectionRefusal != null) {
+        throw ArgumentError(collectionRefusal);
+      }
       _requireRegisteredOpaqueCustomWidget(expression, customClass);
       final node = _recordNode(
         context: context,
@@ -628,15 +712,18 @@ final class _MeasurementSourceDiscovery {
       widgetIdentity: customIdentity,
     );
     final bindings = _customWidgetBindings(expression, customClass);
-    _visitWidgetExpression(
-      blueprint.buildExpression,
-      context.enterInline(
-        parentNodeKey: node.structuralOccurrenceKey,
-        customIdentity: customIdentity,
-        fieldBindings: bindings,
-        inlinedDefinitions: blueprint.inlined,
-      ),
+    final inlineContext = context.enterInline(
+      parentNodeKey: node.structuralOccurrenceKey,
+      customIdentity: customIdentity,
+      fieldBindings: bindings,
+      inlinedDefinitions: blueprint.inlined,
     );
+    _admitOrdinaryLeaf(
+      blueprint.buildExpression,
+      inlineContext,
+      convergentSources: bindings.values,
+    );
+    _visitWidgetExpression(blueprint.buildExpression, inlineContext);
   }
 
   MeasurementDiscoveredNode _recordNode({
@@ -916,6 +1003,7 @@ final class _MeasurementSourceDiscovery {
     _WidgetVisitContext context,
   ) {
     if (expression is! MethodInvocation) return null;
+    if (!isArtifactHelperInvocation(expression)) return null;
     final executable = expression.methodName.element;
     if (executable is! ExecutableElement) return null;
     final definition = context.helperDefinitions[executable];
@@ -952,14 +1040,19 @@ final class _WidgetVisitContext {
     required this.inlinedHelperIdentities,
   });
 
-  factory _WidgetVisitContext.root(MeasurementSourceProvenance provenance) =>
+  factory _WidgetVisitContext.root(
+    MeasurementSourceProvenance provenance,
+    Expression rootExpression,
+  ) =>
       _WidgetVisitContext._(
         sourceProvenance: provenance,
         pathSegments: const [],
         parentNodeKey: null,
         inlinedCustomWidgetIdentities: const [],
         expressionBindings: const {},
-        helperDefinitions: const {},
+        helperDefinitions: Map.unmodifiable(
+          inlinableHelperDefinitionsIn(rootExpression),
+        ),
         inlinedHelperIdentities: const [],
       );
 
@@ -1049,6 +1142,39 @@ final class _WidgetVisitContext {
           helperIdentity,
         ],
       );
+
+  _WidgetVisitContext withCollectionOccurrence(
+    CollectionSemanticOccurrence occurrence, {
+    required bool includeStructure,
+  }) =>
+      _WidgetVisitContext._(
+        sourceProvenance: sourceProvenance,
+        pathSegments: [
+          ...pathSegments,
+          if (includeStructure) ...[
+            for (final step in occurrence.structuralPath)
+              _StructuralPathSegment.collectionStructure(step),
+            for (final (index, step) in occurrence.sourceProvenance.indexed)
+              _StructuralPathSegment.semanticSource(step, index),
+          ],
+        ],
+        parentNodeKey: parentNodeKey,
+        inlinedCustomWidgetIdentities: inlinedCustomWidgetIdentities,
+        expressionBindings: Map.unmodifiable({
+          ...expressionBindings,
+          ...occurrence.bindings,
+        }),
+        helperDefinitions: helperDefinitions,
+        inlinedHelperIdentities: inlinedHelperIdentities,
+      );
+}
+
+bool _isDirectListExpression(CollectionSemanticOccurrence occurrence) {
+  if (occurrence.structuralPath case [final root]) {
+    return root.kind == CollectionStructuralOccurrenceKind.listElement &&
+        identical(root.node, occurrence.authoredExpression);
+  }
+  return false;
 }
 
 final class _StructuralPathSegment {
@@ -1074,6 +1200,19 @@ final class _StructuralPathSegment {
 
   factory _StructuralPathSegment.helper(String helperIdentity) =>
       _StructuralPathSegment._('helper:$helperIdentity');
+
+  factory _StructuralPathSegment.collectionStructure(
+    CollectionStructuralOccurrenceStep step,
+  ) =>
+      _StructuralPathSegment._(
+        'collection:${step.kind.name}[${step.ordinal}]',
+      );
+
+  factory _StructuralPathSegment.semanticSource(
+    CollectionSemanticSourceStep step,
+    int ordinal,
+  ) =>
+      _StructuralPathSegment._('source:${step.kind.name}[$ordinal]');
 
   final String value;
 }

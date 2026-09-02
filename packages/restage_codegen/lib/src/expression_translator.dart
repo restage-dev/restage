@@ -7,6 +7,7 @@ import 'package:analyzer/source/line_info.dart';
 import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/catalog_loader.dart';
+import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
@@ -17,6 +18,7 @@ import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_variant_fields.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_codegen/src/native_catalog_index.dart';
 import 'package:restage_codegen/src/navigation_recognition.dart';
@@ -24,7 +26,6 @@ import 'package:restage_codegen/src/number_format_recognition.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/rfw_constructor_presence_protocol.dart';
 import 'package:restage_codegen/src/rfw_emitter.dart';
-import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/segmented_button_recognition.dart';
 import 'package:restage_codegen/src/setstate_recognition.dart';
 import 'package:restage_codegen/src/single_select_recognition.dart';
@@ -326,11 +327,13 @@ final class ExpressionTranslator {
   late final StructuredValueEmitter _structured = StructuredValueEmitter(
     translate: _translate,
     translateDoubleScalar: _translateDoubleScalar,
+    translateDoubleElement: _translateDoubleElement,
     resolveDoubleListSource: _resolveDoubleListSource,
     stripParens: _stripParens,
     stringLiteral: _stringLiteral,
     frameworkOrUnresolved: _frameworkOrUnresolved,
     resolveBoundIdentifier: _resolveBoundIdentifier,
+    collectionSemanticProbe: _collectionSemanticProbe,
     isResolvedNonFrameworkCtor: _isResolvedNonFrameworkCtor,
     deferFrameworkConstLookalike: _deferFrameworkConstLookalike,
     deferFrameworkCtorLookalike: _deferFrameworkCtorLookalike,
@@ -434,6 +437,10 @@ final class ExpressionTranslator {
   /// The eleven walk-scoped fields are read off `_walk`.
   _WalkContext _walk = _WalkContext.initial();
 
+  Map<Element, HelperDef> _collectionHelpers = const {};
+  CollectionSemanticTraversalSession _collectionSession =
+      CollectionSemanticTraversalSession();
+
   /// Const declarations under translation.
   final Set<Element> _constDeclarationsInFlight = <Element>{};
 
@@ -503,7 +510,11 @@ final class ExpressionTranslator {
     recipes: kTranslatorRecipes,
     translate: _translate,
     translateDouble: _translateDoubleScalar,
+    translateDoubleElement: _translateDoubleElement,
     resolveDoubleListSource: _resolveDoubleListSource,
+    resolveTypedListExpression: _resolveBoundIdentifier,
+    collectionSemanticProbe: _collectionSemanticProbe,
+    locationOf: _locationOf,
     // Inject the (forTesting-aware) framework-value-type predicate so the
     // member-table nested-value gate defers a resolved customer look-alike
     // consistently with the hand-authored helpers.
@@ -562,6 +573,8 @@ final class ExpressionTranslator {
     final savedNavigation = _currentNavigation;
     final savedFlowScreenContext = _flowScreenContext;
     final savedSuppressed = _currentTranslationSuppressed;
+    final savedCollectionHelpers = _collectionHelpers;
+    final savedCollectionSession = _collectionSession;
     _currentSourcePath = sourcePath;
     _currentLineInfo = lineInfo;
     _walk = _walk.copyWith(
@@ -573,6 +586,8 @@ final class ExpressionTranslator {
       rootStateContext: rootState != null,
       inlined: const InlinedDefinitions.empty(),
     );
+    _collectionHelpers = _collectionHelperDefinitions(expr);
+    _collectionSession = CollectionSemanticTraversalSession();
     _currentNavigation = null;
     _flowScreenContext = flowScreenContext;
     _currentTranslationSuppressed = false;
@@ -645,7 +660,9 @@ final class ExpressionTranslator {
         if (navigationContext != null && navigationContext.hasTransitions) {
           navigationLowering = navigationContext.toLowering();
         }
-        dsl = _translate(expr, issues);
+        if (_admitOrdinaryLeaf(expr, issues)) {
+          dsl = _translate(expr, issues);
+        }
         final context = _walk.modalSheet;
         if (context != null && issues.isEmpty) {
           dsl = _emitModalSheetRoot(
@@ -664,6 +681,8 @@ final class ExpressionTranslator {
       }
     } finally {
       _walk = saved;
+      _collectionHelpers = savedCollectionHelpers;
+      _collectionSession = savedCollectionSession;
       // Capture the working suppression flag for the result BEFORE restoring
       // it, then restore the three plain-host navigation fields ([_walk] above
       // has already restored the 11 bundled walk-scoped fields).
@@ -731,6 +750,19 @@ final class ExpressionTranslator {
   /// Internal to the coverage-measurement tooling (the harness + the
   /// standalone CLI). Callers map the result to an `EmitOutcome`.
   TranslationResult attemptInlineEmit(
+    WidgetClassification classification,
+    CustomWidgetBlueprint blueprint,
+  ) {
+    final savedCollectionSession = _collectionSession;
+    _collectionSession = CollectionSemanticTraversalSession();
+    try {
+      return _attemptInlineEmit(classification, blueprint);
+    } finally {
+      _collectionSession = savedCollectionSession;
+    }
+  }
+
+  TranslationResult _attemptInlineEmit(
     WidgetClassification classification,
     CustomWidgetBlueprint blueprint,
   ) {
@@ -809,7 +841,9 @@ final class ExpressionTranslator {
     _currentWidgetDefinitionStates = definitionStates;
     _currentDefinitionOwners = <String, String>{name: blueprint.classKey};
     try {
-      definitions[name] = _translate(blueprint.buildExpression, issues);
+      if (_admitOrdinaryLeaf(blueprint.buildExpression, issues)) {
+        definitions[name] = _translate(blueprint.buildExpression, issues);
+      }
       if (stateFields != null && stateFields.isNotEmpty) {
         definitionStates[name] = {
           for (final field in stateFields)
@@ -1421,25 +1455,135 @@ final class ExpressionTranslator {
 
   String _listLiteral(ListLiteral expr, List<Issue> issues) {
     final parts = <String>[];
-    for (final element in expr.elements) {
-      if (element is Expression) {
-        parts.add(_translate(element, issues));
-      } else {
-        // Spread (`...`), collection-`if`, collection-`for`. The analyzer
-        // surfaces these as `CollectionElement` subtypes that aren't
-        // `Expression`.
-        issues.add(
-          Issue(
-            code: IssueCode.unsupportedCollectionFlow,
-            message: 'Spread, collection-if, and collection-for are not '
-                'supported in paywall list literals. Use a static list of '
-                'children.',
-            location: _locationOf(expr),
-          ),
-        );
+    final traversal = traverseCollectionList(
+      expr,
+      semantics: _collectionSemanticProbe(),
+      session: _collectionSession,
+    );
+    for (final entry in traversal.entries) {
+      switch (entry) {
+        case CollectionListElement(:final occurrence):
+          parts.add(_translateOccurrence(occurrence, issues));
+        case CollectionListRefusal(:final refusal):
+          _recordCollectionRefusal(refusal, issues);
       }
     }
     return '[${parts.join(', ')}]';
+  }
+
+  void _recordCollectionRefusal(
+    CollectionUnrollRefused refusal,
+    List<Issue> issues,
+  ) {
+    issues.add(
+      Issue(
+        code: IssueCode.unsupportedCollectionFlow,
+        message: refusal.detail,
+        location: _locationOf(refusal.location),
+      ),
+    );
+  }
+
+  bool _admitOrdinaryLeaf(Expression expression, List<Issue> issues) {
+    final refusal = _collectionSession.admitOrdinaryLeaf(
+      expression,
+      _collectionSemanticProbe(),
+      bindings: {
+        ..._walk.inlined.localBindings,
+        ..._walk.paramBindings,
+      },
+    );
+    if (refusal == null) return true;
+    _recordCollectionRefusal(refusal, issues);
+    return false;
+  }
+
+  CollectionSemanticProbe _collectionSemanticProbe() => CollectionSemanticProbe(
+        bindingFor: (identifier) {
+          final element = identifier.element;
+          if (element == null) return null;
+          return _walk.paramBindings[element] ??
+              _walk.inlined.localBindings[element];
+        },
+        helperFor: (invocation) {
+          if (!isArtifactHelperInvocation(invocation)) return null;
+          final helper = _walk.inlined.helpers[invocation.methodName.element] ??
+              _collectionHelpers[invocation.methodName.element];
+          if (helper == null) return null;
+          final bindings = bindHelperArguments(
+            helper.params,
+            invocation.argumentList.arguments.toList(),
+          );
+          if (bindings == null) return null;
+          return CollectionResolvedHelper(
+            body: helper.body,
+            parameterBindings: bindings,
+          );
+        },
+      );
+
+  Map<Element, HelperDef> _collectionHelperDefinitions(
+    Expression expression,
+  ) {
+    final definitions = Map<Element, HelperDef>.identity();
+    for (final entry in inlinableHelperDefinitionsIn(expression).entries) {
+      final element = entry.key;
+      if (_isFrameworkValueType(element)) continue;
+      final name = element.name;
+      if (name != null &&
+          helpers.find(name, element.library?.identifier ?? '') != null) {
+        continue;
+      }
+      definitions[element] = entry.value;
+    }
+    return definitions;
+  }
+
+  String _translateOccurrence(
+    CollectionSemanticOccurrence occurrence,
+    List<Issue> issues,
+  ) {
+    return _translateWithBindings(
+      occurrence.terminalExpression,
+      occurrence.bindings,
+      issues,
+      _translate,
+    );
+  }
+
+  String _translateDoubleElement(
+    Expression expression,
+    Map<Element, Expression> bindings,
+    List<Issue> issues,
+  ) =>
+      _translateWithBindings(
+        expression,
+        bindings,
+        issues,
+        _translateDoubleScalar,
+      );
+
+  String _translateWithBindings(
+    Expression expression,
+    Map<Element, Expression> bindings,
+    List<Issue> issues,
+    TranslateCallback translate,
+  ) {
+    final saved = _walk;
+    _walk = _walk.copyWith(
+      inlined: InlinedDefinitions(
+        localBindings: {
+          ..._walk.inlined.localBindings,
+          ...bindings,
+        },
+        helpers: _walk.inlined.helpers,
+      ),
+    );
+    try {
+      return translate(expression, issues);
+    } finally {
+      _walk = saved;
+    }
   }
 
   String _setOrMapLiteral(SetOrMapLiteral expr, List<Issue> issues) {
@@ -2932,7 +3076,38 @@ final class ExpressionTranslator {
     List<Issue> issues,
     int depth,
   ) {
-    final stripped = _stripParens(expr);
+    final inspection = inspectTypedList(
+      expr,
+      resolveExpression: _resolveBoundIdentifier,
+      semanticProbe: _collectionSemanticProbe(),
+    );
+    switch (inspection) {
+      case CollectionTypedListElement(:final offending):
+        issues.add(
+          Issue(
+            code: IssueCode.unsupportedCollectionFlow,
+            message: 'TextSpan.children does not support spread, '
+                'collection-if, or collection-for. Use a static list of '
+                'TextSpan nodes.',
+            location: _locationOf(offending),
+          ),
+        );
+        return null;
+      case CollectionTypedListWorkLimitExceeded():
+        issues.add(
+          Issue(
+            code: IssueCode.unsupportedCollectionFlow,
+            message: 'Static inspection of TextSpan.children exceeded the '
+                'supported limit. Simplify the list expression.',
+            location: _locationOf(expr),
+          ),
+        );
+        return null;
+      case CollectionTypedListPlain():
+      case CollectionTypedListTerminal():
+        break;
+    }
+    final stripped = _resolveBoundIdentifier(expr);
     if (stripped is! ListLiteral) {
       issues.add(
         Issue(
@@ -2946,18 +3121,7 @@ final class ExpressionTranslator {
 
     final children = <String>[];
     for (final element in stripped.elements) {
-      if (element is! Expression) {
-        issues.add(
-          Issue(
-            code: IssueCode.unsupportedCollectionFlow,
-            message: 'TextSpan.children does not support spread, '
-                'collection-if, or collection-for. Use a static list of '
-                'TextSpan nodes.',
-            location: _locationOf(stripped),
-          ),
-        );
-        return null;
-      }
+      if (element is! Expression) return null;
       final child = _textSpanMap(element, issues, depth: depth + 1);
       if (child == null) return null;
       children.add(child);
@@ -5533,7 +5697,9 @@ final class ExpressionTranslator {
         inlined: blueprint.inlined,
       );
       try {
-        definitions[name] = _translate(blueprint.buildExpression, issues);
+        if (_admitOrdinaryLeaf(blueprint.buildExpression, issues)) {
+          definitions[name] = _translate(blueprint.buildExpression, issues);
+        }
         if (stateFields != null && stateFields.isNotEmpty) {
           definitionStates[name] = {
             for (final field in stateFields)
@@ -6565,14 +6731,17 @@ final class ExpressionTranslator {
   /// maps empty) it only strips parens.
   Expression _resolveBoundIdentifier(Expression expr) {
     var current = expr;
+    final seen = <Element>{};
     while (true) {
       if (current is ParenthesizedExpression) {
         current = current.expression;
         continue;
       }
       if (current is SimpleIdentifier) {
-        final bound = _walk.paramBindings[current.element] ??
-            _walk.inlined.localBindings[current.element];
+        final element = current.element;
+        if (element == null || !seen.add(element)) break;
+        final bound = _walk.paramBindings[element] ??
+            _walk.inlined.localBindings[element];
         if (bound == null) break;
         current = bound;
         continue;
@@ -7304,10 +7473,17 @@ final class ExpressionTranslator {
         return translated;
       case ProjectListTransform(:final itemTransform):
         if (itemTransform is IdentityTransform) {
-          final before = issues.length;
-          final translated = _translate(sourceExpr, issues);
-          if (translated.isEmpty && issues.length > before) return null;
-          return translated;
+          final translated = emitTypedList(
+            sourceExpr,
+            _translate,
+            issues,
+            _locationOf(sourceExpr),
+            resolveExpression: _resolveBoundIdentifier,
+            semanticProbe: _collectionSemanticProbe(),
+            locationOf: _locationOf,
+          );
+          if (translated.refused) return null;
+          return translated.value;
         }
         _unsupportedNativeTransform(
           'Only projectList(identity) is supported for ${destination.name}.',

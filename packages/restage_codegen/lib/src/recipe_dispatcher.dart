@@ -1,5 +1,6 @@
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/element/element.dart';
+import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/theme_recognition.dart';
 import 'package:restage_codegen/src/translator_kernels.dart';
@@ -8,6 +9,13 @@ import 'package:restage_codegen/src/translator_recipe.dart';
 /// Translates a captured Dart expression to a DSL fragment — the recursion
 /// hook back into the host translator.
 typedef TranslateCallback = String Function(Expression, List<Issue>);
+
+/// Translates one expression with exact element-keyed bindings.
+typedef TranslateBoundCallback = String Function(
+  Expression,
+  Map<Element, Expression>,
+  List<Issue>,
+);
 
 /// How a resolved double-list source must be translated.
 enum DoubleListSourceDisposition {
@@ -67,6 +75,93 @@ final class DslEmission {
   final bool refused;
 }
 
+/// Resolves wrappers and active bindings around a typed-list expression.
+typedef ResolveTypedListExpression = Expression Function(Expression);
+
+/// Inspects every transparent source reachable at a typed-list boundary.
+CollectionTypedListProbeResult inspectTypedList(
+  Expression expression, {
+  ResolveTypedListExpression? resolveExpression,
+  CollectionSemanticProbe? semanticProbe,
+  CollectionUnrollBudget? semanticBudget,
+}) {
+  final probe = _typedListProbe(resolveExpression, semanticProbe);
+  return probe.typedListCollectionElement(
+    expression,
+    budget: semanticBudget ??
+        CollectionUnrollBudget(workCeiling: kCollectionUnrollCeiling),
+  );
+}
+
+CollectionSemanticProbe _typedListProbe(
+  ResolveTypedListExpression? resolveExpression,
+  CollectionSemanticProbe? semanticProbe,
+) =>
+    semanticProbe ??
+    CollectionSemanticProbe(
+      sourceFor: resolveExpression == null
+          ? null
+          : (current) {
+              final resolved = resolveExpression(current);
+              return identical(resolved, current) ? null : resolved;
+            },
+    );
+
+Expression _identityExpression(Expression expression) => expression;
+
+/// Translates a typed list while preserving the explicit collection-flow
+/// boundary its element decoder requires.
+DslEmission emitTypedList(
+  Expression expr,
+  TranslateCallback translate,
+  List<Issue> issues,
+  String location, {
+  String listDescription = 'typed list',
+  ResolveTypedListExpression? resolveExpression,
+  CollectionSemanticProbe? semanticProbe,
+  CollectionUnrollBudget? semanticBudget,
+  String Function(AstNode)? locationOf,
+}) {
+  final inspection = inspectTypedList(
+    expr,
+    resolveExpression: resolveExpression,
+    semanticProbe: semanticProbe,
+    semanticBudget: semanticBudget,
+  );
+  switch (inspection) {
+    case CollectionTypedListElement(:final offending):
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: 'Collection elements in a $listDescription are unsupported; '
+              'write the values out.',
+          location: locationOf?.call(offending) ?? location,
+        ),
+      );
+      return const DslEmission.refusal();
+    case CollectionTypedListWorkLimitExceeded():
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: 'Static inspection of this $listDescription exceeded the '
+              'supported limit. Simplify the list expression.',
+          location: location,
+        ),
+      );
+      return const DslEmission.refusal();
+    case CollectionTypedListPlain():
+    case CollectionTypedListTerminal():
+      final issueStart = issues.length;
+      final value = translate(expr, issues);
+      final diagnosedFailure =
+          issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
+      if (value.isEmpty || diagnosedFailure) {
+        return const DslEmission.refusal();
+      }
+      return DslEmission.success(value);
+  }
+}
+
 /// Emits a list literal with each element coerced to a double-formatted
 /// literal (`[0, 1]` -> `[0.0, 1.0]`), using [translate] for each element.
 ///
@@ -83,8 +178,13 @@ DslEmission emitDoubleList(
   TranslateCallback translateDouble,
   DoubleListSourceResolver resolveSource,
   List<Issue> issues,
-  String loc,
-) {
+  String location, {
+  ResolveTypedListExpression? resolveExpression,
+  CollectionSemanticProbe? semanticProbe,
+  CollectionUnrollBudget? semanticBudget,
+  TranslateBoundCallback? translateDoubleElement,
+  String Function(AstNode)? locationOf,
+}) {
   DslEmission translateChild(
     Expression source,
     TranslateCallback childTranslator,
@@ -99,9 +199,11 @@ DslEmission emitDoubleList(
     return DslEmission.success(value);
   }
 
-  final resolved = resolveSource(expr);
-  final disposition = resolved.disposition;
-  if (disposition != DoubleListSourceDisposition.ordinary) {
+  DoubleListSourceResolution? cachedResolution;
+  DoubleListSourceResolution resolvedSource() =>
+      cachedResolution ??= resolveSource(expr);
+
+  DslEmission refuseResolvedSource(DoubleListSourceDisposition disposition) {
     final message = switch (disposition) {
       DoubleListSourceDisposition.constant =>
         'A const-derived list cannot be lowered at a double-decoded list '
@@ -132,12 +234,60 @@ DslEmission emitDoubleList(
                 ? IssueCode.unresolvedIdentifier
                 : IssueCode.unrecognizedMethodCall,
         message: message,
-        location: loc,
+        location: location,
       ),
     );
     return const DslEmission.refusal();
   }
-  final source = resolved.source;
+
+  final inspection = inspectTypedList(
+    expr,
+    resolveExpression: resolveExpression,
+    semanticProbe: semanticProbe,
+    semanticBudget: semanticBudget,
+  );
+  CollectionTypedListPlain? inspectedList;
+  switch (inspection) {
+    case CollectionTypedListElement(
+        :final offending,
+        :final reachedThroughTransparentEdge,
+      ):
+      final disposition = resolvedSource().disposition;
+      if (!reachedThroughTransparentEdge &&
+          disposition == DoubleListSourceDisposition.collectionFlow) {
+        return refuseResolvedSource(disposition);
+      }
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: 'Collection elements in a numeric list are unsupported; '
+              'write the values out.',
+          location: locationOf?.call(offending) ?? location,
+        ),
+      );
+      return const DslEmission.refusal();
+    case CollectionTypedListWorkLimitExceeded():
+      issues.add(
+        Issue(
+          code: IssueCode.unsupportedCollectionFlow,
+          message: 'Static inspection of this numeric list exceeded the '
+              'supported limit. Simplify the list expression.',
+          location: location,
+        ),
+      );
+      return const DslEmission.refusal();
+    case CollectionTypedListPlain():
+      inspectedList = inspection;
+    case CollectionTypedListTerminal():
+      break;
+  }
+
+  final resolved = resolvedSource();
+  final disposition = resolved.disposition;
+  if (disposition != DoubleListSourceDisposition.ordinary) {
+    return refuseResolvedSource(disposition);
+  }
+  final source = inspectedList?.list ?? resolved.source;
   if (source is! ListLiteral) {
     return translateChild(source, translate);
   }
@@ -148,7 +298,19 @@ DslEmission emitDoubleList(
   // because the string contains a `.` from `state.X`).
   final parts = <String>[];
   for (final element in source.elements.cast<Expression>()) {
-    final emitted = translateChild(element, translateDouble);
+    final issueStart = issues.length;
+    final value = translateDoubleElement == null
+        ? translateDouble(element, issues)
+        : translateDoubleElement(
+            element,
+            inspectedList?.bindings ?? const {},
+            issues,
+          );
+    final diagnosedFailure =
+        issues.skip(issueStart).any((issue) => !issue.code.isBuildNotice);
+    final emitted = value.isEmpty || diagnosedFailure
+        ? const DslEmission.refusal()
+        : DslEmission.success(value);
     if (emitted.refused) return emitted;
     parts.add(emitted.value);
   }
@@ -170,18 +332,31 @@ final class RecipeDispatcher {
     required Map<String, TranslatorRecipe> recipes,
     required TranslateCallback translate,
     required TranslateCallback translateDouble,
+    required TranslateBoundCallback translateDoubleElement,
     required DoubleListSourceResolver resolveDoubleListSource,
+    ResolveTypedListExpression? resolveTypedListExpression,
+    CollectionSemanticProbe Function()? collectionSemanticProbe,
+    String Function(AstNode)? locationOf,
     bool Function(Element?) isFrameworkLibrary = isFrameworkValueTypeLibrary,
   })  : _recipes = recipes,
         _translate = translate,
         _translateDouble = translateDouble,
+        _translateDoubleElement = translateDoubleElement,
         _resolveDoubleListSource = resolveDoubleListSource,
+        _resolveTypedListExpression =
+            resolveTypedListExpression ?? _identityExpression,
+        _collectionSemanticProbe = collectionSemanticProbe,
+        _locationOf = locationOf,
         _isFrameworkLibrary = isFrameworkLibrary;
 
   final Map<String, TranslatorRecipe> _recipes;
   final TranslateCallback _translate;
   final TranslateCallback _translateDouble;
+  final TranslateBoundCallback _translateDoubleElement;
   final DoubleListSourceResolver _resolveDoubleListSource;
+  final ResolveTypedListExpression _resolveTypedListExpression;
+  final CollectionSemanticProbe Function()? _collectionSemanticProbe;
+  final String Function(AstNode)? _locationOf;
 
   /// Framework-vs-customer predicate for the member-table nested-value gate.
   /// Defaults to [isFrameworkValueTypeLibrary]; the host translator injects its
@@ -345,13 +520,25 @@ final class RecipeDispatcher {
             _resolveDoubleListSource,
             issues,
             loc,
+            resolveExpression: _resolveTypedListExpression,
+            semanticProbe: _collectionSemanticProbe?.call(),
+            translateDoubleElement: _translateDoubleElement,
+            locationOf: _locationOf,
           );
         }
         // `asLength` coerces through [_translateDouble] (per-branch for a
         // conditional); otherwise translate as-is.
-        return DslEmission.success(
-          asLength ? _translateDouble(expr, issues) : _translate(expr, issues),
-        );
+        return asLength
+            ? DslEmission.success(_translateDouble(expr, issues))
+            : emitTypedList(
+                expr,
+                _translate,
+                issues,
+                loc,
+                resolveExpression: _resolveTypedListExpression,
+                semanticProbe: _collectionSemanticProbe?.call(),
+                locationOf: _locationOf,
+              );
       case EmitFragmentList(:final items):
         final parts = <String>[];
         for (final item in items) {

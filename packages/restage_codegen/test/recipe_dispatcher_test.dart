@@ -1,4 +1,5 @@
 import 'package:analyzer/dart/ast/ast.dart';
+import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
@@ -25,15 +26,19 @@ void main() {
         DoubleListSourceDisposition.ordinary,
     TranslateCallback? translate,
     TranslateCallback? translateDouble,
+    String Function(AstNode)? locationOf,
   }) =>
       RecipeDispatcher(
         recipes: {for (final r in recipes) r.key: r},
         translate: translate ?? fakeTranslate,
         translateDouble: translateDouble ?? fakeTranslateDouble,
+        translateDoubleElement: (expression, bindings, issues) =>
+            (translateDouble ?? fakeTranslateDouble)(expression, issues),
         resolveDoubleListSource: (source) => DoubleListSourceResolution(
           source: source,
           disposition: doubleListDisposition,
         ),
+        locationOf: locationOf,
       );
 
   // Parses a call expression and returns its argument list.
@@ -560,6 +565,286 @@ void main() {
       expect(out, '0.0');
     });
 
+    test('typed recipe lists refuse collection elements', () async {
+      final d = dispatcherWith(
+        [
+          const TranslatorRecipe(
+            typeName: 'Grad',
+            emit: EmitFragmentMap([
+              EmitMapEntry('colors', EmitFragmentArg(ArgRef.named('colors'))),
+            ]),
+            failureDsl: '{}',
+          ),
+        ],
+        locationOf: (_) => 'lib/recipe.dart:4:16',
+      );
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Grad',
+        await argsOf(
+          'Grad(colors: ([for (final color in const [1, 2]) color]))',
+        ),
+        issues,
+        'lib/recipe.dart:4:3',
+      );
+
+      expect(out, isEmpty);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        issues.single.message,
+        'Collection elements in a typed list are unsupported; '
+        'write the values out.',
+      );
+      expect(issues.single.location, 'lib/recipe.dart:4:16');
+    });
+
+    test('typed recipe lists inspect both conditional branches', () async {
+      final d = dispatcherWith([
+        const TranslatorRecipe(
+          typeName: 'Grad',
+          emit: EmitFragmentArg(ArgRef.named('colors')),
+          failureDsl: '{}',
+        ),
+      ]);
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Grad',
+        await argsOf(
+          'Grad(colors: true '
+          '? [1] '
+          ': [for (final color in const [2]) color])',
+        ),
+        issues,
+        'lib/recipe_conditional.dart:2:3',
+      );
+
+      expect(out, isEmpty);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(issues.single.location, 'lib/recipe_conditional.dart:2:3');
+    });
+
+    test('numeric recipe lists refuse wrapped collection elements', () async {
+      final d = dispatcherWith([
+        const TranslatorRecipe(
+          typeName: 'Grad',
+          emit: EmitFragmentArg(
+            ArgRef.named('stops'),
+            asDoubleList: true,
+          ),
+          failureDsl: '{}',
+        ),
+      ]);
+      final issues = <Issue>[];
+      final out = d.tryTranslate(
+        '#Grad',
+        await argsOf(
+          'Grad(stops: ([for (final stop in const [0, 1]) stop]))',
+        ),
+        issues,
+        'lib/recipe_numeric.dart:5:3',
+      );
+
+      expect(out, isEmpty);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        issues.single.message,
+        'Collection elements in a numeric list are unsupported; '
+        'write the values out.',
+      );
+    });
+
+    test('typed-list inspection follows an injected binding alias', () async {
+      final alias = await parseExpressionForTest(
+        '[for (final color in const [1, 2]) color]',
+      );
+      final reference = await parseExpressionForTest('colors');
+      final issues = <Issue>[];
+      final out = emitTypedList(
+        reference,
+        fakeTranslate,
+        issues,
+        'lib/recipe_alias.dart:3:5',
+        resolveExpression: (expression) =>
+            expression is SimpleIdentifier && expression.name == 'colors'
+                ? alias
+                : expression,
+      );
+
+      expect(out.refused, isTrue);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+    });
+
+    test('typed-list source resolution terminates through an alias cycle',
+        () async {
+      final first = await parseExpressionForTest('first');
+      final second = await parseExpressionForTest('second');
+      final semantics = CollectionSemanticProbe(
+        sourceFor: (expression) => switch (expression.toSource()) {
+          'first' => second,
+          'second' => first,
+          _ => null,
+        },
+      );
+
+      final resolution = semantics.resolve(
+        first,
+        const {},
+        CollectionUnrollBudget(workCeiling: 2),
+      );
+
+      expect(resolution.workLimitExceeded, isFalse);
+      expect(resolution.expression, same(first));
+    });
+
+    test('typed-list source resolution has bounded traversal', () async {
+      final first = await parseExpressionForTest('first');
+      final second = await parseExpressionForTest('second');
+      final third = await parseExpressionForTest('third');
+      final semantics = CollectionSemanticProbe(
+        sourceFor: (expression) => switch (expression.toSource()) {
+          'first' => second,
+          'second' => third,
+          _ => null,
+        },
+      );
+
+      final resolution = semantics.resolve(
+        first,
+        const {},
+        CollectionUnrollBudget(workCeiling: 1),
+      );
+
+      expect(resolution.workLimitExceeded, isTrue);
+      expect(resolution.expression, same(first));
+    });
+
+    test('typed-list inspection reports bounded plain-list exhaustion',
+        () async {
+      final first = await parseExpressionForTest('first');
+      final second = await parseExpressionForTest('second');
+      final plain = await parseExpressionForTest('[1]');
+      final semantics = CollectionSemanticProbe(
+        sourceFor: (expression) => switch (expression.toSource()) {
+          'first' => second,
+          'second' => plain,
+          _ => null,
+        },
+      );
+      final issues = <Issue>[];
+      final out = emitTypedList(
+        first,
+        fakeTranslate,
+        issues,
+        'lib/typed_limit.dart:7:9',
+        semanticProbe: semantics,
+        semanticBudget: CollectionUnrollBudget(workCeiling: 1),
+      );
+
+      expect(out.refused, isTrue);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        issues.single.message,
+        'Static inspection of this typed list exceeded the supported limit. '
+        'Simplify the list expression.',
+      );
+      expect(issues.single.message, isNot(contains('Collection elements')));
+      expect(issues.single.location, 'lib/typed_limit.dart:7:9');
+    });
+
+    test('numeric-list inspection reports bounded plain-list exhaustion',
+        () async {
+      final first = await parseExpressionForTest('first');
+      final second = await parseExpressionForTest('second');
+      final plain = await parseExpressionForTest('[1]');
+      final semantics = CollectionSemanticProbe(
+        sourceFor: (expression) => switch (expression.toSource()) {
+          'first' => second,
+          'second' => plain,
+          _ => null,
+        },
+      );
+      final issues = <Issue>[];
+      final out = emitDoubleList(
+        first,
+        fakeTranslate,
+        fakeTranslateDouble,
+        (source) => DoubleListSourceResolution(
+          source: source,
+          disposition: DoubleListSourceDisposition.ordinary,
+        ),
+        issues,
+        'lib/numeric_limit.dart:8:11',
+        semanticProbe: semantics,
+        semanticBudget: CollectionUnrollBudget(workCeiling: 1),
+      );
+
+      expect(out.refused, isTrue);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        issues.single.message,
+        'Static inspection of this numeric list exceeded the supported limit. '
+        'Simplify the list expression.',
+      );
+      expect(issues.single.message, isNot(contains('Collection elements')));
+      expect(issues.single.location, 'lib/numeric_limit.dart:8:11');
+    });
+
+    test('low-limit typed inspection still identifies collection flow',
+        () async {
+      final collection = await parseExpressionForTest(
+        '[for (final value in const [1]) value]',
+      );
+      final issues = <Issue>[];
+      final out = emitTypedList(
+        collection,
+        fakeTranslate,
+        issues,
+        'lib/typed_flow.dart:4:7',
+        semanticBudget: CollectionUnrollBudget(workCeiling: 1),
+        locationOf: (_) => 'lib/typed_flow.dart:4:8',
+      );
+
+      expect(out.refused, isTrue);
+      expect(issues, hasLength(1));
+      expect(issues.single.code, IssueCode.unsupportedCollectionFlow);
+      expect(
+        issues.single.message,
+        'Collection elements in a typed list are unsupported; '
+        'write the values out.',
+      );
+      expect(issues.single.location, 'lib/typed_flow.dart:4:8');
+    });
+
+    test('typed-list elements consume inspection work before classification',
+        () async {
+      final collection = await parseExpressionForTest(
+        '[for (final value in const [1]) value]',
+      );
+      final issues = <Issue>[];
+      final out = emitTypedList(
+        collection,
+        fakeTranslate,
+        issues,
+        'lib/typed_element_limit.dart:5:7',
+        semanticBudget: CollectionUnrollBudget(workCeiling: 0),
+      );
+
+      expect(out.refused, isTrue);
+      expect(issues, hasLength(1));
+      expect(
+        issues.single.message,
+        'Static inspection of this typed list exceeded the supported limit. '
+        'Simplify the list expression.',
+      );
+      expect(issues.single.location, 'lib/typed_element_limit.dart:5:7');
+    });
+
     test('EmitFragmentMemberTable looks a member up by name', () async {
       final d = dispatcherWith([
         const TranslatorRecipe(
@@ -736,6 +1021,8 @@ void main() {
         StructuredValueEmitter(
           translate: translate,
           translateDoubleScalar: translateDouble,
+          translateDoubleElement: (expression, bindings, issues) =>
+              translateDouble(expression, issues),
           resolveDoubleListSource: (source) => DoubleListSourceResolution(
             source: source,
             disposition: DoubleListSourceDisposition.ordinary,
@@ -744,6 +1031,7 @@ void main() {
           stringLiteral: (value) => '"$value"',
           frameworkOrUnresolved: (_) => true,
           resolveBoundIdentifier: (source) => source,
+          collectionSemanticProbe: () => CollectionSemanticProbe(),
           isResolvedNonFrameworkCtor: (_) => false,
           deferFrameworkConstLookalike: (expression, owner, member, issues) =>
               '',
