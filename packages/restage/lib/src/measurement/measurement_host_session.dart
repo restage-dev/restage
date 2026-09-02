@@ -391,6 +391,9 @@ final class MeasurementHostSessionController
   static Future<MeasurementHostSessionController> open(
     MeasurementHostSessionOpenRequest request,
   ) async {
+    if (!Restage.isMeasurementEnabled) {
+      return MeasurementHostSessionController._disabled();
+    }
     final authority = MeasurementHostSessionConstructionRegistry._authority;
     if (authority == null) return MeasurementHostSessionController._disabled();
     return _openWithAuthority(request, authority);
@@ -405,6 +408,9 @@ final class MeasurementHostSessionController
   static Future<MeasurementHostSessionController> openForResolvedArtifact(
     Object resolvedOrPayload,
   ) async {
+    if (!Restage.isMeasurementEnabled) {
+      return MeasurementHostSessionController._disabled();
+    }
     final authority = MeasurementHostSessionConstructionRegistry._authority;
     if (authority == null) return MeasurementHostSessionController._disabled();
 

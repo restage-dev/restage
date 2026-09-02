@@ -57,7 +57,7 @@ const Map<String, int> _seedLookups = {
 /// census itself cannot disagree about what was measured.
 ///
 /// Discovery spans two packages: this one, and the catalog compiler that walks
-/// a customer library for `@RestageLibrary`. Reading only the first would
+/// an app-defined library for `@RestageLibrary`. Reading only the first would
 /// leave the filter's claim — that it is a superset of everything discovery
 /// accepts — true of half the vocabulary.
 final List<Directory> _censusDirectories = [
@@ -139,6 +139,7 @@ void main() {
     final unmatched = [
       for (final entry in identified.entries)
         if (!_qualifierAnnotations.contains(entry.key) &&
+            !_nonAnnotationClassNameGuards.contains(entry.key) &&
             !_matchedByFilter(entry.key))
           '${entry.key} (${entry.value})',
     ]..sort();
@@ -450,6 +451,8 @@ const Set<String> _qualifierAnnotations = {
   'Ignore',
   'Config',
 };
+
+const Set<String> _nonAnnotationClassNameGuards = {'Restage'};
 
 /// Whether a file spelling [name] as an annotation is selected by either
 /// filter.

@@ -34,7 +34,7 @@ import 'package:restage_codegen/src/screen_source_admission.dart'
 
 const String _authoredDartGlob = 'lib/**.dart';
 
-/// The annotation names that introduce a customer widget or its library.
+/// The annotation names that introduce an app-defined widget or its library.
 const List<String> _widgetTokenNames = ['RestageWidget', 'RestageLibrary'];
 
 /// The annotation names that introduce a surface source — a screen, a paywall,
@@ -77,8 +77,8 @@ final class RestageTokenSet {
   bool wouldSelectAnnotation(String name) => hasMatch('@$name()');
 }
 
-/// Raw-source identifiers meaning a file may declare a customer widget or a
-/// customer widget library.
+/// Raw-source identifiers meaning a file may declare an app-defined widget or
+/// widget library.
 @visibleForTesting
 final RestageTokenSet restageWidgetSourceTokens =
     RestageTokenSet._(_widgetTokenNames);
@@ -101,19 +101,22 @@ final RestageTokenSet restageWidgetSourceTokens =
 final RestageTokenSet restageSurfaceSourceTokens =
     RestageTokenSet._(_surfaceTokenNames);
 
-/// Raw-source identifiers meaning a file may declare EITHER a customer widget
-/// or a surface source.
+/// Raw-source identifiers meaning a file may declare an app-defined widget or
+/// a surface source.
 ///
 /// The native screen index reads both vocabularies out of one pass over the
 /// package — canonical screens by library identity, deprecated screens, and
-/// customer widgets for the name-collision check — so it selects on the union
-/// rather than running two walks.
+/// app-defined widgets for the name-collision check — so it selects on the
+/// union rather than running two walks.
 final RestageTokenSet _widgetOrSurfaceTokens = RestageTokenSet._([
   ..._widgetTokenNames,
   ..._surfaceTokenNames,
 ]);
 
-/// The libraries a customer-widget walk must resolve.
+final RestageTokenSet _measurementConfigurationTokens =
+    RestageTokenSet._(['configure']);
+
+/// The libraries an app-widget walk must resolve.
 Future<List<AssetId>> selectRestageWidgetCandidates(
   BuildStep buildStep, {
   bool Function(AssetId)? resolvable,
@@ -132,6 +135,16 @@ Future<List<AssetId>> selectRestageSurfaceCandidates(BuildStep buildStep) =>
     _selectPackageWide(
       buildStep,
       tokens: restageSurfaceSourceTokens,
+      resolvable: isAuthoredDartLibraryAsset,
+    );
+
+/// The libraries that may contain a package Measurement setting.
+Future<List<AssetId>> selectRestageMeasurementConfigurationCandidates(
+  BuildStep buildStep,
+) =>
+    _selectPackageWide(
+      buildStep,
+      tokens: _measurementConfigurationTokens,
       resolvable: isAuthoredDartLibraryAsset,
     );
 
@@ -500,7 +513,7 @@ final RegExp _leadingIdentifierChain = RegExp(
 /// so the second alias would never be found and the declaration using it would
 /// be dropped, which is the whole shape this pass exists to close. Anchoring
 /// on `@` and `=` keeps it far narrower than matching the bare name, which
-/// for a customer-chosen identifier could select most of a package.
+/// for a developer-chosen identifier could select most of a package.
 RegExp _aliasUsePattern(Set<String> aliases) {
   final names = (aliases.toList()..sort()).map(RegExp.escape).join('|');
   // Repeatable, not optional-once: a constant kept on a class and reached

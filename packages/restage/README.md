@@ -195,6 +195,13 @@ pass `analyticsEnabled: false` to `Restage.configure(...)` to keep hosted
 delivery and disable analytics. If you use the hosted service, surface fetches
 still include the metering token described below.
 
+**Disabling measurement at build time:** pass `measurementEnabled: false` to
+`Restage.configure(...)`. The generator still produces ordinary surface
+artifacts, but emits no measurement candidates or bindings, and the SDK opens
+no measurement sessions. The setting defaults to `true` and is independent of
+`analyticsEnabled`, hosted operational controls, and platform admission. None
+of those controls can enable measurement in a build that disables it.
+
 ### The metering token
 
 The hosted service is billed by monthly active users, so the SDK needs a way to
