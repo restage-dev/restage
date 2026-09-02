@@ -1,5 +1,5 @@
-import 'package:analyzer/dart/ast/ast.dart';
 import 'package:meta/meta.dart';
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/measurement/measurement_source_discovery.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 
@@ -47,36 +47,32 @@ abstract final class MeasurementCompactPointTokenEmitter {
   }
 }
 
-/// One exact source-expression to generated-reference binding.
+/// One exact event-occurrence to generated-reference binding.
 @immutable
 final class MeasurementRouteEmissionBinding {
-  /// Creates an explicit compiler binding for one callback expression.
+  /// Creates an explicit compiler binding for one route.
   const MeasurementRouteEmissionBinding({
-    required this.sourceExpression,
+    required this.occurrence,
     required this.generatedReferenceId,
   });
 
-  /// Analyzer expression supplying the admitted event slot.
-  final Expression sourceExpression;
+  /// Structural position capable of emitting this route marker.
+  final MeasurementEventOccurrence occurrence;
 
   /// Generated reference selected by the target-neutral draft route.
   final GeneratedReferenceId generatedReferenceId;
 }
 
-/// Exact source-expression bindings used by the RFW translation pass.
-///
-/// The identity map is deliberately object-identity based. It makes a
-/// repeated widget occurrence a separate binding even when its Dart source
-/// spelling and business event name are identical, and it cannot accidentally
-/// collapse two callback slots by ordinal or visible text.
+/// Exact structural event bindings used by the RFW translation pass.
 @immutable
 final class MeasurementRouteEmissionPlan {
-  /// Creates a plan from explicit analyzer-expression bindings.
+  /// Creates a plan from explicit structural event bindings.
   factory MeasurementRouteEmissionPlan(
     Iterable<MeasurementRouteEmissionBinding> bindings,
   ) {
-    final markerByExpression = Map<Expression, String>.identity();
+    final markerByOccurrence = <MeasurementEventOccurrence, String>{};
     final refs = <String>{};
+    String? sourceRootIdentity;
     for (final binding in bindings) {
       final reference = binding.generatedReferenceId.value;
       if (!refs.add(reference)) {
@@ -86,23 +82,33 @@ final class MeasurementRouteEmissionPlan {
         );
       }
       final marker = markerForGeneratedReference(binding.generatedReferenceId);
-      final previous = markerByExpression[binding.sourceExpression];
-      if (previous != null && previous != marker) {
+      final occurrence = binding.occurrence;
+      sourceRootIdentity ??= occurrence.sourceRootIdentity;
+      if (sourceRootIdentity != occurrence.sourceRootIdentity) {
         throw ArgumentError(
-          'One exact callback expression cannot carry two measurement routes',
+          'A measurement route emission plan must have one source root',
         );
       }
-      markerByExpression[binding.sourceExpression] = marker;
-      _alsoBindFunctionBody(
-        markerByExpression,
-        binding.sourceExpression,
-        marker,
-      );
+      final previous = markerByOccurrence[occurrence];
+      if (previous != null && previous != marker) {
+        throw ArgumentError(
+          'One exact event occurrence cannot carry two measurement routes',
+        );
+      }
+      markerByOccurrence[occurrence] = marker;
     }
-    return MeasurementRouteEmissionPlan._(markerByExpression);
+    return MeasurementRouteEmissionPlan._(
+      markerByOccurrence,
+      sourceRootIdentity == null
+          ? null
+          : MeasurementOccurrenceScope.root(sourceRootIdentity),
+    );
   }
 
-  const MeasurementRouteEmissionPlan._(this._markerByExpression);
+  const MeasurementRouteEmissionPlan._(
+    this._markerByOccurrence,
+    this.rootScope,
+  );
 
   /// Builds a plan by reconciling resolved source discovery to the exact
   /// target-neutral publication draft.
@@ -154,7 +160,7 @@ final class MeasurementRouteEmissionPlan {
       }
       bindings.add(
         MeasurementRouteEmissionBinding(
-          sourceExpression: discovered.sourceExpression,
+          occurrence: discovered.emissionOccurrence,
           generatedReferenceId: route.generatedReferenceId,
         ),
       );
@@ -162,10 +168,14 @@ final class MeasurementRouteEmissionPlan {
     return MeasurementRouteEmissionPlan(bindings);
   }
 
-  final Map<Expression, String> _markerByExpression;
+  final Map<MeasurementEventOccurrence, String> _markerByOccurrence;
 
-  /// Returns the internal marker for this exact analyzer expression.
-  String? markerFor(Expression expression) => _markerByExpression[expression];
+  /// Structural source scope used to begin translation.
+  final MeasurementOccurrenceScope? rootScope;
+
+  /// Returns the marker for this exact structural event occurrence.
+  String? markerFor(MeasurementEventOccurrence occurrence) =>
+      _markerByOccurrence[occurrence];
 
   /// Returns the marker spelling used in the transient RFW handoff.
   static String markerForGeneratedReference(
@@ -173,40 +183,6 @@ final class MeasurementRouteEmissionPlan {
   ) =>
       '$kMeasurementRouteReferenceMarkerPrefixV1'
       '${generatedReferenceId.value}';
-
-  static void _alsoBindFunctionBody(
-    Map<Expression, String> markers,
-    Expression expression,
-    String marker,
-  ) {
-    var current = expression;
-    while (current is ParenthesizedExpression) {
-      current = current.expression;
-      _bindExact(markers, current, marker);
-    }
-    if (current is FunctionExpression &&
-        current.body is ExpressionFunctionBody) {
-      _bindExact(
-        markers,
-        (current.body as ExpressionFunctionBody).expression,
-        marker,
-      );
-    }
-  }
-
-  static void _bindExact(
-    Map<Expression, String> markers,
-    Expression expression,
-    String marker,
-  ) {
-    final previous = markers[expression];
-    if (previous != null && previous != marker) {
-      throw ArgumentError(
-        'One exact callback expression cannot carry two measurement routes',
-      );
-    }
-    markers[expression] = marker;
-  }
 }
 
 /// Strictly validates and emits a transient event marker from translated RFW

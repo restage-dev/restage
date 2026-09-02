@@ -244,7 +244,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
   final catalog = await loadMergedCatalog(buildStep);
   final helpers = HelperRegistry()..registerAll(onboardingHelpers);
   final classification = await classifyReferencedCustomWidgets(
-    rootExpressions: ordered.map((source) => source.build.rootExpression),
+    rootExpressions: ordered.expand((source) => source.build.collectorRoots),
     catalog: catalog,
     helpers: helpers,
     astNodeFor: (fragment) =>
@@ -278,6 +278,7 @@ Future<ResolvedScreenCompilationResult> compileResolvedScreens(
       lineInfo: lineInfo,
       rootState: source.build.state,
       rootEventHandlers: source.build.eventHandlers,
+      rootLocalBindings: source.build.localBindings,
     );
     issues.addAll(translation.issues);
     if (translation.issues.isNotEmpty) continue;
@@ -498,7 +499,8 @@ final class OnboardingScreenBuilder implements Builder {
     final catalog = await loadMergedCatalog(buildStep);
     final helpers = HelperRegistry()..registerAll(onboardingHelpers);
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions: result.sources.map((source) => source.rootExpression),
+      rootExpressions:
+          result.sources.expand((source) => source.build.collectorRoots),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -523,6 +525,7 @@ final class OnboardingScreenBuilder implements Builder {
         lineInfo: lineInfo,
         rootState: src.build.state,
         rootEventHandlers: src.build.eventHandlers,
+        rootLocalBindings: src.build.localBindings,
       );
       issues.addAll(translation.issues);
       if (translation.issues.isNotEmpty) continue;

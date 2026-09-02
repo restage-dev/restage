@@ -35,6 +35,26 @@ void main() {
       expect(singleReturnExpressionOf(body), isNull);
     });
 
+    test('returns null for a late final local before the return', () {
+      final body = _bodyOf('int f() { late final x = 1; return x; }');
+      expect(extractInlinableBuildBody(body), isNull);
+    });
+
+    test('returns null for grouped final declarations', () {
+      final body = _bodyOf('int f() { final x = 1, y = 2; return x + y; }');
+      expect(extractInlinableBuildBody(body), isNull);
+    });
+
+    test('returns null for a final local without an initializer', () {
+      final body = _bodyOf('int f() { final int x; return 1; }');
+      expect(extractInlinableBuildBody(body), isNull);
+    });
+
+    test('returns null for grouped const declarations', () {
+      final body = _bodyOf('int f() { const x = 1, y = 2; return x + y; }');
+      expect(extractInlinableBuildBody(body), isNull);
+    });
+
     test('returns the return expression past leading const locals', () {
       // A `const` local is inert (compile-time); its reference folds at the
       // translation site, so the body still reduces to one returned widget.
@@ -56,6 +76,59 @@ void main() {
     test('returns null for a bare value-less return', () {
       final body = _bodyOf('void f() { return; }');
       expect(singleReturnExpressionOf(body), isNull);
+    });
+  });
+
+  group('preludeDeclarationProblem', () {
+    test('names a declaration without an initializer', () {
+      final body = _bodyOf('int f() { final int x; return 1; }');
+      expect(
+        preludeDeclarationProblem(body),
+        contains('no resolved declaration or initializer'),
+      );
+    });
+
+    test('names the variables of a grouped final declaration', () {
+      final body = _bodyOf('int f() { final x = 1, y = 2; return x + y; }');
+      expect(preludeDeclarationProblem(body), contains("'x, y'"));
+      expect(preludeDeclarationProblem(body), contains('split it'));
+    });
+
+    test('names the variables of a grouped const declaration', () {
+      final body = _bodyOf('int f() { const x = 1, y = 2; return x + y; }');
+      expect(preludeDeclarationProblem(body), contains("'x, y'"));
+    });
+
+    test('stays silent for a body refused for another shape', () {
+      final body = _bodyOf('int f() { var x = 1, y = 2; return x + y; }');
+      expect(preludeDeclarationProblem(body), isNull);
+    });
+
+    test('stays silent for an accepted body', () {
+      final body = _bodyOf('int f() { const x = 1; return x; }');
+      expect(preludeDeclarationProblem(body), isNull);
+    });
+  });
+
+  group('inlinableBuildBodyProblem', () {
+    test('rejects a recovered final without a declaration element', () {
+      final body = _bodyOf('int f() { final value = 1; return value; }');
+      final extracted = extractInlinableBuildBody(body);
+      expect(extracted, isNotNull);
+      expect(
+        inlinableBuildBodyProblem(extracted!),
+        contains('no resolved declaration or initializer'),
+      );
+    });
+
+    test('rejects a recovered const without a declaration element', () {
+      final body = _bodyOf('int f() { const value = 1; return value; }');
+      final extracted = extractInlinableBuildBody(body);
+      expect(extracted, isNotNull);
+      expect(
+        inlinableBuildBodyProblem(extracted!),
+        contains('no resolved declaration or initializer'),
+      );
     });
   });
 }

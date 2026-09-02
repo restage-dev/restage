@@ -77,6 +77,7 @@ List<CustomWidgetParam>? _constructorParams(
         isNumeric: _isNumericType(parameter.type),
         defaultValue: defaultValue,
         coalesceFallback: coalescedFallbacks[name],
+        sourceField: parameter.field,
       ),
     );
   }
@@ -377,27 +378,20 @@ final class WidgetClassifier {
     if (extracted == null) {
       return UnclassifiableWidget(
         key,
-        reason: 'build() body is not a single returned expression',
+        reason: preludeDeclarationProblem(node.body) ??
+            'build() body is not a single returned expression',
       );
     }
-    final returnExpr = extracted.expression;
-    // Capture leading `final` local bindings (name element → initializer) so a
-    // reference to one resolves-through to its initializer in the walk and the
-    // translator. `const` locals are not captured — they fold at the use site.
-    final localBindings = <Element, Expression>{};
-    for (final variable in extracted.finalLocals) {
-      final element = variable.declaredFragment?.element;
-      final initializer = variable.initializer;
-      if (element != null && initializer != null) {
-        localBindings[element] = initializer;
-      }
+    final preludeProblem = inlinableBuildBodyProblem(extracted);
+    if (preludeProblem != null) {
+      return UnclassifiableWidget(key, reason: preludeProblem);
     }
-
+    final returnExpr = extracted.expression;
     final walk = _Walk(
       this,
       widgetClass,
       stateClass,
-      localBindings,
+      extracted.localBindings,
       inlinableHelperDefinitionsIn(returnExpr),
       _collectionSession!,
     );
@@ -913,6 +907,9 @@ class _Walk {
           constructorName: expr.constructorName.name?.name,
         );
     for (final arg in expr.argumentList.arguments) {
+      if (arg is NamedExpression && isDiscardedWidgetKeyArgument(arg)) {
+        continue;
+      }
       if (isCatalogWidget && _tryClassifyNavigationTrigger(arg)) {
         continue;
       }
@@ -1136,7 +1133,9 @@ class _Walk {
     final body =
         functionBody == null ? null : singleReturnExpressionOf(functionBody);
     if (body == null) {
-      _blocker(BlockerKind.dartCall, call, _truncateSource(call));
+      final problem =
+          functionBody == null ? null : preludeDeclarationProblem(functionBody);
+      _blocker(BlockerKind.dartCall, call, problem ?? _truncateSource(call));
       return null;
     }
     return HelperDef(
@@ -1804,8 +1803,9 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
     helpers: helpers,
   );
   final entryPoints = <ClassElement>{};
-  final census = _CustomWidgetOccurrenceCensus(entryPoints);
-  rootExpressions.forEach(census.collect);
+  for (final expression in rootExpressions) {
+    entryPoints.addAll(customWidgetClassesIn(expression));
+  }
   for (final widgetClass in entryPoints) {
     await classifier.classify(widgetClass);
   }
@@ -1816,19 +1816,61 @@ Future<ClassificationResult> classifyReferencedCustomWidgets({
   );
 }
 
-final class _CustomWidgetOccurrenceCensus {
-  _CustomWidgetOccurrenceCensus(this._entryPoints);
+/// Finds the annotated widget classes reached from [expression].
+Set<ClassElement> customWidgetClassesIn(
+  Expression expression, {
+  InlinedDefinitions inlined = const InlinedDefinitions.empty(),
+}) {
+  final classes = <ClassElement>{};
+  visitStaticallyAdmittedExpressions(
+    expression,
+    inlined: inlined,
+    visit: (expression, _) {
+      if (expression is! InstanceCreationExpression) return;
+      final type = expression.constructorName.type.element;
+      if (type is ClassElement &&
+          firstAnnotation(type, 'RestageWidget') != null) {
+        classes.add(type);
+      }
+    },
+  );
+  return classes;
+}
 
-  final Set<ClassElement> _entryPoints;
+/// Visits expressions selected by static collection expansion.
+void visitStaticallyAdmittedExpressions(
+  Expression expression, {
+  required void Function(
+    Expression expression,
+    Map<Element, Expression> bindings,
+  ) visit,
+  InlinedDefinitions inlined = const InlinedDefinitions.empty(),
+}) {
+  _StaticallyAdmittedExpressionVisitor(visit, inlined).collect(expression);
+}
+
+final class _StaticallyAdmittedExpressionVisitor {
+  _StaticallyAdmittedExpressionVisitor(this._visit, this._inlined);
+
+  final void Function(
+    Expression expression,
+    Map<Element, Expression> bindings,
+  ) _visit;
+  final InlinedDefinitions _inlined;
   final Set<Expression> _active = <Expression>{};
 
   void collect(Expression expression) {
     final session = CollectionSemanticTraversalSession();
-    if (session.admitOrdinaryLeaf(expression, _semanticsFor(expression)) !=
+    final bindings = _inlined.localBindings;
+    if (session.admitOrdinaryLeaf(
+          expression,
+          _semanticsFor(expression),
+          bindings: bindings,
+        ) !=
         null) {
       return;
     }
-    _collect(expression, session: session);
+    _collect(expression, session: session, bindings: bindings);
   }
 
   void _collect(
@@ -1869,9 +1911,7 @@ final class _CustomWidgetOccurrenceCensus {
         }
         return;
       }
-      if (expression is InstanceCreationExpression) {
-        _record(expression);
-      }
+      _visit(expression, bindings);
       for (final child in expression.childEntities.whereType<AstNode>()) {
         _collectNestedExpressions(child, bindings, session);
       }
@@ -1883,10 +1923,11 @@ final class _CustomWidgetOccurrenceCensus {
   CollectionSemanticProbe _semanticsFor(Expression expression) {
     final helpers = inlinableHelperDefinitionsIn(expression);
     return CollectionSemanticProbe(
+      bindingFor: (identifier) => _inlined.localBindings[identifier.element],
       helperFor: (invocation) {
         if (!isArtifactHelperInvocation(invocation)) return null;
         final element = invocation.methodName.element;
-        final definition = helpers[element];
+        final definition = _inlined.helpers[element] ?? helpers[element];
         if (definition == null) return null;
         final parameterBindings = bindHelperArguments(
           definition.params,
@@ -1899,14 +1940,6 @@ final class _CustomWidgetOccurrenceCensus {
         );
       },
     );
-  }
-
-  void _record(InstanceCreationExpression node) {
-    final type = node.constructorName.type.element;
-    if (type is ClassElement &&
-        firstAnnotation(type, 'RestageWidget') != null) {
-      _entryPoints.add(type);
-    }
   }
 
   void _collectNestedExpressions(

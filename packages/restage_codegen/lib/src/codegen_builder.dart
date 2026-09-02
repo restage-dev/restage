@@ -224,7 +224,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
   final catalog = await catalogCache.getOrLoad(buildStep);
   final helpers = productionPaywallHelperRegistry();
   final classification = await classifyReferencedCustomWidgets(
-    rootExpressions: sources.map((source) => source.rootExpression),
+    rootExpressions: sources.expand((source) => source.build.collectorRoots),
     catalog: catalog,
     helpers: helpers,
     astNodeFor: (fragment) =>
@@ -255,6 +255,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
       rootState: source.build.state,
       rootEventHandlers: source.build.eventHandlers,
       buildContextParameter: source.build.buildContextParameter,
+      rootLocalBindings: source.build.localBindings,
     );
     final usesFlowForm = probe.navigation != null || probe.suppressed;
     final emitStandalone = routeOwnership?.standalone ?? !usesFlowForm;
@@ -271,6 +272,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             rootState: source.build.state,
             rootEventHandlers: source.build.eventHandlers,
             buildContextParameter: source.build.buildContextParameter,
+            rootLocalBindings: source.build.localBindings,
           )
         : probe;
     final adapter = usesFlowForm
@@ -283,6 +285,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
             rootEventHandlers: source.build.eventHandlers,
             buildContextParameter: source.build.buildContextParameter,
             flowScreenContext: true,
+            rootLocalBindings: source.build.localBindings,
           )
         : routePlan != null && emitAdapter
             ? translatorFor(source, routePlan).translate(
@@ -294,6 +297,7 @@ Future<ResolvedPaywallCompilationResult> compileResolvedPaywalls(
                 rootEventHandlers: source.build.eventHandlers,
                 buildContextParameter: source.build.buildContextParameter,
                 flowScreenContext: true,
+                rootLocalBindings: source.build.localBindings,
               )
             : probe;
     _addFatalTranslationIssues(issues, standalone.issues);
@@ -681,7 +685,8 @@ final class RestageCodegenBuilder implements Builder {
 
     // Classification pre-pass — see classifyReferencedCustomWidgets.
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions: state.paywallSources.map((s) => s.rootExpression),
+      rootExpressions:
+          state.paywallSources.expand((s) => s.build.collectorRoots),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -704,6 +709,7 @@ final class RestageCodegenBuilder implements Builder {
         rootState: src.build.state,
         rootEventHandlers: src.build.eventHandlers,
         buildContextParameter: src.build.buildContextParameter,
+        rootLocalBindings: src.build.localBindings,
       );
       final adapterTranslation = (standaloneTranslation.navigation != null ||
               standaloneTranslation.suppressed)
@@ -716,6 +722,7 @@ final class RestageCodegenBuilder implements Builder {
               rootEventHandlers: src.build.eventHandlers,
               buildContextParameter: src.build.buildContextParameter,
               flowScreenContext: true,
+              rootLocalBindings: src.build.localBindings,
             )
           : standaloneTranslation;
       _addIssues(state.issues, standaloneTranslation.issues);

@@ -9,6 +9,7 @@ import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
 import 'package:restage_codegen/src/helper_registry.dart';
 import 'package:restage_codegen/src/issue.dart';
+import 'package:restage_codegen/src/measurement/measurement_event_occurrence.dart';
 import 'package:restage_codegen/src/recipe_dispatcher.dart';
 import 'package:restage_codegen/src/widget_classification.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -330,6 +331,10 @@ class Probe extends Widget {
         CollectionSemanticSourceKind.constDeclaration,
       ],
     );
+    expect(
+      occurrence.identitySourceProvenance.map((step) => step.kind),
+      occurrence.sourceProvenance.map((step) => step.kind),
+    );
     expect(occurrence.bindings, hasLength(2));
     expect(
       occurrence.structuralPath.map((step) => step.kind),
@@ -339,6 +344,208 @@ class Probe extends Widget {
       ],
     );
     expect(occurrence.structuralPath.map((step) => step.ordinal), [0, 0]);
+  });
+
+  test('expanded direct sources keep only semantic entrances', () async {
+    final probe = await _parseResolvedProbeBuildForTest('''
+class BuildContext {}
+abstract class Widget { const Widget(); }
+class Text extends Widget {
+  const Text({required this.text});
+  final String text;
+}
+class Column extends Widget {
+  const Column({required this.children});
+  final List<Widget> children;
+}
+class TileSet {
+  const TileSet(this.tile);
+  final Widget tile;
+}
+class Probe extends Widget {
+  const Probe();
+  static const terminal = Text(text: 'resolved');
+  static const group = TileSet(terminal);
+
+  Widget pass(Widget child) => child;
+
+  Widget build(BuildContext context) {
+    final local = pass(group.tile);
+    return Column(
+        children: [
+          (local),
+          opaque(),
+          if (true) const Text(text: 'selected'),
+        ],
+      );
+  }
+}
+''');
+    final localInitializer = probe.inlined.localBindings.values.single;
+    final semantics = CollectionSemanticProbe(
+      bindingFor: (identifier) =>
+          probe.inlined.localBindings[identifier.element],
+      helperFor: (invocation) {
+        final definition = probe.inlined.helpers[invocation.methodName.element];
+        if (definition == null) return null;
+        final bindings = bindHelperArguments(
+          definition.params,
+          invocation.argumentList.arguments.toList(),
+        );
+        if (bindings == null) return null;
+        return CollectionResolvedHelper(
+          body: definition.body,
+          parameterBindings: bindings,
+        );
+      },
+      sourceFor: (expression) =>
+          expression.toSource() == 'opaque()' ? localInitializer : null,
+    );
+    final traversal = traverseCollectionList(
+      _childrenList(probe.expression),
+      semantics: semantics,
+    );
+
+    final localOccurrence =
+        (traversal.entries.first as CollectionListElement).occurrence;
+    final sourceOccurrence =
+        (traversal.entries[1] as CollectionListElement).occurrence;
+    expect(localOccurrence.isDirectListElement, isTrue);
+    expect(sourceOccurrence.isDirectListElement, isTrue);
+    expect(
+      localOccurrence.sourceProvenance.map((step) => step.kind),
+      [
+        CollectionSemanticSourceKind.parentheses,
+        CollectionSemanticSourceKind.binding,
+        CollectionSemanticSourceKind.helper,
+        CollectionSemanticSourceKind.binding,
+        CollectionSemanticSourceKind.receiver,
+        CollectionSemanticSourceKind.constDeclaration,
+        CollectionSemanticSourceKind.constObjectField,
+        CollectionSemanticSourceKind.constDeclaration,
+      ],
+    );
+    expect(
+      localOccurrence.identitySourceProvenance.map((step) => step.kind),
+      [CollectionSemanticSourceKind.helper],
+    );
+    expect(
+      sourceOccurrence.sourceProvenance.map((step) => step.kind),
+      [
+        CollectionSemanticSourceKind.source,
+        CollectionSemanticSourceKind.helper,
+        CollectionSemanticSourceKind.binding,
+        CollectionSemanticSourceKind.receiver,
+        CollectionSemanticSourceKind.constDeclaration,
+        CollectionSemanticSourceKind.constObjectField,
+        CollectionSemanticSourceKind.constDeclaration,
+      ],
+    );
+    expect(
+      sourceOccurrence.identitySourceProvenance.map((step) => step.kind),
+      [CollectionSemanticSourceKind.helper],
+    );
+  });
+
+  test('direct source kinds match ordinary locator semantics', () async {
+    final probe = await _parseResolvedProbeBuildForTest('''
+class BuildContext {}
+abstract class Widget { const Widget(); }
+class Text extends Widget { const Text(); }
+class Column extends Widget {
+  const Column({required this.children});
+  final List<Widget> children;
+}
+class Probe extends Widget {
+  const Probe();
+  Widget action() => const Text();
+  Widget build(BuildContext context) => Column(
+        children: [action(), if (true) const Text()],
+      );
+}
+''');
+    final occurrence = (traverseCollectionList(
+      _childrenList(probe.expression),
+      semantics: _collectionSemanticsFor(probe),
+    ).entries.first as CollectionListElement)
+        .occurrence;
+    final helper = occurrence.sourceProvenance.single.element;
+    if (helper is! ExecutableElement) {
+      throw StateError('The helper entrance did not resolve.');
+    }
+    final widget = (occurrence.terminalExpression as InstanceCreationExpression)
+        .constructorName
+        .type
+        .element;
+    if (widget is! InterfaceElement) {
+      throw StateError('The widget entrance did not resolve.');
+    }
+    final root = MeasurementOccurrenceScope.root(
+      'package:restage_codegen/_collection_probe.dart#Probe',
+    );
+    final plainLocator = root.widget(widget).structuralOccurrenceKey;
+    final helperLocator =
+        root.enterHelper(helper).widget(widget).structuralOccurrenceKey;
+
+    for (final kind in CollectionSemanticSourceKind.values) {
+      final direct = CollectionSemanticOccurrence(
+        authoredExpression: occurrence.authoredExpression,
+        terminalExpression: occurrence.terminalExpression,
+        bindings: occurrence.bindings,
+        sourceProvenance: [
+          CollectionSemanticSourceStep(
+            kind: kind,
+            source: occurrence.authoredExpression,
+            target: occurrence.terminalExpression,
+            element:
+                kind == CollectionSemanticSourceKind.helper ? helper : null,
+          ),
+        ],
+        structuralPath: occurrence.structuralPath,
+      );
+      final locator = root
+          .enterCollectionOccurrence(direct)
+          .widget(widget)
+          .structuralOccurrenceKey;
+      expect(
+        locator,
+        kind == CollectionSemanticSourceKind.helper
+            ? helperLocator
+            : plainLocator,
+        reason: kind.name,
+      );
+    }
+
+    final selected = CollectionSemanticOccurrence(
+      authoredExpression: occurrence.authoredExpression,
+      terminalExpression: occurrence.terminalExpression,
+      bindings: occurrence.bindings,
+      sourceProvenance: [
+        CollectionSemanticSourceStep(
+          kind: CollectionSemanticSourceKind.constDeclaration,
+          source: occurrence.authoredExpression,
+          target: occurrence.terminalExpression,
+        ),
+      ],
+      structuralPath: [
+        occurrence.structuralPath.single,
+        CollectionStructuralOccurrenceStep(
+          kind: CollectionStructuralOccurrenceKind.selectedThen,
+          node: occurrence.authoredExpression,
+          ordinal: 0,
+        ),
+      ],
+    );
+    expect(
+      root
+          .enterCollectionOccurrence(selected)
+          .widget(widget)
+          .structuralOccurrenceKey,
+      'package:restage_codegen/_collection_probe.dart#Probe|'
+      'collection:listElement[0]|collection:selectedThen[0]|'
+      'source:constDeclaration[0]|'
+      'widget:package:restage_codegen/_collection_probe.dart#Text',
+    );
   });
 
   test('a bound const-object receiver reaches its exact widget field',

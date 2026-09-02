@@ -3,6 +3,8 @@ import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/constant/value.dart';
 import 'package:analyzer/dart/element/element.dart';
 
+const int _kMaxScalarBindingDepth = 256;
+
 /// Evaluates [expr] to a compile-time-constant scalar — an [int], [double],
 /// [bool], or [String] — or returns `null` when [expr] is not a constant this
 /// codegen increment folds.
@@ -37,8 +39,11 @@ Object? tryFoldConstant(Expression expr) {
 /// Folds a unary-minus over a folded numeric operand; any other prefix
 /// operator is not foldable.
 Object? _foldPrefix(PrefixExpression expr) {
+  return _foldPrefixValue(expr, tryFoldConstant(expr.operand));
+}
+
+Object? _foldPrefixValue(PrefixExpression expr, Object? operand) {
   if (expr.operator.lexeme != '-') return null;
-  final operand = tryFoldConstant(expr.operand);
   if (operand is int) return -operand;
   if (operand is double) return -operand;
   return null;
@@ -49,6 +54,14 @@ Object? _foldPrefix(PrefixExpression expr) {
 Object? _foldBinary(BinaryExpression expr) {
   final left = tryFoldConstant(expr.leftOperand);
   final right = tryFoldConstant(expr.rightOperand);
+  return _foldBinaryValues(expr, left, right);
+}
+
+Object? _foldBinaryValues(
+  BinaryExpression expr,
+  Object? left,
+  Object? right,
+) {
   if (left == null || right == null) return null;
   if (expr.operator.lexeme == '+' && left is String && right is String) {
     return left + right;
@@ -94,11 +107,8 @@ Object? _foldConstReference(Element? element) {
     if (!resolved.isConst) return null;
     return _foldConstValue(resolved);
   }
-  // A `const` local declared in the `build()` body — the body-shape rule
-  // (`singleReturnExpressionOf`) allows leading const locals before the single
-  // return, and a reference to one folds to its literal value here. A `final` /
-  // `var` local is not const → folds to null → never reaches a transpilable
-  // body.
+  // A `const` local in the `build()` body folds to its literal here; a `final`
+  // local resolves-through to its initializer before reaching this fold.
   if (resolved is LocalVariableElement) {
     if (!resolved.isConst) return null;
     return _foldConstValue(resolved);
@@ -313,8 +323,187 @@ Object? tryScalarFoldConstObjectField(Expression expr) {
 /// bypass sites fold exactly what emission folds and can never diverge from it.
 /// [tryFoldConstant] keeps its scalar-only contract untouched; this only adds
 /// the const-object-field scalar on top.
-Object? tryFoldScalarConstant(Expression expr) =>
-    tryFoldConstant(expr) ?? tryScalarFoldConstObjectField(expr);
+Object? tryFoldScalarConstant(
+  Expression expr, {
+  Map<Element, Expression> localBindings = const <Element, Expression>{},
+}) =>
+    _ScalarConstantFolder(localBindings).fold(expr);
+
+/// Resolves active scalar bindings and folds the expression when supported.
+({bool complete, Expression expression, Object? value}) inspectScalarConstant(
+  Expression expr, {
+  Map<Element, Expression> localBindings = const <Element, Expression>{},
+}) {
+  final folder = _ScalarConstantFolder(localBindings);
+  final resolution = folder.resolveBoundExpression(expr);
+  return (
+    complete: resolution.complete,
+    expression: resolution.expression,
+    value: folder.fold(expr),
+  );
+}
+
+final class _ScalarConstantFolder {
+  _ScalarConstantFolder(this.localBindings);
+
+  final Map<Element, Expression> localBindings;
+  final Set<Element> _activeBindings = Set<Element>.identity();
+
+  ({bool complete, Expression expression}) resolveBoundExpression(
+    Expression expr, [
+    int depth = 0,
+  ]) {
+    if (depth >= _kMaxScalarBindingDepth) {
+      return (complete: false, expression: expr);
+    }
+    var current = expr;
+    while (current is ParenthesizedExpression) {
+      current = current.expression;
+    }
+    if (current is! SimpleIdentifier) {
+      return (complete: true, expression: current);
+    }
+    final binding = _bindingFor(current);
+    if (binding == null) {
+      return (complete: true, expression: current);
+    }
+    if (!_activeBindings.add(binding.element)) {
+      return (complete: false, expression: current);
+    }
+    try {
+      return resolveBoundExpression(binding.expression, depth + 1);
+    } finally {
+      _activeBindings.remove(binding.element);
+    }
+  }
+
+  Object? fold(Expression expr, [int depth = 0]) {
+    if (depth >= _kMaxScalarBindingDepth) return null;
+
+    final folded = tryFoldConstant(expr) ?? tryScalarFoldConstObjectField(expr);
+    if (folded != null) return folded;
+    if (expr is ParenthesizedExpression) {
+      return fold(expr.expression, depth);
+    }
+    if (expr is PrefixExpression) {
+      return _foldPrefixValue(expr, fold(expr.operand, depth));
+    }
+    if (expr is BinaryExpression) {
+      return _foldBinaryValues(
+        expr,
+        fold(expr.leftOperand, depth),
+        fold(expr.rightOperand, depth),
+      );
+    }
+    final fieldAccess = _asFieldAccess(expr);
+    if (fieldAccess != null && canResolveConstObjectFieldReceiver(expr)) {
+      final receiverValue =
+          _boundConstReceiverValue(fieldAccess.receiver, depth);
+      return receiverValue == null
+          ? null
+          : decodeConstScalar(receiverValue.getField(fieldAccess.fieldName));
+    }
+    if (expr is! SimpleIdentifier) return null;
+
+    final binding = _bindingFor(expr);
+    if (binding == null) return null;
+    return _followBinding<Object>(
+      binding,
+      depth,
+      fold,
+    );
+  }
+
+  DartObject? _boundConstReceiverValue(Expression receiver, int depth) {
+    if (depth >= _kMaxScalarBindingDepth) return null;
+    var resolvedReceiver = receiver;
+    while (resolvedReceiver is ParenthesizedExpression) {
+      resolvedReceiver = resolvedReceiver.expression;
+    }
+    if (resolvedReceiver is SimpleIdentifier) {
+      final binding = _bindingFor(resolvedReceiver);
+      if (binding != null) {
+        return _followBinding<DartObject>(
+          binding,
+          depth,
+          _boundConstReceiverValue,
+        );
+      }
+    }
+    if (_receiverIsConstValue(resolvedReceiver)) {
+      return _receiverConstValue(resolvedReceiver);
+    }
+    final access = _asFieldAccess(resolvedReceiver);
+    if (access == null ||
+        !canResolveConstObjectFieldReceiver(resolvedReceiver)) {
+      return null;
+    }
+    return _boundConstReceiverValue(access.receiver, depth)
+        ?.getField(access.fieldName);
+  }
+
+  ({Element element, Expression expression})? _bindingFor(
+    SimpleIdentifier expr,
+  ) {
+    final element = expr.element;
+    if (element == null) return null;
+    final isImmutableLocal =
+        element is LocalVariableElement && (element.isConst || element.isFinal);
+    final isBoundParameter = element is FormalParameterElement;
+    if (!isImmutableLocal && !isBoundParameter) return null;
+    final expression = localBindings[element];
+    return expression == null
+        ? null
+        : (element: element, expression: expression);
+  }
+
+  T? _followBinding<T>(
+    ({Element element, Expression expression}) binding,
+    int depth,
+    T? Function(Expression expression, int depth) resolve,
+  ) {
+    if (!_activeBindings.add(binding.element)) return null;
+    try {
+      return resolve(binding.expression, depth + 1);
+    } finally {
+      _activeBindings.remove(binding.element);
+    }
+  }
+}
+
+/// Whether [expr] resolves to a const variable declaration, excluding enum
+/// values and instance fields.
+bool isConstDeclarationReference(Expression expr) =>
+    constDeclarationElement(expr) != null;
+
+/// The const declaration referenced by [expr], or null for another shape.
+Element? constDeclarationElement(Expression expr) {
+  if (expr is! SimpleIdentifier && expr is! PrefixedIdentifier) return null;
+  final element = _receiverElement(expr);
+  return _isConstValueElement(element) ? element : null;
+}
+
+/// The initializer of a const identifier declared in this compilation unit.
+Expression? resolveConstIdentifierInitializer(Expression expr) {
+  final element = constDeclarationElement(expr);
+  if (element == null) return null;
+  final unit = expr.root;
+  if (unit is! CompilationUnit) return null;
+  // Avoid walking this unit for declarations owned by another library.
+  if (element.firstFragment.libraryFragment != unit.declaredFragment) {
+    return null;
+  }
+  return _findVariableDeclaration(element, unit)?.initializer;
+}
+
+/// Resolves a same-unit const declaration to its authored initializer.
+Expression? resolveConstDeclarationInitializer(Expression expr) {
+  final resolved = _receiverElement(expr);
+  if (resolved == null || !_isConstValueElement(resolved)) return null;
+  final unit = expr.root;
+  if (unit is! CompilationUnit) return null;
+  return _findVariableDeclaration(resolved, unit)?.initializer;
+}
 
 /// Whether [expr] resolves to a const variable declaration, excluding enum
 /// values and instance fields.

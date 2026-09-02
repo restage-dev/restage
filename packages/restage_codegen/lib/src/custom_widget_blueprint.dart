@@ -18,6 +18,7 @@ final class CustomWidgetParam {
     required this.isNumeric,
     required this.defaultValue,
     this.coalesceFallback,
+    this.sourceField,
   });
 
   /// The `this.x` formal name — matched against call-site arguments and read
@@ -47,6 +48,9 @@ final class CustomWidgetParam {
   /// future cross-package import metadata will carry. `null` for an ordinary
   /// parameter the body reads directly.
   final Expression? coalesceFallback;
+
+  /// Exact field read by the emitted definition body.
+  final FieldElement? sourceField;
 }
 
 /// One declarative-state field of a custom widget's `State` class — captured
@@ -105,15 +109,26 @@ final class HelperDef {
 }
 
 /// Returns all same-unit helpers with one statically inlinable return value.
-Map<Element, HelperDef> inlinableHelperDefinitionsIn(AstNode node) {
+Map<Element, HelperDef> inlinableHelperDefinitionsIn(AstNode node) =>
+    _indexHelpers(node).definitions;
+
+/// Returns the named refusal for each same-unit helper whose body would inline
+/// but for a prelude declaration the author fixes in place.
+Map<Element, String> refusedHelperDefinitionsIn(AstNode node) =>
+    _indexHelpers(node).refusals;
+
+_HelperIndex _indexHelpers(AstNode node) {
   final root = node.root;
-  if (root is! CompilationUnit) return const {};
-  final cached = _helperDefinitionCache[root];
+  if (root is! CompilationUnit) return const _HelperIndex.empty();
+  final cached = _helperIndexCache[root];
   if (cached != null) return cached;
-  final definitions = Map<Element, HelperDef>.identity();
-  root.accept(_HelperDefinitionIndexer(definitions));
-  _helperDefinitionCache[root] = definitions;
-  return definitions;
+  final index = _HelperIndex(
+    definitions: Map<Element, HelperDef>.identity(),
+    refusals: Map<Element, String>.identity(),
+  );
+  root.accept(_HelperDefinitionIndexer(index));
+  _helperIndexCache[root] = index;
+  return index;
 }
 
 /// Whether [invocation] is statically bound within its source artifact.
@@ -141,13 +156,23 @@ bool isArtifactHelperInvocation(MethodInvocation invocation) {
   return false;
 }
 
-final Expando<Map<Element, HelperDef>> _helperDefinitionCache =
-    Expando<Map<Element, HelperDef>>();
+final Expando<_HelperIndex> _helperIndexCache = Expando<_HelperIndex>();
 
-final class _HelperDefinitionIndexer extends RecursiveAstVisitor<void> {
-  _HelperDefinitionIndexer(this.definitions);
+final class _HelperIndex {
+  const _HelperIndex({required this.definitions, required this.refusals});
+
+  const _HelperIndex.empty()
+      : definitions = const {},
+        refusals = const {};
 
   final Map<Element, HelperDef> definitions;
+  final Map<Element, String> refusals;
+}
+
+final class _HelperDefinitionIndexer extends RecursiveAstVisitor<void> {
+  _HelperDefinitionIndexer(this.index);
+
+  final _HelperIndex index;
 
   @override
   void visitMethodDeclaration(MethodDeclaration node) {
@@ -167,8 +192,14 @@ final class _HelperDefinitionIndexer extends RecursiveAstVisitor<void> {
   void _add(ExecutableElement? element, FunctionBody body) {
     if (element == null || element.returnType is! InterfaceType) return;
     final expression = singleReturnExpressionOf(body);
-    if (expression == null) return;
-    definitions[element] = HelperDef(
+    if (expression == null) {
+      // Only a named prelude refusal is recorded; every other body shape is
+      // simply not a helper.
+      final problem = preludeDeclarationProblem(body);
+      if (problem != null) index.refusals[element] = problem;
+      return;
+    }
+    index.definitions[element] = HelperDef(
       params: element.formalParameters.toList(),
       body: expression,
     );

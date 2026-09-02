@@ -5,6 +5,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/restage_codegen.dart';
+import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/measurement/measurement_route_emission.dart';
 import 'package:restage_codegen/src/widget_classifier.dart';
@@ -203,6 +204,21 @@ void main() {
 
     test('keeps helper bindings on the established list expression key',
         () async {
+      final ordinaryFixture = await _resolveFixture(
+        _helperListSource(mixed: false),
+        assetPath: 'lib/onboarding/screens/helper_list.dart',
+      );
+      final ordinary = _discover(
+        ordinaryFixture,
+        authority: MeasurementSourceAuthority.screen,
+        catalog: _catalogForAstNodes([
+          ordinaryFixture.rootExpression,
+          ordinaryFixture.methodDeclarationFor(
+            ordinaryFixture.sourceClass,
+            'action',
+          ),
+        ]),
+      );
       final fixture = await _resolveFixture(
         _helperListSource(),
         assetPath: 'lib/onboarding/screens/helper_list.dart',
@@ -220,6 +236,11 @@ void main() {
         discovery.disposition,
         MeasurementSourceDiscoveryDisposition.accepted,
         reason: discovery.rejectionReason,
+      );
+      expect(
+        ordinary.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: ordinary.rejectionReason,
       );
       const source =
           'package:apps_examples/onboarding/screens/helper_list.dart#Welcome';
@@ -245,7 +266,65 @@ void main() {
         },
       );
       const event = '$button|$button.onPressed';
+      expect(
+        ordinary.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
+        {
+          '$source|widget:$column',
+          buttonKey,
+          '$helperPath|child:$button:$button.child[0]|widget:$text',
+        },
+      );
+      expect(_eventKeys(ordinary), ['$buttonKey|$event']);
       expect(_eventKeys(discovery), ['$buttonKey|$event']);
+    });
+
+    test('keys a helper-fed widget list through the helper it entered',
+        () async {
+      final fixture = await _resolveFixture(
+        _helperFedListSource(),
+        assetPath: 'lib/onboarding/screens/helper_fed_list.dart',
+      );
+      final discovery = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+        catalog: _catalogForAstNodes([
+          fixture.rootExpression,
+          fixture.methodDeclarationFor(fixture.sourceClass, 'actions'),
+        ]),
+      );
+
+      expect(
+        discovery.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: discovery.rejectionReason,
+      );
+      const source =
+          'package:apps_examples/onboarding/screens/helper_fed_list.dart'
+          '#Welcome';
+      const column = 'package:flutter/src/widgets/basic.dart#Column';
+      const button =
+          'package:flutter/src/material/elevated_button.dart#ElevatedButton';
+      const text = 'package:flutter/src/widgets/text.dart#Text';
+      const helper =
+          'package:apps_examples/onboarding/screens/helper_fed_list.dart#'
+          'Welcome.actions';
+      // The helper is entered before the slot, so it precedes the slot segment
+      // exactly as the emitted translation keys the same element.
+      const elementPath =
+          '$source|helper:$helper|child:$column:$column.children[0]';
+      const buttonKey = '$elementPath|widget:$button';
+      expect(
+        discovery.nodes.map((node) => node.structuralOccurrenceKey).toSet(),
+        {
+          '$source|widget:$column',
+          buttonKey,
+          '$elementPath|child:$button:$button.child[0]|widget:$text',
+        },
+      );
+      expect(
+        _eventKeys(discovery),
+        ['$buttonKey|$button|$button.onPressed'],
+      );
     });
 
     test('discovers the exact widget behind a helper-bound object receiver',
@@ -1292,9 +1371,93 @@ void main() {
         },
       );
 
-      expect(emission.markerFor(discovered.sourceExpression), isNull);
+      expect(
+        emission.markerFor(discovered.emissionOccurrence),
+        isNull,
+      );
       expect(routePlan.routes, isEmpty);
     });
+
+    test('discovers a measured slot on a widget held in a build() local',
+        () async {
+      final fixture = await _resolveFixture(_preludeWidgetSource());
+      final bindings = fixture.rootLocalBindings;
+      expect(bindings, hasLength(1));
+
+      final seeded = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+        rootLocalBindings: bindings,
+      );
+
+      expect(
+        seeded.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: seeded.rejectionReason,
+      );
+      expect(
+        seeded.events.map(
+          (event) => event.resolvedEvent.declarationProvenance.memberName,
+        ),
+        ['onPressed'],
+      );
+
+      final unseeded = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+      );
+      expect(
+        unseeded.disposition,
+        MeasurementSourceDiscoveryDisposition.rejected,
+      );
+    });
+
+    test(
+      'a locally held widget list matches its literal twin',
+      () async {
+        final local = await _resolveFixture(
+          _widgetListSource(heldInLocal: true),
+        );
+        final literal = await _resolveFixture(
+          _widgetListSource(heldInLocal: false),
+        );
+        final localDiscovery = _discover(
+          local,
+          authority: MeasurementSourceAuthority.screen,
+          rootLocalBindings: local.rootLocalBindings,
+        );
+        final literalDiscovery = _discover(
+          literal,
+          authority: MeasurementSourceAuthority.screen,
+        );
+
+        expect(
+          localDiscovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: localDiscovery.rejectionReason,
+        );
+        expect(
+          literalDiscovery.disposition,
+          MeasurementSourceDiscoveryDisposition.accepted,
+          reason: literalDiscovery.rejectionReason,
+        );
+        expect(
+          _eventKeys(localDiscovery),
+          orderedEquals(_eventKeys(literalDiscovery)),
+        );
+        expect(
+          localDiscovery.events.single.node.structuralOccurrenceKey,
+          contains('children[1]'),
+        );
+        expect(
+          localDiscovery.nodes.map((node) => node.resolvedWidgetIdentity),
+          orderedEquals(
+            literalDiscovery.nodes.map((node) => node.resolvedWidgetIdentity),
+          ),
+        );
+      },
+      timeout: const Timeout(Duration(minutes: 3)),
+    );
   });
 }
 
@@ -1304,16 +1467,22 @@ MeasurementSourceDiscoveryResult _discover(
   Catalog? catalog,
   Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints = const {},
   Map<String, String> inlinedCustomWidgetCollectionRefusals = const {},
+  Map<Element, Expression> rootLocalBindings = const {},
 }) =>
     MeasurementSourceDiscovery.discover(
       MeasurementSourceDiscoveryInput(
         authority: authority,
         sourceClass: fixture.sourceClass,
         rootExpression: fixture.rootExpression,
-        catalog: catalog ?? _catalogFor(fixture.rootExpression),
+        catalog: catalog ??
+            _catalogForExpressions([
+              fixture.rootExpression,
+              ...rootLocalBindings.values,
+            ]),
         inlinedCustomWidgetBlueprints: inlinedCustomWidgetBlueprints,
         inlinedCustomWidgetCollectionRefusals:
             inlinedCustomWidgetCollectionRefusals,
+        rootLocalBindings: rootLocalBindings,
       ),
     );
 
@@ -1353,7 +1522,7 @@ Object? _lateRouteError(
     MeasurementRouteEmissionPlan([
       for (final (index, event) in discovery.events.indexed)
         MeasurementRouteEmissionBinding(
-          sourceExpression: event.sourceExpression,
+          occurrence: event.emissionOccurrence,
           generatedReferenceId: GeneratedReferenceId(
             'reference.$identity.$index',
           ),
@@ -1514,6 +1683,12 @@ final class _ResolvedFixture {
       );
 
   Expression get rootExpression => buildExpressionFor(sourceClass);
+
+  Map<Element, Expression> get rootLocalBindings =>
+      extractInlinableBuildBody(
+        methodDeclarationFor(sourceClass, 'build').body,
+      )?.localBindings ??
+      const {};
 
   ClassElement classNamed(String name) =>
       library.classes.singleWhere((element) => element.name == name);
@@ -1735,7 +1910,7 @@ final class Welcome extends StatelessWidget {
 }
 ''';
 
-String _helperListSource() => '''
+String _helperListSource({bool mixed = true}) => '''
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
@@ -1752,9 +1927,29 @@ final class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           action(() {}),
-          if (true) const Text('Extra'),
+          ${mixed ? "if (true) const Text('Extra')," : ''}
         ],
       );
+}
+''';
+
+String _helperFedListSource() => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@ScreenSource(id: 'helper_fed_list')
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  List<Widget> actions(VoidCallback onActivate) => [
+        ElevatedButton(
+          onPressed: onActivate,
+          child: const Text('Activate'),
+        ),
+      ];
+
+  @override
+  Widget build(BuildContext context) => Column(children: actions(() {}));
 }
 ''';
 
@@ -2598,3 +2793,55 @@ final class UnresolvedScreen extends StatelessWidget {
   Widget build(BuildContext context) => MissingButton(onPressed: () {});
 }
 ''';
+
+String _preludeWidgetSource() => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@ScreenSource(id: 'prelude_widget')
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final action = ElevatedButton(
+      onPressed: () {},
+      child: const Text('Continue'),
+    );
+    return Column(children: [action]);
+  }
+}
+''';
+
+String _widgetListSource({required bool heldInLocal}) {
+  const children = '''
+[
+          const Text('First'),
+          ElevatedButton(
+            onPressed: () {},
+            child: const Text('Activate'),
+          ),
+          const Text('Last'),
+        ]
+''';
+  final body = heldInLocal
+      ? '''
+{
+    final children = $children;
+    return Column(children: children);
+  }
+'''
+      : '=> Column(children: $children);';
+  return '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@ScreenSource(id: 'widget_list')
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  @override
+  Widget build(BuildContext context) $body
+}
+''';
+}

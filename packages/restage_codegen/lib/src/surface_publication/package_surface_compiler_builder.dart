@@ -1226,7 +1226,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
   if (screens.isNotEmpty) {
     final helpers = HelperRegistry()..registerAll(onboardingHelpers);
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions: screens.map((screen) => screen.build.rootExpression),
+      rootExpressions: screens.expand((screen) => screen.build.collectorRoots),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -1243,6 +1243,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
           inlinedCustomWidgetBlueprints: classification.blueprints,
           inlinedCustomWidgetCollectionRefusals:
               classification.collectionRefusals,
+          rootLocalBindings: screen.build.localBindings,
         ),
       );
     }
@@ -1255,7 +1256,8 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
         for (final source in job.sources) (job: job, source: source),
     ];
     final classification = await classifyReferencedCustomWidgets(
-      rootExpressions: sources.map((entry) => entry.source.rootExpression),
+      rootExpressions:
+          sources.expand((entry) => entry.source.build.collectorRoots),
       catalog: catalog,
       helpers: helpers,
       astNodeFor: (fragment) =>
@@ -1290,6 +1292,7 @@ Future<Map<String, MeasurementSourceDiscoveryResult>>
           inlinedCustomWidgetBlueprints: classification.blueprints,
           inlinedCustomWidgetCollectionRefusals:
               classification.collectionRefusals,
+          rootLocalBindings: entry.source.build.localBindings,
         ),
       );
     }
