@@ -282,6 +282,13 @@ final class CommerceAvailabilityRequest
   int get hashCode => Object.hash(capability, offerId);
 }
 
+/// Requests a purchase of one logical offer.
+///
+/// The commerce authority resolves [offerId] to the exact purchasable
+/// configuration; the request never names provider products, and device input
+/// cannot widen what the authority resolved. Selection among multiple
+/// purchasable alternatives under one offer is reserved for future optional
+/// parameters.
 final class CommercePurchaseRequest
     extends CommerceRequest<CommerceActionResult> {
   const CommercePurchaseRequest(this.offerId) : super._();
