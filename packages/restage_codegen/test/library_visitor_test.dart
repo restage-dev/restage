@@ -1,8 +1,9 @@
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/codegen_builder.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:test/test.dart';
+
+import 'helpers.dart';
 
 void main() {
   group('RestageCodegenBuilder visitor registration', () {

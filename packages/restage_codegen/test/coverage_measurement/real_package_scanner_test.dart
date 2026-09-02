@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/restage_codegen.dart';
 import 'package:restage_codegen/src/coverage_measurement/coverage_report.dart';
 import 'package:restage_codegen/src/coverage_measurement/real_package_scanner.dart';

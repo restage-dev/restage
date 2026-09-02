@@ -4,7 +4,6 @@ library;
 import 'dart:convert';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:logging/logging.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:restage_shared/restage_shared.dart';

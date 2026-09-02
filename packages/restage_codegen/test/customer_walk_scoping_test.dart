@@ -9,7 +9,6 @@
 // walked.
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
 

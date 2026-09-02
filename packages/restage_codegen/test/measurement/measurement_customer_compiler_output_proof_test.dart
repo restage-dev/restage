@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_cli/src/publication/publication_assembler.dart';
 import 'package:restage_cli/src/publication/publication_manifest.dart';

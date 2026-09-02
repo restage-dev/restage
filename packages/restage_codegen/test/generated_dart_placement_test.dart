@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/generated_dart_builder.dart';

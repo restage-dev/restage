@@ -1,11 +1,12 @@
 import 'dart:convert';
 
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:glob/glob.dart';
 import 'package:restage_codegen/src/authored_library_predicate.dart';
 import 'package:restage_codegen/src/restage_source_prefilter.dart';
 import 'package:test/test.dart';
+
+import 'helpers.dart';
 
 void main() {
   group('selectRestageCandidateLibraries', () {

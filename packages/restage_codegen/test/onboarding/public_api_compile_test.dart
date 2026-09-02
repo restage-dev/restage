@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:logging/logging.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
@@ -1306,7 +1305,7 @@ Future<void> _assertGeneratedFixtureAnalyzes(
         _generatedPartAssetFor(library): _generatedPartFor(result, library)!,
   };
 
-  await resolveSources(
+  await resolveWorkspaceSources(
     resolvedSources,
     (resolver) async {
       final library = await resolver.libraryFor(
@@ -1327,7 +1326,6 @@ Future<void> _assertGeneratedFixtureAnalyzes(
     },
     resolverFor: 'apps_examples|lib/onboarding/flows/first_run.dart',
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
 }
 
@@ -1365,7 +1363,7 @@ Iterable<File> _dartFilesIn(Directory directory) sync* {
 }
 
 Future<void> _assertSourcesAnalyze(Map<String, String> sources) async {
-  await resolveSources(
+  await resolveWorkspaceSources(
     sources,
     (resolver) async {
       final library = await resolver.libraryFor(
@@ -1386,6 +1384,5 @@ Future<void> _assertSourcesAnalyze(Map<String, String> sources) async {
     },
     resolverFor: 'apps_examples|lib/onboarding/public_usage.dart',
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
 }

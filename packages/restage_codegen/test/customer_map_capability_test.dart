@@ -10,7 +10,6 @@
 // establishes that the source builds cleanly when the version is present, so
 // the undeclared run's failure is attributable to the omission.
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/issue.dart';
 import 'package:restage_codegen/src/restage_widget_walker.dart';
 import 'package:test/test.dart';

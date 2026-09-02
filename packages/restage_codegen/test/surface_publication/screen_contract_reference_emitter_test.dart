@@ -5,7 +5,6 @@ import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:crypto/crypto.dart';
 import 'package:restage_codegen/src/onboarding/screen_builder.dart';
 import 'package:restage_codegen/src/owning_library_namespace.dart';
@@ -14,6 +13,7 @@ import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import '../helpers.dart';
+import '../shared_resolvers.dart';
 
 const _emptyEventHash = 'sha256:'
     'de41f956f53085c222576ac5f4c25b26644aa34a3e33830c3b5f04cce6656ab5';
@@ -1449,6 +1449,7 @@ extension on Object {
         },
         rootPackage: 'apps_examples',
         readerWriter: readerWriter,
+        resolvers: sharedResolvers,
       );
       expect(anonymousSpelling, isNull);
     });
@@ -5074,6 +5075,7 @@ Future<StandaloneScreenContractInspection> _inspect(
     sources,
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   return inspection!;
 }
@@ -5117,6 +5119,7 @@ Future<Map<String, StandaloneScreenContractInspection>> _inspectAll(
     {'apps_examples|lib/maintenance_notice.dart': source},
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   return inspections;
 }
@@ -5208,7 +5211,7 @@ Future<List<String>> _generatedPartErrors(
   final withoutHeader = _generatedPartBody(generated);
   final relocated = "part of '../maintenance_notice.dart';\n\n$withoutHeader";
   final errors = <String>[];
-  await resolveSources(
+  await resolveWorkspaceSources(
     {
       sourceId: source,
       generatedId: relocated,
@@ -5238,7 +5241,6 @@ Future<List<String>> _generatedPartErrors(
     },
     resolverFor: sourceId,
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
   return errors;
 }

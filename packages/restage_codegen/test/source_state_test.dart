@@ -1,5 +1,4 @@
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/host_data_shape.dart';
 import 'package:restage_codegen/src/issue.dart';
@@ -7,6 +6,7 @@ import 'package:restage_codegen/src/source_state.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'shared_resolvers.dart';
 
 void main() {
   group('extractSourceBuildBlueprint', () {
@@ -1284,6 +1284,7 @@ Future<({SourceBuildBlueprint? blueprint, List<Issue> issues})>
     assetMap,
     rootPackage: inputId.package,
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
 
   return (blueprint: blueprint, issues: issues);

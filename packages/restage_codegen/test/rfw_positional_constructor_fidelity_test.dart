@@ -1,7 +1,6 @@
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/diagnostic/diagnostic.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/user_factory_builder.dart';
 import 'package:test/test.dart';
 
@@ -469,7 +468,7 @@ Future<void> _expectGeneratedAnalyzesClean(
   String generated,
 ) async {
   const generatedId = 'apps_examples|lib/user_factories.g.dart';
-  await resolveSources(
+  await resolveWorkspaceSources(
     {...sources, generatedId: generated},
     (resolver) async {
       final library = await resolver.libraryFor(AssetId.parse(generatedId));
@@ -494,7 +493,6 @@ Future<void> _expectGeneratedAnalyzesClean(
     },
     resolverFor: generatedId,
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
 }
 

@@ -3,7 +3,6 @@ import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/restage_codegen.dart';
 import 'package:restage_codegen/src/build_body.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
@@ -1663,7 +1662,7 @@ Future<_ResolvedFixture> _resolveFixture(
   final assetId = AssetId('apps_examples', assetPath);
   late final LibraryElement library;
   late final ResolvedLibraryResult resolved;
-  await resolveSources(
+  await resolveWorkspaceSources(
     {assetId.toString(): source},
     (resolver) async {
       library = await resolver.libraryFor(assetId);
@@ -1675,7 +1674,6 @@ Future<_ResolvedFixture> _resolveFixture(
     },
     resolverFor: assetId.toString(),
     rootPackage: 'apps_examples',
-    readAllSourcesFromFilesystem: true,
   );
   return _ResolvedFixture(library: library, resolved: resolved);
 }

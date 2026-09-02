@@ -3,7 +3,6 @@ import 'dart:typed_data';
 import 'package:analyzer/dart/analysis/results.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
@@ -17,6 +16,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
+import 'shared_resolvers.dart';
 
 /// Outcome of transpiling a custom-widget fixture through the full
 /// chain — classify → translate → emit → parse → validate → encode → decode.
@@ -4910,6 +4910,7 @@ Future<_TranspileResult> _transpile(
     {assetKey: source},
     rootPackage: rootPackage,
     readerWriter: readerWriter,
+    resolvers: sharedResolvers,
   );
   final resolved = result;
   if (resolved == null) {

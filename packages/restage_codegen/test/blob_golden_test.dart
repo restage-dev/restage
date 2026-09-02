@@ -6,7 +6,6 @@ import 'dart:isolate';
 import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:build/build.dart';
-import 'package:build_test/build_test.dart';
 import 'package:package_config/package_config.dart';
 import 'package:restage_codegen/builder.dart';
 import 'package:test/test.dart';
