@@ -1284,8 +1284,8 @@ Object x() => AcmeCard(tap: $argument);
         );
 
         expect(lowered.param.isVoidCallback, isFalse);
-        expect(lowered.result.dsl, 'AcmeCard()');
-        expect(lowered.result.dsl, isNot(contains('tap: event "x" {}')));
+        // A refused argument refuses the whole inlined call.
+        expect(lowered.result.dsl, '');
         expect(
           lowered.result.issues.map((issue) => issue.code),
           contains(IssueCode.unrecognizedMethodCall),
@@ -1293,8 +1293,7 @@ Object x() => AcmeCard(tap: $argument);
       });
     }
 
-    test('a diagnosed conditional arm suppresses the inlined argument',
-        () async {
+    test('a diagnosed conditional arm refuses the inlined call', () async {
       final r = await lowerCall(
         'true ? ((v) => paywallEvent(v)) : '
         "((v) => paywallEvent('ok'))",
@@ -1304,8 +1303,7 @@ Object x() => AcmeCard(tap: $argument);
         r.issues.map((issue) => issue.code),
         contains(IssueCode.invalidEventConfiguration),
       );
-      expect(r.dsl, 'AcmeCard()');
-      expect(r.dsl, isNot(contains('true: ,')));
+      expect(r.dsl, '');
     });
 
     test('a navigation closure still reaches the navigation path', () async {

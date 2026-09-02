@@ -7017,9 +7017,11 @@ final class ExpressionTranslator {
       final rootParam = _rootParamRead(stripped);
       final type = param.isNumeric
           ? PropertyType.real
-          : _propertyTypeForParameter(paramType) ??
-              _propertyTypeForParameter(rootParam?.type) ??
-              PropertyType.unknown;
+          : param.isVoidCallback
+              ? PropertyType.event
+              : _propertyTypeForParameter(paramType) ??
+                  _propertyTypeForParameter(rootParam?.type) ??
+                  PropertyType.unknown;
       translated = listItemType == null
           ? _translateSlotValue(stripped, type, issues)
           : _translateTypedListTerminal(
@@ -7307,13 +7309,15 @@ final class ExpressionTranslator {
       PropertyType.boolean,
       issues,
     );
-    if (_diagnosedEmpty(cond, issues, beforeCondition)) return '';
+    // Lower every part before refusing so each diagnosed part is reported.
+    var refused = _diagnosedEmpty(cond, issues, beforeCondition);
     final beforeThen = issues.length;
     final thenDsl = branch(expr.thenExpression);
-    if (_diagnosedEmpty(thenDsl, issues, beforeThen)) return '';
+    refused |= _diagnosedEmpty(thenDsl, issues, beforeThen);
     final beforeElse = issues.length;
     final elseDsl = branch(expr.elseExpression);
-    if (_diagnosedEmpty(elseDsl, issues, beforeElse)) return '';
+    refused |= _diagnosedEmpty(elseDsl, issues, beforeElse);
+    if (refused) return '';
     return 'switch $cond { true: $thenDsl, false: $elseDsl }';
   }
 
@@ -7362,6 +7366,8 @@ final class ExpressionTranslator {
     // Flatten consecutive SAME-field `== <intLiteral>` arms into one switch.
     final fieldName = head.field.name;
     final arms = <String>[];
+    // Lower every arm before refusing so each diagnosed arm is reported.
+    var refused = false;
     Expression? defaultBranch;
     ConditionalExpression? current = expr;
     while (current != null) {
@@ -7376,7 +7382,7 @@ final class ExpressionTranslator {
       }
       final beforeArm = issues.length;
       final armDsl = branch(current.thenExpression);
-      if (_diagnosedEmpty(armDsl, issues, beforeArm)) return '';
+      refused |= _diagnosedEmpty(armDsl, issues, beforeArm);
       arms.add('${match.key}: $armDsl');
       final elseExpr = _stripParens(current.elseExpression);
       if (elseExpr is ConditionalExpression) {
@@ -7388,7 +7394,8 @@ final class ExpressionTranslator {
     }
     final beforeDefault = issues.length;
     final defaultDsl = branch(defaultBranch!);
-    if (_diagnosedEmpty(defaultDsl, issues, beforeDefault)) return '';
+    refused |= _diagnosedEmpty(defaultDsl, issues, beforeDefault);
+    if (refused) return '';
     final armsDsl = arms.join(', ');
     return 'switch state${_rfwPathPart(fieldName)} '
         '{ $armsDsl, default: $defaultDsl }';
