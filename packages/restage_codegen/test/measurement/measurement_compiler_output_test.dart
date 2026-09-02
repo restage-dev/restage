@@ -4,13 +4,34 @@ import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('Measurement builder policy is all-or-nothing and build-owned', () {
+  test('unset builder options stamp the shipped policy', () {
     expect(
       MeasurementCompilerPolicyInput.fromBuilderOptions(
         BuilderOptions.empty,
-      ),
-      isNull,
+      ).toJson(),
+      <String, Object?>{
+        'collectionBudgetRevisionId':
+            kMeasurementDefaultCollectionBudgetRevisionId,
+        'minimumMeasurementClient': kMeasurementDefaultMinimumClient,
+        'privacyPolicyRevisionId': kMeasurementDefaultPrivacyPolicyRevisionId,
+      },
     );
+  });
+
+  test('explicit builder options win over the shipped policy', () {
+    final policy = MeasurementCompilerPolicyInput.fromBuilderOptions(
+      const BuilderOptions({
+        kMeasurementMinimumClientOption: 2,
+        kMeasurementPrivacyPolicyRevisionOption: 'privacy.accepted-v1',
+        kMeasurementCollectionBudgetRevisionOption: 'budget.accepted-v1',
+      }),
+    );
+    expect(policy.minimumMeasurementClient, 2);
+    expect(policy.privacyPolicyRevisionId.value, 'privacy.accepted-v1');
+    expect(policy.collectionBudgetRevisionId.value, 'budget.accepted-v1');
+  });
+
+  test('a partial override is refused rather than half-stamped', () {
     expect(
       () => MeasurementCompilerPolicyInput.fromBuilderOptions(
         const BuilderOptions({
@@ -19,16 +40,6 @@ void main() {
       ),
       throwsFormatException,
     );
-
-    final policy = MeasurementCompilerPolicyInput.fromBuilderOptions(
-      const BuilderOptions({
-        kMeasurementMinimumClientOption: 2,
-        kMeasurementPrivacyPolicyRevisionOption: 'privacy.accepted-v1',
-        kMeasurementCollectionBudgetRevisionOption: 'budget.accepted-v1',
-      }),
-    );
-    expect(policy, isNotNull);
-    expect(policy!.minimumMeasurementClient, 2);
   });
 
   test('compiler state is strict, canonical, and rejects invalid authority',

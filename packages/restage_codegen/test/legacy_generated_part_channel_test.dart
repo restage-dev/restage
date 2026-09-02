@@ -6,6 +6,7 @@ import 'package:restage_codegen/builder.dart';
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
 import 'helpers.dart';
@@ -142,19 +143,40 @@ void main() {
 
     // The flow document keeps its existing producer; only the generated
     // reference travels through the compiler.
+    const documentPath = 'assets/onboarding/flows/welcome_flow.flow.json';
     final emitted = result.readerWriter.testing.readBytes(
-      AssetId(
-        'apps_examples',
-        'assets/onboarding/flows/welcome_flow.flow.json',
-      ),
+      AssetId('apps_examples', documentPath),
     );
     final bundle = _handoff(result);
+    final borrowed = FlowDocumentCodec.decodeJson(
+      utf8.decode(bundle.borrowedArtifacts[documentPath]!),
+    );
+    final produced = FlowDocumentCodec.decodeJson(utf8.decode(emitted));
+    // Measurement re-records the screen locator because the emitted blob now
+    // carries a route. Everything the flow builder authored travels unchanged.
     expect(
-      bundle
-          .borrowedArtifacts['assets/onboarding/flows/welcome_flow.flow.json'],
+      FlowDocumentCodec.encodeCanonicalJson(
+        borrowed.copyWith(screenArtifacts: produced.screenArtifacts),
+      ),
       emitted,
-      reason: 'the compiler borrows the exact emitted bytes; it does not '
-          'recompile the document',
+      reason: 'the compiler borrows the exact emitted document and re-records '
+          'only the screen locator',
+    );
+    // The re-recorded locator must name the artifact this bundle emits, which
+    // is the join a client performs to load the screen.
+    final locator = borrowed.screenArtifacts['welcome']!;
+    final blobPath = 'assets/onboarding/screens/${locator.path}';
+    final blob =
+        bundle.artifacts[blobPath] ?? bundle.borrowedArtifacts[blobPath];
+    expect(
+      blob,
+      isNotNull,
+      reason: 'the recorded location resolves to an emitted artifact',
+    );
+    expect(
+      FlowContentHash.compute(blob!),
+      locator.contentHash,
+      reason: 'the recorded hash is the hash of the emitted blob',
     );
 
     // Inspection text is not a delivery artifact, so it never joins a

@@ -344,13 +344,13 @@ const chainedDefaultValue = defaultValue;
       ],
     ),
     (
-      name: 'customer structured-list length',
+      name: 'app-defined structured-list length',
       property: 'items',
       forms: [
         (
           name: 'inline',
           expression:
-              "const <CustomerItem>[CustomerItem('one'), CustomerItem('two')]",
+              "const <FixtureItem>[FixtureItem('one'), FixtureItem('two')]",
           planType: 'WidgetbookDartConstValuePlan',
         ),
         (
@@ -402,7 +402,7 @@ const chainedDefaultValue = defaultValue;
       });
       if (const {
         'widget-list length',
-        'customer structured-list length',
+        'app-defined structured-list length',
       }.contains(family.name)) {
         test('${form.name} ${family.name} maxItems mismatch fails at its path',
             () async {
@@ -1048,7 +1048,7 @@ const wrongModeAlias = OtherMode.idle;
     (name: 'String', source: _stringAxisWidget),
     (name: 'number', source: _numberAxisWidget),
     (name: 'framework const', source: _frameworkAxisWidget),
-    (name: 'customer structured const', source: _structuredAxisWidget),
+    (name: 'app-defined structured const', source: _structuredAxisWidget),
   ]) {
     test('${rejected.name} storyValues are rejected rather than coerced',
         () async {
@@ -1603,7 +1603,7 @@ class FiniteFrameworkCard extends StatelessWidget {
     this.weight = chainedDefaultWeight,
   });
 
-  /// Customer color.
+  /// App-defined color.
   @RestageProperty(
     constraints: RestageConstraints(
       allowedValues: ['#FF000000', '#FF336699'],
@@ -1611,13 +1611,13 @@ class FiniteFrameworkCard extends StatelessWidget {
   )
   final Color color;
 
-  /// Customer duration.
+  /// App-defined duration.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [100, 250]),
   )
   final Duration duration;
 
-  /// Customer font weight.
+  /// App-defined font weight.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [400, 700]),
   )
@@ -1644,7 +1644,7 @@ const chainedDefaultRatio = defaultRatio;
 class MixedRealCard extends StatelessWidget {
   const MixedRealCard({this.ratio = $defaultExpression});
 
-  /// Customer ratio.
+  /// App-defined ratio.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [1, 2]),
   )
@@ -1777,7 +1777,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 class WrongFiniteTransportCard extends StatelessWidget {
   const WrongFiniteTransportCard({this.ratio = 2.0});
 
-  /// Customer ratio.
+  /// App-defined ratio.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [1, '2']),
   )
@@ -1803,7 +1803,7 @@ class NonLosslessDurationCard extends StatelessWidget {
     this.duration = const Duration(microseconds: 1),
   });
 
-  /// Customer duration.
+  /// App-defined duration.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [0, 1]),
   )
@@ -1924,7 +1924,7 @@ enum Mode { idle, ready }
 class CatalogLiteralFiniteCard extends StatelessWidget {
   const CatalogLiteralFiniteCard({required this.value});
 
-  /// Finite customer value.
+  /// Finite app-defined value.
   @RestageProperty(
     defaultSource: LiteralDefault($defaultValue),
     constraints: RestageConstraints(allowedValues: [$allowedValues]),
@@ -1949,7 +1949,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 class NullableNullFiniteCard extends StatelessWidget {
   const NullableNullFiniteCard({this.value = null});
 
-  /// Finite nullable customer value.
+  /// Finite nullable app-defined value.
   @RestageProperty(
     constraints: RestageConstraints(
       allowedValues: [${includeNull ? "null, 'ready'" : "'ready'"}],
@@ -2130,7 +2130,7 @@ class Data {
 )
 class DataCard extends StatelessWidget {
   const DataCard({this.data = const Data(label: 'default')});
-  /// Customer data.
+  /// App-defined data.
   @wb.Config.values([Data(label: 'story')])
   final Data data;
   @override

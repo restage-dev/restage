@@ -133,11 +133,8 @@ LocalWidgetLibrary buildMeasurementRfwPresentationLocalWidgetLibrary() =>
       _measurementSourcePresentedConstructor: _buildBoundMeasurementPresented,
     });
 
-/// Installs the private presentation library on one renderer runtime.
-///
-/// Renderer callers invoke this after applying customer libraries so an
-/// impossible stale customer entry for the reserved namespace cannot replace
-/// the SDK-owned implementation.
+/// Installs the SDK-owned presentation library after app-defined libraries,
+/// preserving its reserved namespace.
 @internal
 void installMeasurementRfwPresentationLibrary(Runtime runtime) {
   runtime.update(
@@ -145,6 +142,10 @@ void installMeasurementRfwPresentationLibrary(Runtime runtime) {
     buildMeasurementRfwPresentationLocalWidgetLibrary(),
   );
 }
+
+/// Adds Measurement presentation support to an RFW runtime.
+void registerMeasurementRfwPresentationLibrary(Runtime runtime) =>
+    installMeasurementRfwPresentationLibrary(runtime);
 
 Widget _buildBoundMeasurementPresented(
   BuildContext context,

@@ -110,6 +110,8 @@ export 'src/measurement/bundled_measurement_target_profile_loader.dart'
     hide enforceBundledMeasurementAssetByteLimitBeforeCopy;
 export 'src/measurement/restage_measurement.dart';
 export 'src/measurement/restage_privacy.dart';
+export 'src/measurement/measurement_rfw_presentation.dart'
+    show registerMeasurementRfwPresentationLibrary;
 export 'src/measurement/governed_measurement_transport.dart'
     show RestageGovernedMeasurementTransport;
 // RFW types host-side builder closures depend on. Re-exporting keeps

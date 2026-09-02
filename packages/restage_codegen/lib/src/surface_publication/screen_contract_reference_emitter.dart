@@ -34,6 +34,8 @@ final class ResolvedScreenBundleEntryMetadata {
     required this.blobByteLength,
     required this.sidecarSha256,
     required this.sidecarByteLength,
+    this.blobPath,
+    this.sidecarPath,
   });
 
   /// `sha256:<hex>` of the exact compiled screen blob bytes.
@@ -42,11 +44,17 @@ final class ResolvedScreenBundleEntryMetadata {
   /// Byte length of the exact compiled screen blob.
   final int blobByteLength;
 
+  /// Logical path of the exact compiled screen blob when known.
+  final String? blobPath;
+
   /// `sha256:<hex>` of the exact capability sidecar bytes.
   final String sidecarSha256;
 
   /// Byte length of the exact capability sidecar.
   final int sidecarByteLength;
+
+  /// Logical path of the exact capability sidecar when known.
+  final String? sidecarPath;
 }
 
 /// Analyzer-resolved inputs for one independently published `@Screen`.
@@ -842,8 +850,9 @@ String? _resolveBundleLocatorSource(
   final assetId = contract.input.assetId;
   final assetKey = plan.forLibrary(assetId.path).bundlePath;
   final surfaceKey = contract.surface.wireName;
-  final blobPath = 'assets/$surfaceKey/screens/${contract.slug}.rfw';
-  final sidecarPath =
+  final blobPath =
+      metadata.blobPath ?? 'assets/$surfaceKey/screens/${contract.slug}.rfw';
+  final sidecarPath = metadata.sidecarPath ??
       'assets/$surfaceKey/screens/${contract.slug}.capability.json';
   final buffer = StringBuffer()
     ..writeln('${sdk}SurfaceScreenBundleLocator(')

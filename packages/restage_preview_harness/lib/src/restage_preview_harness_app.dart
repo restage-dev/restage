@@ -17,7 +17,7 @@ void runRestagePreviewHarness({
   required RenderMessageTransport transport,
   required RenderBundleManifest manifest,
   required RenderEngine engine,
-  required VoidCallback registerCustomerWidgets,
+  required VoidCallback registerAppWidgets,
   required BundleInitHandler initialize,
   List<int> supportedVersions = const <int>[renderProtocolV1],
   String entryWidgetName = 'Preview',
@@ -28,7 +28,7 @@ void runRestagePreviewHarness({
       transport: transport,
       manifest: manifest,
       engine: engine,
-      registerCustomerWidgets: registerCustomerWidgets,
+      registerAppWidgets: registerAppWidgets,
       supportedVersions: supportedVersions,
       initialize: initialize,
       entryWidgetName: entryWidgetName,
@@ -44,7 +44,7 @@ void runRestageRenderBundleHarness({
   required RenderMessageTransport transport,
   required RenderBundleManifest manifest,
   required RenderEngine engine,
-  required VoidCallback registerCustomerWidgets,
+  required VoidCallback registerAppWidgets,
   required BundleInitHandler initialize,
   List<int> supportedVersions = const <int>[renderProtocolV1],
 }) {
@@ -54,7 +54,7 @@ void runRestageRenderBundleHarness({
       transport: transport,
       manifest: manifest,
       engine: engine,
-      registerCustomerWidgets: registerCustomerWidgets,
+      registerAppWidgets: registerAppWidgets,
       supportedVersions: supportedVersions,
       initialize: initialize,
       rasterController: rasterBinding,
@@ -68,7 +68,7 @@ class RestagePreviewHarnessApp extends StatefulWidget {
     required this.transport,
     required this.manifest,
     required this.engine,
-    required this.registerCustomerWidgets,
+    required this.registerAppWidgets,
     required this.initialize,
     this.supportedVersions = const <int>[renderProtocolV1],
     this.entryWidgetName = 'Preview',
@@ -81,7 +81,7 @@ class RestagePreviewHarnessApp extends StatefulWidget {
     required this.transport,
     required this.manifest,
     required this.engine,
-    required this.registerCustomerWidgets,
+    required this.registerAppWidgets,
     required this.initialize,
     this.supportedVersions = const <int>[renderProtocolV1],
     super.key,
@@ -95,7 +95,7 @@ class RestagePreviewHarnessApp extends StatefulWidget {
     required this.transport,
     required this.manifest,
     required this.engine,
-    required this.registerCustomerWidgets,
+    required this.registerAppWidgets,
     required this.initialize,
     required RenderBundleRasterController rasterController,
     this.supportedVersions = const <int>[renderProtocolV1],
@@ -107,7 +107,7 @@ class RestagePreviewHarnessApp extends StatefulWidget {
   final RenderMessageTransport transport;
   final RenderBundleManifest manifest;
   final RenderEngine engine;
-  final VoidCallback registerCustomerWidgets;
+  final VoidCallback registerAppWidgets;
   final List<int> supportedVersions;
   final BundleInitHandler initialize;
   final String entryWidgetName;
@@ -136,7 +136,7 @@ class _RestagePreviewHarnessAppState extends State<RestagePreviewHarnessApp> {
   @override
   void initState() {
     super.initState();
-    widget.registerCustomerWidgets();
+    widget.registerAppWidgets();
     _registrations = completeManifestWidgetRegistrations(
       manifest: widget.manifest,
       registrations: Restage.widgetLibraryRegistrations,
@@ -206,10 +206,7 @@ class _RestagePreviewHarnessAppState extends State<RestagePreviewHarnessApp> {
       try {
         final ready = await rasterController.prepare(request.env);
         if (!ready || _latestRequestedEpoch != request.epoch) {
-          // Handed back pending on purpose: this future is completed by
-          // whichever render pass settles the epoch, so awaiting it here would
-          // both stall inside the guard and route its outcome through the
-          // catch below.
+          // Another render or disposal completes this pending result.
           // ignore: unawaited_return_in_try_block
           return completion;
         }

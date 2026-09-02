@@ -13,6 +13,11 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
+/// The generated flow-reference declaration, matched across the line wrap
+/// Measurement introduces by lengthening the constructor.
+final _constFirstRunFlowRef =
+    RegExp(r'const firstRunFlowRef = SurfaceFlowRef<\s*FirstRunResult>');
+
 void main() {
   test('three-screen first_run fixture emits the frozen E2E contract',
       () async {
@@ -88,7 +93,8 @@ void main() {
         // The 2.0 shape: one top-level handle plus a top-level decoder. The
         // holder survives as a deprecated alias forwarding to the handle, so
         // the frozen contract still covers both spellings a source may use.
-        contains('const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>('),
+        // `const` is the consumer contract and stays pinned.
+        matches(_constFirstRunFlowRef),
         contains("@Deprecated('Use firstRunFlowRef')"),
         contains('abstract final class FirstRunFlowDescriptor'),
         contains(

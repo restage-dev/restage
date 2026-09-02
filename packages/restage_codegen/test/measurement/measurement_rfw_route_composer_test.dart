@@ -155,6 +155,40 @@ void main() {
     },
   );
 
+  test('preserves nested RFW maps during route composition', () {
+    final routePlan = _routePlan(const ['reference.presentation.nested']);
+    final source = _library(
+      fmt.ConstructorCall(
+        'Container',
+        <String, Object?>{
+          'configuration': <String, Object?>{
+            'child': fmt.ConstructorCall(
+              'Button',
+              <String, Object?>{
+                'onPressed': _markedEvent('reference.presentation.nested'),
+              },
+            ),
+          },
+        },
+      ),
+    );
+
+    final composed = _compose(source, routePlan);
+    final root = composed.widgets.single.root as fmt.ConstructorCall;
+    final configuration =
+        root.arguments['configuration']! as Map<String, Object?>;
+    final wrapper = configuration['child']! as fmt.ConstructorCall;
+    final child = wrapper.arguments['child']! as fmt.ConstructorCall;
+
+    expect(wrapper.name, 'MeasurementSourcePresented');
+    expect(child.name, 'Button');
+    expect(
+      (child.arguments['onPressed']! as fmt.EventHandler)
+          .eventArguments[kMeasurementRouteArgumentKeyV1],
+      routePlan.routes.single.carrier,
+    );
+  });
+
   test('leaves an unused measurement import unchanged', () {
     const source = fmt.RemoteWidgetLibrary(
       [

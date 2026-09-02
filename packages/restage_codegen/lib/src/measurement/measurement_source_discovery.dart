@@ -5,6 +5,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
 import 'package:restage_codegen/src/measurement/measurement_resolved_event.dart';
+import 'package:restage_codegen/src/modal_sheet_recognition.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
@@ -57,9 +58,9 @@ final class MeasurementSourceDiscoveryInput {
 
   /// Compiler-captured bodies for custom widgets that actually inline.
   ///
-  /// A strict custom-widget occurrence without an entry here is opaque to this
-  /// lane only when it has one exact customer catalog entry. It then remains a
-  /// static boundary and its private descendants are not discovered.
+  /// A strict custom-widget occurrence without an entry here is opaque when it
+  /// has one exact registered catalog entry. It remains a static boundary, and
+  /// its private descendants are not discovered.
   final Map<String, CustomWidgetBlueprint> inlinedCustomWidgetBlueprints;
 }
 
@@ -137,10 +138,10 @@ final class MeasurementDiscoveredEvent {
 
   /// The exact analyzer expression supplying this callback slot.
   ///
-  /// This is an internal compiler handoff, not a source-path or ordinal
-  /// identity. Carrier emission binds to this object while the same resolved
-  /// AST is translated; no later pass reconstructs a callback from labels,
-  /// event names, or collection order.
+  /// This is not a source-path or ordinal identity. Carrier emission binds to
+  /// this object while the same resolved AST is translated; no later
+  /// compilation step reconstructs a callback from labels, event names, or
+  /// collection order.
   final Expression sourceExpression;
 }
 
@@ -684,6 +685,12 @@ final class _MeasurementSourceDiscovery {
         'function value',
       );
     }
+    if (_isFlutterStateMethodTearOff(sourceExpression)) {
+      throw ArgumentError(
+        'A Flutter State method tear-off lowers to an RFW state update rather '
+        'than one host event handler',
+      );
+    }
     final resolvedEvent = MeasurementResolvedFlutterEvent.fromResolvedElements(
       widgetClass: widgetClass,
       eventElement: parameter,
@@ -700,6 +707,15 @@ final class _MeasurementSourceDiscovery {
     required MeasurementResolvedEvent resolvedEvent,
     required Expression sourceExpression,
   }) {
+    if (recogniseModalSheetTrigger(sourceExpression)
+        is! ModalSheetNotRecognised) {
+      // The callback becomes a declarative sheet rather than one event
+      // handler, so no route can ride on it. Reject the whole surface.
+      throw ArgumentError(
+        'the modal-sheet lowering carries this callback into a declarative '
+        'sheet rather than one event handler',
+      );
+    }
     final event = MeasurementDiscoveredEvent._(
       node: node,
       resolvedEvent: resolvedEvent,
@@ -768,7 +784,7 @@ final class _MeasurementSourceDiscovery {
             null) {
       throw ArgumentError(
         'A non-inlined custom widget must resolve to one exact registered '
-        'customer catalog entry for $flutterType',
+        'catalog entry for $flutterType',
       );
     }
   }
@@ -1125,6 +1141,18 @@ Element? _referencedElement(Expression expression) {
     element = element.variable;
   }
   return element;
+}
+
+bool _isFlutterStateMethodTearOff(Expression expression) {
+  final element = _referencedElement(_withoutParentheses(expression));
+  if (element is! MethodElement) return false;
+  final owner = element.enclosingElement;
+  return owner is InterfaceElement &&
+      _extendsResolvedType(
+        owner,
+        typeName: 'State',
+        libraryOrigin: _kFlutterOrigin,
+      );
 }
 
 String _helperIdentity(ExecutableElement executable) {

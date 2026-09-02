@@ -1,12 +1,15 @@
 part of '../reel_cancel.dart';
 
-const reelCancelFlowRef = SurfaceFlowRef<ReelCancelResult>(
+const reelCancelFlowRef = SurfaceFlowRef<
+    ReelCancelResult>.generatedWithMeasurementPublicationDraftDigest(
   id: 'reel_cancel',
   version: 1,
   minClient: 1,
   surface: Surface.onboarding,
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeReelCancelFlowResult,
+  measurementPublicationDraftDigest:
+      '07789478667b675392ad892fa7a303df7c1c15dde288d8b292c09459c05db4a9',
 );
 
 ReelCancelResult _decodeReelCancelFlowResult(Map<String, Object?> result) {

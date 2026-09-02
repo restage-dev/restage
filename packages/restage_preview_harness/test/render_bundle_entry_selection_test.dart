@@ -114,20 +114,18 @@ Future<_Transport> _mount(
           transport: transport,
           manifest: manifest ?? _manifest(),
           engine: RenderEngine(flutterVersion: '3.47.0', renderer: 'skwasm'),
-          registerCustomerWidgets: () {},
+          registerAppWidgets: () {},
           initialize: (_) {},
         )
       : RestagePreviewHarnessApp.renderBundleWithRasterController(
           transport: transport,
           manifest: manifest ?? _manifest(),
           engine: RenderEngine(flutterVersion: '3.47.0', renderer: 'skwasm'),
-          registerCustomerWidgets: () {},
+          registerAppWidgets: () {},
           initialize: (_) {},
           rasterController: rasterController,
         );
-  await tester.pumpWidget(
-    app,
-  );
+  await tester.pumpWidget(app);
   transport.render(blob);
   await tester.pump();
   await tester.pump();
@@ -225,7 +223,7 @@ widget main = AcmeBadge(label: "Pro");
         transport: transport,
         manifest: _manifest(),
         engine: RenderEngine(flutterVersion: '3.47.0', renderer: 'skwasm'),
-        registerCustomerWidgets: () {},
+        registerAppWidgets: () {},
         initialize: (_) {},
         rasterController: raster,
       ),

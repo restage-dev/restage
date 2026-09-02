@@ -18,6 +18,7 @@ import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart
 import 'package:restage_codegen/src/neutral_part_directive.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
+import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
 import 'package:test/test.dart';
 
@@ -31,9 +32,9 @@ import 'helpers.dart';
 /// match the tracked shipping output in the owning app package. Generated Dart
 /// descriptors are compared through a token- and legacy-alias-normalized
 /// identity contract. Formatting and comments are ignored, while every token
-/// lexeme (including complete string literals) remains identity-bearing. The
-/// approved plan permits generated Dart formatting to differ while forbidding
-/// wire or identity drift. Flow JSON has an additional canonical-codec
+/// lexeme (including complete string literals) remains identity-bearing.
+/// Generated Dart formatting may differ; wire and identity bytes may not.
+/// Flow JSON has an additional canonical-codec
 /// round-trip assertion. Navigation `.navplan.json` handoffs
 /// are recorded as transient build outputs: required for the next builder,
 /// absent from the shipped asset tree unless a pre-existing shipping corpus
@@ -48,22 +49,6 @@ import 'helpers.dart';
 /// representation work must keep them unchanged.
 const _goldenRoot = 'test/fixtures/explicit_authoring_goldens';
 const _updateEnvironment = 'UPDATE_EXPLICIT_AUTHORING_GOLDENS';
-
-// `build_test` gives this synthetic root the fully seeded analyzer closure the
-// production builders need. Real source files are re-homed here, exactly as
-// the existing blob-golden production harness does.
-const _mountPackage = 'apps_examples';
-
-const _baseSeededPackages = <String>{
-  'flutter',
-  'sky_engine',
-  'restage',
-  'restage_core',
-  'restage_shared',
-  'rfw',
-  'rfw_catalog_schema',
-  'intl',
-};
 
 const _corpora = <_CorpusCase>[
   _CorpusCase(
@@ -190,7 +175,7 @@ final surface = Surface.onboarding;
 const identities = <String>['next', 'welcome', 'welcome.rfw'];
 ''');
     final reformatted = utf8.encode('''
-// Formatting, comments, and the approved source-compatible alias are trivia.
+// Formatting, comments, and the source-compatible alias are trivia.
 final screenType=OnboardingScreenRef;
 final surface=SurfaceType.onboarding;
 const identities=<String>[
@@ -297,6 +282,7 @@ const identities=<String>[
     if (update) _freezeCorpus(snapshots);
 
     snapshots.forEach(_assertFrozenCorpus);
+    snapshots.forEach(_assertMeasurementIdentityContinuity);
   });
 
   test('source mutation would turn the raw-byte gate red', () async {
@@ -343,20 +329,41 @@ Future<_CorpusSnapshot> _buildCorpus(
   Map<String, String> sourceOverrides = const <String, String>{},
   bool assertShippingParity = true,
 }) async {
-  final readerWriter = await _seedCorpus(corpus, sourceOverrides);
+  final seeded = await _seedCorpus(corpus, sourceOverrides);
+  final capturedLedgers = <List<int>>[];
+  Future<void> captureLedger({
+    required String package,
+    required RestageMeasurementCompilerOutputV1 output,
+  }) async {
+    expect(package, corpus.sourcePackageName);
+    capturedLedgers.add(List<int>.unmodifiable(output.canonicalBytes));
+  }
+
   final sources = <String, String>{
+    '${corpus.sourcePackageName}|'
+            '$kRestageMeasurementCompilerLedgerSourcePath':
+        utf8.decode(seeded.sourceLedgerBytes),
     for (final path in corpus.inputPaths)
-      '$_mountPackage|$path': sourceOverrides[path] ??
-          readerWriter.testing.readString(AssetId(_mountPackage, path)),
+      '${corpus.sourcePackageName}|$path': sourceOverrides[path] ??
+          seeded.readerWriter.testing.readString(
+            AssetId(corpus.sourcePackageName, path),
+          ),
   };
   final logs = <LogRecord>[];
   final result = await testBuilders(
-    _buildersFor(corpus.kind),
+    _buildersFor(corpus.kind, captureLedger),
     sources,
-    rootPackage: _mountPackage,
-    readerWriter: readerWriter,
+    rootPackage: corpus.sourcePackageName,
+    readerWriter: seeded.readerWriter,
     flattenOutput: true,
     onLog: logs.add,
+  );
+
+  final sourceLedgerBytesAfter = seeded.sourceLedgerFile.readAsBytesSync();
+  expect(
+    sourceLedgerBytesAfter,
+    orderedEquals(seeded.sourceLedgerBytes),
+    reason: '${corpus.name} changed the source Measurement ledger bytes.',
   );
 
   expect(
@@ -367,9 +374,29 @@ Future<_CorpusSnapshot> _buildCorpus(
         '${logs.map((log) => log.message).join('\n')}',
   );
   expect(result.errors, isEmpty, reason: corpus.name);
+  expect(
+    capturedLedgers,
+    hasLength(1),
+    reason: '${corpus.name} must persist one Measurement compiler state.',
+  );
+  final capturedMeasurementState =
+      RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+    capturedLedgers.single,
+  );
+  final generatedMeasurementBytes = result.readerWriter.testing.readBytes(
+    AssetId(
+      corpus.sourcePackageName,
+      kRestageMeasurementCompilerOutputPath,
+    ),
+  );
+  expect(
+    capturedLedgers.single,
+    orderedEquals(generatedMeasurementBytes),
+    reason: '${corpus.name} captured a different Measurement compiler state.',
+  );
 
   final outputs = result.outputs
-      .where((asset) => asset.package == _mountPackage)
+      .where((asset) => asset.package == corpus.sourcePackageName)
       .toList()
     ..sort((left, right) => left.path.compareTo(right.path));
   final allBytesByPath = <String, List<int>>{
@@ -401,7 +428,12 @@ Future<_CorpusSnapshot> _buildCorpus(
               RestageOutputPlacementPlan.defaults.analyticsIdMetadataPath)
         entry.key: entry.value,
   };
-  final snapshot = _CorpusSnapshot(corpus, bytesByPath);
+  final snapshot = _CorpusSnapshot(
+    corpus,
+    bytesByPath,
+    priorMeasurementState: seeded.sourceLedger,
+    capturedMeasurementState: capturedMeasurementState,
+  );
 
   for (final path in corpus.absentOutputPaths) {
     expect(
@@ -431,42 +463,53 @@ Future<_CorpusSnapshot> _buildCorpus(
 // harness produces no descriptor at all and the frozen roster can never match.
 // `restage_package_surface_compiler` comes with it because the generated-Dart
 // builder reads its handoff and returns silently when it is absent.
-List<Builder> _generatedDartOwners() => <Builder>[
-      restagePackageSurfaceCompilerBuilder(BuilderOptions.empty),
+List<Builder> _generatedDartOwners(
+  MeasurementCompilerLedgerWriter ledgerWriter,
+) =>
+    <Builder>[
+      PackageSurfaceCompilerBuilder(
+        BuilderOptions.empty,
+        ledgerWriter: ledgerWriter,
+      ),
       restageGeneratedDartBuilder(BuilderOptions.empty),
     ];
 
-List<Builder> _buildersFor(_CorpusKind kind) => switch (kind) {
+List<Builder> _buildersFor(
+  _CorpusKind kind,
+  MeasurementCompilerLedgerWriter ledgerWriter,
+) =>
+    switch (kind) {
       _CorpusKind.onboarding => <Builder>[
           onboardingScreenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          ..._generatedDartOwners(),
+          ..._generatedDartOwners(ledgerWriter),
         ],
       _CorpusKind.onboardingWithPaywall => <Builder>[
           onboardingScreenBuilder(BuilderOptions.empty),
           restageCodegenBuilder(BuilderOptions.empty),
           onboardingFlowBuilder(BuilderOptions.empty),
-          ..._generatedDartOwners(),
+          ..._generatedDartOwners(ledgerWriter),
         ],
       _CorpusKind.paywallNavigation => <Builder>[
           restageCodegenBuilder(BuilderOptions.empty),
           paywallFlowBuilder(BuilderOptions.empty),
-          ..._generatedDartOwners(),
+          ..._generatedDartOwners(ledgerWriter),
         ],
     };
 
-Future<TestReaderWriter> _seedCorpus(
+Future<_SeededCorpus> _seedCorpus(
   _CorpusCase corpus,
   Map<String, String> sourceOverrides,
 ) async {
   final readerWriter = await readerWriterWithFilesystemSources(
-    rootPackage: _mountPackage,
+    rootPackage: corpus.sourcePackageName,
     includeFlutter: true,
   );
   final config = await loadPackageConfigUri((await Isolate.packageConfig)!);
   final reader = PackageAssetReader(config, 'restage_codegen');
   final seen = <AssetId>{};
   final queue = Queue<AssetId>()
+    ..add(AssetId('restage', 'lib/restage.dart'))
     ..add(AssetId('restage_material', 'lib/restage_material.dart'))
     ..add(AssetId('restage_cupertino', 'lib/restage_cupertino.dart'));
   for (final path in corpus.inputPaths) {
@@ -476,27 +519,57 @@ Future<TestReaderWriter> _seedCorpus(
   while (queue.isNotEmpty) {
     final asset = queue.removeFirst();
     if (!seen.add(asset)) continue;
-    if (_baseSeededPackages.contains(asset.package)) continue;
     if (!asset.path.startsWith('lib/') || !asset.path.endsWith('.dart')) {
       continue;
     }
+    if (await readerWriter.canRead(asset)) continue;
     if (!await reader.canRead(asset)) continue;
 
     final bytes = await reader.readAsBytes(asset);
-    final target = asset.package == corpus.sourcePackageName
-        ? AssetId(_mountPackage, asset.path)
-        : asset;
-    readerWriter.testing.writeBytes(target, bytes);
+    readerWriter.testing.writeBytes(asset, bytes);
     queue.addAll(_importDependencies(asset, utf8.decode(bytes)));
   }
 
   for (final override in sourceOverrides.entries) {
     readerWriter.testing.writeString(
-      AssetId(_mountPackage, override.key),
+      AssetId(corpus.sourcePackageName, override.key),
       override.value,
     );
   }
-  return readerWriter;
+
+  final packageRoot = await _packageRoot(corpus.sourcePackageName);
+  final sourceLedgerFile = File.fromUri(
+    packageRoot.resolve(kRestageMeasurementCompilerLedgerSourcePath),
+  );
+  expect(
+    sourceLedgerFile.existsSync(),
+    isTrue,
+    reason: '${corpus.name} source Measurement ledger is absent.',
+  );
+  final sourceLedgerBytes = sourceLedgerFile.readAsBytesSync();
+  final sourceLedger = RestageMeasurementCompilerOutputV1.fromCanonicalBytes(
+    sourceLedgerBytes,
+  );
+  expect(sourceLedger.valid, isTrue, reason: corpus.name);
+  expect(sourceLedger.policy, isNotNull, reason: corpus.name);
+  expect(
+    sourceLedger.canonicalBytes,
+    orderedEquals(sourceLedgerBytes),
+    reason: '${corpus.name} source Measurement ledger is not canonical.',
+  );
+  readerWriter.testing.writeBytes(
+    AssetId(
+      corpus.sourcePackageName,
+      kRestageMeasurementCompilerLedgerSourcePath,
+    ),
+    sourceLedgerBytes,
+  );
+  return _SeededCorpus(
+    readerWriter: readerWriter,
+    sourceLedgerFile: sourceLedgerFile,
+    sourceLedgerBytes: List<int>.unmodifiable(sourceLedgerBytes),
+    sourceLedger: sourceLedger,
+  );
 }
 
 Iterable<AssetId> _importDependencies(AssetId from, String source) sync* {
@@ -627,6 +700,66 @@ void _assertCanonicalFlowJson(_CorpusSnapshot snapshot) {
   }
 }
 
+void _assertMeasurementIdentityContinuity(_CorpusSnapshot snapshot) {
+  final prior = snapshot.priorMeasurementState;
+  final captured = snapshot.capturedMeasurementState;
+  expect(
+    captured.nextIdentitySequence,
+    prior.nextIdentitySequence,
+    reason: '${snapshot.corpus.name} allocated new Measurement identities.',
+  );
+
+  final priorActiveNodes = <String, MeasurementCompilerLedgerNode>{
+    for (final node in prior.ledgerNodes)
+      if (node.active) node.structuralOccurrenceKey: node,
+  };
+  final capturedActiveNodes =
+      captured.ledgerNodes.where((node) => node.active).toList(growable: false);
+
+  for (final node in capturedActiveNodes) {
+    final priorNode = priorActiveNodes[node.structuralOccurrenceKey];
+    if (priorNode == null) {
+      fail(
+        '${snapshot.corpus.name} emitted a new active Measurement locator: '
+        '${node.structuralOccurrenceKey}.',
+      );
+    }
+    expect(node.parentStructuralOccurrenceKey,
+        priorNode.parentStructuralOccurrenceKey,
+        reason: node.structuralOccurrenceKey);
+    expect(node.reconciliationFingerprint, priorNode.reconciliationFingerprint,
+        reason: node.structuralOccurrenceKey);
+    expect(node.codeIdentityId, priorNode.codeIdentityId,
+        reason: node.structuralOccurrenceKey);
+    expect(node.canonicalNodeTokenId, priorNode.canonicalNodeTokenId,
+        reason: node.structuralOccurrenceKey);
+
+    final priorActiveEvents = <String, MeasurementCompilerLedgerEvent>{
+      for (final event in priorNode.events)
+        if (event.active) event.resolvedEventLocator: event,
+    };
+    for (final event in node.events.where((event) => event.active)) {
+      final priorEvent = priorActiveEvents[event.resolvedEventLocator];
+      if (priorEvent == null) {
+        fail(
+          '${snapshot.corpus.name} emitted a new active Measurement event: '
+          '${event.resolvedEventLocator}.',
+        );
+      }
+      expect(event.sourceEventIdentity, priorEvent.sourceEventIdentity,
+          reason: event.resolvedEventLocator);
+      expect(event.generatedReferenceId, priorEvent.generatedReferenceId,
+          reason: event.resolvedEventLocator);
+      expect(event.lineageId, priorEvent.lineageId,
+          reason: event.resolvedEventLocator);
+      expect(event.dartSymbol, priorEvent.dartSymbol,
+          reason: event.resolvedEventLocator);
+      expect(event.displayMetadataRef, priorEvent.displayMetadataRef,
+          reason: event.resolvedEventLocator);
+    }
+  }
+}
+
 void _freezeCorpus(List<_CorpusSnapshot> snapshots) {
   final root = Directory(_goldenRoot);
   if (root.existsSync()) {
@@ -706,8 +839,7 @@ void _assertFrozenCorpus(_CorpusSnapshot snapshot) {
 
   // The roster comparison translates a
   // frozen per-kind descriptor path to the canonical neutral part that
-  // replaced it. This recalibrates the instrument to the approved
-  // architecture; it never adapts to whatever the builders happen to emit,
+  // replaced it. The mapping is fixed and never adapts to builder output,
   // because only this path mapping is permitted and every other entry is
   // still compared exactly.
   //
@@ -936,11 +1068,32 @@ final class _CorpusCase {
   final List<String> staleOutputPaths;
 }
 
+final class _SeededCorpus {
+  const _SeededCorpus({
+    required this.readerWriter,
+    required this.sourceLedgerFile,
+    required this.sourceLedgerBytes,
+    required this.sourceLedger,
+  });
+
+  final TestReaderWriter readerWriter;
+  final File sourceLedgerFile;
+  final List<int> sourceLedgerBytes;
+  final RestageMeasurementCompilerOutputV1 sourceLedger;
+}
+
 final class _CorpusSnapshot {
-  const _CorpusSnapshot(this.corpus, this.bytesByPath);
+  const _CorpusSnapshot(
+    this.corpus,
+    this.bytesByPath, {
+    required this.priorMeasurementState,
+    required this.capturedMeasurementState,
+  });
 
   final _CorpusCase corpus;
   final Map<String, List<int>> bytesByPath;
+  final RestageMeasurementCompilerOutputV1 priorMeasurementState;
+  final RestageMeasurementCompilerOutputV1 capturedMeasurementState;
 
   List<int> bytesFor(String path) {
     final bytes = bytesByPath[path];

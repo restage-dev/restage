@@ -130,46 +130,40 @@
       "sha256": "sha256:e0c88d4fb09cb5c8aa57bcc0043634ccb6769196742c7de40edec1379ed93dbc"
     },
     {
-      "path": "lib/onboarding/flows/hs_onboarding.rsflow.g.dart",
-      "kind": "flow-descriptor",
-      "descriptor": "part of 'hs_onboarding.dart'; abstract final class HsOnboardingFlowDescriptor { const HsOnboardingFlowDescriptor._(); static const SurfaceFlowRef<HsOnboardingResult> ref = SurfaceFlowRef<HsOnboardingResult>( id: 'hs_onboarding', version: 1, minClient: 1, surface: Surface.onboarding, deliveryMode: FlowDeliveryMode.typed, decodeResult: HsOnboardingFlowDescriptor._decodeResult, ); static HsOnboardingResult _decodeResult(Map<String, Object?> result) { if (result.length != 1 || !result.containsKey('subscribed')) { throw const FormatException('Unexpected flow result keys.'); } final subscribed = result['subscribed']; if (subscribed is! bool) { throw const FormatException( 'Expected result field subscribed to be bool.'); } return HsOnboardingResult(subscribed: subscribed); } } final class HsOnboardingResult { const HsOnboardingResult({required this.subscribed}); final bool subscribed; } final class HsOnboardingActions implements FlowActionRegistry { HsOnboardingActions({ required FlowActionHandler<void, ReminderDecision> enableReminders, }) : flowActionBindings = Map<String, FlowActionBinding<dynamic, dynamic>>.unmodifiable({ 'enableReminders': FlowActionBinding<void, ReminderDecision>( descriptor: enableRemindersDescriptor, actionName: enableRemindersDescriptor.actionName, contractVersion: enableRemindersDescriptor.contractVersion, argsSchema: enableRemindersDescriptor.argsSchema, resultSchema: enableRemindersDescriptor.resultSchema, minClient: enableRemindersDescriptor.minClient, idempotent: enableRemindersDescriptor.idempotent, handler: enableReminders, decodeArgs: (_) {}, encodeResult: (value) => {'granted': value.granted}, ), }); @override final Map<String, FlowActionBinding<dynamic, dynamic>> flowActionBindings; static final FlowActionDescriptor<void, ReminderDecision> enableRemindersDescriptor = FlowActionDescriptor<void, ReminderDecision>( actionName: 'enableReminders', contractVersion: 1, argsSchema: const FlowActionSchema.object({}), resultSchema: const FlowActionSchema.object({ 'granted': FlowActionSchemaField( required: true, schema: FlowActionSchema.bool(), ) }), minClient: 1, idempotent: false, ); }",
-      "contractByteLength": 2143,
-      "sha256": "sha256:2edfdfac5e6adfe32b39dca7d73de583003a4b6c5d76c1aabad8afd104038ba8"
+      "path": "lib/onboarding/flows/restage.generated/hs_onboarding.restage.g.dart",
+      "kind": "descriptor",
+      "byteLength": 2509,
+      "sha256": "sha256:780c42a73c9cf8ebdfd95b89fa89f76e5cd54393441e5ec8233f9bf4b5627cbd"
     },
     {
-      "path": "lib/onboarding/screens/hs_experience.rsscreen.g.dart",
-      "kind": "screen-descriptor",
-      "descriptor": "part of 'hs_experience.dart'; abstract final class HsExperienceScreenDescriptor { const HsExperienceScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_experience', artifactPath: 'hs_experience.rfw', version: 1, minClient: 1, ); }",
-      "contractByteLength": 262,
-      "sha256": "sha256:69e8a4e61fd561779030b5ac091cbada776a42259a598b420680c6a8894b478d"
+      "path": "lib/onboarding/screens/restage.generated/hs_experience.restage.g.dart",
+      "kind": "descriptor",
+      "byteLength": 383,
+      "sha256": "sha256:bed9284fa1b67e88252218983c30a1eca9e7ec5d12e624e40c654e1f44c7c467"
     },
     {
-      "path": "lib/onboarding/screens/hs_goal.rsscreen.g.dart",
-      "kind": "screen-descriptor",
-      "descriptor": "part of 'hs_goal.dart'; abstract final class HsGoalScreenDescriptor { const HsGoalScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_goal', artifactPath: 'hs_goal.rfw', version: 1, minClient: 1, ); }",
-      "contractByteLength": 232,
-      "sha256": "sha256:d8781b4469bd66abb401f7358b447ddc7e0e5750b10ef26d1c6155840438c20e"
+      "path": "lib/onboarding/screens/restage.generated/hs_goal.restage.g.dart",
+      "kind": "descriptor",
+      "byteLength": 335,
+      "sha256": "sha256:ef11d7e6e40d22ee3e50dba3e53eb421f5ebebb8421bf074f8afefb89f34f4d8"
     },
     {
-      "path": "lib/onboarding/screens/hs_recap.rsscreen.g.dart",
-      "kind": "screen-descriptor",
-      "descriptor": "part of 'hs_recap.dart'; abstract final class HsRecapScreenDescriptor { const HsRecapScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_recap', artifactPath: 'hs_recap.rfw', version: 1, minClient: 1, ); }",
-      "contractByteLength": 237,
-      "sha256": "sha256:1e6bb05067a829d1f63e693b35c2f80e3e946cc4e7b5bb4c42c3beba78a98b54"
+      "path": "lib/onboarding/screens/restage.generated/hs_recap.restage.g.dart",
+      "kind": "descriptor",
+      "byteLength": 343,
+      "sha256": "sha256:d190f2fc522da3739b7832fc170eaab57612ba2b9eb3db5df07460021479b9f9"
     },
     {
-      "path": "lib/onboarding/screens/hs_reminder.rsscreen.g.dart",
-      "kind": "screen-descriptor",
-      "descriptor": "part of 'hs_reminder.dart'; abstract final class HsReminderScreenDescriptor { const HsReminderScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_reminder', artifactPath: 'hs_reminder.rfw', version: 1, minClient: 1, ); }",
-      "contractByteLength": 252,
-      "sha256": "sha256:67a422897eb8416c42eb157e3143a0de32390cb5486dc2511715b24ee9ca535b"
+      "path": "lib/onboarding/screens/restage.generated/hs_reminder.restage.g.dart",
+      "kind": "descriptor",
+      "byteLength": 367,
+      "sha256": "sha256:243d7fd68d55fcbfd207dc81e80c911af1b2c5542986613e63ef7f1715e8be9a"
     },
     {
-      "path": "lib/onboarding/screens/hs_welcome.rsscreen.g.dart",
-      "kind": "screen-descriptor",
-      "descriptor": "part of 'hs_welcome.dart'; abstract final class HsWelcomeScreenDescriptor { const HsWelcomeScreenDescriptor._(); static const SurfaceScreenRef ref = SurfaceScreenRef( id: 'hs_welcome', artifactPath: 'hs_welcome.rfw', version: 1, minClient: 1, ); }",
-      "contractByteLength": 247,
-      "sha256": "sha256:66a5f40047d451e38463f792e7ceb841b4aa065deac3785061b8fcf9583d8021"
+      "path": "lib/onboarding/screens/restage.generated/hs_welcome.restage.g.dart",
+      "kind": "descriptor",
+      "byteLength": 359,
+      "sha256": "sha256:81092c174fd28af7c2fd15547cb3d03071caf113ff75109dd5718a95e87a5940"
     }
   ],
   "absentOutputPaths": [],

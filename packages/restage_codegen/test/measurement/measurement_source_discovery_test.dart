@@ -460,6 +460,49 @@ void main() {
       }
     });
 
+    test('rejects Flutter State method tear-offs as non-carrier callbacks',
+        () async {
+      final fixture = await _resolveFixture(_stateMethodSource());
+      final sourceClass = fixture.classNamed('Welcome');
+      final rootExpression =
+          fixture.buildExpressionFor(fixture.classNamed('_WelcomeState'));
+
+      final discovery = MeasurementSourceDiscovery.discover(
+        MeasurementSourceDiscoveryInput(
+          authority: MeasurementSourceAuthority.screen,
+          sourceClass: sourceClass,
+          rootExpression: rootExpression,
+          catalog: _catalogFor(rootExpression),
+        ),
+      );
+
+      expect(
+        discovery.disposition,
+        MeasurementSourceDiscoveryDisposition.rejected,
+      );
+      expect(discovery.nodes, isEmpty);
+      expect(discovery.events, isEmpty);
+      expect(
+        discovery.rejectionReason,
+        contains('Flutter State method tear-off'),
+      );
+    });
+
+    test('does not reject a non-Flutter class named State', () async {
+      final fixture = await _resolveFixture(_localStateNameSource());
+      final discovery = _discover(
+        fixture,
+        authority: MeasurementSourceAuthority.screen,
+      );
+
+      expect(
+        discovery.disposition,
+        MeasurementSourceDiscoveryDisposition.accepted,
+        reason: discovery.rejectionReason,
+      );
+      expect(discovery.events, hasLength(1));
+    });
+
     test(
         'validates discovered nodes and slots before delegating to the '
         'unchanged production boundary', () async {
@@ -1017,6 +1060,53 @@ final class Welcome extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: () {},
         onDoubleTap: () {},
+      );
+}
+''';
+
+String _stateMethodSource() => '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+@ScreenSource(id: 'state_method')
+final class Welcome extends StatefulWidget {
+  const Welcome({super.key});
+
+  @override
+  State<Welcome> createState() => _WelcomeState();
+}
+
+class _WelcomeState extends State<Welcome> {
+  bool selected = false;
+
+  void select() => setState(() => selected = true);
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: select,
+        child: const Text('Select'),
+      );
+}
+''';
+
+String _localStateNameSource() => '''
+import 'package:flutter/material.dart' hide State;
+import 'package:restage/restage.dart';
+
+final callbacks = State();
+
+final class State {
+  void select() {}
+}
+
+@ScreenSource(id: 'local_state_name')
+final class Welcome extends StatelessWidget {
+  const Welcome({super.key});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: callbacks.select,
+        child: const Text('Select'),
       );
 }
 ''';

@@ -375,15 +375,15 @@ const chainedDefaultValue = defaultValue;
       ],
     ),
     (
-      family: 'customer structured-list length',
+      family: 'app-defined structured-list length',
       forms: [
         (
           name: 'inline',
           expression:
-              "const <CustomerItem>[CustomerItem('one'), CustomerItem('two')]",
-          emitted: 'const <restage_source.CustomerItem>[\n'
-              "            const restage_source.CustomerItem.new('one'),\n"
-              "            const restage_source.CustomerItem.new('two'),\n"
+              "const <FixtureItem>[FixtureItem('one'), FixtureItem('two')]",
+          emitted: 'const <restage_source.FixtureItem>[\n'
+              "            const restage_source.FixtureItem.new('one'),\n"
+              "            const restage_source.FixtureItem.new('two'),\n"
               '          ],',
         ),
         (
@@ -814,7 +814,7 @@ const chainedDefaultValue = defaultValue;
           () async {
         final source = _runtimeDefaultWidget(variant.annotation);
         await _runProbe(
-          {'apps_examples|lib/customer_card.dart': source},
+          {'apps_examples|lib/fixture_card.dart': source},
           outputMatcher: allOf(
             contains('.Color(0xFF000000)'),
             contains("import 'dart:ui' show Color;"),
@@ -842,7 +842,7 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('a customer type named Widget is not accepted as Flutter Widget',
+  test('an app-defined type named Widget is not accepted as Flutter Widget',
       () async {
     await _runProbe(
       const {'apps_examples|lib/lookalike_widget.dart': _lookalikeWidgetWidget},
@@ -993,7 +993,7 @@ const chainedDefaultValue = defaultValue;
     );
   });
 
-  test('enum controls retain the customer enum member labels', () async {
+  test('enum controls retain the app-defined enum member labels', () async {
     await _runProbe(
       const {'apps_examples|lib/status.dart': _enumLabelWidget},
       outputMatcher: allOf(
@@ -1140,13 +1140,13 @@ const chainedDefaultValue = defaultValue;
     await _runProbe(
       const {
         'restage_widgetbook_example|lib/models.dart': _metaModel,
-        'restage_widgetbook_example|lib/customer_card.dart': _metaCard,
+        'restage_widgetbook_example|lib/fixture_card.dart': _metaCard,
       },
       rootPackage: 'restage_widgetbook_example',
       includeWidgetbookNamespace: true,
       captureErrors: true,
       outputMatcher: allOf(
-        contains('lib/customer_card.dart#CustomerCard.data'),
+        contains('lib/fixture_card.dart#FixtureCard.data'),
         contains('package:restage_widgetbook_example/models.dart#Meta'),
         contains('package:widgetbook/widgetbook.dart export'),
       ),
@@ -1157,27 +1157,27 @@ const chainedDefaultValue = defaultValue;
     await _runProbe(
       const {
         'apps_examples|lib/models.dart': _sameNamedWidgetModel,
-        'apps_examples|lib/customer_card.dart': _sameNamedModelCard,
+        'apps_examples|lib/fixture_card.dart': _sameNamedModelCard,
       },
       captureErrors: true,
       outputMatcher: allOf(
-        contains('lib/customer_card.dart#CustomerCard.data'),
-        contains('package:apps_examples/models.dart#CustomerCard'),
-        contains('source widget import at lib/customer_card.dart#CustomerCard'),
+        contains('lib/fixture_card.dart#FixtureCard.data'),
+        contains('package:apps_examples/models.dart#FixtureCard'),
+        contains('source widget import at lib/fixture_card.dart#FixtureCard'),
       ),
     );
   });
 
-  test('rejects a customer model that collides with implicit dart:core',
+  test('rejects an app-defined model that collides with implicit dart:core',
       () async {
     await _runProbe(
       const {
         'apps_examples|lib/models.dart': _stringModel,
-        'apps_examples|lib/customer_card.dart': _stringModelCard,
+        'apps_examples|lib/fixture_card.dart': _stringModelCard,
       },
       captureErrors: true,
       outputMatcher: allOf(
-        contains('lib/customer_card.dart#CustomerCard.data'),
+        contains('lib/fixture_card.dart#FixtureCard.data'),
         contains('package:apps_examples/models.dart#String'),
         contains('implicit dart:core namespace'),
       ),
@@ -1189,27 +1189,27 @@ const chainedDefaultValue = defaultValue;
     await _runProbe(
       const {
         'restage_widgetbook_example|lib/models.dart': _metaModel,
-        'restage_widgetbook_example|lib/customer_card.dart': _metaListCard,
+        'restage_widgetbook_example|lib/fixture_card.dart': _metaListCard,
       },
       rootPackage: 'restage_widgetbook_example',
       includeWidgetbookNamespace: true,
       captureErrors: true,
       outputMatcher: allOf(
-        contains('lib/customer_card.dart#CustomerCard.items'),
+        contains('lib/fixture_card.dart#FixtureCard.items'),
         contains('package:restage_widgetbook_example/models.dart#Meta'),
         contains('package:widgetbook/widgetbook.dart export'),
       ),
     );
   });
 
-  test('keeps a non-colliding source widget and customer model valid',
+  test('keeps a non-colliding source widget and app-defined model valid',
       () async {
     const sourceImport =
-        "import 'package:apps_examples/customer_card.dart' show CustomerCard;";
+        "import 'package:apps_examples/fixture_card.dart' show FixtureCard;";
     await _runProbe(
       const {
         'apps_examples|lib/models.dart': _cardDataModel,
-        'apps_examples|lib/customer_card.dart': _cardDataCard,
+        'apps_examples|lib/fixture_card.dart': _cardDataCard,
       },
       outputMatcher: allOf(
         contains(
@@ -1305,7 +1305,7 @@ class Meta { const Meta(); }
     rootPackage: rootPackage,
     readerWriter: readerWriter,
     outputs: {
-      '$rootPackage|lib/customer.stories.dart': decodedMatches(outputMatcher),
+      '$rootPackage|lib/fixture.stories.dart': decodedMatches(outputMatcher),
     },
     onLog: logMatcher == null
         ? null
@@ -1332,7 +1332,7 @@ class BaseCard<T> extends StatelessWidget {
   Widget build(BuildContext context) => Text('$label');
 }
 
-/// A concrete customer card.
+/// A concrete fixture card.
 @RestageWidget(
   name: 'SuperCard',
   library: WidgetLibrary.custom('fixture.widgets'),
@@ -1563,7 +1563,7 @@ enum Mode { idle, ready }
 class CatalogLiteralFiniteCard extends StatelessWidget {
   const CatalogLiteralFiniteCard({required this.value});
 
-  /// Finite customer value.
+  /// Finite app-defined value.
   @RestageProperty(
     defaultSource: LiteralDefault($defaultValue),
     constraints: RestageConstraints(allowedValues: [$allowedValues]),
@@ -1596,7 +1596,7 @@ class FiniteFrameworkCard extends StatelessWidget {
     this.weight = chainedDefaultWeight,
   });
 
-  /// Customer color.
+  /// App-defined color.
   @RestageProperty(
     constraints: RestageConstraints(
       allowedValues: ['#FF000000', '#FF336699'],
@@ -1604,13 +1604,13 @@ class FiniteFrameworkCard extends StatelessWidget {
   )
   final Color color;
 
-  /// Customer duration.
+  /// App-defined duration.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [100, 250]),
   )
   final Duration duration;
 
-  /// Customer font weight.
+  /// App-defined font weight.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [400, 700]),
   )
@@ -1637,7 +1637,7 @@ const chainedDefaultRatio = defaultRatio;
 class MixedRealCard extends StatelessWidget {
   const MixedRealCard({this.ratio = $defaultExpression});
 
-  /// Customer ratio.
+  /// App-defined ratio.
   @RestageProperty(
     constraints: RestageConstraints(allowedValues: [1, 2]),
   )
@@ -1903,15 +1903,15 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'models.dart';
 
 @RestageWidget(
-  name: 'CustomerCard',
+  name: 'FixtureCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'Customer card.',
+  description: 'Fixture card.',
 )
-class CustomerCard extends StatelessWidget {
-  const CustomerCard({required this.data});
+class FixtureCard extends StatelessWidget {
+  const FixtureCard({required this.data});
 
-  @RestageProperty(description: 'Customer metadata.')
+  @RestageProperty(description: 'Fixture metadata.')
   final Meta data;
 
   @override
@@ -1922,8 +1922,8 @@ class CustomerCard extends StatelessWidget {
 const _sameNamedWidgetModel = '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-class CustomerCard {
-  const CustomerCard({required this.label});
+class FixtureCard {
+  const FixtureCard({required this.label});
 
   @RestageProperty(description: 'Model label.')
   final String label;
@@ -1936,16 +1936,16 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'models.dart' as models;
 
 @RestageWidget(
-  name: 'CustomerCard',
+  name: 'FixtureCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'Customer card.',
+  description: 'Fixture card.',
 )
-class CustomerCard extends StatelessWidget {
-  const CustomerCard({required this.data});
+class FixtureCard extends StatelessWidget {
+  const FixtureCard({required this.data});
 
-  @RestageProperty(description: 'Customer data.')
-  final models.CustomerCard data;
+  @RestageProperty(description: 'Fixture data.')
+  final models.FixtureCard data;
 
   @override
   Widget build(BuildContext context) => Text(data.label);
@@ -1971,15 +1971,15 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'models.dart' as models;
 
 @RestageWidget(
-  name: 'CustomerCard',
+  name: 'FixtureCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'Customer card.',
+  description: 'Fixture card.',
 )
-class CustomerCard extends StatelessWidget {
-  const CustomerCard({required this.data});
+class FixtureCard extends StatelessWidget {
+  const FixtureCard({required this.data});
 
-  @RestageProperty(description: 'Customer data.')
+  @RestageProperty(description: 'Fixture data.')
   final models.String data;
 
   @override
@@ -1993,15 +1993,15 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'models.dart';
 
 @RestageWidget(
-  name: 'CustomerCard',
+  name: 'FixtureCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'Customer card.',
+  description: 'Fixture card.',
 )
-class CustomerCard extends StatelessWidget {
-  const CustomerCard({required this.items});
+class FixtureCard extends StatelessWidget {
+  const FixtureCard({required this.items});
 
-  @RestageProperty(description: 'Customer metadata items.')
+  @RestageProperty(description: 'Fixture metadata items.')
   final List<Meta> items;
 
   @override
@@ -2026,15 +2026,15 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'models.dart';
 
 @RestageWidget(
-  name: 'CustomerCard',
+  name: 'FixtureCard',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'Customer card.',
+  description: 'Fixture card.',
 )
-class CustomerCard extends StatelessWidget {
-  const CustomerCard({required this.data});
+class FixtureCard extends StatelessWidget {
+  const FixtureCard({required this.data});
 
-  @RestageProperty(description: 'Customer data.')
+  @RestageProperty(description: 'Fixture data.')
   final CardData data;
 
   @override
@@ -2050,7 +2050,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   name: 'Config',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'A customer widget named like a Widgetbook export.',
+  description: 'An app-defined widget named like a Widgetbook export.',
 )
 class Config extends StatelessWidget {
   const Config({required this.label});
@@ -2071,7 +2071,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   name: 'DateTime',
   library: WidgetLibrary.custom('fixture.widgets'),
   category: WidgetCategory.decoration,
-  description: 'A customer widget named like a dart:core type.',
+  description: 'An app-defined widget named like a dart:core type.',
 )
 class DateTime extends StatelessWidget {
   const DateTime({required this.label});
@@ -2095,7 +2095,7 @@ final class _StoryPlanProbeBuilder implements Builder {
 
   @override
   Map<String, List<String>> get buildExtensions => const {
-        r'$lib$': ['customer.stories.dart'],
+        r'$lib$': ['fixture.stories.dart'],
       };
 
   @override
@@ -2112,7 +2112,7 @@ final class _StoryPlanProbeBuilder implements Builder {
         widget: widget,
       );
       await buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, 'lib/customer.stories.dart'),
+        AssetId(buildStep.inputId.package, 'lib/fixture.stories.dart'),
         renderWidgetbookStorySource(
           plan: plan,
           packageName: buildStep.inputId.package,
@@ -2122,7 +2122,7 @@ final class _StoryPlanProbeBuilder implements Builder {
     } catch (error) {
       if (!captureErrors) rethrow;
       await buildStep.writeAsString(
-        AssetId(buildStep.inputId.package, 'lib/customer.stories.dart'),
+        AssetId(buildStep.inputId.package, 'lib/fixture.stories.dart'),
         error.toString(),
       );
     }
@@ -2134,15 +2134,15 @@ String _runtimeDefaultWidget(String defaultSource) => '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
   @RestageWidget(
-    name: 'CustomerCard',
+    name: 'FixtureCard',
     library: WidgetLibrary.custom('fixture.widgets'),
     category: WidgetCategory.decoration,
-    description: 'Customer card.',
+    description: 'Fixture card.',
   )
-  class CustomerCard extends StatelessWidget {
-    const CustomerCard({this.color});
+  class FixtureCard extends StatelessWidget {
+    const FixtureCard({this.color});
     @RestageProperty(
-      description: 'Customer color.',
+      description: 'Fixture color.',
       defaultSource: $defaultSource,
     )
     final Color? color;
@@ -2340,7 +2340,7 @@ const _nullDefaultAllowedValueWidget = '''
   class NullDefaultCard extends StatelessWidget {
     const NullDefaultCard({this.value = null});
     @RestageProperty(
-      description: 'Finite customer value.',
+      description: 'Finite app-defined value.',
       constraints: RestageConstraints(allowedValues: ['ready']),
     )
     final String? value;
@@ -2406,7 +2406,7 @@ const _constrainedListWidget = '''
   class ConstrainedListCard extends StatelessWidget {
     const ConstrainedListCard({required this.children});
     @RestageProperty(
-      description: 'Customer children.',
+      description: 'App-defined children.',
       constraints: RestageConstraints(minItems: 2, maxItems: 3),
     )
     final List<Widget> children;

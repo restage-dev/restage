@@ -62,14 +62,44 @@ widget Preview = Text(text: data.title);
     expect(events.whereType<RenderError>(), isEmpty);
   });
 
-  testWidgets('raw core applies caller-supplied customer registrations',
+  testWidgets('raw core renders measurement-wrapped content', (tester) async {
+    final blob = encodeLibraryBlob(
+      parseLibraryFile('''
+import restage.core;
+import restage.measurement;
+widget Preview = MeasurementPresented(
+  carriers: ["carrier"],
+  child: Text(text: "Hello"),
+);
+'''),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RawRfwRenderSurface(
+          epoch: 1,
+          blob: blob,
+          data: const <String, Object?>{},
+          environment: _environment(),
+          registrations: const <RestageWidgetLibraryRegistration>[],
+          entryWidgetName: 'Preview',
+          onRemoteEvent: (_, __) {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Hello'), findsOneWidget);
+    expect(find.byType(ErrorWidget), findsNothing);
+  });
+
+  testWidgets('raw core applies caller-supplied widget registrations',
       (tester) async {
     final registration = RestageWidgetLibraryRegistration(
       library: const WidgetLibrary.custom('acme.widgets'),
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'Badge',
-          builder: (_, __) => const Text('Customer badge'),
+          builder: (_, __) => const Text('App badge'),
         ),
       ],
       capabilityVersion: 1,
@@ -95,10 +125,10 @@ widget Preview = Badge();
     );
     await tester.pump();
 
-    expect(find.text('Customer badge'), findsOneWidget);
+    expect(find.text('App badge'), findsOneWidget);
   });
 
-  testWidgets('unchanged parent rebuild preserves customer widget state',
+  testWidgets('unchanged parent rebuild preserves app widget state',
       (tester) async {
     var initializations = 0;
     final events = <RenderEvent>[];
@@ -107,7 +137,7 @@ widget Preview = Badge();
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'Counter',
-          builder: (_, __) => _CustomerCounter(
+          builder: (_, __) => _AppCounter(
             onInitialize: () => initializations += 1,
           ),
         ),
@@ -151,7 +181,7 @@ widget Preview = Counter();
   });
 
   testWidgets(
-      'library mode preserves customer state across data, environment, and '
+      'library mode preserves app widget state across data, environment, and '
       'document updates', (tester) async {
     var initializations = 0;
     final registration = RestageWidgetLibraryRegistration(
@@ -159,7 +189,7 @@ widget Preview = Counter();
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'Counter',
-          builder: (_, source) => _CustomerDataCounter(
+          builder: (_, source) => _AppDataCounter(
             label: source.v<String>(<Object>['label']) ?? '<missing>',
             onInitialize: () => initializations += 1,
           ),
@@ -268,8 +298,7 @@ widget Preview = Column(children: [
       tester.widget<Text>(find.textContaining('Count ')).data!,
     );
 
-    // Unmount before assertions so a regression that reinstalls the reporting
-    // boundary cannot mistake a failing expectation for an owned build error.
+    // Unmount so assertion failures remain outside the error boundary.
     await tester.pumpWidget(const SizedBox.shrink());
     expect(brightness, Brightness.light);
     expect(locale, 'fr-FR');
@@ -295,7 +324,7 @@ widget Preview = Column(children: [
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'Counter',
-          builder: (_, __) => _CustomerCounter(
+          builder: (_, __) => _AppCounter(
             onInitialize: () => initializations += 1,
           ),
         ),
@@ -450,7 +479,7 @@ widget Preview = Text(text: data.title);
     expect(find.text('After'), findsOneWidget);
   });
 
-  testWidgets('a throwing customer widget errors once and never settles',
+  testWidgets('a throwing app widget errors once and never settles',
       (tester) async {
     final events = <RenderEvent>[];
     final registration = RestageWidgetLibraryRegistration(
@@ -458,7 +487,7 @@ widget Preview = Text(text: data.title);
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'Broken',
-          builder: (_, __) => const _ThrowingCustomerWidget(),
+          builder: (_, __) => const _ThrowingAppWidget(),
         ),
       ],
       capabilityVersion: 1,
@@ -533,7 +562,7 @@ widget Preview = Missing();
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'Animating',
-          builder: (_, __) => _AnimatingCustomerWidget(
+          builder: (_, __) => _AnimatingAppWidget(
             onController: (value) => controller = value,
           ),
         ),
@@ -582,7 +611,7 @@ widget Preview = Animating();
       widgets: <RestageWidgetFactory>[
         RestageWidgetFactory(
           name: 'LateFailure',
-          builder: (_, __) => _LateFailingCustomerWidget(shouldFail),
+          builder: (_, __) => _LateFailingAppWidget(shouldFail),
         ),
       ],
       capabilityVersion: 1,
@@ -768,17 +797,16 @@ final class _RenderStructuralReportProbe extends RenderBox {
   }
 }
 
-class _AnimatingCustomerWidget extends StatefulWidget {
-  const _AnimatingCustomerWidget({required this.onController});
+class _AnimatingAppWidget extends StatefulWidget {
+  const _AnimatingAppWidget({required this.onController});
 
   final ValueChanged<AnimationController> onController;
 
   @override
-  State<_AnimatingCustomerWidget> createState() =>
-      _AnimatingCustomerWidgetState();
+  State<_AnimatingAppWidget> createState() => _AnimatingAppWidgetState();
 }
 
-class _AnimatingCustomerWidgetState extends State<_AnimatingCustomerWidget>
+class _AnimatingAppWidgetState extends State<_AnimatingAppWidget>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -809,8 +837,8 @@ class _AnimatingCustomerWidgetState extends State<_AnimatingCustomerWidget>
       );
 }
 
-class _LateFailingCustomerWidget extends StatelessWidget {
-  const _LateFailingCustomerWidget(this.shouldFail);
+class _LateFailingAppWidget extends StatelessWidget {
+  const _LateFailingAppWidget(this.shouldFail);
 
   final ValueNotifier<bool> shouldFail;
 
@@ -818,30 +846,30 @@ class _LateFailingCustomerWidget extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<bool>(
         valueListenable: shouldFail,
         builder: (_, fail, __) {
-          if (fail) throw StateError('late customer widget build failed');
+          if (fail) throw StateError('late app widget build failed');
           return const SizedBox.square(dimension: 20);
         },
       );
 }
 
-class _ThrowingCustomerWidget extends StatelessWidget {
-  const _ThrowingCustomerWidget();
+class _ThrowingAppWidget extends StatelessWidget {
+  const _ThrowingAppWidget();
 
   @override
   Widget build(BuildContext context) =>
-      throw StateError('customer widget build failed');
+      throw StateError('app widget build failed');
 }
 
-class _CustomerCounter extends StatefulWidget {
-  const _CustomerCounter({required this.onInitialize});
+class _AppCounter extends StatefulWidget {
+  const _AppCounter({required this.onInitialize});
 
   final VoidCallback onInitialize;
 
   @override
-  State<_CustomerCounter> createState() => _CustomerCounterState();
+  State<_AppCounter> createState() => _AppCounterState();
 }
 
-class _CustomerCounterState extends State<_CustomerCounter> {
+class _AppCounterState extends State<_AppCounter> {
   var _count = 0;
 
   @override
@@ -857,8 +885,8 @@ class _CustomerCounterState extends State<_CustomerCounter> {
       );
 }
 
-class _CustomerDataCounter extends StatefulWidget {
-  const _CustomerDataCounter({
+class _AppDataCounter extends StatefulWidget {
+  const _AppDataCounter({
     required this.label,
     required this.onInitialize,
   });
@@ -867,10 +895,10 @@ class _CustomerDataCounter extends StatefulWidget {
   final VoidCallback onInitialize;
 
   @override
-  State<_CustomerDataCounter> createState() => _CustomerDataCounterState();
+  State<_AppDataCounter> createState() => _AppDataCounterState();
 }
 
-class _CustomerDataCounterState extends State<_CustomerDataCounter> {
+class _AppDataCounterState extends State<_AppDataCounter> {
   var _count = 0;
 
   @override

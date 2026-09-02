@@ -1,3 +1,6 @@
+additional_public_assets:
+  - restage_measurement.compiler.json
+
 # The example app ships its generated surfaces inside the app bundle so the demos run
 # standalone, with no hosted delivery configured. `bundled_runtime` routes only
 # the deterministic `.rsbundle` containers into the Flutter asset directory

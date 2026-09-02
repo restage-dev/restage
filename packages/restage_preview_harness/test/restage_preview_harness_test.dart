@@ -132,7 +132,7 @@ void main() {
         manifest: _manifest(),
         engine: RenderEngine(flutterVersion: '3.41.0', renderer: 'canvaskit'),
         initialize: (_) {},
-        registerCustomerWidgets: () => registrations += 1,
+        registerAppWidgets: () => registrations += 1,
       ),
     );
     expect(registrations, 1);
@@ -192,7 +192,7 @@ void main() {
             renderer: 'canvaskit',
           ),
           initialize: (_) {},
-          registerCustomerWidgets: () {},
+          registerAppWidgets: () {},
           entryWidgetName: 'main',
         ),
       );
@@ -268,7 +268,7 @@ void main() {
             renderer: 'canvaskit',
           ),
           initialize: (_) {},
-          registerCustomerWidgets: () {},
+          registerAppWidgets: () {},
           entryWidgetName: 'main',
         ),
       );
@@ -315,13 +315,8 @@ void main() {
       });
       expect(transport.sent.last.payload['type'], 'protocolError');
 
-      // A target this harness cannot capture is refused quietly. Nothing
-      // claiming to be a snapshot goes out, and — unlike the stale-epoch case
-      // above, which is a malformed message and so a real contract violation —
-      // no `protocolError` either: the contract reserves that for violations
-      // outside any epoch, and the shell treats every one as terminal, so
-      // answering an unsupported *optional* capture with one would discard the
-      // session and drop a healthy settled render to placeholders.
+      // Ignore unsupported paths because snapshots are optional and protocol
+      // errors are terminal.
       final messagesBeforeWrongPath = transport.sent.length;
       transport.receive(<String, Object?>{
         'v': 1,
@@ -435,7 +430,7 @@ void main() {
                     renderer: 'canvaskit',
                   ),
                   initialize: (_) {},
-                  registerCustomerWidgets: () {},
+                  registerAppWidgets: () {},
                 ),
               ),
             ],
@@ -474,7 +469,7 @@ void main() {
         manifest: _manifest(),
         engine: RenderEngine(flutterVersion: '3.41.0', renderer: 'canvaskit'),
         initialize: (_) {},
-        registerCustomerWidgets: () {},
+        registerAppWidgets: () {},
       ),
     );
     final blob = encodeLibraryBlob(
@@ -520,7 +515,7 @@ void main() {
   });
 
   testWidgets(
-    'a customer rebuild failure after settle emits one terminal renderError',
+    'an app-defined rebuild failure after settle emits one terminal renderError',
     (tester) async {
       final transport = _Transport();
       final fail = ValueNotifier<bool>(false);
@@ -532,7 +527,7 @@ void main() {
           manifest: _manifest(),
           engine: RenderEngine(flutterVersion: '3.41.0', renderer: 'canvaskit'),
           initialize: (_) {},
-          registerCustomerWidgets: () {
+          registerAppWidgets: () {
             Restage.registerWidgetLibrary(
               const WidgetLibrary.custom('acme.late'),
               widgets: <RestageWidgetFactory>[
@@ -632,7 +627,7 @@ widget Preview = LateFailure();
           manifest: _manifest(),
           engine: RenderEngine(flutterVersion: '3.41.0', renderer: 'canvaskit'),
           initialize: (_) {},
-          registerCustomerWidgets: () {
+          registerAppWidgets: () {
             Restage.registerWidgetLibrary(
               const WidgetLibrary.custom('acme.repaint'),
               widgets: <RestageWidgetFactory>[
@@ -802,7 +797,7 @@ class _LateFailure extends StatelessWidget {
   Widget build(BuildContext context) => ValueListenableBuilder<bool>(
         valueListenable: fail,
         builder: (context, shouldFail, child) {
-          if (shouldFail) throw StateError('late customer rebuild failed');
+          if (shouldFail) throw StateError('late app-defined rebuild failed');
           return const Text('Initially stable');
         },
       );

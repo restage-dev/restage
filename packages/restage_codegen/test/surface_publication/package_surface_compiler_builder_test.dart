@@ -1,16 +1,98 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:build/build.dart';
 import 'package:build_test/build_test.dart';
 import 'package:restage_codegen/builder.dart';
+import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart';
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/package_surface_compiler_builder.dart';
 import 'package:restage_shared/restage_shared.dart';
+import 'package:restage_shared/rfw_formats.dart' as fmt;
 import 'package:test/test.dart';
 
 import '../helpers.dart';
 
 void main() {
+  group('tracked package Measurement policy', () {
+    test('shares one policy within a package', () async {
+      final compilations = await _runPolicyProbe({
+        'apps_examples': [
+          MeasurementCompilerPolicyInput.shippedDefault,
+          MeasurementCompilerPolicyInput.shippedDefault,
+        ],
+      });
+
+      final packageCompilations = compilations['apps_examples']!;
+      expect(
+        identical(packageCompilations.first, packageCompilations.last),
+        isTrue,
+      );
+      expect(
+        packageCompilations.map((compilation) => compilation.isValid),
+        orderedEquals([true, true]),
+      );
+    });
+
+    test('rejects conflicting policies within a package', () async {
+      final compilations = await _runPolicyProbe({
+        'apps_examples': [
+          MeasurementCompilerPolicyInput.shippedDefault,
+          _alternateMeasurementPolicy,
+        ],
+      });
+
+      final packageCompilations = compilations['apps_examples']!;
+      expect(
+        packageCompilations.map((compilation) => compilation.isValid),
+        orderedEquals([true, false]),
+      );
+      final issue = packageCompilations.last.issues.single;
+      expect(issue.code.name, 'conflictingTargetConfig');
+      expect(issue.message, contains('Measurement policy options conflict'));
+    });
+
+    test('accepts distinct policies for distinct packages', () async {
+      final compilations = await _runPolicyProbe({
+        'apps_examples': [MeasurementCompilerPolicyInput.shippedDefault],
+        'restage_codegen': [_alternateMeasurementPolicy],
+      });
+
+      expect(compilations['apps_examples']!.single.isValid, isTrue);
+      expect(compilations['restage_codegen']!.single.isValid, isTrue);
+    });
+  });
+
+  test('ledger writer replaces its target through an adjacent temporary file',
+      () {
+    final root = Directory.systemTemp.createTempSync(
+      'restage-measurement-ledger-',
+    );
+    addTearDown(() => root.deleteSync(recursive: true));
+    final file = File(
+      '${root.path}/nested/restage_measurement.compiler.json',
+    );
+    final first = utf8.encode('{"value":"first"}');
+    final second = utf8.encode('{"value":"second"}');
+
+    writeMeasurementCompilerLedgerSource(
+      file: file,
+      bytes: first,
+      processId: 41,
+    );
+    expect(file.readAsBytesSync(), orderedEquals(first));
+    expect(File('${file.path}.tmp.41').existsSync(), isFalse);
+
+    writeMeasurementCompilerLedgerSource(
+      file: file,
+      bytes: second,
+      processId: 42,
+    );
+    expect(file.readAsBytesSync(), orderedEquals(second));
+    expect(File('${file.path}.tmp.42').existsSync(), isFalse);
+  });
+
   test('compiles tracked arbitrary-directory sources into the fixed bundle',
       () async {
     const screen = '''
@@ -76,14 +158,11 @@ const launch = FlowDefinition(
           .toList(),
       orderedEquals(['announcement', 'launch']),
     );
-    expect(
-      bundle.artifacts.keys,
-      containsAll(<String>[
-        'assets/general/screens/announcement.rfw',
-        'assets/general/screens/announcement.capability.json',
-        'assets/general/flows/launch.flow.json',
-      ]),
-    );
+    expectArtifactsFor(bundle.artifacts.keys, <String>[
+      'assets/general/screens/announcement.rfw',
+      'assets/general/screens/announcement.capability.json',
+      'assets/general/flows/launch.flow.json',
+    ]);
     expect(
       bundle.ownedOutputs.keys,
       containsAll(<String>[
@@ -99,11 +178,13 @@ const launch = FlowDefinition(
       contains('"Announcement"'),
     );
     expect(
-      utf8.decode(
-        bundle.ownedOutputs[
-            'lib/features/restage.generated/announcement.restage.g.dart']!,
+      collapsedWhitespace(
+        utf8.decode(
+          bundle.ownedOutputs[
+              'lib/features/restage.generated/announcement.restage.g.dart']!,
+        ),
       ),
-      contains('SurfaceScreenRef<FeatureAnnouncementEvent>'),
+      contains('SurfaceScreenRef< FeatureAnnouncementEvent>'),
     );
     expect(
       utf8.decode(
@@ -173,15 +254,138 @@ const message = FlowDefinition(
     expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
     const onboardingBlob = 'assets/onboarding/screens/welcome.rfw';
     const messageBlob = 'assets/message/screens/welcome.rfw';
-    expect(bundle.artifacts, containsPair(onboardingBlob, isNotEmpty));
-    expect(bundle.artifacts, containsPair(messageBlob, isNotEmpty));
-    expect(bundle.artifacts[onboardingBlob], bundle.artifacts[messageBlob]);
+    expect(artifactFor(bundle.artifacts, onboardingBlob), isNotEmpty);
+    expect(artifactFor(bundle.artifacts, messageBlob), isNotEmpty);
+    // Each containing flow is its own publication, so one neutral screen is
+    // materialized twice and each copy carries that publication's identity.
+    final onboardingText = _declarativeText(
+      artifactFor(bundle.artifacts, onboardingBlob),
+    );
+    final messageText = _declarativeText(
+      artifactFor(bundle.artifacts, messageBlob),
+    );
+    expect(
+      _withoutMeasurementIdentity(onboardingText),
+      _withoutMeasurementIdentity(messageText),
+      reason: 'one neutral screen materializes the same widget for both '
+          'containing flows',
+    );
+    expect(
+      onboardingText,
+      isNot(messageText),
+      reason: 'each materialization carries its own publication identity, so '
+          'one cannot be attributed to the other',
+    );
     expect(
       bundle.manifest!.publications
           .map((entry) => entry.publication.slug)
           .toList(),
       orderedEquals(['message', 'onboarding']),
       reason: 'a neutral screen is flow-owned, never standalone',
+    );
+  });
+
+  test('records a flow screen where the bundle actually emits it', () async {
+    // One screen inside two flows is claimed twice, so each publication owns
+    // its own copy at its own path. A client finds a screen by joining the
+    // surface directory to the location its flow document records, so this
+    // pins that join against the artifacts the bundle emits.
+    const screen = '''
+import 'package:flutter/material.dart';
+import 'package:restage/restage.dart';
+
+part 'restage.generated/shared_entry.restage.g.dart';
+
+@Screen(id: 'shared_entry', surface: Surface.general)
+final class SharedEntry extends StatelessWidget {
+  const SharedEntry({super.key});
+
+  static const next = SurfaceEvent<void>('next');
+
+  @override
+  Widget build(BuildContext context) => const Text('Shared entry');
+}
+''';
+    const first = '''
+import 'package:restage/restage.dart';
+
+import '../ui/shared_entry.dart';
+
+part 'restage.generated/first_journey.restage.g.dart';
+
+@FlowGraph(id: 'first_journey', surface: Surface.general)
+const firstJourney = FlowDefinition(
+  start: SharedEntry,
+  transitions: [Transition.complete(SharedEntry.next)],
+);
+''';
+    const second = '''
+import 'package:restage/restage.dart';
+
+import '../ui/shared_entry.dart';
+
+part 'restage.generated/second_journey.restage.g.dart';
+
+@FlowGraph(id: 'second_journey', surface: Surface.general)
+const secondJourney = FlowDefinition(
+  start: SharedEntry,
+  transitions: [Transition.complete(SharedEntry.next)],
+);
+''';
+    final readerWriter = await readerWriterWithFilesystemSources(
+      rootPackage: 'apps_examples',
+    );
+    final result = await testBuilder(
+      const PackageSurfaceCompilerBuilder(BuilderOptions.empty),
+      const <String, String>{
+        'apps_examples|lib/ui/shared_entry.dart': screen,
+        'apps_examples|lib/journeys/first_journey.dart': first,
+        'apps_examples|lib/journeys/second_journey.dart': second,
+      },
+      rootPackage: 'apps_examples',
+      readerWriter: readerWriter,
+      flattenOutput: true,
+    );
+
+    expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+    final bundle = _readBundle(readerWriter);
+    expect(bundle.valid, isTrue, reason: bundle.errors.join('\n'));
+    final documents = bundle.artifacts.keys
+        .where((path) => path.endsWith('.flow.json'))
+        .toList()
+      ..sort();
+    expect(
+      documents,
+      orderedEquals(<String>[
+        'assets/general/flows/first_journey.flow.json',
+        'assets/general/flows/second_journey.flow.json',
+      ]),
+    );
+    final located = <String>{};
+    for (final path in documents) {
+      final document = FlowDocumentCodec.decodeJson(
+        utf8.decode(bundle.artifacts[path]!),
+      );
+      for (final entry in document.screenArtifacts.entries) {
+        // The exact join a client performs to load the screen.
+        final blobPath = 'assets/general/screens/${entry.value.path}';
+        expect(
+          bundle.artifacts,
+          contains(blobPath),
+          reason: '$path records ${entry.key} at a location the bundle emits',
+        );
+        expect(
+          FlowContentHash.compute(bundle.artifacts[blobPath]!),
+          entry.value.contentHash,
+          reason: '$path records the hash of the blob at $blobPath',
+        );
+        located.add(blobPath);
+      }
+    }
+    expect(
+      located,
+      hasLength(2),
+      reason: 'each containing flow resolves to its own copy of the screen',
     );
   });
 
@@ -692,11 +896,7 @@ final class WelcomeFlow extends RestageFlow {
     expect(bundle.artifacts, isEmpty);
     expect(
       bundle.borrowedArtifacts.keys,
-      containsAll(<String>[
-        'assets/onboarding/screens/welcome.rfw',
-        'assets/onboarding/screens/welcome.capability.json',
-        'assets/onboarding/flows/welcome_flow.flow.json',
-      ]),
+      containsAll(<String>['assets/onboarding/flows/welcome_flow.flow.json']),
       reason: 'the aggregate validates legacy closure bytes without '
           'claiming a second writer',
     );
@@ -848,9 +1048,14 @@ final class MessageAdvanced extends RestageFlow {
     final bundle = _readBundle(readerWriter);
     const onboardingBlob = 'assets/onboarding/screens/welcome.rfw';
     const messageBlob = 'assets/message/screens/welcome.rfw';
+    final onboardingVariants = variantBytes(bundle.artifacts, onboardingBlob);
+    final messageVariants = variantBytes(bundle.artifacts, messageBlob);
+    expect(onboardingVariants, isNotEmpty);
+    expect(messageVariants, isNotEmpty);
     expect(
-      bundle.artifacts[onboardingBlob],
-      isNot(equals(bundle.artifacts[messageBlob])),
+      onboardingVariants.intersection(messageVariants),
+      isEmpty,
+      reason: 'a same-named screen in two surfaces must not share bytes',
     );
     final onboardingDocument = FlowDocumentCodec.decodeJson(
       utf8.decode(
@@ -1139,8 +1344,12 @@ final class AdvancedTrigger extends RestageFlow {
     final bundle = _readBundle(readerWriter);
     final sidecar = jsonDecode(
       utf8.decode(
-        bundle
-            .artifacts['assets/general/screens/derived_floor.capability.json']!,
+        base64Decode(
+          variantBytes(
+            bundle.artifacts,
+            'assets/general/screens/derived_floor.capability.json',
+          ).first,
+        ),
       ),
     ) as Map<String, Object?>;
     final effectiveFloor =
@@ -1592,6 +1801,71 @@ final class OfferGate extends RestageFlow {
   });
 }
 
+const _policyProbeSource = '';
+
+final _alternateMeasurementPolicy =
+    MeasurementCompilerPolicyInput.fromBuilderOptions(
+  const BuilderOptions({
+    kMeasurementMinimumClientOption: 2,
+    kMeasurementPrivacyPolicyRevisionOption: 'privacy.test-v2',
+    kMeasurementCollectionBudgetRevisionOption: 'budget.test-v2',
+  }),
+);
+
+Future<Map<String, List<TrackedPackageSurfaceCompilation>>> _runPolicyProbe(
+  Map<String, List<MeasurementCompilerPolicyInput>> policies,
+) async {
+  final readerWriter = await readerWriterWithFilesystemSources(
+    rootPackage: 'apps_examples',
+  );
+  final compilations = <String, List<TrackedPackageSurfaceCompilation>>{};
+  final result = await testBuilder(
+    _PolicyProbe(policies, compilations),
+    {
+      for (final package in policies.keys)
+        '$package|lib/measurement_policy_probe.dart': _policyProbeSource,
+    },
+    rootPackage: 'apps_examples',
+    readerWriter: readerWriter,
+    flattenOutput: true,
+  );
+  expect(result.succeeded, isTrue, reason: result.errors.join('\n'));
+  return compilations;
+}
+
+final class _PolicyProbe implements Builder {
+  const _PolicyProbe(this._policies, this._compilations);
+
+  final Map<String, List<MeasurementCompilerPolicyInput>> _policies;
+  final Map<String, List<TrackedPackageSurfaceCompilation>> _compilations;
+
+  @override
+  Map<String, List<String>> get buildExtensions => const {
+        r'$package$': ['lib/measurement_policy_probe.txt'],
+      };
+
+  @override
+  Future<void> build(BuildStep buildStep) async {
+    final package = buildStep.inputId.package;
+    final compilations = <TrackedPackageSurfaceCompilation>[];
+    _compilations[package] = compilations;
+    for (final policy in _policies[package]!) {
+      compilations.add(
+        await compileTrackedPackageSurfaces(
+          buildStep,
+          builderKey:
+              'restage_codegen:measurement_policy_${compilations.length}',
+          measurementPolicy: policy,
+        ),
+      );
+    }
+    await buildStep.writeAsString(
+      AssetId(package, 'lib/measurement_policy_probe.txt'),
+      '',
+    );
+  }
+}
+
 RestageSurfacePublicationBundle _readBundle(TestReaderWriter readerWriter) =>
     RestageSurfacePublicationBundle.fromJson(
       jsonDecode(
@@ -1603,3 +1877,15 @@ RestageSurfacePublicationBundle _readBundle(TestReaderWriter readerWriter) =>
         ),
       ),
     );
+
+/// The declarative text one emitted blob decodes to.
+String _declarativeText(List<int> blob) =>
+    fmt.decodeLibraryBlob(Uint8List.fromList(blob)).toString();
+
+/// [source] with Measurement route identity elided.
+///
+/// Two publications of one screen agree on everything a client renders, so
+/// eliding only the identity keeps the rest of the comparison exact.
+String _withoutMeasurementIdentity(String source) => source
+    .replaceAll(RegExp(r'carriers: \[[^\]]*\]'), 'carriers: [...]')
+    .replaceAll(RegExp(r'pointTokens: \[[^\]]*\]'), 'pointTokens: [...]');

@@ -48,6 +48,7 @@ final class NeutralFlowScreenRef extends FlowScreenRef {
     required int minClient,
   })  : _capabilities = null,
         _legacyMinClient = minClient,
+        _measurementPublicationDraftDigest = null,
         super(slug: id, contractVersion: version);
 
   /// Creates a generated category-neutral screen reference.
@@ -57,32 +58,21 @@ final class NeutralFlowScreenRef extends FlowScreenRef {
     required CapabilityManifest capabilities,
   })  : artifactPath = '',
         _capabilities = capabilities,
-        _legacyMinClient = null;
+        _legacyMinClient = null,
+        _measurementPublicationDraftDigest = null;
 
-  /// Creates a compiler-generated legacy screen descriptor with exact bundled
-  /// Measurement source provenance.
-  ///
-  /// This preserves the ordinary descriptor constructor for normal flow DSL
-  /// authoring. Only generated Dart may attach the opaque final-draft carrier.
-  @internal
-  factory NeutralFlowScreenRef.generatedWithMeasurementPublicationDraftDigest({
+  /// Creates a category-neutral screen reference with a Measurement
+  /// publication digest.
+  const NeutralFlowScreenRef.generatedWithMeasurementPublicationDraftDigest({
     required String id,
-    required String artifactPath,
+    required this.artifactPath,
     required int version,
     required int minClient,
     required String measurementPublicationDraftDigest,
-  }) =>
-      attachMeasurementBundledGeneratedSourceCarrier(
-        NeutralFlowScreenRef(
-          id: id,
-          artifactPath: artifactPath,
-          version: version,
-          minClient: minClient,
-        ),
-        measurementBundledGeneratedSourceCarrierForFinalDraftDigest(
-          measurementPublicationDraftDigest,
-        ),
-      );
+  })  : _capabilities = null,
+        _legacyMinClient = minClient,
+        _measurementPublicationDraftDigest = measurementPublicationDraftDigest,
+        super(slug: id, contractVersion: version);
 
   /// Legacy generated asset path used only by the advanced graph DSL.
   ///
@@ -92,6 +82,12 @@ final class NeutralFlowScreenRef extends FlowScreenRef {
 
   final CapabilityManifest? _capabilities;
   final int? _legacyMinClient;
+  final String? _measurementPublicationDraftDigest;
+
+  /// Compiler-emitted final-draft digest for bundled Measurement.
+  @internal
+  String? get measurementPublicationDraftDigestLiteral =>
+      _measurementPublicationDraftDigest;
 
   /// Legacy compatibility floor.
   @override
@@ -180,7 +176,6 @@ final class SurfaceScreenRef<E> extends FlowScreenRef {
   ///
   /// Generated Dart is the only caller. Ordinary source construction retains
   /// [generated] with no Measurement argument or runtime ceremony.
-  @internal
   factory SurfaceScreenRef.generatedWithMeasurementPublicationDraftDigest({
     required SurfaceScreenRuntimeProvenance provenance,
     required SurfaceScreenEventContract<E> eventContract,
@@ -259,36 +254,19 @@ final class SurfaceFlowRef<R> {
     required this.surface,
     required this.decodeResult,
     this.deliveryMode = FlowDeliveryMode.typed,
-  });
+  }) : _measurementPublicationDraftDigest = null;
 
-  /// Creates a compiler-generated flow reference with exact bundled
-  /// Measurement source provenance.
-  ///
-  /// This generated-only factory keeps the ordinary const constructor free of
-  /// Measurement fields and avoids any developer-authored source syntax.
-  @internal
-  factory SurfaceFlowRef.generatedWithMeasurementPublicationDraftDigest({
-    required String id,
-    required int version,
-    required int minClient,
-    required Surface surface,
-    required FlowResultDecoder<R> decodeResult,
-    required FlowDeliveryMode deliveryMode,
+  /// Creates a compiler-generated flow reference with its exact bundled
+  /// Measurement final-draft digest.
+  const SurfaceFlowRef.generatedWithMeasurementPublicationDraftDigest({
+    required this.id,
+    required this.version,
+    required this.minClient,
+    required this.surface,
+    required this.decodeResult,
+    required this.deliveryMode,
     required String measurementPublicationDraftDigest,
-  }) =>
-      attachMeasurementBundledGeneratedSourceCarrier(
-        SurfaceFlowRef<R>(
-          id: id,
-          version: version,
-          minClient: minClient,
-          surface: surface,
-          deliveryMode: deliveryMode,
-          decodeResult: decodeResult,
-        ),
-        measurementBundledGeneratedSourceCarrierForFinalDraftDigest(
-          measurementPublicationDraftDigest,
-        ),
-      );
+  }) : _measurementPublicationDraftDigest = measurementPublicationDraftDigest;
 
   /// Stable flow identifier.
   final String id;
@@ -321,6 +299,13 @@ final class SurfaceFlowRef<R> {
 
   /// Converts a filtered end-state result map into the generated result type.
   final FlowResultDecoder<R> decodeResult;
+
+  final String? _measurementPublicationDraftDigest;
+
+  /// Compiler-emitted final-draft digest for bundled Measurement.
+  @internal
+  String? get measurementPublicationDraftDigestLiteral =>
+      _measurementPublicationDraftDigest;
 }
 
 /// Deprecated compatibility spelling for [SurfaceFlowRef].

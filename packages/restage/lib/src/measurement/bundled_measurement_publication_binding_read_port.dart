@@ -6,6 +6,8 @@ import 'package:meta/meta.dart';
 import 'package:restage_measurement_schema/restage_measurement_schema.dart';
 import 'package:restage_shared/restage_shared.dart';
 
+import '../flow/flow_descriptors.dart';
+
 const int _maximumGeneratedArtifactClosureCarrierArtifacts = 1024;
 
 /// Target-neutral compiler output attached only to generated source objects.
@@ -179,10 +181,21 @@ T attachMeasurementBundledGeneratedSourceCarrier<T extends Object>(
 }
 
 /// Returns compiler-owned exact provenance for one generated source object.
+///
+/// Generated const references declare their digest directly; other objects use
+/// the side table.
 @internal
 MeasurementBundledGeneratedSourceCarrier?
-    measurementBundledGeneratedSourceCarrierFor(Object value) =>
-        _generatedSourceCarriers[value];
+    measurementBundledGeneratedSourceCarrierFor(Object value) {
+  final declared = switch (value) {
+    SurfaceFlowRef(:final measurementPublicationDraftDigestLiteral) ||
+    NeutralFlowScreenRef(:final measurementPublicationDraftDigestLiteral) =>
+      measurementPublicationDraftDigestLiteral,
+    _ => null,
+  };
+  if (declared == null) return _generatedSourceCarriers[value];
+  return measurementBundledGeneratedSourceCarrierForFinalDraftDigest(declared);
+}
 
 /// Decodes one compiler-emitted final-draft digest without disrupting render.
 ///

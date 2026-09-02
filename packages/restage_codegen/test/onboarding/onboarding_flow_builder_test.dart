@@ -12,6 +12,11 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
+/// The generated flow-reference declaration, matched across the line wrap
+/// Measurement introduces by lengthening the constructor.
+final _constFirstRunFlowRef =
+    RegExp(r'const firstRunFlowRef = SurfaceFlowRef<\s*FirstRunResult>');
+
 void main() {
   group('OnboardingFlowBuilder', () {
     test('emits descriptor, empty actions, and canonical flow JSON', () async {
@@ -43,7 +48,8 @@ void main() {
           contains("part of '../first_run.dart';"),
           // One top-level handle; the holder survives as a deprecated alias
           // forwarding to it, so both spellings stay covered.
-          contains('const firstRunFlowRef = SurfaceFlowRef<FirstRunResult>('),
+          // `const` is the consumer contract and stays pinned.
+          matches(_constFirstRunFlowRef),
           contains("@Deprecated('Use firstRunFlowRef')"),
           contains('abstract final class FirstRunFlowDescriptor'),
           contains(
@@ -2534,8 +2540,9 @@ final class NotificationResult {
 
     test('a non-Restage state().<op>() chain is not reinterpreted as sugar',
         () async {
-      // A same-named customer `state(...)` returning a different predicate must
-      // NOT be silently lowered to our wire — element resolution rejects it, so
+      // A same-named app-defined `state(...)` returning a different
+      // predicate must NOT be silently lowered to our wire — element resolution
+      // rejects it, so
       // it falls to the raw-constructor path and fails the build loud.
       final messages = await buildFailure(_nonSdkStateSources());
       expect(messages, contains('FlowBranchPredicate'));
@@ -3983,8 +3990,8 @@ import '../screens/start.dart';
 
 part 'restage.generated/decision_route.restage.g.dart';
 
-// A customer construct that happens to spell `state(...).equals(...)` but is
-// NOT the Restage SDK sugar.
+// An app-defined construct that happens to spell `state(...).equals(...)`
+// but is NOT the Restage SDK sugar.
 class _CustomRef {
   const _CustomRef();
   FlowBranchPredicate equals(Object value) =>
