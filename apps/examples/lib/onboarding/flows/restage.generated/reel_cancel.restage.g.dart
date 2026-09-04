@@ -9,7 +9,7 @@ const reelCancelFlowRef = SurfaceFlowRef<
   deliveryMode: FlowDeliveryMode.typed,
   decodeResult: _decodeReelCancelFlowResult,
   measurementPublicationDraftDigest:
-      '90c8528ac43ca23d7f9d7653a5c7b8454a41cae5c190f68e183a15d966e2fae0',
+      '408ff39829840509410a61cb8cd77387b683ea4498f7af7a4ae301d84f309eb6',
 );
 
 ReelCancelResult _decodeReelCancelFlowResult(Map<String, Object?> result) {
