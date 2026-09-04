@@ -22,6 +22,7 @@ import 'paywalls/narrate_membership.dart';
 import 'paywalls/pulse_premium.dart';
 import 'paywalls/sentinel_protection.dart';
 import 'user_factories.g.dart';
+import 'surfaces/starter_host_data_demo.dart';
 import 'widgets/minimal_custom_widget_demo.dart';
 
 void main() {
@@ -133,6 +134,11 @@ class ThemeToggleScope extends StatelessWidget {
   Widget build(BuildContext context) {
     final scope = BrightnessScope.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final media = MediaQuery.of(context);
+    // The viewer reserved the chrome height for the child; the pill itself
+    // sits at the device's real top.
+    final realTop =
+        GalleryChrome.maybeTopPaddingOf(context) ?? media.padding.top;
     return Stack(
       children: [
         Positioned.fill(child: child),
@@ -140,47 +146,50 @@ class ThemeToggleScope extends StatelessWidget {
           top: 0,
           left: 0,
           right: 0,
-          child: SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: scheme.secondaryContainer,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  padding: const EdgeInsets.only(left: 14),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.bolt_rounded,
-                        size: 16,
-                        color: scheme.onSecondaryContainer,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'RFW render blob',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+          child: MediaQuery(
+            data: media.copyWith(padding: media.padding.copyWith(top: realTop)),
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: scheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.only(left: 14),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.bolt_rounded,
+                          size: 16,
                           color: scheme.onSecondaryContainer,
                         ),
-                      ),
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        icon: Icon(
-                          scope.isDark
-                              ? Icons.light_mode_outlined
-                              : Icons.dark_mode_outlined,
-                          size: 18,
-                          color: scheme.onSecondaryContainer,
+                        const SizedBox(width: 5),
+                        Text(
+                          'RFW render blob',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSecondaryContainer,
+                          ),
                         ),
-                        tooltip: 'Toggle light / dark',
-                        onPressed: scope.onToggle,
-                      ),
-                    ],
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                            scope.isDark
+                                ? Icons.light_mode_outlined
+                                : Icons.dark_mode_outlined,
+                            size: 18,
+                            color: scheme.onSecondaryContainer,
+                          ),
+                          tooltip: 'Toggle light / dark',
+                          onPressed: scope.onToggle,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -296,6 +305,16 @@ class _GalleryHome extends StatelessWidget {
                     'delivered blob and rendered through RFW.',
                 leading: const Icon(Icons.extension_outlined),
                 destination: const MinimalCustomWidgetDemo(),
+                showEscapeButton: true,
+                showThemeToggle: true,
+              ),
+              _ExampleTile(
+                title: 'Host data',
+                subtitle: 'Rows the app owns, passed to the generated '
+                    'StarterChecklistSurface. Tap a row: the app changes it '
+                    'and only that row rebuilds.',
+                leading: const Icon(Icons.checklist_outlined),
+                destination: const StarterHostDataDemo(),
                 showEscapeButton: true,
                 showThemeToggle: true,
               ),
@@ -644,6 +663,7 @@ class _ExampleTile extends StatelessWidget {
         MaterialPageRoute<void>(
           builder: (routeContext) => ExampleViewer(
             showBackButton: showEscapeButton,
+            reserveTopChrome: showThemeToggle,
             surfaceBrightness: surfaceBrightness,
             // A local preview runs the authored paywall directly (outside
             // codegen), so its author-fired taps need a dispatcher in scope.

@@ -24,14 +24,23 @@ class ExampleViewer extends StatelessWidget {
   const ExampleViewer({
     required this.child,
     this.showBackButton = true,
+    this.reserveTopChrome = false,
     this.surfaceBrightness,
     super.key,
   });
+
+  /// Height of the gallery's top chrome (escape button, demo pill). Reserved
+  /// in the child's `MediaQuery` padding so a surface's `SafeArea` clears it.
+  static const double chromeHeight = 56;
 
   final Widget child;
 
   /// Whether to overlay the floating "back to examples" escape control.
   final bool showBackButton;
+
+  /// Whether other chrome (the demo pill) sits at the top even when the
+  /// escape control is hidden, so the child still needs the inset.
+  final bool reserveTopChrome;
 
   /// The brightness of *this surface's* background, used to pick a readable OS
   /// status-bar icon color. A full-screen example fills the screen with no app
@@ -55,11 +64,25 @@ class ExampleViewer extends StatelessWidget {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark)
         .copyWith(statusBarColor: Colors.transparent);
+    final media = MediaQuery.of(context);
+    final inset = showBackButton || reserveTopChrome ? chromeHeight : 0.0;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
       child: Stack(
         children: [
-          Positioned.fill(child: child),
+          Positioned.fill(
+            child: GalleryChrome(
+              topPadding: media.padding.top,
+              child: MediaQuery(
+                data: media.copyWith(
+                  padding: media.padding.copyWith(
+                    top: media.padding.top + inset,
+                  ),
+                ),
+                child: child,
+              ),
+            ),
+          ),
           if (showBackButton)
             Positioned(
               top: 0,
@@ -84,4 +107,25 @@ class ExampleViewer extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The device's real top padding, for chrome drawn inside the inset region.
+class GalleryChrome extends InheritedWidget {
+  /// Records [topPadding] for descendants.
+  const GalleryChrome({
+    required this.topPadding,
+    required super.child,
+    super.key,
+  });
+
+  /// The top padding before [ExampleViewer.chromeHeight] was added.
+  final double topPadding;
+
+  /// The nearest recorded padding, or null outside an [ExampleViewer].
+  static double? maybeTopPaddingOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<GalleryChrome>()?.topPadding;
+
+  @override
+  bool updateShouldNotify(GalleryChrome oldWidget) =>
+      topPadding != oldWidget.topPadding;
 }

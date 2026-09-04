@@ -70,6 +70,38 @@ GeneralStatusEvent _decodeValidatedGeneralStatusEvent(
   throw FormatException("Invalid GeneralStatus event \"" + name + "\".");
 }
 
+final class GeneralStatusSurface extends StatelessWidget {
+  const GeneralStatusSurface({
+    super.key,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  });
+
+  final ValueChanged<GeneralStatusEvent>? onEvent;
+
+  final SurfaceScreenResolver? resolver;
+
+  final ValueChanged<SurfaceScreenUnavailableError>? onUnavailable;
+
+  final WidgetBuilder? loadingBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return RestageScreen<GeneralStatusEvent>(
+      screen: generalStatusRef,
+      unavailable: SurfaceScreenUnavailablePolicy.fallback(
+        builder: (context, error) => GeneralStatus(),
+      ),
+      onEvent: onEvent,
+      resolver: resolver,
+      onUnavailable: onUnavailable,
+      loadingBuilder: loadingBuilder,
+    );
+  }
+}
+
 sealed class MessageNoticeEvent {
   const MessageNoticeEvent();
 }
@@ -140,6 +172,38 @@ MessageNoticeEvent _decodeValidatedMessageNoticeEvent(
   throw FormatException("Invalid MessageNotice event \"" + name + "\".");
 }
 
+final class MessageNoticeSurface extends StatelessWidget {
+  const MessageNoticeSurface({
+    super.key,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  });
+
+  final ValueChanged<MessageNoticeEvent>? onEvent;
+
+  final SurfaceScreenResolver? resolver;
+
+  final ValueChanged<SurfaceScreenUnavailableError>? onUnavailable;
+
+  final WidgetBuilder? loadingBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return RestageScreen<MessageNoticeEvent>(
+      screen: messageNoticeRef,
+      unavailable: SurfaceScreenUnavailablePolicy.fallback(
+        builder: (context, error) => MessageNotice(),
+      ),
+      onEvent: onEvent,
+      resolver: resolver,
+      onUnavailable: onUnavailable,
+      loadingBuilder: loadingBuilder,
+    );
+  }
+}
+
 sealed class OnboardingWelcomeEvent {
   const OnboardingWelcomeEvent();
 }
@@ -207,4 +271,36 @@ OnboardingWelcomeEvent _decodeValidatedOnboardingWelcomeEvent(
       return const OnboardingWelcomeContinueFlowEvent();
   }
   throw FormatException("Invalid OnboardingWelcome event \"" + name + "\".");
+}
+
+final class OnboardingWelcomeSurface extends StatelessWidget {
+  const OnboardingWelcomeSurface({
+    super.key,
+    this.onEvent,
+    this.resolver,
+    this.onUnavailable,
+    this.loadingBuilder,
+  });
+
+  final ValueChanged<OnboardingWelcomeEvent>? onEvent;
+
+  final SurfaceScreenResolver? resolver;
+
+  final ValueChanged<SurfaceScreenUnavailableError>? onUnavailable;
+
+  final WidgetBuilder? loadingBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return RestageScreen<OnboardingWelcomeEvent>(
+      screen: onboardingWelcomeRef,
+      unavailable: SurfaceScreenUnavailablePolicy.fallback(
+        builder: (context, error) => OnboardingWelcome(),
+      ),
+      onEvent: onEvent,
+      resolver: resolver,
+      onUnavailable: onUnavailable,
+      loadingBuilder: loadingBuilder,
+    );
+  }
 }
