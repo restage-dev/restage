@@ -77,47 +77,34 @@ class _OpenedScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // No AppBar — a top-left back keeps the top-centre clear for the gallery's
-    // in-surface theme toggle.
     return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.check_circle_outline_rounded,
-                      size: 56,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Your app takes it from here.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
+      appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        elevation: 0,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                size: 56,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Your app takes it from here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded),
-                tooltip: 'Back',
-                onPressed: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

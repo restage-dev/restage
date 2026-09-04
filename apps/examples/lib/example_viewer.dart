@@ -37,9 +37,26 @@ class ExampleViewer extends StatelessWidget {
             ? SystemUiOverlayStyle.light
             : SystemUiOverlayStyle.dark)
         .copyWith(statusBarColor: Colors.transparent);
+    // A fixed-brightness surface also gets a theme of that brightness, so the
+    // app's page transition paints its scrim in a matching surface color
+    // instead of flashing the app theme's between two dark screens.
+    final theme = Theme.of(context);
+    final themed =
+        surfaceBrightness == null || theme.brightness == surfaceBrightness
+            ? child
+            : Theme(
+                data: ThemeData(
+                  useMaterial3: true,
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: theme.colorScheme.primary,
+                    brightness: surfaceBrightness!,
+                  ),
+                ),
+                child: child,
+              );
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: overlayStyle,
-      child: child,
+      child: themed,
     );
   }
 }
