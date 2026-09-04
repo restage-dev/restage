@@ -278,6 +278,121 @@ Map<String, _CurrentNodeDescriptor> _sourceDescriptors(
   return descriptors;
 }
 
+/// Leading source segment of a locator, identifying the screen it belongs to.
+String _reconciliationScope(String structuralOccurrenceKey) {
+  final separator = structuralOccurrenceKey.indexOf('|');
+  return separator < 0
+      ? structuralOccurrenceKey
+      : structuralOccurrenceKey.substring(0, separator);
+}
+
+/// Count of trailing locator segments two keys have in common.
+int _sharedTrailingSegments(List<String> left, List<String> right) {
+  var shared = 0;
+  while (shared < left.length &&
+      shared < right.length &&
+      left[left.length - 1 - shared] == right[right.length - 1 - shared]) {
+    shared++;
+  }
+  return shared;
+}
+
+/// One scored pairing of a re-keyed element with a retired ledger node.
+final class _SuffixPairing {
+  const _SuffixPairing(this.descriptor, this.retired, this.score);
+
+  final _CurrentNodeDescriptor descriptor;
+  final MeasurementCompilerLedgerNode retired;
+  final int score;
+}
+
+/// The single highest-scoring pairing, or null when the best score is tied.
+_SuffixPairing? _uniqueBest(List<_SuffixPairing> pairings) {
+  if (pairings.isEmpty) return null;
+  var best = pairings.first;
+  var tied = false;
+  for (final pairing in pairings.skip(1)) {
+    if (pairing.score > best.score) {
+      best = pairing;
+      tied = false;
+    } else if (pairing.score == best.score) {
+      tied = true;
+    }
+  }
+  return tied ? null : best;
+}
+
+/// Pairs re-keyed elements with retired nodes that are each other's unique
+/// best suffix match inside one screen. Relocation-reviewed keys are excluded.
+Map<String, MeasurementCompilerLedgerNode> _mutualBestMatches({
+  required Map<String, List<MeasurementCompilerLedgerNode>> removedByScope,
+  required Map<String, List<_CurrentNodeDescriptor>> unmatchedByScope,
+  required Set<String> relocationTargets,
+  required Set<String> relocationSources,
+}) {
+  final matches = <String, MeasurementCompilerLedgerNode>{};
+  for (final entry in unmatchedByScope.entries) {
+    final current = entry.value
+        .where(
+          (descriptor) =>
+              !relocationTargets.contains(descriptor.structuralOccurrenceKey),
+        )
+        .toList();
+    final retired = (removedByScope[entry.key] ?? const [])
+        .where(
+          (node) => !relocationSources.contains(node.structuralOccurrenceKey),
+        )
+        .toList();
+    if (current.isEmpty || retired.isEmpty) continue;
+    final segments = <String, List<String>>{
+      for (final descriptor in current)
+        descriptor.structuralOccurrenceKey:
+            descriptor.structuralOccurrenceKey.split('|'),
+      for (final node in retired)
+        node.structuralOccurrenceKey: node.structuralOccurrenceKey.split('|'),
+    };
+    final byDescriptor = <String, List<_SuffixPairing>>{};
+    final byRetired = <String, List<_SuffixPairing>>{};
+    for (final descriptor in current) {
+      for (final node in retired) {
+        if (node.reconciliationFingerprint !=
+            descriptor.reconciliationFingerprint) {
+          continue;
+        }
+        final pairing = _SuffixPairing(
+          descriptor,
+          node,
+          _sharedTrailingSegments(
+            segments[descriptor.structuralOccurrenceKey]!,
+            segments[node.structuralOccurrenceKey]!,
+          ),
+        );
+        byDescriptor
+            .putIfAbsent(descriptor.structuralOccurrenceKey, () => [])
+            .add(pairing);
+        byRetired
+            .putIfAbsent(node.structuralOccurrenceKey, () => [])
+            .add(pairing);
+      }
+    }
+    for (final descriptor in current) {
+      final best = _uniqueBest(
+        byDescriptor[descriptor.structuralOccurrenceKey] ?? const [],
+      );
+      if (best == null) continue;
+      final mutual = _uniqueBest(
+        byRetired[best.retired.structuralOccurrenceKey] ?? const [],
+      );
+      if (mutual?.descriptor.structuralOccurrenceKey !=
+          descriptor.structuralOccurrenceKey) {
+        continue;
+      }
+      matches[descriptor.structuralOccurrenceKey] = best.retired;
+    }
+  }
+  return matches;
+}
+
 _LedgerReconciliation _reconcile({
   required Map<String, _CurrentNodeDescriptor> descriptors,
   required RestageMeasurementCompilerOutputV1 priorOutput,
@@ -306,6 +421,28 @@ _LedgerReconciliation _reconcile({
             node.active && !currentKeys.contains(node.structuralOccurrenceKey),
       )
       .toList();
+  // Retired nodes are only ever offered inside their own screen scope.
+  final removedByScope = <String, List<MeasurementCompilerLedgerNode>>{};
+  for (final node in removed) {
+    removedByScope
+        .putIfAbsent(
+          _reconciliationScope(node.structuralOccurrenceKey),
+          () => [],
+        )
+        .add(node);
+  }
+  final unmatchedByScope = <String, List<_CurrentNodeDescriptor>>{};
+  for (final descriptor in descriptors.values) {
+    if (priorByLocator.containsKey(descriptor.structuralOccurrenceKey)) {
+      continue;
+    }
+    unmatchedByScope
+        .putIfAbsent(
+          _reconciliationScope(descriptor.structuralOccurrenceKey),
+          () => [],
+        )
+        .add(descriptor);
+  }
   final relocationsByTarget = <String, MeasurementCompilerLedgerRelocation>{};
   for (final relocation in priorOutput.acceptedRelocations) {
     if (relocationsByTarget.putIfAbsent(
@@ -318,6 +455,18 @@ _LedgerReconciliation _reconcile({
       );
     }
   }
+  final silentMatches = _mutualBestMatches(
+    removedByScope: removedByScope,
+    unmatchedByScope: unmatchedByScope,
+    relocationTargets: relocationsByTarget.keys.toSet(),
+    relocationSources: {
+      for (final relocation in priorOutput.acceptedRelocations)
+        relocation.fromStructuralOccurrenceKey,
+    },
+  );
+  final silentlyMatchedCodes = {
+    for (final node in silentMatches.values) node.codeIdentityId.value,
+  };
 
   final result = <MeasurementCompilerLedgerNode>[];
   final consumedPriorCodes = <String>{};
@@ -386,12 +535,18 @@ _LedgerReconciliation _reconcile({
       result.add(updateNode(exact, descriptor));
       continue;
     }
-    final candidates = removed
+    if (silentMatches[descriptor.structuralOccurrenceKey] case final paired?) {
+      result.add(updateNode(paired, descriptor));
+      continue;
+    }
+    final scope = _reconciliationScope(descriptor.structuralOccurrenceKey);
+    final candidates = (removedByScope[scope] ?? const [])
         .where(
           (node) =>
               node.reconciliationFingerprint ==
                   descriptor.reconciliationFingerprint &&
-              !consumedPriorCodes.contains(node.codeIdentityId.value),
+              !consumedPriorCodes.contains(node.codeIdentityId.value) &&
+              !silentlyMatchedCodes.contains(node.codeIdentityId.value),
         )
         .toList()
       ..sort(

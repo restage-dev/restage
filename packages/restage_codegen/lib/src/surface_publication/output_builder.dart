@@ -15,6 +15,7 @@ import 'package:restage_codegen/src/measurement/measurement_compiler_output.dart
 import 'package:restage_codegen/src/surface_publication/compiler_handoff.dart';
 import 'package:restage_codegen/src/surface_publication/output_placement.dart';
 import 'package:restage_codegen/src/surface_publication/placement_registry.dart';
+import 'package:restage_codegen/src/surface_publication/preserved_outputs.dart';
 import 'package:restage_shared/restage_shared.dart';
 
 /// Materializes deterministic per-library bundles, optional inspection
@@ -40,12 +41,38 @@ final class RestageOutputsBuilder implements Builder {
     );
 
     final bundle = await readRestageCompilerHandoff(buildStep);
-    if (bundle == null) return;
+    if (bundle == null) {
+      await _restorePriorOutputs(buildStep);
+      return;
+    }
 
     if (buildStep.inputId.path == r'$package$') {
       await _buildPackageWide(buildStep, bundle);
     } else {
       await _buildForLibrary(buildStep, bundle);
+    }
+  }
+
+  /// Writes back what this step wrote last time, when the build refused.
+  Future<void> _restorePriorOutputs(BuildStep buildStep) async {
+    final List<String> paths;
+    if (buildStep.inputId.path == r'$package$') {
+      paths = <String>[
+        plan.publicationManifestPath,
+        plan.outputIndexPath,
+        plan.measurementOutputIndexPath,
+        plan.analyticsIdMetadataPath,
+      ];
+    } else {
+      final placement = plan.forLibrary(buildStep.inputId.path);
+      final reportPath = placement.inspectionReportPath;
+      paths = <String>[
+        placement.bundlePath,
+        if (reportPath != null) reportPath,
+      ];
+    }
+    for (final path in paths) {
+      await restorePreservedOutput(buildStep, path);
     }
   }
 
