@@ -64,10 +64,10 @@ part 'card_part.dart';
 const String _widgetPart = '''
 part of 'host.dart';
 
-/// A customer card declared in a part.
+/// A custom card declared in a part.
 @RestageWidget(
   library: WidgetLibrary.custom('acme.product'),
-  description: 'A customer card declared in a part.',
+  description: 'A custom card declared in a part.',
 )
 class PartCard {
   const PartCard();
@@ -149,7 +149,7 @@ void main() {
       expect(widgets, isEmpty);
     });
 
-    test('a customer widget declared in a part is found', () async {
+    test('a custom widget declared in a part is found', () async {
       final widgets = await _widgetbookIndex({
         'lib/widgets/host.dart': _widgetPartHost,
         'lib/widgets/card_part.dart': _widgetPart,

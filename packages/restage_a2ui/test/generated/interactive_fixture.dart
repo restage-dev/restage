@@ -1,4 +1,4 @@
-// A real, hand-written customer widget library of INTERACTIVE controlled
+// A real, hand-written custom widget library of INTERACTIVE controlled
 // components — the kind a developer writes and annotates with `@RestageWidget`.
 // The interactivity proof resolves THIS source with the analyzer, reflects each
 // widget's callback parameters into callback signatures (the event seam) and

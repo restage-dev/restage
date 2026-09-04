@@ -106,8 +106,8 @@ class ButtonStyle {
 
   // Shaped like the real one: the field types are framework state properties,
   // so this class is admissible only as a FRAMEWORK value type — never as a
-  // customer structured type. That is what makes it exercise the catalog's
-  // structured-type join rather than customer structured discovery.
+  // custom structured type. That is what makes it exercise the catalog's
+  // structured-type join rather than custom structured discovery.
   final WidgetStateProperty<Color?>? backgroundColor;
   final WidgetStateProperty<double?>? elevation;
 }

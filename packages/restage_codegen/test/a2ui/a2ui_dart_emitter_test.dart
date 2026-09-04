@@ -59,12 +59,12 @@ String emitSource(List<WidgetEntry> widgets) =>
 void main() {
   group('emitA2uiCatalogDart', () {
     test(
-        'customer fields use one required props namespace without reserving '
+        'custom fields use one required props namespace without reserving '
         'envelope names', () {
-      const customerLibrary = WidgetLibrary.custom('acme.widgets');
-      final customer = entry(
+      const customLibrary = WidgetLibrary.custom('acme.widgets');
+      final custom = entry(
         name: 'CollisionCard',
-        library: customerLibrary,
+        library: customLibrary,
         flutterType: 'package:acme/widgets.dart#CollisionCard',
         properties: [
           a2uiProp('id', PropertyType.string),
@@ -74,8 +74,8 @@ void main() {
         ],
       );
       final catalog = catalogWith(
-        [customer],
-        library: customerLibrary,
+        [custom],
+        library: customLibrary,
       );
 
       final plan = classifyA2uiCatalogDart(catalog);

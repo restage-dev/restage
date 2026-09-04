@@ -103,7 +103,7 @@ CatalogException? decodeCatalogTypedException(String body) {
   }
 }
 
-/// Return a customer-facing message for a typed catalog exception.
+/// Return a user-facing message for a typed catalog exception.
 @experimental
 String renderCatalogException(CatalogException e) => switch (e) {
   CatalogInvalid(:final message) =>

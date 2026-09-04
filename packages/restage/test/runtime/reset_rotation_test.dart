@@ -43,7 +43,7 @@ void main() {
       newId: () => generatedIds.removeAt(0),
     )
       ..surfaceSessionId = 'surface-a'
-      ..identify('customer-a');
+      ..identify('user-a');
 
     final oldLookup = identity.anonymousId();
     final oldEvent = _queuedEvent(identity, eventId: 'event-a');
@@ -75,7 +75,7 @@ void main() {
     expect(eventA.anonymousId, oldActor);
     expect(eventA.sessionId, 'session-a');
     expect(eventA.surfaceSessionId, 'surface-a');
-    expect(eventA.userId, 'customer-a');
+    expect(eventA.userId, 'user-a');
 
     final currentActor = await identity.anonymousId();
     SharedPreferences.resetStatic();
@@ -196,7 +196,7 @@ void main() {
     final oldSessionId = identity.sessionId;
     identity
       ..surfaceSessionId = 'surface-session-before-reset'
-      ..identify('customer-user-before-reset');
+      ..identify('user-before-reset');
     final beforeReset = _event(
       identity,
       anonymousId: oldAssignmentKey!,
@@ -216,7 +216,7 @@ void main() {
     expect(beforeReset.anonymousId, oldAssignmentKey);
     expect(beforeReset.sessionId, oldSessionId);
     expect(beforeReset.surfaceSessionId, 'surface-session-before-reset');
-    expect(beforeReset.userId, 'customer-user-before-reset');
+    expect(beforeReset.userId, 'user-before-reset');
 
     // Delivery re-evaluates assignment under the freshly-minted participant.
     expect(newAssignmentKey, isNot(oldAssignmentKey));

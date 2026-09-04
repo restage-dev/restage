@@ -5,9 +5,9 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The complete RFW callback payload/signature contract.
 ///
-/// Analyzer-side customer admission and factory-side catalog consumption must
-/// both pass through this abstraction. [fromResolvedCustomerPayload] adds the
-/// source-identity proof required while inspecting customer Dart, then
+/// Analyzer-side custom admission and factory-side catalog consumption must
+/// both pass through this abstraction. [fromResolvedCustomPayload] adds the
+/// source-identity proof required while inspecting custom Dart, then
 /// delegates to [parse], the single serialized-signature grammar used by the
 /// factory.
 @immutable
@@ -30,13 +30,13 @@ final class RfwCallbackSignature {
         : RfwCallbackSignature._(source: source, valueType: valueType);
   }
 
-  /// Creates the canonical signature for one resolved customer [payload].
+  /// Creates the canonical signature for one resolved custom [payload].
   ///
-  /// Customer payloads are limited to RFW-safe `dart:core` scalars. Factory
+  /// Custom payloads are limited to RFW-safe `dart:core` scalars. Factory
   /// parsing remains name-based so existing built-in catalog signatures such
   /// as `ValueChanged<DateTime>` retain their current lowering.
-  static RfwCallbackSignature? fromResolvedCustomerPayload(DartType payload) {
-    final valueType = _resolvedCustomerValueType(payload);
+  static RfwCallbackSignature? fromResolvedCustomPayload(DartType payload) {
+    final valueType = _resolvedCustomValueType(payload);
     return valueType == null ? null : parse('ValueChanged<$valueType>');
   }
 
@@ -47,7 +47,7 @@ final class RfwCallbackSignature {
   final String valueType;
 }
 
-const Set<String> _customerScalarNames = {
+const Set<String> _customScalarNames = {
   'String',
   'bool',
   'int',
@@ -55,8 +55,8 @@ const Set<String> _customerScalarNames = {
   'num',
 };
 
-String? _resolvedCustomerValueType(DartType type) {
-  final scalar = _resolvedCustomerScalar(type);
+String? _resolvedCustomValueType(DartType type) {
+  final scalar = _resolvedCustomScalar(type);
   if (scalar != null) return scalar;
   if (type is! InterfaceType ||
       type.element.library.identifier != 'dart:core' ||
@@ -65,18 +65,18 @@ String? _resolvedCustomerValueType(DartType type) {
       type.typeArguments.length != 1) {
     return null;
   }
-  final item = _resolvedCustomerScalar(type.typeArguments.single);
+  final item = _resolvedCustomScalar(type.typeArguments.single);
   return item == null ? null : 'List<$item>';
 }
 
-String? _resolvedCustomerScalar(DartType type) {
+String? _resolvedCustomScalar(DartType type) {
   if (type is! InterfaceType ||
       type.element.library.identifier != 'dart:core' ||
       type.typeArguments.isNotEmpty) {
     return null;
   }
   final name = type.element.name;
-  if (name == null || !_customerScalarNames.contains(name)) return null;
+  if (name == null || !_customScalarNames.contains(name)) return null;
   final nullable = type.nullabilitySuffix == NullabilitySuffix.question;
   return '$name${nullable ? '?' : ''}';
 }

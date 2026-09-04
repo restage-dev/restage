@@ -12,7 +12,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// Restage annotation (or an alias of one) — and emits a single
 /// `lib/user_catalog.g.dart` declaring `final Catalog kUserCatalog`.
 ///
-/// Customers register the resulting catalog at startup with
+/// Apps register the resulting catalog at startup with
 /// `Restage.registerWidgetLibrary(...)` (see `restage`).
 ///
 /// Skips emit when no `@RestageWidget` declaration is present. When

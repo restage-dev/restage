@@ -768,7 +768,7 @@ void main() {
           properties: [
             PropertyEntry(
               wireId: WireId.unallocatedProperty,
-              name: 'onArbitraryCustomerAction',
+              name: 'onArbitraryCustomAction',
               type: PropertyType.event,
               description: '',
             ),
@@ -777,8 +777,8 @@ void main() {
         expect(
           emitFactoryFunction(entry),
           contains(
-            'onArbitraryCustomerAction: '
-            "source.voidHandler(<Object>['onArbitraryCustomerAction'])",
+            'onArbitraryCustomAction: '
+            "source.voidHandler(<Object>['onArbitraryCustomAction'])",
           ),
         );
       },
@@ -2200,7 +2200,7 @@ void main() {
     });
 
     test(
-      'keeps curated widget lowering byte policy distinct from customer '
+      'keeps curated widget lowering byte policy distinct from custom '
       'constructor nullability',
       () {
         const entry = WidgetEntry(
@@ -2225,9 +2225,9 @@ void main() {
         );
 
         final curated = emitFactoryFunction(entry);
-        final customer = emitFactoryFunction(
+        final custom = emitFactoryFunction(
           entry,
-          customerChildProperties: true,
+          customChildProperties: true,
         );
 
         expect(curated, isNotNull);
@@ -2240,15 +2240,15 @@ void main() {
         );
         expect(curated, isNot(contains('source.optionalChild')));
         expect(curated, isNot(contains('as PreferredSizeWidget?')));
-        expect(customer, isNotNull);
+        expect(custom, isNotNull);
         expect(
-          customer,
+          custom,
           contains(
             "appBar: source.optionalChild(<Object>['appBar']) "
             'as PreferredSizeWidget?',
           ),
         );
-        expect(customer, isNot(contains("source.child(<Object>['appBar'])")));
+        expect(custom, isNot(contains("source.child(<Object>['appBar'])")));
       },
     );
 

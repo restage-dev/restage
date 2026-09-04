@@ -18,7 +18,7 @@ import '../helpers.dart';
 ///
 /// The package below declares one `@RestageWidget` and no surface at all, so
 /// nothing but the shared placement record connects the two builders.
-const _customerSource = '''
+const _customSource = '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
   @RestageLibrary(
@@ -31,7 +31,7 @@ const _customerSource = '''
     name: 'Gauge',
     library: WidgetLibrary.custom('acme.widgets'),
     category: WidgetCategory.decoration,
-    description: 'a customer gauge',
+    description: 'a custom gauge',
   )
   class Gauge {
     const Gauge({required this.value});
@@ -49,7 +49,7 @@ Future<({bool succeeded, List<String> logs})> _run({
   );
   readerWriter.testing.writeString(
     AssetId('apps_examples', 'lib/gauge.dart'),
-    _customerSource,
+    _customSource,
   );
   final logs = <String>[];
   final result = await testBuilders(
@@ -57,7 +57,7 @@ Future<({bool succeeded, List<String> logs})> _run({
       PackageSurfaceCompilerBuilder(BuilderOptions(compilerOptions)),
       UserA2uiCatalogBuilder(BuilderOptions(a2uiOptions)),
     ],
-    const {'apps_examples|lib/gauge.dart': _customerSource},
+    const {'apps_examples|lib/gauge.dart': _customSource},
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
     flattenOutput: true,

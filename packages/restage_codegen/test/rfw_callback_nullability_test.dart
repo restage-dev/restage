@@ -157,7 +157,7 @@ void main() {
     );
 
     test(
-      'generated customer factory analyzes required callback targets',
+      'generated custom factory analyzes required callback targets',
       () async {
         const widgetSource = r'''
           import 'package:flutter/widgets.dart';

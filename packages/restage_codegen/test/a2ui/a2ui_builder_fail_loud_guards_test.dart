@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 
 import '../helpers.dart';
 
-/// Fail-loud builder guards that must survive the customer-only assembly path.
+/// Fail-loud builder guards that must survive the custom-only assembly path.
 /// These three
 /// guards are NOT covered by `a2ui_builder_hardening_test.dart` (which covers
 /// reserved-built-in-namespace claims, conflicting `@RestageLibrary`
@@ -41,7 +41,7 @@ Future<(bool succeeded, String logs)> _runBuilder(
 
 void main() {
   group(
-      'UserA2uiCatalogBuilder — fail-loud guards survive customer-only '
+      'UserA2uiCatalogBuilder — fail-loud guards survive custom-only '
       'assembly', () {
     test(
         'a duplicate (library, name) across files fails loud — the flat A2UI '

@@ -12,7 +12,7 @@ import '../index_probe_helpers.dart';
 
 void main() {
   test(
-    'aggregates customer widgets, structured facts, and usage',
+    'aggregates custom widgets, structured facts, and usage',
     () async {
       final sources = <String, String>{
         'apps_examples|lib/data/badge_data.dart': _badgeData,
@@ -39,8 +39,8 @@ void main() {
           'apps_examples|lib/widgetbook_index.txt': decodedMatches(
             allOf(
               contains('widgets=Badge,Label'),
-              contains('usage=Badge:Use Badge for a compact customer status.'),
-              contains('|Label:A customer label.'),
+              contains('usage=Badge:Use Badge for a compact custom status.'),
+              contains('|Label:A custom label.'),
               contains('structured=BadgeData'),
               contains('#Badge.data=>'),
             ),
@@ -99,32 +99,32 @@ void main() {
       import 'package:flutter/widgets.dart';
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-      class CustomerData {
-        const CustomerData({required this.locale});
-        @RestageProperty(description: 'Customer locale.')
+      class CustomData {
+        const CustomData({required this.locale});
+        @RestageProperty(description: 'Custom locale.')
         final Locale locale;
       }
 
       @RestageWidget(
-        name: 'CustomerCard',
+        name: 'CustomCard',
         library: WidgetLibrary.custom('fixture.widgets'),
         category: WidgetCategory.decoration,
-        description: 'Customer card.',
+        description: 'Custom card.',
       )
-      class CustomerCard extends StatelessWidget {
-        const CustomerCard({required this.data});
-        @RestageProperty(description: 'Customer data.')
-        final CustomerData data;
+      class CustomCard extends StatelessWidget {
+        const CustomCard({required this.data});
+        @RestageProperty(description: 'Custom data.')
+        final CustomData data;
         @override
         Widget build(BuildContext context) => const SizedBox();
       }
     ''';
-    final sources = {'apps_examples|lib/customer_card.dart': source};
+    final sources = {'apps_examples|lib/custom_card.dart': source};
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
     readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/customer_card.dart'),
+      AssetId('apps_examples', 'lib/custom_card.dart'),
       source,
     );
 
@@ -136,8 +136,8 @@ void main() {
       outputs: {
         'apps_examples|lib/widgetbook_index.txt': decodedMatches(
           allOf(
-            contains("property 'data' targets 'CustomerData'"),
-            contains('type denylisted: Locale on CustomerData.locale'),
+            contains("property 'data' targets 'CustomData'"),
+            contains('type denylisted: Locale on CustomData.locale'),
           ),
         ),
       },
@@ -149,28 +149,28 @@ void main() {
     const source = '''
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-      /// Customer tags.
+      /// Custom tags.
       @RestageWidget(
-        name: 'CustomerTags',
+        name: 'CustomTags',
         library: WidgetLibrary.custom('fixture.widgets'),
         category: WidgetCategory.decoration,
       )
-      class CustomerTags {
-        const CustomerTags({required this.tags});
+      class CustomTags {
+        const CustomTags({required this.tags});
 
-        /// Tags shown by the customer widget.
+        /// Tags shown by the custom widget.
         final List<String> tags;
       }
     ''';
     final result = await runWidgetVisitorOn(
-      {'lib/customer_tags.dart': source},
+      {'lib/custom_tags.dart': source},
       target: WidgetVisitorTarget.widgetbook,
     );
 
     final issue = result.issues.singleWhere(
       (candidate) => candidate.code == IssueCode.unsupportedPropertyType,
     );
-    expect(issue.location, 'lib/customer_tags.dart#CustomerTags.tags');
+    expect(issue.location, 'lib/custom_tags.dart#CustomTags.tags');
     expect(issue.message, contains('automatic Widgetbook stories'));
   });
 
@@ -180,13 +180,13 @@ void main() {
       import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
       @RestageWidget(
-        name: 'CustomerCard',
+        name: 'CustomCard',
         library: WidgetLibrary.custom('fixture.widgets'),
         category: WidgetCategory.decoration,
-        description: 'Customer card.',
+        description: 'Custom card.',
       )
-      class CustomerCard extends StatelessWidget {
-        const CustomerCard({required this.description, required this.usage});
+      class CustomCard extends StatelessWidget {
+        const CustomCard({required this.description, required this.usage});
         @RestageProperty(description: 'Visible description text.')
         final String description;
         @RestageProperty(description: 'Visible usage text.')
@@ -195,12 +195,12 @@ void main() {
         Widget build(BuildContext context) => Text('$description|$usage');
       }
     ''';
-    final sources = {'apps_examples|lib/customer_card.dart': source};
+    final sources = {'apps_examples|lib/custom_card.dart': source};
     final readerWriter = await readerWriterWithFilesystemSources(
       rootPackage: 'apps_examples',
     );
     readerWriter.testing.writeString(
-      AssetId('apps_examples', 'lib/customer_card.dart'),
+      AssetId('apps_examples', 'lib/custom_card.dart'),
       source,
     );
 
@@ -212,7 +212,7 @@ void main() {
       outputs: {
         'apps_examples|lib/widgetbook_index.txt': decodedMatches(
           allOf(
-            contains('widgets=CustomerCard'),
+            contains('widgets=CustomCard'),
             isNot(contains('metadata sidebar fields')),
           ),
         ),
@@ -280,7 +280,7 @@ void main() {
         name: 'Meta',
         library: WidgetLibrary.custom('fixture.widgets'),
         category: WidgetCategory.decoration,
-        description: 'A customer widget with a reserved source name.',
+        description: 'A custom widget with a reserved source name.',
       )
       class Meta extends StatelessWidget {
         const Meta({required this.label});
@@ -328,7 +328,7 @@ void main() {
         name: 'shared',
         library: WidgetLibrary.custom('fixture.widgets'),
         category: WidgetCategory.decoration,
-        description: 'A customer widget under its ordinary path.',
+        description: 'A custom widget under its ordinary path.',
       )
       class SharedCard extends StatelessWidget {
         const SharedCard({super.key});
@@ -637,12 +637,12 @@ const _badgeWidget = '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
   import '../data/badge_data.dart';
 
-  @a2ui.Config.usage('Use Badge for a compact customer status.')
+  @a2ui.Config.usage('Use Badge for a compact custom status.')
   @RestageWidget(
     name: 'Badge',
     library: WidgetLibrary.custom('fixture.widgets'),
     category: WidgetCategory.decoration,
-    description: 'A customer badge.',
+    description: 'A custom badge.',
   )
   class Badge extends StatelessWidget {
     const Badge({required this.data});
@@ -661,7 +661,7 @@ const _labelWidget = '''
     name: 'Label',
     library: WidgetLibrary.custom('fixture.widgets'),
     category: WidgetCategory.decoration,
-    description: 'A customer label.',
+    description: 'A custom label.',
   )
   class Label extends StatelessWidget {
     const Label({required this.text});

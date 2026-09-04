@@ -10,7 +10,7 @@ import 'package:restage_a2ui_example/restage_imports.dart';
 
 /// The end-to-end proof: the genui catalog generated from the example's
 /// `@RestageWidget` source (`dart run build_runner build`) renders the real
-/// customer widgets against genui 0.10.1 and the documented interactivity works —
+/// custom widgets against genui 0.10.1 and the documented interactivity works —
 /// a write-back round-trips (RatingPicker) and an event dispatches (CtaButton).
 ///
 /// This is the "it works" half of the ship-gate: the artifact a developer
@@ -359,7 +359,7 @@ void main() {
       dispatchEvent: dispatched.add,
     );
 
-    // The generated catalog reconstructed the customer data classes (Product +
+    // The generated catalog reconstructed the custom data classes (Product +
     // nested Money + Feature) and the map/record directly from the wire map
     // and rendered them — the full rich data vocabulary.
     expect(find.byType(ProductCard), findsOneWidget);
@@ -400,7 +400,7 @@ void main() {
         dispatchEvent: dispatched.add,
       );
 
-      // The generated catalog constructed the real customer widget, showing two
+      // The generated catalog constructed the real custom widget, showing two
       // filled stars for the seeded value.
       expect(find.byType(RatingPicker), findsOneWidget);
       expect(find.text('★'), findsNWidgets(2));

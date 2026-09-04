@@ -702,7 +702,7 @@ void main() {
     });
 
     test(
-        'firstUnprefixableSpelling flags a customer-generic-over-customer '
+        'firstUnprefixableSpelling flags a custom-generic-over-custom '
         'type', () {
       final inner = ObjectNode(
         fields: const {'label': ScalarNode(A2uiScalarType.string)},
@@ -736,10 +736,10 @@ void main() {
     });
 
     test(
-        'firstUnprefixableSpelling fails closed on a PHANTOM customer type '
+        'firstUnprefixableSpelling fails closed on a PHANTOM custom type '
         'argument (not represented as a nested node)', () {
       // `Box<Ghost>` where `Ghost` never appears as a reconstructed field — a
-      // phantom/inherited type-argument dependency. It is still a customer type
+      // phantom/inherited type-argument dependency. It is still a custom type
       // that the leading-identifier prefix cannot qualify, so the guard must
       // fail closed (fail-closed-LOUD), not pass it through bare.
       final box = ObjectNode(

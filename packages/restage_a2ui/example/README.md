@@ -35,7 +35,7 @@ prove the pre-render check rejects a payload that references a component the
 catalog does not contain (fail-closed). See the [package README](../README.md) for
 the full step-by-step generation walkthrough.
 
-The lesson surface also executes the generated customer payload convention:
+The lesson surface also executes the generated custom payload convention:
 protocol-owned `id` and `component` stay on the envelope, while every exact
 constructor input is nested under required `props`. `ComparisonPanel` proves
 three independently named child-bearing inputs (`introduction`, `examples`,

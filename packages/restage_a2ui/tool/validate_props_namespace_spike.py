@@ -48,7 +48,7 @@ def component_schema(version: str) -> dict[str, object]:
                     "child": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/CustomerCard/allOf/"
+                                "$ref": "#/components/CustomCard/allOf/"
                                 + ("2" if version == "v0_9" else "1")
                                 + "/properties/props/properties/node"
                             },
@@ -100,7 +100,7 @@ def component_schema(version: str) -> dict[str, object]:
         {
             "type": "object",
             "properties": {
-                "component": {"const": "CustomerCard"},
+                "component": {"const": "CustomCard"},
                 "props": props,
             },
             "required": ["component", "props"],
@@ -147,14 +147,14 @@ def catalog(version: str) -> dict[str, object]:
         "title": "Restage required props feasibility catalog",
         "catalogId": catalog_id,
         "components": {
-            "CustomerCard": component_schema(version),
+            "CustomCard": component_schema(version),
             "SpikeLeaf": leaf_schema(version),
         },
         "functions": {},
         "$defs": {
             "anyComponent": {
                 "oneOf": [
-                    {"$ref": "#/components/CustomerCard"},
+                    {"$ref": "#/components/CustomCard"},
                     {"$ref": "#/components/SpikeLeaf"},
                 ]
             },
@@ -178,12 +178,12 @@ def catalog(version: str) -> dict[str, object]:
 def payload(version: str) -> dict[str, object]:
     component: dict[str, object] = {
         "id": "root",
-        "component": "CustomerCard",
+        "component": "CustomCard",
         "props": {
-            "id": "customer-id",
-            "component": "customer-component",
-            "catalogId": "customer-catalog",
-            "props": "customer-props",
+            "id": "custom-id",
+            "component": "custom-component",
+            "catalogId": "custom-catalog",
+            "props": "custom-props",
             "literalValue": "literal",
             "pathValue": {"path": "/boundLabel"},
             "callValue": {

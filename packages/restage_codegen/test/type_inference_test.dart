@@ -46,7 +46,7 @@ void main() {
     );
   });
 
-  test('a List of customer Widgets is not classified as widgetList', () async {
+  test('a List of custom Widgets is not classified as widgetList', () async {
     expect(
       await infer('List<Widget>', extras: 'class Widget {}'),
       isNull,
@@ -65,7 +65,7 @@ void main() {
   });
 
   test(
-    'a customer class named Color is not classified as the Flutter color type',
+    'a custom class named Color is not classified as the Flutter color type',
     () async {
       expect(await infer('Color', extras: 'class Color {}'), isNull);
     },
@@ -90,7 +90,7 @@ void main() {
   });
 
   test(
-    'a customer class named EdgeInsets is not classified as Flutter insets',
+    'a custom class named EdgeInsets is not classified as Flutter insets',
     () async {
       expect(
         await infer('EdgeInsets', extras: 'class EdgeInsets {}'),
@@ -155,7 +155,7 @@ void main() {
   });
 
   test(
-    'a customer class named Curve is not classified as the Flutter curve type',
+    'a custom class named Curve is not classified as the Flutter curve type',
     () async {
       expect(await infer('Curve', extras: 'class Curve {}'), isNull);
     },
@@ -195,7 +195,7 @@ void main() {
     );
   });
 
-  test('a customer enum named Color still maps to enumValue', () async {
+  test('a custom enum named Color still maps to enumValue', () async {
     expect(
       await infer('Color', extras: 'enum Color { red, blue }'),
       PropertyType.enumValue,

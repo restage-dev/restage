@@ -15,7 +15,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// read.
 typedef A2uiWidgetElement = ({WidgetEntry entry, ClassElement element});
 
-/// The three analyzer-fed A2UI seams produced from resolved customer-widget
+/// The three analyzer-fed A2UI seams produced from resolved custom-widget
 /// and native-screen elements — the inputs the production A2UI emitter
 /// (`emitA2uiCatalogDart` / `emitA2uiCatalog`) threads alongside the catalog.
 typedef A2uiSeams = ({
@@ -99,7 +99,7 @@ A2uiSeams assembleA2uiSeams(
         // property surfaces a LOUD issue the builder fails on, rather than the
         // widget silently vanishing from the emitted catalog. (The 11
         // unconstructable built-ins are scoped out at the emitter, not here —
-        // that is a built-in-only, intentional drop, distinct from a customer
+        // that is a built-in-only, intentional drop, distinct from a custom
         // structured shape the emitter cannot represent.)
         switch (result) {
           case A2uiShapeResolved():

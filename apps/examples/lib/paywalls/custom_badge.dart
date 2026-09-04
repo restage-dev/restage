@@ -3,7 +3,7 @@ import 'package:restage/restage.dart';
 
 import '../widgets/streak_badge.dart';
 
-/// A minimal paywall that references the customer's non-inlinable [StreakBadge].
+/// A minimal paywall that references the app's non-inlinable [StreakBadge].
 ///
 /// It proves an app-backed `@RestageWidget` is *referenced* (not inlined) in
 /// a Dart-authored surface and rendered from the delivered blob: the codegen

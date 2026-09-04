@@ -255,7 +255,7 @@ void main() {
   });
 
   test(
-    'synthesizes widgets, widget lists, and nested customer data from Dart',
+    'synthesizes widgets, widget lists, and nested custom data from Dart',
     () async {
       final sources = <String, String>{
         'apps_examples|lib/models.dart': _models,
@@ -489,7 +489,7 @@ const _leaf = '''
     name: 'Leaf',
     library: WidgetLibrary.custom('fixture.widgets'),
     category: WidgetCategory.decoration,
-    description: 'A customer leaf.',
+    description: 'A custom leaf.',
   )
   class Leaf extends StatelessWidget {
     const Leaf({required this.label, required this.onTap});
@@ -511,8 +511,8 @@ const _richCard = '''
     name: 'RichCard',
     library: WidgetLibrary.custom('fixture.widgets'),
     category: WidgetCategory.decoration,
-    description: 'A customer rich card.',
-    usage: 'Use for customer-owned rich content.',
+    description: 'A custom rich card.',
+    usage: 'Use for app-owned rich content.',
   )
   class RichCard extends StatelessWidget {
     const RichCard({
@@ -524,7 +524,7 @@ const _richCard = '''
     final Widget child;
     @RestageProperty(description: 'Additional children.')
     final List<Widget> children;
-    @RestageProperty(description: 'Customer data.')
+    @RestageProperty(description: 'Custom data.')
     final CardData data;
     @override
     Widget build(BuildContext context) => child;
@@ -537,7 +537,7 @@ const _capabilityWidget = '''
 
   enum CapabilityTone { neutral, emphasized }
 
-  /// The nested customer-owned value in the capability corpus.
+  /// The nested app-owned value in the capability corpus.
   class CapabilityNested {
     const CapabilityNested({required this.label});
 
@@ -545,7 +545,7 @@ const _capabilityWidget = '''
     final String label;
   }
 
-  /// Customer-owned structured data spanning every admitted leaf family.
+  /// Custom-owned structured data spanning every admitted leaf family.
   class CapabilityData {
     const CapabilityData({
       required this.color,
@@ -565,53 +565,53 @@ const _capabilityWidget = '''
       required this.nestedItems,
     });
 
-    /// Customer color.
+    /// Custom color.
     final Color color;
 
-    /// Customer padding.
+    /// Custom padding.
     final EdgeInsets padding;
 
-    /// Customer alignment.
+    /// Custom alignment.
     final Alignment alignment;
 
-    /// Customer offset.
+    /// Custom offset.
     final Offset offset;
 
-    /// Customer font weight.
+    /// Custom font weight.
     final FontWeight weight;
 
-    /// Customer duration.
+    /// Custom duration.
     final Duration duration;
 
-    /// Customer curve.
+    /// Custom curve.
     final Curve curve;
 
-    /// Customer boolean.
+    /// Custom boolean.
     final bool enabled;
 
-    /// Customer integer.
+    /// Custom integer.
     final int count;
 
-    /// Customer real number.
+    /// Custom real number.
     final double ratio;
 
-    /// Customer text.
+    /// Custom text.
     final String label;
 
-    /// Customer text list.
+    /// Custom text list.
     final List<String> tags;
 
-    /// Customer enum.
+    /// Custom enum.
     final CapabilityTone tone;
 
-    /// Nested customer data.
+    /// Nested custom data.
     final CapabilityNested nested;
 
-    /// A list of nested customer data.
+    /// A list of nested custom data.
     final List<CapabilityNested> nestedItems;
   }
 
-  /// Customer widget spanning every admitted root family.
+  /// Custom widget spanning every admitted root family.
   @RestageWidget(
     name: 'CapabilityWidget',
     library: WidgetLibrary.custom('fixture.widgets'),
@@ -684,10 +684,10 @@ const _capabilityWidget = '''
     /// Root enum.
     final CapabilityTone tone;
 
-    /// Root customer data.
+    /// Root custom data.
     final CapabilityData data;
 
-    /// Root customer data list.
+    /// Root custom data list.
     final List<CapabilityData> dataItems;
 
     @override

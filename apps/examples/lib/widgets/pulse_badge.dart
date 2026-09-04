@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// Customer-defined badge whose scale pulses, driven by an [AnimationController].
+/// Custom-defined badge whose scale pulses, driven by an [AnimationController].
 ///
 /// Its animation is driven imperatively by an [AnimationController] created in a
 /// `State` field and torn down in [State.dispose] — machinery a declarative blob

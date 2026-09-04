@@ -135,7 +135,7 @@ final class StructuredValueEmitter {
   /// Supplies the semantic bindings and helpers visible to the host walk.
   final CollectionSemanticProbe Function() _collectionSemanticProbe;
 
-  /// Whether a construction resolves to a non-framework (customer) ctor.
+  /// Whether a construction resolves to a non-framework (custom) ctor.
   final bool Function(InstanceCreationExpression) _isResolvedNonFrameworkCtor;
 
   /// Emits the deferral diagnostic for a non-framework constant look-alike.
@@ -412,7 +412,7 @@ final class StructuredValueEmitter {
   }
 
   /// The bare radius DSL of a framework `Radius.circular(<radius>)` corner, or
-  /// `null` for any non-circular / non-static / customer-look-alike / value-
+  /// `null` for any non-circular / non-static / custom-look-alike / value-
   /// error corner (the caller then defers the whole borderRadius loudly). A
   /// conditional radius coerces per branch, mirroring [_borderRadiusCircular].
   /// Returned bare (non-conditional) or per-branch-doubled (conditional) — the
@@ -421,7 +421,7 @@ final class StructuredValueEmitter {
   /// Handles both AST shapes a `Radius.circular(...)` corner presents: a
   /// resolved `InstanceCreationExpression` (production) and an unresolved
   /// `MethodInvocation` (a synthetic-test input parses the static call before
-  /// the analyzer resolves it to a constructor). A resolved CUSTOMER `Radius`
+  /// the analyzer resolves it to a constructor). A resolved CUSTOM `Radius`
   /// look-alike defers either way (a value-substitution the floor can't catch).
   String? _radiusCircularScalar(Expression radiusExpr) {
     final stripped = _stripParens(radiusExpr);
@@ -639,7 +639,7 @@ final class StructuredValueEmitter {
           // which would produce a DSL fragment the decoder rejects.
           final e = a.expression;
           if (e is PrefixedIdentifier && e.prefix.name == 'BorderStyle') {
-            // Nested name-only gate: a resolved customer class named
+            // Nested name-only gate: a resolved custom class named
             // `BorderStyle` must not emit a framework enum-string inside the
             // hand-authored BorderSide map. Defer the whole BorderSide helper
             // rather than leaving a nested bare string behind.
@@ -1060,7 +1060,7 @@ final class StructuredValueEmitter {
         expr.prefix.name == 'BorderSide' &&
         expr.identifier.name == 'none') {
       // Nested name-only gate: `BorderSide.none` inside a real shape border is
-      // lowered to the framework none-map by NAME. A resolved customer class
+      // lowered to the framework none-map by NAME. A resolved custom class
       // named `BorderSide` must NOT name-match — defer with a diagnostic rather
       // than emit the framework map (a value-substitution silent-wrong); an
       // unresolved prefix keeps the name path (the synthetic-test affordance).
@@ -1514,7 +1514,7 @@ final class StructuredValueEmitter {
     if (expr is PrefixedIdentifier && expr.prefix.name == 'Alignment') {
       // Nested name-only gate: an `Alignment.<member>` argument inside a real
       // framework gradient is lowered against a hard-coded coordinate table by
-      // member NAME. A resolved customer class named `Alignment` must NOT
+      // member NAME. A resolved custom class named `Alignment` must NOT
       // name-match — it would emit framework `{x, y}` coordinates for the
       // author's own type, a value-substitution silent-wrong the type-aware
       // floor cannot catch (any `{x, y}` is valid). Defer with a diagnostic;

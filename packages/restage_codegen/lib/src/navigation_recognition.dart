@@ -232,7 +232,7 @@ bool isNavigationTriggerSlotName(String name) =>
     name == 'onPressed' || name == 'onTap';
 
 /// The Restage SDK library origin used to look-alike-guard the pushed screen's
-/// `@Paywall` or `@PaywallSource` annotation (a customer annotation of the
+/// `@Paywall` or `@PaywallSource` annotation (a custom annotation of the
 /// same name from a different package must not be accepted).
 const String _kSdkLibraryOrigin = 'package:restage';
 
@@ -401,7 +401,7 @@ NavigatorPopBackOutcome recogniseNavigatorPopBack(Expression slotValue) {
 /// Canonical `@Paywall` declarations consume [canonicalPaywallIdFor], which
 /// reads the package roster's effective identity. Deprecated
 /// `@PaywallSource(id:)` declarations retain their field as a compatibility
-/// frontend. Both forms are origin-guarded against the Restage SDK so customer
+/// frontend. Both forms are origin-guarded against the Restage SDK so custom
 /// lookalikes cannot be accepted as pushed paywall screens.
 String? pushedPaywallSourceId(
   InstanceCreationExpression pushedScreen, {
@@ -584,10 +584,10 @@ Expression? _navigatorOfContext(MethodInvocation invocation) {
 
 /// Whether [target] references the Flutter `Navigator` class, either bare
 /// (`Navigator`) or import-prefixed (`material.Navigator`). Element-gated so a
-/// resolved customer look-alike is rejected. A null element on the BARE form
+/// resolved custom look-alike is rejected. A null element on the BARE form
 /// falls back to the name for synthetic unresolved parser-test input; a
 /// prefixed form requires resolution (it only appears in real resolved code, so
-/// a name-only fallback would risk admitting a customer `obj.Navigator`).
+/// a name-only fallback would risk admitting a custom `obj.Navigator`).
 bool _isFlutterNavigatorTarget(Expression? target) {
   if (target is SimpleIdentifier) {
     if (target.name != 'Navigator') return false;

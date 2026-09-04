@@ -5,7 +5,7 @@
     "catalogId": "restage:spike/a2ui-required-props/v0.9.1",
     "a2uiProtocolVersion": "0.9.1",
     "components": {
-      "CustomerCard": {
+      "CustomCard": {
         "$defs": {
           "SpikeNode": {
             "type": "object",
@@ -157,7 +157,7 @@
         "properties": {
           "component": {
             "type": "string",
-            "enum": ["CustomerCard"]
+            "enum": ["CustomCard"]
           }
         },
         "required": ["component"]

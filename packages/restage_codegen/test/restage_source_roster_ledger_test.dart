@@ -1,6 +1,6 @@
 // When the roster writes its two ledger files into the package.
 //
-// Both land in the customer's own tree rather than the build cache, so a
+// Both land in the app's own tree rather than the build cache, so a
 // package that declares no Restage source should not acquire them: two files
 // recording nothing is not a useful artifact, it is a diff. Once there is
 // something to record — a declaration, or a problem with one — the ledgers are

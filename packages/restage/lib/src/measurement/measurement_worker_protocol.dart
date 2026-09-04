@@ -98,7 +98,7 @@ enum MeasurementWorkerAppendAcknowledgementOutcome {
 ///
 /// It deliberately carries only a precomputed route index, monotonic time, and
 /// a closed value. It cannot carry event names, maps, callback arguments,
-/// identities supplied by customers, codecs, or transport data.
+/// identities supplied by apps, codecs, or transport data.
 @immutable
 final class MeasurementWorkerAppendRecord {
   /// Creates one compact append record.

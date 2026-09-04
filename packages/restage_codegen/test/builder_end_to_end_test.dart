@@ -250,10 +250,10 @@ void main() {
 
     test(
         'a custom-library paywall emits a capability manifest carrying the '
-        'required library (real build through the merged customer catalog)',
+        'required library (real build through the merged custom catalog)',
         () async {
       // The hand-authored DSL references a custom widget (AcmeBanner). The
-      // customer's generated catalog — merged into the build-time catalog by
+      // app's generated catalog — merged into the build-time catalog by
       // loadMergedCatalog — declares it in library "acme.widgets" at
       // capabilityVersion 2, so the derivation emits a populated
       // requiredLibraries. This exercises the requiredLibraries path in a real
@@ -273,7 +273,7 @@ widget Paywall = AcmeBanner();
       );
       readerWriter.testing.writeString(
         AssetId('apps_examples', 'lib/src/widget_catalog/catalog.json'),
-        encodeCatalog(_acmeCustomerCatalog()),
+        encodeCatalog(_acmeCustomCatalog()),
       );
 
       await testBuilder(
@@ -1796,7 +1796,7 @@ widget Paywall = AcmeBanner();
       const source = '''
         // The value types (Color / EdgeInsets / Alignment / LinearGradient)
         // resolve to REAL Flutter so the value-substitution gate recognises
-        // them — a customer-stub look-alike would (correctly) defer. Container /
+        // them — a custom-stub look-alike would (correctly) defer. Container /
         // Icon stay catalog-widget stubs (matched by name against the catalog).
         import 'package:flutter/material.dart'
             show
@@ -2353,9 +2353,9 @@ widget Paywall = AcmeBanner();
     });
 
     test(
-        'a malformed token in a customer widget source fails the build instead '
+        'a malformed token in a custom widget source fails the build instead '
         'of emitting a silently-recovered catalog entry', () async {
-      // The walker resolves customer sources with `allowSyntaxErrors: true`.
+      // The walker resolves custom sources with `allowSyntaxErrors: true`.
       // An incomplete hex literal `0x` is a scanner error whose parser
       // recovery would otherwise yield a structurally-valid declaration and
       // emit a catalog entry with the bad token silently dropped. The
@@ -2404,10 +2404,10 @@ widget Paywall = AcmeBanner();
   });
 }
 
-/// A customer's generated catalog declaring one custom library widget at a
+/// A app's generated catalog declaring one custom library widget at a
 /// capability version — the shape `loadMergedCatalog` merges from the package
 /// being built so a surface referencing the widget derives a required library.
-Catalog _acmeCustomerCatalog() => Catalog(
+Catalog _acmeCustomCatalog() => Catalog(
       schemaVersion: kSupportedSchemaVersion,
       generatedAt: '2026-06-19T00:00:00Z',
       libraries: {

@@ -10,7 +10,7 @@ import '../helpers.dart';
 /// style/decoration) as not providable, so the merged built-in catalog would
 /// not compile. They are scoped OUT of the A2UI emit (a documented gap) so the
 /// shipped merged builder produces a compilable catalog; the proper fix (the 11
-/// emit correctly) is tracked separately. A same-named CUSTOMER widget is not
+/// emit correctly) is tracked separately. A same-named CUSTOM widget is not
 /// affected — the guard is gated on a built-in library.
 void main() {
   group('A2UI emit — unconstructable built-in scope-out', () {
@@ -53,18 +53,18 @@ void main() {
       );
     });
 
-    test('a same-named CUSTOMER widget is NOT scoped out (built-in gated)', () {
-      const customerLib = WidgetLibrary.custom('acme.widgets');
+    test('a same-named CUSTOM widget is NOT scoped out (built-in gated)', () {
+      const customLib = WidgetLibrary.custom('acme.widgets');
       final catalog = catalogWith(
         [
           entry(
             name: 'FilterChip',
-            library: customerLib,
+            library: customLib,
             category: WidgetCategory.input,
             properties: [prop('label', PropertyType.string)],
           ),
         ],
-        library: customerLib,
+        library: customLib,
       );
 
       final plan = classifyA2uiCatalogDart(catalog);

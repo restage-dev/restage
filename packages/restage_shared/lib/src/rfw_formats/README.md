@@ -9,7 +9,7 @@ without pulling in Flutter.
 
 ## The wire boundary this creates
 
-The build-time toolchain encodes blobs with **this vendored copy**. The customer
+The build-time toolchain encodes blobs with **this vendored copy**. The custom
 app runtime (and the editor) decode/encode with the **published `package:rfw`**.
 `restage_shared` carries no `rfw` dependency, so the two can drift independently.
 They must produce and read **byte-identical** blobs. A breaking binary-format

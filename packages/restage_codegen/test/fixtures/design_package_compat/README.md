@@ -1,7 +1,7 @@
 # `material_ui` / `cupertino_ui` compat fixture
 
 These sources are the standalone probe that established, empirically, how the
-toolchain behaves when a customer authors against the new design packages
+toolchain behaves when a custom authors against the new design packages
 (`package:material_ui/`, `package:cupertino_ui/`) instead of
 `package:flutter/material.dart`.
 
@@ -43,7 +43,7 @@ library URIs verified below, so they need no new dependency at all.
   SHA-256, which is the point: a surface authored against the design packages
   resolves to the same existing catalog entries, with no change to the emitted
   output.
-- `user_factories.g.dart.emitted`: generated customer code emitting a private
+- `user_factories.g.dart.emitted`: generated custom code emitting a private
   `lib/src` import of a third-party package.
 
 Established against `material_ui 1.0.0` / `cupertino_ui 1.0.0` under Flutter

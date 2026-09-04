@@ -528,7 +528,7 @@ WidgetConstructorFacts readWidgetConstructorFacts(
       Issue(
         code: IssueCode.invalidWidgetConstructorInput,
         message: '$className has no unnamed generative constructor. Generated '
-            'customer catalog factories require one.',
+            'custom catalog factories require one.',
         location: location,
       ),
     );

@@ -915,9 +915,9 @@ class _AcmeSpringState extends State<AcmeSpring>
     });
 
     test(
-        'a customer look-alike AnimationController State does NOT name the '
+        'a custom look-alike AnimationController State does NOT name the '
         'motion widgets (element gate)', () async {
-      // A customer class merely named `AnimationController` is not Flutter
+      // A custom class merely named `AnimationController` is not Flutter
       // animation — the motion hint is withheld (the look-alike discipline).
       final result = await classifyFixture(
         {
@@ -995,7 +995,7 @@ class AcmeSpringBuild extends StatelessWidget {
     });
 
     test(
-        'a customer look-alike spring construction does NOT name RestageMotion '
+        'a custom look-alike spring construction does NOT name RestageMotion '
         '(element gate)', () async {
       final result = await classifyFixture(
         {
@@ -1717,11 +1717,11 @@ class AcmeEvent extends StatelessWidget {
     });
 
     test(
-        'a customer paywallEvent look-alike (a non-SDK library) is NOT '
+        'a custom paywallEvent look-alike (a non-SDK library) is NOT '
         'recognised as the build helper — the (name, libraryOrigin) gate '
         'holds', () async {
-      // The build registers `paywallEvent` from the SDK library. A customer
-      // function of the SAME NAME, resolved to the customer's own
+      // The build registers `paywallEvent` from the SDK library. A custom
+      // function of the SAME NAME, resolved to the app's own
       // library, must NOT be mistaken for it (the look-alike-safe rule): it
       // defers as a `dartCall`, never lowering to an SDK event.
       // This pins the (name, libraryOrigin) gate so registering the build's
@@ -1731,7 +1731,7 @@ class AcmeEvent extends StatelessWidget {
           'lib/lookalike.dart': '''
 $kClassifierStubs
 
-// The customer's own paywallEvent — same name, different library.
+// The app's own paywallEvent — same name, different library.
 void Function() paywallEvent(String name) => () {};
 
 class GestureDetector extends StatelessWidget {
@@ -1773,7 +1773,7 @@ class AcmeLookalike extends StatelessWidget {
               .having((b) => b.kind, 'kind', BlockerKind.dartCall)
               .having((b) => b.detail, 'detail', contains('paywallEvent')),
         ),
-        reason: 'the customer look-alike must defer as a dartCall naming '
+        reason: 'the custom look-alike must defer as a dartCall naming '
             'paywallEvent, never lower as an SDK event',
       );
     });

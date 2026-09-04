@@ -16,18 +16,18 @@ import 'a2ui_proof_support.dart';
 /// referencing the generated DOMAIN components → wrapped in a Restage sidecar →
 /// passed through `RestageA2uiPreRenderCheck` (expected renderable) → rendered
 /// through genui's REAL `SurfaceController`/`Surface` runtime (0.10.1). The
-/// customer lesson widgets render through the real surface — compile-and-run,
+/// custom lesson widgets render through the real surface — compile-and-run,
 /// not a static source assertion.
 ///
 /// The golden payload ([goldenLessonComponents]): a `ComparisonPanel` root whose
 /// `introduction`, `examples`, and `conclusion` inputs compose the remaining
-/// customer components. Every exact constructor input is nested under `props`
+/// custom components. Every exact constructor input is nested under `props`
 /// and every child is referenced by string id in one flat component list.
 void main() {
   test('the generated catalog exposes both libraries\' widgets', () {
     final items = buildRestageCatalogItems();
     final names = items.map((i) => i.name).toSet();
-    // The EXACT customer set — acme.widgets + acme.lessons, nothing else — so
+    // The EXACT custom set — acme.widgets + acme.lessons, nothing else — so
     // a built-in leaking into the committed artifact fails this proof directly.
     expect(
       names,
@@ -56,7 +56,7 @@ void main() {
     expect(libs, containsPair('acme.lessons', 1));
     final components = ((stamp['a2uiCatalog'] as Map)['components'] as Map).keys
         .toSet();
-    // The EXACT customer component set, mirroring the catalog assertion above:
+    // The EXACT custom component set, mirroring the catalog assertion above:
     // a built-in leaking into the committed stamp fails this proof directly.
     expect(
       components,
@@ -74,7 +74,7 @@ void main() {
     );
   });
 
-  testWidgets('a golden payload renders the customer lesson components through '
+  testWidgets('a golden payload renders the custom lesson components through '
       'the REAL genui SurfaceController/Surface after passing the pre-render '
       'check', (tester) async {
     const surfaceId = 'lesson-surface';
@@ -136,7 +136,7 @@ void main() {
 
     // A CLEAN render — no component fell back to a genui error widget.
     expect(find.byType(FallbackWidget), findsNothing);
-    // The customer lesson components rendered through the real surface.
+    // The custom lesson components rendered through the real surface.
     expect(find.byType(ComparisonPanel), findsOneWidget);
     expect(find.byType(Callout), findsOneWidget);
     expect(

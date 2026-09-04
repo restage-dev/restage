@@ -85,7 +85,7 @@ String _diagnosticText(Diagnostic diagnostic) {
   return '$code: $message';
 }
 
-void _expectCustomerNameStaysExact(String generated, String name) {
+void _expectCustomNameStaysExact(String generated, String name) {
   expect(generated, contains("'$name':"), reason: '$name schema key');
   expect(
     generated,
@@ -219,7 +219,7 @@ void main() {
           final core.String String;
           /// Flutter constructor collision from a child fallback.
           final core.String SizedBox;
-          /// Customer enum value.
+          /// Custom enum value.
           final GeneratedNameState state;
           /// Non-colliding control value.
           final core.String ordinaryLabel;
@@ -274,7 +274,7 @@ void main() {
         'String',
         'SizedBox',
       ]) {
-        _expectCustomerNameStaysExact(generated, name);
+        _expectCustomNameStaysExact(generated, name);
         expect(
           generated,
           matches(RegExp('\\b${name}_2\\b')),
@@ -291,7 +291,7 @@ void main() {
         'normal',
         'values',
       ]) {
-        _expectCustomerNameStaysExact(generated, name);
+        _expectCustomNameStaysExact(generated, name);
         expect(
           generated,
           isNot(matches(RegExp('\\b${name}_2\\b'))),

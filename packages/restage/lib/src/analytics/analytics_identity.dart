@@ -112,10 +112,10 @@ class AnalyticsIdentity {
   /// Rotates the app-session id (a new launch / post-idle resume).
   void rotateSession() => _sessionId = _newId();
 
-  /// The opt-in customer user id, or null.
+  /// The opt-in app-supplied user id, or null.
   String? get userId => _userId;
 
-  /// Attaches the customer's [userId] to subsequent events.
+  /// Attaches the app-supplied [userId] to subsequent events.
   void identify(String userId) => _userId = userId;
 
   /// Resets the pseudonymous actor immediately: mints a fresh [anonymousId],

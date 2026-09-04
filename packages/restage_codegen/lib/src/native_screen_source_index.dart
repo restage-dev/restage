@@ -291,7 +291,7 @@ Future<NativeScreenSourceIndex> loadNativeScreenSourceIndex(
         Issue(
           code: IssueCode.invalidWidgetClass,
           message: '$sourceAnnotation and @RestageWidget cannot annotate the '
-              'same exact class $identity; the native screen and customer '
+              'same exact class $identity; the native screen and custom '
               'widget source contracts are disjoint.',
           location: location,
         ),

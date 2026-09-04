@@ -134,7 +134,7 @@ void main() {
       dataContext: dataContext,
       dispatchEvent: dispatched.add,
     );
-    // The generated catalog constructed the REAL customer widget.
+    // The generated catalog constructed the REAL custom widget.
     expect(find.byType(QuickCheckFixture), findsOneWidget);
     expect(find.text('quickcheck-selected:0'), findsOneWidget);
 

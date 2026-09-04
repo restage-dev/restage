@@ -7,12 +7,12 @@ import '../helpers.dart';
 /// RED-first coverage for the A2UI build phase's fail-closed-LOUD walk guards —
 /// the new fail-paths the existing happy-path suite + the drift-guard tie do
 /// not exercise. Each drives the real `UserA2uiCatalogBuilder` over a
-/// deliberately malformed customer package and asserts the build FAILS LOUD
+/// deliberately malformed custom package and asserts the build FAILS LOUD
 /// (never a silent drop / last-wins / built-in overwrite).
 void main() {
   group('UserA2uiCatalogBuilder — fail-closed-LOUD walk guards', () {
     test(
-        'a customer @RestageWidget claiming a BUILT-IN namespace is rejected '
+        'a custom @RestageWidget claiming a BUILT-IN namespace is rejected '
         'loud (it would otherwise overwrite the built-in library metadata)',
         () async {
       const source = '''
@@ -103,10 +103,10 @@ void main() {
     });
 
     test(
-        'a customer structured property whose data class has an '
+        'a custom structured property whose data class has an '
         'A2UI-unrepresentable field fails the build LOUD rather than '
         'silently dropping the widget', () async {
-      // `BadData` is a customer data class (it has a generative constructor
+      // `BadData` is a custom data class (it has a generative constructor
       // with parameters), so it is marked `structured` — but its `Set<String>`
       // field is not A2UI-representable, so the shape reflector scopes the
       // whole object out. The widget must NOT silently vanish from the

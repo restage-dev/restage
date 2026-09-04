@@ -58,7 +58,7 @@ abstract final class AnalyticsSurface {
 abstract final class AnalyticsSource {
   AnalyticsSource._();
 
-  /// Emitted by the SDK in a customer app (public-key ingest).
+  /// Emitted by the SDK in a host app (public-key ingest).
   static const String client = 'client';
 
   /// Emitted server-side (subscription lifecycle, secret-key path).

@@ -1,4 +1,4 @@
-// Minimal coverage fixture — one customer widget per CoverageBucket
+// Minimal coverage fixture — one custom widget per CoverageBucket
 // (theme-as-data deferred to the broader fixture set so this slice can
 // validate the harness without spinning up the real-Flutter resolution
 // path). All widgets are recognised by the classifier; the bucketing
@@ -12,7 +12,7 @@
 // declared in `coverage_harness_test.dart` resolves them.
 //
 // Stub fixture file — analyzer hints that conflict with the
-// reproduction-of-customer-shape goal are suppressed at file scope.
+// reproduction-of-custom-shape goal are suppressed at file scope.
 // `prefer_const_constructors` would alter the exact AST shape the
 // classifier walks; `library_private_types_in_public_api` is the
 // idiomatic Flutter StatefulWidget pattern; `document_ignores` and

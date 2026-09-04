@@ -112,7 +112,7 @@ widget Paywall = Unknown(analyticsId: "checkout.primary");
     expect(logs.join('\n'), contains('[invalidAnalyticsId]'));
   });
 
-  test('customer catalog rejects a constructor field named analyticsId',
+  test('custom catalog rejects a constructor field named analyticsId',
       () async {
     const source = '''
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';

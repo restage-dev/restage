@@ -189,10 +189,10 @@ final class A2uiDartWidgetPlan {
   /// data fields, so they never enter the data schema.
   final List<PropertyEntry> dispatches;
 
-  /// Whether this customer-authored component stores constructor inputs below
+  /// Whether this custom-authored component stores constructor inputs below
   /// Restage's required top-level `props` object. The outer protocol envelope
   /// (`id` and `component`) remains protocol-owned; `props` is Restage's
-  /// uniform customer payload convention, so an exact customer property named
+  /// uniform custom payload convention, so an exact custom property named
   /// `props` is addressed as `props.props`.
   bool get usesPropsNamespace => _usesPropsNamespace(entry, nativeScreen);
 }
@@ -306,7 +306,7 @@ final class A2uiConstraintSet {
 final class A2uiDataField extends A2uiFieldEmission {
   /// Creates a data-field emission over [node].
   ///
-  /// [rich] is true for an analyzer-fed customer data shape (reconstructed
+  /// [rich] is true for an analyzer-fed custom data shape (reconstructed
   /// through the value-builder, bound via `BoundObject`); false for the
   /// catalog-fed leaf binding. Catalog classification always yields false, so
   /// the built-in catalogs are byte-neutral.
@@ -326,7 +326,7 @@ final class A2uiDataField extends A2uiFieldEmission {
   final A2uiSchemaNode node;
 
   /// Whether this field's value is reconstructed via the value-builder (a rich
-  /// customer data shape) rather than the catalog-fed leaf binding.
+  /// custom data shape) rather than the catalog-fed leaf binding.
   final bool rich;
 
   /// Whether this field is the value property of a write-back pair (its read is
@@ -374,7 +374,7 @@ typedef A2uiRichShapes = Map<(String, String), A2uiSchemaNode>;
 
 /// Classifies [catalog] for A2UI Dart emission.
 ///
-/// [eventSeam] carries the classified callback signature for each customer
+/// [eventSeam] carries the classified callback signature for each custom
 /// `@RestageWidget` interactive property (the catalog discards it). A property
 /// present there is lowered to a declarative action (write-back / dispatch);
 /// every property absent from the seam takes the unchanged catalog-fed path, so
@@ -392,10 +392,10 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
   final widgets = <A2uiDartWidgetPlan>[];
   final omitted = <A2uiDartFieldOmission>[];
   final dropped = <A2uiDartWidgetDrop>[];
-  // Whether the generated file will import-prefix at least one customer
+  // Whether the generated file will import-prefix at least one custom
   // library — the condition under which a catalog-fed enum that lacks a
   // resolvable library (no `EnumShape`) cannot be safely spelled bare.
-  final prefixesCustomerLibs = _catalogPrefixesCustomerLibs(
+  final prefixesCustomLibs = _catalogPrefixesCustomLibs(
     catalog,
     richShapes,
   );
@@ -513,7 +513,7 @@ A2uiDartCatalogPlan classifyA2uiCatalogDart(
         entry,
         property,
         richShapes,
-        prefixesCustomerLibs,
+        prefixesCustomLibs,
         usesPropsNamespace: _usesPropsNamespace(entry, componentSource.screen),
       );
       switch (field) {
@@ -1083,11 +1083,11 @@ List<A2uiSchemaNode> _collectRichNodes(A2uiDartCatalogPlan plan) => [
     ];
 
 /// Whether emitting [catalog] (+ its [richShapes]) will import-prefix at least
-/// one customer library — i.e. a widget constructor or a rich data shape lives
+/// one custom library — i.e. a widget constructor or a rich data shape lives
 /// in a prefixable library. Computed before classification (independent of the
 /// plan) so a catalog-fed enum lacking a library can be scoped out when bare
 /// spelling is no longer safe.
-bool _catalogPrefixesCustomerLibs(Catalog catalog, A2uiRichShapes? richShapes) {
+bool _catalogPrefixesCustomLibs(Catalog catalog, A2uiRichShapes? richShapes) {
   for (final widget in catalog.widgets) {
     final uri = _sourceUri(widget.flutterType);
     if (uri != null && isApplicationDartLibrary(uri)) return true;
@@ -1101,7 +1101,7 @@ bool _catalogPrefixesCustomerLibs(Catalog catalog, A2uiRichShapes? richShapes) {
 }
 
 /// Fails closed LOUD, at emit time, when a legacy or manually assembled rich
-/// sidecar contains a customer generic such as `Box<Inner>` without the
+/// sidecar contains a custom generic such as `Box<Inner>` without the
 /// recursive Dart identity required to qualify each type argument. Analyzer-
 /// reflected sidecars carry that identity. The diagnostic names the widget,
 /// field, and offending shape, and tells the developer to regenerate rather
@@ -1117,8 +1117,8 @@ void _assertPrefixableSpellings(
         if (unprefixable != null) {
           throw StateError(
             'A2UI: ${widget.entry.name}.${field.property.name} uses the data '
-            'shape "$unprefixable" — a customer generic type instantiated with '
-            'another customer type, whose generated spelling cannot be '
+            'shape "$unprefixable" — a custom generic type instantiated with '
+            'another custom type, whose generated spelling cannot be '
             'import-prefixed component-by-component (the flat instantiated '
             'spelling carries no recursive Dart identity with per-argument '
             'libraries). Failing closed rather than emit an ambiguous or '
@@ -1664,7 +1664,7 @@ Map<String, Object?> _widgetDataSchemaMap(
   };
 }
 
-/// Map projection of a widget's root. Customer constructor fields live below
+/// Map projection of a widget's root. Custom constructor fields live below
 /// one required `props` object while built-in component schemas stay flat.
 Map<String, Object?> _widgetRootSchemaMap(
   List<A2uiWidgetField> fields, {
@@ -2113,7 +2113,7 @@ String _widgetObjectSchema(
   return _withSchemaDescription(base, widgetDescription);
 }
 
-/// Dart projection of a widget's root. Customer constructor fields live below
+/// Dart projection of a widget's root. Custom constructor fields live below
 /// one required `props` object while built-in component schemas stay flat.
 String _widgetRootSchema(
   List<A2uiWidgetField> fields, {
@@ -2237,7 +2237,7 @@ String _fieldSchema(A2uiFieldEmission emission, _DefsContext? ctx) {
 /// replicated raw from `json_schema_builder` primitives rather than by calling
 /// genui's `A2uiSchemas` helper: genui is 0.x/experimental, so depending on its
 /// helper API would risk inheriting its churn (a helper rename/signature change
-/// would break the customer's generated build); raw + per-version grounding is
+/// would break the app's generated build); raw + per-version grounding is
 /// the churn-robust track-genui posture, and the producer-facing shape is
 /// identical. (The toolchain emits source text and never imports genui either
 /// way.) Re-ground the shape + those file:lines on a genui version bump.
@@ -3154,7 +3154,7 @@ String _argumentExpression(
   switch (field.emission) {
     // A rich field's prelude has reconstructed the typed value into an
     // allocated generated local; the constructor just references it. The
-    // shared symbol plan keeps customer and scaffolding declarations distinct.
+    // shared symbol plan keeps custom and scaffolding declarations distinct.
     case A2uiDataField(rich: true):
       return symbols.richValueFor(property.name);
     case A2uiDataField(:final node):
@@ -4178,7 +4178,7 @@ _FieldClassification _classifyField(
   WidgetEntry entry,
   PropertyEntry property,
   A2uiRichShapes? richShapes,
-  bool prefixesCustomerLibs, {
+  bool prefixesCustomLibs, {
   required bool usesPropsNamespace,
 }) {
   if (!usesPropsNamespace &&
@@ -4296,12 +4296,12 @@ _FieldClassification _classifyField(
   // A catalog-fed enum without a resolvable library (no `EnumShape`, only the
   // bare `enumType` name) can be spelled bare safely only when nothing is
   // import-prefixed — a flutter enum (`Axis`) resolves through the unprefixed
-  // flutter import. Once the file prefixes a customer library, a bare enum that
-  // is actually a customer type would be unresolved; fail closed loud rather
-  // than emit it. (Properly compiled customer catalogs carry an `EnumShape`
+  // flutter import. Once the file prefixes a custom library, a bare enum that
+  // is actually a custom type would be unresolved; fail closed loud rather
+  // than emit it. (Properly compiled custom catalogs carry an `EnumShape`
   // with the library URI; this guards the legacy/hand-built gap.)
   if (property.type == PropertyType.enumValue &&
-      prefixesCustomerLibs &&
+      prefixesCustomLibs &&
       _enumLibraryUri(property) == null) {
     return _fieldUnsupported(
       entry,
@@ -4735,7 +4735,7 @@ A2uiSchemaNode? a2uiCatalogDataNodeForProperty(
 /// produces a constructor call missing a required argument. A contained interim
 /// guard scopes them out so the merged built-in catalog compiles; the proper
 /// fix (the built-in supplies the argument) is tracked in the toolchain
-/// follow-ups. Gated on a built-in library so a same-named customer widget is
+/// follow-ups. Gated on a built-in library so a same-named custom widget is
 /// unaffected.
 ///
 /// INVARIANT: the merged built-in A2UI catalog MUST compile. This list is the
@@ -4831,7 +4831,7 @@ Set<String> _importUris(A2uiDartCatalogPlan plan) {
       if (field.property.constructorDefault case final value?) {
         uris.addAll(dartConstValueLibraryUris(value));
       }
-      // A rich field's customer data classes/enums can live in libraries the
+      // A rich field's custom data classes/enums can live in libraries the
       // catalog never names (the data model is separate from the widget). Every
       // one must be imported, or the generated helper references a bare,
       // unimported type.
@@ -4912,10 +4912,10 @@ String _identifierFor(String name) {
 }
 
 /// Plans every declaration that shares a generated widget-builder scope before
-/// source is rendered. Customer names remain schema keys and constructor
+/// source is rendered. Custom names remain schema keys and constructor
 /// labels; only their local bindings are allocated here. Claiming generated
 /// declarations first makes collisions deterministic without reserving a
-/// customer-facing vocabulary or prefix.
+/// user-facing vocabulary or prefix.
 final class _A2uiGeneratedSymbolPlan {
   _A2uiGeneratedSymbolPlan._({
     required this.itemContext,
@@ -4937,10 +4937,10 @@ final class _A2uiGeneratedSymbolPlan {
     required Map<String, String> prefixes,
     required String catalogIdExpression,
   }) {
-    Set<String> probeIdentifiers(String customerValueNamespace) {
+    Set<String> probeIdentifiers(String customValueNamespace) {
       final symbols = _A2uiGeneratedSymbolPlan._allocate(
         widget,
-        customerValueName: (_, index) => '$customerValueNamespace$index',
+        customValueName: (_, index) => '$customValueNamespace$index',
       );
       return _shadowableIdentifiers(
         _probeSource(
@@ -4961,13 +4961,13 @@ final class _A2uiGeneratedSymbolPlan {
     return _A2uiGeneratedSymbolPlan._allocate(
       widget,
       generatedIdentifiers: generatedIdentifiers,
-      customerValueName: (propertyName, _) => _identifierFor(propertyName),
+      customValueName: (propertyName, _) => _identifierFor(propertyName),
     );
   }
 
   factory _A2uiGeneratedSymbolPlan._allocate(
     A2uiDartWidgetPlan widget, {
-    required String Function(String propertyName, int index) customerValueName,
+    required String Function(String propertyName, int index) customValueName,
     Set<String> generatedIdentifiers = const <String>{},
   }) {
     final allocator = _GeneratedDartSymbolAllocator();
@@ -5012,7 +5012,7 @@ final class _A2uiGeneratedSymbolPlan {
 
     // Every generator-owned declaration has now claimed its preferred name.
     // Reserve every remaining bare identifier rendered anywhere in this exact
-    // builder scope before source-derived customer leaf locals are allocated.
+    // builder scope before source-derived custom leaf locals are allocated.
     allocator.reserveAll(generatedIdentifiers);
 
     final valueByProperty = <String, String>{};
@@ -5021,7 +5021,7 @@ final class _A2uiGeneratedSymbolPlan {
       if (field.emission case A2uiDataField(rich: false)) {
         final name = field.property.name;
         valueByProperty[name] = allocator.allocate(
-          customerValueName(name, valueIndex),
+          customValueName(name, valueIndex),
         );
         valueIndex += 1;
       }
@@ -5073,7 +5073,7 @@ return ${scope.returnExpression};
   /// The map containing exact source property names for this component.
   String get fieldData => props ?? data;
 
-  /// The customer-only declaration that extracts the required root `props`.
+  /// The custom-only declaration that extracts the required root `props`.
   String? get propsDeclaration {
     final props = this.props;
     if (props == null) return null;

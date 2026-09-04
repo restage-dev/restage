@@ -134,7 +134,7 @@ void main() {
   test('registered surface and artifact kinds remain typed bounded IDs', () {
     expect(
         DeliverySurfaceTypeId('future-conforming').value, 'future-conforming');
-    expect(ArtifactKindId('customer.inline-v2').value, 'customer.inline-v2');
+    expect(ArtifactKindId('custom.inline-v2').value, 'custom.inline-v2');
     expect(() => DeliverySurfaceTypeId(''), throwsArgumentError);
     expect(() => ArtifactKindId('A' * 129), throwsArgumentError);
     const unknownAnalyticsKey = 'Checkout/特別-Offre_β';

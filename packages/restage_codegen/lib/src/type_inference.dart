@@ -23,25 +23,25 @@ const Map<String, PropertyType> _frameworkValueTypes = {
   'Curve': PropertyType.curve,
 };
 
-/// A customer type whose name matches a framework value type but whose
+/// A custom type whose name matches a framework value type but whose
 /// defining library is not a framework library.
 @immutable
 final class FrameworkLookalike {
   /// Creates a lookalike record.
   const FrameworkLookalike({required this.name, required this.library});
 
-  /// The framework type name the customer type shares.
+  /// The framework type name the custom type shares.
   final String name;
 
-  /// The resolved defining library of the customer type.
+  /// The resolved defining library of the custom type.
   final String library;
 }
 
-/// Returns a [FrameworkLookalike] when [t] is a customer type sharing its name
+/// Returns a [FrameworkLookalike] when [t] is a custom type sharing its name
 /// with a framework value type, or null otherwise.
 ///
 /// Property classification matches on resolved defining library, not on name,
-/// so a customer class called Color is correctly not Flutter's Color. This
+/// so a custom class called Color is correctly not Flutter's Color. This
 /// reports that case so a rejection can say why a familiar name was refused.
 FrameworkLookalike? frameworkLookalike(DartType t) {
   final element = t.element;
@@ -82,10 +82,10 @@ FrameworkLookalike? frameworkLookalike(DartType t) {
 ///   * `Curve` → [PropertyType.curve]
 ///   * Any Dart `enum` type → [PropertyType.enumValue]
 ///
-/// A customer class with the same name as one of these framework types
+/// A custom class with the same name as one of these framework types
 /// deliberately does not match. Nullability does not affect the result, so
 /// `Color?` and `Color` map to the same value.
-// Framework-versus-customer identity is decided here. The resulting pairing
+// Framework-versus-custom identity is decided here. The resulting pairing
 // is defensively verified again in widgetbook_native_value_plan.dart.
 PropertyType? inferPropertyType(DartType t) {
   // Primitives — nullability irrelevant for these checks.

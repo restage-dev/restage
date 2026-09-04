@@ -11,10 +11,10 @@ import 'package:rfw_catalog_schema/src/widget_library.dart';
 /// and emits `lib/registry.dart` plus `lib/src/widget_catalog/catalog.json`.
 /// Has no runtime effect — annotations are erased outside the builder.
 ///
-/// Customer-registered libraries use `@RestageWidget` on each widget
+/// Custom-registered libraries use `@RestageWidget` on each widget
 /// class instead; this annotation targets only the three sibling built-in
 /// libraries (`restage_core`, `restage_material`, `restage_cupertino`)
-/// and customer-authored design-system curation files that follow the
+/// and custom-authored design-system curation files that follow the
 /// same pattern.
 ///
 /// ```dart

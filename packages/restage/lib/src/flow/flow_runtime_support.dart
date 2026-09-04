@@ -102,7 +102,7 @@ final class FlowScreenLibraries {
   final WidgetLibrary _cupertino;
 
   /// A fresh [Runtime] importing the base libraries plus the given [screen]
-  /// blob under [kFlowScreenLibrary], with the customer widget registry applied.
+  /// blob under [kFlowScreenLibrary], with the custom widget registry applied.
   Runtime runtimeFor(WidgetLibrary screen) {
     final runtime = RestageRenderRuntime()
       ..update(kFlowCoreLibrary, _core)

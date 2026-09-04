@@ -2348,7 +2348,7 @@ Object x() => const Heading();
     });
 
     test(
-        'a customer FontWeight look-alike (a non-Flutter class) defers — '
+        'a custom FontWeight look-alike (a non-Flutter class) defers — '
         'no enum string is emitted (element-gated)', () async {
       final result = await _transpile(
         '''
@@ -2390,9 +2390,9 @@ Object x() => const Heading();
         rootPackage: 'apps_examples',
       );
 
-      // The customer `FontWeight` is not the framework class, so the widget
+      // The custom `FontWeight` is not the framework class, so the widget
       // defers — no blob, and crucially no `"w600"` string substituted for the
-      // customer's value (the value-substitution silent-wrong stays closed).
+      // app's value (the value-substitution silent-wrong stays closed).
       expect(result.decoded, isNull);
       expect(result.issues, isNotEmpty);
     });
@@ -2448,7 +2448,7 @@ Object x() => const Heading();
     });
 
     test(
-        'a customer TextDecoration look-alike (a non-Flutter class) defers — '
+        'a custom TextDecoration look-alike (a non-Flutter class) defers — '
         'no enum string is emitted (element-gated)', () async {
       final result = await _transpile(
         '''
@@ -2490,9 +2490,9 @@ Object x() => const Heading();
         rootPackage: 'apps_examples',
       );
 
-      // The customer `TextDecoration` is not the framework class, so the widget
+      // The custom `TextDecoration` is not the framework class, so the widget
       // defers — no blob, and no `"underline"` string substituted for the
-      // customer's value (the value-substitution silent-wrong stays closed).
+      // app's value (the value-substitution silent-wrong stays closed).
       expect(result.decoded, isNull);
       expect(result.issues, isNotEmpty);
     });
@@ -2592,7 +2592,7 @@ Object x() => const Anim();
     });
 
     test(
-        'a customer Curves look-alike (a non-Flutter class) defers — no curve '
+        'a custom Curves look-alike (a non-Flutter class) defers — no curve '
         'name is emitted (element-gated)', () async {
       final result = await _transpile(
         '''
@@ -2634,7 +2634,7 @@ Object x() => const Anim();
         rootPackage: 'apps_examples',
       );
 
-      // The customer `Curves` is not the framework class, so the widget defers
+      // The custom `Curves` is not the framework class, so the widget defers
       // — no blob, and no `"easeInOut"` string substituted for the author's
       // own value (the value-substitution silent-wrong stays closed).
       expect(result.decoded, isNull);
@@ -2856,7 +2856,7 @@ Object x() => const Acme();
     });
 
     test(
-        'a customer EdgeInsets.zero look-alike (a non-Flutter class) defers — '
+        'a custom EdgeInsets.zero look-alike (a non-Flutter class) defers — '
         'no zero list substituted', () async {
       final result = await _transpile(
         '''
@@ -2903,7 +2903,7 @@ Object x() => const Acme();
     });
 
     test(
-        'a customer BorderSide.none look-alike (a non-Flutter class) defers — '
+        'a custom BorderSide.none look-alike (a non-Flutter class) defers — '
         'no framework none-map substituted', () async {
       final result = await _transpile(
         '''
@@ -4271,13 +4271,12 @@ Object x() => AcmeBox();
     });
   });
 
-  // A REGISTERED customer widget (one present in the merged catalog, as it is
+  // A REGISTERED custom widget (one present in the merged catalog, as it is
   // once its package emits catalog.json) keeps its inline-vs-reference choice by
   // class: an inlineable widget still inlines — its composition travels
   // in the blob and renders with no runtime factory; an imperative widget
   // widget references the catalog entry, resolved by the runtime factory.
-  group(
-      'registered customer widget — inlineable inlines, app-backed references',
+  group('registered custom widget — inlineable inlines, app-backed references',
       () {
     Catalog catalogWithCustom(List<WidgetEntry> widgets) => Catalog(
           schemaVersion: kSupportedSchemaVersion,
@@ -4303,8 +4302,7 @@ Object x() => AcmeBox();
           flutterType: 'package:$rootPackage/_e2e_probe.dart#$name',
         );
 
-    test('a registered inlineable customer widget emits a definition',
-        () async {
+    test('a registered inlineable custom widget emits a definition', () async {
       final result = await _transpile(
         '''
 $kClassifierStubs
@@ -4511,7 +4509,7 @@ Object x() => Pair(
     });
 
     test(
-        'an app-backed customer widget is referenced (no inline definition, '
+        'an app-backed custom widget is referenced (no inline definition, '
         'no customWidgetUnclassified)', () async {
       final result = await _transpile(
         '''
@@ -4560,9 +4558,9 @@ Object x() => AppBackedBadge(label: "Pro", count: 3);
     });
 
     test(
-        'an app-backed customer widget named like a surface root fails loud '
+        'an app-backed custom widget named like a surface root fails loud '
         '(never a silent self-reference)', () async {
-      // A registered customer widget whose name is the reserved paywall root
+      // A registered custom widget whose name is the reserved paywall root
       // name would emit `Paywall(...)` into the blob, which name-resolution
       // binds to the surface root itself (self-recursion). The reference path
       // must diagnose it, not emit an admitted-but-wrong reference. Referenced

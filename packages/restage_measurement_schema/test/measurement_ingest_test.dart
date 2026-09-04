@@ -66,18 +66,20 @@ void main() {
       );
     });
 
-    test('rejects a frame with a subject field before encoding', () {
-      final frame = decodeCanonicalObject(_validFrameBytes());
-      final injectedSubject = CanonicalJsonCodec.encode({
-        ...frame,
-        'customerId': 'must-not-be-accepted',
-      });
+    for (final subjectField in const ['customerId', 'purchaserId']) {
+      test('rejects a frame with a $subjectField field before encoding', () {
+        final frame = decodeCanonicalObject(_validFrameBytes());
+        final injectedSubject = CanonicalJsonCodec.encode({
+          ...frame,
+          subjectField: 'must-not-be-accepted',
+        });
 
-      expect(
-        () => MeasurementFactFrameV1.fromCanonicalBytes(injectedSubject),
-        throwsA(isA<MeasurementIngestCodecException>()),
-      );
-    });
+        expect(
+          () => MeasurementFactFrameV1.fromCanonicalBytes(injectedSubject),
+          throwsA(isA<MeasurementIngestCodecException>()),
+        );
+      });
+    }
   });
 
   group('MeasurementIngestReceiptV1', () {

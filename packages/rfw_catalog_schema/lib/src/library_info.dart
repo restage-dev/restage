@@ -17,7 +17,7 @@ final class LibraryInfo {
   /// The library's declared **capability version** — a monotonic integer that
   /// tracks the library's render-support line, used to derive a delivered
   /// surface's capability floor. This is **distinct from [version]**: it is
-  /// NOT the pub package semantic version; it is the customer-declared
+  /// NOT the pub package semantic version; it is the app-declared
   /// `@RestageLibrary(capabilityVersion: …)` value.
   ///
   /// `null` means the library declared no capability version. Built-in

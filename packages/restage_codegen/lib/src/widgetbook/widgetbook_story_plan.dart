@@ -5,7 +5,7 @@ import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/type.dart';
 import 'package:restage_codegen/src/a2ui/a2ui_legacy_constraint_parser.dart';
 import 'package:restage_codegen/src/callback_shape.dart';
-import 'package:restage_codegen/src/customer_structured_admissibility.dart';
+import 'package:restage_codegen/src/custom_structured_admissibility.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/enum_constant_identity.dart';
 import 'package:restage_codegen/src/target_config_reader.dart';
@@ -369,7 +369,7 @@ final class WidgetbookStoryPlan {
     required this.variants,
   });
 
-  /// Customer widget source facts.
+  /// Custom widget source facts.
   final WidgetbookWidgetSource widget;
 
   /// Properties in catalog/source order.
@@ -408,7 +408,7 @@ final class WidgetbookStoryPlan {
   }
 }
 
-/// Builds a total, seed-resolved story plan for one customer widget.
+/// Builds a total, seed-resolved story plan for one custom widget.
 WidgetbookStoryPlan planWidgetbookStory({
   required WidgetbookCatalogSourceIndex index,
   required WidgetbookWidgetSource widget,
@@ -1521,7 +1521,7 @@ void _validateImportableEnumType(
     try {
       publicDartImportUri(library);
       // The resolver reports malformed or unmapped source identities as an
-      // Error; translate that failure to this customer property path.
+      // Error; translate that failure to this custom property path.
       // ignore: avoid_catching_errors
     } on StateError {
       importable = false;
@@ -1543,7 +1543,7 @@ void _validateSynthesizedConstraints(PropertyEntry property) {
   final isCollection = property.type == PropertyType.widgetList ||
       property.type == PropertyType.stringList ||
       property.type == PropertyType.booleanList ||
-      isCustomerStructuredListShape(property.valueShape);
+      isCustomStructuredListShape(property.valueShape);
   final collectionOnly = isCollection &&
       constraints.minimum == null &&
       constraints.exclusiveMinimum == null &&
@@ -1639,7 +1639,7 @@ AnalyzerEnumConstant? _canonicalEnumConstructorDefault(
 }
 
 // Semantic constraint input only. The exact emitted constructor-default plan
-// stays separate so successful validation never flattens a customer's const
+// stays separate so successful validation never flattens an app's const
 // identity or source reference.
 sealed class _ConstraintValidationTransport {
   const _ConstraintValidationTransport();
@@ -1710,7 +1710,7 @@ _ConstraintValidationTransport? _constructorConstraintValidationTransport(
   }
 
   if (property.type == PropertyType.widgetList ||
-      isCustomerStructuredListShape(property.valueShape)) {
+      isCustomStructuredListShape(property.valueShape)) {
     final values = value.toListValue();
     return values == null
         ? null
@@ -1996,7 +1996,7 @@ bool _needsNativeWrapper(PropertyEntry property) =>
     property.type == PropertyType.widget ||
     property.type == PropertyType.widgetList ||
     property.type == PropertyType.structured ||
-    isCustomerStructuredListShape(property.valueShape);
+    isCustomStructuredListShape(property.valueShape);
 
 Object? _scalarPreview(DartType type, PropertyEntry property) {
   switch (property.type) {
@@ -2200,7 +2200,7 @@ void validateWidgetbookConstraintApplicability(
   final collectionProperty = property.type == PropertyType.widgetList ||
       property.type == PropertyType.stringList ||
       property.type == PropertyType.booleanList ||
-      isCustomerStructuredListShape(property.valueShape);
+      isCustomStructuredListShape(property.valueShape);
   if (hasItems && !collectionProperty) {
     throw StateError(
       'Widgetbook constraints at $path: item constraints are not valid for '

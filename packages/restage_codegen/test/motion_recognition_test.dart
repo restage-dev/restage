@@ -45,9 +45,9 @@ Object x() => $body;
       expect(springAdoptTarget(expr), isNull);
     });
 
-    test('a customer look-alike SpringDescription is NOT named (element gate)',
+    test('a custom look-alike SpringDescription is NOT named (element gate)',
         () async {
-      // A customer class named SpringDescription resolves to a non-flutter
+      // A custom class named SpringDescription resolves to a non-flutter
       // library; the gate withholds the hint (a coincidental name is not a
       // Flutter spring).
       final expr = await parseExpressionFromSourceForTest('''
@@ -110,7 +110,7 @@ Object x() => SpringDescription(mass: 1, stiffness: 100, damping: 10);
 
     test('a look-alike AnimationController is NOT motion (element gate)',
         () async {
-      // A customer class named AnimationController resolves to a non-flutter
+      // A custom class named AnimationController resolves to a non-flutter
       // library; the gate withholds the hint (a coincidental name is not a
       // Flutter animation controller).
       final expr = await parseExpressionFromSourceForTest('''

@@ -13,7 +13,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 ///
 /// Visitors share this object so a later visitor can read findings
 /// contributed by earlier visitors (e.g. paywall translation reading
-/// customer-registered widget entries). Visitors must not mutate the
+/// custom-registered widget entries). Visitors must not mutate the
 /// `library` reference; only the accumulator fields are write-targets.
 @internal
 final class CodegenBuildState {
@@ -44,7 +44,7 @@ final class CodegenBuildState {
   final List<PaywallSourceFound> paywallSources = [];
 
   /// `@RestageWidget`-annotated classes discovered during the visitor pass.
-  /// Empty until the customer-widget visitor runs.
+  /// Empty until the custom-widget visitor runs.
   final List<WidgetEntry> widgetEntries = [];
 }
 
@@ -62,7 +62,7 @@ final class CodegenBuildState {
 // hold per-implementation configuration (analyzer helpers, registries) as
 // fields, and each implementation contributes its own walker — the
 // `@PaywallSource` walker and the `@RestageWidget` walker for
-// customer-registered widgets. The interface shape is the shared contract.
+// custom-registered widgets. The interface shape is the shared contract.
 // ignore: one_member_abstracts
 @internal
 abstract interface class LibraryVisitor {

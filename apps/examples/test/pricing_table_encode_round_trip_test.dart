@@ -67,7 +67,7 @@ void main() {
       expect(plans[0].price.amount, 1999); // positional Price arg
       expect(plans[0].price.currency, 'USD'); // named Price arg
       expect(plans[0].badge, 'Most popular'); // optional-nullable, present
-      expect(plans[0].tier, PlanTier.pro); // customer enum
+      expect(plans[0].tier, PlanTier.pro); // custom enum
 
       // Element 1 — the 'Starter' plan: the optionals the source OMITS
       // reconstruct as the constructor default (currency 'USD', tier starter)

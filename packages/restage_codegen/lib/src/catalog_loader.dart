@@ -116,7 +116,7 @@ Future<Catalog> loadMergedCatalog(BuildStep buildStep) async {
     return a.name.compareTo(b.name);
   });
 
-  await _mergeCustomerCatalog(
+  await _mergeCustomCatalog(
     buildStep,
     widgets: widgets,
     structuredTypes: structuredTypes,
@@ -139,7 +139,7 @@ Future<Catalog> loadMergedCatalog(BuildStep buildStep) async {
   );
 }
 
-/// Merges the customer's own generated catalog — the custom `@RestageLibrary`
+/// Merges the app's own generated catalog — the custom `@RestageLibrary`
 /// widgets at `lib/src/widget_catalog/catalog.json` in the package being built
 /// — into the [widgets]/[structuredTypes]/[unions]/[designTokens]/[compatRules]
 /// /[libraries] accumulators already populated with the built-ins.
@@ -148,14 +148,14 @@ Future<Catalog> loadMergedCatalog(BuildStep buildStep) async {
 /// into them), so the built-in resolution order is preserved — a built-in
 /// widget name always resolves to its built-in, never a custom shadow — and the
 /// built-in byte order is unchanged. Only custom-library entries are taken
-/// (defensive against a customer catalog that somehow carries a built-in).
+/// (defensive against a custom catalog that somehow carries a built-in).
 ///
 /// The built-in catalog packages are already merged via their fixed asset ids,
-/// so the customer read is **skipped when the input package is itself a
+/// so the custom read is **skipped when the input package is itself a
 /// built-in catalog package** — its catalog must never be re-merged as if it
 /// were custom. A package that ships no custom catalog (the common case)
 /// contributes nothing.
-Future<void> _mergeCustomerCatalog(
+Future<void> _mergeCustomCatalog(
   BuildStep buildStep, {
   required List<WidgetEntry> widgets,
   required List<StructuredEntry> structuredTypes,
@@ -171,7 +171,7 @@ Future<void> _mergeCustomerCatalog(
 
   final customId = AssetId(inputPackage, 'lib/src/widget_catalog/catalog.json');
   // Register the read even on a cache miss so build_runner re-runs every
-  // dependent paywall when the customer catalog changes under `--watch`.
+  // dependent paywall when the custom catalog changes under `--watch`.
   await buildStep.canRead(customId);
 
   String? customJson;
@@ -215,7 +215,7 @@ Future<void> _mergeCustomerCatalog(
 /// helper lets the caller distinguish "no match" from "ambiguous match
 /// across libraries" and emit the right diagnostic. A single match means
 /// the translation is unambiguous; multiple matches mean the same widget
-/// name is registered in two or more libraries (e.g. a customer library
+/// name is registered in two or more libraries (e.g. a custom library
 /// that shadows a built-in name).
 List<WidgetEntry> findWidgetsByName(Catalog catalog, String name) => [
       for (final w in catalog.widgets)

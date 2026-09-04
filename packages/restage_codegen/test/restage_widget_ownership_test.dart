@@ -17,7 +17,7 @@ void main() {
         'lib/widgets/card.dart': '''
           import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-          /// A customer card.
+          /// A custom card.
           @RestageWidget()
           class ProductCard {
             const ProductCard();
@@ -64,7 +64,7 @@ void main() {
       'lib/widgets/card.dart': '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-        /// A customer card.
+        /// A custom card.
         @RestageWidget(
           name: 'HeroCard',
           category: WidgetCategory.decoration,
@@ -88,7 +88,7 @@ void main() {
       'lib/card.dart': '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-        /// A customer card.
+        /// A custom card.
         @RestageWidget()
         class ProductCard {
           const ProductCard();
@@ -189,7 +189,7 @@ void main() {
 String _card({String? explicitLibrary, String? explicitName}) => '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
-  /// A customer card.
+  /// A custom card.
   @RestageWidget(
     ${explicitName == null ? '' : "name: '$explicitName',"}
     ${explicitLibrary == null ? '' : "library: WidgetLibrary.custom('$explicitLibrary'),"}

@@ -61,7 +61,7 @@ DartType? listItemType(DartType type) {
 ///
 /// The single definition of "this is the core map type". Checked by library
 /// identity as well as by name and arity: a project class merely *named* `Map`
-/// is not the core one, and admitting it here would let a customer class be
+/// is not the core one, and admitting it here would let a custom class be
 /// seeded as a map by one pass and rejected as a non-map by another.
 InterfaceType? dartCoreMapType(DartType type) {
   if (type is! InterfaceType ||

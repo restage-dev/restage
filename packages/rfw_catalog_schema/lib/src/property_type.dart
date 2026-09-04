@@ -1,7 +1,7 @@
 /// Property value types the catalog supports.
 ///
 /// Authored on each `PropertyEntry` in the per-library registry and
-/// inferred from a customer field's static Dart type at codegen time.
+/// inferred from a custom field's static Dart type at codegen time.
 /// Consumed by the editor inspector and the codegen AST validator.
 enum PropertyType {
   /// A nested widget (single-child slot).

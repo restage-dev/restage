@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:analyzer/dart/element/element.dart';
 import 'package:analyzer/dart/element/nullability_suffix.dart';
 import 'package:analyzer/dart/element/type.dart';
-import 'package:restage_codegen/src/customer_structured_admissibility.dart';
+import 'package:restage_codegen/src/custom_structured_admissibility.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/widget_constructor_facts.dart';
 import 'package:restage_codegen/src/widgetbook/widgetbook_catalog_source_index.dart';
@@ -69,7 +69,7 @@ final class WidgetbookDartTypePlan {
       : this;
 }
 
-/// One story property type and the customer source path that requires
+/// One story property type and the custom source path that requires
 /// Widgetbook's generated part to reproduce it bare.
 typedef WidgetbookDartTypeUse = ({
   WidgetbookDartTypePlan type,
@@ -247,7 +247,7 @@ final class WidgetbookPlaceholderWidgetValuePlan
   const WidgetbookPlaceholderWidgetValuePlan({required super.type});
 }
 
-/// Customer structured or widget constructor expression.
+/// Custom structured or widget constructor expression.
 final class WidgetbookConstructorValuePlan extends WidgetbookNativeValuePlan {
   /// Creates a constructor plan.
   const WidgetbookConstructorValuePlan({
@@ -263,7 +263,7 @@ final class WidgetbookConstructorValuePlan extends WidgetbookNativeValuePlan {
   final List<WidgetbookNativeArgumentPlan> arguments;
 }
 
-/// Lowers validated canonical customer values to typed native-Dart IR.
+/// Lowers validated canonical custom values to typed native-Dart IR.
 final class WidgetbookNativeValuePlanner {
   /// Creates a planner over one package index.
   const WidgetbookNativeValuePlanner(this.index);
@@ -284,7 +284,7 @@ final class WidgetbookNativeValuePlanner {
       input.type,
       path,
       context: WidgetbookPropertyContext.widgetProperty,
-      customerStructuredList: isCustomerStructuredListShape(
+      customStructuredList: isCustomStructuredListShape(
         property.valueShape,
       ),
     );
@@ -345,7 +345,7 @@ final class WidgetbookNativeValuePlanner {
       context: index.structuredBySourceType.containsKey(ownerSourceType)
           ? WidgetbookPropertyContext.structuredField
           : WidgetbookPropertyContext.widgetProperty,
-      customerStructuredList: isCustomerStructuredListShape(valueShape),
+      customStructuredList: isCustomStructuredListShape(valueShape),
     );
     final type = WidgetbookDartTypePlan.fromAnalyzer(dartType, path: path);
     if (value == null) {
@@ -355,11 +355,11 @@ final class WidgetbookNativeValuePlanner {
       return WidgetbookNullValuePlan(type: type);
     }
 
-    if (!isCustomerStructuredListShape(valueShape)) {
+    if (!isCustomStructuredListShape(valueShape)) {
       _validateNativeInput(propertyType, dartType, value, path);
     }
 
-    if (isCustomerStructuredListShape(valueShape)) {
+    if (isCustomStructuredListShape(valueShape)) {
       if (value is! List<Object?> || dartType is! InterfaceType) {
         throw StateError(
           'Widgetbook native value at $path is not a typed structured list.',
@@ -511,13 +511,13 @@ final class WidgetbookNativeValuePlanner {
       context: index.structuredBySourceType.containsKey(ownerSourceType)
           ? WidgetbookPropertyContext.structuredField
           : WidgetbookPropertyContext.widgetProperty,
-      customerStructuredList: isCustomerStructuredListShape(valueShape),
+      customStructuredList: isCustomStructuredListShape(valueShape),
     );
     final type = WidgetbookDartTypePlan.fromAnalyzer(dartType, path: path);
     if (nullableFallback && type.nullable) {
       return WidgetbookNullValuePlan(type: type);
     }
-    if (isCustomerStructuredListShape(valueShape)) {
+    if (isCustomStructuredListShape(valueShape)) {
       if (dartType is! InterfaceType || dartType.typeArguments.length != 1) {
         throw StateError('Widgetbook preview at $path is not a typed list.');
       }
@@ -926,7 +926,7 @@ final class WidgetbookNativeDartRenderer {
 
   late final DartImportPlanner _imports;
 
-  /// Deterministic prefixed customer imports required by the plans.
+  /// Deterministic prefixed custom imports required by the plans.
   Iterable<String> get importDirectives => _imports.importDirectives;
 
   /// Renders a static Dart type.
@@ -1345,9 +1345,9 @@ void _validatePropertyDartType(
   DartType dartType,
   String path, {
   required WidgetbookPropertyContext context,
-  required bool customerStructuredList,
+  required bool customStructuredList,
 }) {
-  if (!customerStructuredList &&
+  if (!customStructuredList &&
       widgetbookPropertyCapability(propertyType, context: context) ==
           WidgetbookPropertyCapability.rejected) {
     throw StateError(
@@ -1376,10 +1376,10 @@ void _validatePropertyDartType(
     );
   }
 
-  if (customerStructuredList) {
+  if (customStructuredList) {
     if (!isDartCore('List') || dartType.typeArguments.length != 1) {
       throw StateError(
-        'Widgetbook native value at $path expected a customer structured '
+        'Widgetbook native value at $path expected a custom structured '
         'List, but the analyzer resolved `${dartType.getDisplayString()}`.',
       );
     }

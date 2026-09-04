@@ -13,8 +13,8 @@ import 'package:restage_codegen/src/catalog_loader.dart';
 import 'package:restage_codegen/src/collection_unroll.dart';
 import 'package:restage_codegen/src/commerce_authoring.dart';
 import 'package:restage_codegen/src/const_folding.dart';
+import 'package:restage_codegen/src/custom_structured_value_emitter.dart';
 import 'package:restage_codegen/src/custom_widget_blueprint.dart';
-import 'package:restage_codegen/src/customer_structured_value_emitter.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/draggable_sheet_recognition.dart';
 import 'package:restage_codegen/src/dsl_emission.dart';
@@ -331,7 +331,7 @@ final class ExpressionTranslator {
   /// Test-only override of the framework-value-type predicate the
   /// value-substitution gate keys on. Production is strict-by-default
   /// ([isFrameworkValueTypeLibrary] — `dart:` / `package:flutter/`), and that
-  /// deferral of a resolved customer look-alike is proven through the
+  /// deferral of a resolved custom look-alike is proven through the
   /// PRODUCTION constructor by the value-substitution sweep tests. The seam
   /// exists because the synthetic-catalog tests mount their decompose-recipe
   /// identities AND their value-type stubs at one non-framework URI
@@ -575,7 +575,7 @@ final class ExpressionTranslator {
     translateSlotElement: _translateSlotElement,
     translateTypedListTerminal: _translateTypedListTerminal,
     // Inject the (forTesting-aware) framework-value-type predicate so the
-    // member-table nested-value gate defers a resolved customer look-alike
+    // member-table nested-value gate defers a resolved custom look-alike
     // consistently with the hand-authored helpers.
     isFrameworkLibrary: _isFrameworkValueType,
   );
@@ -586,28 +586,28 @@ final class ExpressionTranslator {
   late final NativeCatalogIndex _nativeCatalogIndex =
       NativeCatalogIndex(catalog);
 
-  /// Customer structured types keyed by resolved Dart type, derived directly
+  /// Custom structured types keyed by resolved Dart type, derived directly
   /// from the merged catalog's `structuredTypes` (a plain source-type parse —
   /// NOT the native-validated [_nativeCatalogIndex], which rejects a catalog
   /// carrying unallocated sentinel wire IDs). The encode recognition only needs
   /// the entry's fields, so this avoids paying native validation on every
   /// non-framework construction — and reads the SAME `StructuredEntry` the
   /// decoder does, so encode↔decode key symmetry stays by construction.
-  late final Map<DartTypeRef, StructuredEntry> _customerStructuredByDartType = {
+  late final Map<DartTypeRef, StructuredEntry> _customStructuredByDartType = {
     for (final structured in catalog.structuredTypes)
       if (dartTypeRefFromSourceType(structured.sourceType) case final ref?)
         ref: structured,
   };
 
-  /// Emits the RFW DSL map for a customer STRUCTURED VALUE authored in a
-  /// paywall body — the ENCODE side of the customer-structured render path.
+  /// Emits the RFW DSL map for a custom STRUCTURED VALUE authored in a
+  /// paywall body — the ENCODE side of the custom-structured render path.
   /// `late final` so the injected method tear-offs bind to a fully-constructed
   /// `this`.
-  late final CustomerStructuredValueEmitter _customerStructuredValue =
-      CustomerStructuredValueEmitter(
+  late final CustomStructuredValueEmitter _customStructuredValue =
+      CustomStructuredValueEmitter(
     structuredValueFor: (expr) {
       final ref = _dartTypeRefOfInstanceCreation(expr);
-      return ref == null ? null : _customerStructuredByDartType[ref];
+      return ref == null ? null : _customStructuredByDartType[ref];
     },
     dispatch: _recipeDispatcher.emit,
     locationOf: _locationOf,
@@ -2388,7 +2388,7 @@ final class ExpressionTranslator {
     if (prefix == 'Colors') {
       // The `Colors.*` arm lowers against a hard-coded Material colour table,
       // so it must fire ONLY for the real `package:flutter` `Colors` — a
-      // customer class that happens to be named `Colors` would otherwise be
+      // custom class that happens to be named `Colors` would otherwise be
       // lowered to the Material int instead of the author's value, a
       // value-wrong blob the colour floor cannot catch (any int is a valid
       // colour). An unresolved prefix defers too (never name-match).
@@ -2415,7 +2415,7 @@ final class ExpressionTranslator {
       // the identifier would fall through to the enum-string branch
       // and the runtime would reject the property type. Gated to the real
       // `package:flutter` namespaces so no name-only path survives: a
-      // customer class named `Icons` (or an unresolved prefix) defers.
+      // custom class named `Icons` (or an unresolved prefix) defers.
       if (!_prefixResolvesToFlutter(expr.prefix)) {
         return _deferFrameworkConstLookalike(expr, prefix, identifier, issues);
       }
@@ -2426,7 +2426,7 @@ final class ExpressionTranslator {
     // explicit zero constructors (`EdgeInsets.all(0)` / `BorderRadius` zero) —
     // without this they fall through to the bare-name path and emit `"zero"`,
     // which the value-type floor then rejects. Gated to the real framework
-    // type: a resolved customer `EdgeInsets` / `BorderRadius` look-alike with a
+    // type: a resolved custom `EdgeInsets` / `BorderRadius` look-alike with a
     // `zero` member defers rather than lowering as the framework zero value
     // (the value-substitution silent-wrong). NOTE the two predicates in this
     // method are intentionally NOT the same: the `Colors`/`Icons` arms above
@@ -2453,7 +2453,7 @@ final class ExpressionTranslator {
     // `Offset.zero` lowers to the same `{x, y}` map the `Offset(0, 0)` ctor
     // produces — without this it falls through to the bare-name path and
     // emits `"zero"`, which the value-type floor then rejects. Element-gated
-    // like the sibling `.zero` accessors: a resolved customer `Offset`
+    // like the sibling `.zero` accessors: a resolved custom `Offset`
     // look-alike with a `zero` member defers rather than lowering as the
     // framework zero value.
     if (prefix == 'Offset' && identifier == 'zero') {
@@ -2466,13 +2466,13 @@ final class ExpressionTranslator {
     // A concrete framework `Alignment.<member>` used by the catalog's flat
     // alignment decoder. This is a static-const family rather than an enum, so
     // it needs an explicit element-gated lowering after the general unresolved
-    // non-enum fall-through was closed. A customer `Alignment` look-alike and
+    // non-enum fall-through was closed. A custom `Alignment` look-alike and
     // an unresolved prefix both continue to the diagnosed path below.
     if (prefix == 'Alignment' && _isFrameworkValueType(expr.prefix.element)) {
       return '"$identifier"';
     }
 
-    // A `FontWeight.<member>` reference. A resolved CUSTOMER class named
+    // A `FontWeight.<member>` reference. A resolved CUSTOM class named
     // `FontWeight` must NOT lower to a framework weight name — its `.w600`
     // would otherwise emit `"w600"`, which the `enumValue<FontWeight>` decoder
     // resolves to the REAL framework weight (a value-substitution silent-wrong
@@ -2506,10 +2506,10 @@ final class ExpressionTranslator {
     }
 
     // A `TextDecoration.<member>` reference. Like FontWeight, a resolved
-    // CUSTOMER class named `TextDecoration` must NOT lower to the bare member
+    // CUSTOM class named `TextDecoration` must NOT lower to the bare member
     // name — the runtime defaults an unknown decoration string to
     // `TextDecoration.none`, a silent drop for the author's own type. Defer the
-    // resolved-customer case; the real framework class (and an unresolved
+    // resolved-custom case; the real framework class (and an unresolved
     // synthetic prefix) keeps the member-name path below, which the decoder
     // resolves.
     if (prefix == 'TextDecoration' &&
@@ -2522,11 +2522,11 @@ final class ExpressionTranslator {
     }
 
     // A `Curves.<member>` reference. Like FontWeight/TextDecoration, a resolved
-    // CUSTOMER class named `Curves` must NOT lower to the bare member name: the
+    // CUSTOM class named `Curves` must NOT lower to the bare member name: the
     // curve decoder would resolve a coincidentally-supported name (e.g.
     // `easeIn`) to the REAL framework curve — a value-substitution silent-wrong
     // the curve validator backstop cannot catch, since it only rejects names
-    // OUTSIDE the supported set. Defer the resolved-customer case; the real
+    // OUTSIDE the supported set. Defer the resolved-custom case; the real
     // framework class (and an unresolved synthetic prefix) keeps the
     // member-name path below, where the catalog validator backstops the
     // supported curve set on the direct-paywall path.
@@ -2634,7 +2634,7 @@ final class ExpressionTranslator {
   }
 
   /// Whether [expr] is a constant that evaluates to a non-finite double —
-  /// `double.infinity` / `.negativeInfinity` / `.nan`, or a customer `const`
+  /// `double.infinity` / `.negativeInfinity` / `.nan`, or a custom `const`
   /// equal to one. Reached only after [tryFoldConstant] declined [expr] (a
   /// finite const already folded), so this is the non-finite-or-unresolved
   /// case.
@@ -2719,7 +2719,7 @@ final class ExpressionTranslator {
 
   /// Whether [prefix] resolves to a class in `package:flutter/` — the strict
   /// gate for the `Colors` / `Icons` / `CupertinoIcons` special arms. Mirrors
-  /// the inlining classifier's framework-const recognition: a customer class
+  /// the inlining classifier's framework-const recognition: a custom class
   /// that happens to be named `Colors` / `Icons` must NOT enter those arms, and
   /// an UNRESOLVED prefix (`element == null`) is NOT recognised — it defers.
   /// The translator runs on resolved ASTs in production, so a null element is
@@ -2733,7 +2733,7 @@ final class ExpressionTranslator {
   /// resolves to a framework value-type library (`dart:` / `package:flutter/`).
   /// The value-type recognition arms that also serve unresolved synthetic
   /// inputs (the bare-call `_methodInvocation` arms, the `.zero` const-factory
-  /// arms) gate on this: a resolved CUSTOMER look-alike (non-null,
+  /// arms) gate on this: a resolved CUSTOM look-alike (non-null,
   /// non-framework) defers — closing the value-substitution silent-wrong —
   /// while an unresolved reference keeps the name-based recognition. Production
   /// always resolves, so the unresolved branch is the test affordance, not a
@@ -2838,10 +2838,10 @@ final class ExpressionTranslator {
 
   /// Records the diagnostic for a `Colors` / `Icons` / `CupertinoIcons`
   /// reference whose prefix is not the real `package:flutter` namespace (a
-  /// customer lookalike or an unresolved prefix) and returns the empty-string
+  /// custom lookalike or an unresolved prefix) and returns the empty-string
   /// sentinel. Deferring here is the translator-strict half of the
   /// classifier-broad / translator-strict pattern: the classifier may fold a
-  /// customer scalar const into the composable set, but the translator refuses
+  /// custom scalar const into the composable set, but the translator refuses
   /// to lower a `Colors` / `Icons` reference that is not the framework's.
   String _deferFrameworkConstLookalike(
     PrefixedIdentifier expr,
@@ -3052,9 +3052,9 @@ final class ExpressionTranslator {
 
     // Value-substitution gate. The framework-value recognition below (the
     // recipe dispatch + the per-type value arms) is NAME-based. A resolved
-    // class that is neither `dart:` nor `package:flutter/` is customer code: it
+    // class that is neither `dart:` nor `package:flutter/` is custom code: it
     // cannot be a framework value type, so route it straight to widget
-    // construction — a custom `@RestageWidget` resolves there; a customer
+    // construction — a custom `@RestageWidget` resolves there; a custom
     // look-alike of a value type (its own `EdgeInsets` / `Color` / …) defers
     // with an `unknownWidget` diagnostic — rather than lowering it as the
     // framework value (a value-wrong blob the type-aware floor cannot catch,
@@ -3064,14 +3064,14 @@ final class ExpressionTranslator {
     // constructor, so production always takes the gated path.
     final ctorClass = _classOfInstanceCreation(expr);
     if (ctorClass != null && !_isFrameworkValueType(ctorClass)) {
-      // A resolved customer type is either a `@RestageWidget` (→ widget
-      // construction) or a customer STRUCTURED VALUE used as a property value
+      // A resolved custom type is either a `@RestageWidget` (→ widget
+      // construction) or a custom STRUCTURED VALUE used as a property value
       // (a discovered data class in the merged catalog). Try the structured
       // value first — a `null` result means it is not a structured type, so it
       // falls through to widget construction. Scoped to non-framework types, so
       // a framework value (`Offset`, `EdgeInsets`) never routes here (its
       // wire bytes are unchanged, emitted by the value-type path below).
-      final structuredValue = _customerStructuredValue.tryEmit(expr, issues);
+      final structuredValue = _customStructuredValue.tryEmit(expr, issues);
       if (structuredValue != null) return structuredValue;
       return _catalogWidgetConstruction(
         widgetName: typeName,
@@ -3187,7 +3187,7 @@ final class ExpressionTranslator {
     // RESOLVED. Unlike the read-only look-alike gates elsewhere (which tolerate
     // an unresolved reference as a synthetic-test affordance), this gate is the
     // SUBSTITUTION TARGET — the widget being replaced — so it requires a
-    // resolved `package:flutter/` `Text`: a customer `Text` look-alike resolves
+    // resolved `package:flutter/` `Text`: a custom `Text` look-alike resolves
     // elsewhere and is rejected, and an unresolved `Text` (uncompilable source)
     // is never rewritten. The strong intl gate below would already block a
     // coherent build (intl resolved ⟹ Text resolved), but requiring resolution
@@ -3205,7 +3205,7 @@ final class ExpressionTranslator {
 
     // The strong element gate: the first positional is a real `package:intl/`
     // NumberFormat `.format()` call. `numberFormatAdoptTarget` returns null for
-    // a customer look-alike, an unresolved reference, or a non-format call.
+    // a custom look-alike, an unresolved reference, or a non-format call.
     final adoptTarget = numberFormatAdoptTarget(first);
     if (adoptTarget == null) return null;
 
@@ -3859,7 +3859,7 @@ final class ExpressionTranslator {
       Issue(
         code: IssueCode.unrecognizedMethodCall,
         message: "'${expr.toSource()}' does not resolve to package:flutter's "
-            'Text.rich. A customer class named Text is not emitted as the '
+            'Text.rich. A custom class named Text is not emitted as the '
             'framework rich-text widget.',
         location: _locationOf(expr),
       ),
@@ -3871,7 +3871,7 @@ final class ExpressionTranslator {
       Issue(
         code: IssueCode.unrecognizedMethodCall,
         message: "'${expr.toSource()}' does not resolve to package:flutter's "
-            'TextSpan. A customer class named TextSpan is not emitted as an '
+            'TextSpan. A custom class named TextSpan is not emitted as an '
             'inline-span map.',
         location: _locationOf(expr),
       ),
@@ -3926,7 +3926,7 @@ final class ExpressionTranslator {
 
     // Named-intermediate inlining: a call whose method element the classifier
     // captured for THIS definition body is inlined to the helper's body —
-    // element-resolved identity, never name (a customer / different-library
+    // element-resolved identity, never name (a custom / different-library
     // look-alike resolves to a different element, is not captured, and falls
     // through). Mirrors the classifier's `_resolveInlinableHelper`. Fires for
     // ANY target — a bare own/top-level call (`_helper()`) or a qualified
@@ -3962,7 +3962,7 @@ final class ExpressionTranslator {
     // Number/currency formatting: a `NumberFormat.<ctor>(...).format(<value>)`
     // call on the real intl `NumberFormat` defers with a diagnostic that NAMES
     // the catalog widget to adopt (RestagePrice / RestageFormattedNumber).
-    // Element-gated on `package:intl/` so a customer class named NumberFormat
+    // Element-gated on `package:intl/` so a custom class named NumberFormat
     // is never named an intl adopt-target. The #2 auto-substitution recognizer
     // inserts ahead of this defer, for the statically-extractable shapes.
     final formatAdoptTarget = numberFormatAdoptTarget(expr);
@@ -3979,7 +3979,7 @@ final class ExpressionTranslator {
 
     // Value-substitution gate — the static-call counterpart of
     // _instanceCreation's (see there for the rationale). A `Foo.method(...)`
-    // whose target class resolves to a non-framework library is a customer
+    // whose target class resolves to a non-framework library is a custom
     // static-method look-alike (a real framework value construction parses as
     // an InstanceCreationExpression, handled there); route it to widget
     // construction (defer). A `target == null` bare call and an unresolved
@@ -4980,7 +4980,7 @@ final class ExpressionTranslator {
   /// the unexpressed behaviour.
   ///
   /// Gated on the resolved `package:flutter` PageView identity: returns `null`
-  /// (the caller continues to the `unknownWidget` path) for a customer
+  /// (the caller continues to the `unknownWidget` path) for a custom
   /// look-alike, an unresolved construction, or a catalog without RestagePager.
   /// Otherwise returns the emitted `RestagePager(...)` DSL, or `''` after
   /// recording a deferral Issue.
@@ -5124,7 +5124,7 @@ final class ExpressionTranslator {
   /// `viewportFraction` value expressions (either may be `null` when the author
   /// omitted it — RestagePager's defaults equal PageController's), or `null`
   /// for any non-flattenable shape: a non-construction (a bound identifier, a
-  /// factory call), a customer `PageController` look-alike, a named
+  /// factory call), a custom `PageController` look-alike, a named
   /// constructor, a positional argument, or any argument outside the flatten
   /// set (`keepPage` / `onAttach` / `onDetach` / …). A `null` return defers the
   /// whole PageView — complete-static-extraction-or-defer.
@@ -5164,7 +5164,7 @@ final class ExpressionTranslator {
   ///
   /// Gated on the resolved `package:flutter` DraggableScrollableSheet identity:
   /// returns `null` (the caller continues to the `unknownWidget` path) for a
-  /// customer look-alike, an unresolved construction, or a catalog without
+  /// custom look-alike, an unresolved construction, or a catalog without
   /// RestageDraggableSheet. Otherwise returns the emitted DSL, or `''` after
   /// recording a deferral Issue.
   String? _draggableScrollableSheetAlias({
@@ -5175,7 +5175,7 @@ final class ExpressionTranslator {
     required List<Issue> issues,
   }) {
     // Strict identity: only the real `package:flutter` DraggableScrollableSheet
-    // aliases; a customer look-alike falls through to `unknownWidget`.
+    // aliases; a custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
     final sheet =
         findWidgetsByName(catalog, 'RestageDraggableSheet').firstOrNull;
@@ -5350,7 +5350,7 @@ final class ExpressionTranslator {
   /// a partial or wrong group.
   ///
   /// Gated on the resolved `package:flutter` identity: returns `null` (the
-  /// caller continues to the `unknownWidget` path) for a customer look-alike,
+  /// caller continues to the `unknownWidget` path) for a custom look-alike,
   /// an unresolved construction, or a catalog without the target widget.
   /// Otherwise returns the emitted DSL, or `''` after recording a deferral.
   String? _singleSelectAlias({
@@ -5361,7 +5361,7 @@ final class ExpressionTranslator {
     required List<Issue> issues,
   }) {
     // Strict identity: only the real `package:flutter` widgets alias; a
-    // customer look-alike falls through to `unknownWidget`.
+    // custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
     final isRadio = widgetName == 'RadioGroup';
     final targetName =
@@ -5514,7 +5514,7 @@ final class ExpressionTranslator {
   /// argument — rather than emit a partial or misaligned set.
   ///
   /// Gated on the resolved `package:flutter` identity: returns `null` (the
-  /// caller continues to the `unknownWidget` path) for a customer look-alike,
+  /// caller continues to the `unknownWidget` path) for a custom look-alike,
   /// an unresolved construction, or a catalog without RestageToggleButtons.
   /// Otherwise returns the emitted DSL, or `''` after recording a deferral.
   String? _toggleButtonsAlias({
@@ -5523,7 +5523,7 @@ final class ExpressionTranslator {
     required List<Issue> issues,
   }) {
     // Strict identity: only the real `package:flutter` widget aliases; a
-    // customer look-alike falls through to `unknownWidget`.
+    // custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
     final target =
         findWidgetsByName(catalog, 'RestageToggleButtons').firstOrNull;
@@ -5622,7 +5622,7 @@ final class ExpressionTranslator {
   /// set.
   ///
   /// Gated on the resolved `package:flutter` identity: returns `null` (the
-  /// caller continues to the `unknownWidget` path) for a customer look-alike,
+  /// caller continues to the `unknownWidget` path) for a custom look-alike,
   /// an unresolved construction, or a catalog without the target widget.
   /// Otherwise returns the emitted DSL, or `''` after recording a deferral.
   String? _segmentedButtonAlias({
@@ -5631,7 +5631,7 @@ final class ExpressionTranslator {
     required List<Issue> issues,
   }) {
     // Strict identity: only the real `package:flutter` widget aliases; a
-    // customer look-alike falls through to `unknownWidget`.
+    // custom look-alike falls through to `unknownWidget`.
     if (!libraryIsFlutter(widgetClass)) return null;
     final target =
         findWidgetsByName(catalog, 'RestageSegmentedButtonString').firstOrNull;
@@ -5969,12 +5969,12 @@ final class ExpressionTranslator {
     }
     if (entry != null) _recordRfwCatalogConstructorOrigin(entry);
     _CustomWidgetFactoryRoute? customWidgetFactoryRoute;
-    // A registered customer widget that can inline still inlines —
+    // A registered custom widget that can inline still inlines —
     // its composition travels in the blob and renders with no runtime factory.
     // One that cannot inline (imperative or not yet supported) falls
     // through to the catalog reference below, resolved by the runtime-
-    // registered factory. Built-in catalog widgets are never customer widgets,
-    // so they always reference (unchanged). Without this, emitting a customer
+    // registered factory. Built-in catalog widgets are never custom widgets,
+    // so they always reference (unchanged). Without this, emitting a custom
     // catalog would flip every registered widget — including inlinable ones —
     // to a reference across every surface.
     if (entry != null &&
@@ -6044,9 +6044,9 @@ final class ExpressionTranslator {
       // PageView → RestagePager alias. A vanilla-Flutter `PageView(...)` is the
       // faithful Flutter spelling of the declarative paged surface; recognise
       // it and lower to the `RestagePager` catalog widget (carry-all-or-defer).
-      // Placed AFTER the custom-widget classification check (a customer
+      // Placed AFTER the custom-widget classification check (a custom
       // `@RestageWidget` named `PageView` still inlines above) and gated on the
-      // resolved `package:flutter` identity inside the alias — a customer
+      // resolved `package:flutter` identity inside the alias — a custom
       // look-alike or an unresolved construction returns `null` and falls
       // through to the `unknownWidget` diagnostic below.
       if (widgetName == 'PageView') {
@@ -6063,7 +6063,7 @@ final class ExpressionTranslator {
       // the PageView alias: a vanilla-Flutter draggable sheet is the faithful
       // spelling of the declarative draggable surface; recognise it and lower
       // (carry-all-or-defer). Gated on the resolved `package:flutter` identity
-      // inside the alias — a customer look-alike or an unresolved construction
+      // inside the alias — a custom look-alike or an unresolved construction
       // returns `null` and falls through below.
       if (widgetName == 'DraggableScrollableSheet') {
         final aliased = _draggableScrollableSheetAlias(
@@ -6080,7 +6080,7 @@ final class ExpressionTranslator {
       // aliases: the vanilla-Flutter idiom is the faithful spelling of the
       // declarative single-select surface; recognise it and lower
       // (carry-all-or-defer). Gated on the resolved `package:flutter` identity
-      // inside the alias — a customer look-alike or an unresolved construction
+      // inside the alias — a custom look-alike or an unresolved construction
       // returns `null` and falls through below.
       if (widgetName == 'RadioGroup' || widgetName == 'DropdownButton') {
         final aliased = _singleSelectAlias(
@@ -6096,7 +6096,7 @@ final class ExpressionTranslator {
       // posture as the single-select aliases: the vanilla-Flutter multi-toggle
       // is the faithful spelling of the declarative multi-toggle surface;
       // recognise it and lower (carry-all-or-defer). Gated on the resolved
-      // `package:flutter` identity inside the alias — a customer look-alike or
+      // `package:flutter` identity inside the alias — a custom look-alike or
       // an unresolved construction returns `null` and falls through below.
       if (widgetName == 'ToggleButtons') {
         final aliased = _toggleButtonsAlias(
@@ -6111,7 +6111,7 @@ final class ExpressionTranslator {
       // vanilla-Flutter segmented button is the faithful spelling of the
       // declarative segmented-button surface; recognise it and lower
       // (carry-all-or-defer). Gated on the resolved `package:flutter` identity
-      // inside the alias — a customer look-alike or an unresolved construction
+      // inside the alias — a custom look-alike or an unresolved construction
       // returns `null` and falls through below.
       if (widgetName == 'SegmentedButton') {
         final aliased = _segmentedButtonAlias(
@@ -6137,13 +6137,13 @@ final class ExpressionTranslator {
     // A referenced CUSTOM (non-built-in) catalog widget resolves against its
     // imported library at runtime — record it so the emitter imports it. A
     // built-in widget needs no extra import (the preamble covers it), and an
-    // inlinable customer widget returned above (it carries its own definition).
+    // inlinable custom widget returned above (it carries its own definition).
     if (WidgetLibrary.builtInByNamespace(entry.library.namespace) == null) {
       // The reference emits the widget's bare name into the blob. If that name
       // collides with a surface root or a DIFFERENT catalog widget, the
       // reference is ambiguous: name resolution would bind it to the root (a
       // self-recursion) or to the other widget (a silent wrong render), never
-      // to this customer widget. Fail loud rather than emit an
+      // to this custom widget. Fail loud rather than emit an
       // admitted-but-wrong reference. (The inline path raises the same class of
       // diagnostic; a widget that reaches the reference path — imperative, or
       // not yet inlineable with a rolled-back diagnostic — needs
@@ -7583,7 +7583,7 @@ final class ExpressionTranslator {
     }
     if (element is! ClassElement) return false;
     final ref = _dartTypeRefOfClass(element);
-    return ref != null && _customerStructuredByDartType.containsKey(ref);
+    return ref != null && _customStructuredByDartType.containsKey(ref);
   }
 
   bool _isExactFrameworkType(DartType type, String name) {
@@ -7804,7 +7804,7 @@ final class ExpressionTranslator {
     }
     final valueShape = property?.valueShape;
     if (valueShape is ScalarShape && valueShape.isOpaqueStringKeyedMap) {
-      return _customerMapSlotValue(resolved, issues);
+      return _customMapSlotValue(resolved, issues);
     }
     // A concrete-`Alignment` slot (`alignmentXY`) decodes a `{x, y}` map
     // (`RestageDecoders.alignmentXY`), so a Dart-source `Alignment.<member>`
@@ -7813,7 +7813,7 @@ final class ExpressionTranslator {
     // member name the runtime decoder nulls (a silent drop to the default).
     // The shared, element-gated `_structured.alignmentGeometry` does the
     // lowering: it value-asserts the member coordinates, defers a resolved
-    // customer `Alignment` look-alike with a diagnostic (never the substituted
+    // custom `Alignment` look-alike with a diagnostic (never the substituted
     // value or a bare string), and diagnoses `AlignmentDirectional` /
     // unsupported members.
     if (type == PropertyType.alignmentXY) {
@@ -7834,42 +7834,41 @@ final class ExpressionTranslator {
     return coerce ? _coerceForPropertyType(type, value) : value;
   }
 
-  String _customerMapSlotValue(Expression expr, List<Issue> issues) {
+  String _customMapSlotValue(Expression expr, List<Issue> issues) {
     if (expr is! SetOrMapLiteral) {
       return _translate(expr, issues);
     }
 
     final issuesBefore = issues.length;
     if (!expr.isMap) {
-      _addUnsupportedCustomerMapElement(expr, issues);
+      _addUnsupportedCustomMapElement(expr, issues);
       return '';
     }
 
     final mapType = _dartCoreMapType(expr.staticType);
     final keyShape =
         mapType == null ? null : resolveValueShape(mapType.typeArguments[0]);
-    final valueShape = mapType == null
-        ? null
-        : _customerMapValueShape(mapType.typeArguments[1]);
+    final valueShape =
+        mapType == null ? null : _customMapValueShape(mapType.typeArguments[1]);
     final entries = <String>[];
 
     // Preserve authored entry order. The decoder reconstructs a Dart Map whose
-    // iteration order can be observed by the customer's build(), unlike record
+    // iteration order can be observed by the app's build(), unlike record
     // label order; sorting here would change behavior rather than normalize
     // bytes.
     for (final element in expr.elements) {
       if (element is! MapLiteralEntry) {
-        _addUnsupportedCustomerMapElement(expr, issues);
+        _addUnsupportedCustomMapElement(expr, issues);
         continue;
       }
-      final key = _customerMapEntryKey(
+      final key = _customMapEntryKey(
         element.key,
         keyShape,
         expr,
         issues,
       );
       final shape =
-          valueShape ?? _customerMapValueShape(element.value.staticType);
+          valueShape ?? _customMapValueShape(element.value.staticType);
       final value = _translateSlotValue(
         element.value,
         shape?.propertyType ?? PropertyType.unknown,
@@ -7888,7 +7887,7 @@ final class ExpressionTranslator {
   InterfaceType? _dartCoreMapType(DartType? type) =>
       type == null ? null : dartCoreMapType(type);
 
-  CatalogValueShape? _customerMapValueShape(DartType? type) {
+  CatalogValueShape? _customMapValueShape(DartType? type) {
     if (type == null) return null;
     if (_dartCoreMapType(type) != null) {
       return ScalarShape.opaqueStringKeyedMap();
@@ -7900,7 +7899,7 @@ final class ExpressionTranslator {
     final element = type is InterfaceType ? type.element : null;
     if (element is! ClassElement) return null;
     final ref = _dartTypeRefOfClass(element);
-    final structured = ref == null ? null : _customerStructuredByDartType[ref];
+    final structured = ref == null ? null : _customStructuredByDartType[ref];
     if (structured == null) return null;
     return StructuredShape(
       propertyType: PropertyType.structured,
@@ -7911,7 +7910,7 @@ final class ExpressionTranslator {
     );
   }
 
-  String _customerMapEntryKey(
+  String _customMapEntryKey(
     Expression source,
     CatalogValueShape? expectedShape,
     SetOrMapLiteral map,
@@ -7941,11 +7940,11 @@ final class ExpressionTranslator {
       );
     }
 
-    _addUnsupportedCustomerMapElement(map, issues);
+    _addUnsupportedCustomMapElement(map, issues);
     return '';
   }
 
-  void _addUnsupportedCustomerMapElement(
+  void _addUnsupportedCustomMapElement(
     SetOrMapLiteral expr,
     List<Issue> issues,
   ) {
@@ -8419,7 +8418,7 @@ final class ExpressionTranslator {
   /// interception gate (the `.circular` form is deliberately excluded so it
   /// keeps flowing the frozen construct-variant transform byte-identically).
   /// Name-based — `_translate` re-applies the value-substitution framework
-  /// gate, so a resolved customer `BorderRadius` look-alike still defers there.
+  /// gate, so a resolved custom `BorderRadius` look-alike still defers there.
   bool _isAsymmetricBorderRadiusCtor(Expression expr) {
     final stripped = _stripParens(expr);
     final String className;

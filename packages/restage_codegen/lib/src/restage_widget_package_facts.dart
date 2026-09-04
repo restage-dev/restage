@@ -33,10 +33,10 @@ final class RestageWidgetPackageFacts {
   /// Exact widget declaration FQN to sorted, distinct owning libraries.
   final Map<String, List<WidgetLibrary>> ownershipByWidget;
 
-  /// Exact declarations carrying the genuine customer-widget annotation.
+  /// Exact declarations carrying the genuine custom-widget annotation.
   final Set<String> widgetDeclarations;
 
-  /// Whether this package contains any customer-widget declarations.
+  /// Whether this package contains any custom-widget declarations.
   bool get hasWidgetDeclarations => widgetDeclarations.isNotEmpty;
 }
 

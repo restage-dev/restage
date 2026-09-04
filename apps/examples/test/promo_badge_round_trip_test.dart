@@ -27,7 +27,7 @@ void main() {
   });
 
   testWidgets(
-    'codegen → register → paywall renders the customer-defined PromoBadge',
+    'codegen → register → paywall renders the custom-defined PromoBadge',
     (tester) async {
       const blob = '''
         import restage_example.widgets;

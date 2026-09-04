@@ -52,7 +52,7 @@ const Set<String> _kImperativeMotionTypeNames = {
 /// whose `State` holds a field of this type is driving imperative animation, so
 /// its (already-deferred) diagnostic NAMES the catalog motion widgets to adopt.
 ///
-/// Element-gated by design: a customer class that merely shares one of these
+/// Element-gated by design: a custom class that merely shares one of these
 /// names, or an unresolved type, yields false — never a wrong hint (the same
 /// look-alike discipline as [springAdoptTarget]).
 ///
@@ -71,7 +71,7 @@ bool isImperativeMotionType(DartType? type) {
 ///
 /// Recognises `SpringDescription(...)` / `SpringSimulation(...)` from
 /// `package:flutter/` — the imperative substrate [kRestageSpringWidget] wraps.
-/// Element-gated: a customer class that merely shares the name, or an
+/// Element-gated: a custom class that merely shares the name, or an
 /// unresolved reference, yields null — never a wrong hint. (Resolved by design,
 /// mirroring the number-format recogniser.)
 String? springAdoptTarget(InstanceCreationExpression expr) {

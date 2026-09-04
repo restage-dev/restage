@@ -126,7 +126,7 @@ final class InProcessRenderProvider implements SurfaceRenderProvider {
 
 /// Public in-process preview surface driven exclusively by [provider.render].
 ///
-/// Host configuration such as the entry widget and local customer widget
+/// Host configuration such as the entry widget and local custom widget
 /// registrations stays outside the transport-neutral [RenderRequest]. The
 /// rendered blob, data, environment, epoch, lifecycle events, and geometry all
 /// come from the provider's latest accepted request.

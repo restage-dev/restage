@@ -54,7 +54,7 @@ final class UnionEntry {
   final DiscriminatorSpec discriminator;
 
   /// Members of the union as cross-library references — built-in
-  /// members and customer-extended members compose uniformly.
+  /// members and custom-extended members compose uniformly.
   final List<WireIdRef> members;
 
   /// Stability tier.

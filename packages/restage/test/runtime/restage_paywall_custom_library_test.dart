@@ -23,7 +23,7 @@ void main() {
   setUp(Restage.debugReset);
 
   testWidgets(
-    'RestagePaywall renders widgets from a customer-registered library',
+    'RestagePaywall renders widgets from a custom-registered library',
     (tester) async {
       Restage.registerWidgetLibrary(
         const WidgetLibrary.custom('acme.design_system'),
@@ -40,7 +40,7 @@ void main() {
 
       const source = '''
         import acme.design_system;
-        widget Paywall = AcmeMarker(label: "from-customer-widget");
+        widget Paywall = AcmeMarker(label: "from-custom-widget");
       ''';
       final bytes =
           Uint8List.fromList(encodeLibraryBlob(parseLibraryFile(source)));
@@ -50,7 +50,7 @@ void main() {
         ),
       ));
       await tester.pumpAndSettle();
-      expect(find.text('from-customer-widget'), findsOneWidget);
+      expect(find.text('from-custom-widget'), findsOneWidget);
     },
   );
 }

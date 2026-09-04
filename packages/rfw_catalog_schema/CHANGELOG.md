@@ -5,7 +5,7 @@
 This section records the package side of a coordinated breaking release. The
 release version and publication timing are assigned separately.
 
-- Make the unnamed generative constructor the source of truth for customer
+- Make the unnamed generative constructor the source of truth for custom
   widget inputs, requiredness, positionalness, and order; descriptions may come
   from Dartdoc and `RestageProperty` becomes an optional metadata overlay.
 - Emit canonical catalog schema v5 while continuing to decode schema v4 at the
@@ -17,10 +17,10 @@ release version and publication timing are assigned separately.
 - Add `EmitTarget` and target-selective `@Ignore` authoring. Bare `@ignore` and
   `@Ignore()` retain their all-target behavior.
 - Add class-level `enabled` configuration and a composable `Config.enabled`
-  shorthand for RFW, A2UI, and Widgetbook customer-widget targets.
+  shorthand for RFW, A2UI, and Widgetbook custom-widget targets.
 - Remove the deprecated target fields from `RestageWidget` and
   `RestageProperty`.
-- Remove public `RestageWidget.childrenSlot`. Customer child-bearing properties
+- Remove public `RestageWidget.childrenSlot`. Custom child-bearing properties
   are derived from every exact `Widget` and `List<Widget>` constructor input;
   the `ChildrenSlot` enum and `WidgetEntry.childrenSlot` wire field remain for
   curated built-ins and backwards-compatible decoding.

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 import 'package:restage_example/widgets/pricing_card.dart' show Plan;
 
-/// A customer-defined pricing table that renders a *list* of [Plan] data-class
-/// values — the example app's demonstration of a customer **list-of-objects**
+/// A custom-defined pricing table that renders a *list* of [Plan] data-class
+/// values — the example app's demonstration of a custom **list-of-objects**
 /// property rendering natively as real Flutter widgets from a server-delivered
 /// blob.
 ///
@@ -22,7 +22,7 @@ class PricingTable extends StatelessWidget {
   /// Const constructor.
   const PricingTable({super.key, required this.plans});
 
-  /// The plans to render, in order (a customer list-of-data-class property).
+  /// The plans to render, in order (a custom list-of-data-class property).
   @RestageProperty(
     description: 'The plans to render, in order.',
     required: true,

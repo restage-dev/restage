@@ -6,7 +6,7 @@
 // `Alignment.<member>` / `Alignment(x, y)` to that map AT THE SLOT, replacing
 // the prior accidental floor-catch of a bare member string. Everything not
 // provably a framework `Alignment` value stays diagnosed:
-//   * a resolved customer `Alignment` look-alike DEFERS (no `{x, y}`
+//   * a resolved custom `Alignment` look-alike DEFERS (no `{x, y}`
 //     substitution AND no bare member string — the diagnosed defer);
 //   * `AlignmentDirectional` and unsupported members diagnose;
 //   * a genuinely-unknown property still diagnoses (the regression
@@ -15,7 +15,7 @@
 // Positives are VALUE-asserted against the real Flutter constants. Negatives
 // use the production constructor (strict framework predicate); the look-alike
 // negative resolves real Flutter (`rootPackage: 'apps_examples'`) so the gate
-// fires on the LOCAL customer class.
+// fires on the LOCAL custom class.
 
 import 'package:restage_codegen/src/catalog_validator.dart';
 import 'package:restage_codegen/src/expression_translator.dart';
@@ -139,7 +139,7 @@ void main() {
 
   group('alignmentXY slot diagnoses what it cannot provably lower', () {
     test(
-        'a resolved customer Alignment look-alike DEFERS at the slot — '
+        'a resolved custom Alignment look-alike DEFERS at the slot — '
         'no {x, y} substitution, no bare member string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

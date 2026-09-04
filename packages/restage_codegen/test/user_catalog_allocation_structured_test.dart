@@ -5,7 +5,7 @@ import 'package:rfw_catalog_compiler/rfw_catalog_compiler.dart';
 import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 import 'package:test/test.dart';
 
-/// Customer structured wire-ID allocation extends the codegen replay-match
+/// Custom structured wire-ID allocation extends the codegen replay-match
 /// model with structured/field/variant/parameter kinds. The load-bearing
 /// invariant: structured allocation runs STRICTLY AFTER widget/property
 /// allocation, so structured fields (which share the `p*` counter) append past
@@ -17,7 +17,7 @@ const _by = 'restage-codegen-user-catalog-allocator';
 
 /// A seed event log with two widgets + their properties already allocated
 /// (`w0001` AcmeBorder{child,color} -> p0001/p0002), and ZERO structured
-/// entries — the shape of the real committed customer log before this feature.
+/// entries — the shape of the real committed custom log before this feature.
 String _seedJsonl() => [
       {
         'at': _at,
@@ -160,7 +160,7 @@ StructuredEntry _badge({
     );
 
 void main() {
-  group('customer structured allocation — replay-match, after-widgets', () {
+  group('custom structured allocation — replay-match, after-widgets', () {
     test(
         'appends s*/v*/a* and continues p* past the existing widget props, '
         'leaving every existing w*/p* id byte-stable', () {
@@ -264,7 +264,7 @@ void main() {
     });
   });
 
-  group('customer structured allocation — sentinel resolution', () {
+  group('custom structured allocation — sentinel resolution', () {
     test(
         'resolves widget-property structuredRef (+ its valueShape ref) from '
         'the bare sentinel to the allocated structured id', () {

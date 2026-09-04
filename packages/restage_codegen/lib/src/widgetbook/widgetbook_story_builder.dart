@@ -267,7 +267,7 @@ bool _canReserveOutput(Directory lib, String output) {
     final prefix = reader.readSync(widgetbookStoryOwnershipProbeLength);
     return isRestageWidgetbookStorySource(String.fromCharCodes(prefix));
   } on FileSystemException {
-    // If startup cannot prove ownership, leave the source customer-owned. The
+    // If startup cannot prove ownership, leave the source app-owned. The
     // analyzer-backed build step will either ignore it or report a genuine
     // collision with its exact asset path.
     return false;
@@ -370,7 +370,7 @@ Iterable<String> _annotatedClassNames(
         // Imported const aliases cannot be identified soundly without package
         // resolution, which is unavailable while build_runner asks the factory
         // for its fixed output set. Every annotated class is therefore a
-        // possible output unless that path is already customer-authored. The
+        // possible output unless that path is already custom-authored. The
         // analyzer-backed package index remains the sole authority that owns
         // and emits stories, so unrelated annotations and lookalikes remain
         // inert.

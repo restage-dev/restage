@@ -111,18 +111,18 @@ void main() {
     if (root.existsSync()) await root.delete(recursive: true);
   });
 
-  Directory createCustomerProject() {
-    final project = Directory(p.join(root.path, 'customer'))..createSync();
+  Directory createCustomProject() {
+    final project = Directory(p.join(root.path, 'app'))..createSync();
     File(
       p.join(project.path, 'pubspec.yaml'),
-    ).writeAsStringSync('name: customer_project\n');
+    ).writeAsStringSync('name: custom_project\n');
     File(p.join(project.path, 'lib', 'main_render_bundle.dart'))
       ..createSync(recursive: true)
       ..writeAsStringSync('void main() {}\n');
     return project;
   }
 
-  void setAncestorCustomerMapping(String? rootUri) {
+  void setAncestorCustomMapping(String? rootUri) {
     final ancestorConfig = File(
       p.join(root.path, '.dart_tool', 'package_config.json'),
     );
@@ -131,11 +131,11 @@ void main() {
     final packages = document['packages']! as List<dynamic>;
     packages.removeWhere(
       (entry) =>
-          entry is Map<String, dynamic> && entry['name'] == 'customer_project',
+          entry is Map<String, dynamic> && entry['name'] == 'custom_project',
     );
     if (rootUri != null) {
       packages.add(<String, Object?>{
-        'name': 'customer_project',
+        'name': 'custom_project',
         'rootUri': rootUri,
         'packageUri': 'lib/',
         'languageVersion': '3.8',
@@ -144,50 +144,47 @@ void main() {
     ancestorConfig.writeAsStringSync(jsonEncode(document));
   }
 
-  String customerCatalog() => _catalogJson(
+  String customCatalog() => _catalogJson(
     library: _acme,
     name: 'AcmeBadge',
     widgetWireId: 'w0004',
     propertyWireId: 'p0004',
   );
 
-  test(
-    'unions all runtime built-ins with the exact customer catalog',
-    () async {
-      final customer = _catalogJson(
-        library: _acme,
-        name: 'AcmeBadge',
-        widgetWireId: 'w0004',
-        propertyWireId: 'p0004',
-        capabilityVersion: 7,
-      );
+  test('unions all runtime built-ins with the exact custom catalog', () async {
+    final custom = _catalogJson(
+      library: _acme,
+      name: 'AcmeBadge',
+      widgetWireId: 'w0004',
+      propertyWireId: 'p0004',
+      capabilityVersion: 7,
+    );
 
-      final union = decodeCatalog(
-        await createRenderBundleCapabilityCatalogUnion(root, customer),
-      );
+    final union = decodeCatalog(
+      await createRenderBundleCapabilityCatalogUnion(root, custom),
+    );
 
-      expect(union.libraries.keys.map((library) => library.namespace), <String>[
-        'restage.core',
-        'restage.material',
-        'restage.cupertino',
-        'acme.widgets',
-      ]);
-      expect(union.widgets.map((widget) => widget.name), <String>[
-        'CoreFixture',
-        'MaterialFixture',
-        'CupertinoFixture',
-        'AcmeBadge',
-      ]);
-      expect(union.libraries[_acme]!.capabilityVersion, 7);
-      expect(
-        union.findByName('AcmeBadge', _acme)!.properties.single.name,
-        'label',
-      );
-    },
-  );
+    expect(union.libraries.keys.map((library) => library.namespace), <String>[
+      'restage.core',
+      'restage.material',
+      'restage.cupertino',
+      'acme.widgets',
+    ]);
+    expect(union.widgets.map((widget) => widget.name), <String>[
+      'CoreFixture',
+      'MaterialFixture',
+      'CupertinoFixture',
+      'AcmeBadge',
+    ]);
+    expect(union.libraries[_acme]!.capabilityVersion, 7);
+    expect(
+      union.findByName('AcmeBadge', _acme)!.properties.single.name,
+      'label',
+    );
+  });
 
-  test('preserves a root-placement customer widget in the union', () async {
-    final customer = _catalogJson(
+  test('preserves a root-placement custom widget in the union', () async {
+    final custom = _catalogJson(
       library: _acme,
       name: 'AcmeRoot',
       widgetWireId: 'w0004',
@@ -196,18 +193,18 @@ void main() {
     );
 
     final union = decodeCatalog(
-      await createRenderBundleCapabilityCatalogUnion(root, customer),
+      await createRenderBundleCapabilityCatalogUnion(root, custom),
     );
 
     expect(union.findByName('AcmeRoot', _acme)!.category, isNull);
   });
 
   test(
-    'rejects a customer catalog that contradicts a built-in namespace',
+    'rejects a custom catalog that contradicts a built-in namespace',
     () async {
       final contradiction = _catalogJson(
         library: WidgetLibrary.core,
-        name: 'CustomerCore',
+        name: 'CustomCore',
         widgetWireId: 'w0005',
         propertyWireId: 'p0005',
       );
@@ -220,12 +217,12 @@ void main() {
   );
 
   test('validates open event identities structurally', () async {
-    final wire = jsonDecode(customerCatalog()) as Map<String, dynamic>;
+    final wire = jsonDecode(customCatalog()) as Map<String, dynamic>;
     final widget = (wire['widgets']! as List).single as Map<String, dynamic>;
     final properties = widget['properties']! as List;
     properties.add({
       'wireId': 'p9999',
-      'name': 'onArbitraryCustomerAction',
+      'name': 'onArbitraryCustomAction',
       'type': 'event',
       'description': 'An open callback identity.',
     });
@@ -239,7 +236,7 @@ void main() {
           .findByName('AcmeBadge', _acme)!
           .properties
           .map((property) => property.name),
-      contains('onArbitraryCustomerAction'),
+      contains('onArbitraryCustomAction'),
     );
 
     properties.last['name'] = 'on-invalid';
@@ -252,13 +249,13 @@ void main() {
   test(
     'accepts an ancestor workspace config mapped to the exact project',
     () async {
-      final project = createCustomerProject();
-      setAncestorCustomerMapping('../customer');
+      final project = createCustomProject();
+      setAncestorCustomMapping('../app');
 
       final union = decodeCatalog(
         await createRenderBundleCapabilityCatalogUnion(
           project,
-          customerCatalog(),
+          customCatalog(),
         ),
       );
 
@@ -270,11 +267,11 @@ void main() {
   );
 
   test('rejects an ancestor config that omits the project identity', () async {
-    final project = createCustomerProject();
-    setAncestorCustomerMapping(null);
+    final project = createCustomProject();
+    setAncestorCustomMapping(null);
 
     await expectLater(
-      createRenderBundleCapabilityCatalogUnion(project, customerCatalog()),
+      createRenderBundleCapabilityCatalogUnion(project, customCatalog()),
       throwsStateError,
     );
   });
@@ -282,12 +279,12 @@ void main() {
   test(
     'rejects an ancestor config mapping the project name elsewhere',
     () async {
-      final project = createCustomerProject();
+      final project = createCustomProject();
       Directory(p.join(root.path, 'sibling')).createSync();
-      setAncestorCustomerMapping('../sibling');
+      setAncestorCustomMapping('../sibling');
 
       await expectLater(
-        createRenderBundleCapabilityCatalogUnion(project, customerCatalog()),
+        createRenderBundleCapabilityCatalogUnion(project, customCatalog()),
         throwsStateError,
       );
     },
@@ -296,9 +293,9 @@ void main() {
   test(
     'rejects ancestor identity mismatch before scratch or process work',
     () async {
-      final project = createCustomerProject();
+      final project = createCustomProject();
       Directory(p.join(root.path, 'sibling')).createSync();
-      setAncestorCustomerMapping('../sibling');
+      setAncestorCustomMapping('../sibling');
       var tempCreations = 0;
       var processCalls = 0;
       final builder = FlutterRenderBundleBuilder(
@@ -327,7 +324,7 @@ void main() {
       await expectLater(
         builder.build(
           projectRoot: project,
-          catalogJson: customerCatalog(),
+          catalogJson: customCatalog(),
           parentOrigin: Uri.parse('http://dashboard.restage.localhost:8082'),
         ),
         throwsA(

@@ -41,11 +41,11 @@ final class FactoryFunctionBuilder implements Builder {
     final json = await buildStep.readAsString(input);
     final catalog = requireNativeCatalog(decodeCatalog(json));
 
-    // A pure-customer catalog (no built-in library) registers through the
-    // @RestageWidget factory aggregator, not this builder. Since a customer
+    // A pure-custom catalog (no built-in library) registers through the
+    // @RestageWidget factory aggregator, not this builder. Since a custom
     // package now emits its own catalog.json — and this builder is keyed on
-    // catalog.json — it runs on the customer catalog too; skip it rather than
-    // treating a customer namespace as a configuration error.
+    // catalog.json — it runs on the custom catalog too; skip it rather than
+    // treating a custom namespace as a configuration error.
     final hasBuiltInLibrary = catalog.libraries.keys.any(
       (l) => WidgetLibrary.builtInByNamespace(l.namespace) != null,
     );
@@ -80,7 +80,7 @@ final class FactoryFunctionBuilder implements Builder {
 ///   * `restage.material` → `kMaterialLibraryFactories`
 ///   * `restage.cupertino` → `kCupertinoLibraryFactories`
 ///
-/// Customer libraries register through the `@RestageWidget` flow
+/// Custom libraries register through the `@RestageWidget` flow
 /// (which emits `lib/user_catalog.g.dart`), not this builder, so any
 /// non-built-in namespace reaching this point is a configuration bug
 /// and surfaces as a [StateError].
@@ -96,7 +96,7 @@ String constMapNameFor(WidgetLibrary library) {
       throw StateError(
         'Unsupported library namespace for factory function emission: '
         "'${library.namespace}'. The factory builder runs only against "
-        'built-in libraries (restage.{core,material,cupertino}); customer '
+        'built-in libraries (restage.{core,material,cupertino}); custom '
         'libraries flow through the @RestageWidget aggregator instead.',
       );
   }
@@ -251,7 +251,7 @@ String _flutterImportFor(WidgetLibrary library) {
       throw StateError(
         'No Flutter import mapping for namespace '
         "'${library.namespace}'. The factory builder runs only against "
-        'built-in libraries; customer libraries flow through the '
+        'built-in libraries; custom libraries flow through the '
         '@RestageWidget aggregator.',
       );
   }

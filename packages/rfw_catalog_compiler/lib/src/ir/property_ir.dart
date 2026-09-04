@@ -143,8 +143,8 @@ enum ResolvedDefaultOrigin {
   /// Design-token inference.
   tokenInference,
 
-  /// Customer annotation.
-  customerAnnotation,
+  /// Custom annotation.
+  customAnnotation,
 }
 
 /// Metadata attached to a property after inference and overrides.

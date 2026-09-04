@@ -1,7 +1,7 @@
-import 'package:restage_codegen/src/customer_map_plan.dart';
-import 'package:restage_codegen/src/customer_preview_reservation.dart';
-import 'package:restage_codegen/src/customer_record_plan.dart';
-import 'package:restage_codegen/src/customer_structured_reconstruction.dart';
+import 'package:restage_codegen/src/custom_map_plan.dart';
+import 'package:restage_codegen/src/custom_preview_reservation.dart';
+import 'package:restage_codegen/src/custom_record_plan.dart';
+import 'package:restage_codegen/src/custom_structured_reconstruction.dart';
 import 'package:restage_codegen/src/dart_import_planner.dart';
 import 'package:restage_codegen/src/emit_utils.dart';
 import 'package:restage_codegen/src/factory_emitter.dart';
@@ -40,7 +40,7 @@ String? emitUserFactoriesDart(
   Map<String, RecordPlan> recordPlans = const {},
   Map<String, int> stampedCapabilityVersions = const {},
 }) {
-  validateCustomerPreviewReservations(widgets);
+  validateCustomPreviewReservations(widgets);
   final plannedUris = _referencedLibraryUris(
     widgets,
     structuredTypes: structuredTypes,
@@ -58,7 +58,7 @@ String? emitUserFactoriesDart(
   // The build-time context for inline app-widget reconstruction: admitted
   // structured types, slot-keyed map and record plans, nominal slot targets,
   // and import aliases. No allocated wire IDs are needed.
-  final customer =
+  final custom =
       structuredTypes.isEmpty && mapPlans.isEmpty && recordPlans.isEmpty
           ? null
           : (
@@ -78,9 +78,9 @@ String? emitUserFactoriesDart(
   for (final entry in widgets) {
     final body = emitFactoryFunction(
       entry,
-      customer: customer,
+      custom: custom,
       aliases: aliasByUri,
-      customerChildProperties: true,
+      customChildProperties: true,
     );
     if (body == null) {
       onSkip?.call(entry);

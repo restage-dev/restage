@@ -3,7 +3,7 @@
 # runtime, which only A2UI consumers depend on.
 #
 # This example targets A2UI (genui) only, not RFW delivery, so the RFW
-# customer-catalog + factory builders are turned off — they would emit unused
+# custom-catalog + factory builders are turned off — they would emit unused
 # `.g.dart` files (and a RatingPicker "not mechanically generatable for RFW"
 # warning that does not apply to the A2UI path).
 targets:

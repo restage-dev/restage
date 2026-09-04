@@ -113,7 +113,7 @@ void main() {
             libraryOrigin: 'package:restage_codegen',
             returnCategory: HelperReturnCategory.voidCallback,
             translate: (_) => 'event "activate" '
-                '{ __restage_measurement_customer_key: "bad" }',
+                '{ __restage_measurement_custom_key: "bad" }',
           ),
         ]),
       measurementRouteEmissionPlan: MeasurementRouteEmissionPlan([

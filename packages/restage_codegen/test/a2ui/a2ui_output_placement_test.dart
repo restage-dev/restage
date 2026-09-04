@@ -22,7 +22,7 @@ import '../helpers.dart';
 const _defaultDartPath = 'lib/generated/restage_a2ui_catalog.g.dart';
 const _defaultJsonPath = 'lib/generated/restage_a2ui_catalog.a2ui.json';
 
-const _customerSource = '''
+const _customSource = '''
   import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
   @RestageLibrary(
@@ -35,7 +35,7 @@ const _customerSource = '''
     name: 'Gauge',
     library: WidgetLibrary.custom('acme.widgets'),
     category: WidgetCategory.decoration,
-    description: 'a customer gauge',
+    description: 'a custom gauge',
   )
   class Gauge {
     const Gauge({required this.value});
@@ -51,12 +51,12 @@ Future<Map<String, List<int>>> _emit(Map<String, dynamic> options) async {
   );
   readerWriter.testing.writeString(
     AssetId('apps_examples', 'lib/gauge.dart'),
-    _customerSource,
+    _customSource,
   );
   final logs = <String>[];
   final result = await testBuilder(
     UserA2uiCatalogBuilder(BuilderOptions(options)),
-    const {'apps_examples|lib/gauge.dart': _customerSource},
+    const {'apps_examples|lib/gauge.dart': _customSource},
     rootPackage: 'apps_examples',
     readerWriter: readerWriter,
     flattenOutput: true,

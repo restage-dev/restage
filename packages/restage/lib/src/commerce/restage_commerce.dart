@@ -50,7 +50,7 @@ final class CommerceCapabilityCode {
     return switch (code) {
       'purchase' => purchase,
       'restore' => restore,
-      'customer_state.read' => customerStateRead,
+      'purchaser_state.read' => purchaserStateRead,
       _ => CommerceCapabilityCode._(code, false),
     };
   }
@@ -69,9 +69,9 @@ final class CommerceCapabilityCode {
   /// Restoring purchases through the configured commerce authority.
   static const restore = CommerceCapabilityCode._('restore', true);
 
-  /// Reading the current Restage customer state.
-  static const customerStateRead = CommerceCapabilityCode._(
-    'customer_state.read',
+  /// Reading the current Restage purchaser state.
+  static const purchaserStateRead = CommerceCapabilityCode._(
+    'purchaser_state.read',
     true,
   );
 
@@ -127,7 +127,7 @@ final class CommerceActionStatusCode {
   /// The action was submitted for asynchronous authority reconciliation.
   ///
   /// This is not proof of purchase, entitlement, fulfillment, refund, or
-  /// refund protection. Applications wait for authoritative customer state.
+  /// refund protection. Applications wait for authoritative purchaser state.
   static const submittedForReconciliation = CommerceActionStatusCode._(
     'submitted_for_reconciliation',
     true,
@@ -200,23 +200,23 @@ final class CommerceFailureCode {
   String toString() => value;
 }
 
-/// A normalized, Restage-defined customer-state status.
+/// A normalized, Restage-defined purchaser-state status.
 ///
 /// Unknown values are preserved for forward compatibility. Provider status
 /// names are mapped to Restage semantics before they reach this boundary.
-final class CommerceCustomerStateStatusCode {
-  factory CommerceCustomerStateStatusCode(String value) {
+final class CommercePurchaserStateStatusCode {
+  factory CommercePurchaserStateStatusCode(String value) {
     final code = _requireCommerceCode(value);
     return switch (code) {
       'unavailable' => unavailable,
       'available' => available,
       'stale' => stale,
       'unknown' => unknown,
-      _ => CommerceCustomerStateStatusCode._(code, false),
+      _ => CommercePurchaserStateStatusCode._(code, false),
     };
   }
 
-  const CommerceCustomerStateStatusCode._(this.value, this.isKnown);
+  const CommercePurchaserStateStatusCode._(this.value, this.isKnown);
 
   /// The normalized Restage code.
   final String value;
@@ -224,24 +224,25 @@ final class CommerceCustomerStateStatusCode {
   /// Whether this SDK recognizes [value].
   final bool isKnown;
 
-  /// Customer state cannot currently be read.
-  static const unavailable = CommerceCustomerStateStatusCode._(
+  /// Purchaser state cannot currently be read.
+  static const unavailable = CommercePurchaserStateStatusCode._(
     'unavailable',
     true,
   );
 
-  /// Customer state is current from the Restage authority.
-  static const available = CommerceCustomerStateStatusCode._('available', true);
+  /// Purchaser state is current from the Restage authority.
+  static const available =
+      CommercePurchaserStateStatusCode._('available', true);
 
   /// Retained state may be out of date and must not authorize fulfillment.
-  static const stale = CommerceCustomerStateStatusCode._('stale', true);
+  static const stale = CommercePurchaserStateStatusCode._('stale', true);
 
-  /// The authority could not establish the customer's current state.
-  static const unknown = CommerceCustomerStateStatusCode._('unknown', true);
+  /// The authority could not establish the purchaser's current state.
+  static const unknown = CommercePurchaserStateStatusCode._('unknown', true);
 
   @override
   bool operator ==(Object other) =>
-      other is CommerceCustomerStateStatusCode && other.value == value;
+      other is CommercePurchaserStateStatusCode && other.value == value;
 
   @override
   int get hashCode => value.hashCode;
@@ -323,11 +324,11 @@ final class CommerceRestoreRequest
 }
 
 final class CommerceRefreshRequest
-    extends CommerceRequest<CommerceCustomerState> {
+    extends CommerceRequest<CommercePurchaserState> {
   const CommerceRefreshRequest() : super._();
 
   @override
-  Future<CommerceCustomerState> _dispatch(RestageCommerce commerce) =>
+  Future<CommercePurchaserState> _dispatch(RestageCommerce commerce) =>
       commerce.refresh();
 
   @override
@@ -404,24 +405,24 @@ final class CommerceActionResult extends CommerceResponse {
   int get hashCode => Object.hash(status, failureCode);
 }
 
-/// The current customer-state authority status.
-final class CommerceCustomerState extends CommerceResponse {
-  CommerceCustomerState._({required this.status}) : super._();
+/// The current purchaser-state authority status.
+final class CommercePurchaserState extends CommerceResponse {
+  CommercePurchaserState._({required this.status}) : super._();
 
-  final CommerceCustomerStateStatusCode status;
+  final CommercePurchaserStateStatusCode status;
 
   @override
   bool operator ==(Object other) =>
-      other is CommerceCustomerState && other.status == status;
+      other is CommercePurchaserState && other.status == status;
 
   @override
   int get hashCode => status.hashCode;
 }
 
 abstract final class RestageCommerce {
-  CommerceCustomerState get currentState;
+  CommercePurchaserState get currentState;
 
-  Stream<CommerceCustomerState> get states;
+  Stream<CommercePurchaserState> get states;
 
   Future<CommerceAvailability> availability(
     CommerceAvailabilityRequest request,
@@ -431,27 +432,28 @@ abstract final class RestageCommerce {
 
   Future<CommerceActionResult> restore();
 
-  Future<CommerceCustomerState> refresh();
+  Future<CommercePurchaserState> refresh();
 
   Future<R> perform<R extends CommerceResponse>(CommerceRequest<R> request);
 }
 
-final class _RetainedCommerceStateStream extends Stream<CommerceCustomerState> {
+final class _RetainedCommerceStateStream
+    extends Stream<CommercePurchaserState> {
   _RetainedCommerceStateStream(this._state);
 
-  final CommerceCustomerState _state;
+  final CommercePurchaserState _state;
 
   @override
   bool get isBroadcast => true;
 
   @override
-  StreamSubscription<CommerceCustomerState> listen(
-    void Function(CommerceCustomerState event)? onData, {
+  StreamSubscription<CommercePurchaserState> listen(
+    void Function(CommercePurchaserState event)? onData, {
     Function? onError,
     void Function()? onDone,
     bool? cancelOnError,
   }) {
-    final controller = StreamController<CommerceCustomerState>(sync: true);
+    final controller = StreamController<CommercePurchaserState>(sync: true);
     final subscription = controller.stream.listen(
       onData,
       onError: onError,
@@ -465,20 +467,20 @@ final class _RetainedCommerceStateStream extends Stream<CommerceCustomerState> {
 
 final class _RestageCommerce implements RestageCommerce {
   _RestageCommerce() {
-    _currentState = CommerceCustomerState._(
-      status: CommerceCustomerStateStatusCode.unavailable,
+    _currentState = CommercePurchaserState._(
+      status: CommercePurchaserStateStatusCode.unavailable,
     );
     _states = _RetainedCommerceStateStream(_currentState);
   }
 
-  late final CommerceCustomerState _currentState;
-  late final Stream<CommerceCustomerState> _states;
+  late final CommercePurchaserState _currentState;
+  late final Stream<CommercePurchaserState> _states;
 
   @override
-  CommerceCustomerState get currentState => _currentState;
+  CommercePurchaserState get currentState => _currentState;
 
   @override
-  Stream<CommerceCustomerState> get states => _states;
+  Stream<CommercePurchaserState> get states => _states;
 
   @override
   Future<CommerceAvailability> availability(
@@ -518,7 +520,7 @@ final class _RestageCommerce implements RestageCommerce {
   }
 
   @override
-  Future<CommerceCustomerState> refresh() async => _currentState;
+  Future<CommercePurchaserState> refresh() async => _currentState;
 
   @override
   Future<R> perform<R extends CommerceResponse>(CommerceRequest<R> request) =>

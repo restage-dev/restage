@@ -2,10 +2,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
 /// The source position whose Widgetbook native-lowering vocabulary applies.
 enum WidgetbookPropertyContext {
-  /// A direct property on a customer `@RestageWidget`.
+  /// A direct property on a custom `@RestageWidget`.
   widgetProperty,
 
-  /// A field inside a customer structured value.
+  /// A field inside a custom structured value.
   structuredField,
 }
 

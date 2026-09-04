@@ -312,7 +312,7 @@ List<CatalogItem> buildRestageCatalogItems() {
                   },
                   required: <String>['included', 'label'],
                 )),
-            'name': S.string(description: 'The customer-facing product name.'),
+            'name': S.string(description: 'The user-facing product name.'),
             'price': S.combined(
                 description: 'The price — a nested data class.',
                 $ref: '#/\$defs/Money'),
@@ -621,7 +621,7 @@ List<CatalogItem> buildRestageCatalogItems() {
 /// GenUI 0.10.1 inline catalogs are serialization-only here;
 /// no end-to-end inline server interoperability is claimed.
 const String restageA2uiCatalogId =
-    'restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a';
+    'restage:catalog/sha256/aefc12c5a7be2b30aabf470e6e106d3a69fc7672230a2ad33867d07505f99337';
 
 /// Compact identity and capability metadata for the generated catalog.
 /// The producer-facing `.a2ui.json` remains a separate portable artifact.
@@ -630,7 +630,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
   a2uiProtocolVersion: '0.9.1',
   catalogId: restageA2uiCatalogId,
   fingerprint:
-      'sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a',
+      'sha256/aefc12c5a7be2b30aabf470e6e106d3a69fc7672230a2ad33867d07505f99337',
   catalogContentVersion: 1,
   availableLibraries: <A2uiAvailableLibrary>[
     A2uiAvailableLibrary(namespace: 'acme.lessons', version: 1),
@@ -650,7 +650,7 @@ const RestageA2uiCapability restageA2uiCapability = RestageA2uiCapability(
 );
 
 const List<String> _restageA2uiSystemPromptFragments = <String>[
-  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/d6b369b15a1af111309890326ae15afe1c79dee3e36c7a8737f056f1d9d7cf2a".',
+  'For every A2UI createSurface message, set catalogId to "restage:catalog/sha256/aefc12c5a7be2b30aabf470e6e106d3a69fc7672230a2ad33867d07505f99337".',
   'Callout: Use for a short highlighted aside around optional content.',
   'ComparisonPanel: A headed panel with an introduction, examples, and conclusion.',
   'QuizCheck: A prompt with a checkable answer bound to a boolean value.',

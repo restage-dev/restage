@@ -368,9 +368,9 @@ class FrameworkConsts extends StatelessWidget {
     });
 
     test(
-        'a customer class named Colors (NOT package:flutter) is NOT recognised '
+        'a custom class named Colors (NOT package:flutter) is NOT recognised '
         '— the lookalike defers, never a silent wrong blob', () async {
-      // The recognition is element-resolved: a customer class that happens to
+      // The recognition is element-resolved: a custom class that happens to
       // be named `Colors` must NOT be promoted to composable, or the translator
       // would silently lower `Colors.brand` against its hard-coded Material
       // table (emitting the wrong int, which the colour floor accepts).
@@ -384,7 +384,7 @@ class Color {
   final int value;
 }
 
-// A customer class that happens to be named `Colors` — not package:flutter.
+// A custom class that happens to be named `Colors` — not package:flutter.
 class Colors {
   Colors._();
   static const Color brand = Color(0xFF112233);

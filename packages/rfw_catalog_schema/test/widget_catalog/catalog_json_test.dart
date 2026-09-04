@@ -662,7 +662,7 @@ void main() {
             properties: [
               PropertyEntry(
                 wireId: WireId('p0001'),
-                name: 'onArbitraryCustomerAction',
+                name: 'onArbitraryCustomAction',
                 type: PropertyType.event,
                 description: 'An open callback identity.',
               ),
@@ -677,7 +677,7 @@ void main() {
             .properties
             .single
             .name,
-        'onArbitraryCustomerAction',
+        'onArbitraryCustomAction',
       );
 
       for (final invalidName in [
@@ -1076,7 +1076,7 @@ void main() {
     });
 
     test('decoded catalog map keys round-trip into typed-subclass lookups', () {
-      // Author the catalog with a typed customer-library subclass; encode +
+      // Author the catalog with a typed custom-library subclass; encode +
       // decode (which always produces _CustomLibrary); the namespace-based
       // equality from WidgetLibrary makes the typed subclass valid as a key
       // for retrieving entries the decoder put under _CustomLibrary.

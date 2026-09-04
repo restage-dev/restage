@@ -88,7 +88,7 @@ void main() {
   });
 
   test(
-    'explicit selection preserves all six exact customer coordinates',
+    'explicit selection preserves all six exact custom coordinates',
     () async {
       final coordinates = <({int id, int parentId, String slug, String plane})>[
         (id: 101, parentId: 11, slug: 'dev', plane: 'sandbox'),

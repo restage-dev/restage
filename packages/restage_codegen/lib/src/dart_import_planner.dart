@@ -4,7 +4,7 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 /// prefix.
 ///
 /// [sourcePath] identifies the widget/property that requires the bare spelling
-/// so namespace failures point back to customer source rather than generated
+/// so namespace failures point back to custom source rather than generated
 /// output.
 final class DartBareSymbolImport {
   /// Creates a bare-symbol import requirement.
@@ -20,7 +20,7 @@ final class DartBareSymbolImport {
   /// Public type name reproduced bare by generated source.
   final String symbol;
 
-  /// Customer source path that requires this spelling.
+  /// Custom source path that requires this spelling.
   final String sourcePath;
 }
 
@@ -191,7 +191,7 @@ final class DartImportPlanner {
       if (request.sourcePath.trim().isEmpty) {
         throw StateError(
           'Bare Dart type ${request.libraryUri}#${request.symbol} has no '
-          'customer source path.',
+          'custom source path.',
         );
       }
       final uri = publicDartImportUri(request.libraryUri);
@@ -496,9 +496,9 @@ Set<String> dartConstValueLibraryUris(DartConstValue value) => switch (value) {
 /// material / cupertino layers, mapped to the framework area each one copies.
 ///
 /// A class in one of these packages is treated as framework code rather than
-/// customer code. The names are reserved on the package registry to the
+/// custom code. The names are reserved on the package registry to the
 /// framework vendor, so a look-alike cannot arrive through an ordinary hosted
-/// dependency — which is what lets the framework-vs-customer predicates accept
+/// dependency — which is what lets the framework-vs-custom predicates accept
 /// them while keeping the value-substitution guarantee they exist to provide.
 ///
 /// The guarantee is about ordinary dependencies, not an absolute: a deliberate
@@ -527,7 +527,7 @@ const List<String> kDesignPackageLibraryPrefixes = [
 /// symbols the catalog names, not a heuristic: every catalog entry sourced from
 /// the framework's material / cupertino layers round-trips through it.
 ///
-/// Any other URI — framework, SDK or customer — is returned unchanged.
+/// Any other URI — framework, SDK or custom — is returned unchanged.
 ///
 /// Canonicalising at the points where an identity is DERIVED keeps every
 /// downstream join exact. Without it a design-package construction would miss
@@ -546,7 +546,7 @@ String canonicalFrameworkLibraryUri(String uri) {
 /// Resolves an analyzer defining-library URI to an importable public URI.
 ///
 /// Flutter's analyzer elements commonly report `package:flutter/src/...` even
-/// when customer code imported a public barrel. Generated customer code must
+/// when custom code imported a public barrel. Generated custom code must
 /// never import those implementation libraries directly — and the same holds
 /// for a design package's own `lib/src/`, which generated code must reach
 /// through that package's barrel rather than by naming its private tree.

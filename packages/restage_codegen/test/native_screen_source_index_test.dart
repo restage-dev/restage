@@ -588,7 +588,7 @@ class SecondScreen extends StatelessWidget {
     );
   });
 
-  test('rejects an exact screen and customer A2UI component name collision',
+  test('rejects an exact screen and custom A2UI component name collision',
       () async {
     const screen = '''
 import 'package:flutter/widgets.dart';
@@ -609,10 +609,10 @@ import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 @RestageWidget(
   name: 'shared_component',
   library: WidgetLibrary.custom('acme.widgets'),
-  description: 'A colliding customer component.',
+  description: 'A colliding custom component.',
 )
-class CustomerComponent extends StatelessWidget {
-  const CustomerComponent({super.key});
+class CustomComponent extends StatelessWidget {
+  const CustomComponent({super.key});
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
@@ -622,7 +622,7 @@ class CustomerComponent extends StatelessWidget {
     final probe = await runIndexProbe(
       {
         'lib/onboarding/screens/shared_component.dart': screen,
-        'lib/customer_component.dart': widget,
+        'lib/custom_component.dart': widget,
       },
       validateA2uiNamespace: true,
     );
@@ -640,9 +640,9 @@ class CustomerComponent extends StatelessWidget {
         contains('lib/onboarding/screens/shared_component.dart'),
         contains('@RestageWidget'),
         contains(
-          'package:apps_examples/customer_component.dart#CustomerComponent',
+          'package:apps_examples/custom_component.dart#CustomComponent',
         ),
-        contains('lib/customer_component.dart'),
+        contains('lib/custom_component.dart'),
       ),
     );
   });

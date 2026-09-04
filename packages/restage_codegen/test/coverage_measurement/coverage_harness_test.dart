@@ -25,7 +25,7 @@ const String _kSnapshotPath =
 
 /// Per-fixture inputs the harness classifies. Each entry pairs the
 /// in-workspace asset path (`lib/coverage_fixtures/<file>.dart`) with
-/// the catalog widgets that file's customer widgets compose against —
+/// the catalog widgets that file's custom widgets compose against —
 /// each catalog entry's `flutterType` matches the `<library URI>#<Class>`
 /// the classifier derives for the local stub class in the fixture.
 const List<({String inputPath, String relativePath})> _kFixtures = [

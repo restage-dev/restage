@@ -33,17 +33,17 @@ void main() {
 
       final result = await resolveSources(
         {
-          'customer_app|lib/restage_imports.dart': barrel,
-          'customer_app|lib/widgets/acme_button.dart': button,
-          'customer_app|lib/widgets/plain.dart': plain,
+          'host_app|lib/restage_imports.dart': barrel,
+          'host_app|lib/widgets/acme_button.dart': button,
+          'host_app|lib/widgets/plain.dart': plain,
         },
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -103,17 +103,17 @@ void main() {
 
       final result = await resolveSources(
         {
-          'customer_app|lib/restage_imports.dart': barrel,
-          'customer_app|lib/widgets/b_pack.dart': bPack,
-          'customer_app|lib/widgets/a_pack.dart': aPack,
+          'host_app|lib/restage_imports.dart': barrel,
+          'host_app|lib/widgets/b_pack.dart': bPack,
+          'host_app|lib/widgets/a_pack.dart': aPack,
         },
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -157,14 +157,14 @@ void main() {
       ''';
 
       final result = await resolveSources(
-        {'customer_app|lib/restage_imports.dart': barrel},
+        {'host_app|lib/restage_imports.dart': barrel},
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -180,14 +180,14 @@ void main() {
         () async {
       const barrel = 'const _unrelated = 0;';
       final result = await resolveSources(
-        {'customer_app|lib/restage_imports.dart': barrel},
+        {'host_app|lib/restage_imports.dart': barrel},
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -210,14 +210,14 @@ void main() {
       ''';
 
       final result = await resolveSources(
-        {'customer_app|lib/restage_imports.dart': barrel},
+        {'host_app|lib/restage_imports.dart': barrel},
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -232,7 +232,7 @@ void main() {
 
   group('walkRestageLibrary — filtering', () {
     test('rejects a reserved built-in namespace with an error', () async {
-      // A customer barrel that claims a built-in namespace must be rejected
+      // A custom barrel that claims a built-in namespace must be rejected
       // immediately: the walk does not proceed and the declaration is null.
       const barrel = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
@@ -242,14 +242,14 @@ void main() {
       ''';
 
       final result = await resolveSources(
-        {'customer_app|lib/restage_imports.dart': barrel},
+        {'host_app|lib/restage_imports.dart': barrel},
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -268,13 +268,13 @@ void main() {
     test(
         'drops a @RestageWidget class from a foreign package and emits a '
         'warning, but keeps the declaration', () async {
-      // The barrel lives in `customer_app` but the @RestageLibrary.package
+      // The barrel lives in `host_app` but the @RestageLibrary.package
       // names `acme_design_system`. The @RestageWidget class is declared in
-      // `customer_app` (not in `acme_design_system`), so it is foreign: it
+      // `host_app` (not in `acme_design_system`), so it is foreign: it
       // must be dropped with a warning, but the walk still proceeds.
       const barrel = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
-        export 'widgets/customer_button.dart';
+        export 'widgets/custom_button.dart';
 
         @RestageLibrary(
           library: WidgetLibrary.custom('acme.design_system'),
@@ -282,30 +282,30 @@ void main() {
         )
         const _sentinel = 0;
       ''';
-      const customerButton = '''
+      const customButton = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
 
         @RestageWidget(
-          name: 'CustomerButton',
+          name: 'CustomButton',
           library: WidgetLibrary.custom('acme.design_system'),
           category: WidgetCategory.input,
           description: 'A button in the wrong package.',
         )
-        class CustomerButton { const CustomerButton(); }
+        class CustomButton { const CustomButton(); }
       ''';
 
       final result = await resolveSources(
         {
-          'customer_app|lib/restage_imports.dart': barrel,
-          'customer_app|lib/widgets/customer_button.dart': customerButton,
+          'host_app|lib/restage_imports.dart': barrel,
+          'host_app|lib/widgets/custom_button.dart': customButton,
         },
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -325,8 +325,8 @@ void main() {
         "keeps a @RestageWidget class from the barrel's own package when "
         '@RestageLibrary.package is null', () async {
       // When @RestageLibrary.package is null the effective package is the
-      // barrel's own package (`customer_app`). A @RestageWidget class
-      // declared in `customer_app` should be kept with no diagnostic.
+      // barrel's own package (`host_app`). A @RestageWidget class
+      // declared in `host_app` should be kept with no diagnostic.
       const barrel = '''
         import 'package:rfw_catalog_schema/rfw_catalog_schema.dart';
         export 'widgets/own_button.dart';
@@ -348,16 +348,16 @@ void main() {
 
       final result = await resolveSources(
         {
-          'customer_app|lib/restage_imports.dart': barrel,
-          'customer_app|lib/widgets/own_button.dart': ownButton,
+          'host_app|lib/restage_imports.dart': barrel,
+          'host_app|lib/widgets/own_button.dart': ownButton,
         },
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,
@@ -373,9 +373,9 @@ void main() {
     test(
         'keeps the own-package widget and drops the foreign one in the same '
         'walk', () async {
-      // The barrel lives in `customer_app` with no @RestageLibrary.package, so
-      // the effective package is `customer_app`. It exports TWO @RestageWidget
-      // classes: one declared in `customer_app` (matches → kept) and one
+      // The barrel lives in `host_app` with no @RestageLibrary.package, so
+      // the effective package is `host_app`. It exports TWO @RestageWidget
+      // classes: one declared in `host_app` (matches → kept) and one
       // declared in `foreign_pkg` (foreign → dropped). This proves the filter
       // is per-class, not all-or-nothing.
       const barrel = '''
@@ -411,17 +411,17 @@ void main() {
 
       final result = await resolveSources(
         {
-          'customer_app|lib/restage_imports.dart': barrel,
-          'customer_app|lib/widgets/own_widget.dart': ownWidget,
+          'host_app|lib/restage_imports.dart': barrel,
+          'host_app|lib/widgets/own_widget.dart': ownWidget,
           'foreign_pkg|lib/foreign_widget.dart': foreignWidget,
         },
         (resolver) async {
           final lib = await resolver.libraryFor(
-            AssetId('customer_app', 'lib/restage_imports.dart'),
+            AssetId('host_app', 'lib/restage_imports.dart'),
           );
           return walkRestageLibrary(
             barrel: lib,
-            barrelAssetId: AssetId('customer_app', 'lib/restage_imports.dart'),
+            barrelAssetId: AssetId('host_app', 'lib/restage_imports.dart'),
           );
         },
         readAllSourcesFromFilesystem: true,

@@ -50,7 +50,7 @@ void main() {
               ),
               // Generated file does not import rfw directly — the SDK
               // re-exports DataSource / ArgumentDecoders /
-              // LocalWidgetBuilder, so the customer package isn't
+              // LocalWidgetBuilder, so the custom package isn't
               // required to depend on rfw.
               isNot(contains("import 'package:rfw/rfw.dart'")),
               contains(
@@ -82,7 +82,7 @@ void main() {
                 'DataSource source)',
               ),
               // An all-simple-property package (no structured
-              // types) still emits the customer library aliased (`as s0`),
+              // types) still emits the custom library aliased (`as s0`),
               // so the constructor must be qualified with that alias. A
               // bare `AcmeBadge(...)` reference is undefined under the
               // prefixed import and fails analysis.

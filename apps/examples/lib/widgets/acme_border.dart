@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:restage/restage.dart';
 
-/// Customer-defined fixture that wraps any child in a colored border.
-/// Exercises a required customer `Widget` property end-to-end through the
+/// Custom-defined fixture that wraps any child in a colored border.
+/// Exercises a required custom `Widget` property end-to-end through the
 /// generated factory pipeline.
 @RestageWidget(
   name: 'AcmeBorder',

@@ -11,17 +11,17 @@ import 'helpers.dart';
 /// A widget join and a STRUCTURED-TYPE join are different joins. Binding the
 /// widgets by canonical identity leaves the structured path untouched, and the
 /// structured path is where a design-package value type is mistaken for a
-/// customer data class: it is not the framework by the literal framework
+/// custom data class: it is not the framework by the literal framework
 /// prefix, and it does have a generative constructor with parameters, which is
-/// the whole of what the customer-data-class test asks.
+/// the whole of what the custom-data-class test asks.
 ///
-/// The consequence is not a diagnostic. A value type wrongly walked as customer
+/// The consequence is not a diagnostic. A value type wrongly walked as custom
 /// data yields a structured entry keyed to the design package, which no catalog
 /// entry matches, and the widget is dropped at admission — silently, taking its
 /// library with it when it is the only widget there.
 void main() {
   group('design-package structured properties', () {
-    test('a design-package value type is not walked as a customer data class',
+    test('a design-package value type is not walked as a custom data class',
         () async {
       final result = await runWidgetVisitorOn({
         'lib/styled_button.dart': '''
@@ -55,7 +55,7 @@ void main() {
         designSourced,
         isEmpty,
         reason: "a design package carries the framework's own value types, so "
-            'one of them must never become a customer structured entry — the '
+            'one of them must never become a custom structured entry — the '
             'entry it would produce is keyed to a library no catalog entry '
             'names, and the widget carrying it is dropped at admission',
       );
@@ -102,8 +102,8 @@ void main() {
       expect(
         result.structuredTypes.map((entry) => entry.sourceType).toList(),
         isEmpty,
-        reason: 'the framework prefix is already excluded from customer data '
-            'classes, so this produces no customer structured entry — which is '
+        reason: 'the framework prefix is already excluded from custom data '
+            'classes, so this produces no custom structured entry — which is '
             'exactly the answer the design-package case must reach',
       );
       expect(

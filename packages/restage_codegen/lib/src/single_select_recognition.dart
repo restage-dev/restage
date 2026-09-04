@@ -235,7 +235,7 @@ SingleSelectOutcome? _typeArgumentGate(
     // Resolved instantiation: inspect the first (and only) type argument. A
     // resolved `String` (incl. via a `String`-aliased typedef, which resolves
     // through) recognises; any other resolved argument — `int`, `Object`,
-    // `dynamic`, `num`, a customer enum, … written `<int>` or inferred — defers
+    // `dynamic`, `num`, a custom enum, … written `<int>` or inferred — defers
     // loud, since the String widget cannot faithfully carry it.
     final arg = staticType.typeArguments.first;
     if (arg.isDartCoreString) return null;
@@ -407,7 +407,7 @@ _LeafOutcome _optionFromCarrier(
 /// a framework `Column` / `ListView` / `ListBody` (resolved to
 /// `package:flutter`) whose `children` is a plain list literal, or a bare list
 /// literal. Returns `null` for any dynamic / builder / non-list shape, and for a
-/// resolved customer look-alike named `Column`/`ListView`/`ListBody` that is NOT
+/// resolved custom look-alike named `Column`/`ListView`/`ListBody` that is NOT
 /// the framework container (defer-loud at the caller).
 List<Expression>? _staticChildLeaves(Expression child) {
   if (child is ListLiteral) {
@@ -422,7 +422,7 @@ List<Expression>? _staticChildLeaves(Expression child) {
   // `ListView(children: [...])` only — the `.builder` form (a dynamic
   // itemBuilder) is not a static leaf list.
   if (creation.constructorName.name != null) return null;
-  // Element-gate the wrapper to `package:flutter`. A customer container named
+  // Element-gate the wrapper to `package:flutter`. A custom container named
   // `Column`/`ListView`/`ListBody` (resolving to a non-flutter library) may
   // reorder / filter / inject children — treating it as a static Flutter
   // container would silently lower a reordered or dropped option set. A
@@ -453,7 +453,7 @@ List<Expression>? _plainListElements(ListLiteral list) {
 
 /// Returns the [InstanceCreationExpression] for an unnamed construction of a
 /// framework class named [name], or `null` for any other shape. Uses the
-/// resolved element when available (rejecting a customer look-alike) and falls
+/// resolved element when available (rejecting a custom look-alike) and falls
 /// back to the bare type name for unresolved synthetic-test input.
 InstanceCreationExpression? _frameworkCreationNamed(
   Expression expr,

@@ -3,7 +3,7 @@ import 'package:meta/meta.dart';
 import 'package:restage_codegen/src/library_visitor.dart';
 import 'package:restage_codegen/src/widget_visitor.dart';
 
-/// [LibraryVisitor] that walks `@RestageWidget`-annotated customer classes.
+/// [LibraryVisitor] that walks `@RestageWidget`-annotated custom classes.
 ///
 /// Thin adapter around the free [visitRestageWidgets] function — the AST
 /// walk lives there as a pure helper so it can be unit-tested independently

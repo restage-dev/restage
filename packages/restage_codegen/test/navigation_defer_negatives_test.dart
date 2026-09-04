@@ -403,7 +403,7 @@ builder: (_) => condition
       );
     });
 
-    test('resolved customer Navigator look-alike is not recognised', () async {
+    test('resolved custom Navigator look-alike is not recognised', () async {
       final outcome = recogniseNavigationTrigger(
         await parseExpressionFromSourceForTest(
           '''
@@ -435,7 +435,7 @@ Object x(BuildContext context) => () => Navigator.push<void>(
       expect(outcome, isA<NavigationNotRecognised>());
     });
 
-    test('customer look-alike @PaywallSource pushed screen fatal-defers',
+    test('custom look-alike @PaywallSource pushed screen fatal-defers',
         () async {
       final outcome = recogniseNavigationTrigger(
         await parseExpressionFromSourceForTest(

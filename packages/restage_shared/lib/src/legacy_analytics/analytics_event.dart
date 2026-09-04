@@ -162,7 +162,7 @@ final class AnalyticsEvent {
   /// Per-surface-presentation session id (mount→dismiss). `null` for app-wide.
   final String? surfaceSessionId;
 
-  /// Opt-in customer-supplied user id.
+  /// Opt-in app-supplied user id.
   final String? userId;
 
   /// Client app context (required for `source=client`).

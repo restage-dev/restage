@@ -121,7 +121,7 @@ InterfaceElement? _annotationClass(ElementAnnotation annotation) {
 /// Frontends that accept public annotations must use this element, together
 /// with its library URI, as the provenance boundary.  The source spelling of
 /// an unresolved annotation is useful for diagnostics, but it is never enough
-/// to admit a customer declaration.
+/// to admit a custom declaration.
 InterfaceElement? resolvedAnnotationClass(ElementAnnotation annotation) {
   return _annotationClass(annotation);
 }

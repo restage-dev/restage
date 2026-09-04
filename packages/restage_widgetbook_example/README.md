@@ -1,7 +1,7 @@
 # Restage + Widgetbook v4 example
 
-This public example package compiles one customer authoring model into a
-Restage RFW catalog, a customer-only A2UI catalog, and a Widgetbook v4
+This public example package compiles one custom authoring model into a
+Restage RFW catalog, a custom-only A2UI catalog, and a Widgetbook v4
 workbench. It is checked in as an executable example and is not published to
 pub.dev.
 
@@ -21,7 +21,7 @@ screen flow:
    `footer` inputs prove several arbitrary child-bearing names on one widget,
    with no slot annotation.
 4. The same `CatalogShowcase` uses useful `a2ui.Config` producer guidance and
-   write-back selection. Every customer A2UI component keeps `id` and
+   write-back selection. Every custom A2UI component keeps `id` and
    `component` on the protocol envelope and nests exact constructor inputs
    under required `props`. RFW callback events remain automatic from supported
    constructor callback signatures, so the example configures no RFW-specific
@@ -48,11 +48,11 @@ dart run build_runner build
 
 That one normal invocation produces or updates:
 
-- RFW customer catalog/factory output and the screen descriptor, `.rfwtxt`,
+- RFW custom catalog/factory output and the screen descriptor, `.rfwtxt`,
   `.rfw`, and `.capability.json` artifacts;
 - `lib/generated/restage_a2ui_catalog.g.dart` and
   `lib/generated/restage_a2ui_catalog.a2ui.json`;
-- one Widgetbook `*.stories.dart` input per admitted customer widget or screen,
+- one Widgetbook `*.stories.dart` input per admitted custom widget or screen,
   Widgetbook's matching `*.stories.g.dart` plumbing, and
   `lib/components.g.dart`.
 
@@ -77,7 +77,7 @@ runtime values.
 
 ## Watch mode
 
-Edits to an already-known customer widget or screen regenerate its native A2UI
+Edits to an already-known custom widget or screen regenerate its native A2UI
 and Widgetbook outputs live in `build_runner watch`. Adding, removing, or
 renaming an annotated class changes native generated output-file membership;
 restart the watcher after that change. The next cold run cleans orphaned story

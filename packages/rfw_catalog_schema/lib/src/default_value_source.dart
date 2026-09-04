@@ -118,7 +118,7 @@ final class TokenRefDefault extends DefaultValueSource {
   const TokenRefDefault(this.token);
 
   /// Cross-library reference; the token may live in `restage.core`,
-  /// `restage.material`, or a customer library.
+  /// `restage.material`, or a custom library.
   final WireIdRef token;
 
   @override
@@ -136,7 +136,7 @@ final class TokenRefDefault extends DefaultValueSource {
 /// has a property-specific default that doesn't warrant surfacing as a
 /// reusable design token (e.g. `Text.style.color` binding to
 /// `defaultTextStyle.color` is a Flutter convention, not a
-/// customer-facing design-system value).
+/// app-facing design-system value).
 @immutable
 final class ThemeBindingDefault extends DefaultValueSource {
   /// Const constructor.

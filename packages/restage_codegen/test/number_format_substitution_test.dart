@@ -14,7 +14,7 @@ import 'helpers.dart';
 /// equivalent (the widget runs the SAME NumberFormat constructor with the SAME
 /// statically-extracted config) or it does not fire**. Every deferral is a
 /// specific, named diagnostic; the rewrite never silently drops a property and
-/// never substitutes a customer look-alike.
+/// never substitutes a custom look-alike.
 ///
 /// The faithful styled e2e (real catalog, `style` TextStyle-decompose, byte
 /// round-trip) lives at the builder level; the differential output matrix lives
@@ -151,9 +151,9 @@ Object x() => $body;
 
   group('defers — the look-alike defense (element-gated on package:intl/)', () {
     test(
-        'a real Flutter Text wrapping a CUSTOMER NumberFormat is never '
+        'a real Flutter Text wrapping a CUSTOM NumberFormat is never '
         'substituted', () async {
-      // No intl import: NumberFormat resolves to the in-source customer class;
+      // No intl import: NumberFormat resolves to the in-source custom class;
       // Text still resolves to package:flutter/. The element gate withholds
       // the substitution — a look-alike must never become RestagePrice.
       final expr = await parseExpressionFromSourceForTest(

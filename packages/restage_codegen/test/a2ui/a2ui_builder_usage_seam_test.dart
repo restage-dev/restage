@@ -9,7 +9,7 @@ import '../helpers.dart';
 /// generated catalog's system-prompt fragments — `"<name>: <text>"`, falling
 /// back to the widget's `description` when `usage` is absent.
 ///
-/// Drives the real `UserA2uiCatalogBuilder` over a customer package, mirroring
+/// Drives the real `UserA2uiCatalogBuilder` over a custom package, mirroring
 /// the harness in `a2ui_builder_coverage_fail_loud_test.dart`.
 Future<(bool succeeded, String dart)> _runBuilder(
   Map<String, String> sources,
@@ -216,7 +216,7 @@ void main() {
           final T value;
         }
 
-        /// A concrete customer control.
+        /// A concrete custom control.
         @RestageWidget(
           name: 'Control',
           library: WidgetLibrary.custom('acme.widgets'),
@@ -251,7 +251,7 @@ void main() {
           final void Function(String) onChanged;
         }
 
-        /// A concrete customer control.
+        /// A concrete custom control.
         @a2ui.Config.writeBackValues({'onChanged': 'value'})
         @RestageWidget(
           name: 'Control',
@@ -275,7 +275,7 @@ void main() {
           final void Function(String) onChanged;
         }
 
-        /// A concrete customer control.
+        /// A concrete custom control.
         @RestageWidget(
           name: 'Control',
           library: WidgetLibrary.custom('acme.widgets'),

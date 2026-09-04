@@ -1,4 +1,4 @@
-/// Widgetbook-specific customer catalog authoring annotations.
+/// Widgetbook-specific custom catalog authoring annotations.
 library;
 
 export 'package:restage_shared/widgetbook.dart';

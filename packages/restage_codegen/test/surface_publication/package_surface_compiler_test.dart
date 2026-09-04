@@ -1612,7 +1612,7 @@ List<int> _routeLibraryBlob(
       'business': 'slot-$index',
     };
     if (authoredReserved && reference == '__authored_reserved_argument__') {
-      eventArguments[kMeasurementRouteArgumentKeyV1] = 'customer-authored';
+      eventArguments[kMeasurementRouteArgumentKeyV1] = 'custom-authored';
     } else {
       eventArguments[kMeasurementRouteReferenceMarkerKeyV1] =
           MeasurementRouteEmissionPlan.markerForGeneratedReference(

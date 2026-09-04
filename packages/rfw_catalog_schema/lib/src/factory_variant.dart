@@ -109,7 +109,7 @@ final class ConstructorVariant extends FactoryVariant {
 }
 
 /// A static factory method returning the structured type (e.g. a
-/// customer's `AcmeColor.fromHex(String hex)`, or Flutter's
+/// app's `AcmeColor.fromHex(String hex)`, or Flutter's
 /// `Color.lerp(Color? a, Color? b, double t)`).
 ///
 /// Analyzer source is a `MethodElement` with `isStatic == true`;
@@ -253,7 +253,7 @@ enum VariantSourceKind {
   constructor,
 
   /// Static factory method returning the structured type (e.g. a
-  /// customer's `AcmeColor.fromHex(String hex)`, or Flutter's
+  /// app's `AcmeColor.fromHex(String hex)`, or Flutter's
   /// `Color.lerp(Color? a, Color? b, double t)`). Authored as a
   /// [StaticMethodVariant]; analyzer source is a `MethodElement` with
   /// `isStatic == true`.

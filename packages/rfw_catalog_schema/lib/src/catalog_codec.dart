@@ -894,7 +894,7 @@ void _validateStructuredField(StructuredField field, String path) {
 /// union-category type is covered automatically.
 ///
 /// Enforced at BOTH decode (`_structuredFieldFromJson`, the load-bearing
-/// customer-import path that covers plain `decodeCatalog`) and the encode /
+/// app-import path that covers plain `decodeCatalog`) and the encode /
 /// `requireNativeCatalog` validation (`_validateStructuredField`).
 void _checkStructuredFieldRefShape(StructuredField field, String path) {
   final type = field.type;
@@ -3383,7 +3383,7 @@ StructuredField _structuredFieldFromJson(Map<String, dynamic> j, String path) {
     valueShape: _valueShapeFromJson(j['valueShape'], '$path.valueShape'),
   );
   // The decoder is the load-bearing half of the ref/type-shape contract: it
-  // covers every entrypoint, including plain decodeCatalog (the customer-import
+  // covers every entrypoint, including plain decodeCatalog (the app-import
   // path), not just the requireNativeCatalog validation pass.
   _checkStructuredFieldRefShape(field, path);
   return field;

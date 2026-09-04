@@ -12,7 +12,7 @@ import 'package:yaml/yaml.dart';
 /// an output the getter writes but build.yaml omits is exactly the class of
 /// bug that hid the capability sidecar from the build graph, and a missing
 /// `runs_before` edge is exactly the class that lets a screen builder race the
-/// not-yet-written customer catalog (the catalog read swallows the miss, so
+/// not-yet-written custom catalog (the catalog read swallows the miss, so
 /// nothing fails loud at build time). This test pins extensions, factory
 /// wiring, and the ordering graph together so any future drift fails loud —
 /// and derives the ordering rules from the declared builder-name set, so a
@@ -291,10 +291,10 @@ void main() {
 
     test('the catalog JSON emitter is ordered before every catalog consumer',
         () {
-      // Builders that resolve widgets against the merged customer catalog
+      // Builders that resolve widgets against the merged custom catalog
       // must appear in user_catalog_json.runs_before. If the edge is missing,
       // the catalog read swallows the not-yet-written file and the consumer
-      // silently resolves against an EMPTY customer catalog — a custom widget
+      // silently resolves against an EMPTY custom catalog — a custom widget
       // then misclassifies with no build error naming the real cause. The
       // consumer set is derived from the declared names, so a new surface's
       // screen builder cannot be forgotten.
@@ -307,7 +307,7 @@ void main() {
         expect(
           runsBefore['user_catalog_json'],
           contains('restage_codegen:$consumer'),
-          reason: '"$consumer" reads the merged customer catalog; '
+          reason: '"$consumer" reads the merged custom catalog; '
               '"user_catalog_json" must be ordered before it.',
         );
       }
@@ -322,7 +322,7 @@ void main() {
     });
   });
 
-  // The README tells a customer which builders to switch off and what their
+  // The README tells a custom which builders to switch off and what their
   // inputs are. Those are claims about build.yaml, written in prose a long way
   // from it, and a wrong one costs the reader a build they cannot explain: an
   // `enabled: false` under a key that does not exist is accepted silently by
@@ -333,7 +333,7 @@ void main() {
     final builders = _declaredBuilders;
 
     /// The builder keys [text] names, in the `restage_codegen:<key>` form a
-    /// customer writes in their own `build.yaml`.
+    /// custom writes in their own `build.yaml`.
     Set<String> builderKeysIn(String text) => {
           for (final match
               in RegExp('restage_codegen:([a-z_][a-z0-9_]*)').allMatches(text))
@@ -348,7 +348,7 @@ void main() {
             .first
             .toString();
 
-    /// Builders whose input is a placeholder rather than the customer's files.
+    /// Builders whose input is a placeholder rather than the app's files.
     Set<String> packageWide({required String autoApply}) => {
           for (final entry in builders.entries)
             if ((entry.value as YamlMap)['auto_apply'] == autoApply &&
@@ -368,7 +368,7 @@ void main() {
       expect(
         named.difference(builders.keys.map((key) => '$key').toSet()),
         isEmpty,
-        reason: 'the README tells a customer to configure these keys and '
+        reason: 'the README tells a custom to configure these keys and '
             'build.yaml does not declare them. build_runner accepts a '
             'configuration block under an unknown builder key without '
             'complaint, so the reader would get no error and no effect',
@@ -398,7 +398,7 @@ void main() {
         reason: 'the recipe is presented as the complete way to switch these '
             'builders off in a package. A package-wide builder added to '
             'build.yaml and left out of it would keep running in a package '
-            'the customer believes they opted out of',
+            'the custom believes they opted out of',
       );
     });
 

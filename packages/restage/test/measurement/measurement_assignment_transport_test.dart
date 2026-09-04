@@ -192,6 +192,7 @@ void main() {
       'userId',
       'accountId',
       'customerId',
+      'purchaserId',
       'installationId',
       'UniqueKey',
       'ValueKey',

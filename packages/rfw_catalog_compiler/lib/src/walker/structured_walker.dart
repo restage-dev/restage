@@ -354,7 +354,7 @@ StructuredWalkResult _walkConcrete({
             break;
         }
 
-        // A map of a customer data class is admitted on a widget property and
+        // A map of a custom data class is admitted on a widget property and
         // deferred when it appears on a field of a data class.
         switch (classifyMapType(
           field.type,

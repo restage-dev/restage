@@ -4,7 +4,7 @@ import 'package:rfw_catalog_schema/src/dart_identifier.dart';
 ///
 /// Returns `null` when [source] is not an exact supported public spelling.
 /// Scalar payloads use the RFW target's built-in `dart:core` vocabulary.
-/// List payloads are non-null lists of the customer scalar vocabulary, with
+/// List payloads are non-null lists of the custom scalar vocabulary, with
 /// nullable elements allowed.
 String? parseRfwCallbackValueType(String source) {
   const prefix = 'ValueChanged<';
@@ -22,14 +22,14 @@ String? parseRfwCallbackValueType(String source) {
   }
   if (!isPublicDartTypeIdentity('dart:core', payload)) return null;
   final supported = isList
-      ? _customerScalarPayloads.contains(payload)
+      ? _customScalarPayloads.contains(payload)
       : _builtInScalarPayloads.contains(payload);
   if (!supported) return null;
   final scalar = '$payload${nullable ? '?' : ''}';
   return isList ? 'List<$scalar>' : scalar;
 }
 
-const Set<String> _customerScalarPayloads = {
+const Set<String> _customScalarPayloads = {
   'bool',
   'int',
   'double',
@@ -38,7 +38,7 @@ const Set<String> _customerScalarPayloads = {
 };
 
 const Set<String> _builtInScalarPayloads = {
-  ..._customerScalarPayloads,
+  ..._customScalarPayloads,
   'DateTime',
   'Duration',
 };

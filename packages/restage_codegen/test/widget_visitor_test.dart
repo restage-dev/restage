@@ -66,7 +66,7 @@ void main() {
       expect(property.required, isFalse);
     });
 
-    test('rejects a customer constructor collision with analyticsId', () async {
+    test('rejects a custom constructor collision with analyticsId', () async {
       final result = await runWidgetVisitorOn(
         {
           'lib/foo.dart': '''
@@ -148,12 +148,12 @@ void main() {
             class Btn {
               const Btn({
                 required this.child,
-                this.onArbitraryCustomerAction,
+                this.onArbitraryCustomAction,
               });
               @RestageProperty(description: 'Label', required: true)
               final Widget child;
               @RestageProperty(description: 'Tap')
-              final void Function()? onArbitraryCustomerAction;
+              final void Function()? onArbitraryCustomAction;
             }
           ''',
         },
@@ -167,7 +167,7 @@ void main() {
       expect(child.required, isTrue);
       expect(child.type, PropertyType.widget);
       final tap = w.properties.firstWhere(
-        (p) => p.name == 'onArbitraryCustomerAction',
+        (p) => p.name == 'onArbitraryCustomAction',
       );
       expect(tap.required, isFalse);
       expect(tap.type, PropertyType.event);
@@ -189,7 +189,7 @@ void main() {
           )
           class Callbacks {
             const Callbacks({
-              this.onArbitraryCustomerAction,
+              this.onArbitraryCustomAction,
               this.onValue,
               this.onNullableValue,
               this.onValues,
@@ -203,7 +203,7 @@ void main() {
             });
 
             @RestageProperty(description: 'No payload.')
-            final void Function()? onArbitraryCustomerAction;
+            final void Function()? onArbitraryCustomAction;
             @RestageProperty(description: 'One scalar payload.')
             final void Function(String)? onValue;
             @RestageProperty(description: 'One nullable scalar payload.')
@@ -233,7 +233,7 @@ void main() {
           property.name: property,
       };
       expect(
-        properties['onArbitraryCustomerAction']!.callbackSignature,
+        properties['onArbitraryCustomAction']!.callbackSignature,
         isNull,
       );
       expect(
@@ -604,8 +604,8 @@ void main() {
       expect(snapshot(named), snapshot(legacy));
       final namedTone = named.widgets.single.properties
           .singleWhere((property) => property.name == 'tone');
-      // The RFW target now carries the customer enum's identity — it
-      // was previously dropped here, which made the RFW customer catalog reject
+      // The RFW target now carries the custom enum's identity — it
+      // was previously dropped here, which made the RFW custom catalog reject
       // the enum slot. The RFW-vs-legacy-default byte-neutrality asserted above
       // still holds (both are the RFW target), so this pins the corrected RFW
       // behavior, not a divergence between the explicit target and the default.

@@ -1,24 +1,24 @@
 // The nested name-only value-helper gate.
 //
 // The outermost value-substitution gate (in `_instanceCreation` /
-// `_methodInvocation`) defers a TOP-LEVEL customer value-type look-alike. But a
+// `_methodInvocation`) defers a TOP-LEVEL custom value-type look-alike. But a
 // value-type argument NESTED inside a REAL framework constructor is lowered by
 // hand-authored helpers (and the recipe member-table) that dispatch by NAME
 // ONLY — no element check. So a real-framework `LinearGradient` / `RadialGradient`
 // / `RoundedRectangleBorder` passes the outer gate, then its inner value-type
-// argument (a customer `Alignment.topLeft` / `BorderSide.none` look-alike) would
+// argument (a custom `Alignment.topLeft` / `BorderSide.none` look-alike) would
 // silently emit the framework value with no diagnostic.
 //
 // These tests pin the closure: every nested helper element-gates its name
 // dispatch on the shared framework-library predicate (defer-on-resolved-non-
-// framework, name-fallback-on-unresolved). A resolved customer look-alike
+// framework, name-fallback-on-unresolved). A resolved custom look-alike
 // DEFERS WITH A DIAGNOSTIC — emitting NO framework value AND NO bare member
 // string (the diagnosed defer, never the bare-string fallback = the silent-loss
 // vector). Real-framework members still lower correctly (the positive guards).
 //
 // Negatives use the PRODUCTION constructor (strict framework predicate) with
 // real-Flutter resolution (`rootPackage: 'apps_examples'`): the real outer
-// constructor is recognised, the LOCAL customer value class (mounted under
+// constructor is recognised, the LOCAL custom value class (mounted under
 // `package:apps_examples/`) is not — so the inner gate fires. Positives assert
 // the lowered value byte-for-byte (mirroring the `.zero` value-assertion
 // discipline).
@@ -38,7 +38,7 @@ ExpressionTranslator _prodTranslator() => ExpressionTranslator(
 void main() {
   group('_alignmentGeometry — nested gradient begin/end', () {
     test(
-        'a customer Alignment nested in a real LinearGradient defers — '
+        'a custom Alignment nested in a real LinearGradient defers — '
         'no {x,y} substitution, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -86,7 +86,7 @@ void main() {
 
   group('_borderSideExpression — nested shape-border side', () {
     test(
-        'a customer BorderSide.none nested in a real RoundedRectangleBorder '
+        'a custom BorderSide.none nested in a real RoundedRectangleBorder '
         'defers — no framework map, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -126,7 +126,7 @@ void main() {
 
   group('_borderSide — nested BorderStyle style', () {
     test(
-        'a customer BorderStyle.solid nested in a real BorderSide defers — '
+        'a custom BorderStyle.solid nested in a real BorderSide defers — '
         'no style substitution, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -166,7 +166,7 @@ void main() {
 
   group('recipe member-table — nested gradient center/focal', () {
     test(
-        'a customer Alignment.center nested in a real RadialGradient defers — '
+        'a custom Alignment.center nested in a real RadialGradient defers — '
         'no {x,y} substitution, no bare string', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -229,7 +229,7 @@ void main() {
 
   group('_alignmentGeometry — nested Alignment(x, y) ctor', () {
     test(
-        'a customer Alignment(x, y) nested in a real LinearGradient defers — '
+        'a custom Alignment(x, y) nested in a real LinearGradient defers — '
         'no coordinate map', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''
@@ -273,7 +273,7 @@ void main() {
 
   group('_linearBorderEdge — nested LinearBorderEdge ctor', () {
     test(
-        'a customer LinearBorderEdge nested in a real LinearBorder defers — '
+        'a custom LinearBorderEdge nested in a real LinearBorder defers — '
         'no edge map', () async {
       final expr = await parseExpressionFromSourceForTest(
         '''

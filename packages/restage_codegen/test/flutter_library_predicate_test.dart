@@ -6,7 +6,7 @@ import 'helpers.dart';
 
 /// Unit tests for the shared `libraryIsFlutter(Element?)` recognition atom —
 /// the single `package:flutter/`-library check the translator, the classifier,
-/// and the theme-read recogniser all key their framework-vs-customer
+/// and the theme-read recogniser all key their framework-vs-custom
 /// disambiguation on. A null element (genuinely-unresolvable input) is NOT
 /// recognised: the recognised set is the resolved-real-Flutter case only.
 void main() {
@@ -29,7 +29,7 @@ void main() {
       expect(libraryIsFlutter(prefix.element), isTrue);
     });
 
-    test('a customer look-alike class (not package:flutter/) is not recognised',
+    test('a custom look-alike class (not package:flutter/) is not recognised',
         () async {
       final expr = await parseExpressionFromSourceForTest('''
         class EdgeInsets {

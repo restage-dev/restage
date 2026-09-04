@@ -78,12 +78,12 @@ const _materialCatalog = '''
 ''';
 
 // Shadowing case. Two built-ins claiming the same name is impossible
-// (the catalog generator rejects it), but a customer library *can*
+// (the catalog generator rejects it), but a custom library *can*
 // register a name that shadows a built-in — that's the case the
 // translator's ambiguity diagnostic targets. This synthetic fixture
 // uses two built-ins as a stand-in to prove the loader surfaces
 // multiple matches; the loader doesn't care which library is built-in
-// vs customer.
+// vs custom.
 const _materialCatalogWithShadow = '''
 {
   "schemaVersion": 5,
@@ -190,8 +190,8 @@ void main() {
       expect(catalog.widgets, isEmpty);
     });
 
-    test('merges the customer catalog from the input package', () async {
-      // The customer's own generated catalog (custom @RestageLibrary widgets)
+    test('merges the custom catalog from the input package', () async {
+      // The app's own generated catalog (custom @RestageLibrary widgets)
       // lives at lib/src/widget_catalog/catalog.json in the package being built
       // (here the probe input package, restage_codegen). It must merge so a
       // surface referencing a custom widget validates AND the capability
@@ -417,8 +417,8 @@ Catalog _fullGraphCoreCatalog() {
   );
 }
 
-/// A minimal customer catalog: one custom library declaring a capability
-/// version, with one widget — the shape a customer's generated
+/// A minimal custom catalog: one custom library declaring a capability
+/// version, with one widget — the shape an app's generated
 /// `lib/src/widget_catalog/catalog.json` takes.
 Catalog _customCatalog() => Catalog(
       schemaVersion: kSupportedSchemaVersion,

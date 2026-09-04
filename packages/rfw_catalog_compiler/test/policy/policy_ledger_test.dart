@@ -31,10 +31,10 @@ void main() {
       const base = PolicyLedger.builtIn();
       final extra = base.extend(
         denylist: base.denylist.extend(
-          types: const {'CustomerHostType'},
+          types: const {'CustomHostType'},
         ),
       );
-      expect(extra.denylist.types, contains('CustomerHostType'));
+      expect(extra.denylist.types, contains('CustomHostType'));
       expect(
         extra.denylist.types,
         contains('TextEditingController'),

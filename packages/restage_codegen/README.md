@@ -191,7 +191,7 @@ The two roster ledgers, `assets/restage/source-index.json` and
 declares a Restage source, or reports a problem with one. A package that merely
 depends on `restage_codegen` does not get them.
 
-**Turning builders off.** If a package will never declare a customer widget or
+**Turning builders off.** If a package will never declare a custom widget or
 a Restage surface — a data layer, a networking package, a generated-model
 package — switch the package-wide builders off in that package's `build.yaml`
 (the two opt-in builders are off unless you turned them on):

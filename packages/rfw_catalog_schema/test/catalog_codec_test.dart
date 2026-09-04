@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 
 void main() {
   group('native decompose codec', () {
-    test('v5 omits and round-trips an absent customer widget category', () {
+    test('v5 omits and round-trips an absent custom widget category', () {
       final catalog = _nativeCatalog(category: null);
 
       final wire = jsonDecode(encodeCatalog(catalog)) as Map<String, dynamic>;
@@ -1359,7 +1359,7 @@ void main() {
   group('StructuredField ref/type-shape contract (decoder)', () {
     // Mutate the single structured field (BoxDecoration.fields[0]) of
     // _nativeCatalog and re-encode for plain decodeCatalog — the decoder is the
-    // durable, all-entrypoints fix (covers the customer-import path).
+    // durable, all-entrypoints fix (covers the app-import path).
     String jsonWithFieldMutated(
       void Function(Map<String, dynamic> field) mutate,
     ) {

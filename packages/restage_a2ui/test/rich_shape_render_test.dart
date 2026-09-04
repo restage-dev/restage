@@ -14,7 +14,7 @@ import 'generated/rich_shape_fixture.dart';
 /// 0.9.2, exactly as genui would: a real [CatalogItemContext] + [DataContext]
 /// and `Catalog.buildWidget` in a real element tree. It proves the generated
 /// reconstruction code RUNS (not merely type-checks) and that the reconstructed
-/// customer data shapes — a nested data class, a list-of-objects, a String-
+/// custom data shapes — a nested data class, a list-of-objects, a String-
 /// keyed map, a named record, nullable fields — arrive at the widget.
 Future<void> _pumpCatalogItem(
   WidgetTester tester, {
